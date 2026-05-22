@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 
-const ROLES = ['customer', 'admin', 'seller', 'fabric_store', 'tailor', 'delivery'];
+const ROLES = ['customer', 'admin', 'fabric_store', 'tailor', 'delivery'];
+
+const APPROVAL_STATUSES = ['pending', 'approved', 'rejected'];
 
 const userSchema = new mongoose.Schema(
   {
@@ -13,6 +15,14 @@ const userSchema = new mongoose.Schema(
       default: 'customer',
       required: true,
     },
+    approvalStatus: {
+      type: String,
+      enum: APPROVAL_STATUSES,
+      default: function defaultApprovalStatus() {
+        return this.role === 'tailor' ? 'pending' : 'approved';
+      },
+      required: true,
+    },
     isAdmin: { type: Boolean, default: false, required: true },
   },
   {
@@ -20,12 +30,17 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-userSchema.pre('save', function syncAdminFlag(next) {
+userSchema.index({ role: 1, approvalStatus: 1 });
+
+userSchema.pre('save', function syncDerivedFields(next) {
   this.isAdmin = this.role === 'admin';
+  if (this.role !== 'tailor') {
+    this.approvalStatus = 'approved';
+  }
   next();
 });
 
 const User = mongoose.model('User', userSchema);
 
 export default User;
-export { ROLES };
+export { ROLES, APPROVAL_STATUSES };
