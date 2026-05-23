@@ -32,6 +32,7 @@ export const seedContext = {
   fabricStores: [],
   platformSettings: null,
   readyMadeProducts: [],
+  fabrics: [],
 };
 
 function hashPassword(password) {
@@ -212,8 +213,205 @@ async function seedReadyMadeProducts() {
   }
 }
 
+const STORE_PICKUP_ADDRESSES = {
+  hanayan: {
+    emirate: 'Dubai',
+    city: 'Deira',
+    street: 'Al Rigga Road',
+    building: 'Hanayan Fabrics Building, Shop 14',
+    phone: '+971 4 234 5678',
+  },
+  mauzan: {
+    emirate: 'Abu Dhabi',
+    city: 'Abu Dhabi',
+    street: 'Khalifa Street',
+    building: 'Mauzan Textiles, Ground Floor',
+    phone: '+971 2 345 6789',
+  },
+  sharjah: {
+    emirate: 'Sharjah',
+    city: 'Sharjah',
+    street: 'King Faisal Street',
+    building: 'Heritage Souq, Unit 45',
+    phone: '+971 6 456 7890',
+  },
+};
+
 async function seedFabrics() {
-  // L-12: ~9 fabrics with store attribution
+  const [hanayan, mauzan, sharjahHeritage] = seedContext.fabricStores;
+  if (!hanayan || !mauzan || !sharjahHeritage) {
+    throw new Error('Fabric store users must be seeded before fabrics (L-10)');
+  }
+
+  const fabrics = await Fabric.insertMany([
+    {
+      name: 'Emirati Silk Brocade',
+      nameAr: 'بrocade حرير إماراتي',
+      slug: 'emirati-silk-brocade',
+      description:
+        'Handwoven silk brocade with traditional Emirati patterns.',
+      descriptionAr: 'بrocade حرير منسوج يدوياً بزخارف إماراتية تقليدية.',
+      images: ['/images/dress-1.png'],
+      material: 'silk',
+      color: 'Gold',
+      city: 'Dubai',
+      tag: 'BESTSELLER',
+      tagColor: 'bg-primary',
+      pricePerMeter: 450,
+      listedByStore: hanayan._id,
+      storePickupAddress: STORE_PICKUP_ADDRESSES.hanayan,
+      isActive: true,
+    },
+    {
+      name: 'Abu Dhabi Cashmere',
+      nameAr: 'كشمير أبوظبي',
+      slug: 'abu-dhabi-cashmere',
+      description: 'Premium cashmere blend sourced from local artisans.',
+      descriptionAr: 'مزيج كشمير فاخر من حرفيين محليين.',
+      images: ['/images/dress-2.png'],
+      material: 'cashmere',
+      color: 'Camel',
+      city: 'Abu Dhabi',
+      tag: 'ARTISANAL',
+      tagColor: 'bg-[#C8A97E]',
+      pricePerMeter: 890,
+      listedByStore: mauzan._id,
+      storePickupAddress: STORE_PICKUP_ADDRESSES.mauzan,
+      isActive: true,
+    },
+    {
+      name: 'Sharjah Cotton Linen',
+      nameAr: 'كتان قطني الشارقة',
+      slug: 'sharjah-cotton-linen',
+      description: 'Lightweight cotton-linen perfect for summer elegance.',
+      descriptionAr: 'مزيج قطن وكتان خفيف مثالي لأناقة الصيف.',
+      images: ['/images/dress-3.png'],
+      material: 'linen',
+      color: 'Natural',
+      city: 'Sharjah',
+      tag: 'BREATHABLE',
+      tagColor: 'bg-[#5B4A3A]',
+      pricePerMeter: 195,
+      listedByStore: sharjahHeritage._id,
+      storePickupAddress: STORE_PICKUP_ADDRESSES.sharjah,
+      isActive: true,
+    },
+    {
+      name: 'Ras Al Khaimah Wool',
+      nameAr: 'صوف رأس الخيمة',
+      slug: 'ras-al-khaimah-wool',
+      description: 'Luxurious wool fabric from the northern emirates.',
+      descriptionAr: 'قماش صوف فاخر من الإمارات الشمالية.',
+      images: ['/images/dress-4.png'],
+      material: 'wool',
+      color: 'Charcoal',
+      city: 'Ras Al Khaimah',
+      tag: 'NEW',
+      tagColor: 'bg-[#8B6F47]',
+      pricePerMeter: 325,
+      listedByStore: sharjahHeritage._id,
+      storePickupAddress: STORE_PICKUP_ADDRESSES.sharjah,
+      isActive: true,
+    },
+    {
+      name: 'Ajman Heritage Silk',
+      nameAr: 'حرير تراثي عجمان',
+      slug: 'ajman-heritage-silk',
+      description: 'Traditional silk with modern finishing techniques.',
+      descriptionAr: 'حرير تقليدي بتقنيات تشطيب عصرية.',
+      images: ['/images/dress-5.png'],
+      material: 'silk',
+      color: 'Ivory',
+      city: 'Ajman',
+      tag: 'HERITAGE',
+      tagColor: 'bg-[#9C6B3C]',
+      pricePerMeter: 580,
+      listedByStore: hanayan._id,
+      storePickupAddress: STORE_PICKUP_ADDRESSES.hanayan,
+      isActive: true,
+    },
+    {
+      name: 'Fujairah Pashmina',
+      nameAr: 'باشمينا الفجيرة',
+      slug: 'fujairah-pashmina',
+      description: 'Fine pashmina wool from the eastern region.',
+      descriptionAr: 'صوف باشمينا ناعم من المنطقة الشرقية.',
+      images: ['/images/dress-1.png'],
+      material: 'cashmere',
+      color: 'Sand',
+      city: 'Fujairah',
+      tag: 'EXCLUSIVE',
+      tagColor: 'bg-[#A0522D]',
+      pricePerMeter: 720,
+      listedByStore: mauzan._id,
+      storePickupAddress: STORE_PICKUP_ADDRESSES.mauzan,
+      isActive: true,
+    },
+    {
+      name: 'Umm Al Quwain Velvet',
+      nameAr: 'مخمل أم القيوين',
+      slug: 'umm-al-quwain-velvet',
+      description: 'Rich velvet fabric for ceremonial occasions.',
+      descriptionAr: 'قماش مخملي فاخر للمناسبات الاحتفالية.',
+      images: ['/images/dress-2.png'],
+      material: 'wool',
+      color: 'Midnight',
+      city: 'Umm Al Quwain',
+      tag: 'PREMIUM',
+      tagColor: 'bg-[#2C1810]',
+      pricePerMeter: 420,
+      listedByStore: sharjahHeritage._id,
+      storePickupAddress: STORE_PICKUP_ADDRESSES.sharjah,
+      isActive: true,
+    },
+    {
+      name: 'Desert Sand Linen',
+      nameAr: 'كتان رمال الصحراء',
+      slug: 'desert-sand-linen',
+      description: 'Inspired by the golden dunes of the Empty Quarter.',
+      descriptionAr: 'مستوحى من الكثبان الذهبية في Rub al Khali.',
+      images: ['/images/dress-3.png'],
+      material: 'linen',
+      color: 'Desert Sand',
+      city: 'Liwa',
+      tag: 'ARTISANAL',
+      tagColor: 'bg-[#C8A97E]',
+      pricePerMeter: 280,
+      listedByStore: mauzan._id,
+      storePickupAddress: STORE_PICKUP_ADDRESSES.mauzan,
+      isActive: true,
+    },
+    {
+      name: "Pearl Diver's Cotton",
+      nameAr: 'قطن الغواصين',
+      slug: 'pearl-divers-cotton',
+      description:
+        "Eco-friendly cotton celebrating UAE's pearling heritage.",
+      descriptionAr: 'قطن صديق للبيئة يحتفي بتراث الغوص على اللؤلؤ في الإمارات.',
+      images: ['/images/dress-4.png'],
+      material: 'cotton',
+      color: 'Pearl White',
+      city: 'Dubai Creek',
+      tag: 'SUSTAINABLE',
+      tagColor: 'bg-[#4A6B5D]',
+      pricePerMeter: 165,
+      listedByStore: hanayan._id,
+      storePickupAddress: STORE_PICKUP_ADDRESSES.hanayan,
+      isActive: true,
+    },
+  ]);
+
+  seedContext.fabrics = fabrics;
+
+  console.log('Seeded fabrics (L-12):');
+  for (const fabric of fabrics) {
+    const store = seedContext.fabricStores.find(
+      (s) => s._id.equals(fabric.listedByStore)
+    );
+    console.log(
+      `  ${fabric.slug} — ${fabric.name} (${fabric.material}, AED ${fabric.pricePerMeter}/m, ${store?.name ?? 'unknown store'})`
+    );
+  }
 }
 
 async function seedTailorShopsAndDesigns() {
@@ -235,7 +433,7 @@ async function seed() {
   await seedFabrics();
   await seedTailorShopsAndDesigns();
 
-  console.log('Seed complete (L-12–L-13 still pending fabric/shop data)');
+  console.log('Seed complete (L-13 still pending tailor shop/design data)');
 }
 
 seed()
