@@ -8,230 +8,15 @@
     "description": "UAE/GCC marketplace for ready-made clothes and custom tailoring.",
     "samplePrice": "Sample price (AED)"
   },
-  "BannerCarousel": {
-    "ariaLabel": "Featured banners",
-    "dotsAriaLabel": "Banner slides",
-    "dotLabel": "Go to banner {index}",
-    "prevSlide": "Previous banner",
-    "nextSlide": "Next banner"
-  },
-  "FabricCarousel": {
-    "ariaLabel": "Ready to wear — fabric materials",
-    "eyebrow": "Curated Materials",
-    "title": "Ready to Wear",
-    "exploreLink": "Browse All 2,500+ Fabrics →",
-    "viewDetails": "View Details",
-    "emptyFilter": "No fabrics match this material. Try another filter.",
-    "filtersAriaLabel": "Filter by material",
-    "dotsAriaLabel": "Fabric carousel slides",
-    "dotLabel": "Go to slide {index}",
-    "prevSlide": "Previous slide",
-    "nextSlide": "Next slide",
-    "filters": {
-      "all": "All Fabrics",
-      "wool": "Wool",
-      "silk": "Silk",
-      "linen": "Linen",
-      "cashmere": "Cashmere"
-    }
-  },
-  "ProductCarousel": {
-    "ariaLabel": "Premium fabrics — ready-made collection",
-    "eyebrow": "Ready to Explore",
-    "title": "Premium Fabrics",
-    "exploreLink": "Explore Fabrics →",
-    "shopNow": "Shop Now",
-    "emptyFilter": "No items match this style. Try another filter.",
-    "filtersAriaLabel": "Filter by style",
-    "dotsAriaLabel": "Carousel slides",
-    "dotLabel": "Go to slide {index}",
-    "prevSlide": "Previous slide",
-    "nextSlide": "Next slide",
-    "filters": {
-      "all": "All Styles",
-      "kandura": "Kandura",
-      "abaya": "Abaya",
-      "bisht": "Mukhawar"
-    }
-  },
-  "MeasurementGuide": {
-    "ariaLabel": "Measure with confidence",
-    "eyebrow": "Perfect Fit Guarantee",
-    "titleLine1": "Measure with",
-    "titleLine2": "Confidence",
-    "description": "Getting your measurements right is the first step to a perfectly tailored garment. Follow our simple guide to ensure a flawless fit.",
-    "downloadCta": "Download Measurement Guide",
-    "imageAlt": "How to measure guide",
-    "tips": {
-      "tape": {
-        "title": "Use a Soft Measuring Tape",
-        "description": "Ensure the tape is snug but not too tight, and keep it parallel to the floor for accurate measurements."
-      },
-      "clothing": {
-        "title": "Wear Minimal Clothing",
-        "description": "For the most accurate results, measure over lightweight, form-fitting clothing or undergarments."
-      },
-      "posture": {
-        "title": "Stand Naturally",
-        "description": "Keep your body relaxed with feet together and arms at your sides for consistent measurements."
-      },
-      "keyAreas": {
-        "title": "Double Check Key Areas",
-        "description": "Focus on chest, waist, hips, inseam, and sleeve length — these define your garment's silhouette."
-      }
-    }
-  },
-  "OrderTimeline": {
-    "ariaLabel": "Craft progress — order tracking",
-    "title": "Craft Progress",
-    "orderMeta": "Order #82941-MK · Bespoke Commission",
-    "estimatedCompletion": "Estimated Completion · May 22",
-    "stepsAriaLabel": "Order progress steps",
-    "steps": {
-      "confirmed": {
-        "title": "Order Confirmed",
-        "subtitle": "March 12"
-      },
-      "fabric": {
-        "title": "Fabric Selection",
-        "subtitle": "March 14"
-      },
-      "atelier": {
-        "title": "Atelier Crafting",
-        "subtitle": "In Progress"
-      },
-      "delivery": {
-        "title": "Delivery",
-        "subtitle": "Pending"
-      }
-    }
-  },
-  "Testimonials": {
-    "ariaLabel": "The client experience",
-    "title": "The Client Experience",
-    "cards": {
-      "kauser-al-qayyum": {
-        "quote": "The level of precision from a smartphone scan is truly refined. The garment feels tailored to movement itself — understated, exact, and personal.",
-        "name": "Kauser Al QAYYUM",
-        "role": "Finance Executive · Sharjah, UAE"
-      },
-      "noor-al-sayed": {
-        "quote": "A quiet connection to authentic fabrics and craft traditions. Every piece feels considered, not produced.",
-        "name": "Noor Al-Sayed",
-        "role": "Art Curator · Dubai"
-      },
-      "maria-al-javed": {
-        "quote": "What stands out is clarity — knowing the origin of every material and the hands behind it makes each garment meaningful.",
-        "name": "Maria Al Javed",
-        "role": "Architect · Abu Dhabi, UAE"
-      },
-      "maryum-al-yaqoub": {
-        "quote": "A seamless experience from consultation to delivery. The outcome feels precise, measured, and quietly exceptional.",
-        "name": "Maryum Al Yaqoub",
-        "role": "Entrepreneur · Dubai, UAE"
-      }
-    }
-  },
-  "PartnerSection": {
-    "ariaLabel": "Vendor portal and newsletter"
-  },
-  "PartnerCTA": {
-    "eyebrow": "For Partners",
-    "title": "Join the Global Atelier",
-    "description": "A curated network for master tailors and textile houses — where craftsmanship meets modern presentation and global visibility.",
-    "applyCta": "Apply to Join",
-    "imageAlt": "A tailor is stitching mukhawar"
-  },
-  "HomeNewsletter": {
-    "eyebrow": "The Newsletter",
-    "title": "Elegance in Your Inbox",
-    "description": "Receive seasonal fabric releases, atelier stories, and curated craftsmanship highlights — delivered sparingly, only when it matters.",
-    "formLabel": "Newsletter signup",
-    "emailLabel": "Email address",
-    "emailPlaceholder": "Email Address",
-    "subscribe": "Subscribe"
-  },
-  "TailorGrid": {
-    "ariaLabel": "Meet the tailors",
-    "eyebrow": "Master Artisans of the UAE",
-    "title": "Meet the Tailors",
-    "description": "Discover the Emirates' most celebrated master tailors, preserving centuries-old heritage through exceptional craftsmanship",
-    "viewAll": "View All Master Tailors of the UAE",
-    "bookConsultation": "Book Consultation →",
-    "reviewCount": "({count} reviews)",
-    "cards": {
-      "ayesha-al-riaz": {
-        "imageAlt": "Ayesha Al Riaz",
-        "badge": "5+ Years",
-        "name": "Ayesha Al Riaz",
-        "location": "Dubai, Al Fahidi Historical District",
-        "description": "Master of traditional Emirati kandura and bespoke suits. Third-generation tailor preserving Dubai's rich textile heritage since 1988."
-      },
-      "asma-al-naeem": {
-        "imageAlt": "Asma Al Naeem",
-        "badge": "Royal Court",
-        "name": "Asma Al Naeem",
-        "location": "Abu Dhabi, Corniche Road",
-        "description": "Official tailor to Abu Dhabi's royal court. Specializing in ceremonial bisht and luxury evening wear with over 40 years of excellence."
-      },
-      "fatima-al-qasimi": {
-        "imageAlt": "Fatima Al Qasimi",
-        "badge": "Women's Wear",
-        "name": "Fatima Al Qasimi",
-        "location": "Sharjah, Heart of Sharjah",
-        "description": "Pioneering female tailor redefining traditional abaya and jalabiya. Award-winning designer blending heritage with contemporary elegance."
-      }
-    }
-  },
-  "CategoryGrid": {
-    "ariaLabel": "Elite collections",
-    "eyebrow": "Browse by Category",
-    "titleLine1": "Elite",
-    "titleLine2": "Collections",
-    "viewAll": "View All Collections",
-    "items": {
-      "abaya": "Abaya",
-      "jalabiya": "Jalabiya",
-      "kandura": "Kandura",
-      "mukhawar": "Mukhawar",
-      "kaftan": "Kaftan",
-      "thob": "THOB"
-    },
-    "imageAlt": {
-      "abaya": "Abaya",
-      "jalabiya": "Jalabiya",
-      "kandura": "Kandura",
-      "mukhawar": "Mukhawar",
-      "kaftan": "Kaftan",
-      "thob": "THOB"
-    }
-  },
-  "Hero": {
-    "ariaLabel": "Featured hero",
-    "imageAlt": "Embroidered fabric from UAE tailor",
-    "eyebrow": "Mukhawara of the Day",
-    "headlineLine1": "Rooted in Tradition.",
-    "headlineLine2": "Worn Today.",
-    "body": "We curate exceptional embroidered fabrics from trusted tailors across the Emirates — transforming a months-long journey into a seamless, considered experience.",
-    "ctaShopNow": "Shop Now",
-    "ctaMeetTailors": "Meet the Tailors"
-  },
-  "LocaleSwitcher": {
-    "label": "Language",
-    "en": "English",
-    "ar": "العربية"
-  },
   "Navbar": {
     "ariaLabel": "Main navigation",
     "logoAlt": "MOTD",
     "links": {
-      "fabric": "Fabric",
-      "fabricStore": "Fabric Store",
-      "customClothing": "Custom Clothing",
-      "howItWorks": "How It Works",
+      "fabrics": "Fabrics",
       "collections": "Collections",
       "tailors": "Tailors",
-      "stories": "Stories"
+      "stories": "Stories",
+      "howItWorks": "How It Works"
     },
     "actions": {
       "search": "Search",
@@ -242,28 +27,83 @@
       "closeMenu": "Close menu"
     }
   },
-  "TrustBar": {
-    "ariaLabel": "Trust and payment assurances",
-    "items": {
-      "securePayments": "Secure Payments",
-      "verifiedTailors": "Verified Tailors",
-      "premiumFabrics": "Premium Fabrics",
-      "fastDelivery": "Fast Delivery"
-    }
+  "HeroSection": {
+    "ariaLabel": "Featured hero",
+    "imageAlt": "Embroidered fabric from UAE tailor",
+    "eyebrow": "Mukhawara of the Day",
+    "headlineLine1": "Rooted in Tradition.",
+    "headlineLine2": "Worn Today.",
+    "body": "We curate exceptional embroidered fabrics from trusted tailors across the Emirates — transforming a months-long journey into a seamless, considered experience.",
+    "ctaShopNow": "Shop Now",
+    "ctaMeetTailors": "Meet the Tailors"
+  },
+  "TrendingDesigns": {
+    "ariaLabel": "Trending Mukhawar Designs",
+    "eyebrow": "Most Popular",
+    "title": "Trending Designs",
+    "exploreLink": "Browse All 500+ Designs →"
+  },
+  "PremiumFabrics": {
+    "ariaLabel": "Premium Fabrics",
+    "eyebrow": "Ready to Explore",
+    "title": "Premium Fabrics",
+    "exploreLink": "Explore Fabrics →"
+  },
+  "ReadyToWear": {
+    "ariaLabel": "Ready to wear — fabric materials",
+    "eyebrow": "Curated Materials",
+    "title": "Ready To Wear",
+    "exploreLink": "Browse All →"
+  },
+  "TailorsSection": {
+    "ariaLabel": "Meet the tailors",
+    "eyebrow": "Master Artisans of the UAE",
+    "title": "Meet the Tailors",
+    "description": "Discover the Emirates' most celebrated master tailors, preserving centuries-old heritage through exceptional craftsmanship",
+    "viewAll": "View All Master Tailors of the UAE"
+  },
+  "MeasurementGuide": {
+    "eyebrow": "PERFECT FIT GUARANTEE",
+    "title": "Measure with Confidence",
+    "description": "Follow our simple guide to get accurate measurements for a perfectly tailored garment.",
+    "tip1": {
+      "title": "Use a Soft Measuring Tape",
+      "desc": "Keep tape snug but not tight, parallel to the floor."
+    },
+    "tip2": {
+      "title": "Stand Naturally",
+      "desc": "Feet together, arms at sides, body relaxed."
+    },
+    "tip3": {
+      "title": "Double Check Key Areas",
+      "desc": "Focus on chest, waist, hips, and inseam."
+    },
+    "btn": "Download Guide"
+  },
+  "Testimonials": {
+    "title": "The Client Experience"
+  },
+  "community": {
+    "eyebrow": "For Partners",
+    "title": "Join Our Community",
+    "description": "A curated network for master tailors and textile houses — where craftsmanship meets modern presentation and global visibility.",
+    "btn": "Apply to Join"
+  },
+  "newsletter": {
+    "eyebrow": "The Newsletter",
+    "title": "Elegance in Your Inbox",
+    "description": "Receive seasonal fabric releases, atelier stories, and curated craftsmanship highlights — delivered sparingly, only when it matters.",
+    "placeholder": "Email Address",
+    "subscribe": "Subscribe"
   },
   "Footer": {
-    "ariaLabel": "Site footer",
-    "logoAlt": "MOTD",
+    "logoAlt": "MOTD Logo",
     "tagline": "Bespoke Eastern luxury tailored for the modern world.",
     "description": "A refined destination connecting discerning clients with exceptional fabrics, master tailoring houses, and elevated craftsmanship inspired by contemporary Gulf elegance.",
-    "copyright": "© 2026 MOTD. All Rights Reserved.",
-    "paymentMethods": "Accepted payment methods",
-    "columns": {
-      "quickLinks": "Quick Links",
-      "customerServices": "Customer Services",
-      "business": "Business"
-    },
-    "quickLinks": {
+    "quickLinks": "Quick Links",
+    "services": "Customer Services",
+    "business": "Business",
+    "quickLinksList": {
       "home": "Home",
       "exploreFabrics": "Explore Fabrics",
       "tailors": "Tailors",
@@ -271,7 +111,7 @@
       "aboutUs": "About Us",
       "contact": "Contact"
     },
-    "customerServices": {
+    "customerLinks": {
       "trackOrder": "Track Order",
       "shippingPolicy": "Shipping Policy",
       "returnsRefunds": "Returns & Refunds",
@@ -279,32 +119,18 @@
       "faqs": "FAQs",
       "supportCenter": "Support Center"
     },
-    "business": {
+    "businessLinks": {
       "becomeTailor": "Become a Tailor",
       "fabricVendor": "Fabric Vendor Registration",
       "shippingPartner": "Shipping Partner",
       "vendorDashboard": "Vendor Dashboard",
       "partnerships": "Partnership Opportunities"
     },
-    "social": {
-      "instagram": "Instagram",
-      "website": "Website",
-      "pinterest": "Pinterest",
-      "youtube": "YouTube",
-      "linkedin": "LinkedIn"
-    },
-    "newsletter": {
-      "heading": "The Newsletter",
-      "description": "Seasonal fabric releases, atelier stories, and curated craftsmanship — delivered sparingly.",
-      "formLabel": "Newsletter signup",
-      "emailLabel": "Email address",
-      "emailPlaceholder": "Email Address",
-      "subscribe": "Subscribe"
-    },
     "policies": {
       "privacy": "Privacy Policy",
       "terms": "Terms & Conditions",
       "cookies": "Cookies Policy"
-    }
+    },
+    "copyright": "© 2026 MOTD. All Rights Reserved."
   }
 }
