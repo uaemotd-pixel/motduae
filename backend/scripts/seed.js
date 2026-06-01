@@ -33,6 +33,8 @@ export const seedContext = {
   platformSettings: null,
   readyMadeProducts: [],
   fabrics: [],
+  tailorShops: [],
+  designs: [],
 };
 
 function hashPassword(password) {
@@ -415,7 +417,198 @@ async function seedFabrics() {
 }
 
 async function seedTailorShopsAndDesigns() {
-  // L-13: approved tailor shops + designs; pending tailor has no shop
+  const [ayesha, asma] = seedContext.approvedTailors;
+  if (!ayesha || !asma) {
+    throw new Error('Approved tailors must be seeded before shops (L-10)');
+  }
+
+  const defaultTailoringFee =
+    seedContext.platformSettings?.defaultTailoringFee ?? 150;
+
+  const shops = await TailorShop.insertMany([
+    {
+      name: 'Ayesha Al Riaz Atelier',
+      nameAr: 'أتيليه عائشة الرِياض',
+      slug: 'ayesha-al-riaz',
+      description:
+        "Master of traditional Emirati kandura and bespoke suits. Third-generation tailor preserving Dubai's rich textile heritage since 1988.",
+      descriptionAr:
+        'خبيرة في الكندورة الإماراتية التقليدية والبدلات المفصّلة. خياطة من الجيل الثالث تحفظ تراث دبي النسيجي الغني منذ ١٩٨٨.',
+      logo: '/images/tailor-1.png',
+      coverImage: '/images/tailor-1.png',
+      location: 'Al Fahidi Historical District',
+      city: 'Dubai',
+      phone: '+971 4 353 2100',
+      rating: 4.9,
+      reviewCount: 247,
+      ownerId: ayesha._id,
+      isActive: true,
+    },
+    {
+      name: 'Asma Al Naeem Couture',
+      nameAr: 'كوتور أسما النعيم',
+      slug: 'asma-al-naeem',
+      description:
+        "Official tailor to Abu Dhabi's royal court. Specializing in ceremonial bisht and luxury evening wear with over 40 years of excellence.",
+      descriptionAr:
+        'خياطة البلاط الملكي في أبوظبي. متخصصة في البشت الاحتفالي وملابس المساء الفاخرة بأكثر من ٤٠ عاماً من التميز.',
+      logo: '/images/tailor-2.png',
+      coverImage: '/images/tailor-2.png',
+      location: 'Corniche Road',
+      city: 'Abu Dhabi',
+      phone: '+971 2 678 4500',
+      rating: 5.0,
+      reviewCount: 189,
+      ownerId: asma._id,
+      isActive: true,
+    },
+  ]);
+
+  const [ayeshaShop, asmaShop] = shops;
+
+  const designs = await Design.insertMany([
+    {
+      tailorShopId: ayeshaShop._id,
+      name: 'Classic Emirati Kandura',
+      nameAr: 'كندورة إماراتية كلاسيكية',
+      slug: 'classic-emirati-kandura',
+      description:
+        'Traditional white kandura with hand-finished collar and cuff details.',
+      descriptionAr: 'كندورة بيضاء تقليدية بتشطيب يدوي للياقة والأكمام.',
+      images: ['/images/dress-1.png'],
+      category: 'kandura',
+      basePrice: 650,
+      tailoringFee: defaultTailoringFee,
+      estimatedMeters: 3.5,
+      estimatedDays: 7,
+      isActive: true,
+    },
+    {
+      tailorShopId: ayeshaShop._id,
+      name: 'Executive Tailored Thob',
+      nameAr: 'ثوب تنفيذي مفصّل',
+      slug: 'executive-tailored-thob',
+      description:
+        'Structured thob cut for formal occasions with premium cotton blend.',
+      descriptionAr: 'ثوب منظّم للمناسبات الرسمية من مزيج قطن فاخر.',
+      images: ['/images/dress-2.png'],
+      category: 'thob',
+      basePrice: 720,
+      tailoringFee: defaultTailoringFee,
+      estimatedMeters: 3.0,
+      estimatedDays: 10,
+      isActive: true,
+    },
+    {
+      tailorShopId: ayeshaShop._id,
+      name: 'Heritage Jalabiya',
+      nameAr: 'جلابية تراثية',
+      slug: 'heritage-jalabiya',
+      description:
+        'Flowing jalabiya with subtle embroidery inspired by Gulf heritage.',
+      descriptionAr: 'جلابية انسيابية بتطريز رقيق مستوحى من تراث الخليج.',
+      images: ['/images/dress-3.png'],
+      category: 'jalabiya',
+      basePrice: 890,
+      tailoringFee: defaultTailoringFee + 25,
+      estimatedMeters: 4.0,
+      estimatedDays: 12,
+      isActive: true,
+    },
+    {
+      tailorShopId: ayeshaShop._id,
+      name: 'Modern Linen Abaya',
+      nameAr: 'عباية كتان عصرية',
+      slug: 'modern-linen-abaya',
+      description:
+        'Lightweight abaya with clean lines for everyday elegance.',
+      descriptionAr: 'عباية خفيفة بخطوط نظيفة لأناقة يومية.',
+      images: ['/images/dress-4.png'],
+      category: 'abaya',
+      basePrice: 780,
+      tailoringFee: defaultTailoringFee,
+      estimatedMeters: 3.5,
+      estimatedDays: 9,
+      isActive: true,
+    },
+    {
+      tailorShopId: asmaShop._id,
+      name: 'Royal Ceremonial Bisht',
+      nameAr: 'بشت احتفالي ملكي',
+      slug: 'royal-ceremonial-bisht',
+      description:
+        'Ceremonial bisht with gold zari threading for weddings and state events.',
+      descriptionAr: 'بشت احتفالي بتطريز ذهبي للأعراس والمناسبات الرسمية.',
+      images: ['/images/dress-5.png'],
+      category: 'bisht',
+      basePrice: 3200,
+      tailoringFee: defaultTailoringFee + 100,
+      estimatedMeters: 2.5,
+      estimatedDays: 21,
+      isActive: true,
+    },
+    {
+      tailorShopId: asmaShop._id,
+      name: 'Court Evening Abaya',
+      nameAr: 'عباية مسائية للبلاط',
+      slug: 'court-evening-abaya',
+      description:
+        'Floor-length abaya with hand-beaded details for formal receptions.',
+      descriptionAr: 'عباية طويلة بتفاصيل مطرّزة يدوياً للاستقبالات الرسمية.',
+      images: ['/images/dress-1.png'],
+      category: 'abaya',
+      basePrice: 1450,
+      tailoringFee: defaultTailoringFee + 50,
+      estimatedMeters: 4.0,
+      estimatedDays: 14,
+      isActive: true,
+    },
+    {
+      tailorShopId: asmaShop._id,
+      name: 'Heritage Mukhawar',
+      nameAr: 'مخاوَر تراثي',
+      slug: 'heritage-mukhawar',
+      description:
+        'Traditional mukhawar with layered construction and fine finishing.',
+      descriptionAr: 'مخاوَر تقليدي بطبقات وتشطيبات دقيقة.',
+      images: ['/images/dress-2.png'],
+      category: 'mukhawar',
+      basePrice: 980,
+      tailoringFee: defaultTailoringFee,
+      estimatedMeters: 3.5,
+      estimatedDays: 10,
+      isActive: true,
+    },
+  ]);
+
+  const pendingShopCount = await TailorShop.countDocuments({
+    ownerId: seedContext.pendingTailor?._id,
+  });
+  if (pendingShopCount !== 0) {
+    throw new Error('Pending tailor must not have a shop document');
+  }
+
+  seedContext.tailorShops = shops;
+  seedContext.designs = designs;
+
+  console.log('Seeded tailor shops and designs (L-13):');
+  for (const shop of shops) {
+    const owner = seedContext.approvedTailors.find((t) =>
+      t._id.equals(shop.ownerId)
+    );
+    const shopDesigns = designs.filter((d) => d.tailorShopId.equals(shop._id));
+    console.log(
+      `  ${shop.slug} — ${shop.name} (${owner?.email}, ${shopDesigns.length} designs, rating ${shop.rating})`
+    );
+    for (const design of shopDesigns) {
+      console.log(
+        `    ${design.slug} — ${design.name} (${design.category}, base AED ${design.basePrice}, ${design.estimatedMeters}m)`
+      );
+    }
+  }
+  console.log(
+    `  Pending tailor (${seedContext.pendingTailor?.email}): no shop (as expected)`
+  );
 }
 
 async function seed() {
@@ -433,7 +626,7 @@ async function seed() {
   await seedFabrics();
   await seedTailorShopsAndDesigns();
 
-  console.log('Seed complete (L-13 still pending tailor shop/design data)');
+  console.log('Seed complete');
 }
 
 seed()
