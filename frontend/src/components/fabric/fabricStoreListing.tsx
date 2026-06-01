@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import * as images from '../../../public/images/ImageIndex';
+import { useRouter } from "next/navigation";
 
 // Types
 interface Product {
@@ -241,6 +242,7 @@ export default function FabricStorePage() {
         priceRange: null,
         inStockOnly: false,
     });
+    const router = useRouter();
 
     useEffect(() => {
         setMounted(true);
@@ -554,7 +556,7 @@ export default function FabricStorePage() {
                                                     <img
                                                         src={product.image}
                                                         alt={product.name}
-                                                        className="w-full h-48 object-cover mb-4 transition-transform duration-300 group-hover:scale-105"
+                                                        className="w-full h-full object-cover mb-4 transition-transform duration-300 group-hover:scale-105"
                                                     />
                                                     <h3 className="font-display text-xs xs:text-sm sm:text-base font-normal leading-relaxed tracking-tight text-black mb-1 line-clamp-2">
                                                         {product.name}
@@ -585,21 +587,40 @@ export default function FabricStorePage() {
                                                     </div>
                                                     <div className="flex items-center gap-1">
                                                         <button
-                                                            onClick={() => setQuickViewProduct(product)}
                                                             className="w-8 h-8 rounded-full flex items-center justify-center hover:text-red-600 transition-colors hover:cursor-pointer"
                                                             aria-label="Add to wishlist"
+                                                            title="Add to Wishlist"
                                                         >
                                                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                                                             </svg>
                                                         </button>
                                                         <button
-                                                            onClick={() => setQuickViewProduct(product)}
                                                             className="w-8 h-8 rounded-full flex items-center justify-center hover:text-black transition-colors hover:cursor-pointer"
                                                             aria-label="Quick view"
+                                                            title="Add to Cart"
                                                         >
                                                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.5 6M17 13l1.5 6M9 21h6M12 15v6" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setQuickViewProduct(product)}
+                                                            className="w-8 h-8 rounded-full flex items-center justify-center hover:text-black transition-colors hover:cursor-pointer"
+                                                            aria-label="Quick view"
+                                                            title="Quick View"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+                                                                />
+                                                                <path
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                                                />
                                                             </svg>
                                                         </button>
                                                     </div>
@@ -626,7 +647,7 @@ export default function FabricStorePage() {
                 <>
                     <div onClick={() => setQuickViewProduct(null)} className="fixed inset-0 bg-black/50 z-50" />
                     <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-2xl bg-[#FDFAF5] border border-[#E4E0D8] rounded-2xl z-50 p-8 max-h-[90vh] overflow-y-auto">
-                        <button onClick={() => setQuickViewProduct(null)} className="absolute top-4 right-4 hover:opacity-50 transition-opacity flex items-center justify-center">
+                        <button onClick={() => setQuickViewProduct(null)} className="absolute top-4 right-4 hover:opacity-50 transition-opacity flex items-center justify-center hover:cursor-pointer">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -644,8 +665,13 @@ export default function FabricStorePage() {
                                     <p><span className="text-[10px] tracking-[0.16em] uppercase font-mono">Origin:</span> {quickViewProduct.origin}</p>
                                     <p><span className="text-[10px] tracking-[0.16em] uppercase font-mono">Availability:</span> {quickViewProduct.inStock ? "In Stock" : "Out of Stock"}</p>
                                 </div>
-                                <button className="w-full py-3 bg-black text-white text-[11px] tracking-[0.22em] uppercase rounded-full hover:bg-[#2A2A28] transition-colors">
-                                    Request Sample
+                                <button
+                                    onClick={() => {
+                                        router.push(`/fabrics/${quickViewProduct.id}`);
+                                        setQuickViewProduct(null);
+                                    }}
+                                    className="w-full py-3 bg-black text-white text-[11px] tracking-[0.22em] uppercase rounded-full hover:bg-[#2A2A28] transition-colors hover:cursor-pointer">
+                                    View Details
                                 </button>
                             </div>
                         </div>
