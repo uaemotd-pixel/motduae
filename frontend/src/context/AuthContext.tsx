@@ -107,18 +107,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const register = async (name: string, email: string, password: string) => {
         setIsLoading(true);
         try {
-            const response = await api.post<{
-                token: string;
-                user: User;
-            }>('/api/users/signup', {
+            const response = await api.post<ApiUserResponse>('/api/users/signup', {
                 name,
                 email,
                 password,
             });
 
-            const data = (response as any)?.data ?? response;
-            saveToken(data.token);
-            setUser(data.user);
+            saveToken(response.token!);
+            setUser(mapApiUser(response));
         } catch (error) {
             throw error;
         } finally {

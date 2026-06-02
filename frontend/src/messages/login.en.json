@@ -6,7 +6,7 @@
         "title" : "SIGN IN",
         "description" : "Access your personal atelier. Explore custom commissions and exclusive collections.",
         "emailLabel" : "EMAIL ADDRESS",
-        "passwordLabel" : "PASSWROD",
+        "passwordLabel" : "PASSWORD",
         "forgetPassword" : "FORGET PASSWORD",
         "buttonLabel" : "SIGN IN",
         "buttonProgressLabel" : "VERIFYING",
