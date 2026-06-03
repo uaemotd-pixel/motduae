@@ -13,7 +13,7 @@ readyMadeRoutes.get("/", async (req, res) => {
 
         // Optional size
         if (size) {
-            filter.size = size;
+            filter.size = size.trim();
         }
 
         const skip = (Number(page) - 1) * Number(limit);
