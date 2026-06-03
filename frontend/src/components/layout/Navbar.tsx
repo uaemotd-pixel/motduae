@@ -4,21 +4,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { GlobalProgressBar } from "../shared/GlobalProgressBar";
+import { useAuth } from "@/context/AuthContext";
+import LocaleSwitcher from "../shared/LocaleSwitcher";
 
 const NAV_LINKS = [
   { key: "fabrics", href: "/fabrics/fabricStore" },
-  { key: "collections", href: "/#collections" },
   { key: "tailors", href: "/#tailors" },
   { key: "stories", href: "/#stories" },
   { key: "howItWorks", href: "/#how-it-works" },
+  { key: "about", href: "/#about" }
 ] as const;
 
 const MOBILE_NAV_LINKS = [
   { key: "fabrics", href: "/#fabrics" },
-  { key: "collections", href: "/#collections" },
   { key: "tailors", href: "/#tailors" },
   { key: "stories", href: "/#stories" },
   { key: "howItWorks", href: "/#how-it-works" },
+  { key: "about", href: "/#about" }
 ] as const;
 
 // Desktop nav link styles - exact match from first code chunk
@@ -28,15 +30,6 @@ const navLinkClass =
 // Mobile nav link styles - exact match from first code chunk
 const mobileNavLinkClass =
   "text-[11px] xs:text-[12px] sm:text-[13px] uppercase tracking-[0.22em] [font-family:var(--font-ui)] hover:opacity-50 transition";
-
-// const langLinkClass = (active: boolean, size: "en" | "ar") =>
-//   [
-//     "lang-btn uppercase tracking-wider hover:opacity-70 transition px-1",
-//     size === "en"
-//       ? "text-[9px] xs:text-[10px] lg:text-[11px]"
-//       : "text-[11px] xs:text-[12px] lg:text-[13px]",
-//     active ? "font-medium opacity-100" : "opacity-70",
-//   ].join(" ");
 
 // SVG Icons matching the first code chunk exactly
 const SearchIcon = ({ className }: { className?: string }) => (
@@ -71,6 +64,7 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const { user, isLoading } = useAuth();
 
   // Toggle menu with animation
   const toggleMenu = useCallback(() => {
@@ -183,31 +177,7 @@ export function Navbar() {
         {/* RIGHT ICONS - exact gap classes from first code chunk */}
         <div className="flex items-center gap-1 xs:gap-1.5 sm:gap-2 md:gap-2 lg:gap-3 xl:gap-3 2xl:gap-4">
           {/* Language switcher — links avoid extension-injected button attrs (e.g. fdprocessedid) */}
-          {/* <div
-            className="language-switcher flex items-center gap-1 border-l border-r border-(--color-border) px-2 xs:px-2.5 sm:px-3 py-1"
-            suppressHydrationWarning
-          >
-            <Link
-              href={pathname}
-              locale="en"
-              className={langLinkClass(locale === "en", "en")}
-              aria-current={locale === "en" ? "page" : undefined}
-            >
-              EN
-            </Link>
-            <span className="text-(--color-grey-muted) text-[9px]" aria-hidden>
-              |
-            </span>
-            <Link
-              href={pathname}
-              locale="ar"
-              className={langLinkClass(locale === "ar", "ar")}
-              aria-current={locale === "ar" ? "page" : undefined}
-            >
-              عربي
-            </Link>
-          </div> */}
-
+          <LocaleSwitcher />
           {/* Search Icon */}
           <button
             type="button"
@@ -227,17 +197,17 @@ export function Navbar() {
           </button>
 
           {/* Cart Icon */}
-          <button
-            type="button"
+          <Link
+            href={"/cart"}
             className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center relative"
             aria-label={t("actions.cart")}
           >
             <CartIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
-          </button>
+          </Link>
 
           {/* User Icon */}
           <Link
-            href="/auth/login"
+            href={user ? '/account/userAccount' : '/auth/login'}
             className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center"
             aria-label={t("actions.account")}
           >
@@ -304,7 +274,7 @@ export function Navbar() {
             </button>
 
             <Link
-              href="/auth/login"
+              href={user ? "/account/userAccount" : "/auth/login"}
               className="flex flex-col items-center gap-1 group hover:opacity-50 transition"
               onClick={closeMenu}
             >

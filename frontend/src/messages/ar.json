@@ -8,6 +8,25 @@
     "description": "مخوّر اليوم — سوق إماراتي/خليجي للملابس الجاهزة والخياطة المخصصة.",
     "samplePrice": "سعر تجريبي (درهم)"
   },
+  "Navbar": {
+    "ariaLabel": "التنقل الرئيسي",
+    "logoAlt": "MOTD — مخوّر اليوم",
+    "links": {
+      "fabrics": "الأقمشة",
+      "howItWorks": "كيف يعمل",
+      "tailors": "الخياطون",
+      "stories": "القصص",
+      "about": "حول"
+    },
+    "actions": {
+      "search": "Search",
+      "account": "Account",
+      "wishlist": "Wishlist",
+      "cart": "Cart",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu"
+    }
+  },
   "BannerCarousel": {
     "ariaLabel": "لافتات مميزة",
     "dotsAriaLabel": "شرائح اللافتات",
@@ -221,26 +240,13 @@
     "en": "English",
     "ar": "العربية"
   },
-  "Navbar": {
-    "ariaLabel": "التنقل الرئيسي",
-    "logoAlt": "MOTD — مخوّر اليوم",
-    "links": {
-      "fabric": "الأقمشة",
-      "fabricStore": "متجر الأقمشة",
-      "customClothing": "ملابس مخصصة",
-      "howItWorks": "كيف يعمل",
-      "collections": "المجموعات",
-      "tailors": "الخياطون",
-      "stories": "القصص"
-    },
-    "actions": {
-      "search": "بحث",
-      "account": "الحساب",
-      "wishlist": "المفضلة",
-      "cart": "السلة",
-      "openMenu": "فتح القائمة",
-      "closeMenu": "إغلاق القائمة"
-    }
+  "actions": {
+    "search": "بحث",
+    "account": "الحساب",
+    "wishlist": "المفضلة",
+    "cart": "السلة",
+    "openMenu": "فتح القائمة",
+    "closeMenu": "إغلاق القائمة"
   },
   "TrustBar": {
     "ariaLabel": "ضمانات الثقة والدفع",

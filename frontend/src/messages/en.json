@@ -13,10 +13,10 @@
     "logoAlt": "MOTD — Mukhawar of the Day",
     "links": {
       "fabrics": "Fabrics",
-      "collections": "Collections",
       "tailors": "Tailors",
       "stories": "Stories",
-      "howItWorks": "How It Works"
+      "howItWorks": "How It Works",
+      "about": "About"
     },
     "actions": {
       "search": "Search",
