@@ -3,6 +3,7 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import { env } from './config/env.js';
 import userRouter from './routes/userRoutes.js';
+import readyMadeRoutes from './routes/readyMadeRoutes.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -29,6 +30,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/users', userRouter);
+app.use('/api/ready-made', readyMadeRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
