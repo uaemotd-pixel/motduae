@@ -28,6 +28,12 @@
       "closeMenu": "إغلاق القائمة"
     }
   },
+  "ReadyToWear": {
+    "ariaLabel": "Ready to wear — fabric materials",
+    "eyebrow": "المواد المنسقة",
+    "title": "جاهز للارتداء",
+    "exploreLink": "تصفح الكل →"
+  },
   "BannerCarousel": {
     "ariaLabel": "لافتات مميزة",
     "dotsAriaLabel": "شرائح اللافتات",

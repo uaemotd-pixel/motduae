@@ -6,7 +6,7 @@ const readyMadeRoutes = express.Router();
 // GET API ready-made
 readyMadeRoutes.get("/", async (req, res) => {
     try {
-        const { size, page = 1, limit = 10 } = req.query;
+        const { size, page = 1, limit = 10, locale = "en" } = req.query;
         const filter = {
             isActive: true
         }
@@ -21,13 +21,28 @@ readyMadeRoutes.get("/", async (req, res) => {
         const products = await ReadyMadeProduct.find(filter).skip(skip).limit(Number(limit)).sort({ createdAt: -1 });
         const total = await ReadyMadeProduct.countDocuments(filter);
 
+        // language switch
+        const items = products.map((p) => ({
+            _id: p._id,
+            slug: p.slug,
+            price: p.price,
+            size: p.size,
+            style: p.style,
+            images: p.images,
+            countInStock: p.countInStock,
+
+            // 👇 localized fields
+            name: locale === "ar" ? p.nameAr : p.name,
+            description: locale === "ar" ? p.descriptionAr : p.description,
+        }));
+
         res.json({
             success: true,
             page: Number(page),
             limit: Number(limit),
             total,
             totalPages: Math.ceil(total / limit),
-            items: products,
+            items,
         });
 
     } catch (error) {
