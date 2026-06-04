@@ -154,7 +154,7 @@ async function seedReadyMadeProducts() {
         'Classic white kandura crafted from premium Egyptian cotton. Perfect for daily wear and formal occasions.',
       descriptionAr:
         'كندura بيضاء كلاسيكية من قطن مصري فاخر. مثالية للارتداء اليومي والمناسبات الرسمية.',
-      images: ['/images/fab-1.png'],
+      images: ['/images/fab1.png'],
       price: 850,
       size: '54',
       style: 'kandura',
@@ -173,7 +173,7 @@ async function seedReadyMadeProducts() {
         'Elegant black abaya with subtle embroidery details. Made from lightweight crepe fabric.',
       descriptionAr:
         'عباية سوداء أنيقة بتفاصيل تطريز رقيقة. مصنوعة من قماش كريب خفيف الوزن.',
-      images: ['/images/fab-2.png'],
+      images: ['/images/fab2.png'],
       price: 1250,
       size: 'M',
       style: 'abaya',
@@ -192,7 +192,7 @@ async function seedReadyMadeProducts() {
         'Ceremonial bisht with gold zari work. Worn for weddings and official ceremonies.',
       descriptionAr:
         'بشت احتفالي بتطريز ذهبي. يُرتدى في الأعراس والمناسبات الرسمية.',
-      images: ['/images/fab-3.png'],
+      images: ['/images/fab3.png'],
       price: 3900,
       size: '56',
       style: 'bisht',
