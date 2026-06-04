@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import RetailOrder from "../models/RetailOrder.js";
 import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
 import { isAuth } from "../middleware/auth.js";
@@ -169,6 +170,50 @@ orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
         res.status(500).json({
             success: false,
             message: "Failed to fetch user orders",
+        });
+    }
+})
+
+
+// This Endpoint will be used to get the single order detail based on id
+orderRoutes.get("/retail/:id", isAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // validate id
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(404).json({
+                success: false,
+                message: "Invalid Order ID"
+            })
+        }
+
+        const order = await RetailOrder.findById(id);
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: "Order not found",
+            });
+        }
+
+        // check the order ownership
+        if (order.userId.toString() !== req.user._id && !req.user.isAdmin) {
+            return res.status(403).json({
+                success: false,
+                message: "You are not allowed to view this order",
+            });
+        }
+
+        res.json({
+            success: true,
+            order,
+        });
+
+    } catch (error) {
+        console.error("GET /retail/:id error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch order",
         });
     }
 })
