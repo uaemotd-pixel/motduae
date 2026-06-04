@@ -6,7 +6,7 @@ const readyMadeRoutes = express.Router();
 // GET API ready-made
 readyMadeRoutes.get("/", async (req, res) => {
     try {
-        const { size, page = 1, limit = 10, locale = "en" } = req.query;
+        const { size, page = 1, limit = 10 } = req.query;
         const filter = {
             isActive: true
         }
@@ -30,10 +30,10 @@ readyMadeRoutes.get("/", async (req, res) => {
             style: p.style,
             images: p.images,
             countInStock: p.countInStock,
-
-            // 👇 localized fields
-            name: locale === "ar" ? p.nameAr : p.name,
-            description: locale === "ar" ? p.descriptionAr : p.description,
+            name: p.name,
+            nameAr: p.nameAr,
+            description: p.description,
+            descriptionAr: p.descriptionAr,
         }));
 
         res.json({

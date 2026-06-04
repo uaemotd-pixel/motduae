@@ -29,10 +29,14 @@
     }
   },
   "ReadyToWear": {
-    "ariaLabel": "Ready to wear — fabric materials",
+    "ariaLabel": "جاهز للارتداء — مواد الأقمشة",
     "eyebrow": "المواد المنسقة",
     "title": "جاهز للارتداء",
-    "exploreLink": "تصفح الكل →"
+    "exploreLink": "تصفح الكل ←",
+    "shopNow": "تسوق الآن",
+    "sizeLabel": "المقاس",
+    "loading": "جاري التحميل...",
+    "empty": "لا توجد قطع حالياً"
   },
   "BannerCarousel": {
     "ariaLabel": "لافتات مميزة",

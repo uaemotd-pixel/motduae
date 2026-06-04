@@ -54,7 +54,11 @@
     "ariaLabel": "Ready to wear — fabric materials",
     "eyebrow": "Curated Materials",
     "title": "Ready To Wear",
-    "exploreLink": "Browse All →"
+    "exploreLink": "Browse All →",
+    "shopNow": "Shop Now",
+    "sizeLabel": "Size",
+    "loading": "Loading...",
+    "empty": "No items right now"
   },
   "TailorsSection": {
     "ariaLabel": "Meet the tailors",
