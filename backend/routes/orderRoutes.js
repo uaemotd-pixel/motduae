@@ -132,4 +132,45 @@ orderRoutes.post("/retail", isAuth, async (req, res) => {
     }
 });
 
+
+// This route is for getting only my orders means the logged-in user orders
+orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
+    try {
+        const orders = await RetailOrder.find({
+            userId: req.user._id,
+        })
+            .sort({ createdAt: -1 })
+            .select("_id createdAt status totalPrice currency orderItems userId");
+
+        const formatted = orders.map((order) => ({
+            id: order._id,
+            date: order.createdAt,
+            status: order.status,
+            totalPrice: order.totalPrice,
+            currency: order.currency,
+            userId: order.userId,
+
+            // lightweight preview for UI
+            firstItem: order.orderItems?.[0]
+                ? {
+                    name: order.orderItems[0].name,
+                    image: order.orderItems[0].image,
+                    size: order.orderItems[0].size,
+                }
+                : null,
+        }));
+
+        res.json({
+            success: true,
+            orders: formatted,
+        });
+    } catch (error) {
+        console.error("GET /retail/mine error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch user orders",
+        });
+    }
+})
+
 export default orderRoutes;
