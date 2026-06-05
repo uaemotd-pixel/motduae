@@ -1,0 +1,11 @@
+{
+    "readyMadeInfoCard": {
+        "info": {
+            "title": "Ready-Made Item Info",
+            "description": "This is a ready-made piece returned from a custom tailoring order (usually due to size issues).",
+            "condition": "Condition:",
+            "returnReason": "Return reason:",
+            "originalDesign": "Original design:"
+        }
+    }
+}

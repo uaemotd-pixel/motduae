@@ -208,7 +208,6 @@ export function ReadyToWearSection() {
 
                                                 {/* Content area */}
                                                 <div className="p-3 xs:p-4 sm:p-5 md:p-6 lg:p-(--space-24) flex flex-col grow">
-                                                    {/* Title & Price row (stacked) */}
                                                     <div className="flex flex-col justify-between items-start gap-2 mb-1 xs:mb-1.5 sm:mb-2">
                                                         <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-[1.25] tracking-[-0.01em] text-black mb-1 line-clamp-2">
                                                             {title}
@@ -218,27 +217,18 @@ export function ReadyToWearSection() {
                                                         </span>
                                                     </div>
 
-                                            <div className="p-3 xs:p-4 sm:p-5 md:p-6 lg:p-(--space-24) flex flex-col grow">
-                                                <div className="flex flex-col justify-between items-start gap-2 mb-1 xs:mb-1.5 sm:mb-2">
-                                                    <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-[1.25] tracking-[-0.01em] text-black mb-1 line-clamp-2">
-                                                        {title}
-                                                    </h3>
-                                                    <span className="[font-family:var(--font-ui)] text-[12px] xs:text-[13px] sm:text-[14px] md:text-[13px] lg:text-[14px] xl:text-[15px] 2xl:text-[16px] tracking-[0.24em] text-black font-normal whitespace-nowrap">
-                                                        {item.price} AED
+                                                    <span className="border w-fit px-2 bg-(--bg-surface) [font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 mb-3 xs:mb-3.5 sm:mb-4 grow font-normal">
+                                                        {t.readyToWear.sizeLabel}: {item.size}
+                                                    </span>
+
+                                                    <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 mb-3 xs:mb-3.5 sm:mb-4 grow font-normal">
+                                                        {description}
+                                                    </p>
+
+                                                    <span className="[font-family:var(--font-body)] w-full mt-2 xs:mt-2.5 sm:mt-3 py-2 xs:py-2.5 sm:py-3 border border-(--color-border) text-[10px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] uppercase tracking-[0.24em] xs:tracking-[0.28em] text-black text-center group-hover:bg-black group-hover:text-white transition-all duration-300 font-normal">
+                                                        {t.readyToWear.shopNow}
                                                     </span>
                                                 </div>
-
-                                                <span className="border w-fit px-2 bg-(--bg-surface) [font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 mb-3 xs:mb-3.5 sm:mb-4 grow font-normal">
-                                                    {t.readyToWear.sizeLabel}: {item.size}
-                                                </span>
-
-                                                <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 mb-3 xs:mb-3.5 sm:mb-4 grow font-normal">
-                                                    {description}
-                                                </p>
-
-                                                <span className="[font-family:var(--font-body)] w-full mt-2 xs:mt-2.5 sm:mt-3 py-2 xs:py-2.5 sm:py-3 border border-(--color-border) text-[10px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] uppercase tracking-[0.24em] xs:tracking-[0.28em] text-black text-center group-hover:bg-black group-hover:text-white transition-all duration-300 font-normal">
-                                                    {t.readyToWear.shopNow}
-                                                </span>
                                             </div>
                                         </Link>
                                     </div>
