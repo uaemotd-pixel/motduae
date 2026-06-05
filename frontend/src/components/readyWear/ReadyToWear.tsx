@@ -74,6 +74,21 @@ export function ReadyToWearSection() {
     }, [emblaApi]);
 
     useEffect(() => {
+        // Check if the landing URL ends with your hash
+        if (window.location.hash === '#ready-made') {
+            // Small timeout ensures Next.js has finished rendering the layout
+            const timer = setTimeout(() => {
+                const element = document.getElementById('ready-made');
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 150); // 150ms is the sweet spot for localized App Router shifts
+
+            return () => clearTimeout(timer);
+        }
+    }, []);
+
+    useEffect(() => {
         if (!emblaApi) return;
         onSelect();
         setScrollSnaps(emblaApi.scrollSnapList());
@@ -118,7 +133,7 @@ export function ReadyToWearSection() {
     }
 
     return (
-        <section className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-(--space-80)">
+        <section id="ready-made" className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-(--space-80)">
             <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 xs:mb-10 sm:mb-12 md:mb-14 lg:mb-(--space-64) gap-4 xs:gap-5 sm:gap-6 md:gap-(--space-24)">
                     <div>

@@ -7,12 +7,14 @@ import MainLayout from "../../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 import ReadyMadeItemInfo from "@/components/readyWear/ReadyMadeItemInfo";
 import Link from "next/link";
+import { useCart } from "@/context/CartContext";
 
 export default function ReadyMadeDetailPage() {
     const params = useParams();
     const router = useRouter();
     const slug = params.slug as string;
     const locale = params.locale as string;
+    const { addItem, items, totalItems } = useCart();
 
     const [product, setProduct] = useState<any | null>(null);
     const [loading, setLoading] = useState(true);
@@ -47,22 +49,27 @@ export default function ReadyMadeDetailPage() {
     // ---------------------------
     // HANDLERS
     // ---------------------------
-    const increaseQty = () => {
-        if (product && quantity < product.countInStock) {
-            setQuantity(prev => prev + 1);
-        }
-    };
-    const decreaseQty = () => {
-        if (quantity > 1) setQuantity(prev => prev - 1);
-    };
+
     const handleAddToCart = () => {
-        // Your cart logic here
-        console.log("Added to cart:", { product, quantity });
+        if (!product) return;
+
+        addItem({
+            id: product._id,
+            slug: product.slug,
+            name: product.name,
+            image: product.images?.[0],
+            price: product.price,
+            size: product.size,
+        });
+
+        console.log("Added to cart:", { product });
     };
+
     const handleBuyNow = () => {
         // Your buy now logic (e.g., redirect to checkout)
         console.log("Buy now:", { product, quantity });
     };
+
     const toggleWishlist = () => setIsWishlisted(!isWishlisted);
 
     // ---------------------------
@@ -140,7 +147,7 @@ export default function ReadyMadeDetailPage() {
                                 </li>
                                 <li className="text-(--color-grey-muted)">/</li>
                                 <li>
-                                    <Link href="/ready-made" className="text-(--color-grey-muted) hover:text-black transition">
+                                    <Link href={`/${locale}/#ready-made`} scroll={true} className="text-(--color-grey-muted) hover:text-black transition">
                                         Ready‑Made
                                     </Link>
                                 </li>
@@ -290,34 +297,12 @@ export default function ReadyMadeDetailPage() {
                                 {/* Quantity & Add to Cart Section */}
                                 <div className="mt-6 pt-4 border-t border-(--color-border)">
                                     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center mb-6">
-                                        <div className="flex items-center border border-(--color-border) rounded-md">
-                                            <button
-                                                onClick={decreaseQty}
-                                                disabled={quantity <= 1}
-                                                className="px-3 py-2 text-lg disabled:opacity-40 hover:bg-black/5 transition"
-                                                aria-label="Decrease quantity"
-                                            >
-                                                −
-                                            </button>
-                                            <span className="w-12 text-center [font-family:var(--font-ui)] text-[14px]">
-                                                {quantity}
-                                            </span>
-                                            <button
-                                                onClick={increaseQty}
-                                                disabled={product.countInStock <= quantity}
-                                                className="px-3 py-2 text-lg disabled:opacity-40 hover:bg-black/5 transition"
-                                                aria-label="Increase quantity"
-                                            >
-                                                +
-                                            </button>
-                                        </div>
                                         <div className="flex-1 flex gap-3 w-full sm:w-auto">
                                             <button
                                                 onClick={handleAddToCart}
                                                 disabled={product.countInStock < 1}
                                                 className={`
-                                                    flex-1 sm:flex-none py-3 px-6 border border-black text-[10px] xs:text-[11px] tracking-[0.24em] uppercase
-                                                    [font-family:var(--font-ui)] transition-all duration-300
+                                                    flex-1 sm:flex-none py-3 px-6 border border-black text-[10px] xs:text-[11px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer
                                                     ${product.countInStock < 1
                                                         ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
                                                         : "bg-black text-white hover:bg-white hover:text-black hover:border-black"
@@ -359,11 +344,6 @@ export default function ReadyMadeDetailPage() {
             {/* MOBILE STICKY ADD-TO-CART BAR (optional) */}
             <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-(--color-border) p-4 shadow-lg z-30">
                 <div className="flex gap-3">
-                    <div className="flex items-center border border-(--color-border) rounded-md">
-                        <button onClick={decreaseQty} disabled={quantity <= 1} className="px-3 py-2 text-lg">−</button>
-                        <span className="w-10 text-center">{quantity}</span>
-                        <button onClick={increaseQty} disabled={product.countInStock <= quantity} className="px-3 py-2 text-lg">+</button>
-                    </div>
                     <button
                         onClick={handleAddToCart}
                         disabled={product.countInStock < 1}
