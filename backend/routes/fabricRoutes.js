@@ -69,4 +69,62 @@ fabricRoutes.get('/', async (req, res) => {
   }
 });
 
+const toDetailItem = (fabric) => ({
+  _id: fabric._id,
+  slug: fabric.slug,
+  name: fabric.name,
+  nameAr: fabric.nameAr,
+  description: fabric.description,
+  descriptionAr: fabric.descriptionAr,
+  images: fabric.images,
+  material: fabric.material,
+  color: fabric.color,
+  city: fabric.city,
+  tag: fabric.tag,
+  tagColor: fabric.tagColor,
+  pricePerMeter: fabric.pricePerMeter,
+  storePickupAddress: fabric.storePickupAddress,
+  listedByStore: fabric.listedByStore
+    ? {
+        _id: fabric.listedByStore._id,
+        name: fabric.listedByStore.name,
+        role: fabric.listedByStore.role,
+      }
+    : null,
+  createdAt: fabric.createdAt,
+  updatedAt: fabric.updatedAt,
+});
+
+// GET /api/fabrics/:slug — single fabric with store attribution and pickup address
+fabricRoutes.get('/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+
+    const fabric = await Fabric.findOne({
+      slug: slug.toLowerCase(),
+      isActive: true,
+    })
+      .populate('listedByStore', '_id name role')
+      .select('-__v');
+
+    if (!fabric) {
+      return res.status(404).json({
+        success: false,
+        message: 'Fabric not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      item: toDetailItem(fabric),
+    });
+  } catch (error) {
+    console.error('GET /api/fabrics/:slug error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch fabric',
+    });
+  }
+});
+
 export default fabricRoutes;
