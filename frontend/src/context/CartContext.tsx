@@ -10,6 +10,7 @@ export type CartItem = {
     price: number;
     size: string;
     quantity: number;
+    maxStock: number;
 };
 
 type CartContextType = {
@@ -25,45 +26,69 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 const CART_KEY = "readyMadeCart";
 
+function normalizeStoredItems(stored: unknown): CartItem[] {
+    if (!Array.isArray(stored)) return [];
+
+    return stored
+        .filter((item) => item && typeof item.id === "string")
+        .map((item) => ({
+            id: item.id,
+            slug: item.slug ?? "",
+            name: item.name ?? "",
+            image: item.image ?? "",
+            price: Number(item.price) || 0,
+            size: item.size ?? "",
+            quantity: Math.max(1, Number(item.quantity) || 1),
+            maxStock: Math.max(1, Number(item.maxStock) || 1),
+        }));
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
     const [items, setItems] = useState<CartItem[]>([]);
+    const [isHydrated, setIsHydrated] = useState(false);
 
-    // Load from localStorage
     useEffect(() => {
         const stored = localStorage.getItem(CART_KEY);
         if (stored) {
-            setItems(JSON.parse(stored));
+            try {
+                setItems(normalizeStoredItems(JSON.parse(stored)));
+            } catch {
+                setItems([]);
+            }
         }
+        setIsHydrated(true);
     }, []);
 
-    // Save to localStorage
     useEffect(() => {
+        if (!isHydrated) return;
         localStorage.setItem(CART_KEY, JSON.stringify(items));
-    }, [items]);
+    }, [items, isHydrated]);
 
-    // ADD ITEM
     const addItem = (item: Omit<CartItem, "quantity">) => {
+        const maxStock = Math.max(1, item.maxStock);
+
         setItems((prev) => {
             const existing = prev.find((p) => p.id === item.id);
 
             if (existing) {
+                const nextQuantity = Math.min(existing.quantity + 1, maxStock);
+                if (nextQuantity === existing.quantity) return prev;
+
                 return prev.map((p) =>
                     p.id === item.id
-                        ? { ...p, quantity: p.quantity + 1 }
+                        ? { ...p, ...item, quantity: nextQuantity, maxStock }
                         : p
                 );
             }
 
-            return [...prev, { ...item, quantity: 1 }];
+            return [...prev, { ...item, maxStock, quantity: 1 }];
         });
     };
 
-    // REMOVE ITEM
     const removeItem = (id: string) => {
         setItems((prev) => prev.filter((p) => p.id !== id));
     };
 
-    // UPDATE QTY
     const updateQuantity = (id: string, quantity: number) => {
         if (quantity <= 0) {
             setItems((prev) => prev.filter((p) => p.id !== id));
@@ -71,13 +96,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
 
         setItems((prev) =>
-            prev.map((p) =>
-                p.id === id ? { ...p, quantity } : p
-            )
+            prev.map((p) => {
+                if (p.id !== id) return p;
+                const capped = Math.min(quantity, p.maxStock);
+                return { ...p, quantity: capped };
+            })
         );
     };
 
-    // CLEAR CART
     const clearCart = () => setItems([]);
 
     const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -98,7 +124,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     );
 }
 
-// Hook
 export function useCart() {
     const context = useContext(CartContext);
     if (!context) {
