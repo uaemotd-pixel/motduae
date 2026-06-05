@@ -53,16 +53,18 @@ export default function ReadyMadeDetailPage() {
     const handleAddToCart = () => {
         if (!product) return;
 
-        addItem({
-            id: product._id,
-            slug: product.slug,
-            name: product.name,
-            image: product.images?.[0],
-            price: product.price,
-            size: product.size,
-        });
-
-        console.log("Added to cart:", { product });
+        // Add the item with the selected quantity
+        for (let i = 0; i < quantity; i++) {
+            addItem({
+                id: product._id,
+                slug: product.slug,
+                name: product.name,
+                image: product.images?.[0] || "/placeholder.png",
+                price: product.price,
+                size: product.size,
+                maxStock: product.countInStock,
+            });
+        }
     };
 
     const handleBuyNow = () => {

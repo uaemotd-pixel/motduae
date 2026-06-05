@@ -70,8 +70,8 @@ export default function CartPage() {
                                 </p>
                             </div>
                             <Link
-                                href="/ready-made"
-                                className="flex items-center gap-2 [font-family:var(--font-ui)] text-[9px] xs:text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-1 hover:opacity-50 transition"
+                                href={`/${locale}/#ready-made`} scroll={true}
+                                className="flex items-center gap-2 [font-family:var(--font-ui)] text-[9px] xs:text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-1 hover:opacity-50 transition hover:cursor-pointer"
                             >
                                 <ArrowLeft className="w-3 h-3" />
                                 Continue Shopping
@@ -111,29 +111,27 @@ export default function CartPage() {
 
                                                 {/* Quantity & remove */}
                                                 <div className="flex items-center gap-4">
+                                                    {/* // In CartPage, inside the item mapping */}
                                                     <div className="flex items-center border border-(--color-border) rounded-md">
                                                         <button
                                                             onClick={() => decreaseQty(item.id, item.quantity)}
                                                             disabled={item.quantity <= 1}
-                                                            className="px-2 py-1.5 disabled:opacity-40 hover:bg-black/5 transition"
-                                                            aria-label="Decrease quantity"
+                                                            className="px-2 py-1.5 disabled:opacity-40 hover:bg-black/5 transition hover:cursor-pointer"
                                                         >
                                                             <Minus size={14} />
                                                         </button>
-                                                        <span className="w-8 text-center [font-family:var(--font-ui)] text-[13px]">
-                                                            {item.quantity}
-                                                        </span>
+                                                        <span className="w-8 text-center">{item.quantity}</span>
                                                         <button
                                                             onClick={() => increaseQty(item.id, item.quantity)}
-                                                            className="px-2 py-1.5 hover:bg-black/5 transition"
-                                                            aria-label="Increase quantity"
+                                                            disabled={item.quantity >= item.maxStock}   // <-- disabled when stock limit reached
+                                                            className="px-2 py-1.5 disabled:opacity-40 hover:bg-black/5 transition hover:cursor-pointer"
                                                         >
                                                             <Plus size={14} />
                                                         </button>
                                                     </div>
                                                     <button
                                                         onClick={() => removeItem(item.id)}
-                                                        className="text-(--color-grey-muted) hover:text-red-600 transition"
+                                                        className="text-(--color-grey-muted) hover:text-red-600 transition hover:cursor-pointer"
                                                         aria-label="Remove item"
                                                     >
                                                         <Trash2 size={18} />
@@ -154,7 +152,7 @@ export default function CartPage() {
                                 {/* Clear cart button */}
                                 <button
                                     onClick={clearCart}
-                                    className="text-[11px] xs:text-[12px] text-(--color-grey-muted) underline hover:text-black transition"
+                                    className="text-[11px] xs:text-[12px] text-(--color-grey-muted) underline hover:text-black transition hover:cursor-pointer"
                                 >
                                     Clear cart
                                 </button>
@@ -181,7 +179,7 @@ export default function CartPage() {
                                         <span>AED {total.toFixed(2)}</span>
                                     </div>
                                     <Link href="/checkout">
-                                        <button className="w-full py-3 bg-black text-white text-[10px] xs:text-[11px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] hover:bg-white hover:text-black border border-black transition duration-300">
+                                        <button className="w-full py-3 bg-black text-white text-[10px] xs:text-[11px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] hover:bg-white hover:text-black border border-black transition duration-300 hover:cursor-pointer">
                                             Proceed to Checkout
                                         </button>
                                     </Link>
