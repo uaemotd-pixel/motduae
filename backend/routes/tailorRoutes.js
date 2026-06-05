@@ -71,4 +71,64 @@ tailorRoutes.get('/', async (req, res) => {
   }
 });
 
+const isApprovedTailorOwner = (owner) =>
+  owner?.role === 'tailor' && owner?.approvalStatus === 'approved';
+
+const toDetailItem = (shop) => ({
+  _id: shop._id,
+  slug: shop.slug,
+  name: shop.name,
+  nameAr: shop.nameAr,
+  description: shop.description,
+  descriptionAr: shop.descriptionAr,
+  logo: shop.logo,
+  coverImage: shop.coverImage,
+  location: shop.location,
+  city: shop.city,
+  phone: shop.phone,
+  rating: shop.rating,
+  reviewCount: shop.reviewCount,
+  owner: shop.ownerId
+    ? {
+        _id: shop.ownerId._id,
+        name: shop.ownerId.name,
+        role: shop.ownerId.role,
+      }
+    : null,
+  createdAt: shop.createdAt,
+  updatedAt: shop.updatedAt,
+});
+
+// GET /api/tailors/:slug — shop profile; 404 if inactive or owner not approved
+tailorRoutes.get('/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+
+    const shop = await TailorShop.findOne({
+      slug: slug.toLowerCase(),
+      isActive: true,
+    })
+      .populate('ownerId', '_id name role approvalStatus')
+      .select('-__v');
+
+    if (!shop || !isApprovedTailorOwner(shop.ownerId)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tailor shop not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      item: toDetailItem(shop),
+    });
+  } catch (error) {
+    console.error('GET /api/tailors/:slug error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch tailor shop',
+    });
+  }
+});
+
 export default tailorRoutes;
