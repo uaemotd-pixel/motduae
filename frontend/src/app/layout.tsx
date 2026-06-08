@@ -3,6 +3,7 @@ import "./globals.css";
 import { EXTENSION_HYDRATION_GUARD_SCRIPT } from "@/lib/extension-hydration-guard";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
+import { CustomOrderProvider } from "@/context/CustomOrderContext";
 import { Toaster } from "react-hot-toast";
 
 export const metadata: Metadata = {
@@ -30,6 +31,7 @@ export default function RootLayout({
       >
         <AuthProvider>
           <CartProvider>
+            <CustomOrderProvider>
             {children}
             <Toaster
               position="bottom-right"
@@ -49,6 +51,7 @@ export default function RootLayout({
                 error: { iconTheme: { primary: '#ff4444', secondary: '#000' } },
               }}
             />
+            </CustomOrderProvider>
           </CartProvider>
         </AuthProvider>
       </body>
