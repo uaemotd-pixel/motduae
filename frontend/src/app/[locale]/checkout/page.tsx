@@ -57,11 +57,29 @@ export default function CheckoutPage() {
     // Redirect if not logged in
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
-            router.push(`/${locale}/auth/login?redirect=/checkout`);
+            const redirect = encodeURIComponent(`/${locale}/checkout`);
+            router.push(`/${locale}/auth/login?redirect=${redirect}`);
         }
     }, [isLoading, isAuthenticated, router, locale]);
 
-    if (!user) return null;
+    if (isLoading) {
+        return (
+            <MainLayout>
+                <div className="min-h-screen bg-(--bg-page) flex items-center justify-center px-4">
+                    <div className="text-center">
+                        <div className="w-12 h-12 border-2 border-black/20 border-t-black rounded-full animate-spin mx-auto mb-4" />
+                        <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted)">
+                            {t.checkout.pageTitle}
+                        </p>
+                    </div>
+                </div>
+            </MainLayout>
+        );
+    }
+
+    if (!isAuthenticated) {
+        return null;
+    }
 
     // Cart empty guard
     if (items.length === 0 && !showSuccessModal) {
@@ -96,6 +114,8 @@ export default function CheckoutPage() {
                         >
                             Continue Shopping
                         </button>
+                            {t.checkout.continueShopping}
+        </Link>
                     </div>
                 </div>
             </MainLayout>
