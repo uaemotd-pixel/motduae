@@ -144,6 +144,22 @@
     "empty": "لا توجد متاجر خياطة معتمدة متاحة حالياً. يرجى المراجعة لاحقاً.",
     "errorTitle": "تعذر تحميل الخياطين"
   },
+  "TailorDetail": {
+    "loading": "جاري تحميل متجر الخياطة...",
+    "notFound": "متجر الخياطة غير موجود",
+    "notFoundTitle": "متجر الخياطة غير موجود",
+    "browseAll": "تصفح جميع الخياطين",
+    "goBack": "رجوع",
+    "tailors": "الخياطون",
+    "reviews": "مراجعة",
+    "phone": "الهاتف",
+    "designsTitle": "معرض التصاميم",
+    "designsEmpty": "لا توجد تصاميم متاحة من هذا الخياط حالياً.",
+    "fromPrice": "من",
+    "estimatedDays": "تقريباً",
+    "days": "يوم",
+    "startOrder": "ابدأ الطلب المخصص"
+  },
   "MeasurementGuide": {
     "ariaLabel": "قِس بثقة",
     "eyebrow": "ضمان القياس المثالي",

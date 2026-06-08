@@ -114,6 +114,22 @@
     "empty": "There are no approved tailor shops available right now. Please check back soon.",
     "errorTitle": "Unable to Load Tailors"
   },
+  "TailorDetail": {
+    "loading": "Loading tailor shop...",
+    "notFound": "Tailor shop not found",
+    "notFoundTitle": "Tailor Shop Not Found",
+    "browseAll": "Browse All Tailors",
+    "goBack": "Go Back",
+    "tailors": "Tailors",
+    "reviews": "reviews",
+    "phone": "Phone",
+    "designsTitle": "Design Gallery",
+    "designsEmpty": "No designs available from this tailor yet.",
+    "fromPrice": "From",
+    "estimatedDays": "Est.",
+    "days": "days",
+    "startOrder": "Start Custom Order"
+  },
   "MeasurementGuide": {
     "eyebrow": "PERFECT FIT GUARANTEE",
     "title": "Measure with Confidence",
