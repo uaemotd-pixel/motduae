@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, FormEvent } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Link } from "@/i18n/navigation";
 import { useLocale } from "next-intl";
@@ -18,6 +18,8 @@ export default function LoginPage() {
 
     const router = useRouter();
     const locale = useLocale();
+    const searchParams = useSearchParams();
+    const redirectUrl = searchParams.get("redirect") || `/${locale}`;
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -34,16 +36,12 @@ export default function LoginPage() {
 
         try {
             await login(email, password);
-
-            // Show success message
             setSuccess(t.login.successMessage || "Login successful! Redirecting...");
 
-            // Delay redirect so the user can read the message
             setTimeout(() => {
-                router.push(`/${locale}`);
+                router.push(redirectUrl);
                 router.refresh();
-            }, 1500); // 1.5 seconds
-
+            }, 1500);
         } catch (err: any) {
             setError(err.message || "An error occurred during login.");
         } finally {
@@ -63,13 +61,10 @@ export default function LoginPage() {
         <main className="min-h-screen w-full flex flex-col md:flex-row bg-[#FFFDF9]">
             {/* Left Side - Image Section */}
             <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden">
-                <Image
-                    src={images.des6}
-                    alt="Elite Mukhawar editorial background"
-                    fill
-                    className="object-cover object-center"
-                    priority
-                    sizes="(max-width: 768px) 100vw, 55vw"
+                <img
+                    src={images.des6.src}
+                    alt="Logo"
+                    className="w-full"
                 />
                 <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/30 to-transparent"></div>
                 <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-black/20"></div>

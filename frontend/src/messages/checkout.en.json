@@ -1,0 +1,31 @@
+{
+    "checkout": {
+        "pageTitle": "Checkout",
+        "emptyCartTitle": "Your cart is empty",
+        "emptyCartMessage": "Add some items before checking out.",
+        "continueShopping": "Continue Shopping",
+        "orderSummary": "Order Summary",
+        "subtotal": "Subtotal",
+        "discount": "Discount (10%)",
+        "vat": "VAT (5%)",
+        "total": "Total",
+        "size": "Size",
+        "quantity": "Quantity",
+        "totalPrice": "Total Price",
+        "deliveryDetails": "Delivery Details",
+        "fullName": "Full Name",
+        "phone": "Phone",
+        "emirate": "Emirate",
+        "selectEmirate": "Select Emirate",
+        "city": "City",
+        "streetBuilding": "Street / Building",
+        "deliveryNotes": "Delivery Notes",
+        "optional": "optional",
+        "paymentMethod": "Payment Method",
+        "codLabel": "Cash on Delivery (COD)",
+        "codDescription": "Pay when your order arrives",
+        "placeOrder": "Pay",
+        "agreeToTerms": "By placing order you agree to our terms",
+        "requiredField": "Required"
+    }
+}

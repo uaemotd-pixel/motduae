@@ -14,18 +14,24 @@ import en from "@/messages/en.json";
 import readyMadeEn from "@/messages/readyMade.en.json";
 import readyMadeAr from "@/messages/readyMade.ar.json";
 
+// for translation of checkout page
+import checkoutEn from "@/messages/checkout.en.json";
+import checkoutAr from "@/messages/checkout.ar.json";
+
 const translations = {
     en: {
         login: loginEn.login,
         signup: signupEn.signup,
         readyToWear: en.ReadyToWear,
         readyMade: readyMadeEn.readyMadeInfoCard,
+        checkout: checkoutEn.checkout,
     },
     ar: {
         login: loginAr.login,
         signup: signupAr.signup,
         readyToWear: ar.ReadyToWear,
-        readyMade: readyMadeAr.readyMadeInfoCard
+        readyMade: readyMadeAr.readyMadeInfoCard,
+        checkout: checkoutAr.checkout
     },
 };
 

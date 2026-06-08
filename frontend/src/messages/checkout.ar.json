@@ -1,0 +1,31 @@
+{
+    "checkout": {
+        "pageTitle": "الدفع",
+        "emptyCartTitle": "سلة التسوق فارغة",
+        "emptyCartMessage": "أضف بعض المنتجات قبل إتمام الدفع.",
+        "continueShopping": "مواصلة التسوق",
+        "orderSummary": "ملخص الطلب",
+        "subtotal": "المجموع الفرعي",
+        "discount": "خصم (10%)",
+        "vat": "ضريبة القيمة المضافة (5%)",
+        "total": "الإجمالي",
+        "size": "المقاس",
+        "quantity": "الكمية",
+        "totalPrice": "السعر الإجمالي",
+        "deliveryDetails": "تفاصيل التوصيل",
+        "fullName": "الاسم الكامل",
+        "phone": "رقم الهاتف",
+        "emirate": "الإمارة",
+        "selectEmirate": "اختر الإمارة",
+        "city": "المدينة",
+        "streetBuilding": "الشارع / المبنى",
+        "deliveryNotes": "ملاحظات التوصيل",
+        "optional": "اختياري",
+        "paymentMethod": "طريقة الدفع",
+        "codLabel": "الدفع عند الاستلام (COD)",
+        "codDescription": "ادفع عند وصول طلبك",
+        "placeOrder": "ادفع ",
+        "agreeToTerms": "بإتمام الطلب فإنك توافق على الشروط والأحكام",
+        "requiredField": "مطلوب"
+    }
+}
