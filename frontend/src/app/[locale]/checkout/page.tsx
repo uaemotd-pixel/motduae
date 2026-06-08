@@ -49,11 +49,29 @@ export default function CheckoutPage() {
     // Redirect if not logged in
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
-            router.push(`/${locale}/auth/login?redirect=/checkout`);
+            const redirect = encodeURIComponent(`/${locale}/checkout`);
+            router.push(`/${locale}/auth/login?redirect=${redirect}`);
         }
     }, [isLoading, isAuthenticated, router, locale]);
 
-    if (!user) return null;
+    if (isLoading) {
+        return (
+            <MainLayout>
+                <div className="min-h-screen bg-(--bg-page) flex items-center justify-center px-4">
+                    <div className="text-center">
+                        <div className="w-12 h-12 border-2 border-black/20 border-t-black rounded-full animate-spin mx-auto mb-4" />
+                        <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted)">
+                            {t.checkout.pageTitle}
+                        </p>
+                    </div>
+                </div>
+            </MainLayout>
+        );
+    }
+
+    if (!isAuthenticated) {
+        return null;
+    }
 
     // Cart empty guard
     if (items.length === 0) {
@@ -62,16 +80,16 @@ export default function CheckoutPage() {
                 <div className="min-h-screen bg-(--bg-page) flex items-center justify-center px-4">
                     <div className="text-center max-w-md">
                         <h1 className="[font-family:var(--font-display)] text-2xl text-black mb-3">
-                            Your cart is empty
+                            {t.checkout.emptyCartTitle}
                         </h1>
                         <p className="text-[13px] text-(--color-grey-muted) mb-6">
-                            Add some items before checking out.
+                            {t.checkout.emptyCartMessage}
                         </p>
                         <Link
                             href="/ready-made"
                             className="inline-block px-6 py-3 bg-black text-white text-[10px] uppercase tracking-[0.22em]"
                         >
-                            Continue Shopping
+                            {t.checkout.continueShopping}
                         </Link>
                     </div>
                 </div>
@@ -102,6 +120,7 @@ export default function CheckoutPage() {
     };
 
     const handlePlaceOrder = () => {
+        if (!user) return;
         if (!validateForm()) return;
         console.log("Order data:", {
             cart: items,
