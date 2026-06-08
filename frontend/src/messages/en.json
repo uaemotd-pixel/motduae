@@ -48,7 +48,20 @@
     "ariaLabel": "Premium Fabrics",
     "eyebrow": "Ready to Explore",
     "title": "Premium Fabrics",
-    "exploreLink": "Explore Fabrics →"
+    "exploreLink": "Explore Fabrics",
+    "shopNow": "Shop Now",
+    "loading": "Loading fabrics...",
+    "empty": "No fabrics available",
+    "emptyFilter": "No fabrics match this material. Try another filter.",
+    "error": "Failed to load fabrics",
+    "filters": {
+      "all": "All Fabrics",
+      "wool": "Wool",
+      "silk": "Silk",
+      "linen": "Linen",
+      "cashmere": "Cashmere",
+      "cotton": "Cotton"
+    }
   },
   "ReadyToWear": {
     "ariaLabel": "Ready to wear — fabric materials",
