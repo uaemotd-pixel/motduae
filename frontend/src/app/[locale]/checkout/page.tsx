@@ -9,8 +9,11 @@ import { useParams } from "next/navigation";
 import MainLayout from "../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 import { Link } from "@/i18n/navigation";
+import { ShoppingBag } from "lucide-react";
 import { getTranslation } from "@/lib/getTranslation";
 import { useLocale } from "next-intl";
+import SuccessModal from "@/components/shared/SuccessModal";
+import { api } from "@/lib/api/client"; // for POST request
 
 const EMIRATES = [
     "Abu Dhabi",
@@ -29,7 +32,7 @@ export default function CheckoutPage() {
     const t = getTranslation(localeParams);
     const locale = useLocale();
 
-    const { items } = useCart();
+    const { items, clearCart } = useCart();
     const { user, isLoading, isAuthenticated } = useAuth();
 
     const [formData, setFormData] = useState({
@@ -41,10 +44,15 @@ export default function CheckoutPage() {
         deliveryNotes: "",
     });
     const [errors, setErrors] = useState<Record<string, string>>({});
-    const [promoApplied, setPromoApplied] = useState(false);
-    const [discount, setDiscount] = useState(0);
     const [paymentMethod, setPaymentMethod] = useState<"card" | "paypal">("card");
     const [billingAddressSame, setBillingAddressSame] = useState(true);
+
+    // --- success modal state ---
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [lastOrderId, setLastOrderId] = useState<string | null>(null);
+    const [lastOrderItems, setLastOrderItems] = useState<Array<{ name: string; id: string }>>([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     // Redirect if not logged in
     useEffect(() => {
@@ -56,23 +64,38 @@ export default function CheckoutPage() {
     if (!user) return null;
 
     // Cart empty guard
-    if (items.length === 0) {
+    if (items.length === 0 && !showSuccessModal) {
         return (
             <MainLayout>
-                <div className="min-h-screen bg-(--bg-page) flex items-center justify-center px-4">
+                <div className="min-h-screen bg-(--bg-page) flex items-center justify-center px-4 py-12">
                     <div className="text-center max-w-md">
-                        <h1 className="[font-family:var(--font-display)] text-2xl text-black mb-3">
+                        <div className="w-20 h-20 mx-auto mb-6 bg-[#F2F2F0] rounded-full flex items-center justify-center">
+                            <ShoppingBag className="w-10 h-10 text-[#5A5A56]" />
+                        </div>
+                        <h1 className="[font-family:var(--font-display)] text-[28px] xs:text-[32px] sm:text-[36px] text-black mb-3">
                             Your cart is empty
                         </h1>
-                        <p className="text-[13px] text-(--color-grey-muted) mb-6">
-                            Add some items before checking out.
+                        <p className="text-[13px] xs:text-[14px] text-[#5A5A56] mb-6">
+                            Looks like you haven't added any ready‑made items yet.
                         </p>
-                        <Link
-                            href="/ready-made"
-                            className="inline-block px-6 py-3 bg-black text-white text-[10px] uppercase tracking-[0.22em]"
+                        <button
+                            onClick={() => {
+                                const element = document.getElementById('ready-made');
+                                if (element) {
+                                    element.scrollIntoView({ behavior: 'smooth' });
+                                } else {
+                                    // Fallback: go to home page and then scroll after navigation
+                                    router.push(`/${locale}`);
+                                    setTimeout(() => {
+                                        const el = document.getElementById('ready-made');
+                                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                    }, 300);
+                                }
+                            }}
+                            className="inline-block px-6 py-3 bg-black text-white text-[10px] xs:text-[11px] tracking-[0.22em] uppercase hover:bg-[#1A1A1A] transition duration-300 cursor-pointer"
                         >
                             Continue Shopping
-                        </Link>
+                        </button>
                     </div>
                 </div>
             </MainLayout>
@@ -81,14 +104,27 @@ export default function CheckoutPage() {
 
     const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
     const vat = subtotal * 0.05;
-    const total = subtotal + vat - discount;
+    const total = subtotal + vat;
 
     const handleChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
     ) => {
         const { name, value } = e.target;
-        setFormData((prev) => ({ ...prev, [name]: value }));
+
+        let processedValue = value;
+        if (name === "fullName") {
+            processedValue = value.replace(/[^A-Za-z\s\-']/g, "");
+        }
+        if (name === "city") {
+            processedValue = value.replace(/[^A-Za-z\s\-']/g, "");
+        }
+        if (name === "phone") {
+            processedValue = value.replace(/[^0-9+]/g, "");
+        }
+        // Use processedValue instead of value
+        setFormData((prev) => ({ ...prev, [name]: processedValue }));
         if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+        if (errorMessage) setErrorMessage(null);
     };
 
     const validateForm = () => {
@@ -101,18 +137,58 @@ export default function CheckoutPage() {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handlePlaceOrder = () => {
+    const handlePlaceOrder = async () => {
         if (!validateForm()) return;
-        console.log("Order data:", {
-            cart: items,
-            address: formData,
-            payment: paymentMethod,
-            user: user.id,
-            discount,
-            promoApplied,
-            billingAddressSame,
-        });
-        alert("Order placement will be implemented in A-19");
+        if (isSubmitting) return;
+
+        setIsSubmitting(true);
+        setErrorMessage(null);
+
+        // Build orderItems with productId (which worked in your log)
+        const orderItems = items.map((item) => ({
+            productId: item.id,      // ✅ this field gave a valid ID earlier
+            size: item.size,
+            quantity: item.quantity,
+            price: item.price,
+            name: item.name,         // optional
+        }));
+
+        const payload = {
+            orderItems,              // ✅ backend expects 'orderItems' (not 'items')
+            shippingAddress: {
+                fullName: formData.fullName,
+                phone: formData.phone,
+                emirate: formData.emirate,
+                city: formData.city,
+                street: formData.street,
+                deliveryNotes: formData.deliveryNotes,
+            },
+            paymentMethod: "COD",
+        };
+
+        console.log("Final payload:", JSON.stringify(payload, null, 2));
+
+        try {
+            const response = await api.post("/api/orders/retail", payload);
+            if (response.success) {
+                clearCart();
+                setLastOrderId(response.orderId);  // single order ID from backend
+                // Capture the items from the cart (before clearing)
+                const orderedItems = items.map(item => ({
+                    name: item.name,
+                    id: item.id,
+                }));
+                setLastOrderItems(orderedItems);
+                setShowSuccessModal(true);
+            } else {
+                throw new Error(response.message || "Order failed");
+            }
+        } catch (err: any) {
+            console.error("Order error:", err);
+            setErrorMessage(err.message || "Something went wrong. Please try again.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -169,14 +245,8 @@ export default function CheckoutPage() {
                                                     {t.checkout.subtotal}
                                                     <span className="ml-auto text-black">AED {subtotal.toFixed(2)}</span>
                                                 </li>
-                                                {discount > 0 && (
-                                                    <li className="flex flex-wrap gap-4 text-green-600">
-                                                        {t.checkout.discount} (10%)
-                                                        <span className="ml-auto">- AED {discount.toFixed(2)}</span>
-                                                    </li>
-                                                )}
                                                 <li className="flex flex-wrap gap-4">
-                                                    {t.checkout.vat} (5%)
+                                                    {t.checkout.vat}
                                                     <span className="ml-auto text-black">AED {vat.toFixed(2)}</span>
                                                 </li>
                                                 <hr className="border-(--color-border) my-2" />
@@ -293,12 +363,30 @@ export default function CheckoutPage() {
                                     <p className="text-[11px] text-(--color-grey-muted) mt-2">{t.checkout.codDescription}</p>
                                 </div>
 
+                                {/* Error message */}
+                                {errorMessage && (
+                                    <div className="mt-4 p-3 bg-red-50 border border-red-300 text-red-700 text-sm">
+                                        {errorMessage}
+                                    </div>
+                                )}
+
                                 {/* Place Order Button */}
                                 <button
                                     onClick={handlePlaceOrder}
+                                    disabled={isSubmitting}
                                     className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] mt-6 md:mt-7 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
                                 >
-                                    {t.checkout.placeOrder} AED {total.toFixed(2)}
+                                    {isSubmitting ? (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                            </svg>
+                                            Processing...
+                                        </span>
+                                    ) : (
+                                        `${t.checkout.placeOrder} AED ${total.toFixed(2)}`
+                                    )}
                                 </button>
                                 <p className="text-center text-[12px] text-(--color-grey-muted) mt-4">
                                     {t.checkout.agreeToTerms}
@@ -308,6 +396,19 @@ export default function CheckoutPage() {
                     </div>
                 </div>
             </FadeInSection>
+
+            {/* --- SUCCESS MODAL --- */}
+            <SuccessModal
+                isOpen={showSuccessModal}
+                onClose={() => {
+                    setShowSuccessModal(false);
+                    router.push(`/${locale}#ready-made`);
+                }}
+                title="Thank You!"
+                message="Your order has been placed successfully."
+                orderId={lastOrderId || "Order ID"}
+                orderItems={lastOrderItems}   // new prop
+            />
         </MainLayout>
     );
 }

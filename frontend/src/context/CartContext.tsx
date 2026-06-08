@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useRef } from "react";
 import toast from "react-hot-toast";
 
 export type CartItem = {
@@ -29,7 +29,6 @@ const CART_KEY = "readyMadeCart";
 
 function normalizeStoredItems(stored: unknown): CartItem[] {
     if (!Array.isArray(stored)) return [];
-
     return stored
         .filter((item) => item && typeof item.id === "string")
         .map((item) => ({
@@ -47,6 +46,7 @@ function normalizeStoredItems(stored: unknown): CartItem[] {
 export function CartProvider({ children }: { children: React.ReactNode }) {
     const [items, setItems] = useState<CartItem[]>([]);
     const [isHydrated, setIsHydrated] = useState(false);
+    const toastScheduledRef = useRef<string | null>(null); // to prevent duplicates
 
     useEffect(() => {
         const stored = localStorage.getItem(CART_KEY);
@@ -65,44 +65,65 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem(CART_KEY, JSON.stringify(items));
     }, [items, isHydrated]);
 
+    // Helper to show toast only once per message
+    const showToast = (message: string, type: "success" | "error" = "success") => {
+        if (toastScheduledRef.current === message) return;
+        toastScheduledRef.current = message;
+        if (type === "success") {
+            toast.success(message);
+        } else {
+            toast.error(message);
+        }
+        setTimeout(() => {
+            toastScheduledRef.current = null;
+        }, 500);
+    };
+
     // ADD ITEM
     const addItem = (item: Omit<CartItem, "quantity" | "maxStock"> & { maxStock: number }) => {
         setItems((prev) => {
             const existing = prev.find((p) => p.id === item.id);
 
             if (existing) {
-                // Check if we can increase quantity
                 if (existing.quantity < existing.maxStock) {
-                    setTimeout(() => toast.success(`${item.name} quantity increased to ${existing.quantity + 1}`), 0);
+                    // Schedule toast after state update (but ensure single)
+                    setTimeout(() => {
+                        showToast(`${item.name} quantity increased to ${existing.quantity + 1}`);
+                    }, 0);
                     return prev.map((p) =>
                         p.id === item.id ? { ...p, quantity: p.quantity + 1 } : p
                     );
                 } else {
-                    setTimeout(() => toast.error(`Only ${existing.maxStock} in stock`), 0);
-                    return prev; // no change
+                    setTimeout(() => {
+                        showToast(`Only ${existing.maxStock} in stock`, "error");
+                    }, 0);
+                    return prev;
                 }
             }
 
-            // New item: quantity starts at 1, maxStock = item.maxStock
-            setTimeout(() => toast.success(`${item.name} added to cart`), 0);
+            setTimeout(() => {
+                showToast(`${item.name} added to cart`);
+            }, 0);
             return [...prev, { ...item, quantity: 1, maxStock: item.maxStock }];
         });
     };
 
+    // REMOVE ITEM
     const removeItem = (id: string) => {
         const removedItem = items.find((p) => p.id === id);
         if (removedItem) {
-            toast.success(`${removedItem.name} removed from cart`);
+            showToast(`${removedItem.name} removed from cart`);
         }
         setItems((prev) => prev.filter((p) => p.id !== id));
     };
 
+    // UPDATE QTY
     const updateQuantity = (id: string, quantity: number) => {
         const item = items.find(p => p.id === id);
         if (!item) return;
 
         if (quantity > item.maxStock) {
-            toast.error(`Only ${item.maxStock} in stock`);
+            showToast(`Only ${item.maxStock} in stock`, "error");
             return;
         }
         if (quantity <= 0) {

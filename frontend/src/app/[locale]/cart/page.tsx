@@ -1,7 +1,7 @@
 "use client";
 
 import { Link } from "@/i18n/navigation";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft } from "lucide-react";
 import MainLayout from "../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
@@ -10,6 +10,7 @@ import { useCart } from "@/context/CartContext";
 export default function CartPage() {
     const { items, removeItem, updateQuantity, clearCart } = useCart();
     const params = useParams();
+    const router = useRouter();
     const locale = params.locale as string;
 
     // Calculate totals
@@ -41,12 +42,24 @@ export default function CartPage() {
                         <p className="text-[13px] xs:text-[14px] text-[#5A5A56] mb-6">
                             Looks like you haven't added any ready‑made items yet.
                         </p>
-                        <Link
-                            href={`/${locale}/#ready-made`} scroll={true}
-                            className="inline-block px-6 py-3 bg-black text-white text-[10px] xs:text-[11px] tracking-[0.22em] uppercase hover:bg-[#1A1A1A] transition duration-300"
+                        <button
+                            onClick={() => {
+                                const element = document.getElementById('ready-made');
+                                if (element) {
+                                    element.scrollIntoView({ behavior: 'smooth' });
+                                } else {
+                                    // Fallback: go to home page and then scroll after navigation
+                                    router.push(`/${locale}`);
+                                    setTimeout(() => {
+                                        const el = document.getElementById('ready-made');
+                                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                    }, 300);
+                                }
+                            }}
+                            className="inline-block px-6 py-3 bg-black text-white text-[10px] xs:text-[11px] tracking-[0.22em] uppercase hover:bg-[#1A1A1A] transition duration-300 cursor-pointer"
                         >
                             Continue Shopping
-                        </Link>
+                        </button>
                     </div>
                 </div>
             </MainLayout>
@@ -152,7 +165,7 @@ export default function CartPage() {
                                 {/* Clear cart button */}
                                 <button
                                     onClick={clearCart}
-                                    className="text-[11px] xs:text-[12px] text-(--color-grey-muted) underline hover:text-black transition hover:cursor-pointer"
+                                    className="text-[16px] xs:text-[14px] text-(--color-grey-muted) hover:text-black transition hover:cursor-pointer"
                                 >
                                     Clear cart
                                 </button>
@@ -174,12 +187,12 @@ export default function CartPage() {
                                             <span className="text-black">AED {vat.toFixed(2)}</span>
                                         </div>
                                     </div>
-                                    <div className="flex justify-between [font-family:var(--font-ui)] text-[16px] xs:text-[18px] font-bold mb-8">
+                                    <div className="flex justify-between [font-family:var(--font-ui)] text-[16px] xs:text-[18px] font-normal mb-8">
                                         <span>Total</span>
                                         <span>AED {total.toFixed(2)}</span>
                                     </div>
                                     <Link href="/checkout">
-                                        <button className="w-full py-3 bg-black text-white text-[10px] xs:text-[11px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] hover:bg-white hover:text-black border border-black transition duration-300 hover:cursor-pointer">
+                                        <button className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] mt-6 md:mt-7 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer">
                                             Proceed to Checkout
                                         </button>
                                     </Link>
