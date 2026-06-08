@@ -114,6 +114,32 @@
     "empty": "There are no approved tailor shops available right now. Please check back soon.",
     "errorTitle": "Unable to Load Tailors"
   },
+  "CustomOrderFabric": {
+    "stepLabel": "Step {step} of {total}",
+    "title": "Choose Your Fabric",
+    "description": "Select a fabric from our partner stores, or choose to use your own fabric for this custom order.",
+    "platformOptionEyebrow": "Option A",
+    "platformOptionTitle": "Platform Fabric",
+    "platformOptionDescription": "Browse MOTD partner fabrics. Price is calculated per meter at checkout.",
+    "ownFabricOptionEyebrow": "Option B",
+    "ownFabricOptionTitle": "Use My Own Fabric",
+    "ownFabricOptionDescription": "You supply the fabric. No platform fabric cost is added to your order.",
+    "ownFabricConfirmedTitle": "You will use your own fabric",
+    "ownFabricConfirmedDescription": "Continue to choose your tailor and design. Fabric cost will not be included in your order total.",
+    "loading": "Loading...",
+    "loadingFabrics": "Loading fabrics...",
+    "empty": "No fabrics match this filter.",
+    "browseFabrics": "Browse fabric store",
+    "continue": "Continue to Tailor & Design",
+    "filters": {
+      "all": "All Fabrics",
+      "wool": "Wool",
+      "silk": "Silk",
+      "linen": "Linen",
+      "cashmere": "Cashmere",
+      "cotton": "Cotton"
+    }
+  },
   "TailorDetail": {
     "loading": "Loading tailor shop...",
     "notFound": "Tailor shop not found",

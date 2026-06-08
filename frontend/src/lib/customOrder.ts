@@ -1,4 +1,17 @@
+import type { FabricListItem } from "@/lib/fabrics";
+import { resolveFabricImage } from "@/lib/fabrics";
+
 export type FabricSource = "storefront" | "self";
+
+export const CUSTOM_ORDER_STEPS = [
+    "fabric",
+    "tailor",
+    "meters",
+    "measurements",
+    "review",
+] as const;
+
+export type CustomOrderStep = (typeof CUSTOM_ORDER_STEPS)[number];
 
 export interface CustomOrderFabricSelection {
     _id: string;
@@ -214,6 +227,26 @@ export function normalizeCustomOrderDraft(value: unknown): CustomOrderDraft {
 
 export function useOwnFabric(draft: CustomOrderDraft): boolean {
     return draft.fabricSource === "self";
+}
+
+export function toCustomOrderFabricSelection(
+    item: FabricListItem,
+): CustomOrderFabricSelection {
+    return {
+        _id: item._id,
+        slug: item.slug,
+        name: item.name,
+        nameAr: item.nameAr,
+        material: item.material,
+        pricePerMeter: item.pricePerMeter,
+        image: resolveFabricImage(item.images?.[0]),
+    };
+}
+
+export function isFabricStepComplete(draft: CustomOrderDraft): boolean {
+    if (draft.fabricSource === "self") return true;
+    if (draft.fabricSource === "storefront" && draft.fabric) return true;
+    return false;
 }
 
 export function buildCustomOrderPreviewPayload(

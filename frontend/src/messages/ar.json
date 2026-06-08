@@ -144,6 +144,32 @@
     "empty": "لا توجد متاجر خياطة معتمدة متاحة حالياً. يرجى المراجعة لاحقاً.",
     "errorTitle": "تعذر تحميل الخياطين"
   },
+  "CustomOrderFabric": {
+    "stepLabel": "الخطوة {step} من {total}",
+    "title": "اختر القماش",
+    "description": "اختر قماشاً من متاجر شركائنا، أو استخدم قماشك الخاص لهذا الطلب المخصص.",
+    "platformOptionEyebrow": "الخيار أ",
+    "platformOptionTitle": "قماش المنصة",
+    "platformOptionDescription": "تصفح أقمشة شركاء MOTD. يُحسب السعر لكل متر عند الدفع.",
+    "ownFabricOptionEyebrow": "الخيار ب",
+    "ownFabricOptionTitle": "استخدم قماشي الخاص",
+    "ownFabricOptionDescription": "أنت توفر القماش. لن تُضاف تكلفة قماش المنصة إلى طلبك.",
+    "ownFabricConfirmedTitle": "ستستخدم قماشك الخاص",
+    "ownFabricConfirmedDescription": "تابع لاختيار الخياط والتصميم. لن تُدرج تكلفة القماش في إجمالي الطلب.",
+    "loading": "جاري التحميل...",
+    "loadingFabrics": "جاري تحميل الأقمشة...",
+    "empty": "لا توجد أقمشة تطابق هذا الفلتر.",
+    "browseFabrics": "تصفح متجر الأقمشة",
+    "continue": "متابعة إلى الخياط والتصميم",
+    "filters": {
+      "all": "جميع الأقمشة",
+      "wool": "صوف",
+      "silk": "حرير",
+      "linen": "كتان",
+      "cashmere": "كشمير",
+      "cotton": "قطن"
+    }
+  },
   "TailorDetail": {
     "loading": "جاري تحميل متجر الخياطة...",
     "notFound": "متجر الخياطة غير موجود",
