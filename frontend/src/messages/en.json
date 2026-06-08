@@ -102,6 +102,18 @@
     "empty": "No tailor shops available",
     "error": "Failed to load tailors"
   },
+  "TailorsListing": {
+    "eyebrow": "Master Artisans of the UAE",
+    "title": "Master Tailors of the UAE",
+    "description": "Browse approved tailor shops across the Emirates. Each atelier offers bespoke designs you can order through our custom tailoring flow.",
+    "showing": "Showing {count} tailor shops",
+    "viewShop": "View Shop",
+    "reviews": "reviews",
+    "loading": "Loading tailor shops...",
+    "emptyTitle": "No Tailor Shops",
+    "empty": "There are no approved tailor shops available right now. Please check back soon.",
+    "errorTitle": "Unable to Load Tailors"
+  },
   "MeasurementGuide": {
     "eyebrow": "PERFECT FIT GUARANTEE",
     "title": "Measure with Confidence",

@@ -10,7 +10,7 @@ import { useCart } from "@/context/CartContext";
 
 const NAV_LINKS = [
   { key: "fabrics", href: "/fabrics/fabricStore" },
-  { key: "tailors", href: "/#tailors" },
+  { key: "tailors", href: "/tailors" },
   { key: "stories", href: "/#stories" },
   { key: "howItWorks", href: "/#how-it-works" },
   { key: "about", href: "/#about" }
@@ -18,7 +18,7 @@ const NAV_LINKS = [
 
 const MOBILE_NAV_LINKS = [
   { key: "fabrics", href: "/#fabrics" },
-  { key: "tailors", href: "/#tailors" },
+  { key: "tailors", href: "/tailors" },
   { key: "stories", href: "/#stories" },
   { key: "howItWorks", href: "/#how-it-works" },
   { key: "about", href: "/#about" }
