@@ -69,13 +69,10 @@ export default function RegisterPage() {
         <main className="min-h-screen w-full flex flex-col md:flex-row bg-[#FFFDF9]">
             {/* Left Side - Image Section */}
             <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden">
-                <Image
-                    src={images.des7}
-                    alt="Elite Mukhawar editorial background"
-                    fill
-                    className="object-cover object-center"
-                    priority
-                    sizes="55vw"
+                <img 
+                src={images.des7.src} 
+                alt="Register"
+                className="w-full" 
                 />
                 <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/30 to-transparent"></div>
                 <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-black/20"></div>
