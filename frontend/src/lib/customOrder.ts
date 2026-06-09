@@ -294,6 +294,10 @@ export function isMetersStepComplete(draft: CustomOrderDraft): boolean {
     return draft.fabricMeters !== null && draft.fabricMeters > 0;
 }
 
+export function isMeasurementsStepComplete(_draft: CustomOrderDraft): boolean {
+    return true;
+}
+
 export function buildCustomOrderPreviewPayload(
     draft: CustomOrderDraft,
 ): CustomOrderPreviewPayload | null {

@@ -114,6 +114,30 @@
     "empty": "There are no approved tailor shops available right now. Please check back soon.",
     "errorTitle": "Unable to Load Tailors"
   },
+  "CustomOrderMeasurements": {
+    "stepLabel": "Step {step} of {total}",
+    "title": "Your Measurements",
+    "description": "Share your body measurements to help your tailor achieve the best fit. All fields are optional — you can refine these with your tailor later.",
+    "loading": "Loading...",
+    "optionalNote": "All fields are optional in this step.",
+    "unit": "cm",
+    "fields": {
+      "chest": "Chest",
+      "chestHint": "Around the fullest part of your chest",
+      "waist": "Waist",
+      "waistHint": "Around your natural waistline",
+      "hips": "Hips",
+      "hipsHint": "Around the fullest part of your hips",
+      "inseam": "Inseam",
+      "inseamHint": "From crotch to ankle along the inner leg",
+      "sleeveLength": "Sleeve Length",
+      "sleeveLengthHint": "From shoulder to wrist",
+      "notes": "Additional Notes",
+      "notesPlaceholder": "Any fit preferences or special instructions for your tailor"
+    },
+    "backToMeters": "Back to fabric meters",
+    "continue": "Continue to Review"
+  },
   "CustomOrderMeters": {
     "stepLabel": "Step {step} of {total}",
     "title": "Fabric Meters",
