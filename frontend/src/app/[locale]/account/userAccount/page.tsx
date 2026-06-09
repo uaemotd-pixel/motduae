@@ -17,7 +17,6 @@ import {
     X,
 } from "lucide-react";
 import white_logo from "../../../../../public/PNG/White/MOTD_Wordmark_White.png";
-import { Link } from "@/i18n/navigation";
 import UserOrders from "../userOrders/page";
 import FadeInSection from "@/components/shared/fadeInSection";
 
