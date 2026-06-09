@@ -339,3 +339,31 @@ export function buildCustomOrderPreviewPayload(
             : {}),
     };
 }
+
+export interface CustomOrderCreatePayload extends CustomOrderPreviewPayload {
+    measurements: CustomOrderMeasurements;
+    customerDeliveryAddress: CustomOrderDeliveryAddress;
+    pickupAddress?: CustomOrderDeliveryAddress;
+    paymentMethod: "cod";
+}
+
+export function buildCustomOrderCreatePayload(
+    draft: CustomOrderDraft,
+    deliveryAddress: CustomOrderDeliveryAddress,
+): CustomOrderCreatePayload | null {
+    const preview = buildCustomOrderPreviewPayload(draft);
+    if (!preview) return null;
+
+    const payload: CustomOrderCreatePayload = {
+        ...preview,
+        measurements: draft.measurements,
+        customerDeliveryAddress: deliveryAddress,
+        paymentMethod: "cod",
+    };
+
+    if (draft.fabricSource === "self") {
+        payload.pickupAddress = deliveryAddress;
+    }
+
+    return payload;
+}
