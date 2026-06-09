@@ -87,6 +87,20 @@ export interface CustomOrderPreviewPayload {
     fabricMeters: number;
 }
 
+export interface CustomOrderPricingBreakdown {
+    designBase: number;
+    fabricMeters: number;
+    fabricPricePerMeter: number;
+    fabricCost: number;
+    tailoringFee: number;
+    deliveryFee: number;
+    subtotal: number;
+    vatRate: number;
+    vatAmount: number;
+    total: number;
+    currency: string;
+}
+
 export const CUSTOM_ORDER_STORAGE_KEY = "motdCustomOrderDraft";
 
 export const EMPTY_MEASUREMENTS: CustomOrderMeasurements = {
@@ -290,6 +304,21 @@ export function isTailorStepComplete(draft: CustomOrderDraft): boolean {
     return Boolean(draft.tailor && draft.design);
 }
 
+export function isMetersStepComplete(draft: CustomOrderDraft): boolean {
+    return draft.fabricMeters !== null && draft.fabricMeters > 0;
+}
+
+export function isMeasurementsStepComplete(_draft: CustomOrderDraft): boolean {
+    return true;
+}
+
+export function isReviewStepComplete(
+    draft: CustomOrderDraft,
+    hasPricing: boolean,
+): boolean {
+    return buildCustomOrderPreviewPayload(draft) !== null && hasPricing;
+}
+
 export function buildCustomOrderPreviewPayload(
     draft: CustomOrderDraft,
 ): CustomOrderPreviewPayload | null {
@@ -309,4 +338,32 @@ export function buildCustomOrderPreviewPayload(
             ? { fabricId: draft.fabric!._id }
             : {}),
     };
+}
+
+export interface CustomOrderCreatePayload extends CustomOrderPreviewPayload {
+    measurements: CustomOrderMeasurements;
+    customerDeliveryAddress: CustomOrderDeliveryAddress;
+    pickupAddress?: CustomOrderDeliveryAddress;
+    paymentMethod: "cod";
+}
+
+export function buildCustomOrderCreatePayload(
+    draft: CustomOrderDraft,
+    deliveryAddress: CustomOrderDeliveryAddress,
+): CustomOrderCreatePayload | null {
+    const preview = buildCustomOrderPreviewPayload(draft);
+    if (!preview) return null;
+
+    const payload: CustomOrderCreatePayload = {
+        ...preview,
+        measurements: draft.measurements,
+        customerDeliveryAddress: deliveryAddress,
+        paymentMethod: "cod",
+    };
+
+    if (draft.fabricSource === "self") {
+        payload.pickupAddress = deliveryAddress;
+    }
+
+    return payload;
 }

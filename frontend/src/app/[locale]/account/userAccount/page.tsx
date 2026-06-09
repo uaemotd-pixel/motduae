@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "@/i18n/navigation";
 import { useAuth } from "../../../../context/AuthContext";
 import {
     User,

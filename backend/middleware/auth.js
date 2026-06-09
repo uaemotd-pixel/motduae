@@ -38,5 +38,5 @@ export const isAdmin = (req, res, next) => {
     next();
     return;
   }
-  res.status(401).send({ message: 'Invalid Admin Token' });
+  res.status(403).send({ message: 'Forbidden: Admin access required' });
 };

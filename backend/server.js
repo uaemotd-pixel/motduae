@@ -7,6 +7,8 @@ import readyMadeRoutes from './routes/readyMadeRoutes.js';
 import fabricRoutes from './routes/fabricRoutes.js';
 import tailorRoutes from './routes/tailorRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
+import adminRouter from './routes/adminRoutes.js';
+import { isAuth, isAdmin } from './middleware/auth.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -37,6 +39,7 @@ app.use('/api/ready-made', readyMadeRoutes); // for getting all ready made produ
 app.use('/api/fabrics', fabricRoutes);
 app.use('/api/tailors', tailorRoutes);
 app.use('/api/orders', orderRoutes); // for orders
+app.use('/api/admin', isAuth, isAdmin, adminRouter); // admin protected routes
 app.use(notFound);
 app.use(errorHandler);
 
