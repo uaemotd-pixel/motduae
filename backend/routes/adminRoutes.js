@@ -1,6 +1,7 @@
 import express from 'express';
 import expressAsyncHandler from 'express-async-handler';
 import ReadyMadeProduct from '../models/ReadyMadeProduct.js';
+import Fabric from '../models/Fabric.js';
 
 const adminRouter = express.Router();
 
@@ -120,6 +121,119 @@ adminRouter.delete(
       res.send({ message: 'Ready-made product deleted' });
     } else {
       res.status(404).send({ message: 'Ready-made product not found' });
+    }
+  })
+);
+
+// ==========================================
+// C-03: Admin Fabrics CRUD
+// ==========================================
+
+// GET /api/admin/fabrics
+// Admin can view all fabrics in the catalog (including inactive)
+adminRouter.get(
+  '/fabrics',
+  expressAsyncHandler(async (req, res) => {
+    const fabrics = await Fabric.find({})
+      .populate('listedByStore', 'name email')
+      .sort({ createdAt: -1 });
+    res.send(fabrics);
+  })
+);
+
+// POST /api/admin/fabrics
+// Create a new fabric catalog entry
+adminRouter.post(
+  '/fabrics',
+  expressAsyncHandler(async (req, res) => {
+    const {
+      name,
+      nameAr,
+      slug,
+      description,
+      descriptionAr,
+      images,
+      material,
+      color,
+      city,
+      tag,
+      tagColor,
+      pricePerMeter,
+      listedByStore,
+      storePickupAddress,
+      isActive,
+    } = req.body;
+
+    const newFabric = new Fabric({
+      name,
+      nameAr,
+      slug,
+      description,
+      descriptionAr,
+      images,
+      material,
+      color,
+      city,
+      tag,
+      tagColor,
+      pricePerMeter,
+      listedByStore,
+      storePickupAddress,
+      isActive: isActive !== undefined ? isActive : true,
+    });
+
+    const createdFabric = await newFabric.save();
+    res.status(201).send(createdFabric);
+  })
+);
+
+// PUT /api/admin/fabrics/:id
+// Update an existing fabric
+adminRouter.put(
+  '/fabrics/:id',
+  expressAsyncHandler(async (req, res) => {
+    const fabric = await Fabric.findById(req.params.id);
+
+    if (fabric) {
+      fabric.name = req.body.name || fabric.name;
+      fabric.nameAr = req.body.nameAr || fabric.nameAr;
+      fabric.slug = req.body.slug || fabric.slug;
+      fabric.description = req.body.description !== undefined ? req.body.description : fabric.description;
+      fabric.descriptionAr = req.body.descriptionAr !== undefined ? req.body.descriptionAr : fabric.descriptionAr;
+      fabric.images = req.body.images || fabric.images;
+      fabric.material = req.body.material || fabric.material;
+      fabric.color = req.body.color !== undefined ? req.body.color : fabric.color;
+      fabric.city = req.body.city !== undefined ? req.body.city : fabric.city;
+      fabric.tag = req.body.tag !== undefined ? req.body.tag : fabric.tag;
+      fabric.tagColor = req.body.tagColor !== undefined ? req.body.tagColor : fabric.tagColor;
+      fabric.pricePerMeter = req.body.pricePerMeter !== undefined ? req.body.pricePerMeter : fabric.pricePerMeter;
+      fabric.listedByStore = req.body.listedByStore || fabric.listedByStore;
+      
+      if (req.body.storePickupAddress) {
+        fabric.storePickupAddress = req.body.storePickupAddress;
+      }
+      
+      fabric.isActive = req.body.isActive !== undefined ? req.body.isActive : fabric.isActive;
+
+      const updatedFabric = await fabric.save();
+      res.send(updatedFabric);
+    } else {
+      res.status(404).send({ message: 'Fabric not found' });
+    }
+  })
+);
+
+// DELETE /api/admin/fabrics/:id
+// Delete (or let frontend soft-delete by toggling isActive via PUT)
+adminRouter.delete(
+  '/fabrics/:id',
+  expressAsyncHandler(async (req, res) => {
+    const fabric = await Fabric.findById(req.params.id);
+    if (fabric) {
+      await fabric.deleteOne();
+      res.send({ message: 'Fabric deleted' });
+    } else {
+      res.status(404).send({ message: 'Fabric not found' });
     }
   })
 );
