@@ -87,6 +87,20 @@ export interface CustomOrderPreviewPayload {
     fabricMeters: number;
 }
 
+export interface CustomOrderPricingBreakdown {
+    designBase: number;
+    fabricMeters: number;
+    fabricPricePerMeter: number;
+    fabricCost: number;
+    tailoringFee: number;
+    deliveryFee: number;
+    subtotal: number;
+    vatRate: number;
+    vatAmount: number;
+    total: number;
+    currency: string;
+}
+
 export const CUSTOM_ORDER_STORAGE_KEY = "motdCustomOrderDraft";
 
 export const EMPTY_MEASUREMENTS: CustomOrderMeasurements = {
@@ -296,6 +310,13 @@ export function isMetersStepComplete(draft: CustomOrderDraft): boolean {
 
 export function isMeasurementsStepComplete(_draft: CustomOrderDraft): boolean {
     return true;
+}
+
+export function isReviewStepComplete(
+    draft: CustomOrderDraft,
+    hasPricing: boolean,
+): boolean {
+    return buildCustomOrderPreviewPayload(draft) !== null && hasPricing;
 }
 
 export function buildCustomOrderPreviewPayload(
