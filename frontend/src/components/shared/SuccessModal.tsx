@@ -14,7 +14,7 @@ interface SuccessModalProps {
     itemsInOrderLabel?: string;
     okLabel?: string;
     orderName?: string;
-    orderItems?: Array<{ name: string; id: string }>;
+    orderItems?: Array<{ name: string }>;
 }
 
 export default function SuccessModal({
@@ -61,7 +61,9 @@ export default function SuccessModal({
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
                         className="fixed inset-0 bg-black/50 z-50"
-                        onClick={onClose}
+                        onClick={(event) => {
+                            if (event.target === event.currentTarget) onClose();
+                        }}
                     />
                     {/* Modal container */}
                     <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
@@ -109,10 +111,11 @@ export default function SuccessModal({
                                     </p>
                                     <ul className="space-y-1.5">
                                         {orderItems.map((item, idx) => (
-                                            <li key={idx} className="text-[12px] text-black/80 border-b border-(--color-border) pb-1">
+                                            <li
+                                                key={`${item.name}-${idx}`}
+                                                className="text-[12px] text-black/80 border-b border-(--color-border) pb-1"
+                                            >
                                                 <span className="font-medium">{item.name}</span>
-                                                <br />
-                                                <span className="text-[10px] text-(--color-grey-muted)">ID: {item.id}</span>
                                             </li>
                                         ))}
                                     </ul>

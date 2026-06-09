@@ -143,10 +143,12 @@
     "submitError": "Unable to place order. Please try again.",
     "backToReview": "Back to review",
     "agreeToTerms": "By placing this order you agree to our terms.",
-    "successTitle": "Order Confirmed",
+    "successTitle": "Thank You!",
     "successMessage": "Your custom tailoring order has been placed successfully.",
     "orderIdLabel": "Order ID",
-    "okButton": "Continue"
+    "itemsInOrder": "Items in this order:",
+    "okButton": "OK",
+    "unknownDesign": "Custom design"
   },
   "CustomOrderReview": {
     "stepLabel": "Step {step} of {total}",

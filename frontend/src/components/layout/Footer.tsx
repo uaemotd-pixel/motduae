@@ -15,7 +15,7 @@ const QUICK_LINKS = [
 ] as const;
 
 const CUSTOMER_LINKS = [
-  { key: "trackOrder", href: "/orders" },
+  { key: "trackOrder", href: "/account/userAccount?tab=orders" },
   { key: "shippingPolicy", href: "/shipping" },
   { key: "returnsRefunds", href: "/returns" },
   { key: "measurementGuide", href: "/#how-it-works" },

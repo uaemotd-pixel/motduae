@@ -54,6 +54,7 @@ export default function CustomOrderCheckoutStep() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [orderId, setOrderId] = useState<string | null>(null);
+    const [successOrderItems, setSuccessOrderItems] = useState<Array<{ name: string }>>([]);
     const [formInitialized, setFormInitialized] = useState(false);
 
     const previewPayload = useMemo(
@@ -71,12 +72,12 @@ export default function CustomOrderCheckoutStep() {
     }, [authLoading, isAuthenticated, isHydrated, locale, router]);
 
     useEffect(() => {
-        if (!isHydrated || authLoading || !isAuthenticated) return;
+        if (!isHydrated || authLoading || !isAuthenticated || showSuccess) return;
 
         if (!previewPayload) {
             router.push("/custom-order/fabric");
         }
-    }, [authLoading, isAuthenticated, isHydrated, previewPayload, router]);
+    }, [authLoading, isAuthenticated, isHydrated, previewPayload, router, showSuccess]);
 
     useEffect(() => {
         if (!isHydrated || formInitialized) return;
@@ -197,8 +198,13 @@ export default function CustomOrderCheckoutStep() {
                 throw new Error(response.message || t("submitError"));
             }
 
+            const confirmedName =
+                locale === "ar"
+                    ? draft.design?.nameAr || draft.design?.name || t("unknownDesign")
+                    : draft.design?.name || t("unknownDesign");
+
             setOrderId(response.orderId);
-            resetOrder();
+            setSuccessOrderItems([{ name: confirmedName }]);
             setShowSuccess(true);
         } catch (err: unknown) {
             const message =
@@ -220,12 +226,13 @@ export default function CustomOrderCheckoutStep() {
         );
     }
 
-    if (!previewPayload) {
+    if (!previewPayload && !showSuccess) {
         return null;
     }
 
     return (
         <>
+            {previewPayload && (
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                 <div className="mb-10">
                     <h1 className="[font-family:var(--font-display)] text-[32px] sm:text-[40px] font-normal leading-[1.1] tracking-[-0.01em] text-black mb-3">
@@ -489,19 +496,22 @@ export default function CustomOrderCheckoutStep() {
                     </Link>
                 </div>
             </div>
+            )}
 
             <SuccessModal
                 isOpen={showSuccess}
                 onClose={() => {
                     setShowSuccess(false);
-                    router.push("/");
+                    resetOrder();
+                    router.push("/account/userAccount?tab=orders");
                 }}
                 title={t("successTitle")}
                 message={t("successMessage")}
                 orderId={orderId ?? undefined}
                 orderIdLabel={t("orderIdLabel")}
+                itemsInOrderLabel={t("itemsInOrder")}
                 okLabel={t("okButton")}
-                orderName={designName}
+                orderItems={successOrderItems}
             />
         </>
     );

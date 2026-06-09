@@ -50,7 +50,7 @@ export default function CheckoutPage() {
     // --- success modal state ---
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [lastOrderId, setLastOrderId] = useState<string | null>(null);
-    const [lastOrderItems, setLastOrderItems] = useState<Array<{ name: string; id: string }>>([]);
+    const [lastOrderItems, setLastOrderItems] = useState<Array<{ name: string }>>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -187,15 +187,10 @@ export default function CheckoutPage() {
         try {
             const response = await api.post("/api/orders/retail", payload);
             if (response.success) {
-                clearCart();
-                setLastOrderId(response.orderId);  // single order ID from backend
-                // Capture the items from the cart (before clearing)
-                const orderedItems = items.map(item => ({
-                    name: item.name,
-                    id: item.id,
-                }));
-                setLastOrderItems(orderedItems);
+                setLastOrderId(response.orderId);
+                setLastOrderItems(items.map((item) => ({ name: item.name })));
                 setShowSuccessModal(true);
+                clearCart();
             } else {
                 throw new Error(response.message || "Order failed");
             }

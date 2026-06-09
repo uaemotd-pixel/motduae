@@ -7,6 +7,7 @@ import { api, type ApiError } from "@/lib/api/client";
 import { formatCurrency } from "@/lib/format";
 import type { Locale } from "@/i18n/routing";
 import { formatOrderDate, shortenOrderId, type RetailOrderListItem } from "@/lib/customOrders";
+import { resolveReadyMadeImage } from "@/lib/readyMade";
 
 type RetailOrdersTabProps = {
     locale: Locale;
@@ -89,7 +90,7 @@ export default function RetailOrdersTab({ locale }: RetailOrdersTabProps) {
                             {order.firstItem?.image && (
                                 <div className="w-16 h-16 shrink-0 bg-[#F0EBE3] overflow-hidden">
                                     <img
-                                        src={order.firstItem.image}
+                                        src={resolveReadyMadeImage(order.firstItem.image)}
                                         alt={order.firstItem.name}
                                         className="w-full h-full object-cover"
                                     />

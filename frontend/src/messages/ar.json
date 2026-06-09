@@ -173,10 +173,12 @@
     "submitError": "تعذر تأكيد الطلب. يرجى المحاولة مرة أخرى.",
     "backToReview": "العودة إلى المراجعة",
     "agreeToTerms": "بتأكيد الطلب فإنك توافق على الشروط.",
-    "successTitle": "تم تأكيد الطلب",
-    "successMessage": "تم تأكيد طلب الخياطة المخصص بنجاح.",
+    "successTitle": "شكراً لك!",
+    "successMessage": "تم تقديم طلب الخياطة المخصص بنجاح.",
     "orderIdLabel": "رقم الطلب",
-    "okButton": "متابعة"
+    "itemsInOrder": "المنتجات في هذا الطلب:",
+    "okButton": "حسناً",
+    "unknownDesign": "تصميم مخصص"
   },
   "CustomOrderReview": {
     "stepLabel": "الخطوة {step} من {total}",
