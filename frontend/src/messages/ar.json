@@ -144,6 +144,26 @@
     "empty": "لا توجد متاجر خياطة معتمدة متاحة حالياً. يرجى المراجعة لاحقاً.",
     "errorTitle": "تعذر تحميل الخياطين"
   },
+  "CustomOrderTailor": {
+    "stepLabel": "الخطوة {step} من {total}",
+    "title": "اختر الخياط والتصميم",
+    "description": "اختر متجر خياطة معتمداً وحدد تصميم قطعتك المخصصة.",
+    "loading": "جاري التحميل...",
+    "loadingTailors": "جاري تحميل متاجر الخياطة...",
+    "loadingDesigns": "جاري تحميل التصاميم...",
+    "tailorsTitle": "اختر خياطاً",
+    "designsTitle": "اختر تصميماً",
+    "emptyTailors": "لا توجد متاجر خياطة متاحة.",
+    "emptyDesigns": "لا توجد تصاميم متاحة من هذا الخياط حالياً.",
+    "backToFabric": "العودة لاختيار القماش",
+    "browseTailors": "تصفح جميع الخياطين",
+    "continue": "متابعة إلى أمتار القماش",
+    "fromPrice": "من",
+    "estimatedDays": "تقريباً",
+    "days": "يوم",
+    "estimatedMeters": "القماش المقدّر",
+    "meters": "م"
+  },
   "CustomOrderFabric": {
     "stepLabel": "الخطوة {step} من {total}",
     "title": "اختر القماش",

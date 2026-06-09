@@ -1,5 +1,10 @@
 import type { FabricListItem } from "@/lib/fabrics";
 import { resolveFabricImage } from "@/lib/fabrics";
+import type {
+    TailorDesignListItem,
+    TailorShopListItem,
+} from "@/lib/tailors";
+import { resolveDesignImage } from "@/lib/tailors";
 
 export type FabricSource = "storefront" | "self";
 
@@ -247,6 +252,42 @@ export function isFabricStepComplete(draft: CustomOrderDraft): boolean {
     if (draft.fabricSource === "self") return true;
     if (draft.fabricSource === "storefront" && draft.fabric) return true;
     return false;
+}
+
+export function toCustomOrderTailorSelection(
+    item: TailorShopListItem,
+): CustomOrderTailorSelection {
+    return {
+        _id: item._id,
+        slug: item.slug,
+        name: item.name,
+        nameAr: item.nameAr,
+        logo: item.logo,
+        coverImage: item.coverImage,
+        city: item.city,
+        location: item.location,
+    };
+}
+
+export function toCustomOrderDesignSelection(
+    item: TailorDesignListItem,
+): CustomOrderDesignSelection {
+    return {
+        _id: item._id,
+        slug: item.slug,
+        name: item.name,
+        nameAr: item.nameAr,
+        category: item.category,
+        basePrice: item.basePrice,
+        tailoringFee: item.tailoringFee,
+        estimatedMeters: item.estimatedMeters,
+        estimatedDays: item.estimatedDays,
+        image: resolveDesignImage(item.images?.[0]),
+    };
+}
+
+export function isTailorStepComplete(draft: CustomOrderDraft): boolean {
+    return Boolean(draft.tailor && draft.design);
 }
 
 export function buildCustomOrderPreviewPayload(

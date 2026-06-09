@@ -114,6 +114,26 @@
     "empty": "There are no approved tailor shops available right now. Please check back soon.",
     "errorTitle": "Unable to Load Tailors"
   },
+  "CustomOrderTailor": {
+    "stepLabel": "Step {step} of {total}",
+    "title": "Choose Tailor & Design",
+    "description": "Select an approved tailor shop and pick the design style for your custom garment.",
+    "loading": "Loading...",
+    "loadingTailors": "Loading tailor shops...",
+    "loadingDesigns": "Loading designs...",
+    "tailorsTitle": "Select a Tailor",
+    "designsTitle": "Select a Design",
+    "emptyTailors": "No tailor shops available.",
+    "emptyDesigns": "This tailor has no designs available yet.",
+    "backToFabric": "Back to fabric selection",
+    "browseTailors": "Browse all tailors",
+    "continue": "Continue to Fabric Meters",
+    "fromPrice": "From",
+    "estimatedDays": "Est.",
+    "days": "days",
+    "estimatedMeters": "Est. fabric",
+    "meters": "m"
+  },
   "CustomOrderFabric": {
     "stepLabel": "Step {step} of {total}",
     "title": "Choose Your Fabric",
