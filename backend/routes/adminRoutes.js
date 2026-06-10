@@ -549,4 +549,50 @@ adminRouter.patch(
   })
 );
 
+adminRouter.get(
+  '/dashboard',
+  expressAsyncHandler(async (req, res) => {
+    // 1. Aggregate Retail Orders (Count and Sum of totalPrice)
+    const retailStats = await RetailOrder.aggregate([
+      {
+        $group: {
+          _id: null,
+          orderCount: { $sum: 1 },
+          revenue: { $sum: '$totalPrice' }
+        }
+      }
+    ]);
+
+    // 2. Aggregate Custom Orders (Count and Sum of pricing.total)
+    const customStats = await CustomOrder.aggregate([
+      {
+        $group: {
+          _id: null,
+          orderCount: { $sum: 1 },
+          revenue: { $sum: '$pricing.total' }
+        }
+      }
+    ]);
+
+    // Extract values safely, defaulting to 0 if no orders exist yet
+    const retailResult = retailStats[0] || { orderCount: 0, revenue: 0 };
+    const customResult = customStats[0] || { orderCount: 0, revenue: 0 };
+
+    // Formulate response layout matching team architecture specifications
+    const dashboardSummary = {
+      retail: {
+        orderCount: retailResult.orderCount,
+        revenue: retailResult.revenue
+      },
+      custom: {
+        orderCount: customResult.orderCount,
+        revenue: customResult.revenue
+      },
+      currency: 'AED' // Project base pricing currency standard
+    };
+
+    res.send(dashboardSummary);
+  })
+);
+
 export default adminRouter;
