@@ -2,6 +2,7 @@ import express from 'express';
 import expressAsyncHandler from 'express-async-handler';
 import ReadyMadeProduct from '../models/ReadyMadeProduct.js';
 import Fabric from '../models/Fabric.js';
+import User from '../models/User.js';
 
 const adminRouter = express.Router();
 
@@ -234,6 +235,70 @@ adminRouter.delete(
       res.send({ message: 'Fabric deleted' });
     } else {
       res.status(404).send({ message: 'Fabric not found' });
+    }
+  })
+);
+
+
+adminRouter.get(
+  '/tailors/pending',
+  expressAsyncHandler(async (req, res) => {
+    const pendingTailors = await User.find({
+      role: 'tailor',
+      approvalStatus: 'pending',
+    }).select('-password').sort({ createdAt: -1 });
+    
+    res.send(pendingTailors);
+  })
+);
+
+// PATCH /api/admin/tailors/:id/approve
+// Set approvalStatus: approved
+adminRouter.patch(
+  '/tailors/:id/approve',
+  expressAsyncHandler(async (req, res) => {
+    const tailor = await User.findById(req.params.id);
+
+    if (tailor && tailor.role === 'tailor') {
+      tailor.approvalStatus = 'approved';
+      const updatedTailor = await tailor.save();
+      res.send({ 
+        message: 'Tailor approved successfully', 
+        user: { 
+          _id: updatedTailor._id, 
+          name: updatedTailor.name, 
+          email: updatedTailor.email, 
+          approvalStatus: updatedTailor.approvalStatus 
+        } 
+      });
+    } else {
+      res.status(404).send({ message: 'Pending tailor not found or invalid role' });
+    }
+  })
+);
+
+// PATCH /api/admin/tailors/:id/reject
+// Set approvalStatus: rejected
+adminRouter.patch(
+  '/tailors/:id/reject',
+  expressAsyncHandler(async (req, res) => {
+    const tailor = await User.findById(req.params.id);
+
+    if (tailor && tailor.role === 'tailor') {
+      tailor.approvalStatus = 'rejected';
+      // If we decide to keep track of a reason in the future, we could attach it here
+      const updatedTailor = await tailor.save();
+      res.send({ 
+        message: 'Tailor rejected', 
+        user: { 
+          _id: updatedTailor._id, 
+          name: updatedTailor.name, 
+          email: updatedTailor.email, 
+          approvalStatus: updatedTailor.approvalStatus 
+        } 
+      });
+    } else {
+      res.status(404).send({ message: 'Pending tailor not found or invalid role' });
     }
   })
 );
