@@ -4,6 +4,7 @@ import ReadyMadeProduct from '../models/ReadyMadeProduct.js';
 import Fabric from '../models/Fabric.js';
 import User from '../models/User.js';
 import TailorShop from '../models/TailorShop.js';
+import RetailOrder from '../models/RetailOrder.js';
 
 const adminRouter = express.Router();
 
@@ -342,6 +343,47 @@ adminRouter.patch(
       });
     } else {
       res.status(404).send({ message: 'Tailor shop not found' });
+    }
+  })
+);
+
+adminRouter.get(
+  '/orders/retail',
+  expressAsyncHandler(async (req, res) => {
+    const orders = await RetailOrder.find({})
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 });
+    
+    res.send(orders);
+  })
+);
+
+// PATCH /api/admin/orders/:id/status
+// Update shipping/delivery status along the pipeline (pending -> confirmed -> shipped -> delivered)
+adminRouter.patch(
+  '/orders/:id/status',
+  expressAsyncHandler(async (req, res) => {
+    const { status } = req.body;
+    
+    // Simple validation for pipeline status types
+    const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
+    if (status && !validStatuses.includes(status)) {
+      res.status(400).send({ message: 'Invalid status value provided' });
+      return;
+    }
+
+    const order = await RetailOrder.findById(req.params.id);
+
+    if (order) {
+      order.status = status || order.status;
+      const updatedOrder = await order.save();
+      
+      res.send({
+        message: `Order status successfully updated to ${updatedOrder.status}`,
+        order: updatedOrder
+      });
+    } else {
+      res.status(404).send({ message: 'Retail order not found' });
     }
   })
 );
