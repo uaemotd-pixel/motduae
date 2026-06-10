@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
+import User from '../models/User.js';
 
 export const generateToken = (user) => {
   return jwt.sign(
@@ -39,4 +40,47 @@ export const isAdmin = (req, res, next) => {
     return;
   }
   res.status(403).send({ message: 'Forbidden: Admin access required' });
+};
+
+export const isApprovedTailor = async (req, res, next) => {
+  try {
+    if (!req.user?._id) {
+      res.status(401).send({ message: 'No Token' });
+      return;
+    }
+
+    const user = await User.findById(req.user._id).select('-password');
+    if (!user) {
+      res.status(401).send({ message: 'User not found' });
+      return;
+    }
+
+    if (user.role !== 'tailor') {
+      res.status(403).send({ message: 'Forbidden: Tailor access required' });
+      return;
+    }
+
+    if (user.approvalStatus !== 'approved') {
+      res.status(403).send({
+        message:
+          user.approvalStatus === 'rejected'
+            ? 'Tailor account was rejected'
+            : 'Tailor account is pending admin approval',
+        approvalStatus: user.approvalStatus,
+      });
+      return;
+    }
+
+    req.user = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isAdmin: user.isAdmin,
+      approvalStatus: user.approvalStatus,
+    };
+    next();
+  } catch {
+    res.status(500).send({ message: 'Failed to verify tailor access' });
+  }
 };
