@@ -5,7 +5,15 @@ import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useCustomOrder } from "@/context/CustomOrderContext";
-import { isMetersStepComplete, useOwnFabric } from "@/lib/customOrder";
+import {
+    areInitialStepsComplete,
+    CUSTOM_ORDER_TOTAL_STEPS,
+    getBackPathFromMeters,
+    getCustomOrderResumePath,
+    getCustomOrderStepNumber,
+    isMetersStepComplete,
+    useOwnFabric,
+} from "@/lib/customOrder";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 
 export default function FabricMetersStep() {
@@ -19,6 +27,13 @@ export default function FabricMetersStep() {
 
     const [metersInput, setMetersInput] = useState("");
     const [initialized, setInitialized] = useState(false);
+
+    useEffect(() => {
+        if (!isHydrated) return;
+        if (!areInitialStepsComplete(draft)) {
+            router.push(getCustomOrderResumePath(draft));
+        }
+    }, [draft, isHydrated, router]);
 
     useEffect(() => {
         if (!isHydrated || initialized) return;
@@ -40,6 +55,10 @@ export default function FabricMetersStep() {
     ]);
 
     const canContinue = isMetersStepComplete(draft);
+    const stepNumber = getCustomOrderStepNumber("meters", draft.firstStep);
+    const backPath = getBackPathFromMeters(draft.firstStep);
+    const backLabel =
+        draft.firstStep === "tailor" ? t("backToFabric") : t("backToTailor");
 
     const designName =
         locale === "ar"
@@ -84,7 +103,10 @@ export default function FabricMetersStep() {
             <ConfiguratorStepHeader
                 title={t("title")}
                 description={t("description")}
-                stepLabel={t("stepLabel", { step: 3, total: 5 })}
+                stepLabel={t("stepLabel", {
+                    step: stepNumber,
+                    total: CUSTOM_ORDER_TOTAL_STEPS,
+                })}
             />
 
             {draft.design && (
@@ -137,10 +159,10 @@ export default function FabricMetersStep() {
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-6 border-t border-(--color-border) max-w-xl">
                 <Link
-                    href="/custom-order/tailor"
+                    href={backPath}
                     className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition text-center sm:text-left"
                 >
-                    {t("backToTailor")}
+                    {backLabel}
                 </Link>
 
                 <button

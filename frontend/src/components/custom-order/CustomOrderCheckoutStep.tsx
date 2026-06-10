@@ -10,6 +10,7 @@ import { useCustomOrder } from "@/context/CustomOrderContext";
 import {
     buildCustomOrderCreatePayload,
     buildCustomOrderPreviewPayload,
+    getCustomOrderResumePath,
     type CustomOrderDeliveryAddress,
     type CustomOrderPricingBreakdown,
     useOwnFabric,
@@ -75,9 +76,9 @@ export default function CustomOrderCheckoutStep() {
         if (!isHydrated || authLoading || !isAuthenticated || showSuccess) return;
 
         if (!previewPayload) {
-            router.push("/custom-order/fabric");
+            router.push(getCustomOrderResumePath(draft));
         }
-    }, [authLoading, isAuthenticated, isHydrated, previewPayload, router, showSuccess]);
+    }, [authLoading, draft, isAuthenticated, isHydrated, previewPayload, router, showSuccess]);
 
     useEffect(() => {
         if (!isHydrated || formInitialized) return;

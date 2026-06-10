@@ -16,8 +16,7 @@ import {
     X,
 } from "lucide-react";
 import white_logo from "../../../../../public/PNG/White/MOTD_Wordmark_White.png";
-import UserOrders from "../userOrders/page";
-import FadeInSection from "@/components/shared/fadeInSection";
+import OrdersView from "@/components/orders/OrdersView";
 
 const NAV_ITEMS = [
     { id: "profile", label: "Profile", icon: User },

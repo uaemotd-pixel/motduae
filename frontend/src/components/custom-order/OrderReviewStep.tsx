@@ -8,6 +8,10 @@ import { api, type ApiError } from "@/lib/api/client";
 import { useCustomOrder } from "@/context/CustomOrderContext";
 import {
     buildCustomOrderPreviewPayload,
+    CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS,
+    CUSTOM_ORDER_TOTAL_STEPS,
+    getCustomOrderEntryPath,
+    getCustomOrderStepNumber,
     isReviewStepComplete,
     type CustomOrderMeasurements,
     type CustomOrderPricingBreakdown,
@@ -17,18 +21,10 @@ import { formatCurrency } from "@/lib/format";
 import { formatDesignCategory } from "@/lib/tailors";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 
-type MeasurementField = Exclude<keyof CustomOrderMeasurements, "notes">;
-
-const MEASUREMENT_FIELDS: MeasurementField[] = [
-    "chest",
-    "waist",
-    "hips",
-    "inseam",
-    "sleeveLength",
-];
-
 function hasAnyMeasurements(measurements: CustomOrderMeasurements): boolean {
-    return MEASUREMENT_FIELDS.some((field) => measurements[field] !== null);
+    return CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS.some(
+        (field) => measurements[field] !== null,
+    );
 }
 
 export default function OrderReviewStep() {
@@ -111,6 +107,8 @@ export default function OrderReviewStep() {
         : "";
 
     const vatPercent = pricing ? Math.round(pricing.vatRate * 100) : 5;
+    const stepNumber = getCustomOrderStepNumber("review", draft.firstStep);
+    const editOrderPath = getCustomOrderEntryPath(draft.firstStep);
 
     const handleContinue = () => {
         if (!canContinue) return;
@@ -132,7 +130,10 @@ export default function OrderReviewStep() {
             <ConfiguratorStepHeader
                 title={t("title")}
                 description={t("description")}
-                stepLabel={t("stepLabel", { step: 5, total: 5 })}
+                stepLabel={t("stepLabel", {
+                    step: stepNumber,
+                    total: CUSTOM_ORDER_TOTAL_STEPS,
+                })}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
@@ -192,7 +193,7 @@ export default function OrderReviewStep() {
                             <dd className="[font-family:var(--font-body)] text-[15px] text-black">
                                 {hasAnyMeasurements(draft.measurements) ? (
                                     <ul className="space-y-1 mt-1">
-                                        {MEASUREMENT_FIELDS.map((field) => {
+                                        {CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS.map((field) => {
                                             const value = draft.measurements[field];
                                             if (value === null) return null;
 
@@ -324,7 +325,7 @@ export default function OrderReviewStep() {
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                     <Link
-                        href="/custom-order/fabric"
+                        href={editOrderPath}
                         className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) border-b border-(--color-grey-muted) pb-0.5 hover:opacity-50 transition text-center"
                     >
                         {t("editOrder")}

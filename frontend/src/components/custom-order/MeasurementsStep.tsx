@@ -4,19 +4,28 @@ import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useCustomOrder } from "@/context/CustomOrderContext";
 import {
+    CUSTOM_ORDER_TOTAL_STEPS,
+    getCustomOrderStepNumber,
     isMeasurementsStepComplete,
-    type CustomOrderMeasurements,
+    type CustomOrderMeasurementField,
 } from "@/lib/customOrder";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 
-type MeasurementField = Exclude<keyof CustomOrderMeasurements, "notes">;
-
-const MEASUREMENT_FIELDS: MeasurementField[] = [
-    "chest",
+const MAIN_MEASUREMENT_FIELDS: CustomOrderMeasurementField[] = [
+    "totalLength",
+    "shoulderWidth",
+    "armLength",
+    "chestWidth",
     "waist",
     "hips",
-    "inseam",
-    "sleeveLength",
+    "neckWidth",
+    "neckDepth",
+    "armholeHeight",
+];
+
+const ARABIC_SLEEVE_FIELDS: CustomOrderMeasurementField[] = [
+    "sleeveOpeningWidth",
+    "cuffLength",
 ];
 
 function parseOptionalNumber(value: string): number | null {
@@ -29,14 +38,53 @@ function formatMeasurementValue(value: number | null): string {
     return value !== null && value > 0 ? String(value) : "";
 }
 
+type MeasurementInputProps = {
+    field: CustomOrderMeasurementField;
+    value: number | null;
+    onChange: (field: CustomOrderMeasurementField, value: string) => void;
+    t: ReturnType<typeof useTranslations<"CustomOrderMeasurements">>;
+};
+
+function MeasurementInput({ field, value, onChange, t }: MeasurementInputProps) {
+    return (
+        <div>
+            <label
+                htmlFor={`measurement-${field}`}
+                className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
+            >
+                {t(`fields.${field}`)}
+            </label>
+            <div className="flex items-center gap-3">
+                <input
+                    id={`measurement-${field}`}
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    inputMode="decimal"
+                    value={formatMeasurementValue(value)}
+                    onChange={(e) => onChange(field, e.target.value)}
+                    className="flex-1 border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[16px] text-black focus:outline-none focus:border-black transition"
+                />
+                <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-(--color-grey-muted) shrink-0">
+                    {t("unit")}
+                </span>
+            </div>
+            <p className="[font-family:var(--font-body)] text-[12px] text-(--color-grey-muted) mt-2">
+                {t(`fields.${field}Hint`)}
+            </p>
+        </div>
+    );
+}
+
 export default function MeasurementsStep() {
     const t = useTranslations("CustomOrderMeasurements");
     const router = useRouter();
     const { draft, isHydrated, updateMeasurements } = useCustomOrder();
 
     const canContinue = isMeasurementsStepComplete(draft);
+    const stepNumber = getCustomOrderStepNumber("measurements", draft.firstStep);
 
-    const handleNumberChange = (field: MeasurementField, value: string) => {
+    const handleNumberChange = (field: CustomOrderMeasurementField, value: string) => {
         updateMeasurements({ [field]: parseOptionalNumber(value) });
     };
 
@@ -64,42 +112,46 @@ export default function MeasurementsStep() {
             <ConfiguratorStepHeader
                 title={t("title")}
                 description={t("description")}
-                stepLabel={t("stepLabel", { step: 4, total: 5 })}
+                stepLabel={t("stepLabel", {
+                    step: stepNumber,
+                    total: CUSTOM_ORDER_TOTAL_STEPS,
+                })}
             />
 
             <p className="[font-family:var(--font-body)] text-[14px] text-(--color-grey-muted) mb-8 max-w-2xl">
                 {t("optionalNote")}
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8 max-w-3xl">
-                {MEASUREMENT_FIELDS.map((field) => (
-                    <div key={field}>
-                        <label
-                            htmlFor={`measurement-${field}`}
-                            className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
-                        >
-                            {t(`fields.${field}`)}
-                        </label>
-                        <div className="flex items-center gap-3">
-                            <input
-                                id={`measurement-${field}`}
-                                type="number"
-                                min="0.1"
-                                step="0.1"
-                                inputMode="decimal"
-                                value={formatMeasurementValue(draft.measurements[field])}
-                                onChange={(e) => handleNumberChange(field, e.target.value)}
-                                className="flex-1 border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[16px] text-black focus:outline-none focus:border-black transition"
-                            />
-                            <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-(--color-grey-muted) shrink-0">
-                                {t("unit")}
-                            </span>
-                        </div>
-                        <p className="[font-family:var(--font-body)] text-[12px] text-(--color-grey-muted) mt-2">
-                            {t(`fields.${field}Hint`)}
-                        </p>
-                    </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10 max-w-3xl">
+                {MAIN_MEASUREMENT_FIELDS.map((field) => (
+                    <MeasurementInput
+                        key={field}
+                        field={field}
+                        value={draft.measurements[field]}
+                        onChange={handleNumberChange}
+                        t={t}
+                    />
                 ))}
+            </div>
+
+            <div className="max-w-3xl mb-10">
+                <h2 className="[font-family:var(--font-display)] text-[20px] sm:text-[22px] font-normal mb-2">
+                    {t("fields.arabicSleeveSection")}
+                </h2>
+                <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mb-6">
+                    {t("fields.arabicSleeveSectionHint")}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {ARABIC_SLEEVE_FIELDS.map((field) => (
+                        <MeasurementInput
+                            key={field}
+                            field={field}
+                            value={draft.measurements[field]}
+                            onChange={handleNumberChange}
+                            t={t}
+                        />
+                    ))}
+                </div>
             </div>
 
             <div className="max-w-3xl mb-10">
