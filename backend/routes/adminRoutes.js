@@ -549,6 +549,12 @@ adminRouter.patch(
   })
 );
 
+// ==========================================
+// C-08: Admin dashboard stats
+// ==========================================
+
+// GET /api/admin/dashboard
+// Split retail/custom orderCount + revenue. Empty DB returns zeros. No combined total (C-12 sums client-side).
 adminRouter.get(
   '/dashboard',
   expressAsyncHandler(async (req, res) => {
