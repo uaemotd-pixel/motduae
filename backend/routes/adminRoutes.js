@@ -1,10 +1,11 @@
 import express from 'express';
 import expressAsyncHandler from 'express-async-handler';
+import mongoose from 'mongoose';
 import ReadyMadeProduct from '../models/ReadyMadeProduct.js';
 import Fabric from '../models/Fabric.js';
 import User from '../models/User.js';
 import TailorShop from '../models/TailorShop.js';
-import RetailOrder from '../models/RetailOrder.js';
+import RetailOrder, { RETAIL_ORDER_STATUSES } from '../models/RetailOrder.js';
 
 const adminRouter = express.Router();
 
@@ -374,26 +375,98 @@ adminRouter.patch(
   expressAsyncHandler(toggleTailorShopActive)
 );
 
+// ==========================================
+// C-06: Admin retail orders
+// ==========================================
+
+function parseQueryDate(value, label) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return { error: `Invalid ${label} date` };
+  }
+  return { date };
+}
+
+// GET /api/admin/orders/retail
+// List retail orders with optional filters: status, from, to, customer (userId or name/email)
 adminRouter.get(
   '/orders/retail',
   expressAsyncHandler(async (req, res) => {
-    const orders = await RetailOrder.find({})
+    const { status, from, to, customer } = req.query;
+    const filter = {};
+
+    if (status) {
+      if (!RETAIL_ORDER_STATUSES.includes(status)) {
+        res.status(400).send({
+          message: `Invalid status. Allowed values: ${RETAIL_ORDER_STATUSES.join(', ')}`,
+        });
+        return;
+      }
+      filter.status = status;
+    }
+
+    if (from || to) {
+      filter.createdAt = {};
+
+      if (from) {
+        const parsed = parseQueryDate(from, 'from');
+        if (parsed.error) {
+          res.status(400).send({ message: parsed.error });
+          return;
+        }
+        filter.createdAt.$gte = parsed.date;
+      }
+
+      if (to) {
+        const parsed = parseQueryDate(to, 'to');
+        if (parsed.error) {
+          res.status(400).send({ message: parsed.error });
+          return;
+        }
+        filter.createdAt.$lte = parsed.date;
+      }
+    }
+
+    if (customer) {
+      const customerQuery = String(customer).trim();
+
+      if (mongoose.Types.ObjectId.isValid(customerQuery)) {
+        filter.userId = customerQuery;
+      } else {
+        const matchingUsers = await User.find({
+          $or: [
+            { name: { $regex: customerQuery, $options: 'i' } },
+            { email: { $regex: customerQuery, $options: 'i' } },
+          ],
+        }).select('_id');
+
+        const userIds = matchingUsers.map((user) => user._id);
+
+        if (userIds.length === 0) {
+          res.send([]);
+          return;
+        }
+
+        filter.userId = { $in: userIds };
+      }
+    }
+
+    const orders = await RetailOrder.find(filter)
       .populate('userId', 'name email')
       .sort({ createdAt: -1 });
-    
+
     res.send(orders);
   })
 );
 
 // PATCH /api/admin/orders/:id/status
-// Update shipping/delivery status along the pipeline (pending -> confirmed -> shipped -> delivered)
+// C-18: use this path (not /orders/retail/:id/status). Any valid status is allowed (no strict pipeline step).
 adminRouter.patch(
   '/orders/:id/status',
   expressAsyncHandler(async (req, res) => {
     const { status } = req.body;
-    
-    // Simple validation for pipeline status types
-    const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
+
+    const validStatuses = RETAIL_ORDER_STATUSES;
     if (status && !validStatuses.includes(status)) {
       res.status(400).send({ message: 'Invalid status value provided' });
       return;
@@ -404,10 +477,10 @@ adminRouter.patch(
     if (order) {
       order.status = status || order.status;
       const updatedOrder = await order.save();
-      
+
       res.send({
         message: `Order status successfully updated to ${updatedOrder.status}`,
-        order: updatedOrder
+        order: updatedOrder,
       });
     } else {
       res.status(404).send({ message: 'Retail order not found' });
