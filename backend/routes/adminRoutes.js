@@ -262,15 +262,17 @@ adminRouter.patch(
 
     if (tailor && tailor.role === 'tailor') {
       tailor.approvalStatus = 'approved';
+      tailor.rejectionNote = '';
       const updatedTailor = await tailor.save();
-      res.send({ 
-        message: 'Tailor approved successfully', 
-        user: { 
-          _id: updatedTailor._id, 
-          name: updatedTailor.name, 
-          email: updatedTailor.email, 
-          approvalStatus: updatedTailor.approvalStatus 
-        } 
+      res.send({
+        message: 'Tailor approved successfully',
+        user: {
+          _id: updatedTailor._id,
+          name: updatedTailor.name,
+          email: updatedTailor.email,
+          approvalStatus: updatedTailor.approvalStatus,
+          rejectionNote: updatedTailor.rejectionNote,
+        },
       });
     } else {
       res.status(404).send({ message: 'Pending tailor not found or invalid role' });
@@ -286,16 +288,22 @@ adminRouter.patch(
     const tailor = await User.findById(req.params.id);
 
     if (tailor && tailor.role === 'tailor') {
+      const rawNote = req.body?.note ?? req.body?.rejectionNote;
+      const rejectionNote =
+        typeof rawNote === 'string' ? rawNote.trim() : '';
+
       tailor.approvalStatus = 'rejected';
+      tailor.rejectionNote = rejectionNote;
       const updatedTailor = await tailor.save();
-      res.send({ 
-        message: 'Tailor rejected', 
-        user: { 
-          _id: updatedTailor._id, 
-          name: updatedTailor.name, 
-          email: updatedTailor.email, 
-          approvalStatus: updatedTailor.approvalStatus 
-        } 
+      res.send({
+        message: 'Tailor rejected',
+        user: {
+          _id: updatedTailor._id,
+          name: updatedTailor.name,
+          email: updatedTailor.email,
+          approvalStatus: updatedTailor.approvalStatus,
+          rejectionNote: updatedTailor.rejectionNote,
+        },
       });
     } else {
       res.status(404).send({ message: 'Pending tailor not found or invalid role' });

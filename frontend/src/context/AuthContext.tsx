@@ -45,7 +45,7 @@ function mapApiUser(data: ApiUserResponse): User {
 interface AuthContextType {
     user: User | null;
     isLoading: boolean;
-    login: (email: string, password: string) => Promise<void>;
+    login: (email: string, password: string) => Promise<User>;
     register: (username: string, email: string, password: string) => Promise<void>;
     logout: () => void;
     isAuthenticated: boolean;
@@ -86,17 +86,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         loadUser();
     }, []);
 
-    const login = async (email: string, password: string) => {
+    // SIGN IN
+    const login = async (email: string, password: string): Promise<User> => {
         setIsLoading(true);
-
         try {
             const response = await api.post<ApiUserResponse>('/api/users/signin', {
                 email,
                 password,
             });
-
             saveToken(response.token!);
-            setUser(mapApiUser(response));
+            const mappedUser = mapApiUser(response);
+            setUser(mappedUser);
+            return mappedUser;  // 👈 return user for immediate use
         } finally {
             setIsLoading(false);
         }

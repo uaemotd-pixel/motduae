@@ -17,7 +17,7 @@ const NAV_LINKS = [
 ] as const;
 
 const MOBILE_NAV_LINKS = [
-  { key: "fabrics", href: "/#fabrics" },
+  { key: "fabrics", href: "/fabrics/fabricStore" },
   { key: "tailors", href: "/tailors" },
   { key: "stories", href: "/#stories" },
   { key: "howItWorks", href: "/#how-it-works" },
@@ -66,14 +66,19 @@ export function Navbar() {
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const { user, isLoading } = useAuth();
-  const accountHref = isLoading
-    ? undefined
-    : user
-      ? "/account/userAccount"
-      : "/auth/login";
   const accountLabel = user ? t("actions.account") : t("actions.login");
   const { items } = useCart();
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Role Based Logic after Login
+  const getAccountHref = () => {
+    if (isLoading) return undefined;
+    if (!user) return "/auth/login";
+    if (user.role.toLowerCase() === "admin") return "/admin";
+    if (user.role.toLowerCase() === "tailor") return "/tailor/dashboard";
+    return "/account/userAccount"; // default for customer
+  };
+  const accountHref = getAccountHref();
 
   // Toggle menu with animation
   const toggleMenu = useCallback(() => {

@@ -18,6 +18,10 @@ export const CUSTOM_ORDER_STEPS = [
 
 export type CustomOrderStep = (typeof CUSTOM_ORDER_STEPS)[number];
 
+export type CustomOrderFirstStep = "fabric" | "tailor";
+
+export const CUSTOM_ORDER_TOTAL_STEPS = 5;
+
 export interface CustomOrderFabricSelection {
     _id: string;
     slug: string;
@@ -52,12 +56,35 @@ export interface CustomOrderDesignSelection {
     image?: string;
 }
 
+export const CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS = [
+    "totalLength",
+    "shoulderWidth",
+    "armLength",
+    "chestWidth",
+    "waist",
+    "hips",
+    "neckWidth",
+    "neckDepth",
+    "armholeHeight",
+    "sleeveOpeningWidth",
+    "cuffLength",
+] as const;
+
+export type CustomOrderMeasurementField =
+    (typeof CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS)[number];
+
 export interface CustomOrderMeasurements {
-    chest: number | null;
+    totalLength: number | null;
+    shoulderWidth: number | null;
+    armLength: number | null;
+    chestWidth: number | null;
     waist: number | null;
     hips: number | null;
-    inseam: number | null;
-    sleeveLength: number | null;
+    neckWidth: number | null;
+    neckDepth: number | null;
+    armholeHeight: number | null;
+    sleeveOpeningWidth: number | null;
+    cuffLength: number | null;
     notes: string;
 }
 
@@ -71,6 +98,7 @@ export interface CustomOrderDeliveryAddress {
 }
 
 export interface CustomOrderDraft {
+    firstStep: CustomOrderFirstStep | null;
     fabricSource: FabricSource | null;
     fabric: CustomOrderFabricSelection | null;
     tailor: CustomOrderTailorSelection | null;
@@ -104,16 +132,23 @@ export interface CustomOrderPricingBreakdown {
 export const CUSTOM_ORDER_STORAGE_KEY = "motdCustomOrderDraft";
 
 export const EMPTY_MEASUREMENTS: CustomOrderMeasurements = {
-    chest: null,
+    totalLength: null,
+    shoulderWidth: null,
+    armLength: null,
+    chestWidth: null,
     waist: null,
     hips: null,
-    inseam: null,
-    sleeveLength: null,
+    neckWidth: null,
+    neckDepth: null,
+    armholeHeight: null,
+    sleeveOpeningWidth: null,
+    cuffLength: null,
     notes: "",
 };
 
 export function createEmptyCustomOrderDraft(): CustomOrderDraft {
     return {
+        firstStep: null,
         fabricSource: null,
         fabric: null,
         tailor: null,
@@ -122,6 +157,60 @@ export function createEmptyCustomOrderDraft(): CustomOrderDraft {
         measurements: { ...EMPTY_MEASUREMENTS },
         deliveryAddress: {},
     };
+}
+
+function normalizeFirstStep(value: unknown): CustomOrderFirstStep | null {
+    return value === "fabric" || value === "tailor" ? value : null;
+}
+
+export function areInitialStepsComplete(draft: CustomOrderDraft): boolean {
+    return isFabricStepComplete(draft) && isTailorStepComplete(draft);
+}
+
+export function getCustomOrderStepNumber(
+    step: CustomOrderStep | "review",
+    firstStep: CustomOrderFirstStep | null,
+): number {
+    const order: Array<CustomOrderStep | "review"> =
+        firstStep === "tailor"
+            ? ["tailor", "fabric", "meters", "measurements", "review"]
+            : ["fabric", "tailor", "meters", "measurements", "review"];
+
+    const index = order.indexOf(step);
+    return index >= 0 ? index + 1 : 1;
+}
+
+export function getNextPathAfterFabric(draft: CustomOrderDraft): string {
+    if (isTailorStepComplete(draft)) return "/custom-order/meters";
+    return "/custom-order/tailor";
+}
+
+export function getNextPathAfterTailor(draft: CustomOrderDraft): string {
+    if (isFabricStepComplete(draft)) return "/custom-order/meters";
+    return "/custom-order/fabric";
+}
+
+export function getBackPathFromMeters(
+    firstStep: CustomOrderFirstStep | null,
+): string {
+    return firstStep === "tailor"
+        ? "/custom-order/fabric"
+        : "/custom-order/tailor";
+}
+
+export function getCustomOrderEntryPath(
+    firstStep: CustomOrderFirstStep | null,
+): string {
+    return firstStep === "tailor"
+        ? "/custom-order/tailor"
+        : "/custom-order/fabric";
+}
+
+export function getCustomOrderResumePath(draft: CustomOrderDraft): string {
+    if (!isFabricStepComplete(draft)) return "/custom-order/fabric";
+    if (!isTailorStepComplete(draft)) return "/custom-order/tailor";
+    if (!isMetersStepComplete(draft)) return "/custom-order/meters";
+    return "/custom-order/review";
 }
 
 function normalizeNumber(value: unknown): number | null {
@@ -193,11 +282,17 @@ function normalizeMeasurements(value: unknown): CustomOrderMeasurements {
     const measurements = value as Partial<CustomOrderMeasurements>;
 
     return {
-        chest: normalizeNumber(measurements.chest),
+        totalLength: normalizeNumber(measurements.totalLength),
+        shoulderWidth: normalizeNumber(measurements.shoulderWidth),
+        armLength: normalizeNumber(measurements.armLength),
+        chestWidth: normalizeNumber(measurements.chestWidth),
         waist: normalizeNumber(measurements.waist),
         hips: normalizeNumber(measurements.hips),
-        inseam: normalizeNumber(measurements.inseam),
-        sleeveLength: normalizeNumber(measurements.sleeveLength),
+        neckWidth: normalizeNumber(measurements.neckWidth),
+        neckDepth: normalizeNumber(measurements.neckDepth),
+        armholeHeight: normalizeNumber(measurements.armholeHeight),
+        sleeveOpeningWidth: normalizeNumber(measurements.sleeveOpeningWidth),
+        cuffLength: normalizeNumber(measurements.cuffLength),
         notes: typeof measurements.notes === "string" ? measurements.notes : "",
     };
 }
@@ -234,6 +329,7 @@ export function normalizeCustomOrderDraft(value: unknown): CustomOrderDraft {
     const design = normalizeDesign(draft.design);
 
     return {
+        firstStep: normalizeFirstStep(draft.firstStep),
         fabricSource,
         fabric: fabricSource === "self" ? null : fabric,
         tailor,

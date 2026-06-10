@@ -66,6 +66,7 @@ Tailors self-register with `role: 'tailor'`. Admin approves or rejects accounts 
 | `password` | String | yes | — | Hashed at application layer |
 | `role` | String (enum) | yes | `customer` | See **ROLES** below |
 | `approvalStatus` | String (enum) | yes | role-based | See **APPROVAL_STATUSES** and approval rules above |
+| `rejectionNote` | String | no | `''` | Optional admin note when `approvalStatus === 'rejected'`; cleared on approve |
 | `isAdmin` | Boolean | yes | `false` | Derived: `true` when `role === 'admin'` (pre-save) |
 
 **Indexes:** `{ role: 1, approvalStatus: 1 }`, unique on `email`.

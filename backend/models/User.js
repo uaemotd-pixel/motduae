@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema(
       },
       required: true,
     },
+    rejectionNote: { type: String, default: '', trim: true },
     isAdmin: { type: Boolean, default: false, required: true },
   },
   {
@@ -36,6 +37,7 @@ userSchema.pre('save', function syncDerivedFields(next) {
   this.isAdmin = this.role === 'admin';
   if (this.role !== 'tailor') {
     this.approvalStatus = 'approved';
+    this.rejectionNote = '';
   }
   next();
 });

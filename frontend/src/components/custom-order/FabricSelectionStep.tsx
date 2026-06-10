@@ -7,7 +7,11 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
 import { useCustomOrder } from "@/context/CustomOrderContext";
 import {
+    CUSTOM_ORDER_TOTAL_STEPS,
+    getCustomOrderStepNumber,
+    getNextPathAfterFabric,
     isFabricStepComplete,
+    isTailorStepComplete,
     toCustomOrderFabricSelection,
 } from "@/lib/customOrder";
 import {
@@ -37,6 +41,7 @@ export default function FabricSelectionStep() {
         setUseOwnFabric,
         setFabric,
         setFabricSource,
+        setFirstStepIfUnset,
     } = useCustomOrder();
 
     const [fabrics, setFabrics] = useState<FabricListItem[]>([]);
@@ -74,6 +79,11 @@ export default function FabricSelectionStep() {
     }, []);
 
     useEffect(() => {
+        if (!isHydrated) return;
+        setFirstStepIfUnset("fabric");
+    }, [isHydrated, setFirstStepIfUnset]);
+
+    useEffect(() => {
         if (!isHydrated || prefillDone || !fabricSlug) return;
 
         const prefillFabric = async () => {
@@ -102,6 +112,11 @@ export default function FabricSelectionStep() {
     );
 
     const canContinue = isFabricStepComplete(draft);
+    const stepNumber = getCustomOrderStepNumber("fabric", draft.firstStep);
+    const continueLabel = isTailorStepComplete(draft)
+        ? t("continueToMeters")
+        : t("continueToTailor");
+    const showBackToTailor = draft.firstStep === "tailor";
 
     const handleSelectFabric = (item: FabricListItem) => {
         setFabricSource("storefront");
@@ -120,7 +135,7 @@ export default function FabricSelectionStep() {
 
     const handleContinue = () => {
         if (!canContinue) return;
-        router.push("/custom-order/tailor");
+        router.push(getNextPathAfterFabric(draft));
     };
 
     if (!isHydrated) {
@@ -138,7 +153,10 @@ export default function FabricSelectionStep() {
             <ConfiguratorStepHeader
                 title={t("title")}
                 description={t("description")}
-                stepLabel={t("stepLabel", { step: 1, total: 5 })}
+                stepLabel={t("stepLabel", {
+                    step: stepNumber,
+                    total: CUSTOM_ORDER_TOTAL_STEPS,
+                })}
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
@@ -280,12 +298,21 @@ export default function FabricSelectionStep() {
             )}
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-6 border-t border-(--color-border)">
-                <Link
-                    href="/fabrics/fabricStore"
-                    className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition text-center sm:text-left"
-                >
-                    {t("browseFabrics")}
-                </Link>
+                {showBackToTailor ? (
+                    <Link
+                        href="/custom-order/tailor"
+                        className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition text-center sm:text-left"
+                    >
+                        {t("backToTailor")}
+                    </Link>
+                ) : (
+                    <Link
+                        href="/fabrics/fabricStore"
+                        className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition text-center sm:text-left"
+                    >
+                        {t("browseFabrics")}
+                    </Link>
+                )}
 
                 <button
                     type="button"
@@ -293,7 +320,7 @@ export default function FabricSelectionStep() {
                     disabled={!canContinue}
                     className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)]"
                 >
-                    {t("continue")}
+                    {continueLabel}
                 </button>
             </div>
         </div>

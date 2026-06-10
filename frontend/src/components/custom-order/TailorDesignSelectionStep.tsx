@@ -7,6 +7,10 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
 import { useCustomOrder } from "@/context/CustomOrderContext";
 import {
+    CUSTOM_ORDER_TOTAL_STEPS,
+    getCustomOrderStepNumber,
+    getNextPathAfterTailor,
+    isFabricStepComplete,
     isTailorStepComplete,
     toCustomOrderDesignSelection,
     toCustomOrderTailorSelection,
@@ -33,7 +37,8 @@ export default function TailorDesignSelectionStep() {
     const tailorSlugParam = searchParams.get("tailorSlug");
     const designSlugParam = searchParams.get("designSlug");
 
-    const { draft, isHydrated, setTailor, setDesign } = useCustomOrder();
+    const { draft, isHydrated, setTailor, setDesign, setFirstStepIfUnset } =
+        useCustomOrder();
 
     const [tailors, setTailors] = useState<TailorShopListItem[]>([]);
     const [designs, setDesigns] = useState<TailorDesignListItem[]>([]);
@@ -70,6 +75,11 @@ export default function TailorDesignSelectionStep() {
 
         fetchTailors();
     }, []);
+
+    useEffect(() => {
+        if (!isHydrated) return;
+        setFirstStepIfUnset("tailor");
+    }, [isHydrated, setFirstStepIfUnset]);
 
     useEffect(() => {
         if (!isHydrated || prefillDone || !tailorSlugParam) return;
@@ -162,6 +172,11 @@ export default function TailorDesignSelectionStep() {
     }, [draft.tailor?.slug, prefillDone, tailorSlugParam]);
 
     const canContinue = isTailorStepComplete(draft);
+    const stepNumber = getCustomOrderStepNumber("tailor", draft.firstStep);
+    const continueLabel = isFabricStepComplete(draft)
+        ? t("continueToMeters")
+        : t("continueToFabric");
+    const showBackToFabric = draft.firstStep === "fabric";
 
     const handleSelectTailor = (item: TailorShopListItem) => {
         setTailor(toCustomOrderTailorSelection(item));
@@ -173,7 +188,7 @@ export default function TailorDesignSelectionStep() {
 
     const handleContinue = () => {
         if (!canContinue) return;
-        router.push("/custom-order/meters");
+        router.push(getNextPathAfterTailor(draft));
     };
 
     if (!isHydrated) {
@@ -191,7 +206,10 @@ export default function TailorDesignSelectionStep() {
             <ConfiguratorStepHeader
                 title={t("title")}
                 description={t("description")}
-                stepLabel={t("stepLabel", { step: 2, total: 5 })}
+                stepLabel={t("stepLabel", {
+                    step: stepNumber,
+                    total: CUSTOM_ORDER_TOTAL_STEPS,
+                })}
             />
 
             <h2 className="[font-family:var(--font-display)] text-[22px] sm:text-[24px] font-normal mb-6">
@@ -330,14 +348,18 @@ export default function TailorDesignSelectionStep() {
             )}
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-6 border-t border-(--color-border)">
-                <Link
-                    href="/custom-order/fabric"
-                    className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition text-center sm:text-left"
-                >
-                    {t("backToFabric")}
-                </Link>
+                {showBackToFabric ? (
+                    <Link
+                        href="/custom-order/fabric"
+                        className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition text-center sm:text-left"
+                    >
+                        {t("backToFabric")}
+                    </Link>
+                ) : (
+                    <span />
+                )}
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:ml-auto">
                     <Link
                         href="/tailors"
                         className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) border-b border-(--color-grey-muted) pb-0.5 hover:opacity-50 transition text-center"
@@ -351,7 +373,7 @@ export default function TailorDesignSelectionStep() {
                         disabled={!canContinue}
                         className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)]"
                     >
-                        {t("continue")}
+                        {continueLabel}
                     </button>
                 </div>
             </div>

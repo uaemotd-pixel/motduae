@@ -67,11 +67,17 @@ const designSnapshotSchema = new mongoose.Schema(
 
 const measurementsSchema = new mongoose.Schema(
   {
-    chest: { type: Number, min: 0, default: null },
+    totalLength: { type: Number, min: 0, default: null },
+    shoulderWidth: { type: Number, min: 0, default: null },
+    armLength: { type: Number, min: 0, default: null },
+    chestWidth: { type: Number, min: 0, default: null },
     waist: { type: Number, min: 0, default: null },
     hips: { type: Number, min: 0, default: null },
-    inseam: { type: Number, min: 0, default: null },
-    sleeveLength: { type: Number, min: 0, default: null },
+    neckWidth: { type: Number, min: 0, default: null },
+    neckDepth: { type: Number, min: 0, default: null },
+    armholeHeight: { type: Number, min: 0, default: null },
+    sleeveOpeningWidth: { type: Number, min: 0, default: null },
+    cuffLength: { type: Number, min: 0, default: null },
     notes: { type: String, default: '', trim: true },
   },
   { _id: false }
