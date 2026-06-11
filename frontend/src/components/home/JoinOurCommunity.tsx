@@ -2,23 +2,18 @@
 
 import { useTranslations } from "next-intl";
 import Image from "next/image";
+import { Link } from "@/i18n/navigation";
 import * as images from '../../../public/images/ImageIndex';
 
 interface JoinOurCommunityProps {
     onApplyClick?: () => void;
 }
 
+const ctaClassName =
+    "[font-family:var(--font-body)] text-[12px] xs:text-[10px] sm:text-[11px] md:text-[12px] lg:text-[13px] uppercase tracking-[0.3em] px-5 xs:px-6 sm:px-7 md:px-8 py-2.5 xs:py-3 sm:py-3.5 md:py-4 border border-white/30 text-white hover:bg-white hover:text-black transition-all duration-300 font-normal";
+
 export function JoinOurCommunity({ onApplyClick }: JoinOurCommunityProps) {
     const t = useTranslations("community");
-
-    const handleApplyClick = () => {
-        if (onApplyClick) {
-            onApplyClick();
-        } else {
-            console.log("Apply to join clicked");
-            // Add your apply logic here
-        }
-    };
 
     return (
         <div className="group relative overflow-hidden min-h-112.5 xs:min-h-[480px] sm:min-h-130 md:min-h-137.5 lg:min-h-145 xl:min-h-155 flex items-end p-6 xs:p-8 sm:p-10 md:p-12 lg:p-14 bg-[#111111]">
@@ -44,12 +39,15 @@ export function JoinOurCommunity({ onApplyClick }: JoinOurCommunityProps) {
                     {t("description")}
                 </p>
 
-                <button
-                    onClick={handleApplyClick}
-                    className="[font-family:var(--font-body)] text-[12px] xs:text-[10px] sm:text-[11px] md:text-[12px] lg:text-[13px] uppercase tracking-[0.3em] px-5 xs:px-6 sm:px-7 md:px-8 py-2.5 xs:py-3 sm:py-3.5 md:py-4 border border-white/30 text-white hover:bg-white hover:text-black transition-all duration-300 font-normal"
-                >
-                    {t("btn")}
-                </button>
+                {onApplyClick ? (
+                    <button type="button" onClick={onApplyClick} className={ctaClassName}>
+                        {t("btn")}
+                    </button>
+                ) : (
+                    <Link href="/partners/tailor" className={`inline-block ${ctaClassName}`}>
+                        {t("btn")}
+                    </Link>
+                )}
             </div>
         </div>
     );

@@ -326,6 +326,30 @@
   "Testimonials": {
     "title": "The Client Experience"
   },
+  "TailorRegister": {
+    "eyebrow": "Partner with MOTD",
+    "title": "Tailor Registration",
+    "description": "Create your tailor account to list your shop and designs on MOTD. Your application will be reviewed by our team before going live.",
+    "nameLabel": "Full Name",
+    "namePlaceholder": "Your full name",
+    "emailLabel": "Email",
+    "emailPlaceholder": "name@example.com",
+    "passwordLabel": "Password",
+    "confirmPasswordLabel": "Confirm Password",
+    "passwordHint": "Minimum 8 characters recommended",
+    "passwordMismatch": "Passwords do not match",
+    "submit": "Submit Application",
+    "submitting": "Submitting...",
+    "approvalNote": "After registration, MOTD admin must approve your account before you can publish your shop and designs.",
+    "alreadyHaveAccount": "Already have an account?",
+    "signIn": "Sign in",
+    "customerRegister": "Register as a customer",
+    "successTitle": "Application Submitted",
+    "successMessage": "Thank you for applying. Your tailor account is awaiting MOTD admin approval. We'll notify you once your shop can go live.",
+    "successStatus": "Status: Pending approval",
+    "goHome": "Return to homepage",
+    "imageCaption": "Master tailoring, presented to the world"
+  },
   "community": {
     "eyebrow": "For Partners",
     "title": "Join Our Community",

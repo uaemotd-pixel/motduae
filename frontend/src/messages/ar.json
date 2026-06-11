@@ -413,6 +413,30 @@
       }
     }
   },
+  "TailorRegister": {
+    "eyebrow": "شارك مع MOTD",
+    "title": "تسجيل الخياط",
+    "description": "أنشئ حساب خياط لعرض متجرك وتصاميمك على MOTD. ستراجع فريقنا طلبك قبل النشر.",
+    "nameLabel": "الاسم الكامل",
+    "namePlaceholder": "اسمك الكامل",
+    "emailLabel": "البريد الإلكتروني",
+    "emailPlaceholder": "name@example.com",
+    "passwordLabel": "كلمة المرور",
+    "confirmPasswordLabel": "تأكيد كلمة المرور",
+    "passwordHint": "يُنصح بثمانية أحرف على الأقل",
+    "passwordMismatch": "كلمتا المرور غير متطابقتين",
+    "submit": "إرسال الطلب",
+    "submitting": "جاري الإرسال...",
+    "approvalNote": "بعد التسجيل، يجب أن يوافق مسؤول MOTD على حسابك قبل نشر متجرك وتصاميمك.",
+    "alreadyHaveAccount": "لديك حساب بالفعل؟",
+    "signIn": "تسجيل الدخول",
+    "customerRegister": "التسجيل كعميل",
+    "successTitle": "تم إرسال الطلب",
+    "successMessage": "شكراً لتقديمك. حساب الخياط بانتظار موافقة إدارة MOTD. سنُعلمك عندما يصبح متجرك جاهزاً للنشر.",
+    "successStatus": "الحالة: بانتظار الموافقة",
+    "goHome": "العودة للصفحة الرئيسية",
+    "imageCaption": "حرفية الخياطة، بعرض عالمي"
+  },
   "PartnerSection": {
     "ariaLabel": "بوابة الشركاء والنشرة الإخبارية"
   },

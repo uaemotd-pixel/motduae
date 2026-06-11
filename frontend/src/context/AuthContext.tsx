@@ -47,6 +47,7 @@ interface AuthContextType {
     isLoading: boolean;
     login: (email: string, password: string) => Promise<User>;
     register: (username: string, email: string, password: string) => Promise<void>;
+    registerTailor: (name: string, email: string, password: string) => Promise<User>;
     logout: () => void;
     isAuthenticated: boolean;
 }
@@ -123,6 +124,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
     };
 
+    const registerTailor = async (name: string, email: string, password: string) => {
+        setIsLoading(true);
+        try {
+            const response = await api.post<ApiUserResponse>('/api/users/signup/tailor', {
+                name,
+                email,
+                password,
+            });
+
+            saveToken(response.token!);
+            const mappedUser = mapApiUser(response);
+            setUser(mappedUser);
+            return mappedUser;
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const logout = () => {
         clearToken();
         setUser(null);
@@ -133,6 +152,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isLoading,
         login,
         register,
+        registerTailor,
         logout,
         isAuthenticated: !!user,
     };
