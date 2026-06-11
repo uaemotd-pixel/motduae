@@ -11,6 +11,7 @@ import {
     Clock,
     TrendingUp,
 } from "lucide-react";
+import LocaleSwitcher from "@/components/shared/LocaleSwitcher";
 
 // Updated interface matching backend response
 interface DashboardStats {
@@ -103,8 +104,11 @@ export default function AdminDashboardPage() {
                         Welcome back, <span className="text-black font-medium">{user?.name?.split(' ')[0] || 'Admin'}</span>
                     </p>
                 </div>
-                <div className="mt-4 sm:mt-0 text-xs text-gray-400 bg-white px-4 py-2 rounded-full border border-gray-100 shadow-sm">
-                    {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                <div className="flex space-x-3 mt-4 sm:mt-0">
+                    <LocaleSwitcher />
+                    <div className="text-xs text-gray-400 bg-white px-4 py-2 rounded-full border border-gray-100 shadow-sm">
+                        {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </div>
                 </div>
             </div>
 
