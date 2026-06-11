@@ -28,9 +28,15 @@ import apple_icon from './apple_icon.svg';
 import google_icon from './google_icon.svg';
 import heart_icon from './heart_icon.svg';
 import cart_icon from './cart_icon.svg';
+import hero_image_1 from './hero-1.webp';
+import hero_image_2 from "./hero-2.webp";
+import hero_image_3 from "./hero-3.webp";
 
 // Or export individually
 export {
+    // Hero Section Background Images
+    hero_image_1, hero_image_2, hero_image_3,
+
     // Trending Design Section Images
     des1, des2, des3, des4, des5, des6, des7,
 
