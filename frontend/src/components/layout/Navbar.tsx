@@ -75,7 +75,7 @@ export function Navbar() {
     if (isLoading) return undefined;
     if (!user) return "/auth/login";
     if (user.role.toLowerCase() === "admin") return "/admin";
-    if (user.role.toLowerCase() === "tailor") return "/tailor/dashboard";
+    if (user.role.toLowerCase() === "tailor") return "/tailor";
     return "/account/userAccount"; // default for customer
   };
   const accountHref = getAccountHref();

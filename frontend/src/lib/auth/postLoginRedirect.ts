@@ -21,6 +21,6 @@ export function getPostLoginPath(user: User, redirectUrl?: string | null): strin
     }
 
     if (role === "admin") return "/admin";
-    if (role === "tailor") return "/tailor/dashboard";
+    if (role === "tailor") return "/tailor";
     return "/";
 }

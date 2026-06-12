@@ -350,6 +350,46 @@
     "goHome": "Return to homepage",
     "imageCaption": "Master tailoring, presented to the world"
   },
+  "TailorPortal": {
+    "loading": "Loading tailor portal...",
+    "portalLabel": "Tailor Portal",
+    "logout": "Sign out",
+    "nav": {
+      "dashboard": "Dashboard",
+      "shop": "Shop Profile",
+      "designs": "Designs"
+    },
+    "pending": {
+      "eyebrow": "Tailor Portal",
+      "title": "Awaiting Approval",
+      "description": "Your tailor account is under review by the MOTD team. You'll get access to shop and design management once approved.",
+      "status": "Status: Pending approval",
+      "goHome": "Return to homepage"
+    },
+    "rejected": {
+      "eyebrow": "Tailor Portal",
+      "title": "Application Not Approved",
+      "description": "Unfortunately your tailor application was not approved at this time.",
+      "contact": "If you believe this was a mistake or would like more information, please contact the MOTD team.",
+      "contactCta": "Contact support",
+      "goHome": "Return to homepage"
+    },
+    "dashboard": {
+      "eyebrow": "Tailor Dashboard",
+      "title": "Welcome, {name}",
+      "description": "Manage your shop profile and design catalog from here.",
+      "shopCardEyebrow": "Step 1",
+      "shopCardTitle": "Set up your shop",
+      "designsCardEyebrow": "Step 2",
+      "designsCardTitle": "Manage your designs"
+    },
+    "placeholders": {
+      "shopTitle": "Shop Profile",
+      "shopDescription": "Full shop profile editing arrives in the next sprint task (B-31).",
+      "designsTitle": "Designs",
+      "designsDescription": "Design management UI arrives in the next sprint task (B-32)."
+    }
+  },
   "community": {
     "eyebrow": "For Partners",
     "title": "Join Our Community",
