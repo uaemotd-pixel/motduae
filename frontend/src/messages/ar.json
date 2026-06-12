@@ -470,6 +470,70 @@
       "designsCardEyebrow": "الخطوة ٢",
       "designsCardTitle": "إدارة تصاميمك"
     },
+    "designs": {
+      "loading": "جاري تحميل التصاميم...",
+      "eyebrow": "التصاميم",
+      "title": "تصاميمك",
+      "description": "أنشئ وأدر التصاميم التي يمكن للعملاء طلبها من متجرك.",
+      "addDesign": "إضافة تصميم",
+      "addFirst": "أضف أول تصميم",
+      "empty": "لم تنشر أي تصاميم بعد.",
+      "edit": "تعديل",
+      "delete": "حذف",
+      "deleting": "جاري الحذف...",
+      "confirmDelete": "حذف \"{name}\"؟ لا يمكن التراجع عن هذا الإجراء.",
+      "deleted": "تم حذف التصميم بنجاح.",
+      "statusActive": "نشط",
+      "statusInactive": "مخفي",
+      "basePrice": "من {price} درهم",
+      "estimatedDays": "{days} أيام",
+      "createTitle": "تصميم جديد",
+      "editTitle": "تعديل التصميم",
+      "createDescription": "أضف تصميماً جديداً لمتجر الخياطة.",
+      "editDescription": "حدّث السعر والصور وظهور التصميم.",
+      "createCta": "إنشاء التصميم",
+      "saveCta": "حفظ التغييرات",
+      "saving": "جاري الحفظ...",
+      "cancel": "إلغاء",
+      "backToList": "العودة للتصاميم",
+      "successCreated": "تم إنشاء التصميم بنجاح.",
+      "successUpdated": "تم تحديث التصميم بنجاح.",
+      "shopRequiredTitle": "أنشئ متجرك أولاً",
+      "shopRequiredDescription": "تحتاج ملف متجر قبل إضافة التصاميم.",
+      "shopRequiredCta": "إعداد ملف المتجر",
+      "addImage": "إضافة صورة أخرى",
+      "removeImage": "إزالة هذه الصورة",
+      "sections": {
+        "identity": "هوية التصميم",
+        "about": "الوصف",
+        "pricing": "التسعير ومدة التنفيذ",
+        "images": "الصور"
+      },
+      "fields": {
+        "name": "اسم التصميم (إنجليزي)",
+        "nameAr": "اسم التصميم (عربي)",
+        "slug": "رابط URL",
+        "category": "الفئة",
+        "description": "الوصف (إنجليزي)",
+        "descriptionAr": "الوصف (عربي)",
+        "basePrice": "السعر الأساسي (درهم)",
+        "tailoringFee": "رسوم الخياطة (درهم)",
+        "estimatedMeters": "الأقمشة المقدرة (متر)",
+        "estimatedDays": "الأيام المقدرة",
+        "isActive": "ظاهر للعملاء",
+        "image": "صورة {number}"
+      },
+      "hints": {
+        "slug": "أحرف إنجليزية صغيرة وأرقام وشرطات فقط."
+      },
+      "categories": {
+        "kandura": "كندورة",
+        "abaya": "عباية",
+        "bisht": "بشت",
+        "mukhawar": "مخاوَر",
+        "jalabiya": "جلابية",
+        "kaftan": "قفطان",
+        "thob": "ثوب"
     "shop": {
       "loading": "جاري تحميل ملف المتجر...",
       "eyebrow": "ملف المتجر",
@@ -528,6 +592,27 @@
         "remove": "إزالة"
       },
       "validation": {
+        "nameRequired": "اسم التصميم بالإنجليزية مطلوب.",
+        "nameArRequired": "اسم التصميم بالعربية مطلوب.",
+        "slugRequired": "رابط URL مطلوب.",
+        "slugInvalid": "يجب أن يحتوي الرابط على أحرف إنجليزية صغيرة وأرقام وشرطات فقط.",
+        "imagesRequired": "صورة واحدة على الأقل مطلوبة.",
+        "basePriceInvalid": "يجب أن يكون السعر الأساسي صفراً أو أكثر.",
+        "tailoringFeeInvalid": "يجب أن تكون رسوم الخياطة صفراً أو أكثر.",
+        "estimatedMetersInvalid": "يجب أن تكون الأمترة المقدرة أكبر من صفر.",
+        "estimatedDaysInvalid": "يجب أن تكون الأيام المقدرة ١ على الأقل."
+      },
+      "errors": {
+        "loadFailed": "تعذّر تحميل التصاميم.",
+        "createFailed": "تعذّر إنشاء التصميم.",
+        "updateFailed": "تعذّر تحديث التصميم.",
+        "deleteFailed": "تعذّر حذف التصميم.",
+        "conflict": "رابط التصميم مستخدم بالفعل في متجرك."
+      }
+    },
+    "placeholders": {
+      "shopTitle": "ملف المتجر",
+      "shopDescription": "تحرير ملف المتجر الكامل سيُضاف في المهمة التالية (B-31)."
         "nameRequired": "اسم المتجر بالإنجليزية مطلوب.",
         "nameArRequired": "اسم المتجر بالعربية مطلوب.",
         "slugRequired": "رابط URL مطلوب.",

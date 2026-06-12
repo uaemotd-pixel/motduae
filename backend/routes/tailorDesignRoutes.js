@@ -3,6 +3,7 @@ import expressAsyncHandler from 'express-async-handler';
 import mongoose from 'mongoose';
 import Design, { DESIGN_CATEGORIES } from '../models/Design.js';
 import TailorShop from '../models/TailorShop.js';
+import { deleteTailorDesignUpload } from '../utils/uploads.js';
 
 const tailorDesignRouter = express.Router();
 
@@ -178,6 +179,21 @@ const findOwnDesign = async (shopId, designId, res) => {
   return design;
 };
 
+const cleanupRemovedDesignImages = (previousImages = [], nextImages = []) => {
+  const nextSet = new Set(nextImages);
+  for (const image of previousImages) {
+    if (!nextSet.has(image)) {
+      deleteTailorDesignUpload(image);
+    }
+  }
+};
+
+const cleanupAllDesignImages = (images = []) => {
+  for (const image of images) {
+    deleteTailorDesignUpload(image);
+  }
+};
+
 // GET /api/tailor/designs — list own shop designs
 tailorDesignRouter.get(
   '/',
@@ -280,8 +296,12 @@ tailorDesignRouter.put(
       }
     }
 
+    const previousImages = [...(design.images || [])];
+
     Object.assign(design, data);
     const updatedDesign = await design.save();
+
+    cleanupRemovedDesignImages(previousImages, updatedDesign.images || []);
 
     res.json({
       success: true,
@@ -300,6 +320,7 @@ tailorDesignRouter.delete(
     const design = await findOwnDesign(shop._id, req.params.id, res);
     if (!design) return;
 
+    cleanupAllDesignImages(design.images || []);
     await design.deleteOne();
 
     res.json({

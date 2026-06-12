@@ -383,6 +383,70 @@
       "designsCardEyebrow": "Step 2",
       "designsCardTitle": "Manage your designs"
     },
+    "designs": {
+      "loading": "Loading designs...",
+      "eyebrow": "Designs",
+      "title": "Your designs",
+      "description": "Create and manage the designs customers can order from your shop.",
+      "addDesign": "Add design",
+      "addFirst": "Add your first design",
+      "empty": "You have not published any designs yet.",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleting": "Deleting...",
+      "confirmDelete": "Delete \"{name}\"? This cannot be undone.",
+      "deleted": "Design deleted successfully.",
+      "statusActive": "Active",
+      "statusInactive": "Hidden",
+      "basePrice": "From AED {price}",
+      "estimatedDays": "{days} days",
+      "createTitle": "New design",
+      "editTitle": "Edit design",
+      "createDescription": "Add a new design listing for your tailor shop.",
+      "editDescription": "Update pricing, images, and visibility for this design.",
+      "createCta": "Create design",
+      "saveCta": "Save changes",
+      "saving": "Saving...",
+      "cancel": "Cancel",
+      "backToList": "Back to designs",
+      "successCreated": "Design created successfully.",
+      "successUpdated": "Design updated successfully.",
+      "shopRequiredTitle": "Create your shop first",
+      "shopRequiredDescription": "You need a shop profile before you can add designs.",
+      "shopRequiredCta": "Set up shop profile",
+      "addImage": "Add another image",
+      "removeImage": "Remove this image",
+      "sections": {
+        "identity": "Design identity",
+        "about": "Description",
+        "pricing": "Pricing & lead time",
+        "images": "Images"
+      },
+      "fields": {
+        "name": "Design name (English)",
+        "nameAr": "Design name (Arabic)",
+        "slug": "URL slug",
+        "category": "Category",
+        "description": "Description (English)",
+        "descriptionAr": "Description (Arabic)",
+        "basePrice": "Base price (AED)",
+        "tailoringFee": "Tailoring fee (AED)",
+        "estimatedMeters": "Estimated fabric (meters)",
+        "estimatedDays": "Estimated days",
+        "isActive": "Visible to customers",
+        "image": "Image {number}"
+      },
+      "hints": {
+        "slug": "Lowercase letters, numbers, and hyphens only."
+      },
+      "categories": {
+        "kandura": "Kandura",
+        "abaya": "Abaya",
+        "bisht": "Bisht",
+        "mukhawar": "Mukhawar",
+        "jalabiya": "Jalabiya",
+        "kaftan": "Kaftan",
+        "thob": "Thob"
     "shop": {
       "loading": "Loading shop profile...",
       "eyebrow": "Shop Profile",
@@ -441,6 +505,27 @@
         "remove": "Remove"
       },
       "validation": {
+        "nameRequired": "English design name is required.",
+        "nameArRequired": "Arabic design name is required.",
+        "slugRequired": "URL slug is required.",
+        "slugInvalid": "Slug must use lowercase letters, numbers, and hyphens only.",
+        "imagesRequired": "At least one image is required.",
+        "basePriceInvalid": "Base price must be zero or greater.",
+        "tailoringFeeInvalid": "Tailoring fee must be zero or greater.",
+        "estimatedMetersInvalid": "Estimated meters must be greater than zero.",
+        "estimatedDaysInvalid": "Estimated days must be at least 1."
+      },
+      "errors": {
+        "loadFailed": "Could not load designs.",
+        "createFailed": "Could not create design.",
+        "updateFailed": "Could not update design.",
+        "deleteFailed": "Could not delete design.",
+        "conflict": "This design slug already exists for your shop."
+      }
+    },
+    "placeholders": {
+      "shopTitle": "Shop Profile",
+      "shopDescription": "Full shop profile editing arrives in the next sprint task (B-31)."
         "nameRequired": "English shop name is required.",
         "nameArRequired": "Arabic shop name is required.",
         "slugRequired": "URL slug is required.",

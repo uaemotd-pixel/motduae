@@ -8,7 +8,12 @@ export default function LenisProvider({ children }: { children: React.ReactNode 
     const pathname = usePathname();
 
     useEffect(() => {
-        if (pathname.includes("/admin")) {
+        if (pathname.includes("/admin") || pathname.includes("/tailor")) {
+            document.documentElement.classList.remove("lenis", "lenis-smooth");
+            document.documentElement.style.overflow = "";
+            document.documentElement.style.height = "";
+            document.body.style.overflow = "";
+            document.body.style.height = "";
             return;
         }
 

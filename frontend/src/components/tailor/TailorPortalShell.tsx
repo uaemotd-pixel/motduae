@@ -25,6 +25,17 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
         setIsSidebarOpen(false);
     }, [pathname]);
 
+    useEffect(() => {
+        document.documentElement.classList.remove("lenis", "lenis-smooth");
+        document.documentElement.style.overflow = "";
+        document.body.style.overflow = "";
+
+        return () => {
+            document.documentElement.style.overflow = "";
+            document.body.style.overflow = "";
+        };
+    }, []);
+
     const navItems = [
         { label: t("nav.dashboard"), href: "/tailor", icon: LayoutDashboard },
         { label: t("nav.shop"), href: "/tailor/shop", icon: Store },
@@ -97,46 +108,46 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
     );
 
     return (
-        <div className="relative min-h-screen bg-[#FDFAF5] text-black">
-            <aside className="fixed left-0 top-0 w-72 h-full border-r border-(--color-border) flex-col p-6 bg-white z-20 overflow-y-auto hidden lg:flex">
+        <div className="bg-[#FDFAF5] text-black lg:flex lg:h-dvh lg:overflow-hidden">
+            <aside className="fixed left-0 top-0 z-20 hidden h-dvh w-72 shrink-0 flex-col overflow-y-auto border-r border-(--color-border) bg-white p-6 lg:sticky lg:flex">
                 <SidebarContent />
             </aside>
 
             <div
-                className={`fixed inset-0 bg-black/40 z-30 transition-opacity duration-300 lg:hidden ${
-                    isSidebarOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+                className={`fixed inset-0 z-30 bg-black/40 transition-opacity duration-300 lg:hidden ${
+                    isSidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
                 }`}
                 onClick={() => setIsSidebarOpen(false)}
             />
             <aside
-                className={`fixed left-0 top-0 w-72 h-full bg-white border-r border-(--color-border) flex flex-col p-6 z-40 transition-transform duration-300 ease-in-out lg:hidden ${
+                className={`fixed left-0 top-0 z-40 flex h-dvh w-72 flex-col overflow-y-auto border-r border-(--color-border) bg-white p-6 transition-transform duration-300 ease-in-out lg:hidden ${
                     isSidebarOpen ? "translate-x-0" : "-translate-x-full"
                 }`}
             >
                 <button
                     type="button"
                     onClick={() => setIsSidebarOpen(false)}
-                    className="absolute top-4 right-4 p-2 text-(--color-grey-muted) hover:text-black lg:hidden"
+                    className="absolute top-4 right-4 p-2 text-(--color-grey-muted) hover:text-black"
                     aria-label="Close menu"
                 >
                     <X className="w-5 h-5" />
                 </button>
-                <div className="mt-8">
+                <div className="mt-8 flex min-h-0 flex-1 flex-col">
                     <SidebarContent />
                 </div>
             </aside>
 
-            <main className="min-h-screen p-4 xs:p-6 sm:p-8 md:p-10 pb-16 transition-all duration-300 lg:ml-72">
+            <main className="min-h-dvh flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4 pb-40 pt-14 xs:p-6 sm:p-8 md:p-10 lg:min-h-0 lg:pt-10">
                 <button
                     type="button"
                     onClick={() => setIsSidebarOpen(true)}
-                    className="lg:hidden fixed top-4 left-4 z-20 p-2 bg-black text-white hover:bg-[#2A2A28] transition"
+                    className="fixed top-4 left-4 z-20 bg-black p-2 text-white transition hover:bg-[#2A2A28] lg:hidden"
                     aria-label="Open menu"
                 >
                     <Menu className="w-5 h-5" />
                 </button>
 
-                <div className="lg:pt-0 pt-12">{children}</div>
+                {children}
             </main>
         </div>
     );
