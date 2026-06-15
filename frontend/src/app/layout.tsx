@@ -5,10 +5,12 @@ import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { CustomOrderProvider } from "@/context/CustomOrderContext";
 import { Toaster } from "react-hot-toast";
+import { RTLProvider } from "@/components/shared/RTLProvider";
 
 export const metadata: Metadata = {
   title: "MOTD — Mukhawar of the Day",
-  description: "Mukhawar of the Day — bespoke Eastern luxury tailored for the modern world",
+  description:
+    "Mukhawar of the Day — bespoke Eastern luxury tailored for the modern world",
 };
 
 export default function RootLayout({
@@ -25,32 +27,33 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body
-        className="bg-[#FFFDF9] text-[#000000]"
-        suppressHydrationWarning
-      >
+      <body className="bg-[#FFFDF9] text-[#000000]" suppressHydrationWarning>
         <AuthProvider>
           <CartProvider>
             <CustomOrderProvider>
-            {children}
-            <Toaster
-              position="bottom-right"
-              toastOptions={{
-                style: {
-                  background: '#fff',     // white
-                  color: '#000',          // black
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '12px',
-                  letterSpacing: '0.24em',
-                  textTransform: 'uppercase',
-                  borderRadius: '0',
-                  padding: '12px 16px',
-                  border: '1px solid #333',
-                },
-                success: { iconTheme: { primary: '#000', secondary: '#fff' } },
-                error: { iconTheme: { primary: '#ff4444', secondary: '#fff' } },
-              }}
-            />
+              <RTLProvider>{children}</RTLProvider>
+              <Toaster
+                position="bottom-right"
+                toastOptions={{
+                  style: {
+                    background: "#fff", // white
+                    color: "#000", // black
+                    fontFamily: "var(--font-body)",
+                    fontSize: "12px",
+                    letterSpacing: "0.24em",
+                    textTransform: "uppercase",
+                    borderRadius: "0",
+                    padding: "12px 16px",
+                    border: "1px solid #333",
+                  },
+                  success: {
+                    iconTheme: { primary: "#000", secondary: "#fff" },
+                  },
+                  error: {
+                    iconTheme: { primary: "#ff4444", secondary: "#fff" },
+                  },
+                }}
+              />
             </CustomOrderProvider>
           </CartProvider>
         </AuthProvider>

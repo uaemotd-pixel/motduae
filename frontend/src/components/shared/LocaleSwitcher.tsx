@@ -4,13 +4,21 @@
 
 import { motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const LocaleSwitcher = () => {
   const pathname = usePathname();
   const router = useRouter();
+  const [isRTL, setIsRTL] = useState(false);
+
+  useEffect(() => {
+    // Check the actual direction of the document (set by your RTLProvider)
+    setIsRTL(document.documentElement.dir === "rtl");
+  }, []);
 
   const segments = pathname.split("/").filter(Boolean);
-  const currentLocale = segments[0] === "ar" || segments[0] === "en" ? segments[0] : "en";
+  const currentLocale =
+    segments[0] === "ar" || segments[0] === "en" ? segments[0] : "en";
   const isArabic = currentLocale === "ar";
 
   const switchLanguage = () => {
@@ -19,10 +27,19 @@ const LocaleSwitcher = () => {
     router.push("/" + segments.join("/"));
   };
 
+  // In LTR mode: EN (left) is x=0, AR (right) is x=36
+  // In RTL mode: because the button's content is forced LTR, the physical positions stay the same,
+  // but positive x still moves right on screen. So we keep the same offset.
+  // However, if you want the pill to slide toward the AR label (which is always on the right),
+  // the offset remains 36 regardless of dir.
+  const sliderOffset = 36;
+
   return (
     <button
       onClick={switchLanguage}
       aria-label="Switch language"
+      // Force the button's internal direction to LTR so EN always on left, AR always on right
+      dir="ltr"
       className="
         relative
         flex
@@ -59,7 +76,7 @@ const LocaleSwitcher = () => {
           bg-black
         "
         animate={{
-          x: isArabic ? 36 : 0,
+          x: isArabic ? sliderOffset : 0,
         }}
       />
 
