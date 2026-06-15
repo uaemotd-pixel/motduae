@@ -31,6 +31,9 @@ const translations = {
         checkout: checkoutEn.checkout,
         adminDashboard: adminDashboardEn.create_ready_made,
         editReadyMade: adminDashboardEn.edit_ready_made,
+        heroSection: en.HeroSection,
+        navbar: en.Navbar,
+        trendingDesigns: en.TrendingDesigns,
     },
     ar: {
         login: loginAr.login,
@@ -40,6 +43,9 @@ const translations = {
         checkout: checkoutAr.checkout,
         adminDashboard: adminDashboardAr.create_ready_made,
         editReadyMade: adminDashboardAr.edit_ready_made,
+        heroSection: ar.HeroSection,
+        navbar: ar.Navbar,
+        trendingDesigns: ar.TrendingDesigns,
     },
 };
 

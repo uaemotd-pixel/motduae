@@ -1,19 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
-import { Link, usePathname } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { GlobalProgressBar } from "../shared/GlobalProgressBar";
 import { useAuth } from "@/context/AuthContext";
 import LocaleSwitcher from "../shared/LocaleSwitcher";
 import { useCart } from "@/context/CartContext";
+import { getTranslation } from "@/lib/getTranslation";
+import { useParams } from "next/navigation";
 
 const NAV_LINKS = [
   { key: "fabrics", href: "/fabrics/fabricStore" },
   { key: "tailors", href: "/tailors" },
   { key: "stories", href: "/#stories" },
   { key: "howItWorks", href: "/#how-it-works" },
-  { key: "about", href: "/#about" }
+  { key: "about", href: "/#about" },
 ] as const;
 
 const MOBILE_NAV_LINKS = [
@@ -21,32 +22,48 @@ const MOBILE_NAV_LINKS = [
   { key: "tailors", href: "/tailors" },
   { key: "stories", href: "/#stories" },
   { key: "howItWorks", href: "/#how-it-works" },
-  { key: "about", href: "/#about" }
+  { key: "about", href: "/#about" },
 ] as const;
 
-// Desktop nav link styles - exact match from first code chunk
-const navLinkClass =
-  "[font-family:var(--font-ui)] text-[9px] xs:text-[10px] lg:text-[10px] xl:text-[11px] 2xl:text-[12px] 3xl:text-[13px] uppercase tracking-[0.22em] text-[var(--color-black)] hover:opacity-50 transition whitespace-nowrap";
-
-// Mobile nav link styles - exact match from first code chunk
-const mobileNavLinkClass =
-  "text-[11px] xs:text-[12px] sm:text-[13px] uppercase tracking-[0.22em] [font-family:var(--font-ui)] hover:opacity-50 transition";
-
-// SVG Icons matching the first code chunk exactly
+// SVG Icons (unchanged)
 const SearchIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" />
   </svg>
 );
 
 const WishlistIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
   </svg>
 );
 
 const CartIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
     <line x1="3" y1="6" x2="21" y2="6" />
     <path d="M16 10a4 4 0 0 1-8 0" />
@@ -54,19 +71,30 @@ const CartIcon = ({ className }: { className?: string }) => (
 );
 
 const UserIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
     <circle cx="12" cy="7" r="4" />
   </svg>
 );
 
 export function Navbar() {
-  const t = useTranslations("Navbar");
+  const params = useParams();
+  const localParams = params.locale as string;
+  const isArabic = localParams === "ar";
+  const t = getTranslation(localParams);
   const [mobileOpen, setMobileOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const { user, isLoading } = useAuth();
-  const accountLabel = user ? t("actions.account") : t("actions.login");
+  const accountLabel = user ? t.navbar.actions.account : t.navbar.actions.login;
   const { items } = useCart();
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -76,14 +104,13 @@ export function Navbar() {
     if (!user) return "/auth/login";
     if (user.role.toLowerCase() === "admin") return "/admin";
     if (user.role.toLowerCase() === "tailor") return "/tailor";
-    return "/account/userAccount"; // default for customer
+    return "/account/userAccount";
   };
   const accountHref = getAccountHref();
 
   // Toggle menu with animation
   const toggleMenu = useCallback(() => {
     if (!mobileOpen) {
-      // Opening menu
       setMobileOpen(true);
       setTimeout(() => {
         if (menuRef.current) {
@@ -93,7 +120,6 @@ export function Navbar() {
       }, 10);
       document.body.style.overflow = "hidden";
     } else {
-      // Closing menu with animation
       if (menuRef.current) {
         menuRef.current.style.opacity = "0";
         menuRef.current.style.transform = "translateY(-10px)";
@@ -109,7 +135,6 @@ export function Navbar() {
     }
   }, [mobileOpen]);
 
-  // Close menu function
   const closeMenu = useCallback(() => {
     if (mobileOpen) {
       if (menuRef.current) {
@@ -140,7 +165,6 @@ export function Navbar() {
         closeMenu();
       }
     };
-
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, [mobileOpen, closeMenu]);
@@ -148,55 +172,71 @@ export function Navbar() {
   // Handle Escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && mobileOpen) {
-        closeMenu();
-      }
+      if (e.key === "Escape" && mobileOpen) closeMenu();
     };
-
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
   }, [mobileOpen, closeMenu]);
 
-  // Clean up body overflow on unmount
   useEffect(() => {
     return () => {
       document.body.style.overflow = "";
     };
   }, []);
 
+  // ----- Dynamic classes based on Arabic -----
+  const desktopNavLinkClass = `[font-family:var(--font-ui)] uppercase tracking-[0.22em] text-[var(--color-black)] hover:opacity-50 transition whitespace-nowrap ${
+    isArabic
+      ? "text-[11px] xs:text-[12px] lg:text-[14px] xl:text-[16px] 2xl:text-[18px] 3xl:text-[20px]"
+      : "text-[9px] xs:text-[10px] lg:text-[10px] xl:text-[11px] 2xl:text-[12px] 3xl:text-[13px]"
+  }`;
+
+  const mobileNavLinkClass = `uppercase tracking-[0.22em] [font-family:var(--font-ui)] hover:opacity-50 transition ${
+    isArabic
+      ? "text-[14px] xs:text-[14px] sm:text-[15px]"
+      : "text-[11px] xs:text-[12px] sm:text-[13px]"
+  }`;   
+
+  const bottomLabelClass = `uppercase tracking-[0.18em] [font-family:var(--font-ui)] ${
+    isArabic ? "text-[10px] xs:text-[11px]" : "text-[8px] xs:text-[9px]"
+  }`;
+
   return (
     <nav className="fixed top-0 left-0 right-0 w-full z-50 border-b border-(--color-border) nav-blur">
       {/* MAIN BAR */}
       <div className="w-full min-h-14 xs:min-h-[60px] sm:min-h-16 md:min-h-18 flex items-center justify-between px-3 xs:px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 3xl:px-24 4xl:px-32">
-        {/* LOGO - exact spacing from first code chunk (p-7.5 -m-7.5) */}
-        <Link href="/" className="shrink-0 flex items-center p-7.5 -m-7.5" onClick={closeMenu}>
+        {/* LOGO */}
+        <Link
+          href="/"
+          className="shrink-0 flex items-center p-7.5 -m-7.5"
+          onClick={closeMenu}
+        >
           <img
             src="/PNG/Black/MOTD_Wordmark_Black.png"
-            alt={t("logoAlt")}
+            alt={t.navbar.logoAlt}
             className="h-3 xs:h-[13px] sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-[24px] w-auto object-contain"
           />
         </Link>
 
-        {/* DESKTOP NAV - exact gap classes from first code chunk */}
+        {/* DESKTOP NAV */}
         <ul className="hidden lg:flex items-center gap-4 xl:gap-6 2xl:gap-8 3xl:gap-10 4xl:gap-12 list-none m-0 p-0">
           {NAV_LINKS.map(({ key, href }) => (
             <li key={key}>
-              <Link href={href} className={navLinkClass}>
-                {t(`links.${key}`)}
+              <Link href={href} className={desktopNavLinkClass}>
+                {t.navbar.links[key]}
               </Link>
             </li>
           ))}
         </ul>
 
-        {/* RIGHT ICONS - exact gap classes from first code chunk */}
+        {/* RIGHT ICONS */}
         <div className="flex items-center gap-1 xs:gap-1.5 sm:gap-2 md:gap-2 lg:gap-3 xl:gap-3 2xl:gap-4">
-          {/* Language switcher — links avoid extension-injected button attrs (e.g. fdprocessedid) */}
           <LocaleSwitcher />
           {/* Search Icon */}
           <button
             type="button"
             className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center"
-            aria-label={t("actions.search")}
+            aria-label={t.navbar.actions.search}
           >
             <SearchIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
           </button>
@@ -205,7 +245,7 @@ export function Navbar() {
           <button
             type="button"
             className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center"
-            aria-label={t("actions.wishlist")}
+            aria-label={t.navbar.actions.wishlist}
           >
             <WishlistIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
           </button>
@@ -214,7 +254,7 @@ export function Navbar() {
           <Link
             href="/cart"
             className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center relative"
-            aria-label={t("actions.cart")}
+            aria-label={t.navbar.actions.cart}
           >
             <div className="relative">
               <CartIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
@@ -238,21 +278,25 @@ export function Navbar() {
           ) : (
             <span
               className="hidden lg:flex p-1.5 lg:p-2 items-center justify-center opacity-50"
-              aria-label={t("actions.account")}
+              aria-label={t.navbar.actions.account}
               aria-busy="true"
             >
               <UserIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
             </span>
           )}
 
-          {/* MOBILE HAMBURGER - exact classes from first code chunk */}
+          {/* MOBILE HAMBURGER */}
           <button
             ref={btnRef}
             type="button"
             id="hamburger-btn"
             className="lg:hidden flex flex-col gap-[3.5px] xs:gap-[4px] p-1.5 xs:p-2"
             aria-expanded={mobileOpen}
-            aria-label={mobileOpen ? t("actions.closeMenu") : t("actions.openMenu")}
+            aria-label={
+              mobileOpen
+                ? t.navbar.actions.closeMenu
+                : t.navbar.actions.openMenu
+            }
             onClick={(e) => {
               e.stopPropagation();
               toggleMenu();
@@ -265,12 +309,11 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* MOBILE MENU - exact structure from first code chunk with animation */}
+      {/* MOBILE MENU */}
       <div
         ref={menuRef}
         id="mobile-menu"
-        className={`lg:hidden border-t border-(--color-border) bg-white transition-all duration-300 ease ${mobileOpen ? "" : "hidden"
-          }`}
+        className={`lg:hidden border-t border-(--color-border) bg-white transition-all duration-300 ease ${mobileOpen ? "" : "hidden"}`}
         style={{
           opacity: mobileOpen ? 1 : 0,
           transform: mobileOpen ? "translateY(0)" : "translateY(-10px)",
@@ -279,28 +322,31 @@ export function Navbar() {
         aria-hidden={!mobileOpen}
       >
         <div className="px-4 xs:px-5 sm:px-6 py-5 xs:py-6 sm:py-7">
-
           <ul className="flex flex-col gap-4 xs:gap-5 sm:gap-6 mb-5 xs:mb-6 sm:mb-7 list-none m-0 p-0">
             {MOBILE_NAV_LINKS.map(({ key, href }) => (
               <li key={key}>
-                <Link href={href} className={mobileNavLinkClass} onClick={closeMenu}>
-                  {t(`links.${key}`)}
+                <Link
+                  href={href}
+                  className={mobileNavLinkClass}
+                  onClick={closeMenu}
+                >
+                  {t.navbar.links[key]}
                 </Link>
               </li>
             ))}
           </ul>
 
-          {/* Mobile bottom icons grid - exact match from first code chunk */}
+          {/* Mobile bottom icons grid */}
           <div className="grid grid-cols-4 gap-2 border-t border-(--color-border) pt-4 xs:pt-5">
             <button
               type="button"
               className="flex flex-col items-center gap-1 group hover:opacity-50 transition"
-              aria-label={t("actions.search")}
+              aria-label={t.navbar.actions.search}
               onClick={closeMenu}
             >
               <SearchIcon className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5" />
-              <span className="text-[8px] xs:text-[9px] uppercase tracking-[0.18em] [font-family:var(--font-ui)]">
-                {t("actions.search")}
+              <span className={bottomLabelClass}>
+                {t.navbar.actions.search}
               </span>
             </button>
 
@@ -312,19 +358,17 @@ export function Navbar() {
                 onClick={closeMenu}
               >
                 <UserIcon className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5" />
-                <span className="text-[8px] xs:text-[9px] uppercase tracking-[0.18em] [font-family:var(--font-ui)]">
-                  {accountLabel}
-                </span>
+                <span className={bottomLabelClass}>{accountLabel}</span>
               </Link>
             ) : (
               <span
                 className="flex flex-col items-center gap-1 opacity-50"
-                aria-label={t("actions.account")}
+                aria-label={t.navbar.actions.account}
                 aria-busy="true"
               >
                 <UserIcon className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5" />
-                <span className="text-[8px] xs:text-[9px] uppercase tracking-[0.18em] [font-family:var(--font-ui)]">
-                  {t("actions.account")}
+                <span className={bottomLabelClass}>
+                  {t.navbar.actions.account}
                 </span>
               </span>
             )}
@@ -342,27 +386,24 @@ export function Navbar() {
                   </span>
                 )}
               </div>
-              <span className="text-[8px] xs:text-[9px] uppercase tracking-[0.18em] [font-family:var(--font-ui)]">
-                Cart
-              </span>
+              <span className={bottomLabelClass}>{t.navbar.actions.cart}</span>
             </Link>
 
             <button
               type="button"
               className="flex flex-col items-center gap-1 group hover:opacity-50 transition relative"
-              aria-label={t("actions.wishlist")}
+              aria-label={t.navbar.actions.wishlist}
               onClick={closeMenu}
             >
               <WishlistIcon className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5" />
-              <span className="text-[8px] xs:text-[9px] uppercase tracking-[0.18em] [font-family:var(--font-ui)]">
-                {t("actions.wishlist")}
+              <span className={bottomLabelClass}>
+                {t.navbar.actions.wishlist}
               </span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Global Progress Bar */}
       <GlobalProgressBar />
     </nav>
   );
