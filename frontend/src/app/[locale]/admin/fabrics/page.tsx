@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { api } from "@/lib/api/client";
+import { useParams } from "next/navigation";
+import { api, getApiErrorMessage } from "@/lib/api/client";
 import { Link } from "@/i18n/navigation";
+import { getTranslation } from "@/lib/getTranslation";
 import {
   Plus,
   Edit,
@@ -35,7 +36,10 @@ interface FabricItem {
 }
 
 export default function AdminFabricsPage() {
-  const { user } = useAuth();
+  const params = useParams();
+  const localeParam = params.locale as string;
+  const t = getTranslation(localeParam);
+
   const [items, setItems] = useState<FabricItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,30 +56,23 @@ export default function AdminFabricsPage() {
       const data = await api.get<FabricItem[]>("/api/admin/fabrics");
       setItems(data);
       setError(null);
-    } catch (err: any) {
-      console.error("Failed to fetch fabrics:", err);
-      setError(err.message || "Failed to load fabrics");
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, t.adminFabrics.list.load_error_title));
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this fabric? This action cannot be undone.",
-      )
-    ) {
+    if (!confirm(t.adminFabrics.list.delete_confirm)) {
       return;
     }
     setDeletingId(id);
     try {
       await api.delete(`/api/admin/fabrics/${id}`);
-      // Refresh the list after successful deletion
       await fetchItems();
-    } catch (err: any) {
-      console.error("Delete failed:", err);
-      alert(err.message || "Failed to delete fabric");
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, t.adminFabrics.list.delete_failed));
     } finally {
       setDeletingId(null);
     }
@@ -111,9 +108,13 @@ export default function AdminFabricsPage() {
 
   const StatusBadge = ({ isActive }: { isActive: boolean }) => (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${isActive ? "bg-white text-black border border-black/30" : "bg-gray-100 text-gray-500 border border-gray-200"}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+        isActive
+          ? "bg-white text-black border border-black/30"
+          : "bg-gray-100 text-gray-500 border border-gray-200"
+      }`}
     >
-      {isActive ? "Active" : "Inactive"}
+      {isActive ? t.adminFabrics.list.status_active : t.adminFabrics.list.status_inactive}
     </span>
   );
 
@@ -166,14 +167,14 @@ export default function AdminFabricsPage() {
         <div className="text-center bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-md">
           <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
           <p className="font-normal text-xl text-black">
-            Unable to load fabrics
+            {t.adminFabrics.list.load_error_title}
           </p>
           <p className="text-gray-500 mt-2 text-sm">{error}</p>
           <button
             onClick={fetchItems}
             className="mt-6 px-6 py-2 bg-black text-white rounded-full hover:bg-gray-800 transition text-sm"
           >
-            Try again
+            {t.adminFabrics.list.try_again}
           </button>
         </div>
       </div>
@@ -185,36 +186,34 @@ export default function AdminFabricsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
-            Fabrics Catalog
+            {t.adminFabrics.list.title}
           </h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Manage fabrics for custom tailoring
-          </p>
+          <p className="text-gray-500 text-sm mt-1">{t.adminFabrics.list.subtitle}</p>
         </div>
         <Link
           href="/admin/fabrics/new"
           className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition text-sm shadow-sm"
         >
-          <Plus className="w-4 h-4" /> New Fabric
+          <Plus className="w-4 h-4" /> {t.adminFabrics.list.new_button}
         </Link>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">
-            Total Fabrics
+            {t.adminFabrics.list.total}
           </p>
           <p className="text-2xl font-light text-black mt-1">{items.length}</p>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">
-            Active
+            {t.adminFabrics.list.active}
           </p>
           <p className="text-2xl font-light text-black mt-1">{activeCount}</p>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">
-            Inactive
+            {t.adminFabrics.list.inactive}
           </p>
           <p className="text-2xl font-light text-black mt-1">{inactiveCount}</p>
         </div>
@@ -225,7 +224,7 @@ export default function AdminFabricsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by name, material, store, city..."
+            placeholder={t.adminFabrics.list.search_placeholder}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
@@ -235,7 +234,7 @@ export default function AdminFabricsPage() {
           onClick={fetchItems}
           className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white"
         >
-          <RefreshCw className="w-4 h-4" /> Refresh
+          <RefreshCw className="w-4 h-4" /> {t.adminFabrics.list.refresh}
         </button>
       </div>
 
@@ -243,14 +242,14 @@ export default function AdminFabricsPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
           <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500">
-            {searchTerm ? "No fabrics match your search." : "No fabrics yet."}
+            {searchTerm ? t.adminFabrics.list.empty_search : t.adminFabrics.list.empty}
           </p>
           {!searchTerm && (
             <Link
               href="/admin/fabrics/new"
               className="inline-block mt-4 text-black underline underline-offset-4 hover:text-gray-600"
             >
-              Create your first fabric
+              {t.adminFabrics.list.create_first}
             </Link>
           )}
         </div>
@@ -261,25 +260,25 @@ export default function AdminFabricsPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
+                    {t.adminFabrics.list.col_name}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Material
+                    {t.adminFabrics.list.col_material}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Price / m
+                    {t.adminFabrics.list.col_price}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Store
+                    {t.adminFabrics.list.col_store}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    City
+                    {t.adminFabrics.list.col_city}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                    {t.adminFabrics.list.col_status}
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
+                    {t.adminFabrics.list.col_actions}
                   </th>
                 </tr>
               </thead>

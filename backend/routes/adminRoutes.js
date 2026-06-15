@@ -184,6 +184,36 @@ adminRouter.post(
   }),
 );
 
+// GET /api/admin/partners/fabric-stores
+// Approved fabric store partners for admin fabric form picker
+adminRouter.get(
+  "/partners/fabric-stores",
+  expressAsyncHandler(async (_req, res) => {
+    const stores = await User.find({ role: "fabric_store" })
+      .select("name email")
+      .sort({ name: 1 });
+
+    res.send(stores);
+  }),
+);
+
+async function assertFabricStorePartner(listedByStore) {
+  if (!listedByStore || !mongoose.Types.ObjectId.isValid(listedByStore)) {
+    return { ok: false, message: "Invalid fabric store partner ID" };
+  }
+
+  const store = await User.findOne({
+    _id: listedByStore,
+    role: "fabric_store",
+  }).select("_id");
+
+  if (!store) {
+    return { ok: false, message: "Fabric store partner not found" };
+  }
+
+  return { ok: true };
+}
+
 // GET /api/admin/fabrics
 // Admin can view all fabrics in the catalog (including inactive)
 adminRouter.get(
@@ -219,6 +249,12 @@ adminRouter.post(
       isActive,
     } = req.body;
 
+    const partnerCheck = await assertFabricStorePartner(listedByStore);
+    if (!partnerCheck.ok) {
+      res.status(400).send({ message: partnerCheck.message });
+      return;
+    }
+
     const newFabric = new Fabric({
       name,
       nameAr,
@@ -250,6 +286,15 @@ adminRouter.put(
     const fabric = await Fabric.findById(req.params.id);
 
     if (fabric) {
+      if (req.body.listedByStore) {
+        const partnerCheck = await assertFabricStorePartner(req.body.listedByStore);
+        if (!partnerCheck.ok) {
+          res.status(400).send({ message: partnerCheck.message });
+          return;
+        }
+        fabric.listedByStore = req.body.listedByStore;
+      }
+
       fabric.name = req.body.name || fabric.name;
       fabric.nameAr = req.body.nameAr || fabric.nameAr;
       fabric.slug = req.body.slug || fabric.slug;
@@ -273,7 +318,6 @@ adminRouter.put(
         req.body.pricePerMeter !== undefined
           ? req.body.pricePerMeter
           : fabric.pricePerMeter;
-      fabric.listedByStore = req.body.listedByStore || fabric.listedByStore;
 
       if (req.body.storePickupAddress) {
         fabric.storePickupAddress = req.body.storePickupAddress;

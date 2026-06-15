@@ -21,6 +21,8 @@ import checkoutAr from "@/messages/checkout.ar.json";
 // for translation of admin dashoard
 import adminDashboardEn from "@/messages/adminDashboard.en.json";
 import adminDashboardAr from "@/messages/adminDashboard.ar.json";
+import adminFabricsEn from "@/messages/adminFabrics.en.json";
+import adminFabricsAr from "@/messages/adminFabrics.ar.json";
 
 const translations = {
     en: {
@@ -34,6 +36,7 @@ const translations = {
         heroSection: en.HeroSection,
         navbar: en.Navbar,
         trendingDesigns: en.TrendingDesigns,
+        adminFabrics: adminFabricsEn,
     },
     ar: {
         login: loginAr.login,
@@ -46,6 +49,7 @@ const translations = {
         heroSection: ar.HeroSection,
         navbar: ar.Navbar,
         trendingDesigns: ar.TrendingDesigns,
+        adminFabrics: adminFabricsAr,
     },
 };
 

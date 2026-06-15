@@ -1,7 +1,3 @@
-// ============================================================
-// Constants
-// ============================================================
-
 export const FABRIC_MATERIALS = [
   "wool",
   "silk",
@@ -17,6 +13,10 @@ export const FABRIC_TAGS = [
   "PREMIUM",
   "ARTISANAL",
   "SALE",
+  "HERITAGE",
+  "SUSTAINABLE",
+  "EXCLUSIVE",
+  "BREATHABLE",
 ] as const;
 export type FabricTag = (typeof FABRIC_TAGS)[number];
 
@@ -26,18 +26,46 @@ export const FABRIC_TAG_COLORS_VALUES = [
   "bg-[#5B4A3A]",
   "bg-gray-500",
   "bg-red-500",
+  "bg-[#8B6B47]",
+  "bg-[#9C6B3C]",
+  "bg-[#A0522D]",
+  "bg-[#2C1810]",
+  "bg-[#4A6B5D]",
 ] as const;
 export type FabricTagColor = (typeof FABRIC_TAG_COLORS_VALUES)[number];
 
-export const FABRIC_TAG_COLORS_OPTIONS = [
-  { value: "bg-primary", label: "Black" },
-  { value: "bg-[#C8A97E]", label: "Gold" },
-  { value: "bg-[#5B4A3A]", label: "Brown" },
-  { value: "bg-gray-500", label: "Gray" },
-  { value: "bg-red-500", label: "Red" },
-] as const;
+const FABRIC_TAG_COLOR_LABELS: Record<string, string> = {
+  "bg-primary": "Black",
+  "bg-[#C8A97E]": "Gold",
+  "bg-[#5B4A3A]": "Brown",
+  "bg-gray-500": "Gray",
+  "bg-red-500": "Red",
+  "bg-[#8B6B47]": "Bronze",
+  "bg-[#9C6B3C]": "Copper",
+  "bg-[#A0522D]": "Sienna",
+  "bg-[#2C1810]": "Espresso",
+  "bg-[#4A6B5D]": "Forest",
+};
 
-// Pickup address shape
+export function getTagSelectOptions(currentValue?: string) {
+  const values = new Set<string>(FABRIC_TAGS);
+  const trimmed = currentValue?.trim();
+  if (trimmed) values.add(trimmed);
+
+  return Array.from(values).map((value) => ({ value, label: value }));
+}
+
+export function getTagColorSelectOptions(currentValue?: string) {
+  const values = new Set<string>(FABRIC_TAG_COLORS_VALUES);
+  const trimmed = currentValue?.trim();
+  if (trimmed) values.add(trimmed);
+
+  return Array.from(values).map((value) => ({
+    value,
+    label: FABRIC_TAG_COLOR_LABELS[value] || value,
+  }));
+}
+
 export interface PickupAddress {
   emirate: string;
   city: string;
@@ -56,17 +84,13 @@ export interface FabricFormData {
   material: FabricMaterial | "";
   color: string;
   city: string;
-  tag: FabricTag | "";
-  tagColor: FabricTagColor | "";
+  tag: string;
+  tagColor: string;
   pricePerMeter: number;
-  listedByStore: string; // store partner ID (ObjectId)
+  listedByStore: string;
   pickupAddress: PickupAddress;
   isActive: boolean;
 }
-
-// ============================================================
-// Helper functions
-// ============================================================
 
 export function slugFromName(name: string): string {
   return name
@@ -103,10 +127,6 @@ export function resolveSlug(
   return `fabric-${Date.now()}`;
 }
 
-// ============================================================
-// Default / initial form state
-// ============================================================
-
 export function defaultFabricForm(): FabricFormData {
   return {
     name: "",
@@ -133,10 +153,6 @@ export function defaultFabricForm(): FabricFormData {
   };
 }
 
-// ============================================================
-// Convert from API product (GET /api/admin/fabrics or /api/admin/fabrics/:id)
-// ============================================================
-
 export function fromApiFabric(
   product: Record<string, unknown>,
 ): FabricFormData {
@@ -151,20 +167,8 @@ export function fromApiFabric(
       ? (product.material as FabricMaterial)
       : "";
 
-  const tag =
-    typeof product.tag === "string" &&
-    FABRIC_TAGS.includes(product.tag as FabricTag)
-      ? (product.tag as FabricTag)
-      : "";
-
-  let tagColor: FabricTagColor | "" = "";
-  const tagColorRaw = product.tagColor;
-  if (
-    typeof tagColorRaw === "string" &&
-    FABRIC_TAG_COLORS_VALUES.includes(tagColorRaw as FabricTagColor)
-  ) {
-    tagColor = tagColorRaw as FabricTagColor;
-  }
+  const tag = typeof product.tag === "string" ? product.tag : "";
+  const tagColor = typeof product.tagColor === "string" ? product.tagColor : "";
 
   let listedByStore = "";
   if (product.listedByStore) {
@@ -179,7 +183,6 @@ export function fromApiFabric(
     }
   }
 
-  // Extract pickup address from API response (backend sends as object)
   const apiAddress = product.storePickupAddress as
     | Record<string, unknown>
     | undefined;
@@ -214,21 +217,16 @@ export function fromApiFabric(
   };
 }
 
-// ============================================================
-// Convert to API payload (for POST / PUT)
-// ============================================================
-
 export function toFabricApiPayload(
   form: FabricFormData,
   options?: { includeIsActive?: boolean },
 ): Record<string, unknown> {
   const name = form.name.trim();
-  const slug = resolveSlug(form);
 
   const payload: Record<string, unknown> = {
     name,
     nameAr: form.nameAr.trim() || name,
-    slug,
+    slug: resolveSlug(form),
     description: form.description.trim(),
     descriptionAr: form.descriptionAr.trim() || form.description.trim(),
     images: form.images.filter((url) => url.trim() !== "" && !isDataUrl(url)),
@@ -253,4 +251,47 @@ export function toFabricApiPayload(
   }
 
   return payload;
+}
+
+export function validateFabricForm(
+  form: FabricFormData,
+  messages: Record<string, string>,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+
+  if (!form.name.trim()) errors.name = messages.name_required;
+  if (!form.nameAr.trim()) errors.nameAr = messages.name_ar_required;
+  if (!form.description.trim()) errors.description = messages.description_required;
+  if (!form.descriptionAr.trim()) {
+    errors.descriptionAr = messages.description_ar_required;
+  }
+  if (!form.material) errors.material = messages.material_required;
+  if (!form.color.trim()) errors.color = messages.color_required;
+  if (!form.city.trim()) errors.city = messages.city_required;
+  if (!form.tag) errors.tag = messages.tag_required;
+  if (!form.tagColor) errors.tagColor = messages.tag_color_required;
+  if (form.pricePerMeter <= 0) errors.pricePerMeter = messages.price_required;
+
+  if (!form.listedByStore.trim()) {
+    errors.listedByStore = messages.store_partner_required;
+  } else if (!isValidObjectId(form.listedByStore)) {
+    errors.listedByStore = messages.store_partner_invalid;
+  }
+
+  if (!form.pickupAddress.emirate.trim()) {
+    errors["pickupAddress.emirate"] = messages.emirate_required;
+  }
+  if (!form.pickupAddress.city.trim()) {
+    errors["pickupAddress.city"] = messages.pickup_city_required;
+  }
+
+  if (hasDataUrlImages(form.images)) {
+    errors.images = messages.image_upload_pending;
+  } else if (form.images.length === 0 || form.images.every((url) => !url.trim())) {
+    errors.images = messages.images_required;
+  } else if (form.images.length > 5) {
+    errors.images = messages.images_max;
+  }
+
+  return errors;
 }
