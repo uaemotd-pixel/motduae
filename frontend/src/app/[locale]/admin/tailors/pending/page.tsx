@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
@@ -14,6 +14,92 @@ import {
   AlertCircle,
 } from "lucide-react";
 
+// ---------- Reusable Confirmation Modal (Black + White + Off‑white) ----------
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  showNote?: boolean;
+  noteValue?: string;
+  onNoteChange?: (value: string) => void;
+  notePlaceholder?: string;
+}
+
+function ConfirmationModal({
+  isOpen,
+  title,
+  message,
+  confirmLabel,
+  cancelLabel,
+  onConfirm,
+  onCancel,
+  showNote = false,
+  noteValue = "",
+  onNoteChange,
+  notePlaceholder = "Optional reason...",
+}: ConfirmationModalProps) {
+  // Hooks must be called unconditionally
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) onCancel();
+    };
+    if (isOpen) {
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onCancel]);
+
+  if (!isOpen) return null;
+
+  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onCancel();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all duration-200"
+      onClick={handleOverlayClick}
+    >
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100 overflow-hidden">
+        <div className="p-6">
+          <h3 className="text-lg font-medium text-black">{title}</h3>
+          <p className="mt-2 text-sm text-gray-600">{message}</p>
+          {showNote && (
+            <div className="mt-4">
+              <textarea
+                value={noteValue}
+                onChange={(e) => onNoteChange?.(e.target.value)}
+                placeholder={notePlaceholder}
+                rows={3}
+                className="w-full px-3 py-2 text-sm text-black bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-black transition resize-none"
+              />
+            </div>
+          )}
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:cursor-pointer transition"
+            >
+              {cancelLabel}
+            </button>
+            <button
+              onClick={onConfirm}
+              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 hover:cursor-pointer transition"
+            >
+              {confirmLabel}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Main Page ----------
 interface Tailor {
   id: string;
   name: string;
@@ -34,14 +120,23 @@ export default function PendingTailorsPage() {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalAction, setModalAction] = useState<"approve" | "reject" | null>(
+    null,
+  );
+  const [selectedTailor, setSelectedTailor] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
+
   const fetchPendingTailors = async () => {
     setLoading(true);
     setError(null);
     try {
-      // Backend returns a plain array directly (not wrapped in { users: [] })
       const response = await api.get<any>("/api/admin/tailors/pending");
       const raw: any[] = Array.isArray(response) ? response : [];
-
       const mapped: Tailor[] = raw.map((user) => ({
         id: user._id,
         name: user.name,
@@ -51,7 +146,6 @@ export default function PendingTailorsPage() {
         address: user.address || "",
         approvalStatus: user.approvalStatus,
       }));
-
       setTailors(mapped);
     } catch (err: any) {
       const message = getApiErrorMessage(err, "Failed to load pending tailors");
@@ -76,45 +170,52 @@ export default function PendingTailorsPage() {
     );
   }, [tailors, searchTerm]);
 
-  const handleApprove = async (tailorId: string, tailorName: string) => {
-    if (!confirm(`Approve ${tailorName}?`)) return;
-    setActionInProgress(tailorId);
-    try {
-      await api.patch(`/api/admin/tailors/${tailorId}/approve`);
-      toast.success("Tailor approved successfully");
-      // Update status in-place so the admin sees the result
-      setTailors((prev) =>
-        prev.map((t) =>
-          t.id === tailorId ? { ...t, approvalStatus: "approved" } : t,
-        ),
-      );
-    } catch (err: any) {
-      toast.error(getApiErrorMessage(err, "Approval failed"));
-    } finally {
-      setActionInProgress(null);
-    }
+  // Open modal for approve or reject
+  const openModal = (
+    action: "approve" | "reject",
+    tailorId: string,
+    tailorName: string,
+  ) => {
+    setModalAction(action);
+    setSelectedTailor({ id: tailorId, name: tailorName });
+    setRejectNote(""); // reset note
+    setModalOpen(true);
   };
 
-  const handleReject = async (tailorId: string, tailorName: string) => {
-    const note = window.prompt("Optional rejection reason:", "");
-    if (note === null) return; // cancelled
-    if (!confirm(`Reject ${tailorName}?`)) return;
+  const closeModal = () => {
+    setModalOpen(false);
+    setModalAction(null);
+    setSelectedTailor(null);
+    setRejectNote("");
+  };
+
+  const handleConfirm = async () => {
+    if (!selectedTailor || !modalAction) return;
+    const { id: tailorId, name: tailorName } = selectedTailor;
 
     setActionInProgress(tailorId);
+    closeModal();
+
     try {
-      await api.patch(`/api/admin/tailors/${tailorId}/reject`, {
-        rejectionNote: note,
-        note,
-      });
-      toast.success("Tailor rejected");
-      // Update status in-place so the admin sees the result
-      setTailors((prev) =>
-        prev.map((t) =>
-          t.id === tailorId ? { ...t, approvalStatus: "rejected" } : t,
-        ),
-      );
+      if (modalAction === "approve") {
+        await api.patch(`/api/admin/tailors/${tailorId}/approve`);
+        toast.success(`Tailor "${tailorName}" approved successfully`);
+        setTailors((prev) => prev.filter((t) => t.id !== tailorId));
+      } else {
+        // reject
+        await api.patch(`/api/admin/tailors/${tailorId}/reject`, {
+          rejectionNote: rejectNote,
+          note: rejectNote,
+        });
+        toast.success(`Tailor "${tailorName}" rejected`);
+        setTailors((prev) => prev.filter((t) => t.id !== tailorId));
+      }
     } catch (err: any) {
-      toast.error(getApiErrorMessage(err, "Rejection failed"));
+      const errorMsg = getApiErrorMessage(
+        err,
+        modalAction === "approve" ? "Approval failed" : "Rejection failed",
+      );
+      toast.error(errorMsg);
     } finally {
       setActionInProgress(null);
     }
@@ -126,7 +227,6 @@ export default function PendingTailorsPage() {
       { year: "numeric", month: "short", day: "numeric" },
     );
 
-  // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="space-y-6">
@@ -135,7 +235,10 @@ export default function PendingTailorsPage() {
           <div className="h-4 w-80 bg-gray-100 rounded mb-8" />
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="p-4 border-b border-gray-100 last:border-0">
+              <div
+                key={i}
+                className="p-4 border-b border-gray-100 last:border-0"
+              >
                 <div className="grid grid-cols-5 gap-4">
                   {[...Array(5)].map((_, j) => (
                     <div key={j} className="h-4 bg-gray-200 rounded" />
@@ -149,17 +252,18 @@ export default function PendingTailorsPage() {
     );
   }
 
-  // ─── Error ─────────────────────────────────────────────────────────────────
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-md">
           <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-          <p className="font-normal text-xl text-black">Failed to load tailors</p>
+          <p className="font-normal text-xl text-black">
+            Failed to load tailors
+          </p>
           <p className="text-gray-500 mt-2 text-sm">{error}</p>
           <button
             onClick={fetchPendingTailors}
-            className="mt-6 px-6 py-2 bg-black text-white rounded-full hover:bg-gray-800 transition text-sm"
+            className="mt-6 px-6 py-2 bg-black text-white rounded-full hover:bg-black/80 transition text-sm hover:cursor-pointer"
           >
             Try Again
           </button>
@@ -168,9 +272,31 @@ export default function PendingTailorsPage() {
     );
   }
 
-  // ─── Main UI ───────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
+      {/* Custom Modal */}
+      <ConfirmationModal
+        isOpen={modalOpen}
+        title={
+          modalAction === "approve"
+            ? `Approve "${selectedTailor?.name || "Tailor"}"`
+            : `Reject "${selectedTailor?.name || "Tailor"}"`
+        }
+        message={
+          modalAction === "approve"
+            ? `Are you sure you want to approve this tailor? They will be able to create a shop and designs.`
+            : `Are you sure you want to reject this tailor? This action cannot be undone.`
+        }
+        confirmLabel={modalAction === "approve" ? "Approve" : "Reject"}
+        cancelLabel="Cancel"
+        onConfirm={handleConfirm}
+        onCancel={closeModal}
+        showNote={modalAction === "reject"}
+        noteValue={rejectNote}
+        onNoteChange={setRejectNote}
+        notePlaceholder="Optional rejection reason..."
+      />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -178,7 +304,8 @@ export default function PendingTailorsPage() {
             Pending Approvals
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            {tailors.length} tailor{tailors.length !== 1 ? "s" : ""} waiting for review
+            {filteredTailors.length} tailor
+            {filteredTailors.length !== 1 ? "s" : ""} waiting for review
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-400 bg-white px-4 py-2 rounded-full border border-gray-100 shadow-sm">
@@ -201,13 +328,12 @@ export default function PendingTailorsPage() {
         </div>
         <button
           onClick={fetchPendingTailors}
-          className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white"
+          className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer"
         >
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
       </div>
 
-      {/* Empty state */}
       {filteredTailors.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
           <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
@@ -218,7 +344,6 @@ export default function PendingTailorsPage() {
           </p>
         </div>
       ) : (
-        /* Table */
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full">
@@ -235,9 +360,6 @@ export default function PendingTailorsPage() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -266,7 +388,9 @@ export default function PendingTailorsPage() {
                           <div>
                             {tailor.phone && <div>{tailor.phone}</div>}
                             {tailor.address && (
-                              <div className="text-xs text-gray-400">{tailor.address}</div>
+                              <div className="text-xs text-gray-400">
+                                {tailor.address}
+                              </div>
                             )}
                           </div>
                         ) : (
@@ -274,50 +398,28 @@ export default function PendingTailorsPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {tailor.approvalStatus === "approved" && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-green-50 text-green-700 border-green-200">
-                            <CheckCircle className="w-3 h-3" />
-                            Approved
-                          </span>
-                        )}
-                        {tailor.approvalStatus === "rejected" && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-red-50 text-red-700 border-red-200">
-                            <XCircle className="w-3 h-3" />
-                            Rejected
-                          </span>
-                        )}
-                        {tailor.approvalStatus === "pending" && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-yellow-50 text-yellow-700 border-yellow-200">
-                            <Clock className="w-3 h-3" />
-                            Pending
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {tailor.approvalStatus === "pending" ? (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleApprove(tailor.id, tailor.name)}
-                              disabled={busy}
-                              title="Approve"
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <CheckCircle className="w-3.5 h-3.5" />
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => handleReject(tailor.id, tailor.name)}
-                              disabled={busy}
-                              title="Reject"
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                              Reject
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400 italic">Decision made</span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              openModal("approve", tailor.id, tailor.name)
+                            }
+                            disabled={busy}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition disabled:opacity-50 hover:cursor-pointer"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              openModal("reject", tailor.id, tailor.name)
+                            }
+                            disabled={busy}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition disabled:opacity-50 hover:cursor-pointer"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            Reject
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
