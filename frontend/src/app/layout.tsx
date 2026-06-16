@@ -21,11 +21,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script
+        {/* <script
           dangerouslySetInnerHTML={{
             __html: EXTENSION_HYDRATION_GUARD_SCRIPT,
           }}
-        />
+        /> */}
       </head>
       <body className="bg-[#FFFDF9] text-[#000000]" suppressHydrationWarning>
         <AuthProvider>
@@ -33,7 +33,7 @@ export default function RootLayout({
             <CustomOrderProvider>
               <RTLProvider>{children}</RTLProvider>
               <Toaster
-                position="bottom-right"
+                position="top-right"
                 toastOptions={{
                   style: {
                     background: "#fff", // white

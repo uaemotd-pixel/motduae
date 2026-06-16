@@ -1,80 +1,101 @@
 {
-    "create_ready_made": {
-        "title": "Create Ready Made Item",
-        "subtitle": "Add a size‑return garment to the ready‑made inventory",
-        "form": {
-            "name_label": "Product Name",
-            "name_placeholder": "e.g., Embroidered Kaftan",
-            "name_ar_label": "Product Name (Arabic)",
-            "name_ar_placeholder": "e.g., كافتان مطرز",
-            "style_label": "Style",
-            "style_placeholder": "Select style",
-            "style_options": {
-                "kandura": "Kandura",
-                "abaya": "Abaya",
-                "bisht": "Bisht",
-                "mukhawar": "Mukhawar",
-                "jalabiya": "Jalabiya",
-                "kaftan": "Kaftan"
-            },
-            "size_label": "Size",
-            "size_placeholder": "S / M / L / XL",
-            "return_reason_label": "Return Reason",
-            "return_reason_placeholder": "e.g., Wrong size, customer request",
-            "return_reason_fixed": "Size issue",
-            "custom_order_id_label": "Linked Custom Order ID",
-            "custom_order_id_placeholder": "507f1f77bcf86cd799439011",
-            "price_label": "Price (AED)",
-            "price_placeholder": "0.00",
-            "condition_label": "Condition",
-            "condition_options": {
-                "like_new": "Like New",
-                "excellent": "Excellent",
-                "good": "Good"
-            },
-            "description_label": "Description (optional)",
-            "description_placeholder": "Brief description of the item",
-            "description_ar_label": "Description (Arabic, optional)",
-            "description_ar_placeholder": "وصف مختصر للقطعة",
-            "images_label": "Product images",
-            "add_image_button": "+ Add another image (max 5)",
-            "remove_image_button": "Remove",
-            "upload_image_button": "Upload image",
-            "uploading_image": "Uploading...",
-            "upload_failed": "Image upload failed",
-            "submit_button": "Create Item",
-            "submit_loading": "Creating...",
-            "cancel_button": "Cancel"
-        },
-        "validation": {
-            "name_required": "Product name is required",
-            "style_required": "Style is required",
-            "size_required": "Size is required",
-            "return_reason_required": "Return reason is required",
-            "custom_order_id_required": "Custom order ID is required",
-            "custom_order_id_invalid": "Custom order ID must be a valid 24-character MongoDB ID",
-            "price_positive": "Price must be greater than 0",
-            "at_least_one_image": "Upload at least one product image",
-            "max_five_images": "Maximum 5 images allowed"
-        },
-        "errors": {
-            "generic_create_failed": "Failed to create ready-made item"
-        }
+  "create_ready_made": {
+    "title": "Create Ready Made Item",
+    "subtitle": "Add a size‑return garment to the ready‑made inventory",
+    "form": {
+      "name_label": "Product Name",
+      "name_placeholder": "e.g., Embroidered Kaftan",
+      "name_ar_label": "Product Name (Arabic)",
+      "name_ar_placeholder": "e.g., كافتان مطرز",
+      "style_label": "Style",
+      "style_placeholder": "Select style",
+      "style_options": {
+        "kandura": "Kandura",
+        "abaya": "Abaya",
+        "bisht": "Bisht",
+        "mukhawar": "Mukhawar",
+        "jalabiya": "Jalabiya",
+        "kaftan": "Kaftan"
+      },
+      "size_label": "Size",
+      "size_placeholder": "S / M / L / XL",
+      "return_reason_label": "Return Reason",
+      "return_reason_placeholder": "e.g., Wrong size, customer request",
+      "return_reason_fixed": "Size issue",
+      "custom_order_id_label": "Linked Custom Order ID",
+      "custom_order_id_placeholder": "507f1f77bcf86cd799439011",
+      "price_label": "Price (AED)",
+      "price_placeholder": "0.00",
+      "condition_label": "Condition",
+      "condition_options": {
+        "like_new": "Like New",
+        "excellent": "Excellent",
+        "good": "Good"
+      },
+      "description_label": "Description (optional)",
+      "description_placeholder": "Brief description of the item",
+      "description_ar_label": "Description (Arabic, optional)",
+      "description_ar_placeholder": "وصف مختصر للقطعة",
+      "images_label": "Product images",
+      "add_image_button": "+ Add another image (max 5)",
+      "remove_image_button": "Remove",
+      "upload_image_button": "Upload image",
+      "uploading_image": "Uploading...",
+      "upload_failed": "Image upload failed",
+      "submit_button": "Create Item",
+      "submit_loading": "Creating...",
+      "cancel_button": "Cancel"
     },
-    "edit_ready_made": {
-        "title": "Edit Ready Made Item",
-        "subtitle": "Update details of the size‑return garment",
-        "form": {
-            "submit_button": "Save Changes",
-            "submit_loading": "Saving...",
-            "status_label": "Status",
-            "status_active": "Active (visible on customer site)",
-            "loading": "Loading...",
-            "not_found": "Item not found"
-        },
-        "errors": {
-            "generic_load_failed": "Failed to load item",
-            "generic_update_failed": "Failed to update item"
-        }
+    "validation": {
+      "name_required": "Product name is required",
+      "style_required": "Style is required",
+      "size_required": "Size is required",
+      "return_reason_required": "Return reason is required",
+      "custom_order_id_required": "Custom order ID is required",
+      "custom_order_id_invalid": "Custom order ID must be a valid 24-character MongoDB ID",
+      "price_positive": "Price must be greater than 0",
+      "at_least_one_image": "Upload at least one product image",
+      "max_five_images": "Maximum 5 images allowed"
+    },
+    "errors": {
+      "generic_create_failed": "Failed to create ready-made item"
     }
+  },
+  "edit_ready_made": {
+    "title": "Edit Ready Made Item",
+    "subtitle": "Update details of the size‑return garment",
+    "form": {
+      "submit_button": "Save Changes",
+      "submit_loading": "Saving...",
+      "status_label": "Status",
+      "status_active": "Active (visible on customer site)",
+      "loading": "Loading...",
+      "not_found": "Item not found"
+    },
+    "errors": {
+      "generic_load_failed": "Failed to load item",
+      "generic_update_failed": "Failed to update item"
+    }
+  },
+  "pendingTailorsData": {
+    "title": "Pending Tailor Approvals",
+    "description": "Review tailor sign‑ups and approve or reject them. Approved tailors can create shops and designs.",
+    "fetchError": "Failed to load pending tailors",
+    "approveConfirm": "Approve {name}? They will be able to create a shop and designs.",
+    "approveSuccess": "Tailor approved successfully",
+    "rejectNotePrompt": "Optional rejection reason (will be sent to the tailor):",
+    "rejectConfirm": "Reject {name}? This action cannot be undone.",
+    "rejectSuccess": "Tailor rejected successfully",
+    "retry": "Retry",
+    "empty": "No pending tailors at the moment.",
+    "table": {
+      "name": "Name",
+      "email": "Email",
+      "signupDate": "Signup date",
+      "contact": "Contact",
+      "actions": "Actions"
+    },
+    "approveBtn": "Approve",
+    "rejectBtn": "Reject"
+  }
 }

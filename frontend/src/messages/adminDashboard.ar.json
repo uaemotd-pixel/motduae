@@ -1,80 +1,101 @@
 {
-    "create_ready_made": {
-        "title": "إنشاء قطعة جاهزة",
-        "subtitle": "أضف قطعة تم إرجاعها بسبب المقاس إلى المخزون الجاهز",
-        "form": {
-            "name_label": "اسم المنتج",
-            "name_placeholder": "مثال: كافتان مطرز",
-            "name_ar_label": "اسم المنتج (عربي)",
-            "name_ar_placeholder": "مثال: كافتان مطرز",
-            "style_label": "الطراز",
-            "style_placeholder": "اختر الطراز",
-            "style_options": {
-                "kandura": "كندورة",
-                "abaya": "عباية",
-                "bisht": "بشت",
-                "mukhawar": "مخاوَر",
-                "jalabiya": "جلابية",
-                "kaftan": "كفتان"
-            },
-            "size_label": "المقاس",
-            "size_placeholder": "S / M / L / XL",
-            "return_reason_label": "سبب الإرجاع",
-            "return_reason_placeholder": "مثال: مقاس خاطئ، طلب العميل",
-            "return_reason_fixed": "مشكلة في المقاس",
-            "custom_order_id_label": "معرف الطلب المخصص المرتبط",
-            "custom_order_id_placeholder": "507f1f77bcf86cd799439011",
-            "price_label": "السعر (درهم إماراتي)",
-            "price_placeholder": "0.00",
-            "condition_label": "الحالة",
-            "condition_options": {
-                "like_new": "مثل الجديد",
-                "excellent": "ممتاز",
-                "good": "جيد"
-            },
-            "description_label": "الوصف (اختياري)",
-            "description_placeholder": "وصف مختصر للقطعة",
-            "description_ar_label": "الوصف (عربي، اختياري)",
-            "description_ar_placeholder": "وصف مختصر للقطعة",
-            "images_label": "صور المنتج",
-            "add_image_button": "+ أضف صورة أخرى (حد أقصى 5)",
-            "remove_image_button": "إزالة",
-            "upload_image_button": "رفع صورة",
-            "uploading_image": "جاري الرفع...",
-            "upload_failed": "فشل رفع الصورة",
-            "submit_button": "إنشاء قطعة",
-            "submit_loading": "جاري الإنشاء...",
-            "cancel_button": "إلغاء"
-        },
-        "validation": {
-            "name_required": "اسم المنتج مطلوب",
-            "style_required": "الطراز مطلوب",
-            "size_required": "المقاس مطلوب",
-            "return_reason_required": "سبب الإرجاع مطلوب",
-            "custom_order_id_required": "معرف الطلب المخصص مطلوب",
-            "custom_order_id_invalid": "يجب أن يكون معرف الطلب المخصص معرف MongoDB صالحًا مكونًا من 24 حرفًا",
-            "price_positive": "يجب أن يكون السعر أكبر من 0",
-            "at_least_one_image": "يجب رفع صورة واحدة على الأقل للمنتج",
-            "max_five_images": "الحد الأقصى 5 صور"
-        },
-        "errors": {
-            "generic_create_failed": "فشل في إنشاء القطعة الجاهزة"
-        }
+  "create_ready_made": {
+    "title": "إنشاء قطعة جاهزة",
+    "subtitle": "أضف قطعة تم إرجاعها بسبب المقاس إلى المخزون الجاهز",
+    "form": {
+      "name_label": "اسم المنتج",
+      "name_placeholder": "مثال: كافتان مطرز",
+      "name_ar_label": "اسم المنتج (عربي)",
+      "name_ar_placeholder": "مثال: كافتان مطرز",
+      "style_label": "الطراز",
+      "style_placeholder": "اختر الطراز",
+      "style_options": {
+        "kandura": "كندورة",
+        "abaya": "عباية",
+        "bisht": "بشت",
+        "mukhawar": "مخاوَر",
+        "jalabiya": "جلابية",
+        "kaftan": "كفتان"
+      },
+      "size_label": "المقاس",
+      "size_placeholder": "S / M / L / XL",
+      "return_reason_label": "سبب الإرجاع",
+      "return_reason_placeholder": "مثال: مقاس خاطئ، طلب العميل",
+      "return_reason_fixed": "مشكلة في المقاس",
+      "custom_order_id_label": "معرف الطلب المخصص المرتبط",
+      "custom_order_id_placeholder": "507f1f77bcf86cd799439011",
+      "price_label": "السعر (درهم إماراتي)",
+      "price_placeholder": "0.00",
+      "condition_label": "الحالة",
+      "condition_options": {
+        "like_new": "مثل الجديد",
+        "excellent": "ممتاز",
+        "good": "جيد"
+      },
+      "description_label": "الوصف (اختياري)",
+      "description_placeholder": "وصف مختصر للقطعة",
+      "description_ar_label": "الوصف (عربي، اختياري)",
+      "description_ar_placeholder": "وصف مختصر للقطعة",
+      "images_label": "صور المنتج",
+      "add_image_button": "+ أضف صورة أخرى (حد أقصى 5)",
+      "remove_image_button": "إزالة",
+      "upload_image_button": "رفع صورة",
+      "uploading_image": "جاري الرفع...",
+      "upload_failed": "فشل رفع الصورة",
+      "submit_button": "إنشاء قطعة",
+      "submit_loading": "جاري الإنشاء...",
+      "cancel_button": "إلغاء"
     },
-    "edit_ready_made": {
-        "title": "تعديل قطعة جاهزة",
-        "subtitle": "تحديث تفاصيل قطعة الإرجاع بسبب المقاس",
-        "form": {
-            "submit_button": "حفظ التغييرات",
-            "submit_loading": "جاري الحفظ...",
-            "status_label": "الحالة",
-            "status_active": "نشط (ظاهر لعملاء الموقع)",
-            "loading": "جاري التحميل...",
-            "not_found": "القطعة غير موجودة"
-        },
-        "errors": {
-            "generic_load_failed": "فشل تحميل القطعة",
-            "generic_update_failed": "فشل تحديث القطعة"
-        }
+    "validation": {
+      "name_required": "اسم المنتج مطلوب",
+      "style_required": "الطراز مطلوب",
+      "size_required": "المقاس مطلوب",
+      "return_reason_required": "سبب الإرجاع مطلوب",
+      "custom_order_id_required": "معرف الطلب المخصص مطلوب",
+      "custom_order_id_invalid": "يجب أن يكون معرف الطلب المخصص معرف MongoDB صالحًا مكونًا من 24 حرفًا",
+      "price_positive": "يجب أن يكون السعر أكبر من 0",
+      "at_least_one_image": "يجب رفع صورة واحدة على الأقل للمنتج",
+      "max_five_images": "الحد الأقصى 5 صور"
+    },
+    "errors": {
+      "generic_create_failed": "فشل في إنشاء القطعة الجاهزة"
     }
+  },
+  "edit_ready_made": {
+    "title": "تعديل قطعة جاهزة",
+    "subtitle": "تحديث تفاصيل قطعة الإرجاع بسبب المقاس",
+    "form": {
+      "submit_button": "حفظ التغييرات",
+      "submit_loading": "جاري الحفظ...",
+      "status_label": "الحالة",
+      "status_active": "نشط (ظاهر لعملاء الموقع)",
+      "loading": "جاري التحميل...",
+      "not_found": "القطعة غير موجودة"
+    },
+    "errors": {
+      "generic_load_failed": "فشل تحميل القطعة",
+      "generic_update_failed": "فشل تحديث القطعة"
+    }
+  },
+  "pendingTailorsData": {
+    "title": "طلبات الخياطين المعلقة",
+    "description": "راجع تسجيلات الخياطين وقم بقبولها أو رفضها. الخياط المقبول يمكنه إنشاء متجر وتصاميم.",
+    "fetchError": "فشل تحميل الخياطين المعلقين",
+    "approveConfirm": "هل توافق على قبول {name}؟ سيتمكن من إنشاء متجر وتصاميم.",
+    "approveSuccess": "تم قبول الخياط بنجاح",
+    "rejectNotePrompt": "سبب الرفض (اختياري):",
+    "rejectConfirm": "هل تريد رفض {name}؟ لا يمكن التراجع عن هذا الإجراء.",
+    "rejectSuccess": "تم رفض الخياط بنجاح",
+    "retry": "إعادة المحاولة",
+    "empty": "لا يوجد خياطون معلقون حالياً.",
+    "table": {
+      "name": "الاسم",
+      "email": "البريد الإلكتروني",
+      "signupDate": "تاريخ التسجيل",
+      "contact": "معلومات الاتصال",
+      "actions": "الإجراءات"
+    },
+    "approveBtn": "قبول",
+    "rejectBtn": "رفض"
+  }
 }
