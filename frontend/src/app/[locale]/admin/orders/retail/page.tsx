@@ -194,7 +194,10 @@ export default function AdminRetailOrdersPage() {
                       <div className="flex justify-between md:block items-center">
                         <span className="md:hidden text-xs font-semibold text-gray-500 uppercase tracking-wider">Items</span>
                         <div className="text-right md:text-left">
-                          <div className="text-sm text-gray-900 max-w-[180px] md:max-w-[200px] truncate">
+                          <div 
+                            title={order.orderItems.map(item => item.name).join(', ')}
+                            className="text-sm text-gray-900 max-w-[180px] md:max-w-[200px] truncate"
+                          >
                             {order.orderItems.map(item => item.name).join(', ')}
                           </div>
                           <div className="text-sm text-gray-500 mt-0.5">
