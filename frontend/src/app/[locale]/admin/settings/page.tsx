@@ -4,6 +4,42 @@ import { useEffect, useState, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
+import toast from "react-hot-toast";
+
+const TOAST_BASE = {
+  position: "top-right" as const,
+  duration: 6000,
+  style: {
+    fontFamily: "var(--font-body)",
+    fontSize: "13px",
+    letterSpacing: "0.04em",
+    borderRadius: "0",
+    padding: "14px 18px",
+    maxWidth: "360px",
+  },
+};
+
+const SUCCESS_TOAST = {
+  ...TOAST_BASE,
+  style: {
+    ...TOAST_BASE.style,
+    background: "#f0fdf4",
+    color: "#166534",
+    border: "1px solid #86efac",
+  },
+  iconTheme: { primary: "#16a34a", secondary: "#ffffff" },
+};
+
+const ERROR_TOAST = {
+  ...TOAST_BASE,
+  style: {
+    ...TOAST_BASE.style,
+    background: "#fef2f2",
+    color: "#991b1b",
+    border: "1px solid #fca5a5",
+  },
+  iconTheme: { primary: "#dc2626", secondary: "#ffffff" },
+};
 
 const translations = {
   en: {
@@ -17,8 +53,8 @@ const translations = {
     currencyHelp: "The primary base currency is locked to AED.",
     saveButton: "Save Settings",
     savingButton: "Saving Settings...",
-    successMessage: "Global platform configuration variables locked and synchronized successfully.",
-    errorMessage: "Failed to update platform settings.",
+    successMessage: "Changes Saved Successfully.",
+    errorMessage: "Failed to update Changes.",
     loading: "Loading settings...",
     validation: {
       deliveryFeeMin: "Delivery fee must be a valid number greater than or equal to 0.",
@@ -58,8 +94,6 @@ export default function AdminSettingsPage() {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Input states (stored as string for better user typing experience)
@@ -86,9 +120,8 @@ export default function AdminSettingsPage() {
         setPlatformFee(data.platformFee.toString());
         setVatRatePercent((data.vatRate * 100).toString());
         setCurrency(data.currency || "AED");
-        setError(null);
       } catch (err: unknown) {
-        setError(getApiErrorMessage(err, t.errorMessage));
+        toast.error(getApiErrorMessage(err, t.errorMessage), ERROR_TOAST);
       } finally {
         setLoading(false);
       }
@@ -135,8 +168,6 @@ export default function AdminSettingsPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setSuccess(null);
-    setError(null);
 
     if (!validate()) return;
 
@@ -161,7 +192,7 @@ export default function AdminSettingsPage() {
         };
       }>("/api/admin/settings", payload);
 
-      setSuccess(t.successMessage);
+      toast.success(t.successMessage, SUCCESS_TOAST);
       
       // Update with exact response numbers from the server just in case
       if (response && response.settings) {
@@ -172,7 +203,7 @@ export default function AdminSettingsPage() {
         setCurrency(response.settings.currency || "AED");
       }
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, t.errorMessage));
+      toast.error(getApiErrorMessage(err, t.errorMessage), ERROR_TOAST);
     } finally {
       setSubmitting(false);
     }
@@ -207,17 +238,7 @@ export default function AdminSettingsPage() {
         <p className="text-gray-500 text-sm mt-1">{t.subtitle}</p>
       </div>
 
-      {success && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-lg text-sm animate-in fade-in duration-300">
-          {success}
-        </div>
-      )}
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-in fade-in duration-300">
-          {error}
-        </div>
-      )}
 
       <form
         onSubmit={handleSubmit}
