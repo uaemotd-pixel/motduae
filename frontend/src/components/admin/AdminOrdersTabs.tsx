@@ -16,11 +16,11 @@ export default function AdminOrdersTabs() {
 
   return (
     <div className="flex gap-1 border-b border-gray-200">
-      <Link href="/admin/orders/retail" className={tabClass(pathname.includes("/orders/retail"))}>
-        {t("tabs.retail")}
-      </Link>
       <Link href="/admin/orders/custom" className={tabClass(pathname.includes("/orders/custom"))}>
         {t("tabs.custom")}
+      </Link>
+      <Link href="/admin/orders/retail" className={tabClass(pathname.includes("/orders/retail"))}>
+        {t("tabs.retail")}
       </Link>
     </div>
   );

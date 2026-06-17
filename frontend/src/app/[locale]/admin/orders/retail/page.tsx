@@ -170,11 +170,24 @@ export default function AdminRetailOrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
+  const getTodayString = () => {
+    const d = new Date();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${month}-${day}`;
+  };
+
+  const getFirstDayOfMonthString = () => {
+    const d = new Date();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    return `${d.getFullYear()}-${month}-01`;
+  };
+
   // Filters State
   const [filterCustomer, setFilterCustomer] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("");
-  const [filterFrom, setFilterFrom] = useState<string>("");
-  const [filterTo, setFilterTo] = useState<string>("");
+  const [filterFrom, setFilterFrom] = useState<string>(getFirstDayOfMonthString());
+  const [filterTo, setFilterTo] = useState<string>(getTodayString());
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -490,20 +503,7 @@ export default function AdminRetailOrdersPage() {
                       </button>
                     )}
 
-                    {order.status !== "delivered" && order.status !== "cancelled" && (
-                      <button
-                        type="button"
-                        onClick={() => handleStatusChange(order._id, "cancelled")}
-                        disabled={isUpdating}
-                        className="border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-[140px] hover:bg-red-50/50 disabled:opacity-50 hover:cursor-pointer transition"
-                      >
-                        {isUpdating ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          t.cancelOrder
-                        )}
-                      </button>
-                    )}
+
 
                     {nextStatus && (
                       <button
