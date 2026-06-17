@@ -189,12 +189,73 @@ adminRouter.post(
 adminRouter.get(
   "/partners/fabric-stores",
   expressAsyncHandler(async (_req, res) => {
-    const stores = await User.find({ role: "fabric_store" })
-      .select("name email")
-      .sort({ name: 1 });
+    const stores = await User.find({ role: "fabric_store" }).sort({ name: 1 });
 
     res.send(stores);
   }),
+);
+
+// POST /api/admin/users
+adminRouter.post(
+  "/create-partners",
+  expressAsyncHandler(async (req, res) => {
+    const { name, email, password, role, approvalStatus } = req.body;
+    // validate required fields
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      res.status(400).send({ message: "User already exists" });
+      return;
+    }
+    const user = new User({
+      name,
+      email,
+      password, // should be hashed; use pre-save hook or hash here
+      role: role || "fabric_store",
+      approvalStatus: approvalStatus || "approved",
+    });
+    await user.save();
+    res.status(201).send({
+      message: "User created",
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  }),
+);
+
+// PUT /api/admin/users/:id
+adminRouter.put(
+  "/edit-partners/:id",
+  expressAsyncHandler(async (req, res) => {
+    const { name, email, password } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      res.status(404).send({ message: "User not found" });
+      return;
+    }
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (password) user.password = password; // handle hashing
+    await user.save();
+    res.send({ message: "User updated", user });
+  }),
+);
+
+// DELETE /api/admin/users/:id
+adminRouter.delete(
+  "/delete-partner/:id",
+  expressAsyncHandler(async (req, res) => {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      res.status(404).send({ message: "User not found" });
+      return;
+    }
+    await user.deleteOne();
+    res.send({ message: "User deleted" });
+  })
 );
 
 async function assertFabricStorePartner(listedByStore) {
