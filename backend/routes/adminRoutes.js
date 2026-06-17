@@ -287,7 +287,9 @@ adminRouter.put(
 
     if (fabric) {
       if (req.body.listedByStore) {
-        const partnerCheck = await assertFabricStorePartner(req.body.listedByStore);
+        const partnerCheck = await assertFabricStorePartner(
+          req.body.listedByStore,
+        );
         if (!partnerCheck.ok) {
           res.status(400).send({ message: partnerCheck.message });
           return;
@@ -363,6 +365,25 @@ adminRouter.get(
   }),
 );
 
+// GET /api/admin/tailors/approved-users
+// Returns all users with role="tailor" and approvalStatus="approved"
+adminRouter.get(
+  "/tailors/approved-users",
+  expressAsyncHandler(async (req, res) => {
+    const approvedUsers = await User.find({
+      role: "tailor",
+      approvalStatus: "approved",
+    })
+      .select("-password")
+      .sort({ createdAt: -1 });
+
+    res.send({
+      success: true,
+      items: approvedUsers,
+    });
+  }),
+);
+
 // PATCH /api/admin/tailors/:id/approve
 // Set approvalStatus: approved
 adminRouter.patch(
@@ -421,6 +442,25 @@ adminRouter.patch(
         .status(404)
         .send({ message: "Pending tailor not found or invalid role" });
     }
+  }),
+);
+
+// GET /api/admin/tailors/rejected-tailors
+// Returns all users with role="tailor" and approvalStatus="approved"
+adminRouter.get(
+  "/tailors/rejected-tailors",
+  expressAsyncHandler(async (req, res) => {
+    const rejectedTailors = await User.find({
+      role: "tailor",
+      approvalStatus: "rejected",
+    })
+      .select("-password")
+      .sort({ createdAt: -1 });
+
+    res.send({
+      success: true,
+      items: rejectedTailors,
+    });
   }),
 );
 

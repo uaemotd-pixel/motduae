@@ -36,21 +36,29 @@ export default function RootLayout({
                 position="top-right"
                 toastOptions={{
                   style: {
-                    background: "#fff", // white
-                    color: "#000", // black
                     fontFamily: "var(--font-body)",
                     fontSize: "12px",
                     letterSpacing: "0.24em",
                     textTransform: "uppercase",
-                    borderRadius: "0",
-                    padding: "12px 16px",
-                    border: "1px solid #333",
+                    borderRadius: "8px",
+                    padding: "12px 18px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
                   },
                   success: {
-                    iconTheme: { primary: "#000", secondary: "#fff" },
+                    style: {
+                      background: "#f0fdf4",
+                      color: "#166534",
+                      border: "1px solid #86efac",
+                    },
+                    iconTheme: { primary: "#16a34a", secondary: "#ffffff" },
                   },
                   error: {
-                    iconTheme: { primary: "#ff4444", secondary: "#fff" },
+                    style: {
+                      background: "#fef2f2",
+                      color: "#991b1b",
+                      border: "1px solid #fca5a5",
+                    },
+                    iconTheme: { primary: "#dc2626", secondary: "#ffffff" },
                   },
                 }}
               />
