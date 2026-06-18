@@ -61,6 +61,25 @@
     "pickupLabel": "Store pickup address",
     "partnerNote": "Fabric sold and picked up from this MOTD partner store."
   },
+  "DesignDetail": {
+    "loading": "Loading design...",
+    "error": "Failed to load design",
+    "notFound": "Design not found",
+    "notFoundTitle": "Design Not Found",
+    "browseAll": "Browse All Designs",
+    "goBack": "Go Back",
+    "designs": "Designs",
+    "category": "Category",
+    "estimatedMeters": "Estimated Fabric",
+    "estimatedDays": "Estimated Days",
+    "days": "days",
+    "city": "City",
+    "startingPrice": "Starting price",
+    "selectForCustomOrder": "Select for Custom Order",
+    "tailorTitle": "Custom tailored by partner shop",
+    "addressLabel": "Tailor shop address",
+    "partnerNote": "Custom order will be tailored and fulfilled by this MOTD partner shop."
+  },
   "PremiumFabrics": {
     "ariaLabel": "Premium Fabrics",
     "eyebrow": "Ready to Explore",

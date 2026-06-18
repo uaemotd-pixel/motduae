@@ -209,15 +209,15 @@ export function ReadyToWearSection() {
                                         className="flex-[0_0_calc(100%-8px)] xs:flex-[0_0_calc(66.666%-12px)] sm:flex-[0_0_calc(50%-16px)] md:flex-[0_0_calc(40%-20px)] lg:flex-[0_0_calc(33.333%-24px)] xl:flex-[0_0_calc(28.571%-28px)] 2xl:flex-[0_0_calc(25%-32px)] group overflow-hidden rounded-lg"
                                     >
 
-                                        <Link href={`/ready-made/${item.slug}`}>
+                                        <Link href={`/ready-made/${item.slug}`} className="hover:cursor-pointer">
                                             {/* Card container – matching premiumFabrics style */}
-                                            <div className="bg-(--bg-page) border border-(--color-border) overflow-hidden transition-all duration-300 hover:shadow-lg h-full flex flex-col">
+                                            <div className="bg-(--bg-page) border border-(--color-border) overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-1 h-full flex flex-col">
                                                 {/* Image with aspect ratio and hover zoom */}
                                                 <div className="aspect-9/9 relative overflow-hidden">
                                                     <img
                                                         src={image}
                                                         alt={title}
-                                                        className="w-full h-full object-cover transition-all duration-700 hover:scale-105"
+                                                        className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105"
                                                     />
                                                 </div>
 
@@ -236,13 +236,9 @@ export function ReadyToWearSection() {
                                                         {t.readyToWear.sizeLabel}: {item.size}
                                                     </span>
 
-                                                    <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 mb-3 xs:mb-3.5 sm:mb-4 grow font-normal">
+                                                    <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 grow font-normal">
                                                         {description}
                                                     </p>
-
-                                                    <span className="[font-family:var(--font-body)] w-full mt-2 xs:mt-2.5 sm:mt-3 py-2 xs:py-2.5 sm:py-3 border border-(--color-border) text-[10px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] uppercase tracking-[0.24em] xs:tracking-[0.28em] text-black text-center group-hover:bg-black group-hover:text-white transition-all duration-300 font-normal">
-                                                        {t.readyToWear.shopNow}
-                                                    </span>
                                                 </div>
                                             </div>
                                         </Link>

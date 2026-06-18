@@ -113,7 +113,7 @@ export default function TailorsListing() {
                                     <Link
                                         key={tailor._id}
                                         href={`/tailors/${tailor.slug}`}
-                                        className="group bg-white border border-[#E4E0D8] overflow-hidden transition-all duration-500 hover:shadow-xl hover:-translate-y-1"
+                                        className="group bg-white border border-[#E4E0D8] overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-1"
                                     >
                                         <div className="aspect-4/3 max-h-64 sm:max-h-72 relative overflow-hidden bg-[#F0EBE3]">
                                             <img

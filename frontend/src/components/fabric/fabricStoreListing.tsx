@@ -574,7 +574,7 @@ export default function FabricStorePage() {
                                         onMouseEnter={() => setHoveredProduct(product._id)}
                                         onMouseLeave={() => setHoveredProduct(null)}
                                     >
-                                        <div className="relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300">
+                                        <div className="relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-500">
                                             {product.pricePerMeter > 500 && (
                                                 <span className="absolute top-4 left-4 z-10 bg-black text-white text-[8px] tracking-[0.16em] uppercase px-2.5 py-1 rounded-full">
                                                     Premium

@@ -103,9 +103,10 @@ export function TailorsSection() {
                         const reviewCount = tailor.reviewCount ?? 0;
 
                         return (
-                            <div
+                            <Link
                                 key={tailor._id}
-                                className="group bg-(--bg-page) border border-(--color-border) overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-1"
+                                href={`/tailors/${tailor.slug}`}
+                                className="group block bg-(--bg-page) border border-(--color-border) overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-1 hover:cursor-pointer text-left"
                             >
                                 <div className="aspect-4/3 max-h-64 sm:max-h-72 relative overflow-hidden bg-(--color-border)/10">
                                     <img
@@ -135,7 +136,7 @@ export function TailorsSection() {
                                     <p className="[font-family:var(--font-body)] text-[12px] sm:text-[13px] leading-[1.5] text-(--color-grey-muted) mb-4 font-normal line-clamp-2">
                                         {description}
                                     </p>
-                                    <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-2 pt-3 border-t border-(--color-border)">
+                                    <div className="pt-3 border-t border-(--color-border)">
                                         <div className="flex items-center gap-1">
                                             <svg
                                                 className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-[#000000] fill-[#000000]"
@@ -152,26 +153,9 @@ export function TailorsSection() {
                                                 ({reviewCount} {t("reviews")})
                                             </span>
                                         </div>
-                                        <Link
-                                            href={`/tailors/${tailor.slug}`}
-                                            className="[font-family:var(--font-ui)] text-[9px] sm:text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition inline-flex items-center gap-1 group/link font-normal shrink-0"
-                                        >
-                                            {t("bookConsultation")}
-                                            <svg
-                                                className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-black group-hover/link:translate-x-1 transition-transform duration-200"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                            >
-                                                <path d="M9 18l6-6-6-6" />
-                                            </svg>
-                                        </Link>
                                     </div>
                                 </div>
-                            </div>
+                            </Link>
                         );
                     })}
                 </div>

@@ -56,24 +56,23 @@ export default function DesignGallery({
                     const orderHref = buildCustomOrderDesignHref(tailorSlug, design.slug);
 
                     return (
-                        <div
+                        <Link
                             key={design._id}
-                            className="group bg-white border border-[#E4E0D8] overflow-hidden transition-all duration-300 hover:shadow-lg"
+                            href={orderHref}
+                            className="group block bg-white border border-[#E4E0D8] overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-1 hover:cursor-pointer text-left"
                         >
-                            <Link href={orderHref} className="block">
-                                <div className="aspect-4/5 relative overflow-hidden bg-[#F0EBE3]">
-                                    <img
-                                        src={imageUrl}
-                                        alt={name}
-                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                                    />
-                                    <div className="absolute top-3 left-3">
-                                        <span className="[font-family:var(--font-ui)] text-[8px] uppercase tracking-[0.2em] bg-black text-white px-2.5 py-1">
-                                            {category}
-                                        </span>
-                                    </div>
+                            <div className="aspect-4/5 relative overflow-hidden bg-[#F0EBE3]">
+                                <img
+                                    src={imageUrl}
+                                    alt={name}
+                                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                />
+                                <div className="absolute top-3 left-3">
+                                    <span className="[font-family:var(--font-ui)] text-[8px] uppercase tracking-[0.2em] bg-black text-white px-2.5 py-1">
+                                        {category}
+                                    </span>
                                 </div>
-                            </Link>
+                            </div>
 
                             <div className="p-5">
                                 <h3 className="[font-family:var(--font-display)] text-[18px] font-normal leading-[1.2] text-black mb-2 line-clamp-2">
@@ -83,7 +82,7 @@ export default function DesignGallery({
                                     {description}
                                 </p>
 
-                                <div className="flex items-center justify-between text-[10px] tracking-[0.16em] uppercase text-[#7A7A72] mb-4 [font-family:var(--font-ui)]">
+                                <div className="flex items-center justify-between text-[10px] tracking-[0.16em] uppercase text-[#7A7A72] [font-family:var(--font-ui)]">
                                     <span>
                                         {labels.fromPrice}{" "}
                                         <span className="text-black font-medium">
@@ -95,15 +94,8 @@ export default function DesignGallery({
                                         {labels.days}
                                     </span>
                                 </div>
-
-                                <Link
-                                    href={orderHref}
-                                    className="block w-full py-3 text-center bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition [font-family:var(--font-ui)]"
-                                >
-                                    {labels.startOrder}
-                                </Link>
                             </div>
-                        </div>
+                        </Link>
                     );
                 })}
             </div>

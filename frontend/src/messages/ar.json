@@ -78,6 +78,25 @@
     "pickupLabel": "عنوان الاستلام من المتجر",
     "partnerNote": "يتم بيع القماش واستلامه من متجر شريك MOTD."
   },
+  "DesignDetail": {
+    "loading": "جاري تحميل التصميم...",
+    "error": "تعذر تحميل التصميم",
+    "notFound": "التصميم غير موجود",
+    "notFoundTitle": "التصميم غير موجود",
+    "browseAll": "تصفح جميع التصاميم",
+    "goBack": "رجوع",
+    "designs": "التصاميم",
+    "category": "الفئة",
+    "estimatedMeters": "القماش المقدر",
+    "estimatedDays": "الأيام المقدرة",
+    "days": "أيام",
+    "city": "المدينة",
+    "startingPrice": "سعر البدء",
+    "selectForCustomOrder": "اختر للطلب المخصص",
+    "tailorTitle": "خياطة مخصصة من متجر شريك",
+    "addressLabel": "عنوان متجر الخياطة",
+    "partnerNote": "سيتم تفصيل الطلب المخصص وإتمامه بواسطة متجر شريك MOTD."
+  },
   "PremiumFabrics": {
     "ariaLabel": "أقمشة فاخرة",
     "eyebrow": "جاهز للاستكشاف",
