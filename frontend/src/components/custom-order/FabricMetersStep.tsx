@@ -16,6 +16,7 @@ import {
 } from "@/lib/customOrder";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 
+
 export default function FabricMetersStep() {
     const t = useTranslations("CustomOrderMeters");
     const router = useRouter();
@@ -40,9 +41,20 @@ export default function FabricMetersStep() {
 
         if (draft.fabricMeters !== null && draft.fabricMeters > 0) {
             setMetersInput(String(draft.fabricMeters));
+            if (draft.fabricMeters >= 3 && draft.fabricMeters <= 7) {
+                setFabricMeters(draft.fabricMeters);
+            } else {
+                setFabricMeters(null);
+            }
         } else if (draft.design?.estimatedMeters && draft.design.estimatedMeters > 0) {
-            setFabricMeters(draft.design.estimatedMeters);
-            setMetersInput(String(draft.design.estimatedMeters));
+            if (draft.design.estimatedMeters >= 3 && draft.design.estimatedMeters <= 7) {
+                setFabricMeters(draft.design.estimatedMeters);
+                setMetersInput(String(draft.design.estimatedMeters));
+            } else {
+                const boundValue = Math.min(7, Math.max(3, draft.design.estimatedMeters));
+                setFabricMeters(boundValue);
+                setMetersInput(String(boundValue));
+            }
         }
 
         setInitialized(true);
@@ -67,16 +79,20 @@ export default function FabricMetersStep() {
 
     const suggestedMeters = draft.design?.estimatedMeters;
 
+    const parsedValue = Number(metersInput);
+    const isInputValid =
+        metersInput.trim() === "" ||
+        (Number.isFinite(parsedValue) && parsedValue >= 3 && parsedValue <= 7);
+
     const handleInputChange = (value: string) => {
         setMetersInput(value);
-
         if (value.trim() === "") {
             setFabricMeters(null);
             return;
         }
 
         const parsed = Number(value);
-        if (Number.isFinite(parsed) && parsed > 0) {
+        if (Number.isFinite(parsed) && parsed >= 3 && parsed <= 7) {
             setFabricMeters(parsed);
         } else {
             setFabricMeters(null);
@@ -134,18 +150,28 @@ export default function FabricMetersStep() {
                     <input
                         id="fabric-meters"
                         type="number"
-                        min="0.1"
+                        min="3"
+                        max="7"
                         step="0.1"
                         inputMode="decimal"
                         value={metersInput}
                         onChange={(e) => handleInputChange(e.target.value)}
                         placeholder={t("inputPlaceholder")}
-                        className="flex-1 border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[16px] text-black focus:outline-none focus:border-black transition"
+                        className={`flex-1 border bg-white px-4 py-3 [font-family:var(--font-body)] text-[16px] text-black focus:outline-none transition ${
+                            !isInputValid
+                                ? "border-red-600 focus:border-red-600"
+                                : "border-(--color-border) focus:border-black"
+                        }`}
                     />
-                    <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-(--color-grey-muted) shrink-0">
+                    <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.25em] text-(--color-grey-muted) shrink-0">
                         {t("meters")}
                     </span>
                 </div>
+                {!isInputValid && (
+                    <p className="text-red-600 text-[12px] mt-2 font-normal [font-family:var(--font-body)]">
+                        {t("validationError")}
+                    </p>
+                )}
                 <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mt-2">
                     {t("inputHint")}
                 </p>

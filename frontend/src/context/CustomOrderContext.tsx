@@ -38,7 +38,7 @@ type CustomOrderContextType = {
     setFabricMeters: (meters: number | null) => void;
     updateMeasurements: (measurements: Partial<CustomOrderMeasurements>) => void;
     updateDeliveryAddress: (address: Partial<CustomOrderDeliveryAddress>) => void;
-    resetOrder: () => void;
+    resetOrder: (firstStep?: CustomOrderFirstStep | null) => void;
     setFirstStepIfUnset: (step: CustomOrderFirstStep) => void;
     getPreviewPayload: () => CustomOrderPreviewPayload | null;
 };
@@ -143,8 +143,8 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
         [],
     );
 
-    const resetOrder = useCallback(() => {
-        setDraft(createEmptyCustomOrderDraft());
+    const resetOrder = useCallback((firstStep: CustomOrderFirstStep | null = null) => {
+        setDraft(createEmptyCustomOrderDraft(firstStep));
     }, []);
 
     const setFirstStepIfUnset = useCallback((step: CustomOrderFirstStep) => {

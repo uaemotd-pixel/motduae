@@ -57,6 +57,7 @@ export default function CustomOrderCheckoutStep() {
     const [orderId, setOrderId] = useState<string | null>(null);
     const [successOrderItems, setSuccessOrderItems] = useState<Array<{ name: string }>>([]);
     const [formInitialized, setFormInitialized] = useState(false);
+    const [measurementsConfirmed, setMeasurementsConfirmed] = useState(false);
 
     const previewPayload = useMemo(
         () => (isHydrated ? buildCustomOrderPreviewPayload(draft) : null),
@@ -465,6 +466,19 @@ export default function CustomOrderCheckoutStep() {
                             </p>
                         </div>
 
+                        <label className="flex items-start gap-3 mt-6 mb-6 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                id="confirm-measurements-checkbox"
+                                checked={measurementsConfirmed}
+                                onChange={(e) => setMeasurementsConfirmed(e.target.checked)}
+                                className="w-4 h-4 mt-0.5 accent-black shrink-0"
+                            />
+                            <span className="[font-family:var(--font-body)] text-[13px] text-black leading-tight">
+                                {t("confirmMeasurementsLabel")}
+                            </span>
+                        </label>
+
                         {submitError && (
                             <p className="text-red-600 text-sm mb-4">{submitError}</p>
                         )}
@@ -472,7 +486,7 @@ export default function CustomOrderCheckoutStep() {
                         <button
                             type="button"
                             onClick={handlePlaceOrder}
-                            disabled={isSubmitting || loadingPricing || !pricing}
+                            disabled={isSubmitting || loadingPricing || !pricing || !measurementsConfirmed}
                             className="w-full px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)]"
                         >
                             {isSubmitting

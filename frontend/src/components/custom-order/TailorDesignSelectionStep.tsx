@@ -37,7 +37,7 @@ export default function TailorDesignSelectionStep() {
     const tailorSlugParam = searchParams.get("tailorSlug");
     const designSlugParam = searchParams.get("designSlug");
 
-    const { draft, isHydrated, setTailor, setDesign, setFirstStepIfUnset } =
+    const { draft, isHydrated, setTailor, setDesign, setFirstStepIfUnset, resetOrder } =
         useCustomOrder();
 
     const [tailors, setTailors] = useState<TailorShopListItem[]>([]);
@@ -86,6 +86,7 @@ export default function TailorDesignSelectionStep() {
 
         const prefillFromParams = async () => {
             try {
+                resetOrder("tailor");
                 const tailorData = await api.get<{
                     success: boolean;
                     item: TailorShopDetailItem;
@@ -173,9 +174,11 @@ export default function TailorDesignSelectionStep() {
 
     const canContinue = isTailorStepComplete(draft);
     const stepNumber = getCustomOrderStepNumber("tailor", draft.firstStep);
-    const continueLabel = isFabricStepComplete(draft)
-        ? t("continueToMeters")
-        : t("continueToFabric");
+    const continueLabel = draft.firstStep === "tailor"
+        ? t("continueToFabric")
+        : isFabricStepComplete(draft)
+          ? t("continueToMeters")
+          : t("continueToFabric");
     const showBackToFabric = draft.firstStep === "fabric";
 
     const handleSelectTailor = (item: TailorShopListItem) => {

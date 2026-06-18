@@ -42,6 +42,7 @@ export default function FabricSelectionStep() {
         setFabric,
         setFabricSource,
         setFirstStepIfUnset,
+        resetOrder,
     } = useCustomOrder();
 
     const [fabrics, setFabrics] = useState<FabricListItem[]>([]);
@@ -81,13 +82,18 @@ export default function FabricSelectionStep() {
     useEffect(() => {
         if (!isHydrated) return;
         setFirstStepIfUnset("fabric");
-    }, [isHydrated, setFirstStepIfUnset]);
+        // Ensure that platform fabric is chosen since we are hiding the selection options
+        if (useOwnFabric) {
+            setUseOwnFabric(false);
+        }
+    }, [isHydrated, setFirstStepIfUnset, useOwnFabric, setUseOwnFabric]);
 
     useEffect(() => {
         if (!isHydrated || prefillDone || !fabricSlug) return;
 
         const prefillFabric = async () => {
             try {
+                resetOrder("fabric");
                 const data = await api.get<{ success: boolean; item: FabricListItem }>(
                     `/api/fabrics/${fabricSlug}`,
                 );
@@ -113,9 +119,11 @@ export default function FabricSelectionStep() {
 
     const canContinue = isFabricStepComplete(draft);
     const stepNumber = getCustomOrderStepNumber("fabric", draft.firstStep);
-    const continueLabel = isTailorStepComplete(draft)
-        ? t("continueToMeters")
-        : t("continueToTailor");
+    const continueLabel = draft.firstStep === "fabric"
+        ? t("continueToTailor")
+        : isTailorStepComplete(draft)
+          ? t("continueToMeters")
+          : t("continueToTailor");
     const showBackToTailor = draft.firstStep === "tailor";
 
     const handleSelectFabric = (item: FabricListItem) => {
@@ -159,6 +167,7 @@ export default function FabricSelectionStep() {
                 })}
             />
 
+            {/* Commented out Platform Fabric and Use My Own Fabric options selection for now
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
                 <button
                     type="button"
@@ -200,6 +209,7 @@ export default function FabricSelectionStep() {
                     </p>
                 </button>
             </div>
+            */}
 
             {useOwnFabric ? (
                 <div className="border border-(--color-border) bg-[#FDFAF5] p-8 mb-10">

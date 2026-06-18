@@ -146,9 +146,11 @@ export const EMPTY_MEASUREMENTS: CustomOrderMeasurements = {
     notes: "",
 };
 
-export function createEmptyCustomOrderDraft(): CustomOrderDraft {
+export function createEmptyCustomOrderDraft(
+    firstStep: CustomOrderFirstStep | null = null,
+): CustomOrderDraft {
     return {
-        firstStep: null,
+        firstStep,
         fabricSource: null,
         fabric: null,
         tailor: null,
@@ -181,11 +183,13 @@ export function getCustomOrderStepNumber(
 }
 
 export function getNextPathAfterFabric(draft: CustomOrderDraft): string {
+    if (draft.firstStep === "fabric") return "/custom-order/tailor";
     if (isTailorStepComplete(draft)) return "/custom-order/meters";
     return "/custom-order/tailor";
 }
 
 export function getNextPathAfterTailor(draft: CustomOrderDraft): string {
+    if (draft.firstStep === "tailor") return "/custom-order/fabric";
     if (isFabricStepComplete(draft)) return "/custom-order/meters";
     return "/custom-order/fabric";
 }
@@ -401,7 +405,7 @@ export function isTailorStepComplete(draft: CustomOrderDraft): boolean {
 }
 
 export function isMetersStepComplete(draft: CustomOrderDraft): boolean {
-    return draft.fabricMeters !== null && draft.fabricMeters > 0;
+    return draft.fabricMeters !== null && draft.fabricMeters >= 3 && draft.fabricMeters <= 7;
 }
 
 export function isMeasurementsStepComplete(_draft: CustomOrderDraft): boolean {
