@@ -250,12 +250,16 @@ export default function FabricStorePage() {
 
     const productsPerPage = 12;
 
-    const matchesColorFilter = (fabricColor: string | undefined, selectedColors: string[]) => {
+    const matchesColorFilter = (fabricColor: string[] | string | undefined, selectedColors: string[]) => {
         if (selectedColors.length === 0) return true;
-        const normalized = fabricColor?.toLowerCase() || "";
-        return selectedColors.some(
-            (value) => normalized.includes(value) || value.includes(normalized),
-        );
+        if (!fabricColor) return false;
+        const colorsArray = Array.isArray(fabricColor) ? fabricColor : [fabricColor];
+        return colorsArray.some((col) => {
+            const normalized = col.toLowerCase();
+            return selectedColors.some(
+                (value) => normalized.includes(value) || value.includes(normalized),
+            );
+        });
     };
 
     // ── Filtering and Sorting ─────────────────────────────────────────────────────────────

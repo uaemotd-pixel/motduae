@@ -31,6 +31,7 @@ export interface FabricListItem {
   color?: string[];
   city?: string;
   tag?: string;
+  tagColor?: string;
   pricePerMeter: number;
   listedByStore?: string | FabricStoreInfo | null;
 }

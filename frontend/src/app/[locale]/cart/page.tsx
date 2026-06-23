@@ -42,24 +42,12 @@ export default function CartPage() {
                         <p className="text-[13px] xs:text-[14px] text-[#5A5A56] mb-6">
                             Looks like you haven't added any ready‑made items yet.
                         </p>
-                        <button
-                            onClick={() => {
-                                const element = document.getElementById('ready-made');
-                                if (element) {
-                                    element.scrollIntoView({ behavior: 'smooth' });
-                                } else {
-                                    // Fallback: go to home page and then scroll after navigation
-                                    router.push(`/${locale}`);
-                                    setTimeout(() => {
-                                        const el = document.getElementById('ready-made');
-                                        if (el) el.scrollIntoView({ behavior: 'smooth' });
-                                    }, 300);
-                                }
-                            }}
-                            className="inline-block px-6 py-3 bg-black text-white text-[10px] xs:text-[11px] tracking-[0.22em] uppercase hover:bg-[#1A1A1A] transition duration-300 cursor-pointer"
+                        <Link
+                            href="/#ready-made"
+                            className="inline-block px-6 py-3 bg-black text-white text-[10px] xs:text-[11px] tracking-[0.22em] uppercase hover:bg-[#1A1A1A] transition duration-300 cursor-pointer text-center"
                         >
                             Continue Shopping
-                        </button>
+                        </Link>
                     </div>
                 </div>
             </MainLayout>
@@ -83,7 +71,7 @@ export default function CartPage() {
                                 </p>
                             </div>
                             <Link
-                                href={`/${locale}/#ready-made`} scroll={true}
+                                href="/#ready-made" scroll={true}
                                 className="flex items-center gap-2 [font-family:var(--font-ui)] text-[9px] xs:text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-1 hover:opacity-50 transition hover:cursor-pointer"
                             >
                                 <ArrowLeft className="w-3 h-3" />
