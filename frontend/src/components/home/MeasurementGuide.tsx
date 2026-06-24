@@ -27,7 +27,7 @@ export function MeasurementGuide() {
     };
 
     return (
-        <section className="bg-black/95 text-white py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) relative overflow-hidden mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-(--space-80)">
+        <section id="how-it-works" className="bg-black/95 text-white py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) relative overflow-hidden mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-(--space-80)">
             {/* Background decorative elements */}
             <div className="absolute right-0 top-0 w-1/2 sm:w-2/5 md:w-1/3 h-full bg-white/5 -skew-x-12 translate-x-1/2"></div>
             <div className="absolute left-0 bottom-0 w-48 xs:w-56 sm:w-64 md:w-72 h-48 xs:h-56 sm:h-64 md:h-72 bg-white/2 rounded-full blur-3xl"></div>
