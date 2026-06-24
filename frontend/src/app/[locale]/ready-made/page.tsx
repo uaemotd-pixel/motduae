@@ -558,7 +558,7 @@ export default function ReadyMadeCatalogPage() {
 
                     {/* ── Main Content Area - Full Width ──────────────────────────────────── */}
                     <div className="flex flex-col lg:flex-row min-h-screen relative">
-                        <aside className={`hidden lg:block w-80 shrink-0 border-r border-[#E4E0D8] p-8 h-screen sticky top-18.25 overflow-y-auto ${mobileFiltersOpen ? 'block' : 'hidden'}`}>
+                        <aside data-lenis-prevent className={`hidden lg:block w-80 shrink-0 border-r border-[#E4E0D8] p-8 h-screen sticky top-18.25 overflow-y-auto ${mobileFiltersOpen ? 'block' : 'hidden'}`}>
                             <SidebarContent />
                         </aside>
 
