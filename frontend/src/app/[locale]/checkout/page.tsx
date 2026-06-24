@@ -1,8 +1,8 @@
 // app/[locale]/checkout/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useParams } from "next/navigation";
@@ -13,7 +13,8 @@ import { ShoppingBag } from "lucide-react";
 import { getTranslation } from "@/lib/getTranslation";
 import { useLocale } from "next-intl";
 import SuccessModal from "@/components/shared/SuccessModal";
-import { api } from "@/lib/api/client"; // for POST request
+import { api } from "@/lib/api/client";
+import type { CartItem } from "@/context/CartContext";
 
 const EMIRATES = [
   "Abu Dhabi",
@@ -25,15 +26,71 @@ const EMIRATES = [
   "Umm Al Quwain",
 ];
 
+// Customer address type (matches new schema)
+type CustomerAddress = {
+  _id?: string;
+  fullName: string;
+  phone: string;
+  emirate: string;
+  city: string;
+  street: string;
+  building: string;
+  postalCode: string;
+  isDefault?: boolean;
+};
+
+type CustomerProfile = {
+  id: string;
+  userId: string;
+  name: string;
+  phone?: string;
+  dob?: string;
+  profilePic?: string;
+  gender?: string;
+  addresses?: CustomerAddress[];
+  defaultAddressId?: string;
+};
+
 export default function CheckoutPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const params = useParams();
   const localeParams = params.locale as string;
   const t = getTranslation(localeParams);
   const locale = useLocale();
+  const initialFillDone = useRef<boolean>(false);
 
   const { items, clearCart } = useCart();
   const { user, isLoading, isAuthenticated } = useAuth();
+
+  // --- Buy Now state ---
+  const [buyNowState, setBuyNowState] = useState<{
+    isBuyNow: boolean;
+    item: CartItem | null;
+  } | null>(null);
+
+  useEffect(() => {
+    const isBuyNow = searchParams.get("buyNow") === "true";
+    let item: CartItem | null = null;
+    if (isBuyNow) {
+      item = {
+        id: searchParams.get("productId") || "",
+        slug: searchParams.get("slug") || "",
+        name: searchParams.get("name") || "",
+        image: searchParams.get("image") || "",
+        price: parseFloat(searchParams.get("price") || "0"),
+        size: searchParams.get("size") || "",
+        quantity: parseInt(searchParams.get("quantity") || "2"),
+        maxStock: parseInt(searchParams.get("maxStock") || "0"),
+      };
+    }
+    setBuyNowState({ isBuyNow, item });
+  }, []);
+
+  const isBuyNow = buyNowState?.isBuyNow ?? false;
+  const buyNowItem = buyNowState?.item ?? null;
+  const displayItems = isBuyNow && buyNowItem ? [buyNowItem] : items;
+  const shouldClearCart = !isBuyNow;
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -46,6 +103,11 @@ export default function CheckoutPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [paymentMethod, setPaymentMethod] = useState<"card" | "paypal">("card");
   const [billingAddressSame, setBillingAddressSame] = useState(true);
+
+  // --- State for customer profile & loading ---
+  const [customerProfile, setCustomerProfile] =
+    useState<CustomerProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   // --- success modal state ---
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -64,7 +126,67 @@ export default function CheckoutPage() {
     }
   }, [isLoading, isAuthenticated, router, locale]);
 
-  if (isLoading) {
+  // --- Fetch customer profile and auto-fill form ---
+  useEffect(() => {
+    async function fetchCustomerProfile() {
+      if (!isAuthenticated) return;
+      try {
+        setProfileLoading(true);
+        const data = await api.get<CustomerProfile>("/api/customer/profile");
+        setCustomerProfile(data);
+        // Auto-fill form from default address (or first) and top-level fields
+        const defaultAddr =
+          data.addresses?.find((a) => a.isDefault) || data.addresses?.[0];
+        if (defaultAddr) {
+          setFormData((prev) => ({
+            ...prev,
+            fullName: defaultAddr.fullName || data.name || prev.fullName,
+            phone: defaultAddr.phone || data.phone || prev.phone,
+            emirate: defaultAddr.emirate || "",
+            city: defaultAddr.city || "",
+            street: defaultAddr.street || "",
+          }));
+        } else {
+          // No address: at least fill name and phone from top-level
+          setFormData((prev) => ({
+            ...prev,
+            fullName: data.name || prev.fullName,
+            phone: data.phone || prev.phone,
+          }));
+        }
+        initialFillDone.current = true;
+      } catch (err: any) {
+        if (err.status === 404) {
+          // No profile – use user name fallback later
+          console.log("No customer profile found.");
+        } else {
+          console.error("Failed to fetch customer profile:", err);
+        }
+      } finally {
+        setProfileLoading(false);
+      }
+    }
+    fetchCustomerProfile();
+  }, [isAuthenticated]);
+
+  // --- Fallback: if no customer profile and user exists, fill name from auth user ---
+  useEffect(() => {
+    if (
+      user &&
+      !customerProfile &&
+      !profileLoading &&
+      !initialFillDone.current
+    ) {
+      setFormData((prev) => ({
+        ...prev,
+        fullName: user.name || prev.fullName,
+      }));
+      initialFillDone.current = true;
+    }
+  }, [user, customerProfile, profileLoading]);
+
+  // --- Loading while determining Buy Now state or fetching profile ---
+  if (isLoading || buyNowState === null || profileLoading) {
     return (
       <MainLayout>
         <div className="min-h-screen bg-(--bg-page) flex items-center justify-center px-4">
@@ -83,46 +205,11 @@ export default function CheckoutPage() {
     return null;
   }
 
-  // Cart empty guard
-  if (items.length === 0 && !showSuccessModal) {
-    return (
-      <MainLayout>
-        <div className="min-h-screen bg-(--bg-page) flex items-center justify-center px-4 py-12">
-          <div className="text-center max-w-md">
-            <div className="w-20 h-20 mx-auto mb-6 bg-[#F2F2F0] rounded-full flex items-center justify-center">
-              <ShoppingBag className="w-10 h-10 text-[#5A5A56]" />
-            </div>
-            <h1 className="[font-family:var(--font-display)] text-[28px] xs:text-[32px] sm:text-[36px] text-black mb-3">
-              {t.checkout.emptyCartTitle}
-            </h1>
-            <p className="text-[13px] xs:text-[14px] text-[#5A5A56] mb-6">
-              {t.checkout.emptyCartMessage}
-            </p>
-            <button
-              onClick={() => {
-                const element = document.getElementById("ready-made");
-                if (element) {
-                  element.scrollIntoView({ behavior: "smooth" });
-                } else {
-                  // Fallback: go to home page and then scroll after navigation
-                  router.push(`/${locale}`);
-                  setTimeout(() => {
-                    const el = document.getElementById("ready-made");
-                    if (el) el.scrollIntoView({ behavior: "smooth" });
-                  }, 300);
-                }
-              }}
-              className="inline-block px-6 py-3 bg-black text-white text-[10px] xs:text-[11px] tracking-[0.22em] uppercase hover:bg-[#1A1A1A] transition duration-300 cursor-pointer"
-            >
-              {t.checkout.continueShopping}
-            </button>
-          </div>
-        </div>
-      </MainLayout>
-    );
-  }
-
-  const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  // Calculate totals using displayItems
+  const subtotal = displayItems.reduce(
+    (sum, i) => sum + i.price * i.quantity,
+    0,
+  );
   const vat = subtotal * 0.05;
   const total = subtotal + vat;
 
@@ -143,7 +230,6 @@ export default function CheckoutPage() {
     if (name === "phone") {
       processedValue = value.replace(/[^0-9+]/g, "");
     }
-    // Use processedValue instead of value
     setFormData((prev) => ({ ...prev, [name]: processedValue }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
     if (errorMessage) setErrorMessage(null);
@@ -166,17 +252,16 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    // Build orderItems with productId (which worked in your log)
-    const orderItems = items.map((item) => ({
-      productId: item.id, // ✅ this field gave a valid ID earlier
-      name: item.name, // optional
+    const orderItems = displayItems.map((item) => ({
+      productId: item.id,
+      name: item.name,
       size: item.size,
       quantity: item.quantity,
       price: item.price,
     }));
 
     const payload = {
-      orderItems, // ✅ backend expects 'orderItems' (not 'items')
+      orderItems,
       shippingAddress: {
         fullName: formData.fullName,
         phone: formData.phone,
@@ -192,9 +277,11 @@ export default function CheckoutPage() {
       const response = await api.post("/api/orders/retail", payload);
       if (response.success) {
         setLastOrderId(response.orderId);
-        setLastOrderItems(items.map((item) => ({ name: item.name })));
+        setLastOrderItems(displayItems.map((item) => ({ name: item.name })));
         setShowSuccessModal(true);
-        clearCart();
+        if (!isBuyNow) {
+          clearCart();
+        }
       } else {
         throw new Error(response.message || "Order failed");
       }
@@ -214,12 +301,12 @@ export default function CheckoutPage() {
             <h1 className="sr-only">Checkout</h1>
 
             <div className="flex flex-col h-full md:flex-row gap-8 lg:gap-12">
-              {/* LEFT COLUMN – ORDER SUMMARY (sticky on desktop) */}
+              {/* LEFT COLUMN – ORDER SUMMARY */}
               <div className="w-full md:w-95 lg:w-105 shrink-0">
                 <div className="md:sticky md:top-24">
                   <div className="bg-white border border-(--color-border) rounded-lg p-6 md:p-8">
                     <ul className="space-y-6">
-                      {items.map((item) => (
+                      {displayItems.map((item) => (
                         <li key={item.id} className="flex items-start gap-4">
                           <div className="w-20 h-20 shrink-0 bg-[#F5F5F0] rounded-md overflow-hidden">
                             <img
@@ -255,7 +342,6 @@ export default function CheckoutPage() {
 
                     <hr className="border-(--color-border) my-6" />
 
-                    {/* Order totals */}
                     <div>
                       <ul className="space-y-3 [font-family:var(--font-ui)] text-[13px] text-(--color-grey-muted)">
                         <li className="flex flex-wrap gap-4">
@@ -395,7 +481,7 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Payment Methods – exactly as in the example */}
+                {/* Payment Methods */}
                 <div className="border border-(--color-border) rounded-lg p-6 md:p-8 mt-6">
                   <h2 className="[font-family:var(--font-display)] text-xl mb-4">
                     {t.checkout.paymentMethod}
@@ -421,14 +507,12 @@ export default function CheckoutPage() {
                   </p>
                 </div>
 
-                {/* Error message */}
                 {errorMessage && (
                   <div className="mt-4 p-3 bg-red-50 border border-red-300 text-red-700 text-sm">
                     {errorMessage}
                   </div>
                 )}
 
-                {/* Place Order Button */}
                 <button
                   onClick={handlePlaceOrder}
                   disabled={isSubmitting}
@@ -470,7 +554,6 @@ export default function CheckoutPage() {
         </div>
       </FadeInSection>
 
-      {/* --- SUCCESS MODAL --- */}
       <SuccessModal
         isOpen={showSuccessModal}
         onClose={() => {

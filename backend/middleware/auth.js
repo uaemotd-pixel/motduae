@@ -1,6 +1,6 @@
-import jwt from 'jsonwebtoken';
-import { env } from '../config/env.js';
-import User from '../models/User.js';
+import jwt from "jsonwebtoken";
+import { env } from "../config/env.js";
+import User from "../models/User.js";
 
 export const generateToken = (user) => {
   return jwt.sign(
@@ -12,21 +12,21 @@ export const generateToken = (user) => {
       isAdmin: user.isAdmin,
     },
     env.jwtSecret,
-    { expiresIn: '30d' }
+    { expiresIn: "30d" },
   );
 };
 
 export const isAuth = (req, res, next) => {
   const authorization = req.headers.authorization;
-  if (!authorization?.startsWith('Bearer ')) {
-    res.status(401).send({ message: 'No Token' });
+  if (!authorization?.startsWith("Bearer ")) {
+    res.status(401).send({ message: "No Token" });
     return;
   }
 
   const token = authorization.slice(7);
   jwt.verify(token, env.jwtSecret, (err, decode) => {
     if (err) {
-      res.status(401).send({ message: 'Invalid Token' });
+      res.status(401).send({ message: "Invalid Token" });
       return;
     }
     req.user = decode;
@@ -39,33 +39,33 @@ export const isAdmin = (req, res, next) => {
     next();
     return;
   }
-  res.status(403).send({ message: 'Forbidden: Admin access required' });
+  res.status(403).send({ message: "Forbidden: Admin access required" });
 };
 
 export const isApprovedTailor = async (req, res, next) => {
   try {
     if (!req.user?._id) {
-      res.status(401).send({ message: 'No Token' });
+      res.status(401).send({ message: "No Token" });
       return;
     }
 
-    const user = await User.findById(req.user._id).select('-password');
+    const user = await User.findById(req.user._id).select("-password");
     if (!user) {
-      res.status(401).send({ message: 'User not found' });
+      res.status(401).send({ message: "User not found" });
       return;
     }
 
-    if (user.role !== 'tailor') {
-      res.status(403).send({ message: 'Forbidden: Tailor access required' });
+    if (user.role !== "tailor") {
+      res.status(403).send({ message: "Forbidden: Tailor access required" });
       return;
     }
 
-    if (user.approvalStatus !== 'approved') {
+    if (user.approvalStatus !== "approved") {
       res.status(403).send({
         message:
-          user.approvalStatus === 'rejected'
-            ? 'Tailor account was rejected'
-            : 'Tailor account is pending admin approval',
+          user.approvalStatus === "rejected"
+            ? "Tailor account was rejected"
+            : "Tailor account is pending admin approval",
         approvalStatus: user.approvalStatus,
       });
       return;
@@ -81,6 +81,6 @@ export const isApprovedTailor = async (req, res, next) => {
     };
     next();
   } catch {
-    res.status(500).send({ message: 'Failed to verify tailor access' });
+    res.status(500).send({ message: "Failed to verify tailor access" });
   }
 };

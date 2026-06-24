@@ -1,91 +1,108 @@
 // components/account/ProfileTab.tsx
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import {
-  User,
-  Mail,
-  Phone,
-  Calendar,
-  MapPin,
-  Edit,
-  Save,
-  XCircle,
-  Camera,
-  Check,
-  AlertCircle,
-} from "lucide-react";
+import { api } from "@/lib/api/client";
+import { User, Mail, Phone, MapPin, Calendar, Users, Edit } from "lucide-react";
 
+interface ProfileTabProps {
+  onEditClick?: () => void;
+}
+
+// Updated Address type to match new customer address schema
 type Address = {
-  street?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  country?: string;
+  _id?: string;
+  label?: "home" | "work" | "other";
+  fullName: string; // now required
+  phone: string; // now required
+  emirate: string; // was "state"
+  city: string;
+  street: string;
+  building: string;
+  postalCode: string;
+  isDefault?: boolean;
 };
 
 type CustomerProfile = {
   id: string;
+  userId: string;
   name: string;
-  email: string;
   phone?: string;
-  dateOfBirth?: string;
-  avatar?: string; // URL or base64
-  address?: Address;
+  dob?: string;
+  profilePic?: string;
+  gender?: "male" | "female" | "other" | "prefer-not";
+  addresses?: Address[];
+  defaultAddressId?: string;
 };
 
-export default function ProfileTab() {
-  const { user: authUser } = useAuth();
+// Helper: calculate age from DOB
+function getAge(dob: string | Date): number | null {
+  if (!dob) return null;
+  const birth = typeof dob === "string" ? new Date(dob) : dob;
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
 
-  // ----- State -----
+// Completeness check: requires phone, gender (not "prefer-not"), DOB, and address with city & street
+const isProfileComplete = (profile: CustomerProfile): boolean => {
+  if (!profile) return false;
+  const hasPhone = !!profile.phone?.trim();
+  const hasGender = !!profile.gender && profile.gender !== "prefer-not";
+  const hasDob = !!profile.dob;
+  const firstAddr = profile.addresses?.[0];
+  const hasValidAddress =
+    !!firstAddr?.city?.trim() && !!firstAddr?.street?.trim();
+  return hasPhone && hasGender && hasDob && hasValidAddress;
+};
+
+export default function ProfileTab({ onEditClick }: ProfileTabProps) {
+  const { user: authUser } = useAuth();
+  const router = useRouter();
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState<Partial<CustomerProfile>>({});
-  const [saveStatus, setSaveStatus] = useState<{
-    type: "idle" | "saving" | "success" | "error";
-    message?: string;
-  }>({ type: "idle" });
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const isComplete = profile ? isProfileComplete(profile) : false;
 
-  // ----- Fetch profile -----
   useEffect(() => {
     async function fetchProfile() {
-      if (!authUser) return;
+      if (!authUser) {
+        setIsLoading(false);
+        return;
+      }
       try {
         setIsLoading(true);
-        const res = await fetch("/api/users/profile");
-        if (!res.ok) throw new Error("Failed to fetch profile");
-        const data = await res.json();
-        setProfile(data);
-        setFormData({
-          name: data.name || "",
-          email: data.email || "",
-          phone: data.phone || "",
-          dateOfBirth: data.dateOfBirth || "",
-          avatar: data.avatar || "",
-          address: {
-            street: data.address?.street || "",
-            city: data.address?.city || "",
-            state: data.address?.state || "",
-            postalCode: data.address?.postalCode || "",
-            country: data.address?.country || "",
-          },
-        });
-        if (data.avatar) setAvatarPreview(data.avatar);
-      } catch (err) {
-        console.warn("Profile API unavailable, using auth data:", err);
-        if (authUser) {
-          const fallback: CustomerProfile = {
+        setError(null);
+        const data = await api.get("/api/customer/profile");
+        // data may have _id; map to id
+        const mapped: CustomerProfile = {
+          id: data._id || data.id,
+          userId: data.userId,
+          name: data.name,
+          phone: data.phone,
+          dob: data.dob,
+          profilePic: data.profilePic,
+          gender: data.gender,
+          addresses: data.addresses,
+          defaultAddressId: data.defaultAddressId,
+        };
+        setProfile(mapped);
+      } catch (err: any) {
+        console.warn("Failed to fetch profile:", err);
+        if (err.status === 404) {
+          setProfile({
             id: authUser.id,
+            userId: authUser.id,
             name: authUser.name || "",
-            email: authUser.email || "",
-          };
-          setProfile(fallback);
-          setFormData(fallback);
+          });
+          setError(null);
+        } else {
+          setError(err.message || "Could not load profile");
         }
       } finally {
         setIsLoading(false);
@@ -94,137 +111,19 @@ export default function ProfileTab() {
     fetchProfile();
   }, [authUser]);
 
-  // ----- Handlers -----
-  const handleEditToggle = () => {
-    if (isEditing) {
-      // Cancel: reset form, clear avatar preview
-      if (profile) {
-        setFormData({
-          name: profile.name || "",
-          email: profile.email || "",
-          phone: profile.phone || "",
-          dateOfBirth: profile.dateOfBirth || "",
-          avatar: profile.avatar || "",
-          address: {
-            street: profile.address?.street || "",
-            city: profile.address?.city || "",
-            state: profile.address?.state || "",
-            postalCode: profile.address?.postalCode || "",
-            country: profile.address?.country || "",
-          },
-        });
-        setAvatarPreview(profile.avatar || null);
-        setAvatarFile(null);
-      }
-      setSaveStatus({ type: "idle" });
-    }
-    setIsEditing(!isEditing);
-  };
-
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-  ) => {
-    const { name, value } = e.target;
-    if (name.startsWith("address.")) {
-      const field = name.split(".")[1];
-      setFormData((prev) => ({
-        ...prev,
-        address: { ...(prev.address || {}), [field]: value },
-      }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    }
-    if (saveStatus.type === "error" || saveStatus.type === "success") {
-      setSaveStatus({ type: "idle" });
-    }
-  };
-
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAvatarFile(file);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setAvatarPreview(event.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleSave = async () => {
-    if (!formData.name?.trim()) {
-      setSaveStatus({ type: "error", message: "Name is required." });
-      return;
-    }
-    if (!formData.email?.trim()) {
-      setSaveStatus({ type: "error", message: "Email is required." });
-      return;
-    }
-
-    setSaveStatus({ type: "saving" });
-    try {
-      // Prepare payload – if avatarFile exists, upload it first (or send as base64)
-      let payload = { ...formData };
-      if (avatarFile) {
-        // Option A: Send as base64 (simpler)
-        const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(avatarFile);
-        });
-        payload.avatar = base64;
-      }
-
-      const res = await fetch("/api/users/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || "Update failed");
-      }
-      const updated = await res.json();
-      setProfile(updated);
-      setFormData({
-        name: updated.name || "",
-        email: updated.email || "",
-        phone: updated.phone || "",
-        dateOfBirth: updated.dateOfBirth || "",
-        avatar: updated.avatar || "",
-        address: {
-          street: updated.address?.street || "",
-          city: updated.address?.city || "",
-          state: updated.address?.state || "",
-          postalCode: updated.address?.postalCode || "",
-          country: updated.address?.country || "",
-        },
-      });
-      if (updated.avatar) setAvatarPreview(updated.avatar);
-      setAvatarFile(null);
-      setSaveStatus({
-        type: "success",
-        message: "Profile updated successfully!",
-      });
-      setIsEditing(false);
-    } catch (err: any) {
-      setSaveStatus({
-        type: "error",
-        message: err.message || "Something went wrong. Please try again.",
-      });
-    }
-  };
-
-  // ----- Loading state -----
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-12 text-gray-500">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        <span className="ml-3">Loading profile…</span>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+        <span className="ml-3">Loading…</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-2xl p-8 text-center text-red-600">
+        {error}
       </div>
     );
   }
@@ -237,242 +136,176 @@ export default function ProfileTab() {
     );
   }
 
-  // ----- Helper to render field display or input -----
-  const renderField = (
-    label: string,
-    name: string,
-    value: string | undefined,
-    icon: React.ReactNode,
-    type = "text",
-    placeholder = "",
-  ) => {
-    const isAddress = name.startsWith("address.");
-    const fieldName = isAddress ? name : name;
-    return (
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-          {label}
-        </label>
-        <div className="relative">
-          {icon && (
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              {icon}
-            </div>
-          )}
-          {isEditing ? (
-            <input
-              type={type}
-              name={fieldName}
-              value={value || ""}
-              onChange={handleInputChange}
-              placeholder={placeholder}
-              className={`w-full ${icon ? "pl-9" : "pl-4"} pr-4 py-2.5 border rounded-xl 
-                focus:ring-2 focus:ring-black/10 focus:border-black 
-                bg-gray-50 border-gray-300 transition`}
-            />
-          ) : (
-            <div
-              className={`w-full ${icon ? "pl-9" : "pl-4"} pr-4 py-2.5 
-              border border-transparent rounded-xl bg-transparent text-gray-800 
-              font-medium`}
-            >
-              {value || "—"}
-            </div>
-          )}
-        </div>
-      </div>
-    );
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return "—";
+    try {
+      return new Date(dateStr).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch {
+      return dateStr;
+    }
   };
 
-  // ----- Render -----
+  const defaultAddress =
+    profile.addresses?.find((a) => a.isDefault) || profile.addresses?.[0];
+
+  // DisplayField component
+  const DisplayField = ({
+    label,
+    value,
+    icon,
+  }: {
+    label: string;
+    value?: string | null;
+    icon?: React.ReactNode;
+  }) => (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+        {label}
+      </label>
+      <div className="relative">
+        {icon && (
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            {icon}
+          </div>
+        )}
+        <div
+          className={`w-full ${icon ? "pl-9" : "pl-4"} pr-4 py-2.5 
+          border border-transparent rounded-xl bg-transparent text-gray-800 font-medium`}
+        >
+          {value || "—"}
+        </div>
+      </div>
+    </div>
+  );
+
+  const genderDisplay = (g?: string) => {
+    if (!g || g === "prefer-not") return "Prefer not to say";
+    return g.charAt(0).toUpperCase() + g.slice(1);
+  };
+
+  // Compute age for display
+  const age = profile.dob ? getAge(profile.dob) : null;
+  const dobDisplay = profile.dob
+    ? `${formatDate(profile.dob)}${age !== null ? ` (${age} years)` : ""}`
+    : undefined;
+
   return (
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-      {/* Status messages */}
-      {saveStatus.type === "success" && (
-        <div className="m-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl flex items-center gap-2">
-          <Check className="w-5 h-5" />
-          {saveStatus.message}
-        </div>
-      )}
-      {saveStatus.type === "error" && (
-        <div className="m-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
-          <AlertCircle className="w-5 h-5" />
-          {saveStatus.message}
-        </div>
-      )}
-
       <div className="p-6 sm:p-8">
-        {/* Top row: Avatar + Edit button */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-          <div className="flex items-center gap-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
+          <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto">
             {/* Avatar */}
-            <div className="relative group">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-linear-to-br from-gray-200 to-gray-300 flex items-center justify-center overflow-hidden border-2 border-gray-200 shadow-md">
-                {avatarPreview ? (
+            <div className="relative group shrink-0">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full bg-linear-to-br from-gray-200 to-gray-300 flex items-center justify-center overflow-hidden border-2 border-gray-200 shadow-md">
+                {profile.profilePic ? (
                   <img
-                    src={avatarPreview}
-                    alt="Profile"
+                    src={profile.profilePic}
+                    alt={profile.name}
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span className="text-3xl sm:text-4xl font-medium text-gray-500">
+                  <span className="text-2xl sm:text-3xl md:text-4xl font-medium text-gray-500">
                     {profile.name?.charAt(0).toUpperCase() || "U"}
                   </span>
                 )}
               </div>
-              {isEditing && (
-                <>
-                  <button
-                    onClick={triggerFileInput}
-                    className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    aria-label="Change avatar"
-                  >
-                    <Camera className="w-8 h-8 text-white" />
-                  </button>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleAvatarChange}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                </>
-              )}
             </div>
 
-            <div>
-              <h3 className="text-xl sm:text-2xl font-semibold text-gray-900">
-                {profile.name}
-              </h3>
-              <p className="text-gray-500 text-sm flex items-center gap-1.5">
-                <Mail className="w-4 h-4" />
-                {profile.email}
+            {/* Name + Badge + Email/Phone */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-900 truncate">
+                  {profile.name}
+                </h3>
+                {isComplete ? (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 shrink-0">
+                    Complete
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 shrink-0">
+                    Incomplete
+                  </span>
+                )}
+              </div>
+              <p className="text-gray-500 text-sm flex items-center gap-1.5 mt-0.5">
+                <Mail className="w-4 h-4 shrink-0" />
+                <span className="truncate">
+                  {authUser?.email || "No email"}
+                </span>
               </p>
               {profile.phone && (
-                <p className="text-gray-500 text-sm flex items-center gap-1.5">
-                  <Phone className="w-4 h-4" />
-                  {profile.phone}
+                <p className="text-gray-500 text-sm flex items-center gap-1.5 mt-0.5">
+                  <Phone className="w-4 h-4 shrink-0" />
+                  <span>{profile.phone}</span>
                 </p>
               )}
             </div>
           </div>
 
+          {/* Edit button */}
           <button
-            onClick={handleEditToggle}
-            className={`px-5 py-2.5 rounded-xl text-sm font-medium transition flex items-center gap-2 whitespace-nowrap
-              ${
-                isEditing
-                  ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  : "bg-black text-white hover:bg-gray-800"
-              }`}
+            onClick={onEditClick}
+            className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-sm font-medium bg-black text-white hover:bg-gray-800 transition flex items-center gap-2 whitespace-nowrap w-full sm:w-auto justify-center"
           >
-            {isEditing ? (
-              <>
-                <XCircle className="w-4 h-4" />
-                Cancel
-              </>
-            ) : (
-              <>
-                <Edit className="w-4 h-4" />
-                Edit Profile
-              </>
-            )}
+            <Edit className="w-4 h-4" />
+            {isComplete ? "Edit Profile" : "Complete Profile"}
           </button>
         </div>
 
-        {/* Divider */}
         <hr className="my-6 border-gray-200" />
 
-        {/* Personal Information */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {renderField(
-            "Full Name",
-            "name",
-            formData.name,
-            <User className="w-4 h-4" />,
-          )}
-          {renderField(
-            "Email",
-            "email",
-            formData.email,
-            <Mail className="w-4 h-4" />,
-            "email",
-          )}
-          {renderField(
-            "Phone",
-            "phone",
-            formData.phone,
-            <Phone className="w-4 h-4" />,
-            "tel",
-          )}
-          {renderField(
-            "Date of Birth",
-            "dateOfBirth",
-            formData.dateOfBirth,
-            <Calendar className="w-4 h-4" />,
-            "date",
-          )}
+        {/* Personal Info */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          <DisplayField
+            label="Full Name"
+            value={profile.name}
+            icon={<User className="w-4 h-4" />}
+          />
+          <DisplayField
+            label="Phone"
+            value={profile.phone}
+            icon={<Phone className="w-4 h-4" />}
+          />
+          <DisplayField
+            label="Gender"
+            value={genderDisplay(profile.gender)}
+            icon={<Users className="w-4 h-4" />}
+          />
+          <DisplayField
+            label="Date of Birth"
+            value={dobDisplay}
+            icon={<Calendar className="w-4 h-4" />}
+          />
         </div>
 
-        {/* Address */}
-        <div className="mt-8">
+        {/* Address – updated to match new schema */}
+        <div className="mt-6 sm:mt-8">
           <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-4">
             <MapPin className="w-5 h-5" />
-            Address
+            Default Address
           </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {renderField(
-              "Street",
-              "address.street",
-              formData.address?.street,
-              null,
-            )}
-            {renderField("City", "address.city", formData.address?.city, null)}
-            {renderField(
-              "State/Province",
-              "address.state",
-              formData.address?.state,
-              null,
-            )}
-            {renderField(
-              "Postal Code",
-              "address.postalCode",
-              formData.address?.postalCode,
-              null,
-            )}
-            {renderField(
-              "Country",
-              "address.country",
-              formData.address?.country,
-              null,
-            )}
-          </div>
+          {defaultAddress ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <DisplayField label="Full Name" value={defaultAddress.fullName} />
+              <DisplayField label="Phone" value={defaultAddress.phone} />
+              <DisplayField label="Emirate" value={defaultAddress.emirate} />
+              <DisplayField label="City" value={defaultAddress.city} />
+              <DisplayField label="Street" value={defaultAddress.street} />
+              <DisplayField label="Building" value={defaultAddress.building} />
+              <DisplayField
+                label="Postal Code"
+                value={defaultAddress.postalCode}
+              />
+            </div>
+          ) : (
+            <p className="text-gray-400 text-sm">No address added yet.</p>
+          )}
         </div>
-
-        {/* Save button (only when editing) */}
-        {isEditing && (
-          <div className="flex justify-end pt-6 mt-6 border-t border-gray-200">
-            <button
-              onClick={handleSave}
-              disabled={saveStatus.type === "saving"}
-              className={`px-8 py-2.5 rounded-xl text-white font-medium transition flex items-center gap-2
-                ${
-                  saveStatus.type === "saving"
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-black hover:bg-gray-800"
-                }`}
-            >
-              {saveStatus.type === "saving" ? (
-                <>Saving…</>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Save Changes
-                </>
-              )}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ import {
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 import OrdersView from "@/components/orders/OrdersView";
 import ProfileTab from "./profile/page";
+import EditProfileForm from "./profile/edit/page";
 
 const NAV_ITEMS = [
   { id: "profile", label: "Profile", icon: User },
@@ -109,6 +110,11 @@ export default function AccountPage() {
     isAccountTab(tabFromUrl) ? tabFromUrl : "profile",
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // account/page.tsx – inside component
+  const [viewMode, setViewMode] = useState<"profile" | "edit">("profile");
+  const handleEditClick = useCallback(() => setViewMode("edit"), []);
+  const handleCancelEdit = useCallback(() => setViewMode("profile"), []);
 
   // Close sidebar on route change (mobile only)
   useEffect(() => {
@@ -234,9 +240,13 @@ export default function AccountPage() {
                   initial="initial"
                   animate="animate"
                   exit="exit"
-                  transition={{ duration: 0.25 }}
+                  transition={{ duration: 0.4 }}
                 >
-                  <ProfileTab />
+                  {viewMode === "profile" ? (
+                    <ProfileTab onEditClick={handleEditClick} />
+                  ) : (
+                    <EditProfileForm onCancel={handleCancelEdit} />
+                  )}
                 </motion.div>
               )}
 

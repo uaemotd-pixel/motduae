@@ -8,6 +8,7 @@ import FadeInSection from "@/components/shared/fadeInSection";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
+import { resolveMediaUrl } from "@/lib/media";
 
 const colorMap: Record<string, string> = {
   red: "#EF4444",
@@ -61,24 +62,30 @@ export default function ReadyMadeDetailPage() {
     if (!product) return;
     const price = product.finalSellingPriceAED || 0;
     const maxStock = product.availableFabricStock || 0;
-    for (let i = 0; i < quantity; i++) {
-      addToCart({
-        id: product._id,
-        slug: product.slug,
-        name: product.name,
-        image: product.images?.[0] || "/placeholder.png",
-        price,
-        size,
-        maxStock,
-      });
-    }
-    console.log(addToCart);
+    addToCart({
+      id: product._id,
+      slug: product.slug,
+      name: product.name,
+      image: product.images?.[0] || "/placeholder.png",
+      price,
+      size,
+      maxStock,
+    });
   };
 
   const handleBuyNow = () => {
     if (!product) return;
-    handleAddToCart();
-    router.push(`/${locale}/checkout`);
+    const params = new URLSearchParams({
+      productId: product._id,
+      slug: product.slug,
+      name: product.name,
+      image: product.images?.[0] || "/placeholder.png",
+      price: String(product.finalSellingPriceAED || 0),
+      size: product.size || "",
+      quantity: String(quantity),
+      maxStock: String(product.availableFabricStock || 0),
+    });
+    router.push(`/${locale}/checkout?buyNow=true&${params.toString()}`);
   };
 
   // Wishlist toggle – uses context
@@ -242,11 +249,11 @@ export default function ReadyMadeDetailPage() {
                     {images.map((img: string, idx: number) => (
                       <button
                         key={idx}
-                        onClick={() => setSelectedImage(img)}
+                        onClick={() => setSelectedImage(resolveMediaUrl(img))}
                         className={`shrink-0 w-20 xs:w-24 h-20 xs:h-24 rounded-md overflow-hidden border-2 transition-all duration-200 ${selectedImage === img ? "border-black" : "border-transparent opacity-60 hover:opacity-100"}`}
                       >
                         <img
-                          src={img}
+                          src={resolveMediaUrl(img)}
                           alt={`Thumbnail ${idx + 1}`}
                           className="w-full h-full object-cover"
                         />
@@ -354,44 +361,47 @@ export default function ReadyMadeDetailPage() {
                 )}
 
                 <div className="mt-2 pt-4 border-t border-(--color-border)">
-                  <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center mb-6">
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                        className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-transparent hover:cursor-pointer"
-                        disabled={stock < 1 || quantity <= 1}
-                      >
-                        <span className="text-lg">−</span>
-                      </button>
-                      <span className="w-8 text-center text-sm [font-family:var(--font-body)]">
-                        {quantity}
-                      </span>
-                      <button
-                        onClick={() =>
-                          setQuantity((q) => Math.min(stock, q + 1))
-                        }
-                        className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-transparent hover:cursor-pointer"
-                        disabled={stock < 1 || quantity >= stock}
-                      >
-                        <span className="text-lg">+</span>
-                      </button>
-                    </div>
-                    <div className="flex-1 flex gap-3 w-full sm:w-auto">
-                      <button
-                        onClick={handleAddToCart}
-                        disabled={stock < 1}
-                        className={`flex-1 sm:flex-none py-3 px-6 border border-black text-[10px] xs:text-[11px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${stock < 1 ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300" : "bg-black text-white hover:bg-white hover:text-black hover:border-black"}`}
-                      >
-                        Add to Cart
-                      </button>
+                  <div className="flex flex-col gap-4 mb-6">
+                    {/* Row: quantity controls + Buy Now */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-transparent hover:cursor-pointer"
+                          disabled={stock < 1 || quantity <= 1}
+                        >
+                          <span className="text-lg">−</span>
+                        </button>
+                        <span className="w-8 text-center text-sm [font-family:var(--font-body)]">
+                          {quantity}
+                        </span>
+                        <button
+                          onClick={() =>
+                            setQuantity((q) => Math.min(stock, q + 1))
+                          }
+                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-transparent hover:cursor-pointer"
+                          disabled={stock < 1 || quantity >= stock}
+                        >
+                          <span className="text-lg">+</span>
+                        </button>
+                      </div>
                       <button
                         onClick={handleBuyNow}
                         disabled={stock < 1}
-                        className={`flex-1 sm:flex-none py-3 px-6 border border-black bg-transparent text-[10px] xs:text-[11px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${stock < 1 ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300" : "hover:bg-black hover:text-white"}`}
+                        className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${stock < 1 ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300" : "hover:bg-black hover:text-white"}`}
                       >
                         Buy Now
                       </button>
                     </div>
+
+                    {/* Add to Cart as full‑width block */}
+                    <button
+                      onClick={handleAddToCart}
+                      disabled={stock < 1}
+                      className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${stock < 1 ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300" : "bg-black text-white hover:bg-white hover:text-black hover:border-black"}`}
+                    >
+                      Add to Cart
+                    </button>
                   </div>
                 </div>
               </div>
