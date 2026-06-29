@@ -3,8 +3,24 @@ import mongoose from "mongoose";
 import Customer from "../models/customer.js"; // adjust path/extension as needed
 import User from "../models/User.js";
 import { isAuth } from "../middleware/auth.js";
+import { uploadCustomerImageMiddleware, processCustomerImage } from "../middleware/uploadCustomerImage.js";
+import expressAsyncHandler from "express-async-handler";
 
 const customerRouter = express.Router();
+
+customerRouter.post(
+  "/uploads/customer",
+  uploadCustomerImageMiddleware,
+  expressAsyncHandler(async (req, res) => {
+    if (!req.file) {
+      res.status(400).send({ message: "No image file provided" });
+      return;
+    }
+
+    const url = await processCustomerImage(req.file);
+    res.status(201).send({ success: true, url });
+  }),
+);
 
 // POST /profile route
 customerRouter.post("/profile", isAuth, async (req, res) => {
@@ -191,6 +207,138 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
     }
     console.error(err);
     res.status(500).json({ error: err.message || "Server error" });
+  }
+});
+
+// ─── GET /family-members ──────────────────────────────────────────────
+customerRouter.get("/family-members", isAuth, async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.user._id);
+    const customer = await Customer.findOne({ userId });
+    if (!customer) {
+      return res.status(404).json({ error: "Customer profile not found" });
+    }
+    res.json({ items: customer.savedUsers || [] });
+  } catch (err) {
+    console.error("❌ Error fetching family members:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /family-members ─────────────────────────────────────────────
+customerRouter.post("/family-members", isAuth, async (req, res) => {
+  const userId = req.user._id;
+  const { name, phone, email, relationship, profilePic, address } = req.body;
+
+  // validation
+  if (!name?.trim() || !phone?.trim()) {
+    return res.status(400).json({ error: "Name and phone are required" });
+  }
+
+  try {
+    const customer = await Customer.findOne({ userId });
+    if (!customer) {
+      return res.status(404).json({ error: "Customer profile not found" });
+    }
+
+    const newMember = {
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email?.trim() || undefined,
+      relationship: relationship || "other",
+      profilePic: profilePic?.trim() || undefined,
+      address: address
+        ? {
+            fullName: address.fullName?.trim() || name.trim(),
+            phone: address.phone?.trim() || phone.trim(),
+            emirate: address.emirate?.trim() || "",
+            city: address.city?.trim() || "",
+            street: address.street?.trim() || "",
+            building: address.building?.trim() || "",
+            postalCode: address.postalCode?.trim() || "",
+          }
+        : undefined,
+    };
+
+    customer.savedUsers.push(newMember);
+    await customer.save();
+
+    // Return the newly created member (with _id)
+    const created = customer.savedUsers[customer.savedUsers.length - 1];
+    res.status(201).json(created);
+  } catch (err) {
+    console.error("❌ Error adding family member:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PUT /family-members/:id ──────────────────────────────────────────
+customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
+  const userId = req.user._id;
+  const memberId = req.params.id;
+  const { name, phone, email, relationship, profilePic, address } = req.body;
+
+  if (!name?.trim() || !phone?.trim()) {
+    return res.status(400).json({ error: "Name and phone are required" });
+  }
+
+  try {
+    const customer = await Customer.findOne({ userId });
+    if (!customer) {
+      return res.status(404).json({ error: "Customer profile not found" });
+    }
+
+    const member = customer.savedUsers.id(memberId);
+    if (!member) {
+      return res.status(404).json({ error: "Family member not found" });
+    }
+
+    // Update fields
+    member.name = name.trim();
+    member.phone = phone.trim();
+    member.email = email?.trim() || undefined;
+    member.relationship = relationship || "other";
+    member.profilePic = profilePic?.trim() || undefined;
+
+    if (address) {
+      member.address = {
+        fullName: address.fullName?.trim() || name.trim(),
+        phone: address.phone?.trim() || phone.trim(),
+        emirate: address.emirate?.trim() || "",
+        city: address.city?.trim() || "",
+        street: address.street?.trim() || "",
+        building: address.building?.trim() || "",
+        postalCode: address.postalCode?.trim() || "",
+      };
+    }
+
+    await customer.save();
+    res.json(member);
+  } catch (err) {
+    console.error("❌ Error updating family member:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── DELETE /family-members/:id ───────────────────────────────────────
+customerRouter.delete("/family-members/:id", isAuth, async (req, res) => {
+  const userId = req.user._id;
+  const memberId = req.params.id;
+
+  try {
+    const result = await Customer.updateOne(
+      { userId },
+      { $pull: { savedUsers: { _id: memberId } } },
+    );
+
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({ error: "Family member not found" });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error deleting family member:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 

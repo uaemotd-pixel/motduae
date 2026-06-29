@@ -13,16 +13,21 @@ import {
   LogOut,
   Menu,
   X,
+  Shirt,
+  Users,
 } from "lucide-react";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 import OrdersView from "@/components/orders/OrdersView";
 import ProfileTab from "./profile/page";
 import EditProfileForm from "./profile/edit/page";
+import FamilyMembersPage from "./family-members/page";
 
 const NAV_ITEMS = [
   { id: "profile", label: "Profile", icon: User },
   { id: "orders", label: "Orders", icon: ShoppingBag },
   { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "measurements", label: "Measurements", icon: Shirt },
+  { id: "family-members", label: "Family Members", icon: Users },
   { id: "settings", label: "Settings", icon: Settings },
 ] as const;
 
@@ -278,6 +283,20 @@ export default function AccountPage() {
                   <p className="text-gray-500">
                     You have no new notifications.
                   </p>
+                </motion.div>
+              )}
+
+              {activeTab === "family-members" && (
+                <motion.div
+                  key="orders"
+                  variants={pageVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={{ duration: 0.25 }}
+                  className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 md:p-8 shadow-sm"
+                >
+                  <FamilyMembersPage />
                 </motion.div>
               )}
 

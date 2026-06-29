@@ -12,6 +12,29 @@ const addressSubSchema = new mongoose.Schema({
   isDefault: { type: Boolean, default: false },
 });
 
+const savedUserSubSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },
+  phone: { type: String, required: true, trim: true },
+  email: { type: String, trim: true, lowercase: true },
+  gender: { type: String, enum: ["male", "female", "other", "prefer-not"] },
+  relationship: {
+    type: String,
+    enum: ["mother", "aunt", "sister", "daughter", "other"],
+    default: "other",
+  },
+  profilePic: { type: String, trim: true },
+  address: {
+    fullName: { type: String, trim: true },
+    phone: { type: String, trim: true },
+    emirate: { type: String, trim: true },
+    city: { type: String, trim: true },
+    street: { type: String, trim: true },
+    building: { type: String, trim: true },
+    postalCode: { type: String, trim: true },
+  },
+  createdAt: { type: Date, default: Date.now },
+});
+
 const customerSchema = new mongoose.Schema(
   {
     userId: {
@@ -28,6 +51,7 @@ const customerSchema = new mongoose.Schema(
     gender: { type: String, enum: ["male", "female", "other", "prefer-not"] },
     addresses: [addressSubSchema],
     defaultAddressId: { type: mongoose.Schema.Types.ObjectId },
+    savedUsers: [savedUserSubSchema],
     deletedAt: { type: Date, index: true },
   },
   {

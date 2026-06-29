@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import CustomerImageUpload from "@/components/shared/customerImageUpload";
 
 // Updated to match new customer address schema
 type Address = {
@@ -215,7 +216,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
           street: form.address.street.trim() || "",
           building: form.address.building.trim() || "",
           postalCode: form.address.postalCode.trim() || "",
-          isDefault: true, // This address becomes default
+          isDefault: true,
         },
       };
 
@@ -317,19 +318,22 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                 />
               </FormField>
 
-              <FormField
-                label="Profile Picture URL (optional)"
-                name="profilePic"
-              >
-                <input
-                  type="url"
-                  name="profilePic"
-                  value={form.profilePic}
-                  onChange={handleChange}
-                  placeholder="https://example.com/avatar.jpg"
-                  className="w-full py-1 border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
+              {/* Profile Picture – using CustomerImageUpload */}
+              <div className="md:col-span-2">
+                <FormField label="Profile Picture" name="profilePic">
+                  <CustomerImageUpload
+                    value={form.profilePic}
+                    onChange={(url) =>
+                      setForm((prev) => ({ ...prev, profilePic: url }))
+                    }
+                    uploadEndpoint="/api/customer/upload-profile-pic"
+                    chooseFileLabel="Upload photo"
+                    uploadingLabel="Uploading..."
+                    uploadFailedLabel="Upload failed"
+                    removeLabel="Remove"
+                  />
+                </FormField>
+              </div>
             </div>
           </div>
 
