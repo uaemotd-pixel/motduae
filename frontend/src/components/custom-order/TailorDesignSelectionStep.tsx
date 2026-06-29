@@ -13,6 +13,7 @@ import {
     isFabricStepComplete,
     isTailorStepComplete,
     toCustomOrderDesignSelection,
+    toCustomOrderSelectedDesign,
     toCustomOrderTailorSelection,
 } from "@/lib/customOrder";
 import {
@@ -29,10 +30,9 @@ export default function TailorDesignSelectionStep() {
     const searchParams = useSearchParams();
     const params = useParams();
     const locale = params.locale === "ar" ? "ar" : "en";
-    const tailorSlugParam = searchParams.get("tailorSlug");
     const designSlugParam = searchParams.get("designSlug");
 
-    const { draft, isHydrated, setTailor, setDesign, setFirstStepIfUnset, resetOrder } =
+    const { draft, isHydrated, toggleDesign, setFirstStepIfUnset, resetOrder, setFabricSource } =
         useCustomOrder();
 
     const [designs, setDesigns] = useState<TailorDesignListItem[]>([]);
@@ -43,7 +43,10 @@ export default function TailorDesignSelectionStep() {
     useEffect(() => {
         if (!isHydrated) return;
         setFirstStepIfUnset("tailor");
-    }, [isHydrated, setFirstStepIfUnset]);
+        if (draft.selectedFabrics.length > 0 && !draft.fabricSource) {
+            setFabricSource("storefront");
+        }
+    }, [isHydrated, setFirstStepIfUnset, draft.selectedFabrics.length, draft.fabricSource, setFabricSource]);
 
     useEffect(() => {
         if (!isHydrated || prefillDone || !designSlugParam) return;
@@ -53,14 +56,20 @@ export default function TailorDesignSelectionStep() {
                 resetOrder("tailor");
                 const designData = await api.get<{
                     success: boolean;
-                    item: any;
+                    item: TailorDesignListItem & { tailorShop?: Parameters<typeof toCustomOrderTailorSelection>[0] };
                 }>(`/api/tailors/designs/${designSlugParam}`);
 
                 if (!designData?.success || !designData.item) return;
 
-                setDesign(toCustomOrderDesignSelection(designData.item));
-                if (designData.item.tailorShop) {
-                    setTailor(toCustomOrderTailorSelection(designData.item.tailorShop));
+                const selected = designData.item.tailorShop
+                    ? {
+                          ...toCustomOrderDesignSelection(designData.item),
+                          tailor: toCustomOrderTailorSelection(designData.item.tailorShop),
+                      }
+                    : toCustomOrderSelectedDesign(designData.item);
+
+                if (selected) {
+                    toggleDesign(selected);
                 }
             } catch {
                 // Ignore invalid design slug — customer can still pick manually
@@ -74,8 +83,7 @@ export default function TailorDesignSelectionStep() {
         designSlugParam,
         isHydrated,
         prefillDone,
-        setDesign,
-        setTailor,
+        toggleDesign,
         resetOrder,
     ]);
 
@@ -114,6 +122,7 @@ export default function TailorDesignSelectionStep() {
         fetchAllDesigns();
     }, []);
 
+    const selectedCount = draft.selectedDesigns.length;
     const canContinue = isTailorStepComplete(draft);
     const stepNumber = getCustomOrderStepNumber("tailor", draft.firstStep);
     const continueLabel = draft.firstStep === "tailor"
@@ -123,15 +132,10 @@ export default function TailorDesignSelectionStep() {
           : t("continueToFabric");
     const showBackToFabric = draft.firstStep === "fabric";
 
-    const handleSelectDesign = (item: TailorDesignListItem) => {
-        setDesign(toCustomOrderDesignSelection(item));
-        if (item.tailorShopId && item.tailorSlug && item.tailorName) {
-            setTailor({
-                _id: item.tailorShopId,
-                slug: item.tailorSlug,
-                name: item.tailorName,
-                nameAr: item.tailorNameAr,
-            });
+    const handleToggleDesign = (item: TailorDesignListItem) => {
+        const selected = toCustomOrderSelectedDesign(item);
+        if (selected) {
+            toggleDesign(selected);
         }
     };
 
@@ -154,12 +158,68 @@ export default function TailorDesignSelectionStep() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
             <ConfiguratorStepHeader
                 title={t("title")}
-                description={t("description")}
+                description={t("descriptionMulti")}
                 stepLabel={t("stepLabel", {
                     step: stepNumber,
                     total: CUSTOM_ORDER_TOTAL_STEPS,
                 })}
             />
+
+            {draft.selectedFabrics.length > 0 && (
+                <div className="mb-6 border border-(--color-border) bg-white p-4 sm:p-6">
+                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
+                        {t("crossStepFabrics", { count: draft.selectedFabrics.length })}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {draft.selectedFabrics.map((fabric) => {
+                            const label =
+                                locale === "ar"
+                                    ? fabric.nameAr || fabric.name
+                                    : fabric.name;
+                            return (
+                                <span
+                                    key={fabric._id}
+                                    className="px-3 py-1.5 border border-black text-black [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em]"
+                                >
+                                    {label}
+                                </span>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {selectedCount > 0 && (
+                <div className="mb-8 border border-(--color-border) bg-[#FDFAF5] p-4 sm:p-6">
+                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
+                        {t("selectedCount", { count: selectedCount })}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {draft.selectedDesigns.map((design) => {
+                            const label =
+                                locale === "ar"
+                                    ? design.nameAr || design.name
+                                    : design.name;
+                            return (
+                                <span
+                                    key={design._id}
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-black text-white [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em]"
+                                >
+                                    {label}
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleDesign(design)}
+                                        className="opacity-70 hover:opacity-100"
+                                        aria-label={t("removeDesign", { name: label })}
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             <h2 className="[font-family:var(--font-display)] text-[22px] sm:text-[24px] font-normal mb-6">
                 {t("designsTitle")}
@@ -180,14 +240,19 @@ export default function TailorDesignSelectionStep() {
                     {designs.map((item) => {
                         const { name, category } = getDesignDisplayFields(item, locale);
                         const imageUrl = resolveDesignImage(item.images?.[0]);
-                        const isSelected = draft.design?._id === item._id;
-                        const tailorName = locale === "ar" ? item.tailorNameAr || item.tailorName : item.tailorName;
+                        const isSelected = draft.selectedDesigns.some(
+                            (design) => design._id === item._id,
+                        );
+                        const tailorName =
+                            locale === "ar"
+                                ? item.tailorNameAr || item.tailorName
+                                : item.tailorName;
 
                         return (
                             <button
                                 key={item._id}
                                 type="button"
-                                onClick={() => handleSelectDesign(item)}
+                                onClick={() => handleToggleDesign(item)}
                                 className={`group text-left border rounded-lg transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 ${
                                     isSelected
                                         ? "border-black ring-2 ring-black bg-[#FDFAF5]"
@@ -200,6 +265,11 @@ export default function TailorDesignSelectionStep() {
                                         alt={name}
                                         className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105"
                                     />
+                                    {isSelected && (
+                                        <span className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black text-white flex items-center justify-center [font-family:var(--font-ui)] text-[12px]">
+                                            ✓
+                                        </span>
+                                    )}
                                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                                     <span className="absolute top-3 left-3 [font-family:var(--font-ui)] text-[10px] xs:text-[12px] uppercase tracking-[0.24em] bg-[#8B6F47] text-white px-2.5 xs:px-3 py-1 xs:py-1.25 font-bold">
                                         {category}

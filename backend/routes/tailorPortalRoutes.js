@@ -279,7 +279,9 @@ tailorPortalRouter.get(
       return;
     }
 
-    const orders = await CustomOrder.find({ tailorShopId: shop._id })
+    const orders = await CustomOrder.find({
+      $or: [{ tailorShopId: shop._id }, { "items.tailorShopId": shop._id }],
+    })
       .populate('userId', 'name email phone')
       .sort({ createdAt: -1 });
 
@@ -311,7 +313,20 @@ tailorPortalRouter.patch(
     }
 
     const shop = await TailorShop.findOne({ ownerId: req.user._id });
-    if (!shop || order.tailorShopId.toString() !== shop._id.toString()) {
+    if (!shop) {
+      res.status(403).json({ success: false, message: 'Forbidden' });
+      return;
+    }
+
+    const ownsLegacyOrder =
+      order.tailorShopId?.toString?.() === shop._id.toString();
+    const ownsItemOrder = Array.isArray(order.items)
+      ? order.items.some(
+          (item) => item.tailorShopId?.toString?.() === shop._id.toString(),
+        )
+      : false;
+
+    if (!ownsLegacyOrder && !ownsItemOrder) {
       res.status(403).json({ success: false, message: 'Forbidden' });
       return;
     }

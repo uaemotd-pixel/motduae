@@ -12,6 +12,7 @@ import TailorShop from "../models/TailorShop.js";
 import { isAuth } from "../middleware/auth.js";
 import {
   getCustomOrderPricing,
+  getMultiItemCustomOrderPricing,
   PricingValidationError,
 } from "../services/pricingService.js";
 
@@ -65,6 +66,34 @@ function validateFabricOrderInput({
     fabricId: fabricSource === "storefront" ? fabricId : null,
     fabricMeters: parseFabricMeters(fabricMeters),
   };
+}
+
+function validateMultiItemOrderInput({ fabricSource, items }) {
+  if (!fabricSource || !FABRIC_SOURCES.includes(fabricSource)) {
+    throw new PricingValidationError(
+      `fabricSource must be one of: ${FABRIC_SOURCES.join(", ")}`,
+    );
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new PricingValidationError("At least one item is required");
+  }
+
+  return {
+    fabricSource,
+    items: items.map((item) =>
+      validateFabricOrderInput({
+        designId: item.designId,
+        fabricSource,
+        fabricId: item.fabricId,
+        fabricMeters: item.fabricMeters,
+      }),
+    ),
+  };
+}
+
+function isMultiItemPayload(body) {
+  return Array.isArray(body?.items) && body.items.length > 0;
 }
 
 async function loadDesignWithApprovedShop(designId) {
@@ -189,10 +218,165 @@ function buildDesignSnapshot(design) {
   };
 }
 
+function formatTailorShopSummary(tailorShop) {
+  if (!tailorShop) return null;
+
+  const id = tailorShop._id ?? tailorShop;
+  if (!id) return null;
+
+  return {
+    _id: String(id),
+    name: tailorShop.name || "",
+    nameAr: tailorShop.nameAr || "",
+    slug: tailorShop.slug || "",
+  };
+}
+
+function formatDesignSummary(snapshot) {
+  if (!snapshot) return null;
+
+  return {
+    name: snapshot.name,
+    nameAr: snapshot.nameAr || "",
+    slug: snapshot.slug || "",
+    category: snapshot.category || "",
+  };
+}
+
+function formatFabricSummary(snapshot) {
+  if (!snapshot) return null;
+
+  return {
+    name: snapshot.name,
+    nameAr: snapshot.nameAr || "",
+    material: snapshot.material || "",
+  };
+}
+
+function formatCustomOrderLineItems(order) {
+  if (Array.isArray(order.items) && order.items.length > 0) {
+    return order.items.map((item) => ({
+      design: formatDesignSummary(item.designSnapshot),
+      fabric: formatFabricSummary(item.fabricSnapshot),
+      fabricMeters: item.fabricMeters,
+      tailorShop: formatTailorShopSummary(item.tailorShopId),
+    }));
+  }
+
+  if (!order.designSnapshot) return [];
+
+  return [
+    {
+      design: formatDesignSummary(order.designSnapshot),
+      fabric: formatFabricSummary(order.fabricSnapshot),
+      fabricMeters: order.fabricMeters,
+      tailorShop: formatTailorShopSummary(order.tailorShopId),
+    },
+  ];
+}
+
+async function deductFabricStock(fabricId, meters) {
+  const fabric = await Fabric.findById(fabricId);
+
+  if (!fabric || !fabric.isActive) {
+    throw new PricingValidationError("fabric not found");
+  }
+
+  if (fabric.stockInMeters < meters) {
+    throw new PricingValidationError(
+      `Insufficient fabric stock for ${fabric.name}. Available: ${fabric.stockInMeters} meters.`,
+    );
+  }
+
+  fabric.stockInMeters -= meters;
+  if (fabric.stockInMeters === 0) {
+    fabric.isActive = false;
+  }
+  await fabric.save();
+
+  return fabric;
+}
+
+async function buildMultiItemOrderData(orderInput) {
+  const { pricing, itemPricings } = await getMultiItemCustomOrderPricing(orderInput);
+  const fabricDeductions = new Map();
+
+  for (const item of orderInput.items) {
+    if (orderInput.fabricSource !== "storefront" || !item.fabricId) continue;
+
+    const key = item.fabricId.toString();
+    fabricDeductions.set(key, (fabricDeductions.get(key) || 0) + item.fabricMeters);
+  }
+
+  const fabricDocs = new Map();
+
+  for (const [fabricId, totalMeters] of fabricDeductions.entries()) {
+    const fabric = await deductFabricStock(fabricId, totalMeters);
+    fabricDocs.set(fabricId, fabric);
+  }
+
+  const orderItems = [];
+
+  for (let index = 0; index < orderInput.items.length; index += 1) {
+    const itemInput = orderInput.items[index];
+    const { design, shop } = await loadDesignWithApprovedShop(itemInput.designId);
+
+    let fabric = null;
+    if (orderInput.fabricSource === "storefront" && itemInput.fabricId) {
+      fabric = fabricDocs.get(itemInput.fabricId.toString()) ?? null;
+      if (!fabric) {
+        fabric = await Fabric.findById(itemInput.fabricId);
+      }
+    }
+
+    orderItems.push({
+      designId: design._id,
+      designSnapshot: buildDesignSnapshot(design),
+      tailorShopId: shop._id,
+      fabricId: fabric?._id ?? null,
+      fabricStoreId: fabric?.listedByStore ?? null,
+      fabricSnapshot: fabric ? buildFabricSnapshot(fabric) : null,
+      fabricMeters: itemInput.fabricMeters,
+      pricing: itemPricings[index],
+    });
+  }
+
+  const firstItem = orderItems[0];
+  const firstFabric =
+    orderInput.fabricSource === "storefront" && firstItem.fabricId
+      ? fabricDocs.get(firstItem.fabricId.toString()) ??
+        (await Fabric.findById(firstItem.fabricId))
+      : null;
+
+  return {
+    pricing,
+    orderItems,
+    legacyFields: {
+      fabricId: firstFabric?._id ?? null,
+      fabricStoreId: firstFabric?.listedByStore ?? null,
+      fabricSnapshot: firstFabric ? buildFabricSnapshot(firstFabric) : null,
+      fabricMeters: orderItems.reduce((sum, item) => sum + item.fabricMeters, 0),
+      tailorShopId: firstItem.tailorShopId,
+      designId: firstItem.designId,
+      designSnapshot: firstItem.designSnapshot,
+    },
+    firstFabric,
+  };
+}
+
 orderRoutes.post("/custom/preview", async (req, res) => {
   try {
-    const orderInput = validateFabricOrderInput(req.body);
+    if (isMultiItemPayload(req.body)) {
+      const orderInput = validateMultiItemOrderInput(req.body);
+      const { pricing } = await getMultiItemCustomOrderPricing(orderInput);
 
+      return res.json({
+        success: true,
+        pricing,
+      });
+    }
+
+    const orderInput = validateFabricOrderInput(req.body);
     const pricing = await getCustomOrderPricing(orderInput);
 
     res.json({
@@ -222,13 +406,65 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
       fabricSource,
       fabricId,
       fabricMeters,
+      items,
       measurements,
       customerDeliveryAddress,
       pickupAddress,
       paymentMethod = "cod",
     } = req.body;
 
-    // Helpful debug for 400 validation failures
+    if (!PAYMENT_METHODS.includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: `paymentMethod must be one of: ${PAYMENT_METHODS.join(", ")}`,
+      });
+    }
+
+    const deliveryAddr = normalizeDeliveryAddress(customerDeliveryAddress);
+
+    if (isMultiItemPayload(req.body)) {
+      const orderInput = validateMultiItemOrderInput({ fabricSource, items });
+      const { pricing, orderItems, legacyFields, firstFabric } =
+        await buildMultiItemOrderData(orderInput);
+
+      let resolvedPickupAddress;
+      if (orderInput.fabricSource === "storefront" && firstFabric) {
+        resolvedPickupAddress = pickupAddress
+          ? normalizePickupAddress(pickupAddress)
+          : buildPickupAddressFromFabric(firstFabric);
+      } else {
+        resolvedPickupAddress = normalizePickupAddress(pickupAddress);
+      }
+
+      const order = await CustomOrder.create({
+        userId: req.user._id,
+        fabricSource: orderInput.fabricSource,
+        ...legacyFields,
+        items: orderItems,
+        measurements: measurements || {},
+        customerDeliveryAddress: deliveryAddr,
+        pickupAddress: resolvedPickupAddress,
+        status: "pending",
+        statusHistory: [
+          {
+            status: "pending",
+            note: "Order placed",
+            changedAt: new Date(),
+            changedBy: req.user._id,
+          },
+        ],
+        pricing,
+        paymentMethod,
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: "Custom order created successfully",
+        orderId: order._id,
+        order,
+      });
+    }
+
     console.log("POST /api/orders/custom payload (sanitized):", {
       designId,
       fabricSource,
@@ -248,44 +484,15 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
       fabricMeters,
     });
 
-    if (!PAYMENT_METHODS.includes(paymentMethod)) {
-      return res.status(400).json({
-        success: false,
-        message: `paymentMethod must be one of: ${PAYMENT_METHODS.join(", ")}`,
-      });
-    }
-
     const { design, shop } = await loadDesignWithApprovedShop(
       orderInput.designId,
     );
-    const deliveryAddr = normalizeDeliveryAddress(customerDeliveryAddress);
 
     let fabric = null;
     let resolvedPickupAddress;
 
     if (orderInput.fabricSource === "storefront") {
-      fabric = await Fabric.findById(orderInput.fabricId);
-
-      if (!fabric || !fabric.isActive) {
-        return res.status(400).json({
-          success: false,
-          message: "fabric not found",
-        });
-      }
-
-      // Deduct Fabric
-      if (fabric.stockInMeters < orderInput.fabricMeters) {
-        return res.status(400).json({
-          success: false,
-          message: `Insufficient fabric stock. Available: ${fabric.stockInMeters} meters.`,
-        });
-      }
-
-      fabric.stockInMeters -= orderInput.fabricMeters;
-      if (fabric.stockInMeters === 0) {
-        fabric.isActive = false;
-      }
-      await fabric.save();
+      fabric = await deductFabricStock(orderInput.fabricId, orderInput.fabricMeters);
 
       resolvedPickupAddress = pickupAddress
         ? normalizePickupAddress(pickupAddress)
@@ -351,35 +558,29 @@ orderRoutes.get("/custom/mine", isAuth, async (req, res) => {
     })
       .sort({ createdAt: -1 })
       .populate("tailorShopId", "name nameAr slug")
+      .populate("items.tailorShopId", "name nameAr slug")
       .select(
-        "_id createdAt status fabricSource designSnapshot pricing tailorShopId userId",
+        "_id createdAt status fabricSource designSnapshot fabricSnapshot fabricMeters pricing tailorShopId userId items",
       );
 
-    const formatted = orders.map((order) => ({
-      id: order._id,
-      date: order.createdAt,
-      status: order.status,
-      fabricSource: order.fabricSource,
-      total: order.pricing?.total,
-      currency: order.pricing?.currency,
-      userId: order.userId,
-      design: order.designSnapshot
-        ? {
-            name: order.designSnapshot.name,
-            nameAr: order.designSnapshot.nameAr,
-            slug: order.designSnapshot.slug,
-            category: order.designSnapshot.category,
-          }
-        : null,
-      tailorShop: order.tailorShopId
-        ? {
-            _id: order.tailorShopId._id,
-            name: order.tailorShopId.name,
-            nameAr: order.tailorShopId.nameAr,
-            slug: order.tailorShopId.slug,
-          }
-        : null,
-    }));
+    const formatted = orders.map((order) => {
+      const items = formatCustomOrderLineItems(order);
+      const primaryItem = items[0] ?? null;
+
+      return {
+        id: order._id,
+        date: order.createdAt,
+        status: order.status,
+        fabricSource: order.fabricSource,
+        total: order.pricing?.total,
+        currency: order.pricing?.currency,
+        userId: order.userId,
+        itemCount: items.length,
+        items,
+        design: primaryItem?.design ?? null,
+        tailorShop: primaryItem?.tailorShop ?? formatTailorShopSummary(order.tailorShopId),
+      };
+    });
 
     res.json({
       success: true,

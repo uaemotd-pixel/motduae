@@ -39,7 +39,7 @@ export default function FabricSelectionStep() {
         isHydrated,
         useOwnFabric,
         setUseOwnFabric,
-        setFabric,
+        toggleFabric,
         setFabricSource,
         setFirstStepIfUnset,
         resetOrder,
@@ -82,11 +82,13 @@ export default function FabricSelectionStep() {
     useEffect(() => {
         if (!isHydrated) return;
         setFirstStepIfUnset("fabric");
-        // Ensure that platform fabric is chosen since we are hiding the selection options
         if (useOwnFabric) {
             setUseOwnFabric(false);
         }
-    }, [isHydrated, setFirstStepIfUnset, useOwnFabric, setUseOwnFabric]);
+        if (draft.selectedFabrics.length > 0 && !draft.fabricSource) {
+            setFabricSource("storefront");
+        }
+    }, [isHydrated, setFirstStepIfUnset, useOwnFabric, setUseOwnFabric, draft.selectedFabrics.length, draft.fabricSource, setFabricSource]);
 
     useEffect(() => {
         if (!isHydrated || prefillDone || !fabricSlug) return;
@@ -100,7 +102,7 @@ export default function FabricSelectionStep() {
 
                 if (data?.success && data.item) {
                     setFabricSource("storefront");
-                    setFabric(toCustomOrderFabricSelection(data.item));
+                    toggleFabric(toCustomOrderFabricSelection(data.item));
                 }
             } catch {
                 // Ignore invalid slug — customer can still pick manually
@@ -110,13 +112,14 @@ export default function FabricSelectionStep() {
         };
 
         prefillFabric();
-    }, [fabricSlug, isHydrated, prefillDone, setFabric, setFabricSource]);
+    }, [fabricSlug, isHydrated, prefillDone, toggleFabric, setFabricSource, resetOrder]);
 
     const filteredFabrics = useMemo(
         () => filterFabricsByMaterial(fabrics, selectedFilter),
         [fabrics, selectedFilter],
     );
 
+    const selectedCount = draft.selectedFabrics.length;
     const canContinue = isFabricStepComplete(draft);
     const stepNumber = getCustomOrderStepNumber("fabric", draft.firstStep);
     const continueLabel = draft.firstStep === "fabric"
@@ -126,19 +129,9 @@ export default function FabricSelectionStep() {
           : t("continueToTailor");
     const showBackToTailor = draft.firstStep === "tailor";
 
-    const handleSelectFabric = (item: FabricListItem) => {
+    const handleToggleFabric = (item: FabricListItem) => {
         setFabricSource("storefront");
-        setFabric(toCustomOrderFabricSelection(item));
-    };
-
-    const handleUseOwnFabric = () => {
-        setUseOwnFabric(true);
-        setFabric(null);
-    };
-
-    const handleUsePlatformFabric = () => {
-        setUseOwnFabric(false);
-        setFabricSource("storefront");
+        toggleFabric(toCustomOrderFabricSelection(item));
     };
 
     const handleContinue = () => {
@@ -160,67 +153,79 @@ export default function FabricSelectionStep() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
             <ConfiguratorStepHeader
                 title={t("title")}
-                description={t("description")}
+                description={t("descriptionMulti")}
                 stepLabel={t("stepLabel", {
                     step: stepNumber,
                     total: CUSTOM_ORDER_TOTAL_STEPS,
                 })}
             />
 
-            {/* Commented out Platform Fabric and Use My Own Fabric options selection for now
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
-                <button
-                    type="button"
-                    onClick={handleUsePlatformFabric}
-                    className={`text-left p-6 border transition-all duration-200 ${
-                        !useOwnFabric
-                            ? "border-black bg-black text-white"
-                            : "border-(--color-border) bg-white hover:border-black"
-                    }`}
-                >
-                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] mb-2 opacity-80">
-                        {t("platformOptionEyebrow")}
+            {draft.selectedDesigns.length > 0 && (
+                <div className="mb-6 border border-(--color-border) bg-white p-4 sm:p-6">
+                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
+                        {t("crossStepDesigns", { count: draft.selectedDesigns.length })}
                     </p>
-                    <h2 className="[font-family:var(--font-display)] text-[22px] font-normal mb-2">
-                        {t("platformOptionTitle")}
-                    </h2>
-                    <p className="[font-family:var(--font-body)] text-[13px] leading-relaxed opacity-90">
-                        {t("platformOptionDescription")}
-                    </p>
-                </button>
-
-                <button
-                    type="button"
-                    onClick={handleUseOwnFabric}
-                    className={`text-left p-6 border transition-all duration-200 ${
-                        useOwnFabric
-                            ? "border-black bg-black text-white"
-                            : "border-(--color-border) bg-white hover:border-black"
-                    }`}
-                >
-                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] mb-2 opacity-80">
-                        {t("ownFabricOptionEyebrow")}
-                    </p>
-                    <h2 className="[font-family:var(--font-display)] text-[22px] font-normal mb-2">
-                        {t("ownFabricOptionTitle")}
-                    </h2>
-                    <p className="[font-family:var(--font-body)] text-[13px] leading-relaxed opacity-90">
-                        {t("ownFabricOptionDescription")}
-                    </p>
-                </button>
-            </div>
-            */}
-
-            {useOwnFabric ? (
-                <div className="border border-(--color-border) bg-[#FDFAF5] p-8 mb-10">
-                    <h3 className="[font-family:var(--font-display)] text-[20px] mb-3">
-                        {t("ownFabricConfirmedTitle")}
-                    </h3>
-                    <p className="[font-family:var(--font-body)] text-[14px] leading-relaxed text-(--color-grey-muted) max-w-2xl">
-                        {t("ownFabricConfirmedDescription")}
-                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {draft.selectedDesigns.map((design) => {
+                            const label =
+                                locale === "ar"
+                                    ? design.nameAr || design.name
+                                    : design.name;
+                            return (
+                                <span
+                                    key={design._id}
+                                    className="px-3 py-1.5 border border-black text-black [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em]"
+                                >
+                                    {label}
+                                </span>
+                            );
+                        })}
+                    </div>
                 </div>
-            ) : (
+            )}
+
+            {selectedCount > 0 && (
+                <div className="mb-8 border border-(--color-border) bg-[#FDFAF5] p-4 sm:p-6">
+                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
+                        {t("selectedCount", { count: selectedCount })}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {draft.selectedFabrics.map((fabric) => {
+                            const label =
+                                locale === "ar"
+                                    ? fabric.nameAr || fabric.name
+                                    : fabric.name;
+                            return (
+                                <span
+                                    key={fabric._id}
+                                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-black text-white [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em]"
+                                >
+                                    {label}
+                                    <button
+                                        type="button"
+                                        onClick={() => handleToggleFabric({
+                                            _id: fabric._id,
+                                            slug: fabric.slug,
+                                            name: fabric.name,
+                                            nameAr: fabric.nameAr,
+                                            material: fabric.material as FabricListItem["material"],
+                                            pricePerMeter: fabric.pricePerMeter,
+                                            stockInMeters: 0,
+                                            images: fabric.image ? [fabric.image] : [],
+                                        })}
+                                        className="opacity-70 hover:opacity-100"
+                                        aria-label={t("removeFabric", { name: label })}
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {!useOwnFabric && (
                 <>
                     <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
                         <button
@@ -265,13 +270,15 @@ export default function FabricSelectionStep() {
                             {filteredFabrics.map((item) => {
                                 const { title, location } = getFabricDisplayFields(item, locale);
                                 const imageUrl = resolveMediaUrl(item.images?.[0]);
-                                const isSelected = draft.fabric?._id === item._id;
+                                const isSelected = draft.selectedFabrics.some(
+                                    (fabric) => fabric._id === item._id,
+                                );
 
                                 return (
                                     <button
                                         key={item._id}
                                         type="button"
-                                        onClick={() => handleSelectFabric(item)}
+                                        onClick={() => handleToggleFabric(item)}
                                         className={`group text-left border rounded-lg transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 ${
                                             isSelected
                                                 ? "border-black ring-2 ring-black bg-[#FDFAF5]"
@@ -284,6 +291,11 @@ export default function FabricSelectionStep() {
                                                 alt={title}
                                                 className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105"
                                             />
+                                            {isSelected && (
+                                                <span className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black text-white flex items-center justify-center [font-family:var(--font-ui)] text-[12px]">
+                                                    ✓
+                                                </span>
+                                            )}
                                             <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                                         </div>
                                         <div className="p-4">

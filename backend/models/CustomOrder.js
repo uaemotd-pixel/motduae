@@ -118,6 +118,49 @@ const statusHistoryEntrySchema = new mongoose.Schema(
   { _id: false }
 );
 
+const customOrderItemSchema = new mongoose.Schema(
+  {
+    designId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Design',
+      required: true,
+    },
+    designSnapshot: {
+      type: designSnapshotSchema,
+      required: true,
+    },
+    tailorShopId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TailorShop',
+      required: true,
+    },
+    fabricId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Fabric',
+      default: null,
+    },
+    fabricStoreId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    fabricSnapshot: {
+      type: fabricSnapshotSchema,
+      default: null,
+    },
+    fabricMeters: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    pricing: {
+      type: pricingSchema,
+      required: true,
+    },
+  },
+  { _id: true }
+);
+
 const customOrderSchema = new mongoose.Schema(
   {
     orderType: {
@@ -159,16 +202,20 @@ const customOrderSchema = new mongoose.Schema(
     tailorShopId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'TailorShop',
-      required: true,
+      default: null,
     },
     designId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Design',
-      required: true,
+      default: null,
     },
     designSnapshot: {
       type: designSnapshotSchema,
-      required: true,
+      default: null,
+    },
+    items: {
+      type: [customOrderItemSchema],
+      default: [],
     },
     measurements: {
       type: measurementsSchema,
@@ -221,6 +268,38 @@ customOrderSchema.index({ status: 1, createdAt: -1 });
 customOrderSchema.index({ tailorShopId: 1, status: 1 });
 
 customOrderSchema.pre('validate', function validateFabricSource(next) {
+  const hasItems = Array.isArray(this.items) && this.items.length > 0;
+
+  if (hasItems) {
+    for (const item of this.items) {
+      if (this.fabricSource === 'storefront') {
+        if (!item.fabricId) {
+          return next(
+            new Error('fabricId is required on each item when fabricSource is storefront')
+          );
+        }
+        if (!item.fabricStoreId) {
+          return next(
+            new Error('fabricStoreId is required on each item when fabricSource is storefront')
+          );
+        }
+        if (!item.fabricSnapshot) {
+          return next(
+            new Error('fabricSnapshot is required on each item when fabricSource is storefront')
+          );
+        }
+      }
+
+      if (this.fabricSource === 'self') {
+        item.fabricId = null;
+        item.fabricStoreId = null;
+        item.fabricSnapshot = null;
+      }
+    }
+
+    return next();
+  }
+
   if (this.fabricSource === 'storefront') {
     if (!this.fabricId) {
       return next(new Error('fabricId is required when fabricSource is storefront'));
@@ -237,6 +316,10 @@ customOrderSchema.pre('validate', function validateFabricSource(next) {
     this.fabricId = null;
     this.fabricStoreId = null;
     this.fabricSnapshot = null;
+  }
+
+  if (!this.designId || !this.tailorShopId || !this.designSnapshot) {
+    return next(new Error('designId, tailorShopId, and designSnapshot are required'));
   }
 
   next();

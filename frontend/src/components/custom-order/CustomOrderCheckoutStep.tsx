@@ -187,15 +187,8 @@ export default function CustomOrderCheckoutStep() {
     fetchPreview();
   }, [isHydrated, previewPayload, t]);
 
-  const designName =
-    locale === "ar"
-      ? draft.design?.nameAr || draft.design?.name
-      : draft.design?.name;
-
-  const tailorName =
-    locale === "ar"
-      ? draft.tailor?.nameAr || draft.tailor?.name
-      : draft.tailor?.name;
+  const getDisplayName = (name?: string, nameAr?: string) =>
+    locale === "ar" ? nameAr || name : name;
 
   const address = draft.deliveryAddress;
 
@@ -254,13 +247,14 @@ export default function CustomOrderCheckoutStep() {
         throw new Error(response.message || t("submitError"));
       }
 
-      const confirmedName =
-        locale === "ar"
-          ? draft.design?.nameAr || draft.design?.name || t("unknownDesign")
-          : draft.design?.name || t("unknownDesign");
+      const orderItemNames = draft.lineItems.map((item) => ({
+        name:
+          getDisplayName(item.design.name, item.design.nameAr) ||
+          t("unknownDesign"),
+      }));
 
       setOrderId(response.orderId);
-      setSuccessOrderItems([{ name: confirmedName }]);
+      setSuccessOrderItems(orderItemNames);
       setShowSuccess(true);
     } catch (err: unknown) {
       const message =
@@ -306,22 +300,26 @@ export default function CustomOrderCheckoutStep() {
               </h2>
 
               <dl className="space-y-4 mb-6">
-                <div>
-                  <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                    {t("design")}
-                  </dt>
-                  <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                    {designName || "—"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                    {t("tailor")}
-                  </dt>
-                  <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                    {tailorName || "—"}
-                  </dd>
-                </div>
+                {draft.lineItems.map((item) => (
+                  <div key={item.id} className="border-b border-(--color-border) pb-4 last:border-b-0 last:pb-0">
+                    <div>
+                      <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                        {t("design")}
+                      </dt>
+                      <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                        {getDisplayName(item.design.name, item.design.nameAr) || "—"}
+                      </dd>
+                    </div>
+                    <div className="mt-3">
+                      <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                        {t("tailor")}
+                      </dt>
+                      <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                        {getDisplayName(item.tailor.name, item.tailor.nameAr) || "—"}
+                      </dd>
+                    </div>
+                  </div>
+                ))}
               </dl>
 
               <div className="pt-4 border-t border-(--color-border) flex justify-between items-center gap-4">

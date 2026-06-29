@@ -56,6 +56,18 @@ export interface CustomOrderDesignSelection {
     image?: string;
 }
 
+export interface CustomOrderSelectedDesign extends CustomOrderDesignSelection {
+    tailor: CustomOrderTailorSelection;
+}
+
+export interface CustomOrderLineItem {
+    id: string;
+    design: CustomOrderDesignSelection;
+    tailor: CustomOrderTailorSelection;
+    fabric: CustomOrderFabricSelection | null;
+    fabricMeters: number | null;
+}
+
 export const CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS = [
     "totalLength",
     "shoulderWidth",
@@ -100,19 +112,22 @@ export interface CustomOrderDeliveryAddress {
 export interface CustomOrderDraft {
     firstStep: CustomOrderFirstStep | null;
     fabricSource: FabricSource | null;
-    fabric: CustomOrderFabricSelection | null;
-    tailor: CustomOrderTailorSelection | null;
-    design: CustomOrderDesignSelection | null;
-    fabricMeters: number | null;
+    selectedFabrics: CustomOrderFabricSelection[];
+    selectedDesigns: CustomOrderSelectedDesign[];
+    lineItems: CustomOrderLineItem[];
     measurements: CustomOrderMeasurements;
     deliveryAddress: Partial<CustomOrderDeliveryAddress>;
 }
 
-export interface CustomOrderPreviewPayload {
+export interface CustomOrderPreviewItemPayload {
     designId: string;
-    fabricSource: FabricSource;
     fabricId?: string;
     fabricMeters: number;
+}
+
+export interface CustomOrderPreviewPayload {
+    fabricSource: FabricSource;
+    items: CustomOrderPreviewItemPayload[];
 }
 
 export interface CustomOrderPricingBreakdown {
@@ -127,6 +142,7 @@ export interface CustomOrderPricingBreakdown {
     vatAmount: number;
     total: number;
     currency: string;
+    itemCount?: number;
 }
 
 export const CUSTOM_ORDER_STORAGE_KEY = "motdCustomOrderDraft";
@@ -152,10 +168,9 @@ export function createEmptyCustomOrderDraft(
     return {
         firstStep,
         fabricSource: null,
-        fabric: null,
-        tailor: null,
-        design: null,
-        fabricMeters: null,
+        selectedFabrics: [],
+        selectedDesigns: [],
+        lineItems: [],
         measurements: { ...EMPTY_MEASUREMENTS },
         deliveryAddress: {},
     };
@@ -278,6 +293,39 @@ function normalizeDesign(value: unknown): CustomOrderDesignSelection | null {
     };
 }
 
+function normalizeSelectedDesign(value: unknown): CustomOrderSelectedDesign | null {
+    if (!value || typeof value !== "object") return null;
+
+    const entry = value as Partial<CustomOrderSelectedDesign>;
+    const design = normalizeDesign(entry);
+    const tailor = normalizeTailor(entry.tailor);
+
+    if (!design || !tailor) return null;
+
+    return { ...design, tailor };
+}
+
+function normalizeLineItem(value: unknown): CustomOrderLineItem | null {
+    if (!value || typeof value !== "object") return null;
+
+    const item = value as Partial<CustomOrderLineItem>;
+    const design = normalizeDesign(item.design);
+    const tailor = normalizeTailor(item.tailor);
+    const fabric = item.fabric ? normalizeFabric(item.fabric) : null;
+
+    if (!item.id || !design || !tailor) return null;
+
+    const meters = normalizeNumber(item.fabricMeters);
+
+    return {
+        id: item.id,
+        design,
+        tailor,
+        fabric,
+        fabricMeters: meters,
+    };
+}
+
 function normalizeMeasurements(value: unknown): CustomOrderMeasurements {
     if (!value || typeof value !== "object") {
         return { ...EMPTY_MEASUREMENTS };
@@ -318,27 +366,93 @@ function normalizeDeliveryAddress(
     };
 }
 
+function normalizeFabricArray(value: unknown): CustomOrderFabricSelection[] {
+    if (Array.isArray(value)) {
+        return value
+            .map((entry) => normalizeFabric(entry))
+            .filter((entry): entry is CustomOrderFabricSelection => entry !== null);
+    }
+    return [];
+}
+
+function normalizeSelectedDesignArray(value: unknown): CustomOrderSelectedDesign[] {
+    if (Array.isArray(value)) {
+        return value
+            .map((entry) => normalizeSelectedDesign(entry))
+            .filter((entry): entry is CustomOrderSelectedDesign => entry !== null);
+    }
+    return [];
+}
+
+function normalizeLineItemArray(value: unknown): CustomOrderLineItem[] {
+    if (Array.isArray(value)) {
+        return value
+            .map((entry) => normalizeLineItem(entry))
+            .filter((entry): entry is CustomOrderLineItem => entry !== null);
+    }
+    return [];
+}
+
+function migrateLegacyDraft(
+    draft: Record<string, unknown>,
+    fabricSource: FabricSource | null,
+): Pick<
+    CustomOrderDraft,
+    "selectedFabrics" | "selectedDesigns" | "lineItems"
+> {
+    let selectedFabrics = normalizeFabricArray(draft.selectedFabrics);
+    let selectedDesigns = normalizeSelectedDesignArray(draft.selectedDesigns);
+    let lineItems = normalizeLineItemArray(draft.lineItems);
+
+    const legacyFabric = normalizeFabric(draft.fabric);
+    const legacyDesign = normalizeDesign(draft.design);
+    const legacyTailor = normalizeTailor(draft.tailor);
+    const legacyMeters = normalizeNumber(draft.fabricMeters);
+
+    if (selectedFabrics.length === 0 && legacyFabric) {
+        selectedFabrics = [legacyFabric];
+    }
+
+    if (selectedDesigns.length === 0 && legacyDesign && legacyTailor) {
+        selectedDesigns = [{ ...legacyDesign, tailor: legacyTailor }];
+    }
+
+    if (lineItems.length === 0 && legacyDesign && legacyTailor) {
+        lineItems = [
+            {
+                id: `${legacyDesign._id}-${legacyFabric?._id ?? "self"}`,
+                design: legacyDesign,
+                tailor: legacyTailor,
+                fabric: fabricSource === "self" ? null : legacyFabric,
+                fabricMeters: legacyMeters,
+            },
+        ];
+    }
+
+    return { selectedFabrics, selectedDesigns, lineItems };
+}
+
 export function normalizeCustomOrderDraft(value: unknown): CustomOrderDraft {
     const empty = createEmptyCustomOrderDraft();
     if (!value || typeof value !== "object") return empty;
 
-    const draft = value as Partial<CustomOrderDraft>;
+    const draft = value as Record<string, unknown>;
     const fabricSource =
         draft.fabricSource === "storefront" || draft.fabricSource === "self"
             ? draft.fabricSource
             : null;
 
-    const fabric = normalizeFabric(draft.fabric);
-    const tailor = normalizeTailor(draft.tailor);
-    const design = normalizeDesign(draft.design);
+    const migrated = migrateLegacyDraft(draft, fabricSource);
 
     return {
         firstStep: normalizeFirstStep(draft.firstStep),
-        fabricSource,
-        fabric: fabricSource === "self" ? null : fabric,
-        tailor,
-        design,
-        fabricMeters: normalizeNumber(draft.fabricMeters),
+        fabricSource:
+            fabricSource ??
+            (migrated.selectedFabrics.length > 0 ? "storefront" : null),
+        selectedFabrics:
+            fabricSource === "self" ? [] : migrated.selectedFabrics,
+        selectedDesigns: migrated.selectedDesigns,
+        lineItems: migrated.lineItems,
         measurements: normalizeMeasurements(draft.measurements),
         deliveryAddress: normalizeDeliveryAddress(draft.deliveryAddress),
     };
@@ -364,7 +478,9 @@ export function toCustomOrderFabricSelection(
 
 export function isFabricStepComplete(draft: CustomOrderDraft): boolean {
     if (draft.fabricSource === "self") return true;
-    if (draft.fabricSource === "storefront" && draft.fabric) return true;
+    if (draft.fabricSource === "storefront" && draft.selectedFabrics.length > 0) {
+        return true;
+    }
     return false;
 }
 
@@ -400,12 +516,45 @@ export function toCustomOrderDesignSelection(
     };
 }
 
+export function toCustomOrderSelectedDesign(
+    item: TailorDesignListItem,
+): CustomOrderSelectedDesign | null {
+    const design = toCustomOrderDesignSelection(item);
+    if (!item.tailorShopId || !item.tailorSlug || !item.tailorName) return null;
+
+    return {
+        ...design,
+        tailor: {
+            _id: item.tailorShopId,
+            slug: item.tailorSlug,
+            name: item.tailorName,
+            nameAr: item.tailorNameAr,
+        },
+    };
+}
+
 export function isTailorStepComplete(draft: CustomOrderDraft): boolean {
-    return Boolean(draft.tailor && draft.design);
+    return draft.selectedDesigns.length > 0;
+}
+
+export function isLineItemMetersValid(meters: number | null): boolean {
+    return meters !== null && meters >= 2 && meters <= 7;
+}
+
+export function isLineItemComplete(
+    item: CustomOrderLineItem,
+    fabricSource: FabricSource | null,
+): boolean {
+    if (!isLineItemMetersValid(item.fabricMeters)) return false;
+    if (fabricSource === "storefront" && !item.fabric) return false;
+    return true;
 }
 
 export function isMetersStepComplete(draft: CustomOrderDraft): boolean {
-    return draft.fabricMeters !== null && draft.fabricMeters >= 2 && draft.fabricMeters <= 7;
+    if (draft.lineItems.length === 0) return false;
+    return draft.lineItems.every((item) =>
+        isLineItemComplete(item, draft.fabricSource),
+    );
 }
 
 export function isMeasurementsStepComplete(_draft: CustomOrderDraft): boolean {
@@ -419,24 +568,84 @@ export function isReviewStepComplete(
     return buildCustomOrderPreviewPayload(draft) !== null && hasPricing;
 }
 
+export function createLineItemId(designId: string, fabricId: string | null): string {
+    return `${designId}-${fabricId ?? "self"}`;
+}
+
+export function getSuggestedMetersForDesign(design: CustomOrderDesignSelection): number {
+    const estimated = design.estimatedMeters;
+    if (!estimated || estimated <= 0) return 3;
+    return Math.min(7, Math.max(2, estimated));
+}
+
+export function buildAutoLineItem(
+    design: CustomOrderSelectedDesign,
+    fabric: CustomOrderFabricSelection | null,
+): CustomOrderLineItem {
+    return {
+        id: createLineItemId(design._id, fabric?._id ?? null),
+        design,
+        tailor: design.tailor,
+        fabric,
+        fabricMeters: getSuggestedMetersForDesign(design),
+    };
+}
+
+/** Auto-pair when one side has a single selection; skip N×N to avoid cartesian explosion. */
+export function buildAutoLineItemsFromSelections(
+    selectedFabrics: CustomOrderFabricSelection[],
+    selectedDesigns: CustomOrderSelectedDesign[],
+    fabricSource: FabricSource | null,
+): CustomOrderLineItem[] {
+    if (selectedDesigns.length === 0) return [];
+
+    const usingOwnFabric = fabricSource === "self";
+    if (!usingOwnFabric && selectedFabrics.length === 0) return [];
+
+    if (selectedDesigns.length === 1) {
+        const design = selectedDesigns[0];
+        if (usingOwnFabric) {
+            return [buildAutoLineItem(design, null)];
+        }
+        return selectedFabrics.map((fabric) => buildAutoLineItem(design, fabric));
+    }
+
+    if (usingOwnFabric || selectedFabrics.length === 1) {
+        const fabric = usingOwnFabric ? null : selectedFabrics[0];
+        return selectedDesigns.map((design) => buildAutoLineItem(design, fabric));
+    }
+
+    return [];
+}
+
 export function buildCustomOrderPreviewPayload(
     draft: CustomOrderDraft,
 ): CustomOrderPreviewPayload | null {
-    if (!draft.design?._id || !draft.fabricSource || !draft.fabricMeters) {
+    if (!draft.fabricSource || !isMetersStepComplete(draft)) {
         return null;
     }
 
-    if (draft.fabricSource === "storefront" && !draft.fabric?._id) {
-        return null;
+    const items: CustomOrderPreviewItemPayload[] = [];
+
+    for (const item of draft.lineItems) {
+        if (!isLineItemComplete(item, draft.fabricSource) || !item.fabricMeters) {
+            return null;
+        }
+
+        items.push({
+            designId: item.design._id,
+            fabricMeters: item.fabricMeters,
+            ...(draft.fabricSource === "storefront" && item.fabric
+                ? { fabricId: item.fabric._id }
+                : {}),
+        });
     }
+
+    if (items.length === 0) return null;
 
     return {
-        designId: draft.design._id,
         fabricSource: draft.fabricSource,
-        fabricMeters: draft.fabricMeters,
-        ...(draft.fabricSource === "storefront"
-            ? { fabricId: draft.fabric!._id }
-            : {}),
+        items,
     };
 }
 
@@ -466,4 +675,48 @@ export function buildCustomOrderCreatePayload(
     }
 
     return payload;
+}
+
+export function toggleFabricInList(
+    fabrics: CustomOrderFabricSelection[],
+    fabric: CustomOrderFabricSelection,
+): CustomOrderFabricSelection[] {
+    const exists = fabrics.some((entry) => entry._id === fabric._id);
+    if (exists) {
+        return fabrics.filter((entry) => entry._id !== fabric._id);
+    }
+    return [...fabrics, fabric];
+}
+
+export function toggleDesignInList(
+    designs: CustomOrderSelectedDesign[],
+    design: CustomOrderSelectedDesign,
+): CustomOrderSelectedDesign[] {
+    const exists = designs.some((entry) => entry._id === design._id);
+    if (exists) {
+        return designs.filter((entry) => entry._id !== design._id);
+    }
+    return [...designs, design];
+}
+
+export function pruneLineItemsForSelections(
+    lineItems: CustomOrderLineItem[],
+    selectedFabrics: CustomOrderFabricSelection[],
+    selectedDesigns: CustomOrderSelectedDesign[],
+    fabricSource: FabricSource | null,
+): CustomOrderLineItem[] {
+    const fabricIds = new Set(selectedFabrics.map((fabric) => fabric._id));
+    const designIds = new Set(selectedDesigns.map((design) => design._id));
+
+    return lineItems.filter((item) => {
+        if (!designIds.has(item.design._id)) return false;
+        if (fabricSource === "storefront") {
+            return item.fabric ? fabricIds.has(item.fabric._id) : false;
+        }
+        return true;
+    });
+}
+
+export function getLineItemPairKey(designId: string, fabricId: string | null): string {
+    return `${designId}::${fabricId ?? "self"}`;
 }

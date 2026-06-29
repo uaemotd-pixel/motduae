@@ -27,6 +27,19 @@ export interface CustomOrderTailorSummary {
   slug?: string;
 }
 
+export interface CustomOrderFabricSummary {
+  name: string;
+  nameAr?: string;
+  material?: string;
+}
+
+export interface CustomOrderLineItemSummary {
+  design: CustomOrderDesignSummary | null;
+  fabric: CustomOrderFabricSummary | null;
+  fabricMeters: number;
+  tailorShop: CustomOrderTailorSummary | null;
+}
+
 export interface CustomOrderListItem {
   id: string;
   date: string;
@@ -34,6 +47,8 @@ export interface CustomOrderListItem {
   fabricSource: "storefront" | "self";
   total?: number;
   currency?: string;
+  itemCount: number;
+  items: CustomOrderLineItemSummary[];
   design: CustomOrderDesignSummary | null;
   tailorShop: CustomOrderTailorSummary | null;
 }
@@ -52,6 +67,7 @@ export interface CustomOrderDetail {
   fabricMeters?: number;
   statusHistory: CustomOrderStatusHistoryEntry[];
   designSnapshot?: CustomOrderDesignSummary & { basePrice?: number };
+  items?: CustomOrderLineItemSummary[];
   pricing?: {
     total: number;
     currency: string;
@@ -146,4 +162,32 @@ export function getTailorDisplayName(
 
 export function shortenOrderId(id: string): string {
   return id.slice(-8).toUpperCase();
+}
+
+export function getFabricDisplayName(
+  fabric: CustomOrderFabricSummary | null | undefined,
+  locale: Locale,
+): string {
+  if (!fabric) return "";
+  return locale === "ar" ? fabric.nameAr || fabric.name : fabric.name;
+}
+
+export function getOrderItemsSummary(
+  order: Pick<CustomOrderListItem, "items" | "itemCount">,
+): CustomOrderLineItemSummary[] {
+  return order.items?.length ? order.items : [];
+}
+
+export function getOrderHeadline(
+  order: Pick<CustomOrderListItem, "design" | "itemCount" | "items">,
+  locale: Locale,
+  labels: { singleFallback: string; multiple: (count: number) => string },
+): string {
+  const items = getOrderItemsSummary(order);
+  if (items.length > 1) {
+    return labels.multiple(items.length);
+  }
+
+  const designName = getDesignDisplayName(order.design, locale);
+  return designName || labels.singleFallback;
 }

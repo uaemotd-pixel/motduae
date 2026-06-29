@@ -88,25 +88,8 @@ export default function OrderReviewStep() {
 
   const canContinue = isReviewStepComplete(draft, pricing !== null);
 
-  const fabricLabel = usingOwnFabric
-    ? t("ownFabric")
-    : locale === "ar"
-      ? draft.fabric?.nameAr || draft.fabric?.name
-      : draft.fabric?.name;
-
-  const tailorLabel =
-    locale === "ar"
-      ? draft.tailor?.nameAr || draft.tailor?.name
-      : draft.tailor?.name;
-
-  const designLabel =
-    locale === "ar"
-      ? draft.design?.nameAr || draft.design?.name
-      : draft.design?.name;
-
-  const designCategory = draft.design
-    ? formatDesignCategory(draft.design.category, locale)
-    : "";
+  const getDisplayName = (name?: string, nameAr?: string) =>
+    locale === "ar" ? nameAr || name : name;
 
   const vatPercent = pricing ? Math.round(pricing.vatRate * 100) : 5;
   const stepNumber = getCustomOrderStepNumber("review", draft.firstStep);
@@ -142,52 +125,74 @@ export default function OrderReviewStep() {
         <section className="border border-(--color-border) bg-[#FDFAF5] p-6 sm:p-8">
           <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
             {t("summaryTitle")}
+            {draft.lineItems.length > 1 && (
+              <span className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) mt-2">
+                {t("itemCount", { count: draft.lineItems.length })}
+              </span>
+            )}
           </h2>
 
-          <dl className="space-y-4">
-            <div>
-              <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                {t("fabric")}
-              </dt>
-              <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                {fabricLabel || "—"}
-              </dd>
-            </div>
+          <div className="space-y-6 mb-6">
+            {draft.lineItems.map((item) => {
+              const designName = getDisplayName(item.design.name, item.design.nameAr);
+              const fabricName = item.fabric
+                ? getDisplayName(item.fabric.name, item.fabric.nameAr)
+                : t("ownFabric");
+              const tailorName = getDisplayName(item.tailor.name, item.tailor.nameAr);
+              const category = formatDesignCategory(item.design.category, locale);
 
-            <div>
-              <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                {t("tailor")}
-              </dt>
-              <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                {tailorLabel || "—"}
-              </dd>
-            </div>
+              return (
+                <div
+                  key={item.id}
+                  className="border-b border-(--color-border) pb-4 last:border-b-0 last:pb-0"
+                >
+                  <dl className="space-y-3">
+                    <div>
+                      <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                        {t("design")}
+                      </dt>
+                      <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                        {designName}
+                        {category && (
+                          <span className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-(--color-grey-muted) mt-1">
+                            {category}
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                        {t("tailor")}
+                      </dt>
+                      <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                        {tailorName}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                        {t("fabric")}
+                      </dt>
+                      <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                        {fabricName}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                        {t("fabricMeters")}
+                      </dt>
+                      <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                        {item.fabricMeters
+                          ? `${item.fabricMeters} ${t("meters")}`
+                          : "—"}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              );
+            })}
+          </div>
 
-            <div>
-              <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                {t("design")}
-              </dt>
-              <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                {designLabel || "—"}
-                {designCategory && (
-                  <span className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-(--color-grey-muted) mt-1">
-                    {designCategory}
-                  </span>
-                )}
-              </dd>
-            </div>
-
-            <div>
-              <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                {t("fabricMeters")}
-              </dt>
-              <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                {draft.fabricMeters
-                  ? `${draft.fabricMeters} ${t("meters")}`
-                  : "—"}
-              </dd>
-            </div>
-
+          <dl className="space-y-4 pt-4 border-t border-(--color-border)">
             <div>
               <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
                 {t("measurements")}

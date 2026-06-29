@@ -12,18 +12,23 @@ import {
 import {
     CUSTOM_ORDER_STORAGE_KEY,
     type CustomOrderDeliveryAddress,
-    type CustomOrderDesignSelection,
     type CustomOrderDraft,
     type CustomOrderFabricSelection,
-    type CustomOrderMeasurements,
     type CustomOrderFirstStep,
+    type CustomOrderLineItem,
+    type CustomOrderMeasurements,
     type CustomOrderPreviewPayload,
-    type CustomOrderTailorSelection,
+    type CustomOrderSelectedDesign,
     type FabricSource,
-    buildCustomOrderPreviewPayload,
+    buildAutoLineItemsFromSelections,
     createEmptyCustomOrderDraft,
+    getLineItemPairKey,
     normalizeCustomOrderDraft,
+    pruneLineItemsForSelections,
+    toggleDesignInList,
+    toggleFabricInList,
     useOwnFabric,
+    buildCustomOrderPreviewPayload,
 } from "@/lib/customOrder";
 
 type CustomOrderContextType = {
@@ -32,15 +37,19 @@ type CustomOrderContextType = {
     useOwnFabric: boolean;
     setFabricSource: (source: FabricSource) => void;
     setUseOwnFabric: (value: boolean) => void;
-    setFabric: (fabric: CustomOrderFabricSelection | null) => void;
-    setTailor: (tailor: CustomOrderTailorSelection | null) => void;
-    setDesign: (design: CustomOrderDesignSelection | null) => void;
+    toggleFabric: (fabric: CustomOrderFabricSelection) => void;
+    toggleDesign: (design: CustomOrderSelectedDesign) => void;
+    addLineItem: (item: CustomOrderLineItem) => void;
+    updateLineItemMeters: (itemId: string, meters: number | null) => void;
+    removeLineItem: (itemId: string) => void;
+    setLineItems: (items: CustomOrderLineItem[]) => void;
     setFabricMeters: (meters: number | null) => void;
     updateMeasurements: (measurements: Partial<CustomOrderMeasurements>) => void;
     updateDeliveryAddress: (address: Partial<CustomOrderDeliveryAddress>) => void;
     resetOrder: (firstStep?: CustomOrderFirstStep | null) => void;
     setFirstStepIfUnset: (step: CustomOrderFirstStep) => void;
     getPreviewPayload: () => CustomOrderPreviewPayload | null;
+    syncAutoLineItems: () => void;
 };
 
 const CustomOrderContext = createContext<CustomOrderContextType | undefined>(
@@ -74,7 +83,11 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
         setDraft((prev) => ({
             ...prev,
             fabricSource: source,
-            fabric: source === "self" ? null : prev.fabric,
+            selectedFabrics: source === "self" ? [] : prev.selectedFabrics,
+            lineItems:
+                source === "self"
+                    ? prev.lineItems.map((item) => ({ ...item, fabric: null }))
+                    : prev.lineItems,
         }));
     }, []);
 
@@ -82,39 +95,116 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
         setFabricSource(value ? "self" : "storefront");
     }, [setFabricSource]);
 
-    const setFabric = useCallback((fabric: CustomOrderFabricSelection | null) => {
+    const toggleFabric = useCallback((fabric: CustomOrderFabricSelection) => {
+        setDraft((prev) => {
+            const selectedFabrics = toggleFabricInList(prev.selectedFabrics, fabric);
+            const lineItems = pruneLineItemsForSelections(
+                prev.lineItems,
+                selectedFabrics,
+                prev.selectedDesigns,
+                "storefront",
+            );
+
+            return {
+                ...prev,
+                fabricSource: "storefront",
+                selectedFabrics,
+                lineItems,
+            };
+        });
+    }, []);
+
+    const toggleDesign = useCallback((design: CustomOrderSelectedDesign) => {
+        setDraft((prev) => {
+            const selectedDesigns = toggleDesignInList(prev.selectedDesigns, design);
+            const lineItems = pruneLineItemsForSelections(
+                prev.lineItems,
+                prev.selectedFabrics,
+                selectedDesigns,
+                prev.fabricSource,
+            );
+
+            return {
+                ...prev,
+                selectedDesigns,
+                lineItems,
+            };
+        });
+    }, []);
+
+    const addLineItem = useCallback((item: CustomOrderLineItem) => {
+        setDraft((prev) => {
+            const pairKey = getLineItemPairKey(
+                item.design._id,
+                item.fabric?._id ?? null,
+            );
+            const exists = prev.lineItems.some(
+                (entry) =>
+                    getLineItemPairKey(entry.design._id, entry.fabric?._id ?? null) ===
+                    pairKey,
+            );
+            if (exists) return prev;
+
+            return {
+                ...prev,
+                lineItems: [...prev.lineItems, item],
+            };
+        });
+    }, []);
+
+    const updateLineItemMeters = useCallback((itemId: string, meters: number | null) => {
         setDraft((prev) => ({
             ...prev,
-            fabricSource: fabric ? "storefront" : prev.fabricSource,
-            fabric,
+            lineItems: prev.lineItems.map((item) =>
+                item.id === itemId ? { ...item, fabricMeters: meters } : item,
+            ),
         }));
     }, []);
 
-    const setTailor = useCallback((tailor: CustomOrderTailorSelection | null) => {
+    const removeLineItem = useCallback((itemId: string) => {
         setDraft((prev) => ({
             ...prev,
-            tailor,
-            design:
-                !tailor || prev.tailor?._id !== tailor._id ? null : prev.design,
+            lineItems: prev.lineItems.filter((item) => item.id !== itemId),
         }));
     }, []);
 
-    const setDesign = useCallback((design: CustomOrderDesignSelection | null) => {
+    const setLineItems = useCallback((items: CustomOrderLineItem[]) => {
         setDraft((prev) => ({
             ...prev,
-            design,
-            fabricMeters:
-                design?.estimatedMeters && design.estimatedMeters > 0
-                    ? design.estimatedMeters
-                    : prev.fabricMeters,
+            lineItems: items,
         }));
     }, []);
 
     const setFabricMeters = useCallback((meters: number | null) => {
-        setDraft((prev) => ({
-            ...prev,
-            fabricMeters: meters,
-        }));
+        setDraft((prev) => {
+            if (prev.lineItems.length !== 1) return prev;
+            return {
+                ...prev,
+                lineItems: prev.lineItems.map((item) => ({
+                    ...item,
+                    fabricMeters: meters,
+                })),
+            };
+        });
+    }, []);
+
+    const syncAutoLineItems = useCallback(() => {
+        setDraft((prev) => {
+            if (prev.lineItems.length > 0) return prev;
+
+            const autoItems = buildAutoLineItemsFromSelections(
+                prev.selectedFabrics,
+                prev.selectedDesigns,
+                prev.fabricSource,
+            );
+
+            if (autoItems.length === 0) return prev;
+
+            return {
+                ...prev,
+                lineItems: autoItems,
+            };
+        });
     }, []);
 
     const updateMeasurements = useCallback(
@@ -166,30 +256,38 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
             useOwnFabric: useOwnFabric(draft),
             setFabricSource,
             setUseOwnFabric: setUseOwnFabricFlag,
-            setFabric,
-            setTailor,
-            setDesign,
+            toggleFabric,
+            toggleDesign,
+            addLineItem,
+            updateLineItemMeters,
+            removeLineItem,
+            setLineItems,
             setFabricMeters,
             updateMeasurements,
             updateDeliveryAddress,
             resetOrder,
             setFirstStepIfUnset,
             getPreviewPayload,
+            syncAutoLineItems,
         }),
         [
             draft,
             isHydrated,
             setFabricSource,
             setUseOwnFabricFlag,
-            setFabric,
-            setTailor,
-            setDesign,
+            toggleFabric,
+            toggleDesign,
+            addLineItem,
+            updateLineItemMeters,
+            removeLineItem,
+            setLineItems,
             setFabricMeters,
             updateMeasurements,
             updateDeliveryAddress,
             resetOrder,
             setFirstStepIfUnset,
             getPreviewPayload,
+            syncAutoLineItems,
         ],
     );
 

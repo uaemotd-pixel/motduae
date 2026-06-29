@@ -231,20 +231,8 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
   const userId = req.user._id;
   const { name, phone, email, relationship, profilePic, address } = req.body;
 
-  // validation
   if (!name?.trim() || !phone?.trim()) {
     return res.status(400).json({ error: "Name and phone are required" });
-  }
-// POST /reviews — Add a review for current authenticated customer
-customerRouter.post("/reviews", isAuth, async (req, res) => {
-  const userId = req.user._id;
-  const { rating, quoteEn, quoteAr, titleEn, titleAr } = req.body;
-
-  if (!rating || rating < 1 || rating > 5) {
-    return res.status(400).json({ error: "Rating must be between 1 and 5" });
-  }
-  if (!quoteEn?.trim()) {
-    return res.status(400).json({ error: "Review comment is required" });
   }
 
   try {
@@ -252,7 +240,6 @@ customerRouter.post("/reviews", isAuth, async (req, res) => {
     if (!customer) {
       return res.status(404).json({ error: "Customer profile not found" });
     }
-
 
     const newMember = {
       name: name.trim(),
@@ -276,7 +263,6 @@ customerRouter.post("/reviews", isAuth, async (req, res) => {
     customer.savedUsers.push(newMember);
     await customer.save();
 
-    // Return the newly created member (with _id)
     const created = customer.savedUsers[customer.savedUsers.length - 1];
     res.status(201).json(created);
   } catch (err) {
@@ -352,8 +338,27 @@ customerRouter.delete("/family-members/:id", isAuth, async (req, res) => {
   } catch (err) {
     console.error("❌ Error deleting family member:", err);
     res.status(500).json({ error: err.message });
-   }
-  });
+  }
+});
+
+// POST /reviews — Add a review for current authenticated customer
+customerRouter.post("/reviews", isAuth, async (req, res) => {
+  const userId = req.user._id;
+  const { rating, quoteEn, quoteAr, titleEn, titleAr } = req.body;
+
+  if (!rating || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: "Rating must be between 1 and 5" });
+  }
+  if (!quoteEn?.trim()) {
+    return res.status(400).json({ error: "Review comment is required" });
+  }
+
+  try {
+    const customer = await Customer.findOne({ userId });
+    if (!customer) {
+      return res.status(404).json({ error: "Customer profile not found" });
+    }
+
     const newReview = {
       rating: Number(rating),
       quoteEn: quoteEn.trim(),
