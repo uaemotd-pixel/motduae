@@ -12,6 +12,19 @@ const addressSubSchema = new mongoose.Schema({
   isDefault: { type: Boolean, default: false },
 });
 
+const reviewSchema = new mongoose.Schema(
+  {
+    rating: { type: Number, required: true, min: 1, max: 5 },
+    quoteEn: { type: String, required: true, trim: true },
+    quoteAr: { type: String, trim: true, default: "" },
+    titleEn: { type: String, trim: true, default: "" },
+    titleAr: { type: String, trim: true, default: "" },
+  },
+  {
+    timestamps: true,
+  }
+);
+
 const customerSchema = new mongoose.Schema(
   {
     userId: {
@@ -29,6 +42,7 @@ const customerSchema = new mongoose.Schema(
     addresses: [addressSubSchema],
     defaultAddressId: { type: mongoose.Schema.Types.ObjectId },
     deletedAt: { type: Date, index: true },
+    reviews: [reviewSchema],
   },
   {
     timestamps: true,

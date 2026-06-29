@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { api } from "@/lib/api/client";
+import useEmblaCarousel from "embla-carousel-react";
+import Autoplay from "embla-carousel-autoplay";
 
 // Testimonials Data
 interface Testimonial {
-  id: number;
+  id: number | string;
   nameEn: string;
   nameAr: string;
   titleEn: string;
@@ -160,6 +163,7 @@ function TestimonialCard({ testimonial, language }: { testimonial: Testimonial; 
 export function Testimonials() {
   const t = useTranslations("Testimonials");
   const [currentLanguage, setCurrentLanguage] = useState<"en" | "ar">("en");
+  const [allTestimonials, setAllTestimonials] = useState<Testimonial[]>(testimonialsData);
 
   // Detect language changes
   useEffect(() => {
@@ -174,6 +178,44 @@ export function Testimonials() {
     return () => window.removeEventListener("languageChanged", checkLanguage);
   }, []);
 
+  // Fetch dynamic customer reviews
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const fetched = await api.get<Testimonial[]>("/api/customer/reviews");
+        if (fetched && Array.isArray(fetched)) {
+          setAllTestimonials([...testimonialsData, ...fetched]);
+        }
+      } catch (err) {
+        console.error("Failed to load customer reviews:", err);
+      }
+    };
+    fetchReviews();
+  }, []);
+
+  const isArabic = currentLanguage === "ar";
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    {
+      align: "start",
+      containScroll: "trimSnaps",
+      dragFree: false,
+      loop: true,
+      slidesToScroll: 1,
+      direction: isArabic ? "rtl" : "ltr",
+    },
+    [
+      Autoplay({
+        delay: 3500,
+        stopOnInteraction: false,
+        stopOnMouseEnter: true,
+      }),
+    ]
+  );
+
+  useEffect(() => {
+    if (emblaApi) emblaApi.reInit();
+  }, [emblaApi, allTestimonials]);
+
   return (
     <section className="py-12 xs:py-16 sm:py-20 md:py-24 lg:py-section-gap px-4 xs:px-6 sm:px-8 md:px-12 lg:px-margin-desktop max-w-container-max mx-auto bg-(--bg-page) mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-(--space-80)">
       {/* Header */}
@@ -183,15 +225,21 @@ export function Testimonials() {
         </h2>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 xs:gap-6 sm:gap-7 md:gap-8 lg:gap-10">
-        {testimonialsData.map((testimonial) => (
-          <TestimonialCard
-            key={testimonial.id}
-            testimonial={testimonial}
-            language={currentLanguage}
-          />
-        ))}
+      {/* Embla Carousel Viewport */}
+      <div className="overflow-hidden py-4 -my-4" ref={emblaRef}>
+        <div className="flex -mx-2.5 md:-mx-4 lg:-mx-5">
+          {allTestimonials.map((testimonial) => (
+            <div
+              key={testimonial.id}
+              className="flex-[0_0_100%] sm:flex-[0_0_50%] lg:flex-[0_0_33.333%] xl:flex-[0_0_25%] px-2.5 md:px-4 lg:px-5 py-4"
+            >
+              <TestimonialCard
+                testimonial={testimonial}
+                language={currentLanguage}
+              />
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

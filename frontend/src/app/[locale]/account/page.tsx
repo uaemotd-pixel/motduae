@@ -13,15 +13,18 @@ import {
   LogOut,
   Menu,
   X,
+  Star,
 } from "lucide-react";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 import OrdersView from "@/components/orders/OrdersView";
 import ProfileTab from "./profile/page";
 import EditProfileForm from "./profile/edit/page";
+import CustomerReviewsView from "@/components/reviews/CustomerReviewsView";
 
 const NAV_ITEMS = [
   { id: "profile", label: "Profile", icon: User },
   { id: "orders", label: "Orders", icon: ShoppingBag },
+  { id: "reviews", label: "My Reviews", icon: Star },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "settings", label: "Settings", icon: Settings },
 ] as const;
@@ -261,6 +264,19 @@ export default function AccountPage() {
                   className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 md:p-8 shadow-sm"
                 >
                   <OrdersView embedded />
+                </motion.div>
+              )}
+
+              {activeTab === "reviews" && (
+                <motion.div
+                  key="reviews"
+                  variants={pageVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={{ duration: 0.25 }}
+                >
+                  <CustomerReviewsView />
                 </motion.div>
               )}
 
