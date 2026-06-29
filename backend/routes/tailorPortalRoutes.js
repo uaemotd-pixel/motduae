@@ -65,9 +65,17 @@ const pickShopFields = (body) => {
 
 const validateShopPayload = (data, { requireCore = false } = {}) => {
   if (requireCore) {
-    if (!data.name || !data.nameAr || !data.slug) {
-      return 'name, nameAr, and slug are required';
+    if (!data.name || !data.nameAr || !data.slug || !data.phone) {
+      return 'name, nameAr, slug, and phone are required';
     }
+  } else {
+    if (data.phone !== undefined && !data.phone) {
+      return 'phone is required';
+    }
+  }
+
+  if (data.phone !== undefined && data.phone !== '' && !/^\d{9}$/.test(data.phone)) {
+    return 'phone number must be exactly 9 digits';
   }
 
   if (data.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(data.slug)) {

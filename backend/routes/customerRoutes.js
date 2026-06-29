@@ -210,6 +210,7 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
   }
 });
 
+
 // ─── GET /family-members ──────────────────────────────────────────────
 customerRouter.get("/family-members", isAuth, async (req, res) => {
   try {
@@ -234,12 +235,24 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
   if (!name?.trim() || !phone?.trim()) {
     return res.status(400).json({ error: "Name and phone are required" });
   }
+// POST /reviews — Add a review for current authenticated customer
+customerRouter.post("/reviews", isAuth, async (req, res) => {
+  const userId = req.user._id;
+  const { rating, quoteEn, quoteAr, titleEn, titleAr } = req.body;
+
+  if (!rating || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: "Rating must be between 1 and 5" });
+  }
+  if (!quoteEn?.trim()) {
+    return res.status(400).json({ error: "Review comment is required" });
+  }
 
   try {
     const customer = await Customer.findOne({ userId });
     if (!customer) {
       return res.status(404).json({ error: "Customer profile not found" });
     }
+
 
     const newMember = {
       name: name.trim(),
@@ -339,6 +352,57 @@ customerRouter.delete("/family-members/:id", isAuth, async (req, res) => {
   } catch (err) {
     console.error("❌ Error deleting family member:", err);
     res.status(500).json({ error: err.message });
+   }
+  });
+    const newReview = {
+      rating: Number(rating),
+      quoteEn: quoteEn.trim(),
+      quoteAr: quoteAr?.trim() || quoteEn.trim(),
+      titleEn: titleEn?.trim() || "Client",
+      titleAr: titleAr?.trim() || "عميل",
+    };
+
+    customer.reviews.push(newReview);
+    await customer.save();
+
+    return res.status(201).json({
+      success: true,
+      review: customer.reviews[customer.reviews.length - 1],
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message || "Server error" });
+  }
+});
+
+// GET /reviews — Public endpoint to fetch all customer reviews
+customerRouter.get("/reviews", async (req, res) => {
+  try {
+    const customers = await Customer.find({ "reviews.0": { $exists: true } });
+
+    const allReviews = [];
+    for (const customer of customers) {
+      for (const rev of customer.reviews) {
+        allReviews.push({
+          id: rev._id,
+          nameEn: customer.name,
+          nameAr: customer.name,
+          titleEn: rev.titleEn || "Client",
+          titleAr: rev.titleAr || "عميل",
+          quoteEn: rev.quoteEn,
+          quoteAr: rev.quoteAr || rev.quoteEn,
+          rating: rev.rating,
+          createdAt: rev.createdAt,
+        });
+      }
+    }
+
+    allReviews.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    return res.json(allReviews);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message || "Server error" });
   }
 });
 

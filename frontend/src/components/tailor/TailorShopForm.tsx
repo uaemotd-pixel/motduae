@@ -113,11 +113,16 @@ export default function TailorShopForm() {
     }, [t]);
 
     const handleChange = (field: FieldKey, value: string) => {
+        let val = value;
+        if (field === "phone") {
+            val = value.replace(/\D/g, "").slice(0, 9);
+        }
+
         setFormData((prev) => {
-            const next = { ...prev, [field]: value };
+            const next = { ...prev, [field]: val };
 
             if (field === "name" && isCreateMode && !slugTouched) {
-                next.slug = slugifyShopName(value);
+                next.slug = slugifyShopName(val);
             }
 
             return next;
@@ -142,6 +147,11 @@ export default function TailorShopForm() {
             errors.slug = t("validation.slugRequired");
         } else if (!SLUG_PATTERN.test(payload.slug.trim().toLowerCase())) {
             errors.slug = t("validation.slugInvalid");
+        }
+        if (!payload.phone.trim()) {
+            errors.phone = t("validation.phoneRequired");
+        } else if (!/^\d{9}$/.test(payload.phone.trim())) {
+            errors.phone = t("validation.phoneInvalid");
         }
 
         setFieldErrors(errors);
@@ -434,7 +444,12 @@ export default function TailorShopForm() {
                         </FormField>
                     </div>
 
-                    <FormField label={t("fields.phone")} name="phone">
+                    <FormField
+                        label={t("fields.phone")}
+                        name="phone"
+                        required
+                        error={fieldErrors.phone}
+                    >
                         <input
                             id="phone"
                             type="tel"

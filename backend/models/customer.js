@@ -34,6 +34,18 @@ const savedUserSubSchema = new mongoose.Schema({
   },
   createdAt: { type: Date, default: Date.now },
 });
+const reviewSchema = new mongoose.Schema(
+  {
+    rating: { type: Number, required: true, min: 1, max: 5 },
+    quoteEn: { type: String, required: true, trim: true },
+    quoteAr: { type: String, trim: true, default: "" },
+    titleEn: { type: String, trim: true, default: "" },
+    titleAr: { type: String, trim: true, default: "" },
+  },
+  {
+    timestamps: true,
+  }
+);
 
 const customerSchema = new mongoose.Schema(
   {
@@ -53,6 +65,7 @@ const customerSchema = new mongoose.Schema(
     defaultAddressId: { type: mongoose.Schema.Types.ObjectId },
     savedUsers: [savedUserSubSchema],
     deletedAt: { type: Date, index: true },
+    reviews: [reviewSchema],
   },
   {
     timestamps: true,

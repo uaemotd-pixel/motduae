@@ -12,11 +12,12 @@
     "ariaLabel": "Main navigation",
     "logoAlt": "MOTD — Mukhawar of the Day",
     "links": {
+      "designs": "Designs",
       "fabrics": "Fabrics",
-      "tailors": "Tailors",
-      "stories": "Stories",
+      "brands": "Brands",
       "howItWorks": "How It Works",
-      "about": "About"
+      "joinOurCommunity": "Join Our Community",
+      "aboutMotd": "About MOTD"
     },
     "actions": {
       "search": "Search",
@@ -490,7 +491,9 @@
         "nameRequired": "English shop name is required.",
         "nameArRequired": "Arabic shop name is required.",
         "slugRequired": "URL slug is required.",
-        "slugInvalid": "Slug must use lowercase letters, numbers, and hyphens only."
+        "slugInvalid": "Slug must use lowercase letters, numbers, and hyphens only.",
+        "phoneRequired": "Phone number is required.",
+        "phoneInvalid": "Phone number must be exactly 9 digits."
       },
       "errors": {
         "loadFailed": "Could not load your shop profile.",

@@ -12,11 +12,12 @@
     "ariaLabel": "التنقل الرئيسي",
     "logoAlt": "MOTD — مخوّر اليوم",
     "links": {
+      "designs": "التصاميم",
       "fabrics": "الأقمشة",
+      "brands": "العلامات التجارية",
       "howItWorks": "كيف يعمل",
-      "tailors": "الخياطون",
-      "stories": "القصص",
-      "about": "حول"
+      "joinOurCommunity": "انضم إلى مجتمعنا",
+      "aboutMotd": "حول MOTD"
     },
     "actions": {
       "search": "بحث",
@@ -593,7 +594,9 @@
         "nameRequired": "اسم المتجر بالإنجليزية مطلوب.",
         "nameArRequired": "اسم المتجر بالعربية مطلوب.",
         "slugRequired": "رابط URL مطلوب.",
-        "slugInvalid": "يجب أن يحتوي الرابط على أحرف إنجليزية صغيرة وأرقام وشرطات فقط."
+        "slugInvalid": "يجب أن يحتوي الرابط على أحرف إنجليزية صغيرة وأرقام وشرطات فقط.",
+        "phoneRequired": "رقم الهاتف مطلوب.",
+        "phoneInvalid": "يجب أن يتكون رقم الهاتف من 9 أرقام بالضبط."
       },
       "errors": {
         "loadFailed": "تعذّر تحميل ملف المتجر.",

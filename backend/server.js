@@ -47,7 +47,7 @@ app.use("/api/tailors", tailorRoutes);
 app.use("/api/tailor", isAuth, isApprovedTailor, tailorPortalRoutes);
 app.use("/api/orders", orderRoutes); // for orders
 app.use("/api/admin", isAuth, isAdmin, adminRouter); // admin protected routes
-app.use("/api/customer", isAuth, customerRouter);
+app.use("/api/customer", customerRouter);
 app.use(notFound);
 app.use(errorHandler);
 

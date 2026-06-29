@@ -11,7 +11,7 @@ const QUICK_LINKS = [
   { key: "tailors", href: "/tailors" },
   { key: "customDesign", href: "/custom-order/fabric" },
   { key: "aboutUs", href: "/#about" },
-  { key: "contact", href: "/#contact" },
+  { key: "contact", href: "/#about" },
 ] as const;
 
 const CUSTOMER_LINKS = [
@@ -47,7 +47,7 @@ export function Footer() {
   const t = useTranslations("Footer");
 
   return (
-    <footer id="contact" className="w-full bg-black/90 border-t border-white/10 py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80)">
+    <footer id="about" className="w-full bg-black/90 border-t border-white/10 py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80)">
       {/* Main Footer */}
       <div className="w-full px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) mx-auto grid grid-cols-1 md:grid-cols-12 gap-y-10 xs:gap-y-12 sm:gap-y-14 md:gap-y-16 lg:gap-y-(--space-64) gap-x-6 md:gap-x-8 lg:gap-x-(--space-48)">
         {/* Brand Column */}
