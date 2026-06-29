@@ -167,7 +167,7 @@ export default function MeasurementsStep() {
                     value={draft.measurements.notes}
                     onChange={(e) => handleNotesChange(e.target.value)}
                     placeholder={t("fields.notesPlaceholder")}
-                    className="w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition resize-y min-h-[120px]"
+                    className="w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition resize-y min-h-30"
                 />
             </div>
 
