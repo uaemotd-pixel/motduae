@@ -12,11 +12,12 @@
     "ariaLabel": "Main navigation",
     "logoAlt": "MOTD — Mukhawar of the Day",
     "links": {
+      "designs": "Designs",
       "fabrics": "Fabrics",
-      "tailors": "Tailors",
-      "stories": "Stories",
+      "brands": "Brands",
       "howItWorks": "How It Works",
-      "about": "About"
+      "joinOurCommunity": "Join Our Community",
+      "aboutMotd": "About MOTD"
     },
     "actions": {
       "search": "Search",
