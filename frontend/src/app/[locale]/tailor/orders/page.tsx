@@ -5,9 +5,19 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
-import { RefreshCw, Loader2, Search, PackageSearch } from "lucide-react";
+import {
+  RefreshCw,
+  Loader2,
+  Search,
+  PackageSearch,
+  ChevronDown,
+  ChevronUp,
+  Phone,
+  Mail,
+  User,
+  Ruler,
+} from "lucide-react";
 import StatusBadge from "@/components/admin/StatusBadge";
-import AdminOrdersTabs from "@/components/admin/AdminOrdersTabs";
 import {
   formatOrderDate,
   getNextCustomOrderStatus,
@@ -25,17 +35,33 @@ interface OrderUser {
   phone?: string;
 }
 
+interface Measurements {
+  totalLength?: number | null;
+  shoulderWidth?: number | null;
+  armLength?: number | null;
+  chestWidth?: number | null;
+  waist?: number | null;
+  hips?: number | null;
+  neckWidth?: number | null;
+  neckDepth?: number | null;
+  armholeHeight?: number | null;
+  sleeveOpeningWidth?: number | null;
+  cuffLength?: number | null;
+  notes?: string;
+}
+
 interface Order {
   _id: string;
   userId: OrderUser | string;
-  tailorShopId: { _id: string; name: string } | string;
   designSnapshot?: { name: string };
   fabricSnapshot?: { name: string } | null;
+  measurements?: Measurements;
   status: string;
   createdAt: string;
   pricing: {
     total: number;
     currency: string;
+    tailoringFee: number;
   };
 }
 
@@ -83,37 +109,22 @@ function readPartnerName(
   return value.name || fallback;
 }
 
-export default function AdminCustomOrdersPage() {
+export default function TailorOrdersPage() {
   const params = useParams();
   const locale = (params.locale as Locale) || "en";
-  const t = useTranslations("Admin.OrdersCustom");
+  const t = useTranslations("TailorPortal.orders");
   const tStatus = useTranslations("OrdersPage.custom.statuses");
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const [note, setNote] = useState<Record<string, string>>({});
-
-  // Date defaults: current month-to-date
-  const getTodayString = () => {
-    const d = new Date();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${d.getFullYear()}-${month}-${day}`;
-  };
-
-  const getFirstDayOfMonthString = () => {
-    const d = new Date();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    return `${d.getFullYear()}-${month}-01`;
-  };
 
   // Filters State
   const [filterCustomer, setFilterCustomer] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("");
-  const [filterFrom, setFilterFrom] = useState<string>(getFirstDayOfMonthString());
-  const [filterTo, setFilterTo] = useState<string>(getTodayString());
 
   const statusLabel = (status: string) => {
     if (isCustomOrderStatus(status)) {
@@ -126,8 +137,8 @@ export default function AdminCustomOrdersPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get<Order[] | { items: Order[] }>("/api/admin/orders/custom");
-      const ordersData = Array.isArray(res) ? res : res.items || [];
+      const res = await api.get<{ success: boolean; items: Order[] }>("/api/tailor/orders");
+      const ordersData = res.items || [];
       setOrders(ordersData);
 
       const initialNote: Record<string, string> = {};
@@ -137,7 +148,7 @@ export default function AdminCustomOrdersPage() {
       setNote(initialNote);
     } catch (err) {
       setError(getApiErrorMessage(err, t("loadError")));
-      toast.error(t("loadToastError"), ERROR_TOAST);
+      toast.error(t("loadError"), ERROR_TOAST);
     } finally {
       setLoading(false);
     }
@@ -150,18 +161,27 @@ export default function AdminCustomOrdersPage() {
   const handleStatusChange = async (order: Order, newStatus: CustomOrderStatus) => {
     setUpdatingOrderId(order._id);
     try {
-      await api.patch(`/api/admin/orders/custom/${order._id}/status`, {
+      await api.patch(`/api/tailor/orders/${order._id}/status`, {
         status: newStatus,
         note: note[order._id] || "",
       });
 
       toast.success(t("updateSuccess"), SUCCESS_TOAST);
+      // Reset note for this order
+      setNote((prev) => ({ ...prev, [order._id]: "" }));
       await fetchOrders();
     } catch (err) {
       toast.error(getApiErrorMessage(err, t("updateFailed")), ERROR_TOAST);
     } finally {
       setUpdatingOrderId(null);
     }
+  };
+
+  const toggleExpand = (orderId: string) => {
+    setExpandedOrders((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
   };
 
   const formatCurrency = (amount: number, currency = "AED") =>
@@ -173,7 +193,7 @@ export default function AdminCustomOrdersPage() {
   // Client-side filtering logic
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      // 1. Customer name/email/ID filter
+      // 1. Customer name/email/phone filter
       if (filterCustomer.trim()) {
         const term = filterCustomer.toLowerCase();
         const customerName = readPartnerName(
@@ -182,11 +202,14 @@ export default function AdminCustomOrdersPage() {
         ).toLowerCase();
         const customerEmail =
           (typeof order.userId === "object" && order.userId?.email || "").toLowerCase();
+        const customerPhone =
+          (typeof order.userId === "object" && order.userId?.phone || "").toLowerCase();
         const orderId = order._id.toLowerCase();
 
         if (
           !customerName.includes(term) &&
           !customerEmail.includes(term) &&
+          !customerPhone.includes(term) &&
           !orderId.includes(term)
         ) {
           return false;
@@ -198,49 +221,43 @@ export default function AdminCustomOrdersPage() {
         if (order.status !== filterStatus) return false;
       }
 
-      // 3. From Date filter
-      if (filterFrom) {
-        const orderDate = new Date(order.createdAt);
-        const fromDate = new Date(filterFrom + "T00:00:00");
-        if (orderDate < fromDate) return false;
-      }
-
-      // 4. To Date filter
-      if (filterTo) {
-        const orderDate = new Date(order.createdAt);
-        const toDate = new Date(filterTo + "T23:59:59");
-        if (orderDate > toDate) return false;
-      }
-
       return true;
     });
-  }, [orders, filterCustomer, filterStatus, filterFrom, filterTo]);
+  }, [orders, filterCustomer, filterStatus]);
 
   if (loading && orders.length === 0) {
     return (
-      <div className="space-y-6">
-        <AdminOrdersTabs />
-        <div className="p-6 text-gray-500">{t("loading")}</div>
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="w-10 h-10 animate-spin text-black mb-4" />
+        <p className="text-gray-500 font-['TT_Norms_Pro_Mono'] text-sm tracking-widest uppercase">
+          {t("loading")}
+        </p>
       </div>
     );
   }
 
   if (error && orders.length === 0) {
     return (
-      <div className="space-y-6">
-        <AdminOrdersTabs />
-        <div className="p-6 text-red-500">{error}</div>
+      <div className="p-6 text-center">
+        <p className="text-red-500 mb-4">{error}</p>
+        <button
+          onClick={fetchOrders}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 transition"
+        >
+          <RefreshCw className="w-4 h-4" />
+          {locale === "ar" ? "إعادة المحاولة" : "Try Again"}
+        </button>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <AdminOrdersTabs />
-
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">{t("title")}</h1>
+          <h1 className="[font-family:var(--font-display)] text-2xl md:text-3xl font-light text-black tracking-tight">
+            {t("title")}
+          </h1>
           <p className="text-gray-500 text-sm mt-1">{t("subtitle")}</p>
         </div>
 
@@ -249,45 +266,25 @@ export default function AdminCustomOrdersPage() {
           className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 bg-white rounded-lg text-sm hover:bg-gray-50 hover:cursor-pointer transition shadow-sm"
         >
           <RefreshCw className="w-4 h-4" />
-          {t("refresh")}
+          {locale === "ar" ? "تحديث" : "Refresh"}
         </button>
       </div>
 
-      {/* Stats Cards Section */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label: t("stats.total"), value: filteredOrders.length },
-          {
-            label: t("stats.pending"),
-            value: filteredOrders.filter((o) => o.status === "pending").length,
-          },
-          {
-            label: t("stats.inProduction"),
-            value: filteredOrders.filter((o) => o.status === "in_production").length,
-          },
-          {
-            label: t("stats.delivered"),
-            value: filteredOrders.filter((o) => o.status === "delivered").length,
-          },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-            <p className="text-xs text-gray-400">{stat.label}</p>
-            <p className="text-xl font-light mt-1">{stat.value}</p>
-          </div>
-        ))}
-      </div>
-
       {/* Filters Section */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">
-            {locale === "ar" ? "التصفية والبحث" : "Filter & Search"}
+            {locale === "ar" ? "البحث" : "Search"}
           </label>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder={locale === "ar" ? "البحث باسم العميل أو بريده..." : "Search client name/email..."}
+              placeholder={
+                locale === "ar"
+                  ? "البحث باسم العميل، الهاتف، البريد..."
+                  : "Search customer, phone, email..."
+              }
               value={filterCustomer}
               onChange={(e) => setFilterCustomer(e.target.value)}
               className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition"
@@ -297,7 +294,7 @@ export default function AdminCustomOrdersPage() {
 
         <div>
           <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">
-            {locale === "ar" ? "الحالة" : "Status"}
+            {t("status")}
           </label>
           <select
             value={filterStatus}
@@ -312,43 +309,13 @@ export default function AdminCustomOrdersPage() {
             ))}
           </select>
         </div>
-
-        <div>
-          <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">
-            {locale === "ar" ? "من تاريخ" : "From Date"}
-          </label>
-          <div className="relative">
-            <input
-              type="date"
-              value={filterFrom}
-              onChange={(e) => setFilterFrom(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition hover:cursor-pointer"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">
-            {locale === "ar" ? "إلى تاريخ" : "To Date"}
-          </label>
-          <div className="relative">
-            <input
-              type="date"
-              value={filterTo}
-              onChange={(e) => setFilterTo(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition hover:cursor-pointer"
-            />
-          </div>
-        </div>
       </div>
 
       {/* Orders List Section */}
       {filteredOrders.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center bg-white rounded-2xl border border-gray-100 py-20 shadow-sm">
           <PackageSearch className="w-16 h-16 text-gray-300 mb-4" strokeWidth={1} />
-          <p className="text-gray-500 mt-1 max-w-sm">
-            {locale === "ar" ? "لم يتم العثور على طلبات مطابقة لمعايير التصفية." : "No custom orders found matching the filter criteria."}
-          </p>
+          <p className="text-gray-500 mt-1 max-w-sm">{t("empty")}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -358,15 +325,14 @@ export default function AdminCustomOrdersPage() {
             const previousStatus = getPreviousCustomOrderStatus(order.status);
             const customerName = readPartnerName(
               typeof order.userId === "object" ? order.userId : null,
-              t("unknownCustomer"),
+              locale === "ar" ? "عميل غير معروف" : "Unknown Customer",
             );
             const customerEmail =
               typeof order.userId === "object" ? order.userId.email : "";
-            const tailorName = readPartnerName(
-              typeof order.tailorShopId === "object" ? order.tailorShopId : null,
-              t("unknownTailor"),
-            );
-            const fabricName = order.fabricSnapshot?.name || t("unknownFabric");
+            const customerPhone =
+              typeof order.userId === "object" ? order.userId.phone : "";
+            const fabricName = order.fabricSnapshot?.name || (locale === "ar" ? "قماش خاص" : "Self Fabric");
+            const isExpanded = !!expandedOrders[order._id];
 
             return (
               <div
@@ -376,20 +342,29 @@ export default function AdminCustomOrdersPage() {
                 {/* Upper card info grid */}
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-5">
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("columns.customer")}</p>
-                    <p className="font-medium text-sm text-black">{customerName}</p>
-                    {customerEmail && (
-                      <p className="text-xs text-gray-500">{customerEmail}</p>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("customer")}</p>
+                    <p className="font-medium text-sm text-black flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-gray-400" />
+                      {customerName}
+                    </p>
+                    {customerPhone && (
+                      <p className="text-xs text-black font-semibold font-mono mt-1 flex items-center gap-1.5 bg-[#FFFDF9] border border-amber-100 px-2 py-0.5 rounded w-max">
+                        <Phone className="w-3 h-3 text-amber-600 shrink-0" />
+                        {customerPhone}
+                      </p>
                     )}
-                    {typeof order.userId === "object" && order.userId?.phone && (
-                      <p className="text-xs text-gray-500 font-mono mt-0.5">{order.userId.phone}</p>
+                    {customerEmail && (
+                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
+                        <Mail className="w-3 h-3 text-gray-400 shrink-0" />
+                        {customerEmail}
+                      </p>
                     )}
                   </div>
 
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("columns.design")}</p>
-                    <p className="text-sm text-black">
-                      {order.designSnapshot?.name || t("unknownDesign")}
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("design")}</p>
+                    <p className="text-sm font-medium text-black">
+                      {order.designSnapshot?.name || "Bespoke Design"}
                     </p>
                     <p className="text-xs text-gray-500 mt-0.5">
                       {t("fabricLabel", { name: fabricName })}
@@ -397,12 +372,12 @@ export default function AdminCustomOrdersPage() {
                   </div>
 
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("columns.tailor")}</p>
-                    <p className="text-sm text-black">{tailorName}</p>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("date")}</p>
+                    <p className="text-sm text-black">{formatOrderDate(order.createdAt, locale)}</p>
                   </div>
 
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("columns.status")}</p>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("status")}</p>
                     <StatusBadge
                       status={order.status}
                       label={statusLabel(order.status)}
@@ -410,18 +385,69 @@ export default function AdminCustomOrdersPage() {
                   </div>
 
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("columns.date")}</p>
-                    <p className="text-sm text-black">{formatOrderDate(order.createdAt, locale)}</p>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("total")}</p>
+                    <p className="font-medium text-black text-sm">
+                      {formatCurrency(order.pricing.tailoringFee, order.pricing.currency)}
+                    </p>
+                    <p className="text-2xs text-gray-400">
+                      {locale === "ar" ? "رسوم الخياطة فقط" : "Tailoring fee only"}
+                    </p>
                   </div>
+                </div>
+
+                {/* Sizing measurements details block */}
+                <div className="px-5 pb-5">
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand(order._id)}
+                    className="inline-flex items-center gap-1.5 text-xs text-black/60 hover:text-black font-medium transition py-1 hover:cursor-pointer"
+                  >
+                    <Ruler className="w-3.5 h-3.5" />
+                    {isExpanded ? t("hideMeasurements") : t("showMeasurements")}
+                    {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+
+                  {isExpanded && order.measurements && (
+                    <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                      {[
+                        { label: locale === "ar" ? "الطول الكلي" : "Total Length", val: order.measurements.totalLength },
+                        { label: locale === "ar" ? "عرض الكتف" : "Shoulder Width", val: order.measurements.shoulderWidth },
+                        { label: locale === "ar" ? "طول الذراع" : "Arm Length", val: order.measurements.armLength },
+                        { label: locale === "ar" ? "عرض الصدر" : "Chest Width", val: order.measurements.chestWidth },
+                        { label: locale === "ar" ? "الخصر" : "Waist", val: order.measurements.waist },
+                        { label: locale === "ar" ? "الأرداف" : "Hips", val: order.measurements.hips },
+                        { label: locale === "ar" ? "عرض الرقبة" : "Neck Width", val: order.measurements.neckWidth },
+                        { label: locale === "ar" ? "عمق الرقبة" : "Neck Depth", val: order.measurements.neckDepth },
+                        { label: locale === "ar" ? "ارتفاع الإبط" : "Armhole Height", val: order.measurements.armholeHeight },
+                        { label: locale === "ar" ? "فتحة الكم" : "Sleeve Opening", val: order.measurements.sleeveOpeningWidth },
+                        { label: locale === "ar" ? "طول الكفة" : "Cuff Length", val: order.measurements.cuffLength },
+                      ].map(
+                        (m) =>
+                          m.val !== undefined &&
+                          m.val !== null && (
+                            <div key={m.label} className="bg-white p-2 border border-gray-100 rounded-lg">
+                              <p className="text-3xs text-gray-400 uppercase font-medium">{m.label}</p>
+                              <p className="text-sm font-semibold font-mono text-black mt-0.5">{m.val} cm</p>
+                            </div>
+                          )
+                      )}
+                      {order.measurements.notes && (
+                        <div className="col-span-full bg-white p-3 border border-gray-100 rounded-lg">
+                          <p className="text-3xs text-gray-400 uppercase font-medium">
+                            {locale === "ar" ? "ملاحظات المقاس" : "Sizing Notes"}
+                          </p>
+                          <p className="text-xs text-gray-700 mt-1">{order.measurements.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Lower card action footer */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border-t border-gray-100 bg-gray-50/70 items-center">
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider">{t("columns.total")}</p>
-                    <p className="font-medium text-black text-base mt-0.5">
-                      {formatCurrency(order.pricing.total, order.pricing.currency)}
-                    </p>
+                  <div className="text-xs text-gray-500">
+                    {locale === "ar" ? "الرقم التعريفي للطلب:" : "Order ID:"}{" "}
+                    <span className="font-mono text-black font-medium">#{order._id.toUpperCase()}</span>
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-2 sm:justify-end sm:items-center flex-wrap">

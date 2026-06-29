@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api/client";
 import { User, Mail, Phone, MapPin, Calendar, Users, Edit } from "lucide-react";
+import { resolveMediaUrl } from "@/lib/media";
 
 interface ProfileTabProps {
   onEditClick?: () => void;
@@ -204,7 +205,7 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
               <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full bg-linear-to-br from-gray-200 to-gray-300 flex items-center justify-center overflow-hidden border-2 border-gray-200 shadow-md">
                 {profile.profilePic ? (
                   <img
-                    src={profile.profilePic}
+                    src={resolveMediaUrl(profile.profilePic)}
                     alt={profile.name}
                     className="w-full h-full object-cover"
                   />

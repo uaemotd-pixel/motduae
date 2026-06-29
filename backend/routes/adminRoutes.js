@@ -811,7 +811,7 @@ adminRouter.get(
     }
 
     const orders = await RetailOrder.find(filter)
-      .populate("userId", "name email")
+      .populate("userId", "name email phone")
       .sort({ createdAt: -1 });
 
     res.send(orders);
@@ -856,7 +856,7 @@ adminRouter.get(
   "/orders/custom",
   expressAsyncHandler(async (req, res) => {
     const orders = await CustomOrder.find({})
-      .populate("userId", "name email")
+      .populate("userId", "name email phone")
       .populate("tailorShopId", "name location city")
       .sort({ createdAt: -1 });
 

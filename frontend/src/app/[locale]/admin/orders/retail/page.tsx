@@ -19,6 +19,7 @@ type RetailOrder = {
   userId: {
     name: string;
     email: string;
+    phone?: string;
   } | null;
   orderItems: {
     name: string;
@@ -476,6 +477,11 @@ export default function AdminRetailOrdersPage() {
                     {order.userId?.email && (
                       <p className="text-xs text-gray-500">
                         {order.userId.email}
+                      </p>
+                    )}
+                    {order.userId?.phone && (
+                      <p className="text-xs text-gray-500 font-mono mt-0.5">
+                        {order.userId.phone}
                       </p>
                     )}
                   </div>

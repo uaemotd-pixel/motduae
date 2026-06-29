@@ -22,6 +22,7 @@ export default function RegisterForm() {
 
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
+    const [phone, setPhone] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -39,10 +40,15 @@ export default function RegisterForm() {
             return;
         }
 
+        if (phone.length !== 9) {
+            setError(t.signup.phoneInvalid || "Contact number must be exactly 9 digits.");
+            return;
+        }
+
         setIsLoading(true);
 
         try {
-            await register(name, email, password);
+            await register(name, email, password, phone);
             setSuccess(t.signup.successMessage || "Account created! Redirecting...");
 
             // Keep loading true, wait 2.5 seconds before redirect
@@ -147,6 +153,29 @@ export default function RegisterForm() {
                                     placeholder="name@example.com"
                                     required
                                     className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                                    style={{ direction: locale === 'ar' ? 'rtl' : 'ltr' }}
+                                />
+                            </div>
+
+                            {/* Contact Number */}
+                            <div className="space-y-2">
+                                <label htmlFor="phone" className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
+                                    {t.signup.phoneLabel || "Contact Number"}
+                                </label>
+                                <input
+                                    id="phone"
+                                    type="text"
+                                    value={phone}
+                                    onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, "");
+                                        if (val.length <= 9) {
+                                            setPhone(val);
+                                        }
+                                    }}
+                                    placeholder="501234567"
+                                    required
+                                    className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                                    style={{ direction: 'ltr' }}
                                 />
                             </div>
 

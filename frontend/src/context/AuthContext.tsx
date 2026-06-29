@@ -16,6 +16,7 @@ interface ApiUserResponse {
     _id: string;
     name: string;
     email: string;
+    phone?: string;
     role: string;
     isAdmin?: boolean;
     approvalStatus?: string;
@@ -26,6 +27,7 @@ export interface User {
     id: string;
     email: string;
     name: string;
+    phone?: string;
     role: string;
     isAdmin?: boolean;
     approvalStatus?: string;
@@ -36,6 +38,7 @@ function mapApiUser(data: ApiUserResponse): User {
         id: data._id,
         email: data.email,
         name: data.name,
+        phone: data.phone,
         role: data.role,
         isAdmin: data.isAdmin,
         approvalStatus: data.approvalStatus,
@@ -46,7 +49,7 @@ interface AuthContextType {
     user: User | null;
     isLoading: boolean;
     login: (email: string, password: string) => Promise<User>;
-    register: (username: string, email: string, password: string) => Promise<void>;
+    register: (username: string, email: string, password: string, phone: string) => Promise<void>;
     registerTailor: (name: string, email: string, password: string) => Promise<User>;
     logout: () => void;
     isAuthenticated: boolean;
@@ -76,7 +79,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 const profile = await api.get<ApiUserResponse>('/api/users/profile');
                 setUser(mapApiUser(profile));
             } catch (error) {
-                console.error('Failed to load user profile:', error);
+                if ((error as any)?.status !== 401) {
+                    console.error('Failed to load user profile:', (error as any)?.message || error);
+                }
                 clearToken();
                 setUser(null);
             } finally {
@@ -101,11 +106,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 
     // SIGN UP
-    const register = async (name: string, email: string, password: string) => {
+    const register = async (name: string, email: string, password: string, phone: string) => {
         const response = await api.post<ApiUserResponse>('/api/users/signup', {
             name,
             email,
             password,
+            phone,
         });
 
         saveToken(response.token!);

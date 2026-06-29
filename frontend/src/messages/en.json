@@ -379,7 +379,31 @@
     "nav": {
       "dashboard": "Dashboard",
       "shop": "Shop Profile",
-      "designs": "Designs"
+      "designs": "Designs",
+      "orders": "Orders"
+    },
+    "orders": {
+      "title": "Custom Orders",
+      "subtitle": "Track, view, and fulfill custom garment orders assigned to your shop.",
+      "loading": "Loading custom orders...",
+      "loadError": "Failed to load custom orders. Please try again.",
+      "empty": "No custom orders assigned to your shop yet.",
+      "customer": "Customer",
+      "design": "Design & Fabric",
+      "date": "Ordered On",
+      "status": "Status",
+      "total": "Payout",
+      "phone": "Contact Phone",
+      "email": "Email",
+      "fabricLabel": "Fabric: {name}",
+      "revertTo": "Revert to {status}",
+      "advanceTo": "Advance to {status}",
+      "notePlaceholder": "Add a production log or note...",
+      "updateSuccess": "Order status updated successfully",
+      "updateFailed": "Failed to update order status",
+      "measurements": "Measurements",
+      "hideMeasurements": "Hide Measurements",
+      "showMeasurements": "Show Measurements"
     },
     "pending": {
       "eyebrow": "Tailor Portal",

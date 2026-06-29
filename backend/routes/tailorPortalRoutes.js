@@ -1,6 +1,7 @@
 import express from 'express';
 import expressAsyncHandler from 'express-async-handler';
 import TailorShop from '../models/TailorShop.js';
+import CustomOrder, { CUSTOM_STATUSES } from '../models/CustomOrder.js';
 import tailorDesignRoutes from './tailorDesignRoutes.js';
 import {
   uploadReadyMadeImageMiddleware,
@@ -256,6 +257,71 @@ tailorPortalRouter.put(
     res.json({
       success: true,
       item: formatShop(updatedShop),
+    });
+  })
+);
+
+// GET /api/tailor/orders — get all custom orders for this tailor's shop
+tailorPortalRouter.get(
+  '/orders',
+  expressAsyncHandler(async (req, res) => {
+    const shop = await TailorShop.findOne({ ownerId: req.user._id });
+    if (!shop) {
+      res.json({ success: true, items: [] });
+      return;
+    }
+
+    const orders = await CustomOrder.find({ tailorShopId: shop._id })
+      .populate('userId', 'name email phone')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      items: orders,
+    });
+  })
+);
+
+// PATCH /api/tailor/orders/:id/status — update order status by the tailor
+tailorPortalRouter.patch(
+  '/orders/:id/status',
+  expressAsyncHandler(async (req, res) => {
+    const { status, note } = req.body;
+    
+    if (status && !CUSTOM_STATUSES.includes(status)) {
+      res.status(400).json({
+        success: false,
+        message: `Invalid custom logistics status value`,
+      });
+      return;
+    }
+
+    const order = await CustomOrder.findById(req.params.id);
+    if (!order) {
+      res.status(404).json({ success: false, message: 'Order not found' });
+      return;
+    }
+
+    const shop = await TailorShop.findOne({ ownerId: req.user._id });
+    if (!shop || order.tailorShopId.toString() !== shop._id.toString()) {
+      res.status(403).json({ success: false, message: 'Forbidden' });
+      return;
+    }
+
+    if (status) {
+      order.status = status;
+      order.statusHistory.push({
+        status,
+        note: typeof note === 'string' ? note.trim() : '',
+        changedAt: new Date(),
+        changedBy: req.user._id,
+      });
+      await order.save();
+    }
+
+    res.json({
+      success: true,
+      order,
     });
   })
 );

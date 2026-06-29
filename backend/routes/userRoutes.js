@@ -3,6 +3,7 @@ import expressAsyncHandler from 'express-async-handler';
 import bcrypt from 'bcryptjs';
 import { isAuth, isAdmin, generateToken } from '../middleware/auth.js';
 import User from '../models/User.js';
+import Customer from '../models/customer.js';
 
 const userRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -12,6 +13,7 @@ const sendUserResponse = (res, user) => {
     _id: user._id,
     name: user.name,
     email: user.email,
+    phone: user.phone,
     role: user.role,
     isAdmin: user.isAdmin,
     approvalStatus: user.approvalStatus,
@@ -98,9 +100,15 @@ userRouter.post(
 userRouter.post(
   '/signup',
   expressAsyncHandler(async (req, res) => {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) {
-      res.status(400).send({ message: 'Name, email, and password are required' });
+    const { name, email, password, phone } = req.body;
+    if (!name || !email || !password || !phone) {
+      res.status(400).send({ message: 'Name, email, password, and contact number are required' });
+      return;
+    }
+
+    const phoneTrimmed = phone.trim();
+    if (!/^\d{9}$/.test(phoneTrimmed)) {
+      res.status(400).send({ message: 'Contact number must be exactly 9 digits' });
       return;
     }
 
@@ -116,9 +124,19 @@ userRouter.post(
       email: normalizedEmail,
       password: bcrypt.hashSync(password, BCRYPT_ROUNDS),
       role: 'customer',
+      phone: phone.trim(),
     });
 
     const createdUser = await user.save();
+
+    // Auto-create Customer profile record
+    const customer = new Customer({
+      userId: createdUser._id,
+      name: createdUser.name,
+      phone: phone.trim(),
+    });
+    await customer.save();
+
     sendUserResponse(res, createdUser);
   })
 );

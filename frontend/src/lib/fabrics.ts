@@ -1,5 +1,6 @@
 import type { Locale } from "@/i18n/routing";
 import { formatCurrency } from "@/lib/format";
+import { resolveMediaUrl } from "@/lib/media";
 
 export type FabricMaterial = "wool" | "silk" | "linen" | "cashmere" | "cotton";
 
@@ -42,6 +43,7 @@ export interface FabricDetailItem extends FabricListItem {
   listedByStore: FabricStoreInfo | null;
 }
 
+
 // lib/fabrics.ts – add/update helpers if missing
 function isUploadedImage(url: string): boolean {
   if (!url) return false;
@@ -73,6 +75,20 @@ export function resolveFabricImage(images?: string | string[]): string {
 
   const resolved = resolveMediaUrl(raw);
   return resolved || DEFAULT_FABRIC_IMAGE;
+}
+const LEGACY_IMAGE_PATHS: Record<string, string> = {
+  "/images/dress-1.png": "/images/fab1.png",
+  "/images/dress-2.png": "/images/fab2.png",
+  "/images/dress-3.png": "/images/fab3.png",
+  "/images/dress-4.png": "/images/fab4.png",
+  "/images/dress-5.png": "/images/fab5.png",
+};
+
+export function resolveFabricImage(url: string | undefined): string {
+  if (!url) return "/images/fab1.png";
+  const resolved = LEGACY_IMAGE_PATHS[url] ?? url;
+  return resolveMediaUrl(resolved) || "/images/fab1.png";
+
 }
 
 export function getFabricDisplayFields(

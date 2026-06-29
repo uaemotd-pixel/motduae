@@ -11,6 +11,7 @@ import { useWishlist } from "@/context/WishlistContext";
 import { resolveMediaUrl } from "@/lib/media";
 import InnerImageZoom from "react-inner-image-zoom";
 import "react-inner-image-zoom/lib/styles.min.css";
+import { resolveReadyMadeImage } from "@/lib/readyMade";
 
 // Product color mapping (for swatches)
 const colorMap: Record<string, string> = {
@@ -69,7 +70,7 @@ export default function ReadyMadeDetailPage() {
           throw new Error("Product not found");
         }
         setProduct(data.item);
-        setSelectedImage(data.item.images?.[0] || "/placeholder.png");
+        setSelectedImage(resolveReadyMadeImage(data.item.images?.[0]));
       } catch (err: any) {
         setError(err?.message || "Failed to load product");
       } finally {
@@ -87,7 +88,7 @@ export default function ReadyMadeDetailPage() {
       id: product._id,
       slug: product.slug,
       name: product.name,
-      image: product.images?.[0] || "/placeholder.png",
+      image: resolveReadyMadeImage(product.images?.[0]),
       price,
       size: product.metersPerFabric,
       maxStock,
@@ -100,7 +101,7 @@ export default function ReadyMadeDetailPage() {
       productId: product._id,
       slug: product.slug,
       name: product.name,
-      image: product.images?.[0] || "/placeholder.png",
+      image: resolveReadyMadeImage(product.images?.[0]),
       price: String(product.finalSellingPriceAED || 0),
       size: product.metersPerFabric || "",
       quantity: String(quantity),
@@ -122,7 +123,7 @@ export default function ReadyMadeDetailPage() {
         id: product._id,
         slug: product.slug,
         name: product.name,
-        image: product.images?.[0] || "/placeholder.png",
+        image: resolveReadyMadeImage(product.images?.[0]),
         price: product.finalSellingPriceAED || 0,
         maxStock: product.availableFabricStock || 0,
       });
