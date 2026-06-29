@@ -12,11 +12,12 @@
     "ariaLabel": "التنقل الرئيسي",
     "logoAlt": "MOTD — مخوّر اليوم",
     "links": {
+      "designs": "التصاميم",
       "fabrics": "الأقمشة",
+      "brands": "العلامات التجارية",
       "howItWorks": "كيف يعمل",
-      "tailors": "الخياطون",
-      "stories": "القصص",
-      "about": "حول"
+      "joinOurCommunity": "انضم إلى مجتمعنا",
+      "aboutMotd": "حول MOTD"
     },
     "actions": {
       "search": "بحث",

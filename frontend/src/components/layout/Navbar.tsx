@@ -11,19 +11,21 @@ import { getTranslation } from "@/lib/getTranslation";
 import { useParams } from "next/navigation";
 
 const NAV_LINKS = [
+  { key: "designs", href: "/#designs" },
   { key: "fabrics", href: "/fabrics/fabricStore" },
-  { key: "tailors", href: "/tailors" },
-  { key: "stories", href: "/#stories" },
+  { key: "brands", href: "/tailors" },
   { key: "howItWorks", href: "/#how-it-works" },
-  { key: "about", href: "/#about" },
+  { key: "joinOurCommunity", href: "/#join-our-community" },
+  { key: "aboutMotd", href: "/#about" },
 ] as const;
 
 const MOBILE_NAV_LINKS = [
+  { key: "designs", href: "/#designs" },
   { key: "fabrics", href: "/fabrics/fabricStore" },
-  { key: "tailors", href: "/tailors" },
-  { key: "stories", href: "/#stories" },
+  { key: "brands", href: "/tailors" },
   { key: "howItWorks", href: "/#how-it-works" },
-  { key: "about", href: "/#about" },
+  { key: "joinOurCommunity", href: "/#join-our-community" },
+  { key: "aboutMotd", href: "/#about" },
 ] as const;
 
 // SVG Icons (unchanged)

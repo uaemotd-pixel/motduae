@@ -254,7 +254,7 @@ export function TrendingSection() {
 
   return (
     <section
-      id="stories"
+      id="designs"
       className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-(--space-80)"
     >
       <div className="w-full px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) mx-auto">
