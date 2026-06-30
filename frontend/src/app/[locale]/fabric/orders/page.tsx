@@ -316,10 +316,7 @@ export default function FabricOrdersPage() {
                   <div>
                     <p className="text-xs text-gray-400 uppercase tracking-wider mb-1 [font-family:var(--font-ui)]">{t("design")}</p>
                     <p className="text-sm font-medium text-black [font-family:var(--font-body)]">
-                      {order.designSnapshot?.name || "Bespoke Design"}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5 [font-family:var(--font-body)]">
-                      {t("fabricLabel", { name: fabricName })}
+                      {fabricName}
                     </p>
                   </div>
 
@@ -392,7 +389,7 @@ export default function FabricOrdersPage() {
                 {/* Footer bar showing Order ID */}
                 <div className="p-4 border-t border-gray-100 bg-gray-50/70 text-xs text-gray-500">
                   {locale === "ar" ? "الرقم التعريفي للطلب:" : "Order ID:"}{" "}
-                  <span className="font-mono text-black font-medium">#{order._id.toUpperCase()}</span>
+                  <span className="font-mono text-black font-medium">#{order._id.slice(-8).toUpperCase()}</span>
                 </div>
               </div>
             );

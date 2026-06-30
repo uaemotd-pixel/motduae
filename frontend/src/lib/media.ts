@@ -4,17 +4,25 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 export function resolveMediaUrl(path: string | undefined): string {
     if (!path) return "";
 
+    // Normalize backslashes to forward slashes
+    let normalized = path.replace(/\\/g, "/");
+
     if (
-        path.startsWith("http://") ||
-        path.startsWith("https://") ||
-        path.startsWith("data:")
+        normalized.startsWith("http://") ||
+        normalized.startsWith("https://") ||
+        normalized.startsWith("data:")
     ) {
-        return path;
+        return normalized;
     }
 
-    if (path.startsWith("/uploads/")) {
-        return `${API_BASE}${path}`;
+    // Ensure leading slash if it starts with uploads/
+    if (normalized.startsWith("uploads/")) {
+        normalized = "/" + normalized;
     }
 
-    return path;
+    if (normalized.startsWith("/uploads/")) {
+        return `${API_BASE}${normalized}`;
+    }
+
+    return normalized;
 }

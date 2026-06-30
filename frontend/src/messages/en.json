@@ -620,7 +620,7 @@
       "loadError": "Failed to load fabric orders. Please try again.",
       "empty": "No custom fabric orders placed from your store yet.",
       "customer": "Customer",
-      "design": "Design & Fabric",
+      "design": "Fabric",
       "date": "Ordered On",
       "status": "Status",
       "total": "Payout",

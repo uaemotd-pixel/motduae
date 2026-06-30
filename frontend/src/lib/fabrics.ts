@@ -43,18 +43,12 @@ export interface FabricDetailItem extends FabricListItem {
 }
 
 
+import { resolveMediaUrl } from "@/lib/media";
+
 // lib/fabrics.ts – add/update helpers if missing
 function isUploadedImage(url: string): boolean {
   if (!url) return false;
-  return url.startsWith("/uploads/") || url.includes("uploads/");
-}
-
-function resolveMediaUrl(raw: string): string {
-  if (!raw) return "";
-  if (raw.startsWith("http")) return raw;
-  const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "";
-  const clean = raw.replace(/^\//, "");
-  return `${base}/${clean}`;
+  return url.startsWith("/uploads/") || url.includes("uploads/") || url.startsWith("uploads\\") || url.includes("uploads\\");
 }
 
 export const DEFAULT_FABRIC_IMAGE = "/images/placeholder-fabric.jpg";
