@@ -43,7 +43,6 @@ subAdminRouter.post("/", async (req, res) => {
       email,
       password,
       phone,
-      dob,
       address: {
         name: address?.name || "",
         phone: address?.phone || "",
@@ -67,7 +66,6 @@ subAdminRouter.post("/", async (req, res) => {
       role: "sub-admin",
       isAdmin: true,
     });
-    user.isAdmin = true;
     await user.save();
     console.log('Saved user:', user.toObject());
 
@@ -118,7 +116,6 @@ subAdminRouter.put("/:id", async (req, res) => {
         name,
         email,
         phone,
-        dob,
         address: address || {},
         perms: perms || {},
       },

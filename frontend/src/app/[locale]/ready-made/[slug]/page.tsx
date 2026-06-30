@@ -248,7 +248,7 @@ export default function ReadyMadeDetailPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 xs:gap-10 md:gap-12 lg:gap-(--space-40)">
               {/* Left: Gallery */}
               <div className="space-y-4">
-                <div className="aspect-4/5 relative overflow-hidden bg-[#F5F5F0] rounded-lg group">
+                <div className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group">
                   <InnerImageZoom
                     src={resolveMediaUrl(selectedImage)}
                     zoomScale={1.5}

@@ -299,7 +299,7 @@ export function PremiumFabrics() {
                         <div className="aspect-9/9 relative overflow-hidden rounded-t-lg">
                           <img
                             src={imageUrl}
-                            className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105"
+                            className="w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-105"
                             alt={title}
                           />
 

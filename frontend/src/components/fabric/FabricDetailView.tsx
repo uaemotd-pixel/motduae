@@ -65,6 +65,7 @@ export default function FabricDetailView({
               <InnerImageZoom
                 src={images[activeImage]}
                 zoomScale={1.5}
+                className="w-full h-auto"
               />
             </div>
             {images.length > 1 && (

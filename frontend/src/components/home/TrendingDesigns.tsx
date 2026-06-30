@@ -345,7 +345,7 @@ export function TrendingSection() {
                       <div className="aspect-9/9 relative overflow-hidden bg-[#F5F4F0] rounded-t-lg">
                         <img
                           src={imageUrl}
-                          className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105"
+                          className="w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-105"
                           alt={name}
                         />
                         <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>

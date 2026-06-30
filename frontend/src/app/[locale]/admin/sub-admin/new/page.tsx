@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
 import toast from "react-hot-toast";
+import { Eye, EyeOff } from "lucide-react";
 
 interface SubAdminForm {
   name: string;
   email: string;
   password: string;
   phone: string;
-  dob: string;
-  // Address fields
   addressName: string;
   addressPhone: string;
   emirate: string;
@@ -20,7 +19,6 @@ interface SubAdminForm {
   street: string;
   building: string;
   postalCode: string;
-  // Permissions
   perms: {
     customers: boolean;
     readyMade: boolean;
@@ -28,7 +26,6 @@ interface SubAdminForm {
     tailors: boolean;
     orders: boolean;
     partners: boolean;
-    createSubAdmin: boolean;
     settings: boolean;
   };
 }
@@ -37,13 +34,13 @@ export default function CreateSubAdminPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [showPassword, setShowPassword] = useState(false);
 
   const [form, setForm] = useState<SubAdminForm>({
     name: "",
     email: "",
     password: "",
     phone: "",
-    dob: "",
     addressName: "",
     addressPhone: "",
     emirate: "",
@@ -58,7 +55,6 @@ export default function CreateSubAdminPage() {
       tailors: false,
       orders: false,
       partners: false,
-      createSubAdmin: false,
       settings: false,
     },
   });
@@ -83,6 +79,19 @@ export default function CreateSubAdminPage() {
     if (!form.email.trim()) errors.email = "Email required";
     if (form.password.length < 6)
       errors.password = "Password must be at least 6 characters";
+
+    if (form.phone) {
+      const phoneDigits = form.phone.replace("+971", "");
+      if (!/^\d{9}$/.test(phoneDigits)) {
+        errors.phone = "Invalid UAE phone – must be 9 digits after +971";
+      }
+    }
+    if (form.addressPhone) {
+      const addrDigits = form.addressPhone.replace("+971", "");
+      if (!/^\d{9}$/.test(addrDigits)) {
+        errors.addressPhone = "Invalid UAE phone – must be 9 digits after +971";
+      }
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -94,16 +103,34 @@ export default function CreateSubAdminPage() {
       return;
     }
 
+    // Build payload with nested `address` object
+    const payload = {
+      name: form.name,
+      email: form.email,
+      password: form.password,
+      phone: form.phone,
+      address: {
+        name: form.addressName,
+        phone: form.addressPhone,
+        emirate: form.emirate,
+        city: form.city,
+        street: form.street,
+        building: form.building,
+        postalCode: form.postalCode,
+      },
+      perms: form.perms,
+    };
+
     setLoading(true);
     try {
-      await api.post("/api/subadmins", form);
+      await api.post("/api/subadmins", payload);
       toast.success("Sub‑admin created");
+      // Reset form
       setForm({
         name: "",
         email: "",
         password: "",
         phone: "",
-        dob: "",
         addressName: "",
         addressPhone: "",
         emirate: "",
@@ -118,7 +145,6 @@ export default function CreateSubAdminPage() {
           tailors: false,
           orders: false,
           partners: false,
-          createSubAdmin: false,
           settings: false,
         },
       });
@@ -167,41 +193,55 @@ export default function CreateSubAdminPage() {
           </FormField>
 
           <FormField label="Password" required error={fieldErrors.password}>
-            <input
-              type="password"
-              value={form.password}
-              onChange={(e) => handleChange("password", e.target.value)}
-              placeholder="••••••••"
-              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={form.password}
+                onChange={(e) => handleChange("password", e.target.value)}
+                placeholder="Enter password"
+                className="w-full py-1 border-b border-gray-300 focus:border-black outline-none pr-8"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black transition"
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </FormField>
 
-          <FormField label="Phone">
-            <input
-              type="tel"
-              value={form.phone}
-              onChange={(e) => handleChange("phone", e.target.value)}
-              placeholder="+971 50 123 4567"
-              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
-            />
+          <FormField label="Phone" error={fieldErrors.phone}>
+            <div className="relative">
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+                +971
+              </span>
+              <input
+                type="text"
+                value={form.phone.replace("+971", "")}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "");
+                  if (digits.length <= 9) {
+                    handleChange("phone", "+971" + digits);
+                  }
+                }}
+                placeholder="50 123 4567"
+                className="w-full py-1 border-b border-gray-300 focus:border-black outline-none pl-12"
+              />
+            </div>
           </FormField>
 
-          <FormField label="Date of Birth">
-            <input
-              type="date"
-              value={form.dob}
-              onChange={(e) => handleChange("dob", e.target.value)}
-              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
-            />
-          </FormField>
-
-          {/* Address Section – full width */}
+          {/* Address Section */}
           <div className="md:col-span-2">
             <h3 className="text-sm font-medium text-gray-700 mb-3">
               Address Details
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField label="Contact Name">
+              <FormField label="Full Name">
                 <input
                   type="text"
                   value={form.addressName}
@@ -210,14 +250,24 @@ export default function CreateSubAdminPage() {
                   className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
                 />
               </FormField>
-              <FormField label="Contact Phone">
-                <input
-                  type="tel"
-                  value={form.addressPhone}
-                  onChange={(e) => handleChange("addressPhone", e.target.value)}
-                  placeholder="+971 50 123 4567"
-                  className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
-                />
+              <FormField label="Phone" error={fieldErrors.addressPhone}>
+                <div className="relative">
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
+                    +971
+                  </span>
+                  <input
+                    type="text"
+                    value={form.addressPhone.replace("+971", "")}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "");
+                      if (digits.length <= 9) {
+                        handleChange("addressPhone", "+971" + digits);
+                      }
+                    }}
+                    placeholder="50 123 4567"
+                    className="w-full py-1 border-b border-gray-300 focus:border-black outline-none pl-12"
+                  />
+                </div>
               </FormField>
               <FormField label="Emirate">
                 <input
@@ -267,7 +317,7 @@ export default function CreateSubAdminPage() {
             </div>
           </div>
 
-          {/* Permissions – full width */}
+          {/* Permissions */}
           <div className="md:col-span-2">
             <label className="block text-xs uppercase tracking-widest text-gray-500 mb-3">
               Permissions

@@ -100,8 +100,12 @@ export default function DesignDetailView({
           {/* Left Column - Design Image(s) */}
 
           <div className="space-y-4">
-            <div className="aspect-square bg-[#F5F4F0] overflow-hidden rounded-sm">
-              <InnerImageZoom src={images[activeImage]} zoomScale={1.5} />
+            <div className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group">
+              <InnerImageZoom
+                src={images[activeImage]}
+                zoomScale={1.5}
+                className="w-full h-auto"
+              />
             </div>
             {images.length > 1 && (
               <div className="flex gap-2 overflow-x-auto">

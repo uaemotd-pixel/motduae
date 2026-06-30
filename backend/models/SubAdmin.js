@@ -6,7 +6,6 @@ const SubAdminSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   phone: String,
-  dob: Date,
   address: {
     name: String,
     phone: String,
@@ -23,7 +22,6 @@ const SubAdminSchema = new mongoose.Schema({
     tailors: { type: Boolean, default: false },
     orders: { type: Boolean, default: false },
     partners: { type: Boolean, default: false },
-    createSubAdmin: { type: Boolean, default: false },
     settings: { type: Boolean, default: false },
   },
   createdAt: { type: Date, default: Date.now },
