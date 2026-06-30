@@ -24,6 +24,7 @@ interface ApiUserResponse {
     authProvider?: string;
     hasPassword?: boolean;
     token?: string;
+    perms?: Record<string, boolean>;
 }
 
 export interface User {
@@ -37,6 +38,7 @@ export interface User {
     isActive?: boolean;
     authProvider?: string;
     hasPassword?: boolean;
+    perms?: Record<string, boolean>;
 }
 
 function mapApiUser(data: ApiUserResponse): User {
@@ -51,6 +53,7 @@ function mapApiUser(data: ApiUserResponse): User {
         isActive: data.isActive,
         authProvider: data.authProvider,
         hasPassword: data.hasPassword,
+        perms: data.perms || {},
     };
 }
 

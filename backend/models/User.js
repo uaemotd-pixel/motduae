@@ -1,6 +1,13 @@
 import mongoose from "mongoose";
 
-const ROLES = ["customer", "admin", "fabric_store", "tailor", "delivery"];
+const ROLES = [
+  "customer",
+  "admin",
+  "fabric_store",
+  "tailor",
+  "delivery",
+  "sub-admin",
+];
 
 const APPROVAL_STATUSES = ["pending", "approved", "rejected"];
 
@@ -47,7 +54,7 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ role: 1, approvalStatus: 1 });
 
 userSchema.pre("save", function syncDerivedFields(next) {
-  this.isAdmin = this.role === "admin";
+  this.isAdmin = this.role === "admin" || this.role === "sub-admin";
   if (this.role !== "tailor" && this.role !== "fabric_store") {
     this.approvalStatus = "approved";
     this.rejectionNote = "";

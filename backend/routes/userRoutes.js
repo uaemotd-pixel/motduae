@@ -6,6 +6,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { isAuth, isAdmin, generateToken } from '../middleware/auth.js';
 import User from '../models/User.js';
 import Customer from '../models/customer.js';
+import SubAdmin from '../models/SubAdmin.js';
 import { env } from '../config/env.js';
 import { validatePassword } from '../utils/passwordValidation.js';
 import { isEmailConfigured, sendPasswordResetEmail } from '../services/emailService.js';
@@ -47,34 +48,53 @@ const assertPasswordValid = (password, res) => {
 };
 
 userRouter.get(
-  '/',
+  "/",
   isAuth,
   isAdmin,
   expressAsyncHandler(async (_req, res) => {
     const users = await User.find({}).select('-password -resetPasswordToken');
     res.send(users);
-  })
+  }),
 );
 
 userRouter.get(
-  '/profile',
+  "/profile",
   isAuth,
   expressAsyncHandler(async (req, res) => {
     const user = await User.findById(req.user._id).select('-resetPasswordToken');
     if (!user) {
-      res.status(404).send({ message: 'User not found' });
+      res.status(404).send({ message: "User not found" });
       return;
     }
-    sendUserResponse(res, user);
-  })
+    let perms = {};
+    if (user.role === "sub-admin") {
+      const subAdmin = await SubAdmin.findOne({ email: user.email });
+      if (subAdmin) perms = subAdmin.perms || {};
+    }
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isAdmin: user.isAdmin,
+      approvalStatus: user.approvalStatus,
+      isActive: user.isActive,
+      authProvider: user.authProvider,
+      hasPassword: Boolean(user.password),
+      perms,
+      token: generateToken(user),
+    });
+  }),
 );
 
 userRouter.post(
-  '/signin',
+  "/signin",
   expressAsyncHandler(async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
-      res.status(400).send({ message: 'Email and password are required' });
+      res.status(400).send({ message: "Email and password are required" });
       return;
     }
 
@@ -97,12 +117,30 @@ userRouter.post(
     }
 
     if (user.isActive === false) {
-      res.status(403).send({ message: 'Account is deactivated' });
+      res.status(403).send({ message: "Account is deactivated" });
       return;
     }
 
-    sendUserResponse(res, user);
-  })
+    let perms = {};
+    if (user.role === "sub-admin") {
+      const subAdmin = await SubAdmin.findOne({ email });
+      if (subAdmin) perms = subAdmin.perms || {};
+    }
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isAdmin: user.isAdmin,
+      approvalStatus: user.approvalStatus,
+      isActive: user.isActive,
+      authProvider: user.authProvider,
+      hasPassword: Boolean(user.password),
+      perms,
+      token: generateToken(user),
+    });
+  }),
 );
 
 userRouter.post(
@@ -294,7 +332,9 @@ userRouter.post(
   expressAsyncHandler(async (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) {
-      res.status(400).send({ message: 'Name, email, and password are required' });
+      res
+        .status(400)
+        .send({ message: "Name, email, and password are required" });
       return;
     }
 
@@ -335,7 +375,7 @@ userRouter.post(
     const normalizedEmail = email.toLowerCase().trim();
     const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
-      res.status(400).send({ message: 'User already exists' });
+      res.status(400).send({ message: "User already exists" });
       return;
     }
 
@@ -345,19 +385,22 @@ userRouter.post(
       password: bcrypt.hashSync(password, BCRYPT_ROUNDS),
       role: 'fabric_store',
       approvalStatus: 'pending',
+      authProvider: 'local',
     });
 
     const createdUser = await user.save();
     sendUserResponse(res, createdUser);
-  })
+  }),
 );
 
 userRouter.post(
-  '/signup',
+  "/signup",
   expressAsyncHandler(async (req, res) => {
     const { name, email, password, phone } = req.body;
     if (!name || !email || !password || !phone) {
-      res.status(400).send({ message: 'Name, email, password, and contact number are required' });
+      res.status(400).send({
+        message: "Name, email, password, and contact number are required",
+      });
       return;
     }
 
@@ -367,14 +410,16 @@ userRouter.post(
 
     const phoneTrimmed = phone.trim();
     if (!/^\d{9}$/.test(phoneTrimmed)) {
-      res.status(400).send({ message: 'Contact number must be exactly 9 digits' });
+      res
+        .status(400)
+        .send({ message: "Contact number must be exactly 9 digits" });
       return;
     }
 
     const normalizedEmail = email.toLowerCase().trim();
     const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
-      res.status(400).send({ message: 'User already exists' });
+      res.status(400).send({ message: "User already exists" });
       return;
     }
 
@@ -382,7 +427,7 @@ userRouter.post(
       name: name.trim(),
       email: normalizedEmail,
       password: bcrypt.hashSync(password, BCRYPT_ROUNDS),
-      role: 'customer',
+      role: "customer",
       phone: phone.trim(),
       authProvider: 'local',
     });
@@ -397,16 +442,16 @@ userRouter.post(
     await customer.save();
 
     sendUserResponse(res, createdUser);
-  })
+  }),
 );
 
 userRouter.put(
-  '/profile',
+  "/profile",
   isAuth,
   expressAsyncHandler(async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) {
-      res.status(404).send({ message: 'User not found' });
+      res.status(404).send({ message: "User not found" });
       return;
     }
 
@@ -462,7 +507,7 @@ userRouter.put(
 
     const updatedUser = await user.save();
     sendUserResponse(res, updatedUser);
-  })
+  }),
 );
 
 export default userRouter;

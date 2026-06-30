@@ -1,10 +1,8 @@
 "use client";
 
 import { Link, usePathname } from "@/i18n/navigation";
-import { useTranslations } from "next-intl";
 
-export default function AdminOrdersTabs() {
-  const t = useTranslations("Admin.OrdersCustom");
+export default function SubAdminOrdersTabs() {
   const pathname = usePathname();
 
   const tabClass = (active: boolean) =>
@@ -17,16 +15,16 @@ export default function AdminOrdersTabs() {
   return (
     <div className="flex gap-1 border-b border-gray-200">
       <Link
-        href="/admin/orders/custom"
+        href="/sub-admin-dashboard/orders/custom"
         className={tabClass(pathname.includes("/orders/custom"))}
       >
-        {t("tabs.custom")}
+        Custom Orders
       </Link>
       <Link
-        href="/admin/orders/retail"
+        href="/sub-admin-dashboard/orders/retail"
         className={tabClass(pathname.includes("/orders/retail"))}
       >
-        {t("tabs.retail")}
+        Retail Orders
       </Link>
     </div>
   );
