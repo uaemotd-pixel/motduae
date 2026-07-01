@@ -263,7 +263,7 @@ export default function TailorDesignSelectionStep() {
                                     <img
                                         src={imageUrl}
                                         alt={name}
-                                        className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105"
+                                        className="w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-105"
                                     />
                                     {isSelected && (
                                         <span className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black text-white flex items-center justify-center [font-family:var(--font-ui)] text-[12px]">

@@ -134,12 +134,21 @@ export default function OrderReviewStep() {
 
           <div className="space-y-6 mb-6">
             {draft.lineItems.map((item) => {
-              const designName = getDisplayName(item.design.name, item.design.nameAr);
+              const designName = getDisplayName(
+                item.design.name,
+                item.design.nameAr,
+              );
               const fabricName = item.fabric
                 ? getDisplayName(item.fabric.name, item.fabric.nameAr)
                 : t("ownFabric");
-              const tailorName = getDisplayName(item.tailor.name, item.tailor.nameAr);
-              const category = formatDesignCategory(item.design.category, locale);
+              const tailorName = getDisplayName(
+                item.tailor.name,
+                item.tailor.nameAr,
+              );
+              const category = formatDesignCategory(
+                item.design.category,
+                locale,
+              );
 
               return (
                 <div

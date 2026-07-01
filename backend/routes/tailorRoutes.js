@@ -1,17 +1,57 @@
-import express from 'express';
-import TailorShop from '../models/TailorShop.js';
-import Design from '../models/Design.js';
-import User from '../models/User.js';
+import express from "express";
+import jwt from "jsonwebtoken";
+import TailorShop from "../models/TailorShop.js";
+import Design from "../models/Design.js";
+import Customer from "../models/customer.js";
+import User from "../models/User.js";
+import { env } from "../config/env.js";
 
 const tailorRoutes = express.Router();
 
 async function getApprovedTailorOwnerIds() {
   const owners = await User.find({
-    role: 'tailor',
-    approvalStatus: 'approved',
-  }).select('_id');
+    role: "tailor",
+    approvalStatus: "approved",
+  }).select("_id");
 
   return owners.map((owner) => owner._id);
+}
+function calculateAgeFromDob(dob) {
+  if (!dob) return null;
+  const birthDate = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < birthDate.getDate())
+  ) {
+    age--;
+  }
+
+  return age;
+}
+
+async function getCustomerAgeFromAuthToken(req) {
+  const authorization = req.headers.authorization;
+  if (!authorization?.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = authorization.slice(7);
+  try {
+    const decoded = jwt.verify(token, env.jwtSecret);
+    const userId = decoded?._id;
+    if (!userId) return null;
+
+    const customer = await Customer.findOne({ userId }).select("dob");
+    if (!customer?.dob) return null;
+
+    return calculateAgeFromDob(customer.dob);
+  } catch (error) {
+    return null;
+  }
 }
 
 const toListItem = (shop) => ({
@@ -32,7 +72,7 @@ const toListItem = (shop) => ({
 });
 
 // GET /api/tailors — active shops whose owner is admin-approved
-tailorRoutes.get('/', async (req, res) => {
+tailorRoutes.get("/", async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const approvedOwnerIds = await getApprovedTailorOwnerIds();
@@ -51,7 +91,7 @@ tailorRoutes.get('/', async (req, res) => {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNumber)
-        .select('-__v'),
+        .select("-__v"),
       TailorShop.countDocuments(filter),
     ]);
 
@@ -64,24 +104,24 @@ tailorRoutes.get('/', async (req, res) => {
       items: shops.map(toListItem),
     });
   } catch (error) {
-    console.error('GET /api/tailors error:', error);
+    console.error("GET /api/tailors error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch tailor shops',
+      message: "Failed to fetch tailor shops",
     });
   }
 });
 
 const isApprovedTailorOwner = (owner) =>
-  owner?.role === 'tailor' && owner?.approvalStatus === 'approved';
+  owner?.role === "tailor" && owner?.approvalStatus === "approved";
 
 async function findApprovedShopBySlug(slug) {
   const shop = await TailorShop.findOne({
     slug: slug.toLowerCase(),
     isActive: true,
   })
-    .populate('ownerId', '_id name role approvalStatus')
-    .select('-__v');
+    .populate("ownerId", "_id name role approvalStatus")
+    .select("-__v");
 
   if (!shop || !isApprovedTailorOwner(shop.ownerId)) {
     return null;
@@ -106,7 +146,7 @@ const toDesignListItem = (design) => ({
 });
 
 // GET /api/tailors/designs/all — fetch all active designs with tailor shop info
-tailorRoutes.get('/designs/all', async (req, res) => {
+tailorRoutes.get("/designs/all", async (req, res) => {
   try {
     const { category, limit = 20 } = req.query;
     const approvedOwnerIds = await getApprovedTailorOwnerIds();
@@ -114,7 +154,7 @@ tailorRoutes.get('/designs/all', async (req, res) => {
     const approvedShops = await TailorShop.find({
       isActive: true,
       ownerId: { $in: approvedOwnerIds },
-    }).select('_id slug name nameAr');
+    }).select("_id slug name nameAr");
 
     const shopIds = approvedShops.map((s) => s._id);
     const shopMap = approvedShops.reduce((acc, shop) => {
@@ -127,8 +167,14 @@ tailorRoutes.get('/designs/all', async (req, res) => {
       tailorShopId: { $in: shopIds },
     };
 
-    if (category && category !== 'all') {
+    if (category && category !== "all") {
       query.category = category;
+    }
+
+    const customerAge = await getCustomerAgeFromAuthToken(req);
+    if (typeof customerAge === "number") {
+      query.ageMin = { $lte: customerAge };
+      query.ageMax = { $gte: customerAge };
     }
 
     const limitNumber = Math.min(Math.max(Number(limit) || 20, 1), 100);
@@ -136,16 +182,16 @@ tailorRoutes.get('/designs/all', async (req, res) => {
     const designs = await Design.find(query)
       .sort({ createdAt: -1 })
       .limit(limitNumber)
-      .select('-__v');
+      .select("-__v");
 
     const items = designs.map((design) => {
       const shop = shopMap[design.tailorShopId.toString()];
       return {
         ...toDesignListItem(design),
         tailorShopId: design.tailorShopId,
-        tailorSlug: shop?.slug || '',
-        tailorName: shop?.name || '',
-        tailorNameAr: shop?.nameAr || '',
+        tailorSlug: shop?.slug || "",
+        tailorName: shop?.name || "",
+        tailorNameAr: shop?.nameAr || "",
       };
     });
 
@@ -155,16 +201,16 @@ tailorRoutes.get('/designs/all', async (req, res) => {
       items,
     });
   } catch (error) {
-    console.error('GET /api/tailors/designs/all error:', error);
+    console.error("GET /api/tailors/designs/all error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch all designs',
+      message: "Failed to fetch all designs",
     });
   }
 });
 
 // GET /api/tailors/designs/:slug — fetch detailed design info by slug
-tailorRoutes.get('/designs/:slug', async (req, res) => {
+tailorRoutes.get("/designs/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
 
@@ -172,13 +218,13 @@ tailorRoutes.get('/designs/:slug', async (req, res) => {
       slug: slug.toLowerCase(),
       isActive: true,
     })
-      .populate('tailorShopId')
-      .select('-__v');
+      .populate("tailorShopId")
+      .select("-__v");
 
     if (!design) {
       return res.status(404).json({
         success: false,
-        message: 'Design not found',
+        message: "Design not found",
       });
     }
 
@@ -186,15 +232,19 @@ tailorRoutes.get('/designs/:slug', async (req, res) => {
     if (!shop || !shop.isActive) {
       return res.status(404).json({
         success: false,
-        message: 'Design shop is not active',
+        message: "Design shop is not active",
       });
     }
 
     const owner = await User.findById(shop.ownerId);
-    if (!owner || owner.role !== 'tailor' || owner.approvalStatus !== 'approved') {
+    if (
+      !owner ||
+      owner.role !== "tailor" ||
+      owner.approvalStatus !== "approved"
+    ) {
       return res.status(404).json({
         success: false,
-        message: 'Design shop owner is not approved',
+        message: "Design shop owner is not approved",
       });
     }
 
@@ -218,16 +268,16 @@ tailorRoutes.get('/designs/:slug', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('GET /api/tailors/designs/:slug error:', error);
+    console.error("GET /api/tailors/designs/:slug error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch design details',
+      message: "Failed to fetch design details",
     });
   }
 });
 
 // GET /api/tailors/:slug/designs — active designs for an approved tailor shop
-tailorRoutes.get('/:slug/designs', async (req, res) => {
+tailorRoutes.get("/:slug/designs", async (req, res) => {
   try {
     const { slug } = req.params;
     const shop = await findApprovedShopBySlug(slug);
@@ -235,7 +285,7 @@ tailorRoutes.get('/:slug/designs', async (req, res) => {
     if (!shop) {
       return res.status(404).json({
         success: false,
-        message: 'Tailor shop not found',
+        message: "Tailor shop not found",
       });
     }
 
@@ -244,7 +294,7 @@ tailorRoutes.get('/:slug/designs', async (req, res) => {
       isActive: true,
     })
       .sort({ createdAt: -1 })
-      .select('-__v');
+      .select("-__v");
 
     res.json({
       success: true,
@@ -254,10 +304,10 @@ tailorRoutes.get('/:slug/designs', async (req, res) => {
       items: designs.map(toDesignListItem),
     });
   } catch (error) {
-    console.error('GET /api/tailors/:slug/designs error:', error);
+    console.error("GET /api/tailors/:slug/designs error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch tailor designs',
+      message: "Failed to fetch tailor designs",
     });
   }
 });
@@ -288,7 +338,7 @@ const toDetailItem = (shop) => ({
 });
 
 // GET /api/tailors/:slug — shop profile; 404 if inactive or owner not approved
-tailorRoutes.get('/:slug', async (req, res) => {
+tailorRoutes.get("/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
     const shop = await findApprovedShopBySlug(slug);
@@ -296,7 +346,7 @@ tailorRoutes.get('/:slug', async (req, res) => {
     if (!shop) {
       return res.status(404).json({
         success: false,
-        message: 'Tailor shop not found',
+        message: "Tailor shop not found",
       });
     }
 
@@ -305,10 +355,10 @@ tailorRoutes.get('/:slug', async (req, res) => {
       item: toDetailItem(shop),
     });
   } catch (error) {
-    console.error('GET /api/tailors/:slug error:', error);
+    console.error("GET /api/tailors/:slug error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch tailor shop',
+      message: "Failed to fetch tailor shop",
     });
   }
 });

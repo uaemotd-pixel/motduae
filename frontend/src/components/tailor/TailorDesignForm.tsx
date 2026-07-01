@@ -358,36 +358,31 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
             </FormField>
 
             <FormField label="Min Age" name="ageMin" required>
-              <select
+              <input
                 id="ageMin"
+                type="number"
+                min={0}
+                max={120}
                 value={formData.ageMin}
                 onChange={(e) =>
-                  handleChange("ageMin", parseInt(e.target.value))
+                  handleChange("ageMin", parseInt(e.target.value) || 0)
                 }
                 className={INPUT_CLASS}
-              >
-                {[...Array(101).keys()].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+              />
             </FormField>
-            <FormField label="Max age" name="ageMax" required>
-              <select
+
+            <FormField label="Max Age" name="ageMax" required>
+              <input
                 id="ageMax"
+                type="number"
+                min={0}
+                max={120}
                 value={formData.ageMax}
                 onChange={(e) =>
-                  handleChange("ageMax", parseInt(e.target.value))
+                  handleChange("ageMax", parseInt(e.target.value) || 0)
                 }
                 className={INPUT_CLASS}
-              >
-                {[...Array(101).keys()].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+              />
             </FormField>
           </div>
         </section>
@@ -463,13 +458,16 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
               required
               error={fieldErrors.estimatedMeters}
             >
-              <NumericInput
+              <input
                 id="estimatedMeters"
-                min={0.1}
-                step={0.1}
-                allowDecimal
+                type="number"
+                min="0.1"
+                step="0.1"
                 value={formData.estimatedMeters}
-                onChange={(value) => handleChange("estimatedMeters", value)}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  handleChange("estimatedMeters", isNaN(val) ? 0 : val);
+                }}
                 className={INPUT_CLASS}
               />
             </FormField>
@@ -480,12 +478,16 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
               required
               error={fieldErrors.estimatedDays}
             >
-              <NumericInput
+              <input
                 id="estimatedDays"
-                min={1}
-                step={1}
+                type="number"
+                min="1"
+                step="1"
                 value={formData.estimatedDays}
-                onChange={(value) => handleChange("estimatedDays", value)}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  handleChange("estimatedDays", isNaN(val) ? 0 : val);
+                }}
                 className={INPUT_CLASS}
               />
             </FormField>
