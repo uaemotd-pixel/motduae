@@ -21,6 +21,11 @@ export interface ReadyMadeFormData {
   tailorName: string;
   tailorNameAr: string;
 
+  fabricShopId: string;
+  fabricId: string;
+  tailorShopId: string;
+  designId: string;
+
   metersPerFabric: number;
 
   fabricPriceAED: number;
@@ -91,6 +96,11 @@ export function defaultReadyMadeForm(): ReadyMadeFormData {
     tailorName: "",
     tailorNameAr: "",
 
+    fabricShopId: "",
+    fabricId: "",
+    tailorShopId: "",
+    designId: "",
+
     metersPerFabric: 0,
 
     fabricPriceAED: 0,
@@ -143,6 +153,34 @@ export function fromApiProduct(
     tailorNameAr:
       typeof product.tailorNameAr === "string" ? product.tailorNameAr : "",
 
+    fabricShopId:
+      typeof product.fabricShopId === "string"
+        ? product.fabricShopId
+        : product.fabricShopId && typeof product.fabricShopId === "object" && "_id" in product.fabricShopId
+        ? (product.fabricShopId as { _id: string })._id
+        : "",
+
+    fabricId:
+      typeof product.fabricId === "string"
+        ? product.fabricId
+        : product.fabricId && typeof product.fabricId === "object" && "_id" in product.fabricId
+        ? (product.fabricId as { _id: string })._id
+        : "",
+
+    tailorShopId:
+      typeof product.tailorShopId === "string"
+        ? product.tailorShopId
+        : product.tailorShopId && typeof product.tailorShopId === "object" && "_id" in product.tailorShopId
+        ? (product.tailorShopId as { _id: string })._id
+        : "",
+
+    designId:
+      typeof product.designId === "string"
+        ? product.designId
+        : product.designId && typeof product.designId === "object" && "_id" in product.designId
+        ? (product.designId as { _id: string })._id
+        : "",
+
     metersPerFabric:
       typeof product.metersPerFabric === "number" ? product.metersPerFabric : 0,
 
@@ -192,6 +230,11 @@ export function toApiPayload(form: ReadyMadeFormData): Record<string, unknown> {
 
     tailorName: form.tailorName,
     tailorNameAr: form.tailorNameAr,
+
+    fabricShopId: form.fabricShopId,
+    fabricId: form.fabricId,
+    tailorShopId: form.tailorShopId || null,
+    designId: form.designId || null,
 
     metersPerFabric: form.metersPerFabric,
 

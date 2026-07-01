@@ -7,6 +7,7 @@ import Fabric from "../models/Fabric.js";
 import User from "../models/User.js";
 import TailorShop from "../models/TailorShop.js";
 import FabricShop from "../models/FabricShop.js";
+import Design from "../models/Design.js";
 import CustomOrder, { CUSTOM_STATUSES } from "../models/CustomOrder.js";
 import RetailOrder, { RETAIL_ORDER_STATUSES } from "../models/RetailOrder.js";
 import PlatformSettings from "../models/PlatformSettings.js";
@@ -76,6 +77,33 @@ adminRouter.get(
   }),
 );
 
+// GET /api/admin/ready-made/:id
+// Get details of a single ready-made item
+adminRouter.get(
+  "/ready-made/:id",
+  expressAsyncHandler(async (req, res) => {
+    const product = await ReadyMadeProduct.findById(req.params.id);
+    if (product) {
+      res.send(product);
+    } else {
+      res.status(404).send({ message: "Ready-made product not found" });
+    }
+  }),
+);
+
+// GET /api/admin/designs
+// Admin can view all tailor designs in the catalog (optionally filtered by tailorShopId)
+adminRouter.get(
+  "/designs",
+  expressAsyncHandler(async (req, res) => {
+    const filter = req.query.tailorShopId ? { tailorShopId: req.query.tailorShopId } : {};
+    const designs = await Design.find(filter)
+      .populate("tailorShopId", "name email")
+      .sort({ createdAt: -1 });
+    res.send(designs);
+  }),
+);
+
 // POST /api/admin/ready-made
 // Create a new listing (auto-set stock to 1)
 adminRouter.post(
@@ -92,6 +120,10 @@ adminRouter.post(
       colors,
       thumbnailImage,
       images,
+      fabricShopId,
+      fabricId,
+      tailorShopId,
+      designId,
       fabricType,
       fabricTypeAr,
       tailorName,
@@ -126,10 +158,14 @@ adminRouter.post(
       colors,
       thumbnailImage,
       images,
-      fabricType,
-      fabricTypeAr,
-      tailorName,
-      tailorNameAr,
+      fabricShopId,
+      fabricId,
+      tailorShopId: tailorShopId || undefined,
+      designId: designId || undefined,
+      fabricType: fabricType || "",
+      fabricTypeAr: fabricTypeAr || "",
+      tailorName: tailorName || "",
+      tailorNameAr: tailorNameAr || "",
       metersPerFabric,
       fabricPriceAED,
       mukhawarPriceAED,
@@ -177,7 +213,13 @@ adminRouter.put(
     product.thumbnailImage = req.body.thumbnailImage ?? product.thumbnailImage;
     product.images = req.body.images ?? product.images;
 
-    // --- Fabric & Tailor ---
+    // --- Fabric & Tailor relation fields ---
+    product.fabricShopId = req.body.fabricShopId ?? product.fabricShopId;
+    product.fabricId = req.body.fabricId ?? product.fabricId;
+    product.tailorShopId = req.body.tailorShopId !== undefined ? req.body.tailorShopId : product.tailorShopId;
+    product.designId = req.body.designId !== undefined ? req.body.designId : product.designId;
+
+    // Fallbacks
     product.fabricType = req.body.fabricType ?? product.fabricType;
     product.fabricTypeAr = req.body.fabricTypeAr ?? product.fabricTypeAr;
     product.tailorName = req.body.tailorName ?? product.tailorName;
@@ -428,7 +470,8 @@ async function assertFabricStorePartner(listedByStore) {
 adminRouter.get(
   "/fabrics",
   expressAsyncHandler(async (req, res) => {
-    const fabrics = await Fabric.find({})
+    const filter = req.query.listedByStore ? { listedByStore: req.query.listedByStore } : {};
+    const fabrics = await Fabric.find(filter)
       .populate("listedByStore", "name email")
       .sort({ createdAt: -1 });
     res.send(fabrics);

@@ -246,10 +246,12 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
       errors.materialAr = "Material (AR) is required";
     }
 
-    if (!Number.isFinite(formData.pricePerMeter) || formData.pricePerMeter <= 0) {
+    const priceNum = Number(formData.pricePerMeter);
+    if (isNaN(priceNum) || priceNum <= 0) {
       errors.pricePerMeter = t("validation.pricePerMeterInvalid");
     }
-    if (!Number.isFinite(formData.stockInMeters) || formData.stockInMeters < 0) {
+    const stockNum = Number(formData.stockInMeters);
+    if (isNaN(stockNum) || stockNum < 0) {
       errors.stockInMeters = t("validation.stockInMetersInvalid");
     }
 
