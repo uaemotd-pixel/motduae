@@ -98,17 +98,15 @@ export function MeasurementGuide() {
                     {/* RIGHT SECTION - Measurement Image */}
                     <div className="relative mt-8 lg:mt-0 flex justify-center items-center">
                         {/* Decorative frame */}
-                        <div className="relative w-full max-w-65 xs:max-w-[320px] sm:max-w-95 md:max-w-105 lg:max-w-115 aspect-4/5 overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm shadow-2xl">
+                        <div className="relative w-full max-w-65 xs:max-w-[320px] sm:max-w-95 md:max-w-105 lg:max-w-115 aspect-4/5 overflow-hidden rounded-3xl border border-white/10 bg-white shadow-2xl">
                             <Image
                                 src={images.measure1}
                                 alt="How to measure guide"
-                                className="w-full h-full object-cover opacity-90 hover:scale-105 hover:opacity-100 transition-all duration-700"
+                                className="w-full h-full object-contain p-4 opacity-95 hover:scale-105 hover:opacity-100 transition-all duration-700"
                                 fill
                                 sizes="(max-width: 480px) 260px, (max-width: 640px) 320px, (max-width: 768px) 380px, (max-width: 1024px) 420px, 460px"
                                 priority={false}
                             />
-                            {/* Optional overlay */}
-                            <div className="absolute inset-0 bg-linear-to-t from-black/30 via-transparent to-transparent"></div>
                         </div>
                     </div>
                 </div>
