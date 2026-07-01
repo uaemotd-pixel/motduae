@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, FormEvent, useRef } from "react";
+import { useState, useEffect, FormEvent, useRef, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
@@ -91,6 +91,51 @@ export default function EditReadyMadePage() {
   const [fabricWidth, setFabricWidth] = useState<"single" | "double">("single");
   const [colorsOpen, setColorsOpen] = useState(false);
   const colorsDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Dropdown options states
+  const [fabricShops, setFabricShops] = useState<any[]>([]);
+  const [allFabrics, setAllFabrics] = useState<any[]>([]);
+  const [tailorShops, setTailorShops] = useState<any[]>([]);
+  const [allDesigns, setAllDesigns] = useState<any[]>([]);
+
+  // Load dropdown data
+  useEffect(() => {
+    const loadDropdownData = async () => {
+      try {
+        const [shopsRes, fabricsRes, tailorsRes, designsRes] = await Promise.all([
+          api.get<any>("/api/admin/fabric-shops"),
+          api.get<any[]>("/api/admin/fabrics"),
+          api.get<any>("/api/admin/tailors"),
+          api.get<any[]>("/api/admin/designs"),
+        ]);
+        setFabricShops(shopsRes.items || []);
+        setAllFabrics(fabricsRes || []);
+        setTailorShops(tailorsRes.items || []);
+        setAllDesigns(designsRes || []);
+      } catch (err) {
+        toast.error("Failed to load store or catalog data for dropdowns");
+      }
+    };
+    loadDropdownData();
+  }, []);
+
+  // Filter fabrics by selected fabric store
+  const filteredFabrics = useMemo(() => {
+    if (!formData?.fabricShopId) return [];
+    return allFabrics.filter((f) => {
+      const shopId = typeof f.fabricShopId === "object" && f.fabricShopId !== null && "_id" in f.fabricShopId ? (f.fabricShopId as any)._id : f.fabricShopId;
+      return shopId === formData.fabricShopId;
+    });
+  }, [allFabrics, formData?.fabricShopId]);
+
+  // Filter designs by selected tailor shop
+  const filteredDesigns = useMemo(() => {
+    if (!formData?.tailorShopId) return [];
+    return allDesigns.filter((d) => {
+      const shopId = typeof d.tailorShopId === "object" ? d.tailorShopId?._id : d.tailorShopId;
+      return shopId === formData.tailorShopId;
+    });
+  }, [allDesigns, formData?.tailorShopId]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -231,8 +276,8 @@ export default function EditReadyMadePage() {
     const errors: Record<string, string> = {};
 
     if (!formData.name.trim()) errors.name = "Name required";
-    if (!formData.fabricType.trim()) errors.fabricType = "Fabric type required";
-    // tailorName is optional – no validation
+    if (!formData.fabricShopId) errors.fabricShopId = "Fabric store required";
+    if (!formData.fabricId) errors.fabricId = "Fabric required";
 
     const hasImage = formData.images.some((img) => img.trim() !== "");
     if (!hasImage) errors.images = "At least one image is required";
@@ -404,56 +449,78 @@ export default function EditReadyMadePage() {
             />
           </FormField>
 
-          {/* FABRIC TYPE */}
-          <FormField label="Fabric Type (ENG)" name="fabricType" required>
+          {/* FABRIC STORE */}
+          <FormField label="Fabric Store" name="fabricShopId" error={fieldErrors.fabricShopId} required>
             <select
-              value={formData.fabricType}
-              onChange={(e) => handleChange("fabricType", e.target.value)}
-              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none bg-transparent"
+              value={formData.fabricShopId}
+              onChange={(e) => {
+                const shopId = e.target.value;
+                handleChange("fabricShopId", shopId);
+                handleChange("fabricId", ""); // Reset selected fabric
+              }}
+              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none bg-transparent hover:cursor-pointer text-[14px]"
             >
-              <option value="">Select Fabric Type</option>
-              {FABRIC_TYPES.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.en}
+              <option value="">Select Fabric Store</option>
+              {fabricShops.map((shop) => (
+                <option key={shop._id} value={shop._id}>
+                  {shop.name}
                 </option>
               ))}
             </select>
           </FormField>
 
-          {/* FABRIC TYPE AR */}
-          <FormField label="Fabric Type (AR)" name="fabricTypeAr" required>
+          {/* FABRIC */}
+          <FormField label="Fabric" name="fabricId" error={fieldErrors.fabricId} required>
             <select
-              value={formData.fabricTypeAr}
-              onChange={(e) => handleChange("fabricTypeAr", e.target.value)}
-              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none bg-transparent text-right"
+              value={formData.fabricId}
+              onChange={(e) => handleChange("fabricId", e.target.value)}
+              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none bg-transparent hover:cursor-pointer text-[14px]"
+              disabled={!formData.fabricShopId}
             >
-              <option value="">اختر نوع القماش</option>
-              {FABRIC_TYPES.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.ar}
+              <option value="">Select Fabric</option>
+              {filteredFabrics.map((f) => (
+                <option key={f._id} value={f._id}>
+                  {localeParam === "ar" ? f.nameAr || f.name : f.name}
                 </option>
               ))}
             </select>
           </FormField>
 
-          {/* TAILOR NAME */}
-          <FormField label="Tailor Name (ENG)" name="tailorName">
-            <input
-              value={formData.tailorName}
-              onChange={(e) => handleNameChange("tailorName", e.target.value)}
-              placeholder="Zahra Bint Qasim"
-              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-start"
-            />
+          {/* TAILOR SHOP */}
+          <FormField label="Tailor Shop" name="tailorShopId" error={fieldErrors.tailorShopId}>
+            <select
+              value={formData.tailorShopId}
+              onChange={(e) => {
+                const shopId = e.target.value;
+                handleChange("tailorShopId", shopId);
+                handleChange("designId", ""); // Reset selected design
+              }}
+              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none bg-transparent hover:cursor-pointer text-[14px]"
+            >
+              <option value="">Select Tailor Shop</option>
+              {tailorShops.map((shop) => (
+                <option key={shop._id} value={shop._id}>
+                  {shop.name}
+                </option>
+              ))}
+            </select>
           </FormField>
 
-          {/* TAILOR NAME AR */}
-          <FormField label="Tailor Name (AR)" name="tailorNameAr">
-            <input
-              value={formData.tailorNameAr}
-              onChange={(e) => handleNameChange("tailorNameAr", e.target.value)}
-              placeholder="زهرة بنت قاسم"
-              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-end"
-            />
+          {/* DESIGN */}
+          <FormField label="Design" name="designId" error={fieldErrors.designId}>
+            <select
+              value={formData.designId}
+              onChange={(e) => handleChange("designId", e.target.value)}
+              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none bg-transparent hover:cursor-pointer text-[14px]"
+              disabled={!formData.tailorShopId}
+            >
+              <option value="">Select Design</option>
+              {filteredDesigns.map((d) => (
+                <option key={d._id} value={d._id}>
+                  {localeParam === "ar" ? d.nameAr || d.name : d.name}
+                </option>
+              ))}
+            </select>
           </FormField>
 
           {/* METERS */}

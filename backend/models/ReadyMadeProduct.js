@@ -74,13 +74,13 @@ const readyMadeProductSchema = new mongoose.Schema(
     // Fabric Type
     fabricType: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
     },
 
     fabricTypeAr: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
     },
 
@@ -93,6 +93,31 @@ const readyMadeProductSchema = new mongoose.Schema(
     tailorNameAr: {
       type: String,
       trim: true,
+    },
+
+    // Ref relations
+    fabricShopId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "FabricShop",
+      required: true,
+    },
+
+    fabricId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Fabric",
+      required: true,
+    },
+
+    tailorShopId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TailorShop",
+      required: false,
+    },
+
+    designId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Design",
+      required: false,
     },
 
     // Fabric Details
@@ -140,8 +165,8 @@ const readyMadeProductSchema = new mongoose.Schema(
 readyMadeProductSchema.index({ isActive: 1 });
 readyMadeProductSchema.index({ code: 1 });
 
-// Pre‑save hook to auto‑generate slug if missing
-readyMadeProductSchema.pre("save", function (next) {
+// Pre‑save hook to auto‑generate slug if missing, and populate text details from refs
+readyMadeProductSchema.pre("save", async function (next) {
   if (!this.slug) {
     const base = this.name || this.nameAr || "ready-made";
     this.slug = base
@@ -149,6 +174,31 @@ readyMadeProductSchema.pre("save", function (next) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
   }
+
+  try {
+    if (this.fabricId) {
+      const FabricModel = mongoose.model("Fabric");
+      const fabric = await FabricModel.findById(this.fabricId);
+      if (fabric) {
+        this.fabricType = fabric.name;
+        this.fabricTypeAr = fabric.nameAr || fabric.name;
+      }
+    }
+    if (this.tailorShopId) {
+      const TailorShopModel = mongoose.model("TailorShop");
+      const shop = await TailorShopModel.findById(this.tailorShopId);
+      if (shop) {
+        this.tailorName = shop.name;
+        this.tailorNameAr = shop.nameAr || shop.name;
+      }
+    } else {
+      this.tailorName = "";
+      this.tailorNameAr = "";
+    }
+  } catch (err) {
+    console.error("Error in ReadyMadeProduct pre-save hook:", err);
+  }
+
   next();
 });
 

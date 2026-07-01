@@ -64,6 +64,8 @@ readyMadeRoutes.get("/:slug", async (req, res) => {
             slug: slug.toLowerCase(),
             isActive: true
         })
+        .populate("fabricId", "slug name nameAr")
+        .populate("designId", "slug name nameAr");
 
         if (!product) {
             return res.status(404).json({
