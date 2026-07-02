@@ -14,18 +14,18 @@ const NAV_LINKS = [
   { key: "designs", href: "/#designs" },
   { key: "fabrics", href: "/fabrics/fabricStore" },
   { key: "brands", href: "/tailors" },
-  { key: "howItWorks", href: "/#how-it-works" },
   { key: "joinOurCommunity", href: "/#join-our-community" },
-  { key: "aboutMotd", href: "/#about" },
+  { key: "motdGuide", href: "/motd-guide" },
+  { key: "contactUs", href: "/contact-us" },
 ] as const;
 
 const MOBILE_NAV_LINKS = [
   { key: "designs", href: "/#designs" },
   { key: "fabrics", href: "/fabrics/fabricStore" },
   { key: "brands", href: "/tailors" },
-  { key: "howItWorks", href: "/#how-it-works" },
   { key: "joinOurCommunity", href: "/#join-our-community" },
-  { key: "aboutMotd", href: "/#about" },
+  { key: "motdGuide", href: "/motd-guide" },
+  { key: "contactUs", href: "/contact-us" },
 ] as const;
 
 // SVG Icons (unchanged)

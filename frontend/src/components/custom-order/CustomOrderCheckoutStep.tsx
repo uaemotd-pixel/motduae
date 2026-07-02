@@ -395,48 +395,87 @@ export default function CustomOrderCheckoutStep() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-8">
-            <aside className="border border-(--color-border) bg-[#FDFAF5] p-6 sm:p-8 h-fit">
-              <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
-                {t("summaryTitle")}
-              </h2>
+            <div className="space-y-6">
+              <aside className="border border-(--color-border) bg-[#FDFAF5] p-6 sm:p-8 h-fit">
+                <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
+                  {t("summaryTitle")}
+                </h2>
 
-              <dl className="space-y-4 mb-6">
-                {draft.lineItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="border-b border-(--color-border) pb-4 last:border-b-0 last:pb-0"
-                  >
-                    <div>
-                      <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                        {t("design")}
-                      </dt>
-                      <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                        {getDisplayName(item.design.name, item.design.nameAr) ||
-                          "—"}
-                      </dd>
+                <dl className="space-y-4 mb-6">
+                  {draft.lineItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="border-b border-(--color-border) pb-4 last:border-b-0 last:pb-0"
+                    >
+                      <div>
+                        <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                          {t("design")}
+                        </dt>
+                        <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                          {getDisplayName(item.design.name, item.design.nameAr) ||
+                            "—"}
+                        </dd>
+                      </div>
+                      <div className="mt-3">
+                        <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                          {t("tailor")}
+                        </dt>
+                        <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                          {getDisplayName(item.tailor.name, item.tailor.nameAr) ||
+                            "—"}
+                        </dd>
+                      </div>
                     </div>
-                    <div className="mt-3">
-                      <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                        {t("tailor")}
-                      </dt>
-                      <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                        {getDisplayName(item.tailor.name, item.tailor.nameAr) ||
-                          "—"}
-                      </dd>
-                    </div>
-                  </div>
-                ))}
-              </dl>
+                  ))}
+                </dl>
 
-              <div className="pt-4 border-t border-(--color-border) flex justify-between items-center gap-4">
-                <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-black">
-                  {t("total")}
-                </span>
-                <span className="[font-family:var(--font-display)] text-[24px] text-black">
-                  {pricing ? formatCurrency(pricing.total, locale) : "—"}
-                </span>
+                <div className="pt-4 border-t border-(--color-border) flex justify-between items-center gap-4">
+                  <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-black">
+                    {t("total")}
+                  </span>
+                  <span className="[font-family:var(--font-display)] text-[24px] text-black">
+                    {pricing ? formatCurrency(pricing.total, locale) : "—"}
+                  </span>
+                </div>
+              </aside>
+
+              {/* Order Options - Always Show */}
+              <div className="border border-(--color-border) bg-[#FDFBF7] p-6 sm:p-8">
+                <h2 className="[font-family:var(--font-display)] text-[20px] mb-4">
+                  {locale === "ar"
+                    ? "خيارات الطلب (اختياري)"
+                    : "Order Options (Optional)"}
+                </h2>
+                <div className="space-y-4">
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      id="add-pocket-checkbox"
+                      checked={addPocket}
+                      onChange={(e) => setAddPocket(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 accent-black shrink-0"
+                    />
+                    <span className="[font-family:var(--font-body)] text-[13px] text-black leading-tight">
+                      {locale === "ar" ? "إضافة جيب" : "Add a Pocket"}
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      id="add-bottom-wide-fold-checkbox"
+                      checked={addBottomWideFold}
+                      onChange={(e) => setAddBottomWideFold(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 accent-black shrink-0"
+                    />
+                    <span className="[font-family:var(--font-body)] text-[13px] text-black leading-tight">
+                      {locale === "ar"
+                        ? "إضافة طية سفلية عريضة"
+                        : "Add a bottom wide fold"}
+                    </span>
+                  </label>
+                </div>
               </div>
-            </aside>
+            </div>
 
             <section>
               {/* Delivery Address or Pickup Info */}
@@ -653,43 +692,6 @@ export default function CustomOrderCheckoutStep() {
                 <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mt-2">
                   {t("codDescription")}
                 </p>
-              </div>
-
-              {/* Order Options - Always Show */}
-              <div className="border border-(--color-border) bg-[#FDFBF7] p-6 sm:p-8 mb-6">
-                <h2 className="[font-family:var(--font-display)] text-[20px] mb-4">
-                  {locale === "ar"
-                    ? "خيارات الطلب (اختياري)"
-                    : "Order Options (Optional)"}
-                </h2>
-                <div className="space-y-4">
-                  <label className="flex items-start gap-3 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      id="add-pocket-checkbox"
-                      checked={addPocket}
-                      onChange={(e) => setAddPocket(e.target.checked)}
-                      className="w-4 h-4 mt-0.5 accent-black shrink-0"
-                    />
-                    <span className="[font-family:var(--font-body)] text-[13px] text-black leading-tight">
-                      {locale === "ar" ? "إضافة جيب" : "Add a Pocket"}
-                    </span>
-                  </label>
-                  <label className="flex items-start gap-3 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      id="add-bottom-wide-fold-checkbox"
-                      checked={addBottomWideFold}
-                      onChange={(e) => setAddBottomWideFold(e.target.checked)}
-                      className="w-4 h-4 mt-0.5 accent-black shrink-0"
-                    />
-                    <span className="[font-family:var(--font-body)] text-[13px] text-black leading-tight">
-                      {locale === "ar"
-                        ? "إضافة طية سفلية عريضة"
-                        : "Add a bottom wide fold"}
-                    </span>
-                  </label>
-                </div>
               </div>
 
               {/* Confirm & Submit - Always Show */}

@@ -15,9 +15,9 @@
       "designs": "Designs",
       "fabrics": "Fabrics",
       "brands": "Brands",
-      "howItWorks": "How It Works",
       "joinOurCommunity": "Join Our Community",
-      "aboutMotd": "About MOTD"
+      "motdGuide": "The MOTD Guide",
+      "contactUs": "Contact Us"
     },
     "actions": {
       "search": "Search",
