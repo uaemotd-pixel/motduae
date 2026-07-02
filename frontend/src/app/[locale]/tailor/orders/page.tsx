@@ -19,6 +19,7 @@ import {
   Sliders,
 } from "lucide-react";
 import StatusBadge from "@/components/admin/StatusBadge";
+import CustomOrderMeasurementsPanel from "@/components/custom-order/CustomOrderMeasurementsPanel";
 import {
   formatOrderDate,
   getNextCustomOrderStatus,
@@ -47,6 +48,7 @@ interface Measurements {
   neckDepth?: number | null;
   armholeHeight?: number | null;
   sleeveOpeningWidth?: number | null;
+  cuffWidth?: number | null;
   cuffLength?: number | null;
   notes?: string;
 }
@@ -434,37 +436,8 @@ export default function TailorOrdersPage() {
                   </div>
 
                   {isExpanded && order.measurements && (
-                    <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                      {[
-                        { label: locale === "ar" ? "الطول الكلي" : "Total Length", val: order.measurements.totalLength },
-                        { label: locale === "ar" ? "عرض الكتف" : "Shoulder Width", val: order.measurements.shoulderWidth },
-                        { label: locale === "ar" ? "طول الذراع" : "Arm Length", val: order.measurements.armLength },
-                        { label: locale === "ar" ? "عرض الصدر" : "Chest Width", val: order.measurements.chestWidth },
-                        { label: locale === "ar" ? "الخصر" : "Waist", val: order.measurements.waist },
-                        { label: locale === "ar" ? "الأرداف" : "Hips", val: order.measurements.hips },
-                        { label: locale === "ar" ? "عرض الرقبة" : "Neck Width", val: order.measurements.neckWidth },
-                        { label: locale === "ar" ? "عمق الرقبة" : "Neck Depth", val: order.measurements.neckDepth },
-                        { label: locale === "ar" ? "ارتفاع الإبط" : "Armhole Height", val: order.measurements.armholeHeight },
-                        { label: locale === "ar" ? "فتحة الكم" : "Sleeve Opening", val: order.measurements.sleeveOpeningWidth },
-                        { label: locale === "ar" ? "طول الكفة" : "Cuff Length", val: order.measurements.cuffLength },
-                      ].map(
-                        (m) =>
-                          m.val !== undefined &&
-                          m.val !== null && (
-                            <div key={m.label} className="bg-white p-2 border border-gray-100 rounded-lg">
-                              <p className="text-3xs text-gray-400 uppercase font-medium">{m.label}</p>
-                              <p className="text-sm font-semibold font-mono text-black mt-0.5">{m.val} cm</p>
-                            </div>
-                          )
-                      )}
-                      {order.measurements.notes && (
-                        <div className="col-span-full bg-white p-3 border border-gray-100 rounded-lg">
-                          <p className="text-3xs text-gray-400 uppercase font-medium">
-                            {locale === "ar" ? "ملاحظات المقاس" : "Sizing Notes"}
-                          </p>
-                          <p className="text-xs text-gray-700 mt-1">{order.measurements.notes}</p>
-                        </div>
-                      )}
+                    <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                      <CustomOrderMeasurementsPanel measurements={order.measurements} />
                     </div>
                   )}
 

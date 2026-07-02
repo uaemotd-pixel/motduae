@@ -16,6 +16,7 @@ import {
   useOwnFabric,
 } from "@/lib/customOrder";
 import { formatCurrency } from "@/lib/format";
+import CustomOrderJourneyRibbon from "@/components/custom-order/CustomOrderJourneyRibbon";
 import SuccessModal from "@/components/shared/SuccessModal";
 
 const EMIRATES = [
@@ -385,6 +386,7 @@ export default function CustomOrderCheckoutStep() {
     <>
       {previewPayload && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+          <CustomOrderJourneyRibbon />
           <div className="mb-10">
             <h1 className="[font-family:var(--font-display)] text-[32px] sm:text-[40px] font-normal leading-[1.1] tracking-[-0.01em] text-black mb-3">
               {t("title")}
