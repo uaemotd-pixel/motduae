@@ -44,16 +44,40 @@ export default function OrderReviewStep() {
   );
   const [loadingPricing, setLoadingPricing] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
+  const [shippingFee, setShippingFee] = useState<number | null>(null);
+  const [vatRate, setVatRate] = useState<number | null>(null);
 
   const previewPayload = useMemo(
     () => (isHydrated ? buildCustomOrderPreviewPayload(draft) : null),
     [draft, isHydrated],
   );
 
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const data = await api.get<{
+          defaultDeliveryFee: number;
+          vatRate: number;
+        }>("/api/orders/settings");
+        setShippingFee(data.defaultDeliveryFee);
+        setVatRate(data.vatRate);
+      } catch (error) {
+        console.error("Failed to fetch settings:", error);
+        setShippingFee(35);
+        setVatRate(0.05);
+      }
+    };
+    fetchSettings();
+  }, []);
+
   // Recalculate pricing when delivery type changes
   useEffect(() => {
-    if (!isHydrated || !previewPayload) {
-      setPricing(null);
+    if (
+      !isHydrated ||
+      !previewPayload ||
+      shippingFee === null ||
+      vatRate === null
+    ) {
       return;
     }
 
@@ -64,7 +88,9 @@ export default function OrderReviewStep() {
 
         const payload = {
           ...previewPayload,
-          deliveryType, // Pass delivery type to backend
+          deliveryType,
+          shippingFee,
+          vatRate,
         };
 
         const data = await api.post<{
@@ -78,7 +104,6 @@ export default function OrderReviewStep() {
 
         setPricing(data.pricing);
       } catch (err: unknown) {
-        setPricing(null);
         const message =
           (err as ApiError)?.message ||
           (err instanceof Error ? err.message : t("pricingError"));
@@ -89,20 +114,19 @@ export default function OrderReviewStep() {
     };
 
     fetchPreview();
-  }, [isHydrated, previewPayload, deliveryType, t]);
+  }, [isHydrated, previewPayload, deliveryType, shippingFee, vatRate, t]);
 
   const canContinue = isReviewStepComplete(draft, pricing !== null);
 
   const getDisplayName = (name?: string, nameAr?: string) =>
     locale === "ar" ? nameAr || name : name;
 
-  const vatPercent = pricing ? Math.round(pricing.vatRate * 100) : 5;
+  const vatPercent = vatRate !== null ? Math.round(vatRate * 100) : 5;
   const stepNumber = getCustomOrderStepNumber("review", draft.firstStep);
   const editOrderPath = getCustomOrderEntryPath(draft.firstStep);
 
   const handleContinue = () => {
     if (!canContinue) return;
-    // Store delivery type in context/session before checkout
     router.push("/custom-order/checkout");
   };
 
@@ -128,7 +152,7 @@ export default function OrderReviewStep() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-        {/* Left column - Order summary (unchanged) */}
+        {/* Left column - Order summary */}
         <section className="border border-(--color-border) bg-[#FDFAF5] p-6 sm:p-8">
           <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
             {t("summaryTitle")}
@@ -253,148 +277,159 @@ export default function OrderReviewStep() {
             {t("pricingTitle")}
           </h2>
 
-          {loadingPricing ? (
+          {pricingError ? (
+            <p className="text-red-600 py-8">{pricingError}</p>
+          ) : pricing ? (
+            <div className="relative">
+              {loadingPricing && (
+                <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
+                  <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
+                    {t("loadingPricing")}
+                  </p>
+                </div>
+              )}
+              <div className={loadingPricing ? "opacity-50" : ""}>
+                <div className="space-y-3 [font-family:var(--font-body)] text-[14px]">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-(--color-grey-muted)">
+                      {t("lines.designBase")}
+                    </span>
+                    <span className="text-black shrink-0">
+                      {formatCurrency(pricing.designBase, locale)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-(--color-grey-muted)">
+                      {t("lines.fabricCost")}
+                      {!usingOwnFabric && pricing.fabricPricePerMeter > 0 && (
+                        <span className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.12em] mt-1">
+                          {t("lines.fabricDetail", {
+                            meters: pricing.fabricMeters,
+                            pricePerMeter: formatCurrency(
+                              pricing.fabricPricePerMeter,
+                              locale,
+                            ),
+                          })}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-black shrink-0">
+                      {formatCurrency(pricing.fabricCost, locale)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-(--color-grey-muted)">
+                      {t("lines.tailoringFee")}
+                    </span>
+                    <span className="text-black shrink-0">
+                      {formatCurrency(pricing.tailoringFee, locale)}
+                    </span>
+                  </div>
+
+                  {/* Delivery/Pickup Toggle */}
+                  <div className="py-3 border-t border-(--color-border) first:border-t-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+                      <span className="text-(--color-grey-muted) [font-family:var(--font-body)] text-[14px]">
+                        Delivery Method
+                      </span>
+
+                      <div className="flex items-center justify-between sm:justify-end gap-2">
+                        <label className="inline-flex items-center cursor-pointer select-none">
+                          <span
+                            className={`text-[10px] uppercase tracking-[0.2em] font-ui transition-colors mr-2 ${
+                              deliveryType === "pickup"
+                                ? "text-black"
+                                : "text-gray-400"
+                            }`}
+                          >
+                            Pickup
+                          </span>
+
+                          <input
+                            type="checkbox"
+                            checked={deliveryType === "delivery"}
+                            onChange={(e) =>
+                              setDeliveryType(
+                                e.target.checked ? "delivery" : "pickup",
+                              )
+                            }
+                            className="sr-only peer"
+                          />
+
+                          <div className="relative w-11 h-6 bg-[#D1CDC5] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-black/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-0.5 after:inset-s-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black shadow-inner"></div>
+
+                          <span
+                            className={`text-[10px] uppercase tracking-[0.2em] font-ui transition-colors ml-2 ${
+                              deliveryType === "delivery"
+                                ? "text-black"
+                                : "text-gray-400"
+                            }`}
+                          >
+                            Delivery
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <p className="mt-1.5 text-[10px] text-gray-400 font-ui tracking-[0.12em] text-right">
+                      {deliveryType === "delivery"
+                        ? `AED ${shippingFee ?? 35} delivery fee applies`
+                        : "Free pickup from store"}
+                    </p>
+                  </div>
+
+                  <div className="flex justify-between gap-4 pt-3 border-t border-(--color-border)">
+                    <span className="text-(--color-grey-muted)">
+                      {t("lines.subtotal")}
+                    </span>
+                    <span className="text-black shrink-0">
+                      {formatCurrency(
+                        deliveryType === "delivery"
+                          ? pricing.subtotal
+                          : pricing.subtotal - pricing.deliveryFee,
+                        locale,
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-(--color-grey-muted)">
+                      {t("lines.vat", { rate: vatPercent })}
+                    </span>
+                    <span className="text-black shrink-0">
+                      {formatCurrency(
+                        deliveryType === "delivery"
+                          ? pricing.vatAmount
+                          : pricing.vatAmount -
+                              pricing.deliveryFee * (vatRate ?? 0.05),
+                        locale,
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-4 pt-3 border-t border-black">
+                    <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-black">
+                      {t("lines.total")}
+                    </span>
+                    <span className="[font-family:var(--font-display)] text-[22px] text-black shrink-0">
+                      {formatCurrency(
+                        deliveryType === "delivery"
+                          ? pricing.total
+                          : pricing.total -
+                              pricing.deliveryFee * (1 + (vatRate ?? 0.05)),
+                        locale,
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : loadingPricing ? (
             <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted) py-8">
               {t("loadingPricing")}
             </p>
-          ) : pricingError ? (
-            <p className="text-red-600 py-8">{pricingError}</p>
-          ) : pricing ? (
-            <div className="space-y-3 [font-family:var(--font-body)] text-[14px]">
-              <div className="flex justify-between gap-4">
-                <span className="text-(--color-grey-muted)">
-                  {t("lines.designBase")}
-                </span>
-                <span className="text-black shrink-0">
-                  {formatCurrency(pricing.designBase, locale)}
-                </span>
-              </div>
-
-              <div className="flex justify-between gap-4">
-                <span className="text-(--color-grey-muted)">
-                  {t("lines.fabricCost")}
-                  {!usingOwnFabric && pricing.fabricPricePerMeter > 0 && (
-                    <span className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.12em] mt-1">
-                      {t("lines.fabricDetail", {
-                        meters: pricing.fabricMeters,
-                        pricePerMeter: formatCurrency(
-                          pricing.fabricPricePerMeter,
-                          locale,
-                        ),
-                      })}
-                    </span>
-                  )}
-                </span>
-                <span className="text-black shrink-0">
-                  {formatCurrency(pricing.fabricCost, locale)}
-                </span>
-              </div>
-
-              <div className="flex justify-between gap-4">
-                <span className="text-(--color-grey-muted)">
-                  {t("lines.tailoringFee")}
-                </span>
-                <span className="text-black shrink-0">
-                  {formatCurrency(pricing.tailoringFee, locale)}
-                </span>
-              </div>
-
-              {/* Delivery/Pickup Toggle - iOS style switch */}
-              <div className="py-3 border-t border-(--color-border) first:border-t-0">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
-                  <span className="text-(--color-grey-muted) [font-family:var(--font-body)] text-[14px]">
-                    Delivery Method
-                  </span>
-
-                  <div className="flex items-center justify-between sm:justify-end gap-2">
-                    <label className="inline-flex items-center cursor-pointer select-none">
-                      <span
-                        className={`text-[10px] uppercase tracking-[0.2em] font-ui transition-colors mr-2 ${
-                          deliveryType === "pickup"
-                            ? "text-black"
-                            : "text-gray-400"
-                        }`}
-                      >
-                        Pickup
-                      </span>
-
-                      <input
-                        type="checkbox"
-                        checked={deliveryType === "delivery"}
-                        onChange={(e) =>
-                          setDeliveryType(
-                            e.target.checked ? "delivery" : "pickup",
-                          )
-                        }
-                        className="sr-only peer"
-                      />
-
-                      <div className="relative w-11 h-6 bg-[#D1CDC5] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-black/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-0.5 after:inset-s-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black shadow-inner"></div>
-
-                      <span
-                        className={`text-[10px] uppercase tracking-[0.2em] font-ui transition-colors ml-2 ${
-                          deliveryType === "delivery"
-                            ? "text-black"
-                            : "text-gray-400"
-                        }`}
-                      >
-                        Delivery
-                      </span>
-                    </label>
-                  </div>
-                </div>
-
-                <p className="mt-1.5 text-[10px] text-gray-400 font-ui tracking-[0.12em] text-right">
-                  {deliveryType === "delivery"
-                    ? "AED 35 delivery fee applies"
-                    : "Free pickup from store"}
-                </p>
-              </div>
-
-              <div className="flex justify-between gap-4 pt-3 border-t border-(--color-border)">
-                <span className="text-(--color-grey-muted)">
-                  {t("lines.subtotal")}
-                </span>
-                <span className="text-black shrink-0">
-                  {formatCurrency(
-                    deliveryType === "delivery"
-                      ? pricing.subtotal
-                      : pricing.subtotal - pricing.deliveryFee,
-                    locale,
-                  )}
-                </span>
-              </div>
-
-              <div className="flex justify-between gap-4">
-                <span className="text-(--color-grey-muted)">
-                  {t("lines.vat", { rate: vatPercent })}
-                </span>
-                <span className="text-black shrink-0">
-                  {formatCurrency(
-                    deliveryType === "delivery"
-                      ? pricing.vatAmount
-                      : pricing.vatAmount -
-                          pricing.deliveryFee * pricing.vatRate,
-                    locale,
-                  )}
-                </span>
-              </div>
-
-              <div className="flex justify-between gap-4 pt-3 border-t border-black">
-                <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-black">
-                  {t("lines.total")}
-                </span>
-                <span className="[font-family:var(--font-display)] text-[22px] text-black shrink-0">
-                  {formatCurrency(
-                    deliveryType === "delivery"
-                      ? pricing.total
-                      : pricing.total -
-                          pricing.deliveryFee * (1 + pricing.vatRate),
-                    locale,
-                  )}
-                </span>
-              </div>
-            </div>
           ) : null}
         </section>
       </div>

@@ -1203,10 +1203,10 @@ adminRouter.get(
     // Safety check: If for some reason seed wasn't run, initialize a default configuration block
     if (!settings) {
       settings = await PlatformSettings.create({
-        defaultDeliveryFee: 35,
+        defaultDeliveryFee: 45,
         defaultTailoringFee: 150,
         platformFee: 0,
-        vatRate: 0.05,
+        
         currency: "AED",
       });
     }

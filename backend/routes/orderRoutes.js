@@ -1,4 +1,5 @@
 import express from "express";
+import expressAsyncHandler from "express-async-handler";
 import mongoose from "mongoose";
 import RetailOrder from "../models/RetailOrder.js";
 import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
@@ -15,6 +16,7 @@ import {
   getMultiItemCustomOrderPricing,
   PricingValidationError,
 } from "../services/pricingService.js";
+import PlatformSettings from "../models/PlatformSettings.js";
 
 const orderRoutes = express.Router();
 
@@ -867,5 +869,27 @@ orderRoutes.get("/retail/:id", isAuth, async (req, res) => {
     });
   }
 });
+
+// This route will fetch shipping fee from DB
+orderRoutes.get(
+  "/settings",
+  expressAsyncHandler(async (req, res) => {
+    // If the model has a custom static method like getSettings(), we use it, otherwise fallback to findOne
+    let settings = await PlatformSettings.findOne({});
+
+    // Safety check: If for some reason seed wasn't run, initialize a default configuration block
+    if (!settings) {
+      settings = await PlatformSettings.create({
+        defaultDeliveryFee: 45,
+        defaultTailoringFee: 150,
+        platformFee: 0,
+        vatRate: 0.05,
+        currency: "AED",
+      });
+    }
+
+    res.send(settings);
+  }),
+);
 
 export default orderRoutes;
