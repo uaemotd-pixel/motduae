@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import MainLayout from "../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 import toast from "react-hot-toast";
-import { Mail, Phone, MapPin, Clock, Loader2, Send } from "lucide-react";
+import { Mail, Phone, Loader2, Send } from "lucide-react";
+import { api } from "@/lib/api/client";
 
 export default function ContactUsPage() {
     const params = useParams();
@@ -38,8 +39,7 @@ export default function ContactUsPage() {
 
         setLoading(true);
         try {
-            // Simulate API submission call
-            await new Promise((resolve) => setTimeout(resolve, 1500));
+            await api.post("/api/users/contact", formData);
             toast.success(isAr ? "تم إرسال رسالتك بنجاح! سنتواصل معك قريبًا." : "Your message was sent successfully! We will contact you soon.");
             setFormData({ name: "", email: "", subject: "", message: "" });
         } catch (error) {
@@ -86,8 +86,8 @@ export default function ContactUsPage() {
                                             <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-wider text-[#8A8A80] block">
                                                 {isAr ? "البريد الإلكتروني" : "EMAIL ADDRESS"}
                                             </span>
-                                            <a href="mailto:support@motd.ae" className="text-sm sm:text-base font-medium text-black hover:opacity-70 transition-opacity underline decoration-1">
-                                                support@motd.ae
+                                            <a href="mailto:motd.uae@gmail.com" className="text-sm sm:text-base font-medium text-black hover:opacity-70 transition-opacity underline decoration-1">
+                                                motd.uae@gmail.com
                                             </a>
                                         </div>
                                     </div>
@@ -101,39 +101,9 @@ export default function ContactUsPage() {
                                             <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-wider text-[#8A8A80] block">
                                                 {isAr ? "رقم الهاتف" : "PHONE NUMBER"}
                                             </span>
-                                            <a href="tel:+97140000000" className="text-sm sm:text-base font-medium text-black hover:opacity-70 transition-opacity underline decoration-1">
-                                                +971 4 000 0000
+                                            <a href="tel:0506932325" className="text-sm sm:text-base font-medium text-black hover:opacity-70 transition-opacity underline decoration-1">
+                                                050 693 2325
                                             </a>
-                                        </div>
-                                    </div>
-
-                                    {/* Address */}
-                                    <div className="flex gap-4 items-start">
-                                        <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center shrink-0">
-                                            <MapPin className="w-5 h-5 text-black" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-wider text-[#8A8A80] block">
-                                                {isAr ? "المكتب الرئيسي" : "OFFICE HEADQUARTERS"}
-                                            </span>
-                                            <p className="text-sm sm:text-base font-medium text-black">
-                                                D3, Dubai Design District, Dubai, UAE
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {/* Working Hours */}
-                                    <div className="flex gap-4 items-start">
-                                        <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center shrink-0">
-                                            <Clock className="w-5 h-5 text-black" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-wider text-[#8A8A80] block">
-                                                {isAr ? "ساعات العمل" : "BUSINESS HOURS"}
-                                            </span>
-                                            <p className="text-sm sm:text-base font-medium text-black">
-                                                {isAr ? "من الاثنين إلى السبت، 9 صباحًا - 6 مساءً" : "Monday to Saturday, 9 AM - 6 PM"}
-                                            </p>
                                         </div>
                                     </div>
                                 </div>
