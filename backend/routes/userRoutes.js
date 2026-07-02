@@ -9,7 +9,7 @@ import Customer from '../models/customer.js';
 import SubAdmin from '../models/SubAdmin.js';
 import { env } from '../config/env.js';
 import { validatePassword } from '../utils/passwordValidation.js';
-import { isEmailConfigured, sendPasswordResetEmail } from '../services/emailService.js';
+import { isEmailConfigured, sendPasswordResetEmail, sendContactMessageEmail } from '../services/emailService.js';
 
 const userRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -508,6 +508,19 @@ userRouter.put(
     const updatedUser = await user.save();
     sendUserResponse(res, updatedUser);
   }),
+);
+
+userRouter.post(
+  '/contact',
+  expressAsyncHandler(async (req, res) => {
+    const { name, email, subject, message } = req.body;
+    if (!name?.trim() || !email?.trim() || !subject?.trim() || !message?.trim()) {
+      return res.status(400).send({ message: 'All fields are required' });
+    }
+
+    await sendContactMessageEmail({ name, email, subject, message });
+    res.send({ success: true, message: 'Message sent successfully' });
+  })
 );
 
 export default userRouter;

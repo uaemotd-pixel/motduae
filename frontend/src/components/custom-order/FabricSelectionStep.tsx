@@ -203,16 +203,10 @@ export default function FabricSelectionStep() {
                                     {label}
                                     <button
                                         type="button"
-                                        onClick={() => handleToggleFabric({
-                                            _id: fabric._id,
-                                            slug: fabric.slug,
-                                            name: fabric.name,
-                                            nameAr: fabric.nameAr,
-                                            material: fabric.material as FabricListItem["material"],
-                                            pricePerMeter: fabric.pricePerMeter,
-                                            stockInMeters: 0,
-                                            images: fabric.image ? [fabric.image] : [],
-                                        })}
+                                        onClick={() => {
+                                            setFabricSource("storefront");
+                                            toggleFabric(fabric);
+                                        }}
                                         className="opacity-70 hover:opacity-100"
                                         aria-label={t("removeFabric", { name: label })}
                                     >
