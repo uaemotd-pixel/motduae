@@ -76,6 +76,7 @@ export const CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS = [
   "neckDepth",
   "armholeHeight",
   "sleeveOpeningWidth",
+  "cuffWidth",
   "cuffLength",
 ] as const;
 
@@ -93,6 +94,7 @@ export interface CustomOrderMeasurements {
   neckDepth: number | null;
   armholeHeight: number | null;
   sleeveOpeningWidth: number | null;
+  cuffWidth: number | null;
   cuffLength: number | null;
   notes: string;
 }
@@ -156,6 +158,7 @@ export const EMPTY_MEASUREMENTS: CustomOrderMeasurements = {
   neckDepth: null,
   armholeHeight: null,
   sleeveOpeningWidth: null,
+  cuffWidth: null,
   cuffLength: null,
   notes: "",
 };
@@ -344,6 +347,7 @@ function normalizeMeasurements(value: unknown): CustomOrderMeasurements {
     neckDepth: normalizeNumber(measurements.neckDepth),
     armholeHeight: normalizeNumber(measurements.armholeHeight),
     sleeveOpeningWidth: normalizeNumber(measurements.sleeveOpeningWidth),
+    cuffWidth: normalizeNumber(measurements.cuffWidth),
     cuffLength: normalizeNumber(measurements.cuffLength),
     notes: typeof measurements.notes === "string" ? measurements.notes : "",
   };

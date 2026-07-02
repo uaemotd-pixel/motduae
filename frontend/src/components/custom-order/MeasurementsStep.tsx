@@ -9,24 +9,16 @@ import {
     isMeasurementsStepComplete,
     type CustomOrderMeasurementField,
 } from "@/lib/customOrder";
+import {
+    BODY_MEASUREMENT_FIELDS,
+    NECK_MEASUREMENT_FIELDS,
+    SLEEVE_MEASUREMENT_FIELDS,
+    getMeasurementLetter,
+} from "@/lib/measurementDiagramLabels";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
-
-const MAIN_MEASUREMENT_FIELDS: CustomOrderMeasurementField[] = [
-    "totalLength",
-    "shoulderWidth",
-    "armLength",
-    "chestWidth",
-    "waist",
-    "hips",
-    "neckWidth",
-    "neckDepth",
-    "armholeHeight",
-];
-
-const ARABIC_SLEEVE_FIELDS: CustomOrderMeasurementField[] = [
-    "sleeveOpeningWidth",
-    "cuffLength",
-];
+import MeasurementBodyDiagram from "@/components/custom-order/measurement-diagram/MeasurementBodyDiagram";
+import MeasurementNeckDiagram from "@/components/custom-order/measurement-diagram/MeasurementNeckDiagram";
+import MeasurementSleeveDiagram from "@/components/custom-order/measurement-diagram/MeasurementSleeveDiagram";
 
 function parseOptionalNumber(value: string): number | null {
     if (value.trim() === "") return null;
@@ -46,12 +38,17 @@ type MeasurementInputProps = {
 };
 
 function MeasurementInput({ field, value, onChange, t }: MeasurementInputProps) {
+    const letter = getMeasurementLetter(field);
+
     return (
-        <div>
+        <div className="min-w-0">
             <label
                 htmlFor={`measurement-${field}`}
-                className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
             >
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-black text-[9px] shrink-0">
+                    {letter}
+                </span>
                 {t(`fields.${field}`)}
             </label>
             <div className="flex items-center gap-3">
@@ -122,36 +119,90 @@ export default function MeasurementsStep() {
                 {t("optionalNote")}
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10 max-w-3xl">
-                {MAIN_MEASUREMENT_FIELDS.map((field) => (
-                    <MeasurementInput
-                        key={field}
-                        field={field}
-                        value={draft.measurements[field]}
-                        onChange={handleNumberChange}
-                        t={t}
-                    />
-                ))}
-            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)] gap-8 lg:gap-12 mb-10">
+                <div className="space-y-10">
+                    <section>
+                        <h2 className="[font-family:var(--font-display)] text-[20px] sm:text-[22px] font-normal mb-2">
+                            {t("bodySection")}
+                        </h2>
+                        <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mb-6">
+                            {t("bodySectionHint")}
+                        </p>
+                        <div className="lg:hidden mb-6">
+                            <MeasurementBodyDiagram />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            {BODY_MEASUREMENT_FIELDS.map((field) => (
+                                <MeasurementInput
+                                    key={field}
+                                    field={field}
+                                    value={draft.measurements[field]}
+                                    onChange={handleNumberChange}
+                                    t={t}
+                                />
+                            ))}
+                        </div>
+                    </section>
 
-            <div className="max-w-3xl mb-10">
-                <h2 className="[font-family:var(--font-display)] text-[20px] sm:text-[22px] font-normal mb-2">
-                    {t("fields.arabicSleeveSection")}
-                </h2>
-                <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mb-6">
-                    {t("fields.arabicSleeveSectionHint")}
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {ARABIC_SLEEVE_FIELDS.map((field) => (
-                        <MeasurementInput
-                            key={field}
-                            field={field}
-                            value={draft.measurements[field]}
-                            onChange={handleNumberChange}
-                            t={t}
-                        />
-                    ))}
+                    <section className="pt-6 border-t border-(--color-border)">
+                        <h2 className="[font-family:var(--font-display)] text-[20px] sm:text-[22px] font-normal mb-2">
+                            {t("neckSection")}
+                        </h2>
+                        <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mb-6">
+                            {t("neckSectionHint")}
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-start">
+                            <div className="shrink-0">
+                                <MeasurementNeckDiagram />
+                            </div>
+                            <div className="grid grid-cols-1 gap-6 flex-1 min-w-0 w-full sm:max-w-sm">
+                                {NECK_MEASUREMENT_FIELDS.map((field) => (
+                                    <MeasurementInput
+                                        key={field}
+                                        field={field}
+                                        value={draft.measurements[field]}
+                                        onChange={handleNumberChange}
+                                        t={t}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="pt-6 border-t border-(--color-border)">
+                        <h2 className="[font-family:var(--font-display)] text-[20px] sm:text-[22px] font-normal mb-2">
+                            {t("fields.arabicSleeveSection")}
+                        </h2>
+                        <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mb-6">
+                            {t("fields.arabicSleeveSectionHint")}
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-start">
+                            <div className="shrink-0">
+                                <MeasurementSleeveDiagram />
+                            </div>
+                            <div className="grid grid-cols-1 gap-6 flex-1 min-w-0 w-full sm:max-w-sm">
+                                {SLEEVE_MEASUREMENT_FIELDS.map((field) => (
+                                    <MeasurementInput
+                                        key={field}
+                                        field={field}
+                                        value={draft.measurements[field]}
+                                        onChange={handleNumberChange}
+                                        t={t}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </section>
                 </div>
+
+                <aside className="hidden lg:block">
+                    <div className="sticky top-28 space-y-4">
+                        <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted)">
+                            {t("diagramGuide")}
+                        </p>
+                        <MeasurementBodyDiagram />
+                    </div>
+                </aside>
             </div>
 
             <div className="max-w-3xl mb-10">

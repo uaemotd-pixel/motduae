@@ -77,6 +77,7 @@ const measurementsSchema = new mongoose.Schema(
     neckDepth: { type: Number, min: 0, default: null },
     armholeHeight: { type: Number, min: 0, default: null },
     sleeveOpeningWidth: { type: Number, min: 0, default: null },
+    cuffWidth: { type: Number, min: 0, default: null },
     cuffLength: { type: Number, min: 0, default: null },
     notes: { type: String, default: '', trim: true },
   },

@@ -22,6 +22,7 @@ import tailor2 from './tailor-2.png';
 import tailor3 from './tailor-3.png';
 import tailor4 from './tailor-4.png';
 import measure1 from './dress_measurements_fixed.png';
+import customOrderMeasurementGuide from './custom-order-measurement-guide.jpeg';
 import sub1 from './sub-1.png';
 import sub2 from './sub-2.png';
 import hero_image from './hero-image.png';
@@ -52,6 +53,7 @@ export {
 
     // Measuring Guide Image
     measure1,
+    customOrderMeasurementGuide,
 
     // Subscription Section Image
     sub1,
