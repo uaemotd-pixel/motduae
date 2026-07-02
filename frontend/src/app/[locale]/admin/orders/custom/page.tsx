@@ -25,6 +25,25 @@ interface OrderUser {
   phone?: string;
 }
 
+interface CustomOrderItem {
+  designSnapshot: {
+    name: string;
+    nameAr?: string;
+  };
+  tailorShopId: {
+    _id: string;
+    name: string;
+    nameAr?: string;
+  } | string;
+  fabricSnapshot?: {
+    name: string;
+    nameAr?: string;
+  } | null;
+  pricing?: {
+    total: number;
+  };
+}
+
 interface Order {
   _id: string;
   userId: OrderUser | string;
@@ -37,6 +56,7 @@ interface Order {
     total: number;
     currency: string;
   };
+  items?: CustomOrderItem[];
 }
 
 const TOAST_BASE = {
@@ -386,19 +406,52 @@ export default function AdminCustomOrdersPage() {
                     )}
                   </div>
 
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("columns.design")}</p>
-                    <p className="text-sm text-black">
-                      {order.designSnapshot?.name || t("unknownDesign")}
+                  <div className="md:col-span-2 space-y-3">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                      {locale === "ar" ? "العناصر المطلوبة" : "Order Items"}
                     </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {t("fabricLabel", { name: fabricName })}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("columns.tailor")}</p>
-                    <p className="text-sm text-black">{tailorName}</p>
+                    {order.items && order.items.length > 0 ? (
+                      order.items.map((item, idx) => (
+                        <div key={idx} className="bg-gray-50/50 rounded-xl p-3 border border-gray-100/50 space-y-1">
+                          <div className="flex justify-between items-start gap-2">
+                            <span className="text-xs font-semibold text-black">
+                              {item.designSnapshot?.name || t("unknownDesign")}
+                            </span>
+                            {item.pricing?.total !== undefined && (
+                              <span className="text-xs font-medium text-gray-500 font-mono">
+                                {formatCurrency(item.pricing.total, order.pricing.currency)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-col gap-0.5 text-[11px] text-gray-500">
+                            <span>
+                              {t("fabricLabel", { name: item.fabricSnapshot?.name || t("unknownFabric") })}
+                            </span>
+                            <span>
+                              {locale === "ar" ? `الخياط: ` : `Tailor: `}
+                              {readPartnerName(item.tailorShopId, t("unknownTailor"))}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="bg-gray-50/50 rounded-xl p-3 border border-gray-100/50 space-y-1">
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-xs font-semibold text-black">
+                            {order.designSnapshot?.name || t("unknownDesign")}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-0.5 text-[11px] text-gray-500">
+                          <span>
+                            {t("fabricLabel", { name: fabricName })}
+                          </span>
+                          <span>
+                            {locale === "ar" ? `الخياط: ` : `Tailor: `}
+                            {tailorName}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div>

@@ -1092,6 +1092,7 @@ adminRouter.get(
     const orders = await CustomOrder.find({})
       .populate("userId", "name email phone")
       .populate("tailorShopId", "name location city")
+      .populate("items.tailorShopId", "name location city")
       .sort({ createdAt: -1 });
 
     res.send(orders);
