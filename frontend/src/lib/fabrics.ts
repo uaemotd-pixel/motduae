@@ -35,6 +35,8 @@ export interface FabricListItem {
   pricePerMeter: number;
   listedByStore?: string | FabricStoreInfo | null;
   stockInMeters: number;
+  fabricUnit: FabricUnitValue;
+  pricePerUnit: number;
 }
 
 export interface FabricDetailItem extends FabricListItem {
@@ -42,13 +44,17 @@ export interface FabricDetailItem extends FabricListItem {
   listedByStore: FabricStoreInfo | null;
 }
 
-
 import { resolveMediaUrl } from "@/lib/media";
 
 // lib/fabrics.ts – add/update helpers if missing
 function isUploadedImage(url: string): boolean {
   if (!url) return false;
-  return url.startsWith("/uploads/") || url.includes("uploads/") || url.startsWith("uploads\\") || url.includes("uploads\\");
+  return (
+    url.startsWith("/uploads/") ||
+    url.includes("uploads/") ||
+    url.startsWith("uploads\\") ||
+    url.includes("uploads\\")
+  );
 }
 
 export const DEFAULT_FABRIC_IMAGE = "/images/placeholder-fabric.jpg";
@@ -69,15 +75,6 @@ export function resolveFabricImage(images?: string | string[]): string {
   const resolved = resolveMediaUrl(raw);
   return resolved || DEFAULT_FABRIC_IMAGE;
 }
-const LEGACY_IMAGE_PATHS: Record<string, string> = {
-  "/images/dress-1.png": "/images/fab1.png",
-  "/images/dress-2.png": "/images/fab2.png",
-  "/images/dress-3.png": "/images/fab3.png",
-  "/images/dress-4.png": "/images/fab4.png",
-  "/images/dress-5.png": "/images/fab5.png",
-};
-
-
 
 export function getFabricDisplayFields(
   item: Pick<
@@ -104,11 +101,41 @@ export function getFabricDisplayFields(
   };
 }
 
+export type FabricUnit = "meters" | "wara";
+
+export const FABRIC_UNITS = [
+  { value: "meters", en: "Meters", ar: "متر" },
+  { value: "wara", en: "Wara", ar: "وارة" },
+] as const;
+export type FabricUnitValue = (typeof FABRIC_UNITS)[number]["value"];
+
+export const WARA_TO_METERS = 0.9144; // 1 wara = 0.9144 meters
+
 export function formatPricePerMeter(
   pricePerMeter: number,
   locale: Locale,
 ): string {
   return `${formatCurrency(pricePerMeter, locale)}/m`;
+}
+
+export function formatPricePerUnit(
+  price: number,
+  unit: FabricUnitValue,
+  locale: Locale,
+): string {
+  const unitLabel = unit === "wara" ? "wara" : "m";
+  return `${formatCurrency(price, locale)}/${unitLabel}`;
+}
+
+export function formatStockDisplay(
+  stockInMeters: number,
+  unit: FabricUnitValue,
+): string {
+  if (unit === "wara") {
+    const wara = stockInMeters / WARA_TO_METERS;
+    return `${wara.toFixed(2)} wara (${stockInMeters.toFixed(2)} m)`;
+  }
+  return `${stockInMeters.toFixed(2)} m`;
 }
 
 export function filterFabricsByMaterial(

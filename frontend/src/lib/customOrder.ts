@@ -57,12 +57,15 @@ export interface CustomOrderSelectedDesign extends CustomOrderDesignSelection {
   tailor: CustomOrderTailorSelection;
 }
 
+export type FabricUnit = "meters" | "wara";
+
 export interface CustomOrderLineItem {
   id: string;
   design: CustomOrderDesignSelection;
   tailor: CustomOrderTailorSelection;
   fabric: CustomOrderFabricSelection | null;
   fabricMeters: number | null;
+  fabricUnit: FabricUnit;
 }
 
 export const CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS = [
@@ -308,6 +311,32 @@ function normalizeSelectedDesign(
   return { ...design, tailor };
 }
 
+export const WARA_TO_METERS = 0.9914;
+
+// lib/customOrder.ts
+
+export function convertToMeters(value: number, unit: FabricUnit): number {
+  let result: number;
+  if (unit === "wara") {
+    result = value * WARA_TO_METERS;
+  } else {
+    result = value;
+  }
+  return Number(result.toFixed(2)); // Round to 2 decimals
+}
+
+export function convertToWara(value: number): number {
+  return Number((value / WARA_TO_METERS).toFixed(2));
+}
+
+export function getDisplayUnit(unit: FabricUnit): string {
+  return unit === "wara" ? "Wara" : "Meters";
+}
+
+function normalizeFabricUnit(value: unknown): FabricUnit {
+  return value === "wara" ? "wara" : "meters";
+}
+
 function normalizeLineItem(value: unknown): CustomOrderLineItem | null {
   if (!value || typeof value !== "object") return null;
 
@@ -326,6 +355,7 @@ function normalizeLineItem(value: unknown): CustomOrderLineItem | null {
     tailor,
     fabric,
     fabricMeters: meters,
+    fabricUnit: normalizeFabricUnit(item.fabricUnit),
   };
 }
 
@@ -412,6 +442,7 @@ function migrateLegacyDraft(
   const legacyDesign = normalizeDesign(draft.design);
   const legacyTailor = normalizeTailor(draft.tailor);
   const legacyMeters = normalizeNumber(draft.fabricMeters);
+  const legacyFabricUnit = normalizeFabricUnit(draft.fabricUnit);
 
   if (selectedFabrics.length === 0 && legacyFabric) {
     selectedFabrics = [legacyFabric];
@@ -429,6 +460,7 @@ function migrateLegacyDraft(
         tailor: legacyTailor,
         fabric: fabricSource === "self" ? null : legacyFabric,
         fabricMeters: legacyMeters,
+        fabricUnit: legacyFabricUnit,
       },
     ];
   }
@@ -540,8 +572,20 @@ export function isTailorStepComplete(draft: CustomOrderDraft): boolean {
   return draft.selectedDesigns.length > 0;
 }
 
-export function isLineItemMetersValid(meters: number | null): boolean {
-  return meters !== null && meters >= 2 && meters <= 7;
+export function isLineItemMetersValid(
+  meters: number | null,
+  unit: FabricUnit = "meters",
+): boolean {
+  if (meters === null) return false;
+
+  const rounded = Number(meters.toFixed(2));
+
+  if (unit === "wara") {
+    const metersInMeters = rounded * WARA_TO_METERS;
+    return metersInMeters >= 2 && metersInMeters <= 7;
+  }
+
+  return rounded >= 2 && rounded <= 7;
 }
 
 export function isLineItemComplete(
@@ -596,6 +640,7 @@ export function buildAutoLineItem(
     tailor: design.tailor,
     fabric,
     fabricMeters: getSuggestedMetersForDesign(design),
+    fabricUnit: "meters",
   };
 }
 
@@ -640,9 +685,17 @@ export function buildCustomOrderPreviewPayload(
       return null;
     }
 
+    // Convert to meters before sending to backend
+    let metersInMeters = item.fabricMeters;
+    if (item.fabricUnit === "wara") {
+      metersInMeters = item.fabricMeters * WARA_TO_METERS;
+    }
+    // Round to 2 decimal places
+    metersInMeters = Number(metersInMeters.toFixed(2));
+
     items.push({
       designId: item.design._id,
-      fabricMeters: item.fabricMeters,
+      fabricMeters: metersInMeters, // always in meters
       ...(draft.fabricSource === "storefront" && item.fabric
         ? { fabricId: item.fabric._id }
         : {}),

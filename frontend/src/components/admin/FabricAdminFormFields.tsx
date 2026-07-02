@@ -13,6 +13,7 @@ import {
   UAE_EMIRATES,
   COLOR_OPTIONS,
 } from "@/lib/createFabricAdmin";
+import { FabricUnitValue, WARA_TO_METERS } from "@/lib/fabrics";
 
 type FabricAdminFormFieldsProps = {
   formData: FabricFormData;
@@ -44,6 +45,57 @@ export default function FabricAdminFormFields({
       ? current.filter((c) => c !== colorValue)
       : [...current, colorValue];
     onFieldChange("colors", newSelected);
+  };
+
+  const handleUnitChange = (newUnit: FabricUnitValue) => {
+    // Convert stock when switching units
+    const currentStock = Number(formData.stockInMeters);
+    if (currentStock > 0) {
+      let convertedStock: number;
+      if (newUnit === "wara") {
+        // Convert meters to wara
+        convertedStock = currentStock / WARA_TO_METERS;
+      } else {
+        // Convert wara to meters
+        convertedStock = currentStock * WARA_TO_METERS;
+      }
+      onFieldChange("stockInMeters", Number(convertedStock.toFixed(2)));
+    }
+    onFieldChange("fabricUnit", newUnit);
+  };
+
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+
+    // Allow empty string
+    if (val === "") {
+      onFieldChange("pricePerUnit", val);
+      return;
+    }
+
+    // Allow: 9.87, 9.8, 9, .87, 9. (typing in progress)
+    // Disallow: 9..87, 9.8.7, 9.87. (multiple decimals)
+    if (/^\d*\.?\d*$/.test(val)) {
+      onFieldChange("pricePerUnit", val);
+    }
+  };
+
+  const handleStockChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+
+    // Allow empty string
+    if (val === "") {
+      onFieldChange("stockInMeters", val);
+      return;
+    }
+
+    // Allow only valid decimal numbers (single decimal point, digits only)
+    if (/^\d*\.?\d+$/.test(val) || /^\d+\.?\d*$/.test(val)) {
+      const num = Number(val);
+      if (!isNaN(num) && num >= 0) {
+        onFieldChange("stockInMeters", val);
+      }
+    }
   };
 
   useEffect(() => {
@@ -190,7 +242,6 @@ export default function FabricAdminFormFields({
         </FormField>
 
         {/* Colors */}
-        {/* Colors – updated to match reference design */}
         <FormField
           label="Colors"
           name="colors"
@@ -198,7 +249,6 @@ export default function FabricAdminFormFields({
           error={fieldErrors.color}
         >
           <div className="relative" ref={colorDropdownRef}>
-            {/* Select field */}
             <button
               type="button"
               onClick={() => setIsColorDropdownOpen((prev) => !prev)}
@@ -228,7 +278,6 @@ export default function FabricAdminFormFields({
               )}
             </button>
 
-            {/* Dropdown */}
             {isColorDropdownOpen && (
               <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm p-3 z-50">
                 <div className="max-h-44 overflow-auto flex flex-col gap-2">
@@ -310,49 +359,78 @@ export default function FabricAdminFormFields({
         </select>
       </FormField>
 
-      {/* Price per Meter */}
-      <FormField
-        label="Price per Meter (AED)"
-        name="pricePerMeter"
-        required
-        error={fieldErrors.pricePerMeter}
-      >
-        <input
-          type="text"
-          inputMode="decimal"
-          value={formData.pricePerMeter === 0 ? "" : formData.pricePerMeter}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === "" || /^\d*\.?\d*$/.test(val)) {
-              onFieldChange("pricePerMeter", val);
-            }
-          }}
-          className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none"
-          placeholder="0.00"
-        />
-      </FormField>
+      {/* Fabric Unit, Price, Stock in one row */}
+      <div className="md:col-span-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          {/* Fabric Unit */}
+          <FormField label="Unit" name="fabricUnit">
+            <select
+              value={formData.fabricUnit}
+              onChange={(e) =>
+                handleUnitChange(e.target.value as FabricUnitValue)
+              }
+              className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none cursor-pointer bg-transparent"
+            >
+              <option value="meters">Meters</option>
+              <option value="wara">Wara</option>
+            </select>
+          </FormField>
 
-      {/* Stock in Meters */}
-      <FormField
-        label="Stock in Meters"
-        name="stockInMeters"
-        error={fieldErrors.stockInMeters}
-        required
-      >
-        <input
-          type="text"
-          inputMode="numeric"
-          value={formData.stockInMeters === 0 ? "" : formData.stockInMeters}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === "" || /^\d*$/.test(val)) {
-              onFieldChange("stockInMeters", val);
-            }
-          }}
-          className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none"
-          placeholder="e.g., 100"
-        />
-      </FormField>
+          {/* Price Per Unit */}
+          <FormField
+            label="Price Per (meter / wara)"
+            name="pricePerUnit"
+            required
+            error={fieldErrors.pricePerUnit}
+          >
+            <div>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={formData.pricePerUnit}
+                onChange={handlePriceChange}
+                className={`w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none ${
+                  fieldErrors.pricePerUnit ? "border-red-500" : ""
+                }`}
+                placeholder="150.00"
+              />
+              {fieldErrors.pricePerUnit && (
+                <p className="mt-1 text-sm text-red-500">
+                  {fieldErrors.pricePerUnit}
+                </p>
+              )}
+            </div>
+          </FormField>
+
+          {/* Stock */}
+          <FormField
+            label="Stock"
+            name="stockInMeters"
+            required
+            error={fieldErrors.stockInMeters}
+          >
+            <div>
+              <input
+                type="text"
+                step={0.1}
+                min={0}
+                inputMode="decimal"
+                value={formData.stockInMeters}
+                onChange={handleStockChange}
+                className={`w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none ${
+                  fieldErrors.stockInMeters ? "border-red-500" : ""
+                }`}
+                placeholder="100.00"
+              />
+              {fieldErrors.stockInMeters && (
+                <p className="mt-1 text-sm text-red-500">
+                  {fieldErrors.stockInMeters}
+                </p>
+              )}
+            </div>
+          </FormField>
+        </div>
+      </div>
 
       {/* Pickup Address */}
       <div className="md:col-span-2">
@@ -491,7 +569,10 @@ export default function FabricAdminFormFields({
               onChange={(e) => onFieldChange("isActive", e.target.checked)}
               className="w-4 h-4 cursor-pointer"
             />
-            <label htmlFor="isActive" className="text-sm text-gray-700 cursor-pointer">
+            <label
+              htmlFor="isActive"
+              className="text-sm text-gray-700 cursor-pointer"
+            >
               Product is active (visible to customers)
             </label>
           </div>

@@ -1,3 +1,9 @@
+import {
+  WARA_TO_METERS,
+  FABRIC_UNITS,
+  type FabricUnitValue,
+} from "@/lib/fabrics";
+
 export const FABRIC_MATERIALS = [
   { value: "chiffon", en: "Chiffon", ar: "شيفون" },
   { value: "silk velvet", en: "Silk Velvet", ar: "مخمل حرير" },
@@ -168,6 +174,8 @@ export interface FabricFormData {
   colors: string[];
   tag: string; // stores English value
   tagAr: string; // stores Arabic label
+  fabricUnit: FabricUnitValue; // NEW
+  pricePerUnit: number | string;
   pricePerMeter: number | string;
   stockInMeters: number | string;
   listedByStore: string;
@@ -190,6 +198,8 @@ export function defaultFabricForm(): FabricFormData {
     colors: [],
     tag: "",
     tagAr: "",
+    fabricUnit: "meters",
+    pricePerUnit: 0,
     pricePerMeter: 0,
     stockInMeters: 0,
     listedByStore: "",
@@ -234,16 +244,16 @@ export function fromApiFabric(
         (color): color is string => typeof color === "string",
       )
     : defaultForm.colors;
-  const pricePerMeter =
-    typeof product.pricePerMeter === "number"
-      ? product.pricePerMeter
-      : defaultForm.pricePerMeter;
-  const stockInMeters =
-    typeof product.stockInMeters === "number"
-      ? product.stockInMeters
-      : defaultForm.stockInMeters;
+  const pricePerMeter = Number(product.pricePerMeter); // Always meters
+  const stockInMeters = Number(product.stockInMeters); // Always meters
+  const fabricUnit = (product.fabricUnit as FabricUnitValue) || "meters";
   const listedByStore =
     typeof product.listedByStore === "string" ? product.listedByStore : "";
+  // Convert for display
+  let pricePerUnit = pricePerMeter;
+  if (fabricUnit === "wara") {
+    pricePerUnit = pricePerMeter / WARA_TO_METERS; // meters → wara
+  }
 
   const pickupAddress = (() => {
     // Backend stores these under `storePickupAddress`.
@@ -280,6 +290,8 @@ export function fromApiFabric(
     colors,
     tag,
     tagAr,
+    fabricUnit, // NEW
+    pricePerUnit, // NEW
     pricePerMeter,
     stockInMeters,
     listedByStore,
@@ -313,6 +325,14 @@ export function toFabricApiPayload(
 ): Record<string, unknown> {
   const name = form.name.trim();
 
+  // normalize numeric value
+  const pricePerMeter =
+    form.fabricUnit === "wara"
+      ? Number(form.pricePerUnit) * WARA_TO_METERS // wara → meters
+      : Number(form.pricePerUnit); // already meters
+
+  const stockInMeters = Number(form.stockInMeters);
+
   const payload: Record<string, unknown> = {
     name,
     nameAr: form.nameAr.trim() || name,
@@ -325,8 +345,9 @@ export function toFabricApiPayload(
     colors: form.colors,
     tag: form.tag,
     tagAr: form.tagAr.trim(),
-    pricePerMeter: form.pricePerMeter,
-    stockInMeters: form.stockInMeters,
+    fabricUnit: form.fabricUnit, // NEW - store unit for display
+    pricePerMeter: Number(pricePerMeter.toFixed(2)), // Store in meters
+    stockInMeters: Number(stockInMeters.toFixed(2)), // Store in meters
     listedByStore: form.listedByStore.trim(),
     storePickupAddress: {
       emirate: form.pickupAddress.emirate.trim(),
@@ -407,12 +428,12 @@ export function validateFabricForm(
     errors.listedByStore = "Invalid store partner ID";
   }
 
-  const priceVal = Number(form.pricePerMeter);
-  const stockVal = Number(form.stockInMeters);
-
+  const priceVal = Number(form.pricePerUnit); // <-- Use pricePerUnit
   if (isNaN(priceVal) || priceVal <= 0) {
-    errors.pricePerMeter = "Please enter a valid price";
+    errors.pricePerUnit = "Please enter a valid price"; // <-- Use pricePerUnit
   }
+
+  const stockVal = Number(form.stockInMeters);
   if (isNaN(stockVal) || stockVal < 0) {
     errors.stockInMeters = "Please enter a valid stock amount";
   }

@@ -30,6 +30,7 @@ import {
   toggleFabricInList,
   useOwnFabric,
   buildCustomOrderPreviewPayload,
+  FabricUnit
 } from "@/lib/customOrder";
 
 type CustomOrderContextType = {
@@ -53,6 +54,7 @@ type CustomOrderContextType = {
   setFirstStepIfUnset: (step: CustomOrderFirstStep) => void;
   getPreviewPayload: () => CustomOrderPreviewPayload | null;
   syncAutoLineItems: () => void;
+  updateLineItemUnit: (itemId: string, unit: FabricUnit) => void;
 };
 
 const CustomOrderContext = createContext<CustomOrderContextType | undefined>(
@@ -258,6 +260,15 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const updateLineItemUnit = (itemId: string, unit: FabricUnit) => {
+    setDraft((prev) => ({
+      ...prev,
+      lineItems: prev.lineItems.map((item) =>
+        item.id === itemId ? { ...item, fabricUnit: unit } : item,
+      ),
+    }));
+  };
+
   const resetOrder = useCallback(
     (firstStep: CustomOrderFirstStep | null = null) => {
       setDraft(createEmptyCustomOrderDraft(firstStep));
@@ -304,6 +315,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       setFirstStepIfUnset,
       getPreviewPayload,
       syncAutoLineItems,
+      updateLineItemUnit
     }),
     [
       draft,
@@ -324,6 +336,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       setFirstStepIfUnset,
       getPreviewPayload,
       syncAutoLineItems,
+      updateLineItemUnit
     ],
   );
 

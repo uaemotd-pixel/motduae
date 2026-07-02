@@ -16,6 +16,8 @@ import {
   type CustomOrderMeasurements,
   type CustomOrderPricingBreakdown,
   useOwnFabric,
+  WARA_TO_METERS,
+  type FabricUnit,
 } from "@/lib/customOrder";
 import { formatCurrency } from "@/lib/format";
 import { formatDesignCategory } from "@/lib/tailors";
@@ -130,6 +132,17 @@ export default function OrderReviewStep() {
     router.push("/custom-order/checkout");
   };
 
+  const convertMetersToWara = (meters: number): number => {
+    return Math.round((meters / WARA_TO_METERS) * 10000) / 10000;
+  };
+
+  const formatFabricAmount = (meters: number, unit: FabricUnit): string => {
+    if (unit === "wara") {
+      return `${meters.toFixed(2)} wara`;
+    }
+    return `${meters} ${t("meters")}`;
+  };
+
   if (!isHydrated) {
     return (
       <div className="min-h-[40vh] flex items-center justify-center">
@@ -217,13 +230,17 @@ export default function OrderReviewStep() {
                       </dd>
                     </div>
                     <div>
-                      <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                        {t("fabricMeters")}
-                      </dt>
-                      <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                        {item.fabricMeters
-                          ? `${item.fabricMeters} ${t("meters")}`
-                          : "—"}
+                      <dt className="...">{t("fabricMeters")}</dt>
+                      <dd className="...">
+                        {item.fabricMeters ? (
+                          <span>
+                            {item.fabricUnit === "wara"
+                              ? `${item.fabricMeters.toFixed(2)} wara / ${(item.fabricMeters * WARA_TO_METERS).toFixed(2)} ${t("meters")}`
+                              : `${item.fabricMeters} ${t("meters")} / ${(item.fabricMeters / WARA_TO_METERS).toFixed(2)} wara`}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </dd>
                     </div>
                   </dl>
