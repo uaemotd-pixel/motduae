@@ -10,7 +10,7 @@ export default function AdminOrdersIndexPage() {
 
   useEffect(() => {
     // Automatically route parent link context to the default MVP retail pipeline channel
-    router.replace(`/${locale}/admin/orders/retail`);
+    router.replace(`/${locale}/admin/orders/custom`);
   }, [router, locale]);
 
   return (

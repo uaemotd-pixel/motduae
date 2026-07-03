@@ -7,6 +7,7 @@ import { MeasurementGuide } from "@/components/home/MeasurementGuide";
 import { Testimonials } from "@/components/home/Testimonials";
 import { PartnerSection } from "@/components/home/PartnerSection";
 import FadeInSection from "@/components/shared/fadeInSection";
+import SectionDivider from "@/components/shared/SectionDivider";
 
 /**
  * Homepage — section order matches Design/index.html exactly.
@@ -23,14 +24,23 @@ export default function HomePage() {
       <FadeInSection>
         <TrendingSection />
       </FadeInSection>
+
+      <SectionDivider variant={2} />
+
       {/* 4. Premium Fabrics Section */}
       <FadeInSection>
         <PremiumFabrics />
       </FadeInSection>
+
+      <SectionDivider variant={1} />
+
       {/* 5. Ready To Wear Section */}
       <FadeInSection>
         <ReadyToWearSection />
       </FadeInSection>
+
+      <SectionDivider variant={3} />
+
       {/* 6. Meet the Tailors */}
       <FadeInSection>
         <TailorsSection />

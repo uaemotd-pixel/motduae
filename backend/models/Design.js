@@ -1,19 +1,27 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
-const DESIGN_CATEGORIES = ['kandura', 'abaya', 'bisht', 'mukhawar', 'jalabiya', 'kaftan', 'thob'];
+const DESIGN_CATEGORIES = [
+  "kandura",
+  "abaya",
+  "bisht",
+  "mukhawar",
+  "jalabiya",
+  "kaftan",
+  "thob",
+];
 
 const designSchema = new mongoose.Schema(
   {
     tailorShopId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'TailorShop',
+      ref: "TailorShop",
       required: true,
     },
     name: { type: String, required: true, trim: true },
     nameAr: { type: String, required: true, trim: true },
     slug: { type: String, required: true, trim: true, lowercase: true },
-    description: { type: String, default: '', trim: true },
-    descriptionAr: { type: String, default: '', trim: true },
+    description: { type: String, default: "", trim: true },
+    descriptionAr: { type: String, default: "", trim: true },
     images: {
       type: [String],
       default: [],
@@ -21,7 +29,7 @@ const designSchema = new mongoose.Schema(
         validator(images) {
           return images.length > 0;
         },
-        message: 'At least one image is required',
+        message: "At least one image is required",
       },
     },
     category: {
@@ -29,6 +37,8 @@ const designSchema = new mongoose.Schema(
       enum: DESIGN_CATEGORIES,
       required: true,
     },
+    ageMin: { type: Number, required: true, default: 0, min: 0 },
+    ageMax: { type: Number, required: true, default: 100, min: 0, max: 100 },
     basePrice: { type: Number, required: true, min: 0 },
     tailoringFee: { type: Number, required: true, min: 0 },
     estimatedMeters: { type: Number, required: true, min: 0 },
@@ -37,14 +47,14 @@ const designSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 designSchema.index({ tailorShopId: 1 });
 designSchema.index({ tailorShopId: 1, slug: 1 }, { unique: true });
 designSchema.index({ tailorShopId: 1, isActive: 1 });
 
-const Design = mongoose.model('Design', designSchema);
+const Design = mongoose.model("Design", designSchema);
 
 export default Design;
 export { DESIGN_CATEGORIES };

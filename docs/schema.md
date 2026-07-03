@@ -475,7 +475,7 @@ Append each transition to `statusHistory[]`.
 
 ### PAYMENT_METHODS (both order types)
 
-`cod` (cash on delivery — only method in MVP)
+`cod` (cash on delivery), `apple_pay` (Stripe Apple Pay)
 
 ---
 

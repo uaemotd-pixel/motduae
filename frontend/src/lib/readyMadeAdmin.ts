@@ -1,148 +1,249 @@
-export const READY_MADE_STYLES = [
-    "kandura",
-    "abaya",
-    "bisht",
-    "mukhawar",
-    "jalabiya",
-    "kaftan",
-] as const;
-
-export type ReadyMadeStyle = (typeof READY_MADE_STYLES)[number];
-export type ReadyMadeCondition = "like_new" | "excellent" | "good";
-
 export interface ReadyMadeFormData {
-    name: string;
-    nameAr: string;
-    slug: string;
-    size: string;
-    style: ReadyMadeStyle | "";
-    returnReason: string;
-    customOrderId: string;
-    price: number;
-    description: string;
-    descriptionAr: string;
-    images: string[];
-    condition: ReadyMadeCondition;
-    isActive?: boolean;
+  name: string;
+  nameAr: string;
+  slug: string;
+  code: string;
+
+  description: string;
+  descriptionAr: string;
+
+  tag: string;
+  tagAr: string;
+
+  colors: string[];
+
+  thumbnailImage: string;
+  images: string[];
+
+  fabricType: string;
+  fabricTypeAr: string;
+
+  tailorName: string;
+  tailorNameAr: string;
+
+  fabricShopId: string;
+  fabricId: string;
+  tailorShopId: string;
+  designId: string;
+
+  metersPerFabric: number;
+
+  fabricPriceAED: number;
+  mukhawarPriceAED: number;
+  finalSellingPriceAED: number;
+
+  availableFabricStock: number;
+
+  isActive?: boolean;
 }
 
 export function slugFromName(name: string): string {
-    return name
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export function isValidObjectId(value: string): boolean {
-    return /^[a-f\d]{24}$/i.test(value.trim());
+  return /^[a-f\d]{24}$/i.test(value.trim());
 }
 
 export function isDataUrl(value: string): boolean {
-    return value.trim().toLowerCase().startsWith("data:");
+  return value.trim().toLowerCase().startsWith("data:");
 }
 
 export function hasDataUrlImages(images: string[]): boolean {
-    return images.some((url) => url.trim() && isDataUrl(url));
+  return images.some((url) => url.trim() && isDataUrl(url));
 }
 
-export function resolveSlug(form: Pick<ReadyMadeFormData, "name" | "nameAr" | "slug">): string {
-    const explicit = form.slug.trim();
-    if (explicit) return explicit;
+export function resolveSlug(
+  form: Pick<ReadyMadeFormData, "name" | "nameAr" | "slug">,
+): string {
+  const explicit = form.slug.trim();
+  if (explicit) return explicit;
 
-    const fromName = slugFromName(form.name);
-    if (fromName) return fromName;
+  const fromName = slugFromName(form.name);
+  if (fromName) return fromName;
 
-    const fromNameAr = slugFromName(form.nameAr);
-    if (fromNameAr) return fromNameAr;
+  const fromNameAr = slugFromName(form.nameAr);
+  if (fromNameAr) return fromNameAr;
 
-    return `ready-made-${Date.now()}`;
+  return `ready-made-${Date.now()}`;
 }
 
 export function defaultReadyMadeForm(): ReadyMadeFormData {
-    return {
-        name: "",
-        nameAr: "",
-        slug: "",
-        size: "",
-        style: "",
-        returnReason: "size_issue",
-        customOrderId: "",
-        price: 0,
-        description: "",
-        descriptionAr: "",
-        images: [""],
-        condition: "like_new",
-        isActive: true,
-    };
+  return {
+    name: "",
+    nameAr: "",
+    slug: "",
+    code: "",
+
+    description: "",
+    descriptionAr: "",
+
+    tag: "",
+    tagAr: "",
+
+    colors: [],
+
+    thumbnailImage: "",
+    images: [""], // start with one empty image field
+
+    fabricType: "",
+    fabricTypeAr: "",
+
+    tailorName: "",
+    tailorNameAr: "",
+
+    fabricShopId: "",
+    fabricId: "",
+    tailorShopId: "",
+    designId: "",
+
+    metersPerFabric: 0,
+
+    fabricPriceAED: 0,
+    mukhawarPriceAED: 0,
+    finalSellingPriceAED: 0,
+
+    availableFabricStock: 0,
+
+    isActive: true,
+  };
 }
 
-export function fromApiProduct(product: Record<string, unknown>): ReadyMadeFormData {
-    const sourceId = product.sourceCustomOrderId;
-    let customOrderId = "";
+export function fromApiProduct(
+  product: Record<string, unknown>,
+): ReadyMadeFormData {
+  let images: string[] = [];
+  if (Array.isArray(product.images) && product.images.length) {
+    images = product.images as string[];
+  } else {
+    images = [""]; // ensure at least one slot
+  }
 
-    if (sourceId && typeof sourceId === "object" && sourceId !== null && "_id" in sourceId) {
-        customOrderId = String((sourceId as { _id: string })._id);
-    } else if (sourceId) {
-        customOrderId = String(sourceId);
-    }
+  return {
+    name: typeof product.name === "string" ? product.name : "",
+    nameAr: typeof product.nameAr === "string" ? product.nameAr : "",
+    slug: typeof product.slug === "string" ? product.slug : "",
+    code: typeof product.code === "string" ? product.code : "",
 
-    const images = Array.isArray(product.images) && product.images.length
-        ? (product.images as string[])
-        : [""];
+    description:
+      typeof product.description === "string" ? product.description : "",
+    descriptionAr:
+      typeof product.descriptionAr === "string" ? product.descriptionAr : "",
 
-    const style = typeof product.style === "string" ? product.style : "";
-    const condition =
-        product.condition === "like_new" ||
-        product.condition === "excellent" ||
-        product.condition === "good"
-            ? product.condition
-            : "like_new";
+    tag: typeof product.tag === "string" ? product.tag : "",
+    tagAr: typeof product.tagAr === "string" ? product.tagAr : "",
 
-    return {
-        name: typeof product.name === "string" ? product.name : "",
-        nameAr: typeof product.nameAr === "string" ? product.nameAr : "",
-        slug: typeof product.slug === "string" ? product.slug : "",
-        size: typeof product.size === "string" ? product.size : "",
-        style: READY_MADE_STYLES.includes(style as ReadyMadeStyle)
-            ? (style as ReadyMadeStyle)
-            : "",
-        returnReason: typeof product.returnReason === "string" ? product.returnReason : "",
-        customOrderId,
-        price: typeof product.price === "number" ? product.price : 0,
-        description: typeof product.description === "string" ? product.description : "",
-        descriptionAr: typeof product.descriptionAr === "string" ? product.descriptionAr : "",
-        images,
-        condition,
-        isActive: typeof product.isActive === "boolean" ? product.isActive : true,
-    };
+    colors: Array.isArray(product.colors) ? (product.colors as string[]) : [],
+
+    thumbnailImage:
+      typeof product.thumbnailImage === "string" ? product.thumbnailImage : "",
+    images,
+
+    fabricType:
+      typeof product.fabricType === "string" ? product.fabricType : "",
+    fabricTypeAr:
+      typeof product.fabricTypeAr === "string" ? product.fabricTypeAr : "",
+
+    tailorName:
+      typeof product.tailorName === "string" ? product.tailorName : "",
+    tailorNameAr:
+      typeof product.tailorNameAr === "string" ? product.tailorNameAr : "",
+
+    fabricShopId:
+      typeof product.fabricShopId === "string"
+        ? product.fabricShopId
+        : product.fabricShopId && typeof product.fabricShopId === "object" && "_id" in product.fabricShopId
+        ? (product.fabricShopId as { _id: string })._id
+        : "",
+
+    fabricId:
+      typeof product.fabricId === "string"
+        ? product.fabricId
+        : product.fabricId && typeof product.fabricId === "object" && "_id" in product.fabricId
+        ? (product.fabricId as { _id: string })._id
+        : "",
+
+    tailorShopId:
+      typeof product.tailorShopId === "string"
+        ? product.tailorShopId
+        : product.tailorShopId && typeof product.tailorShopId === "object" && "_id" in product.tailorShopId
+        ? (product.tailorShopId as { _id: string })._id
+        : "",
+
+    designId:
+      typeof product.designId === "string"
+        ? product.designId
+        : product.designId && typeof product.designId === "object" && "_id" in product.designId
+        ? (product.designId as { _id: string })._id
+        : "",
+
+    metersPerFabric:
+      typeof product.metersPerFabric === "number" ? product.metersPerFabric : 0,
+
+    fabricPriceAED:
+      typeof product.fabricPriceAED === "number" ? product.fabricPriceAED : 0,
+    mukhawarPriceAED:
+      typeof product.mukhawarPriceAED === "number"
+        ? product.mukhawarPriceAED
+        : 0,
+    finalSellingPriceAED:
+      typeof product.finalSellingPriceAED === "number"
+        ? product.finalSellingPriceAED
+        : 0,
+
+    availableFabricStock:
+      typeof product.availableFabricStock === "number"
+        ? product.availableFabricStock
+        : 0,
+
+    isActive: typeof product.isActive === "boolean" ? product.isActive : true,
+  };
 }
 
-export function toApiPayload(
-    form: ReadyMadeFormData,
-    options?: { includeIsActive?: boolean },
-): Record<string, unknown> {
-    const name = form.name.trim();
-    const customOrderId = form.customOrderId.trim();
+export function toApiPayload(form: ReadyMadeFormData): Record<string, unknown> {
+  return {
+    name: form.name.trim(),
+    nameAr: form.nameAr.trim(),
 
-    const payload: Record<string, unknown> = {
-        name,
-        nameAr: form.nameAr.trim() || name,
-        slug: resolveSlug(form),
-        size: form.size.trim(),
-        style: form.style,
-        returnReason: "size_issue",
-        ...(customOrderId ? { sourceCustomOrderId: customOrderId } : {}),
-        price: form.price,
-        description: form.description.trim(),
-        descriptionAr: form.descriptionAr.trim(),
-        images: form.images.filter((url) => url.trim() !== "" && !isDataUrl(url)),
-        condition: form.condition,
-    };
+    code: form.code.trim(),
 
-    if (options?.includeIsActive && form.isActive !== undefined) {
-        payload.isActive = form.isActive;
-    }
+    slug: resolveSlug(form),
 
-    return payload;
+    description: form.description.trim(),
+    descriptionAr: form.descriptionAr.trim(),
+
+    tag: form.tag.trim(),
+    tagAr: form.tagAr.trim(),
+
+    colors: form.colors,
+
+    thumbnailImage: form.thumbnailImage,
+
+    images: form.images.filter((img) => img.trim() !== ""),
+
+    fabricType: form.fabricType,
+    fabricTypeAr: form.fabricTypeAr,
+
+    tailorName: form.tailorName,
+    tailorNameAr: form.tailorNameAr,
+
+    fabricShopId: form.fabricShopId,
+    fabricId: form.fabricId,
+    tailorShopId: form.tailorShopId || null,
+    designId: form.designId || null,
+
+    metersPerFabric: form.metersPerFabric,
+
+    fabricPriceAED: form.fabricPriceAED,
+    mukhawarPriceAED: form.mukhawarPriceAED,
+    finalSellingPriceAED: form.finalSellingPriceAED,
+
+    availableFabricStock: form.availableFabricStock,
+
+    isActive: form.isActive,
+  };
 }

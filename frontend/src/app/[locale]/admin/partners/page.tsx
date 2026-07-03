@@ -4,42 +4,198 @@ import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
-import FormField from "@/components/admin/FormField";
 import {
+  Users,
   AlertCircle,
   Search,
   RefreshCw,
-  Store,
-  Edit,
-  Trash2,
+  CheckCircle,
+  XCircle,
+  Clock,
   Loader2,
+  Store,
   Plus,
 } from "lucide-react";
+import FormField from "@/components/admin/FormField";
 
 // ---------- Types ----------
-interface FabricStorePartner {
+interface FabricRow {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+  type: "approved" | "pending" | "rejected";
+  shopName: string | null;
+  isActive: boolean;
+  phone?: string;
+}
+
+interface ApprovedShop {
+  _id: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+  ownerId: {
+    _id: string;
+    name: string;
+    email: string;
+    approvalStatus: string;
+  } | null;
+}
+
+interface ApprovedUser {
   _id: string;
   name: string;
   email: string;
-  createdAt?: string;
-  isActive?: boolean;
+  createdAt: string;
 }
 
+interface RejectedUser {
+  _id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+}
+
+// ---------- Modals ----------
+interface ToggleModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ToggleModal({
+  isOpen,
+  title,
+  message,
+  confirmLabel,
+  cancelLabel,
+  onConfirm,
+  onCancel,
+}: ToggleModalProps) {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) onCancel();
+    };
+    if (isOpen) document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onCancel]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100 p-6 animate-in fade-in zoom-in duration-200">
+        <h3 className="text-lg font-medium text-black">{title}</h3>
+        <p className="mt-2 text-sm text-gray-600 leading-relaxed">{message}</p>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 transition hover:cursor-pointer"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ApprovalModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  showNote?: boolean;
+  noteValue?: string;
+  onNoteChange?: (val: string) => void;
+  notePlaceholder?: string;
+}
+
+function ApprovalModal({
+  isOpen,
+  title,
+  message,
+  confirmLabel,
+  cancelLabel,
+  onConfirm,
+  onCancel,
+  showNote = false,
+  noteValue = "",
+  onNoteChange,
+  notePlaceholder = "Write something...",
+}: ApprovalModalProps) {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) onCancel();
+    };
+    if (isOpen) document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onCancel]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100 p-6 animate-in fade-in zoom-in duration-200">
+        <h3 className="text-lg font-medium text-black">{title}</h3>
+        <p className="mt-2 text-sm text-gray-600 leading-relaxed">{message}</p>
+
+        {showNote && onNoteChange && (
+          <div className="mt-4">
+            <textarea
+              className="w-full min-h-[100px] border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:border-black resize-y"
+              placeholder={notePlaceholder}
+              value={noteValue}
+              onChange={(e) => onNoteChange(e.target.value)}
+            />
+          </div>
+        )}
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 transition hover:cursor-pointer"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Partner Creation Modal
 type PartnerFormData = {
   name: string;
   email: string;
   password?: string;
+  shopName: string;
 };
 
-// ---------- Modals ----------
-
-// Create/Edit Modal
 interface PartnerFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: PartnerFormData) => Promise<void>;
-  initialData?: FabricStorePartner;
-  isEditing?: boolean;
   loading?: boolean;
 }
 
@@ -47,31 +203,27 @@ function PartnerFormModal({
   isOpen,
   onClose,
   onSubmit,
-  initialData,
-  isEditing = false,
   loading = false,
 }: PartnerFormModalProps) {
-  const [name, setName] = useState(initialData?.name || "");
-  const [email, setEmail] = useState(initialData?.email || "");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [shopName, setShopName] = useState("");
 
   useEffect(() => {
     if (isOpen) {
-      setName(initialData?.name || "");
-      setEmail(initialData?.email || "");
+      setName("");
+      setEmail("");
       setPassword("");
+      setShopName("");
     }
-  }, [isOpen, initialData]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload: PartnerFormData = { name, email };
-    if (password) {
-      payload.password = password;
-    }
-    onSubmit(payload);
+    onSubmit({ name, email, password, shopName });
   };
 
   const inputClassName =
@@ -84,16 +236,28 @@ function PartnerFormModal({
     >
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100 p-6">
         <h2 className="text-xl font-light text-black tracking-tight">
-          {isEditing ? "Edit Partner" : "Add Partner"}
+          Add Fabric Store Partner
         </h2>
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <FormField label="Name" name="name" required>
+          <FormField label="Store Name" name="shopName" required>
+            <input
+              id="shopName"
+              type="text"
+              value={shopName}
+              onChange={(e) => setShopName(e.target.value)}
+              required
+              placeholder="e.g. Luxury Velvet Store"
+              className={inputClassName}
+            />
+          </FormField>
+          <FormField label="Owner Name" name="name" required>
             <input
               id="name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
+              placeholder="e.g. John Doe"
               className={inputClassName}
             />
           </FormField>
@@ -104,26 +268,23 @@ function PartnerFormModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              placeholder="e.g. john@example.com"
               className={inputClassName}
             />
           </FormField>
           <FormField
-            label={isEditing ? "New password" : "Password"}
+            label="Password"
             name="password"
-            required={!isEditing}
-            hint={
-              isEditing
-                ? "Leave blank to keep the current password"
-                : undefined
-            }
+            required
           >
             <input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required={!isEditing}
-              minLength={isEditing ? undefined : 6}
+              required
+              placeholder="••••••••"
+              minLength={6}
               className={inputClassName}
             />
           </FormField>
@@ -131,17 +292,17 @@ function PartnerFormModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 transition disabled:opacity-50 inline-flex items-center gap-2"
+              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 transition disabled:opacity-50 inline-flex items-center gap-2 cursor-pointer"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {isEditing ? "Update" : "Create"}
+              Create
             </button>
           </div>
         </form>
@@ -150,95 +311,122 @@ function PartnerFormModal({
   );
 }
 
-// Confirmation Modal (for deactivate & delete)
-interface ConfirmModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-  confirmLabel?: string;
-  loading?: boolean;
-}
-
-function ConfirmModal({
-  isOpen,
-  onClose,
-  onConfirm,
-  title,
-  message,
-  confirmLabel = "Confirm",
-  loading = false,
-}: ConfirmModalProps) {
-  if (!isOpen) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100 p-6">
-        <h3 className="text-lg font-medium text-black">{title}</h3>
-        <p className="mt-2 text-sm text-gray-600">{message}</p>
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition disabled:opacity-50 inline-flex items-center gap-2"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Main Page ----------
 export default function AdminPartnersPage() {
   const params = useParams();
   const localeParam = params.locale as string;
 
-  const [rows, setRows] = useState<FabricStorePartner[]>([]);
+  const [rows, setRows] = useState<FabricRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<"all" | "approved" | "pending" | "rejected">("all");
 
-  // Create/Edit modal
+  const [stats, setStats] = useState({
+    total: 0,
+    approved: 0,
+    pending: 0,
+    rejected: 0,
+  });
+
+  // Modals state
   const [formModalOpen, setFormModalOpen] = useState(false);
-  const [editingPartner, setEditingPartner] = useState<
-    FabricStorePartner | undefined
-  >();
   const [formLoading, setFormLoading] = useState(false);
 
-  // Confirm modal (for deactivate & delete)
-  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<
-    "deactivate" | "delete" | null
-  >(null);
-  const [selectedPartner, setSelectedPartner] =
-    useState<FabricStorePartner | null>(null);
-  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [toggleModalOpen, setToggleModalOpen] = useState(false);
+  const [pendingToggle, setPendingToggle] = useState<{
+    shopId: string;
+    shopName: string;
+    currentStatus: boolean;
+  } | null>(null);
 
-  // ---------- Fetch ----------
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
+  const [approvalAction, setApprovalAction] = useState<"approve" | "reject" | null>(null);
+  const [selectedPending, setSelectedPending] = useState<{ id: string; name: string } | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get<FabricStorePartner[]>(
-        "/api/admin/partners/fabric-stores?includeInactive=1",
+      const approvedShopsRes = await api.get<{ items: ApprovedShop[] }>("/api/admin/fabric-shops");
+      const approvedShops = approvedShopsRes.items || [];
+
+      const approvedUsersRes = await api.get<{ items: ApprovedUser[] }>("/api/admin/fabric-stores/approved-users");
+      const approvedUsers = approvedUsersRes.items || [];
+
+      const pendingRes = await api.get<any[]>("/api/admin/fabric-stores/pending");
+      const pending = Array.isArray(pendingRes) ? pendingRes : [];
+
+      const rejectedRes = await api.get<{ items: RejectedUser[] }>("/api/admin/fabric-stores/rejected-stores");
+      const rejectedUsers = rejectedRes.items || [];
+
+      const shopOwnerIds = new Set(
+        approvedShops.map((shop) => shop.ownerId?._id).filter(Boolean)
       );
-      setRows(res || []);
+
+      const shopRows: FabricRow[] = approvedShops.map((shop) => ({
+        id: shop._id,
+        name: shop.ownerId?.name || "—",
+        email: shop.ownerId?.email || "—",
+        createdAt: shop.createdAt,
+        type: "approved",
+        shopName: shop.name,
+        isActive: shop.isActive,
+      }));
+
+      const approvedUserRows: FabricRow[] = approvedUsers
+        .filter((user) => !shopOwnerIds.has(user._id))
+        .map((user) => ({
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          createdAt: user.createdAt,
+          type: "approved",
+          shopName: null,
+          isActive: false,
+        }));
+
+      const pendingRows: FabricRow[] = pending.map((user) => ({
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt,
+        type: "pending",
+        phone: user.phone || "",
+        shopName: null,
+        isActive: false,
+      }));
+
+      const rejectedRows: FabricRow[] = rejectedUsers.map((user) => ({
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt,
+        type: "rejected",
+        shopName: null,
+        isActive: false,
+      }));
+
+      const combined = [
+        ...shopRows,
+        ...approvedUserRows,
+        ...pendingRows,
+        ...rejectedRows,
+      ];
+
+      setRows(combined);
+
+      const approvedCount = approvedShops.length + approvedUsers.filter((u) => !shopOwnerIds.has(u._id)).length;
+      setStats({
+        total: approvedCount + pending.length + rejectedUsers.length,
+        approved: approvedCount,
+        pending: pending.length,
+        rejected: rejectedUsers.length,
+      });
     } catch (err) {
       setError(getApiErrorMessage(err, "Failed to load partners"));
-      toast.error("Failed to load partners");
+      toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -248,12 +436,11 @@ export default function AdminPartnersPage() {
     fetchData();
   }, []);
 
-  // ---------- Handlers ----------
   const handleCreate = async (data: PartnerFormData) => {
     setFormLoading(true);
     try {
       await api.post("/api/admin/create-partners", data);
-      toast.success("Partner created");
+      toast.success("Partner created successfully");
       setFormModalOpen(false);
       fetchData();
     } catch (err) {
@@ -263,79 +450,122 @@ export default function AdminPartnersPage() {
     }
   };
 
-  const handleEdit = (partner: FabricStorePartner) => {
-    setEditingPartner(partner);
-    setFormModalOpen(true);
+  const openToggleModal = (shopId: string, shopName: string, currentStatus: boolean) => {
+    setPendingToggle({ shopId, shopName, currentStatus });
+    setToggleModalOpen(true);
   };
 
-  const handleUpdate = async (data: PartnerFormData) => {
-    if (!editingPartner) return;
-    const { name, email, password } = data;
-    setFormLoading(true);
+  const executeToggle = async () => {
+    if (!pendingToggle) return;
+    const { shopId, shopName, currentStatus } = pendingToggle;
+    const newStatus = !currentStatus;
+    const actionVerb = newStatus ? "reactivated" : "deactivated";
+
+    setActionInProgress(shopId);
+    setToggleModalOpen(false);
+
     try {
-      const payload: PartnerFormData = { name, email };
-      if (password) {
-        payload.password = password;
-      }
-      await api.put(`/api/admin/edit-partners/${editingPartner._id}`, payload);
-      toast.success("Partner updated");
-      setFormModalOpen(false);
-      setEditingPartner(undefined);
-      fetchData();
+      await api.patch(`/api/admin/fabric-shops/${shopId}/deactivate`, {
+        isActive: newStatus,
+      });
+
+      setRows((prev) =>
+        prev.map((row) =>
+          row.id === shopId && row.type === "approved"
+            ? { ...row, isActive: newStatus }
+            : row
+        )
+      );
+      toast.success(`Shop "${shopName}" ${actionVerb}`);
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Failed to update partner"));
+      toast.error(getApiErrorMessage(err, `Failed to ${actionVerb} shop`));
+      fetchData();
     } finally {
-      setFormLoading(false);
+      setActionInProgress(null);
+      setPendingToggle(null);
     }
   };
 
-  const handleDeactivate = (partner: FabricStorePartner) => {
-    setSelectedPartner(partner);
-    setConfirmAction("deactivate");
-    setConfirmModalOpen(true);
+  const cancelToggle = () => {
+    setToggleModalOpen(false);
+    setPendingToggle(null);
   };
 
-  const handleDelete = (partner: FabricStorePartner) => {
-    setSelectedPartner(partner);
-    setConfirmAction("delete");
-    setConfirmModalOpen(true);
+  const openApprovalModal = (action: "approve" | "reject", storeId: string, storeName: string) => {
+    setApprovalAction(action);
+    setSelectedPending({ id: storeId, name: storeName });
+    setRejectNote("");
+    setApprovalModalOpen(true);
   };
 
-  const executeConfirm = async () => {
-    if (!selectedPartner) return;
-    setConfirmLoading(true);
+  const closeApprovalModal = () => {
+    setApprovalModalOpen(false);
+    setApprovalAction(null);
+    setSelectedPending(null);
+    setRejectNote("");
+  };
+
+  const executeApproval = async () => {
+    if (!selectedPending || !approvalAction) return;
+    const { id, name } = selectedPending;
+
+    setActionInProgress(id);
+    closeApprovalModal();
+
     try {
-      if (confirmAction === "deactivate") {
-        await api.patch(
-          `/api/admin/partners/fabric-stores/${selectedPartner._id}/toggle-active`,
+      if (approvalAction === "approve") {
+        await api.patch(`/api/admin/fabric-stores/${id}/approve`);
+        toast.success(`Fabric store "${name}" approved`);
+        setRows((prev) =>
+          prev.map((row) =>
+            row.id === id
+              ? { ...row, type: "approved", shopName: null, isActive: false }
+              : row
+          )
         );
-        const currentActive = selectedPartner.isActive ?? true;
-        toast.success(`Partner ${currentActive ? "deactivated" : "activated"}`);
-      } else if (confirmAction === "delete") {
-        await api.delete(`/api/admin/delete-partner/${selectedPartner._id}`);
-        toast.success("Partner deleted");
+        setStats((prev) => ({
+          ...prev,
+          approved: prev.approved + 1,
+          pending: prev.pending - 1,
+        }));
+      } else {
+        await api.patch(`/api/admin/fabric-stores/${id}/reject`, {
+          rejectionNote: rejectNote,
+          note: rejectNote,
+        });
+        toast.success(`Fabric store "${name}" rejected`);
+        setRows((prev) =>
+          prev.map((row) =>
+            row.id === id ? { ...row, type: "rejected" } : row
+          )
+        );
+        setStats((prev) => ({
+          ...prev,
+          rejected: prev.rejected + 1,
+          pending: prev.pending - 1,
+        }));
       }
-      setConfirmModalOpen(false);
-      fetchData();
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Action failed"));
+      toast.error(getApiErrorMessage(err, `Failed to ${approvalAction} partner`));
     } finally {
-      setConfirmLoading(false);
-      setSelectedPartner(null);
-      setConfirmAction(null);
+      setActionInProgress(null);
     }
   };
 
-  // ---------- Filter ----------
   const filteredRows = useMemo(() => {
-    if (!searchTerm.trim()) return rows;
+    let result = rows;
+    if (activeTab !== "all") {
+      result = rows.filter((r) => r.type === activeTab);
+    }
+    if (!searchTerm.trim()) return result;
     const term = searchTerm.toLowerCase();
-    return rows.filter(
+    return result.filter(
       (r) =>
         r.name?.toLowerCase().includes(term) ||
-        r.email?.toLowerCase().includes(term),
+        r.email?.toLowerCase().includes(term) ||
+        r.shopName?.toLowerCase().includes(term)
     );
-  }, [rows, searchTerm]);
+  }, [rows, activeTab, searchTerm]);
 
   const formatDate = (date?: string) => {
     if (!date) return "—";
@@ -345,37 +575,23 @@ export default function AdminPartnersPage() {
         year: "numeric",
         month: "short",
         day: "numeric",
-      },
+      }
     );
   };
 
-  const activeCount = rows.filter((r) => r.isActive !== false).length;
-  const inactiveCount = rows.length - activeCount;
-
-  // ---------- Loading / Error ----------
   if (loading) {
     return (
       <div className="space-y-6 animate-pulse">
         <div className="h-8 w-48 bg-gray-200 rounded" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-          {[...Array(3)].map((_, i) => (
-            <div
-              key={i}
-              className="bg-white rounded-2xl p-4 border border-gray-100"
-            >
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-2xl p-4 border border-gray-100">
               <div className="h-4 w-24 bg-gray-200 rounded mb-2" />
               <div className="h-6 w-16 bg-gray-200 rounded" />
             </div>
           ))}
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100">
-            <div className="grid grid-cols-6 gap-4">
-              {[...Array(6)].map((_, j) => (
-                <div key={j} className="h-4 bg-gray-200 rounded" />
-              ))}
-            </div>
-          </div>
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mt-6">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="p-4 border-b border-gray-100">
               <div className="grid grid-cols-6 gap-4">
@@ -399,7 +615,7 @@ export default function AdminPartnersPage() {
           <p className="text-sm text-gray-500 mt-2">{error}</p>
           <button
             onClick={fetchData}
-            className="mt-6 px-6 py-2 bg-black text-white rounded-full hover:bg-black/80"
+            className="mt-6 px-6 py-2 bg-black text-white rounded-full hover:bg-black/80 transition text-sm hover:cursor-pointer"
           >
             Try Again
           </button>
@@ -408,56 +624,48 @@ export default function AdminPartnersPage() {
     );
   }
 
-  // ---------- Render ----------
   return (
     <div className="space-y-6">
       {/* Modals */}
-      <PartnerFormModal
-        isOpen={formModalOpen}
-        onClose={() => {
-          setFormModalOpen(false);
-          setEditingPartner(undefined);
-        }}
-        onSubmit={editingPartner ? handleUpdate : handleCreate}
-        initialData={editingPartner}
-        isEditing={!!editingPartner}
-        loading={formLoading}
+      <ToggleModal
+        isOpen={toggleModalOpen}
+        title={pendingToggle?.currentStatus ? "Deactivate Shop" : "Reactivate Shop"}
+        message={`Are you sure you want to ${pendingToggle?.currentStatus ? "deactivate" : "reactivate"} "${pendingToggle?.shopName || "this shop"}"?`}
+        confirmLabel={pendingToggle?.currentStatus ? "Deactivate" : "Reactivate"}
+        cancelLabel="Cancel"
+        onConfirm={executeToggle}
+        onCancel={cancelToggle}
       />
 
-      <ConfirmModal
-        isOpen={confirmModalOpen}
-        onClose={() => setConfirmModalOpen(false)}
-        onConfirm={executeConfirm}
-        title={
-          confirmAction === "deactivate"
-            ? selectedPartner?.isActive
-              ? "Deactivate Partner"
-              : "Activate Partner"
-            : "Delete Partner"
-        }
-        message={
-          confirmAction === "deactivate"
-            ? `Are you sure you want to ${selectedPartner?.isActive ? "deactivate" : "activate"} "${selectedPartner?.name}"?`
-            : `Are you sure you want to permanently delete "${selectedPartner?.name}"? This action cannot be undone.`
-        }
-        confirmLabel={
-          confirmAction === "deactivate"
-            ? selectedPartner?.isActive
-              ? "Deactivate"
-              : "Activate"
-            : "Delete"
-        }
-        loading={confirmLoading}
+      <ApprovalModal
+        isOpen={approvalModalOpen}
+        title={approvalAction === "approve" ? `Approve "${selectedPending?.name || "Fabric Store"}"` : `Reject "${selectedPending?.name || "Fabric Store"}"`}
+        message={approvalAction === "approve" ? "This store will be able to set up their shop profile and list fabrics." : "Explain a reason of rejection *"}
+        confirmLabel={approvalAction === "approve" ? "Approve" : "Reject"}
+        cancelLabel="Cancel"
+        onConfirm={executeApproval}
+        onCancel={closeApprovalModal}
+        showNote={approvalAction === "reject"}
+        noteValue={rejectNote}
+        onNoteChange={setRejectNote}
+        notePlaceholder="Rejection reason..."
+      />
+
+      <PartnerFormModal
+        isOpen={formModalOpen}
+        onClose={() => setFormModalOpen(false)}
+        onSubmit={handleCreate}
+        loading={formLoading}
       />
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-light text-black">
+          <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
             Fabric Store Partners
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Manage fabric store partner accounts (fabric_store role only)
+            Manage fabric store partner accounts – approvals and active shops.
           </p>
         </div>
         <div className="flex gap-2">
@@ -468,10 +676,7 @@ export default function AdminPartnersPage() {
             <RefreshCw className="w-4 h-4" /> Refresh
           </button>
           <button
-            onClick={() => {
-              setEditingPartner(undefined);
-              setFormModalOpen(true);
-            }}
+            onClick={() => setFormModalOpen(true)}
             className="inline-flex items-center gap-2 px-3 py-2 bg-black text-white rounded-lg hover:bg-black/80 transition text-sm hover:cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Add Partner
@@ -480,118 +685,148 @@ export default function AdminPartnersPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-4 border border-gray-100">
-          <p className="text-xs text-gray-400 uppercase">Total Partners</p>
-          <p className="text-2xl font-light text-black mt-1">{rows.length}</p>
+          <p className="text-xs text-gray-400 uppercase">Total</p>
+          <p className="text-2xl font-light text-black mt-1">{stats.total}</p>
         </div>
         <div className="bg-white rounded-2xl p-4 border border-gray-100">
-          <p className="text-xs text-gray-400 uppercase">Active</p>
-          <p className="text-2xl font-light text-black mt-1">{activeCount}</p>
+          <p className="text-xs text-gray-400 uppercase">Approved</p>
+          <p className="text-2xl font-light text-black mt-1">{stats.approved}</p>
         </div>
         <div className="bg-white rounded-2xl p-4 border border-gray-100">
-          <p className="text-xs text-gray-400 uppercase">Inactive</p>
-          <p className="text-2xl font-light text-black mt-1">{inactiveCount}</p>
+          <p className="text-xs text-gray-400 uppercase">Pending</p>
+          <p className="text-2xl font-light text-black mt-1">{stats.pending}</p>
+        </div>
+        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+          <p className="text-xs text-gray-400 uppercase">Rejected</p>
+          <p className="text-2xl font-light text-black mt-1">{stats.rejected}</p>
         </div>
       </div>
 
-      {/* Search + Refresh */}
-      <div className="flex flex-col sm:flex-row gap-3 justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by name or email..."
-            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm"
-          />
-        </div>
-        {/* Removed duplicate Refresh button, already in header */}
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex space-x-8">
+          {(["all", "approved", "pending", "rejected"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`pb-4 px-1 border-b-2 font-medium text-sm transition-all capitalize hover:cursor-pointer ${
+                activeTab === tab
+                  ? "border-black text-black"
+                  : "border-transparent text-gray-500 hover:text-gray-750 hover:border-gray-300"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search by name, email, or shop..."
+          className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-black"
+        />
       </div>
 
       {/* Table */}
       {filteredRows.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
           <Store className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-          <p className="text-gray-500">No fabric store partners found.</p>
+          <p className="text-gray-500">No partners found matching the criteria.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="px-6 py-3 text-left text-xs text-gray-500 uppercase">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-500 uppercase">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-500 uppercase">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-500 uppercase">
-                    Joined
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs text-gray-500 uppercase">
-                    Actions
-                  </th>
+                <tr className="bg-gray-50 border-b border-gray-150">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shop</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-gray-100">
                 {filteredRows.map((row) => {
-                  const isActive = row.isActive !== false;
-                  const statusColor = isActive
-                    ? "bg-green-100 text-green-800"
-                    : "bg-gray-100 text-gray-600";
+                  const isPending = row.type === "pending";
+                  const isRejected = row.type === "rejected";
+                  const busy = actionInProgress === row.id;
+
+                  let statusBadge;
+                  if (isPending) {
+                    statusBadge = (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        <Clock className="w-3 h-3 mr-1" /> Pending
+                      </span>
+                    );
+                  } else if (isRejected) {
+                    statusBadge = (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        Rejected
+                      </span>
+                    );
+                  } else {
+                    statusBadge = (
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${row.isActive ? "bg-black text-white" : "bg-gray-200 text-black"}`}>
+                        {row.isActive ? "Active" : "Inactive"}
+                      </span>
+                    );
+                  }
+
+                  let actions;
+                  if (isPending) {
+                    actions = (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => openApprovalModal("approve", row.id, row.name)}
+                          disabled={busy}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition disabled:opacity-50 hover:cursor-pointer"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" /> Approve
+                        </button>
+                        <button
+                          onClick={() => openApprovalModal("reject", row.id, row.name)}
+                          disabled={busy}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition disabled:opacity-50 hover:cursor-pointer"
+                        >
+                          <XCircle className="w-3.5 h-3.5" /> Reject
+                        </button>
+                      </div>
+                    );
+                  } else if (isRejected) {
+                    actions = <span className="text-xs text-gray-400 italic">No actions</span>;
+                  } else {
+                    actions = (
+                      <button
+                        onClick={() => openToggleModal(row.id, row.shopName || "Shop", row.isActive || false)}
+                        disabled={busy || !row.shopName}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition disabled:opacity-50 hover:cursor-pointer ${
+                          row.isActive ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
+                        } ${!row.shopName ? "opacity-50 cursor-not-allowed" : ""}`}
+                      >
+                        {busy ? "Toggling..." : row.isActive ? "Deactivate" : "Reactivate"}
+                      </button>
+                    );
+                  }
 
                   return (
-                    <tr key={row._id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-black">
-                        {row.name}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {row.email}
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}`}
-                        >
-                          {isActive ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {formatDate(row.createdAt)}
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEdit(row)}
-                            className="text-gray-500 hover:text-black transition p-1 hover:cursor-pointer"
-                            title="Edit"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeactivate(row)}
-                            className={`px-2 py-1 rounded text-xs font-medium transition hover:cursor-pointer ${
-                              isActive
-                                ? "text-red-700 bg-red-50 hover:bg-red-100"
-                                : "text-green-700 bg-green-50 hover:bg-green-100"
-                            }`}
-                            title={isActive ? "Deactivate" : "Activate"}
-                          >
-                            {isActive ? "Deactivate" : "Activate"}
-                          </button>
-                          <button
-                            onClick={() => handleDelete(row)}
-                            className="text-gray-500 hover:text-red-600 transition p-1 hover:cursor-pointer"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
+                    <tr key={row.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium text-black">{row.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{row.email}</td>
+                      <td className="px-6 py-4 text-sm capitalize">{row.type}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{row.shopName || "—"}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{formatDate(row.createdAt)}</td>
+                      <td className="px-6 py-4 text-sm">{statusBadge}</td>
+                      <td className="px-6 py-4 text-sm">{actions}</td>
                     </tr>
                   );
                 })}

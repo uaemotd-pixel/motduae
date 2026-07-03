@@ -1,6 +1,7 @@
 import express from 'express';
 import expressAsyncHandler from 'express-async-handler';
 import TailorShop from '../models/TailorShop.js';
+import CustomOrder, { CUSTOM_STATUSES } from '../models/CustomOrder.js';
 import tailorDesignRoutes from './tailorDesignRoutes.js';
 import {
   uploadReadyMadeImageMiddleware,
@@ -64,9 +65,17 @@ const pickShopFields = (body) => {
 
 const validateShopPayload = (data, { requireCore = false } = {}) => {
   if (requireCore) {
-    if (!data.name || !data.nameAr || !data.slug) {
-      return 'name, nameAr, and slug are required';
+    if (!data.name || !data.nameAr || !data.slug || !data.phone) {
+      return 'name, nameAr, slug, and phone are required';
     }
+  } else {
+    if (data.phone !== undefined && !data.phone) {
+      return 'phone is required';
+    }
+  }
+
+  if (data.phone !== undefined && data.phone !== '' && !/^\d{9}$/.test(data.phone)) {
+    return 'phone number must be exactly 9 digits';
   }
 
   if (data.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(data.slug)) {
@@ -256,6 +265,86 @@ tailorPortalRouter.put(
     res.json({
       success: true,
       item: formatShop(updatedShop),
+    });
+  })
+);
+
+// GET /api/tailor/orders — get all custom orders for this tailor's shop
+tailorPortalRouter.get(
+  '/orders',
+  expressAsyncHandler(async (req, res) => {
+    const shop = await TailorShop.findOne({ ownerId: req.user._id });
+    if (!shop) {
+      res.json({ success: true, items: [] });
+      return;
+    }
+
+    const orders = await CustomOrder.find({
+      $or: [{ tailorShopId: shop._id }, { "items.tailorShopId": shop._id }],
+    })
+      .populate('userId', 'name email phone')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      items: orders,
+    });
+  })
+);
+
+// PATCH /api/tailor/orders/:id/status — update order status by the tailor
+tailorPortalRouter.patch(
+  '/orders/:id/status',
+  expressAsyncHandler(async (req, res) => {
+    const { status, note } = req.body;
+    
+    if (status && !CUSTOM_STATUSES.includes(status)) {
+      res.status(400).json({
+        success: false,
+        message: `Invalid custom logistics status value`,
+      });
+      return;
+    }
+
+    const order = await CustomOrder.findById(req.params.id);
+    if (!order) {
+      res.status(404).json({ success: false, message: 'Order not found' });
+      return;
+    }
+
+    const shop = await TailorShop.findOne({ ownerId: req.user._id });
+    if (!shop) {
+      res.status(403).json({ success: false, message: 'Forbidden' });
+      return;
+    }
+
+    const ownsLegacyOrder =
+      order.tailorShopId?.toString?.() === shop._id.toString();
+    const ownsItemOrder = Array.isArray(order.items)
+      ? order.items.some(
+          (item) => item.tailorShopId?.toString?.() === shop._id.toString(),
+        )
+      : false;
+
+    if (!ownsLegacyOrder && !ownsItemOrder) {
+      res.status(403).json({ success: false, message: 'Forbidden' });
+      return;
+    }
+
+    if (status) {
+      order.status = status;
+      order.statusHistory.push({
+        status,
+        note: typeof note === 'string' ? note.trim() : '',
+        changedAt: new Date(),
+        changedBy: req.user._id,
+      });
+      await order.save();
+    }
+
+    res.json({
+      success: true,
+      order,
     });
   })
 );

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { LayoutDashboard, LogOut, Menu, Scissors, Store, X } from "lucide-react";
+import { LayoutDashboard, LogOut, Menu, Scissors, Store, X, ShoppingBag } from "lucide-react";
 import logoBlack from "../../../public/PNG/Black/MOTD_Wordmark_Black.png";
 
 type TailorPortalShellProps = {
@@ -40,6 +40,7 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
         { label: t("nav.dashboard"), href: "/tailor", icon: LayoutDashboard },
         { label: t("nav.shop"), href: "/tailor/shop", icon: Store },
         { label: t("nav.designs"), href: "/tailor/designs", icon: Scissors },
+        { label: t("nav.orders"), href: "/tailor/orders", icon: ShoppingBag },
     ];
 
     const isActiveLink = (href: string) => {

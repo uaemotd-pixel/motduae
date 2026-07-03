@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
@@ -9,9 +9,13 @@ import type { Locale } from "@/i18n/routing";
 import {
     formatOrderDate,
     getDesignDisplayName,
+    getFabricDisplayName,
+    getOrderHeadline,
+    getOrderItemsSummary,
     getTailorDisplayName,
     shortenOrderId,
     type CustomOrderDetail,
+    type CustomOrderLineItemSummary,
     type CustomOrderListItem,
 } from "@/lib/customOrders";
 import OrderTimeline from "@/components/orders/OrderTimeline";
@@ -27,6 +31,7 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [itemsOpenId, setItemsOpenId] = useState<string | null>(null);
     const [detailById, setDetailById] = useState<Record<string, CustomOrderDetail>>({});
     const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
     const [detailError, setDetailError] = useState<string | null>(null);
@@ -58,7 +63,7 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
         };
 
         fetchOrders();
-    }, []);
+    }, [t]);
 
     const loadDetail = useCallback(
         async (orderId: string) => {
@@ -90,7 +95,7 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
         [detailById, t],
     );
 
-    const handleToggle = async (orderId: string) => {
+    const handleToggleTimeline = async (orderId: string) => {
         if (expandedId === orderId) {
             setExpandedId(null);
             return;
@@ -98,6 +103,44 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
 
         setExpandedId(orderId);
         await loadDetail(orderId);
+    };
+
+    const handleToggleItems = (orderId: string, event: MouseEvent) => {
+        event.stopPropagation();
+        setItemsOpenId((current) => (current === orderId ? null : orderId));
+    };
+
+    const renderItemRow = (
+        item: CustomOrderLineItemSummary,
+        index: number,
+        fabricSource: CustomOrderListItem["fabricSource"],
+    ) => {
+        const designName = getDesignDisplayName(item.design, locale) || t("unknownDesign");
+        const fabricName =
+            fabricSource === "self"
+                ? t("ownFabric")
+                : getFabricDisplayName(item.fabric, locale) || t("unknownFabric");
+        const tailorName = getTailorDisplayName(item.tailorShop, locale);
+
+        return (
+            <li
+                key={`${designName}-${index}`}
+                className="px-3 py-2.5 border-b border-(--color-border) last:border-b-0 bg-white"
+            >
+                <p className="[font-family:var(--font-display)] text-[14px] text-black mb-1">
+                    {designName}
+                </p>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.14em] text-(--color-grey-muted)">
+                    {tailorName ? <span>{tailorName}</span> : null}
+                    <span>{fabricName}</span>
+                    {item.fabricMeters != null && (
+                        <span>
+                            {item.fabricMeters} {t("meters")}
+                        </span>
+                    )}
+                </div>
+            </li>
+        );
     };
 
     if (loading) {
@@ -133,33 +176,69 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
         <div className="space-y-4">
             {orders.map((order) => {
                 const isExpanded = expandedId === order.id;
+                const isItemsOpen = itemsOpenId === order.id;
                 const detail = detailById[order.id];
-                const designName = getDesignDisplayName(order.design, locale);
+                const items = getOrderItemsSummary(order);
+                const headline = getOrderHeadline(order, locale, {
+                    singleFallback: t("unknownDesign"),
+                    multiple: (count) => t("multipleItemsTitle", { count }),
+                });
                 const tailorName = getTailorDisplayName(order.tailorShop, locale);
+                const showItemsToggle = items.length > 0;
 
                 return (
                     <article
                         key={order.id}
-                        className="border border-(--color-border) bg-white overflow-hidden"
+                        className={`border border-(--color-border) bg-white ${isItemsOpen ? "relative z-10" : ""}`}
                     >
-                        <button
-                            type="button"
-                            onClick={() => handleToggle(order.id)}
-                            className="w-full text-left p-5 sm:p-6 hover:bg-[#FDFAF5] transition"
-                            aria-expanded={isExpanded}
-                        >
+                        <div className="p-5 sm:p-6">
                             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                                <div>
+                                <div className="min-w-0 flex-1">
                                     <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-2">
                                         {t("orderId", { id: shortenOrderId(order.id) })}
                                     </p>
                                     <h3 className="[font-family:var(--font-display)] text-[20px] mb-1">
-                                        {designName || t("unknownDesign")}
+                                        {headline}
                                     </h3>
-                                    {tailorName && (
+                                    {items.length === 1 && tailorName && (
                                         <p className="[font-family:var(--font-body)] text-[14px] text-(--color-grey-muted)">
                                             {tailorName}
                                         </p>
+                                    )}
+                                    {showItemsToggle && (
+                                        <div className="mt-3">
+                                            <button
+                                                type="button"
+                                                onClick={(event) => handleToggleItems(order.id, event)}
+                                                className="inline-flex items-center gap-2 px-3 py-1.5 border border-(--color-border) bg-white hover:bg-[#FDFAF5] transition [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.18em] text-black"
+                                                aria-expanded={isItemsOpen}
+                                            >
+                                                {t("viewItems", { count: items.length })}
+                                                <span
+                                                    className={`text-[12px] transition-transform ${isItemsOpen ? "rotate-180" : ""}`}
+                                                    aria-hidden
+                                                >
+                                                    ▾
+                                                </span>
+                                            </button>
+
+                                            {isItemsOpen && (
+                                                <div className="mt-2 max-w-md border border-(--color-border) bg-[#FDFAF5]">
+                                                    <p className="px-3 py-2 border-b border-(--color-border) [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.2em] text-(--color-grey-muted)">
+                                                        {t("itemsDropdownTitle")}
+                                                    </p>
+                                                    <ul>
+                                                        {items.map((item, index) =>
+                                                            renderItemRow(
+                                                                item,
+                                                                index,
+                                                                order.fabricSource,
+                                                            ),
+                                                        )}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
                                     <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-(--color-grey-muted) mt-2">
                                         {formatOrderDate(order.date, locale)}
@@ -175,12 +254,17 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
                                             {formatCurrency(order.total, locale)}
                                         </span>
                                     )}
-                                    <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted)">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleToggleTimeline(order.id)}
+                                        className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) hover:text-black transition"
+                                        aria-expanded={isExpanded}
+                                    >
                                         {isExpanded ? t("hideTimeline") : t("viewTimeline")}
-                                    </span>
+                                    </button>
                                 </div>
                             </div>
-                        </button>
+                        </div>
 
                         {isExpanded && (
                             <div className="border-t border-(--color-border) p-5 sm:p-6 bg-[#FDFAF5]">

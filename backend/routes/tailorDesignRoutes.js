@@ -1,25 +1,27 @@
-import express from 'express';
-import expressAsyncHandler from 'express-async-handler';
-import mongoose from 'mongoose';
-import Design, { DESIGN_CATEGORIES } from '../models/Design.js';
-import TailorShop from '../models/TailorShop.js';
-import { deleteTailorDesignUpload } from '../utils/uploads.js';
+import express from "express";
+import expressAsyncHandler from "express-async-handler";
+import mongoose from "mongoose";
+import Design, { DESIGN_CATEGORIES } from "../models/Design.js";
+import TailorShop from "../models/TailorShop.js";
+import { deleteTailorDesignUpload } from "../utils/uploads.js";
 
 const tailorDesignRouter = express.Router();
 
 const DESIGN_FIELDS = [
-  'name',
-  'nameAr',
-  'slug',
-  'description',
-  'descriptionAr',
-  'images',
-  'category',
-  'basePrice',
-  'tailoringFee',
-  'estimatedMeters',
-  'estimatedDays',
-  'isActive',
+  "name",
+  "nameAr",
+  "slug",
+  "description",
+  "descriptionAr",
+  "images",
+  "category",
+  "basePrice",
+  "tailoringFee",
+  "estimatedMeters",
+  "estimatedDays",
+  "ageMin",
+  "ageMax",
+  "isActive",
 ];
 
 const formatDesign = (design) => ({
@@ -36,6 +38,8 @@ const formatDesign = (design) => ({
   tailoringFee: design.tailoringFee,
   estimatedMeters: design.estimatedMeters,
   estimatedDays: design.estimatedDays,
+  ageMin: design.ageMin,
+  ageMax: design.ageMax,
   isActive: design.isActive,
   createdAt: design.createdAt,
   updatedAt: design.updatedAt,
@@ -46,7 +50,7 @@ const resolveOwnShop = async (req, res) => {
   if (!shop) {
     res.status(404).json({
       success: false,
-      message: 'Tailor shop not found',
+      message: "Tailor shop not found",
     });
     return null;
   }
@@ -59,7 +63,7 @@ const pickDesignFields = (body) => {
   for (const field of DESIGN_FIELDS) {
     if (body[field] === undefined) continue;
 
-    if (field === 'images') {
+    if (field === "images") {
       data.images = Array.isArray(body.images)
         ? body.images.map((image) => String(image).trim()).filter(Boolean)
         : body.images;
@@ -67,15 +71,18 @@ const pickDesignFields = (body) => {
     }
 
     if (
-      ['basePrice', 'tailoringFee', 'estimatedMeters', 'estimatedDays'].includes(
-        field
-      )
+      [
+        "basePrice",
+        "tailoringFee",
+        "estimatedMeters",
+        "estimatedDays",
+      ].includes(field)
     ) {
       data[field] = Number(body[field]);
       continue;
     }
 
-    if (typeof body[field] === 'string') {
+    if (typeof body[field] === "string") {
       data[field] = body[field].trim();
       continue;
     }
@@ -93,45 +100,45 @@ const pickDesignFields = (body) => {
 const validateDesignPayload = (data, { requireCore = false } = {}) => {
   if (requireCore) {
     const required = [
-      'name',
-      'nameAr',
-      'slug',
-      'category',
-      'basePrice',
-      'tailoringFee',
-      'estimatedMeters',
+      "name",
+      "nameAr",
+      "slug",
+      "category",
+      "basePrice",
+      "tailoringFee",
+      "estimatedMeters",
     ];
 
     for (const field of required) {
       if (
         data[field] === undefined ||
         data[field] === null ||
-        data[field] === ''
+        data[field] === ""
       ) {
         return `${field} is required`;
       }
     }
 
     if (!Array.isArray(data.images) || data.images.length === 0) {
-      return 'At least one image is required';
+      return "At least one image is required";
     }
   }
 
   if (data.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(data.slug)) {
-    return 'slug must be lowercase letters, numbers, and hyphens only';
+    return "slug must be lowercase letters, numbers, and hyphens only";
   }
 
   if (data.category && !DESIGN_CATEGORIES.includes(data.category)) {
-    return `category must be one of: ${DESIGN_CATEGORIES.join(', ')}`;
+    return `category must be one of: ${DESIGN_CATEGORIES.join(", ")}`;
   }
 
   if (data.images !== undefined) {
     if (!Array.isArray(data.images) || data.images.length === 0) {
-      return 'At least one image is required';
+      return "At least one image is required";
     }
   }
 
-  for (const field of ['basePrice', 'tailoringFee']) {
+  for (const field of ["basePrice", "tailoringFee"]) {
     if (data[field] !== undefined) {
       if (!Number.isFinite(data[field]) || data[field] < 0) {
         return `${field} must be a non-negative number`;
@@ -141,13 +148,13 @@ const validateDesignPayload = (data, { requireCore = false } = {}) => {
 
   if (data.estimatedMeters !== undefined) {
     if (!Number.isFinite(data.estimatedMeters) || data.estimatedMeters <= 0) {
-      return 'estimatedMeters must be greater than 0';
+      return "estimatedMeters must be greater than 0";
     }
   }
 
   if (data.estimatedDays !== undefined) {
     if (!Number.isFinite(data.estimatedDays) || data.estimatedDays < 1) {
-      return 'estimatedDays must be at least 1';
+      return "estimatedDays must be at least 1";
     }
   }
 
@@ -158,7 +165,7 @@ const findOwnDesign = async (shopId, designId, res) => {
   if (!mongoose.Types.ObjectId.isValid(designId)) {
     res.status(404).json({
       success: false,
-      message: 'Design not found',
+      message: "Design not found",
     });
     return null;
   }
@@ -171,7 +178,7 @@ const findOwnDesign = async (shopId, designId, res) => {
   if (!design) {
     res.status(404).json({
       success: false,
-      message: 'Design not found',
+      message: "Design not found",
     });
     return null;
   }
@@ -196,7 +203,7 @@ const cleanupAllDesignImages = (images = []) => {
 
 // GET /api/tailor/designs — list own shop designs
 tailorDesignRouter.get(
-  '/',
+  "/",
   expressAsyncHandler(async (req, res) => {
     const shop = await resolveOwnShop(req, res);
     if (!shop) return;
@@ -210,12 +217,12 @@ tailorDesignRouter.get(
       items: designs.map(formatDesign),
       total: designs.length,
     });
-  })
+  }),
 );
 
 // POST /api/tailor/designs — create design for own shop
 tailorDesignRouter.post(
-  '/',
+  "/",
   expressAsyncHandler(async (req, res) => {
     const shop = await resolveOwnShop(req, res);
     if (!shop) return;
@@ -237,7 +244,7 @@ tailorDesignRouter.post(
     if (slugTaken) {
       res.status(409).json({
         success: false,
-        message: 'Design slug already exists for this shop',
+        message: "Design slug already exists for this shop",
       });
       return;
     }
@@ -251,12 +258,12 @@ tailorDesignRouter.post(
       success: true,
       item: formatDesign(design),
     });
-  })
+  }),
 );
 
 // PUT /api/tailor/designs/:id — update own design
 tailorDesignRouter.put(
-  '/:id',
+  "/:id",
   expressAsyncHandler(async (req, res) => {
     const shop = await resolveOwnShop(req, res);
     if (!shop) return;
@@ -268,7 +275,7 @@ tailorDesignRouter.put(
     if (Object.keys(data).length === 0) {
       res.status(400).json({
         success: false,
-        message: 'No design fields provided to update',
+        message: "No design fields provided to update",
       });
       return;
     }
@@ -290,7 +297,7 @@ tailorDesignRouter.put(
       if (slugTaken) {
         res.status(409).json({
           success: false,
-          message: 'Design slug already exists for this shop',
+          message: "Design slug already exists for this shop",
         });
         return;
       }
@@ -307,12 +314,12 @@ tailorDesignRouter.put(
       success: true,
       item: formatDesign(updatedDesign),
     });
-  })
+  }),
 );
 
 // DELETE /api/tailor/designs/:id — delete own design
 tailorDesignRouter.delete(
-  '/:id',
+  "/:id",
   expressAsyncHandler(async (req, res) => {
     const shop = await resolveOwnShop(req, res);
     if (!shop) return;
@@ -325,9 +332,9 @@ tailorDesignRouter.delete(
 
     res.json({
       success: true,
-      message: 'Design deleted successfully',
+      message: "Design deleted successfully",
     });
-  })
+  }),
 );
 
 export default tailorDesignRouter;

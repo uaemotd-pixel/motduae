@@ -6,7 +6,11 @@ import { Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
-import { type ApiError } from "@/lib/api/client";
+import PasswordChecklist from "@/components/auth/PasswordChecklist";
+import {
+    getPasswordValidationMessage,
+    isPasswordValid,
+} from "@/lib/auth/passwordValidation";
 import logoBlack from "../../../public/PNG/Black/MOTD_Wordmark_Black.png";
 import * as images from "../../../public/images/ImageIndex";
 
@@ -32,6 +36,12 @@ export default function TailorRegisterForm() {
             return;
         }
 
+        const passwordMessage = getPasswordValidationMessage(password);
+        if (passwordMessage) {
+            setError(passwordMessage);
+            return;
+        }
+
         setIsLoading(true);
 
         try {
@@ -39,8 +49,9 @@ export default function TailorRegisterForm() {
             setSubmitted(true);
         } catch (err: unknown) {
             const message =
-                (err as ApiError)?.message ||
-                (err instanceof Error ? err.message : "Registration failed");
+                err && typeof err === "object" && "message" in err
+                    ? String((err as { message: string }).message)
+                    : "Registration failed";
             setError(message);
         } finally {
             setIsLoading(false);
@@ -204,6 +215,7 @@ export default function TailorRegisterForm() {
                                                 {showPassword ? "Hide" : "Show"}
                                             </button>
                                         </div>
+                                        <PasswordChecklist password={password} />
                                     </div>
 
                                     <div className="space-y-2">
@@ -240,7 +252,7 @@ export default function TailorRegisterForm() {
 
                                     <button
                                         type="submit"
-                                        disabled={isLoading}
+                                        disabled={isLoading || !isPasswordValid(password)}
                                         className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         {isLoading ? t("submitting") : t("submit")}

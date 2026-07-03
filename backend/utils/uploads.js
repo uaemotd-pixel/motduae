@@ -1,20 +1,25 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const UPLOADS_ROOT = path.join(__dirname, '..', 'uploads');
-export const READY_MADE_UPLOAD_DIR = path.join(UPLOADS_ROOT, 'ready-made');
-export const TAILOR_DESIGN_UPLOAD_DIR = path.join(UPLOADS_ROOT, 'tailor-design');
-export const TAILOR_SHOP_UPLOAD_DIR = path.join(UPLOADS_ROOT, 'tailor-shop');
+export const UPLOADS_ROOT = path.join(__dirname, "..", "uploads");
+export const READY_MADE_UPLOAD_DIR = path.join(UPLOADS_ROOT, "ready-made");
+export const TAILOR_DESIGN_UPLOAD_DIR = path.join(
+  UPLOADS_ROOT,
+  "tailor-design",
+);
+export const TAILOR_SHOP_UPLOAD_DIR = path.join(UPLOADS_ROOT, "tailor-shop");
 export const FABRIC_UPLOAD_DIR = path.join(UPLOADS_ROOT, "fabrics");
+export const CUSTOMER_UPLOAD_DIR = path.join(UPLOADS_ROOT, "customer");
 
 export function ensureUploadDirs() {
   fs.mkdirSync(READY_MADE_UPLOAD_DIR, { recursive: true });
   fs.mkdirSync(TAILOR_DESIGN_UPLOAD_DIR, { recursive: true });
   fs.mkdirSync(TAILOR_SHOP_UPLOAD_DIR, { recursive: true });
   fs.mkdirSync(FABRIC_UPLOAD_DIR, { recursive: true });
+  fs.mkdirSync(CUSTOMER_UPLOAD_DIR, { recursive: true });
 }
 
 export function toPublicUploadPath(folder, filename) {
@@ -23,14 +28,14 @@ export function toPublicUploadPath(folder, filename) {
 
 /** Remove a stored tailor-design upload from disk. */
 export function deleteTailorDesignUpload(publicPath) {
-  if (!publicPath || typeof publicPath !== 'string') return;
+  if (!publicPath || typeof publicPath !== "string") return;
 
   const normalized = publicPath.trim();
-  const prefix = '/uploads/tailor-design/';
+  const prefix = "/uploads/tailor-design/";
   if (!normalized.startsWith(prefix)) return;
 
   const filename = path.basename(normalized);
-  if (!filename || filename.includes('..')) return;
+  if (!filename || filename.includes("..")) return;
 
   const fullPath = path.join(TAILOR_DESIGN_UPLOAD_DIR, filename);
   const resolved = path.resolve(fullPath);
@@ -49,14 +54,14 @@ export function deleteTailorDesignUpload(publicPath) {
 
 /** Remove a previously stored tailor-shop upload from disk (ignores seed /images paths). */
 export function deleteTailorShopUpload(publicPath) {
-  if (!publicPath || typeof publicPath !== 'string') return;
+  if (!publicPath || typeof publicPath !== "string") return;
 
   const normalized = publicPath.trim();
-  const prefix = '/uploads/tailor-shop/';
+  const prefix = "/uploads/tailor-shop/";
   if (!normalized.startsWith(prefix)) return;
 
   const filename = path.basename(normalized);
-  if (!filename || filename.includes('..')) return;
+  if (!filename || filename.includes("..")) return;
 
   const fullPath = path.join(TAILOR_SHOP_UPLOAD_DIR, filename);
   const resolved = path.resolve(fullPath);

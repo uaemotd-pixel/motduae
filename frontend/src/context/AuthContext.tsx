@@ -16,19 +16,29 @@ interface ApiUserResponse {
     _id: string;
     name: string;
     email: string;
+    phone?: string;
     role: string;
     isAdmin?: boolean;
     approvalStatus?: string;
+    isActive?: boolean;
+    authProvider?: string;
+    hasPassword?: boolean;
     token?: string;
+    perms?: Record<string, boolean>;
 }
 
 export interface User {
     id: string;
     email: string;
     name: string;
+    phone?: string;
     role: string;
     isAdmin?: boolean;
     approvalStatus?: string;
+    isActive?: boolean;
+    authProvider?: string;
+    hasPassword?: boolean;
+    perms?: Record<string, boolean>;
 }
 
 function mapApiUser(data: ApiUserResponse): User {
@@ -36,9 +46,14 @@ function mapApiUser(data: ApiUserResponse): User {
         id: data._id,
         email: data.email,
         name: data.name,
+        phone: data.phone,
         role: data.role,
         isAdmin: data.isAdmin,
         approvalStatus: data.approvalStatus,
+        isActive: data.isActive,
+        authProvider: data.authProvider,
+        hasPassword: data.hasPassword,
+        perms: data.perms || {},
     };
 }
 
@@ -46,8 +61,11 @@ interface AuthContextType {
     user: User | null;
     isLoading: boolean;
     login: (email: string, password: string) => Promise<User>;
-    register: (username: string, email: string, password: string) => Promise<void>;
+    loginWithGoogle: (credential: string) => Promise<User>;
+    register: (username: string, email: string, password: string, phone: string) => Promise<void>;
     registerTailor: (name: string, email: string, password: string) => Promise<User>;
+    registerFabricStore: (name: string, email: string, password: string) => Promise<User>;
+    forgotPassword: (email: string) => Promise<string>;
     logout: () => void;
     isAuthenticated: boolean;
 }
@@ -76,7 +94,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 const profile = await api.get<ApiUserResponse>('/api/users/profile');
                 setUser(mapApiUser(profile));
             } catch (error) {
-                console.error('Failed to load user profile:', error);
+                if ((error as any)?.status !== 401) {
+                    console.error('Failed to load user profile:', (error as any)?.message || error);
+                }
                 clearToken();
                 setUser(null);
             } finally {
@@ -87,33 +107,58 @@ export function AuthProvider({ children }: AuthProviderProps) {
         loadUser();
     }, []);
 
-    // SIGN IN
-    const login = async (email: string, password: string): Promise<User> => {
-        const response = await api.post<ApiUserResponse>('/api/users/signin', {
-            email,
-            password,
-        });
+    const persistSession = (response: ApiUserResponse) => {
         saveToken(response.token!);
         const mappedUser = mapApiUser(response);
         setUser(mappedUser);
         return mappedUser;
     };
 
+    const login = async (email: string, password: string): Promise<User> => {
+        const response = await api.post<ApiUserResponse>('/api/users/signin', {
+            email,
+            password,
+        });
+        return persistSession(response);
+    };
 
-    // SIGN UP
-    const register = async (name: string, email: string, password: string) => {
+    const loginWithGoogle = async (credential: string): Promise<User> => {
+        const response = await api.post<ApiUserResponse>('/api/users/auth/google', {
+            credential,
+        });
+        return persistSession(response);
+    };
+
+    const register = async (name: string, email: string, password: string, phone: string) => {
         const response = await api.post<ApiUserResponse>('/api/users/signup', {
+            name,
+            email,
+            password,
+            phone,
+        });
+
+        persistSession(response);
+    };
+
+    const registerTailor = async (name: string, email: string, password: string) => {
+        const response = await api.post<ApiUserResponse>('/api/users/signup/tailor', {
             name,
             email,
             password,
         });
 
-        saveToken(response.token!);
-        setUser(mapApiUser(response));
+        return persistSession(response);
     };
 
-    const registerTailor = async (name: string, email: string, password: string) => {
-        const response = await api.post<ApiUserResponse>('/api/users/signup/tailor', {
+    const forgotPassword = async (email: string) => {
+        const response = await api.post<{ message: string }>('/api/users/forgot-password', {
+            email,
+        });
+        return response.message;
+    };
+
+    const registerFabricStore = async (name: string, email: string, password: string) => {
+        const response = await api.post<ApiUserResponse>('/api/users/signup/fabricStore', {
             name,
             email,
             password,
@@ -134,8 +179,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         user,
         isLoading,
         login,
+        loginWithGoogle,
         register,
         registerTailor,
+        registerFabricStore,
+        forgotPassword,
         logout,
         isAuthenticated: !!user,
     };

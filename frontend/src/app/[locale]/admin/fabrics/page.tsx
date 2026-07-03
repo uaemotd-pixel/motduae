@@ -114,7 +114,9 @@ export default function AdminFabricsPage() {
           : "bg-gray-100 text-gray-500 border border-gray-200"
       }`}
     >
-      {isActive ? t.adminFabrics.list.status_active : t.adminFabrics.list.status_inactive}
+      {isActive
+        ? t.adminFabrics.list.status_active
+        : t.adminFabrics.list.status_inactive}
     </span>
   );
 
@@ -188,7 +190,9 @@ export default function AdminFabricsPage() {
           <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
             {t.adminFabrics.list.title}
           </h1>
-          <p className="text-gray-500 text-sm mt-1">{t.adminFabrics.list.subtitle}</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {t.adminFabrics.list.subtitle}
+          </p>
         </div>
         <Link
           href="/admin/fabrics/new"
@@ -242,7 +246,9 @@ export default function AdminFabricsPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
           <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500">
-            {searchTerm ? t.adminFabrics.list.empty_search : t.adminFabrics.list.empty}
+            {searchTerm
+              ? t.adminFabrics.list.empty_search
+              : t.adminFabrics.list.empty}
           </p>
           {!searchTerm && (
             <Link
@@ -301,7 +307,7 @@ export default function AdminFabricsPage() {
                       {getStoreDisplay(item.listedByStore)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {item.city || "—"}
+                      {item.storePickupAddress.emirate || "—"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <StatusBadge isActive={item.isActive} />

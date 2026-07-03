@@ -6,23 +6,26 @@ import { GlobalProgressBar } from "../shared/GlobalProgressBar";
 import { useAuth } from "@/context/AuthContext";
 import LocaleSwitcher from "../shared/LocaleSwitcher";
 import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 import { getTranslation } from "@/lib/getTranslation";
 import { useParams } from "next/navigation";
 
 const NAV_LINKS = [
+  { key: "designs", href: "/#designs" },
   { key: "fabrics", href: "/fabrics/fabricStore" },
-  { key: "tailors", href: "/tailors" },
-  { key: "stories", href: "/#stories" },
-  { key: "howItWorks", href: "/#how-it-works" },
-  { key: "about", href: "/#about" },
+  { key: "brands", href: "/tailors" },
+  { key: "joinOurCommunity", href: "/#join-our-community" },
+  { key: "motdGuide", href: "/motd-guide" },
+  { key: "contactUs", href: "/contact-us" },
 ] as const;
 
 const MOBILE_NAV_LINKS = [
+  { key: "designs", href: "/#designs" },
   { key: "fabrics", href: "/fabrics/fabricStore" },
-  { key: "tailors", href: "/tailors" },
-  { key: "stories", href: "/#stories" },
-  { key: "howItWorks", href: "/#how-it-works" },
-  { key: "about", href: "/#about" },
+  { key: "brands", href: "/tailors" },
+  { key: "joinOurCommunity", href: "/#join-our-community" },
+  { key: "motdGuide", href: "/motd-guide" },
+  { key: "contactUs", href: "/contact-us" },
 ] as const;
 
 // SVG Icons (unchanged)
@@ -97,6 +100,11 @@ export function Navbar() {
   const accountLabel = user ? t.navbar.actions.account : t.navbar.actions.login;
   const { items } = useCart();
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  const { wishItems } = useWishlist();
+  const wishlistTotalItems = wishItems.reduce(
+    (sum, item) => sum + item.quantity,
+    0,
+  );
 
   // Role Based Logic after Login
   const getAccountHref = () => {
@@ -104,7 +112,8 @@ export function Navbar() {
     if (!user) return "/auth/login";
     if (user.role.toLowerCase() === "admin") return "/admin";
     if (user.role.toLowerCase() === "tailor") return "/tailor";
-    return "/account/userAccount";
+    if (user.role.toLowerCase() === "fabric_store") return "/fabric";
+    return "/account";
   };
   const accountHref = getAccountHref();
 
@@ -195,7 +204,7 @@ export function Navbar() {
     isArabic
       ? "text-[14px] xs:text-[14px] sm:text-[15px]"
       : "text-[11px] xs:text-[12px] sm:text-[13px]"
-  }`;   
+  }`;
 
   const bottomLabelClass = `uppercase tracking-[0.18em] [font-family:var(--font-ui)] ${
     isArabic ? "text-[10px] xs:text-[11px]" : "text-[8px] xs:text-[9px]"
@@ -242,13 +251,20 @@ export function Navbar() {
           </button>
 
           {/* Wishlist Icon */}
-          <button
-            type="button"
-            className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center"
+          <Link
+            href="/wishlist"
+            className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center relative"
             aria-label={t.navbar.actions.wishlist}
           >
-            <WishlistIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
-          </button>
+            <div className="relative">
+              <WishlistIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
+              {wishlistTotalItems > 0 && (
+                <span className="absolute -top-2.5 -right-1 w-4 h-4 lg:w-4 lg:h-4 bg-black text-white text-[9px] lg:text-[10px] font-medium rounded-full flex items-center justify-center shadow-sm">
+                  {wishlistTotalItems}
+                </span>
+              )}
+            </div>
+          </Link>
 
           {/* Cart Icon */}
           <Link

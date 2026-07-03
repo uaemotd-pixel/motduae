@@ -36,17 +36,18 @@ export default function EditFabricPage() {
         let fabric: Record<string, unknown> | undefined;
 
         try {
-          fabric = await api.get<Record<string, unknown>>(`/api/admin/fabrics/${id}`);
+          fabric = await api.get<Record<string, unknown>>(
+            `/api/admin/fabrics/${id}`,
+          );
         } catch (directErr: unknown) {
           const status =
-            directErr &&
-            typeof directErr === "object" &&
-            "status" in directErr
+            directErr && typeof directErr === "object" && "status" in directErr
               ? (directErr as { status: number }).status
               : undefined;
 
           if (status === 404) {
-            const allItems = await api.get<Record<string, unknown>[]>("/api/admin/fabrics");
+            const allItems =
+              await api.get<Record<string, unknown>[]>("/api/admin/fabrics");
             fabric = allItems.find((item) => item._id === id);
           } else {
             throw directErr;
@@ -59,8 +60,12 @@ export default function EditFabricPage() {
         }
 
         setFormData(fromApiFabric(fabric));
+        console.log("Fabric API response:", fabric);
+        console.log("Parsed formData:", fromApiFabric(fabric));
       } catch (err: unknown) {
-        setError(getApiErrorMessage(err, labels.adminFabrics.errors.load_failed));
+        setError(
+          getApiErrorMessage(err, labels.adminFabrics.errors.load_failed),
+        );
       } finally {
         setLoading(false);
       }
@@ -135,7 +140,9 @@ export default function EditFabricPage() {
   };
 
   if (loading) {
-    return <div className="text-center py-10">{t.adminFabrics.edit.loading}</div>;
+    return (
+      <div className="text-center py-10">{t.adminFabrics.edit.loading}</div>
+    );
   }
 
   if (error && !formData) {
@@ -160,7 +167,9 @@ export default function EditFabricPage() {
         <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
           {t.adminFabrics.edit.title}
         </h1>
-        <p className="text-gray-500 text-sm mt-1">{t.adminFabrics.edit.subtitle}</p>
+        <p className="text-gray-500 text-sm mt-1">
+          {t.adminFabrics.edit.subtitle}
+        </p>
       </div>
 
       {error && (
@@ -176,7 +185,6 @@ export default function EditFabricPage() {
         <FabricAdminFormFields
           formData={formData}
           fieldErrors={fieldErrors}
-          copy={t.adminFabrics}
           onFieldChange={handleChange}
           onPickupChange={handlePickupAddressChange}
           onImageChange={handleImageChange}
@@ -190,7 +198,9 @@ export default function EditFabricPage() {
             disabled={submitting}
             className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50"
           >
-            {submitting ? t.adminFabrics.edit.submitting : t.adminFabrics.edit.submit}
+            {submitting
+              ? t.adminFabrics.edit.submitting
+              : t.adminFabrics.edit.submit}
           </button>
           <button
             type="button"

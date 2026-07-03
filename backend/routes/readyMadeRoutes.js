@@ -25,15 +25,16 @@ readyMadeRoutes.get("/", async (req, res) => {
         const items = products.map((p) => ({
             _id: p._id,
             slug: p.slug,
-            price: p.price,
-            size: p.size,
-            style: p.style,
             images: p.images,
-            countInStock: p.countInStock,
+            colors: p.colors,
             name: p.name,
             nameAr: p.nameAr,
             description: p.description,
             descriptionAr: p.descriptionAr,
+            finalSellingPriceAED: p.finalSellingPriceAED,
+            tag: p.tag,
+            tagAr: p.tagAr,
+            availableFabricStock: p.availableFabricStock
         }));
 
         res.json({
@@ -63,6 +64,8 @@ readyMadeRoutes.get("/:slug", async (req, res) => {
             slug: slug.toLowerCase(),
             isActive: true
         })
+        .populate("fabricId", "slug name nameAr")
+        .populate("designId", "slug name nameAr");
 
         if (!product) {
             return res.status(404).json({

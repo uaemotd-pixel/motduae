@@ -21,13 +21,16 @@ export function MeasurementGuide() {
     const t = useTranslations("MeasurementGuide");
 
     const handleDownloadGuide = () => {
-        // Add your download logic here
-        console.log("Downloading guide...");
-        // Example: window.open('/measurement-guide.pdf', '_blank');
+        const link = document.createElement("a");
+        link.href = "/images/dress_measurements_fixed.png";
+        link.download = "dress_measurements_guide.png";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     return (
-        <section className="bg-black/95 text-white py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) relative overflow-hidden mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-(--space-80)">
+        <section id="how-it-works" className="bg-black/95 text-white py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) relative overflow-hidden mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-(--space-80)">
             {/* Background decorative elements */}
             <div className="absolute right-0 top-0 w-1/2 sm:w-2/5 md:w-1/3 h-full bg-white/5 -skew-x-12 translate-x-1/2"></div>
             <div className="absolute left-0 bottom-0 w-48 xs:w-56 sm:w-64 md:w-72 h-48 xs:h-56 sm:h-64 md:h-72 bg-white/2 rounded-full blur-3xl"></div>
@@ -76,11 +79,11 @@ export function MeasurementGuide() {
                         {/* CTA Button */}
                         <button
                             onClick={handleDownloadGuide}
-                            className="mt-8 xs:mt-9 sm:mt-10 [font-family:var(--font-body)] text-[15px] xs:text-[16px] sm:text-[17px] uppercase tracking-[0.24em] bg-white text-black px-6 xs:px-7 sm:px-8 py-3 xs:py-3.5 sm:py-4 hover:opacity-80 transition-opacity duration-150 inline-flex items-center gap-2 group font-normal"
+                            className="mt-8 [font-family:var(--font-body)] text-[13px] xs:text-[14px] uppercase tracking-[0.20em] bg-white text-black px-5 py-2.5 hover:opacity-80 transition-opacity duration-150 inline-flex items-center gap-2 group font-normal rounded-md"
                         >
                             {t("btn")}
                             <svg
-                                className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 text-black group-hover:translate-y-0.5 transition-transform duration-200"
+                                className="w-4 h-4 xs:w-4.5 text-black group-hover:translate-y-0.5 transition-transform duration-200"
                                 viewBox="0 0 24 24"
                                 fill="none"
                                 stroke="currentColor"
@@ -96,19 +99,17 @@ export function MeasurementGuide() {
                     </div>
 
                     {/* RIGHT SECTION - Measurement Image */}
-                    <div className="relative mt-8 lg:mt-0 flex justify-center items-center">
+                    <div className="relative mt-8 lg:mt-0 flex justify-center items-center w-full">
                         {/* Decorative frame */}
-                        <div className="relative w-full max-w-65 xs:max-w-[320px] sm:max-w-95 md:max-w-105 lg:max-w-115 aspect-4/5 overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm shadow-2xl">
+                        <div className="relative w-full max-w-[340px] xs:max-w-[400px] sm:max-w-[480px] md:max-w-[520px] lg:max-w-[580px] aspect-square overflow-hidden rounded-3xl border border-white/10 bg-white shadow-2xl">
                             <Image
                                 src={images.measure1}
                                 alt="How to measure guide"
-                                className="w-full h-full object-cover opacity-90 hover:scale-105 hover:opacity-100 transition-all duration-700"
+                                className="w-full h-full object-contain p-2.5 opacity-95 hover:scale-105 hover:opacity-100 transition-all duration-700"
                                 fill
-                                sizes="(max-width: 480px) 260px, (max-width: 640px) 320px, (max-width: 768px) 380px, (max-width: 1024px) 420px, 460px"
+                                sizes="(max-width: 480px) 280px, (max-width: 640px) 350px, (max-width: 768px) 420px, (max-width: 1024px) 480px, 520px"
                                 priority={false}
                             />
-                            {/* Optional overlay */}
-                            <div className="absolute inset-0 bg-linear-to-t from-black/30 via-transparent to-transparent"></div>
                         </div>
                     </div>
                 </div>

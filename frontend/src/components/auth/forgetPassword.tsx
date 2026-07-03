@@ -2,26 +2,36 @@
 
 import { useState, FormEvent } from "react";
 import { Link } from "@/i18n/navigation";
-import { useLocale } from "next-intl";
 import Image from "next/image";
 import logoBlack from "../../../public/PNG/Black/MOTD_Wordmark_Black.png";
 import { motion } from "framer-motion";
+import { useAuth } from "@/context/AuthContext";
 
 export default function ForgotPassword() {
-    const locale = useLocale();
-
     const [email, setEmail] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
 
+    const [error, setError] = useState("");
+    const { forgotPassword } = useAuth();
+
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setIsLoading(true);
+        setError("");
 
-        setTimeout(() => {
-            setIsLoading(false);
+        try {
+            await forgotPassword(email);
             setIsSubmitted(true);
-        }, 1800);
+        } catch (err: unknown) {
+            const message =
+                err && typeof err === "object" && "message" in err
+                    ? String((err as { message: string }).message)
+                    : "Failed to send reset email.";
+            setError(message);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -104,6 +114,12 @@ export default function ForgotPassword() {
                                         />
                                     </div>
 
+                                    {error && (
+                                        <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-md border border-red-200">
+                                            {error}
+                                        </div>
+                                    )}
+
                                     {/* Button */}
                                     <button
                                         type="submit"
@@ -185,7 +201,7 @@ export default function ForgotPassword() {
                                 <div className="space-y-4">
 
                                     <Link
-                                        href={`/${locale}/auth/login`}
+                                        href="/auth/login"
                                         className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] flex items-center justify-center"
                                     >
                                         BACK TO SIGN IN
@@ -210,13 +226,13 @@ export default function ForgotPassword() {
                     <div className="mt-12 pt-6 border-t border-black/10 text-center">
                         <div className="flex justify-center gap-6">
                             <Link
-                                href={`/${locale}/privacy`}
+                                href="/privacy"
                                 className="text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60"
                             >
                                 Privacy
                             </Link>
                             <Link
-                                href={`/${locale}/terms`}
+                                href="/terms"
                                 className="text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60"
                             >
                                 Terms

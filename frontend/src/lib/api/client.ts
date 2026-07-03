@@ -30,8 +30,6 @@ class ApiClient {
             'Content-Type': 'application/json',
         };
 
-
-        // Attach JWT token if present
         const token = getToken();
         if (token) {
             defaultHeaders['Authorization'] = `Bearer ${token}`;
@@ -48,7 +46,6 @@ class ApiClient {
         try {
             const response = await fetch(url, config);
 
-            // Try to parse response as JSON
             let data: any;
             const contentType = response.headers.get('content-type');
             if (contentType && contentType.includes('application/json')) {
@@ -57,7 +54,6 @@ class ApiClient {
                 data = await response.text();
             }
 
-            // If response is not OK, throw an error with the message from the server
             if (!response.ok) {
                 const errorMessage =
                     (typeof data === 'string' && data.trim()) ||
@@ -74,12 +70,10 @@ class ApiClient {
 
             return data as T;
         } catch (error) {
-            // Re-throw ApiErrors as-is
             if ((error as ApiError).status) {
                 throw error;
             }
 
-            // Handle network errors
             throw {
                 status: 0,
                 message: error instanceof Error ? error.message : 'Network error or server is unreachable',

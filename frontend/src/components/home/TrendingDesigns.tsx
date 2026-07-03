@@ -1,126 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { Link } from "@/i18n/navigation";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
-import * as images from "../../../public/images/ImageIndex";
 import { getTranslation } from "@/lib/getTranslation";
 import { useParams } from "next/navigation";
+import { api, type ApiError } from "@/lib/api/client";
+import {
+  resolveDesignImage,
+  getDesignDisplayFields,
+  formatDesignBasePrice,
+  formatDesignCategory,
+} from "@/lib/tailors";
+import { DESIGN_CATEGORIES } from "@/lib/tailorDesigns";
 
-// Trending Designs Data
-const trendingDesigns = [
-  {
-    id: 1,
-    nameEn: "Abstract Floral Stonework",
-    nameAr: "زهور مجردة منقوشة",
-    image: images.des1,
-    tagEn: "BESTSELLER",
-    tagAr: "الأكثر مبيعاً",
-    tagColor: "bg-[#9C6B3C]",
-    category: "abstract-floral-stonework",
-  },
-  {
-    id: 2,
-    nameEn: "Geometric Royal Grid",
-    nameAr: "شبكة ملكية هندسية",
-    image: images.des2,
-    tagEn: "TRENDING",
-    tagAr: "رائج",
-    tagColor: "bg-[#C9A96E]",
-    category: "geometric-royal-grid",
-  },
-  {
-    id: 3,
-    nameEn: "Double Sleeve Crystal Cascade",
-    nameAr: "شلال كريستالي بالأكمام المزدوجة",
-    image: images.des3,
-    tagEn: "PREMIUM",
-    tagAr: "فاخر",
-    tagColor: "bg-[#5B4A3A]",
-    category: "double-sleeve-crystal-cascade",
-  },
-  {
-    id: 4,
-    nameEn: "Vibrant Floral Neck (Khaka)",
-    nameAr: "رقبة زهرية نابضة بالحياة (خكة)",
-    image: images.des4,
-    tagEn: "NEW",
-    tagAr: "جديد",
-    tagColor: "bg-[#8B6F47]",
-    category: "vibrant-floral-neck",
-  },
-  {
-    id: 5,
-    nameEn: "Peacock Border Motif",
-    nameAr: "زخرفة حدود الطاووس",
-    image: images.des5,
-    tagEn: "BREATHABLE",
-    tagAr: "قابل للتنفس",
-    tagColor: "bg-[#9C6B3C]",
-    category: "peacock-border-motif",
-  },
-  {
-    id: 6,
-    nameEn: "Botanical Creep Vine",
-    nameAr: "كرمة زاحفة نباتية",
-    image: images.des6,
-    tagEn: "EXCLUSIVE",
-    tagAr: "حصري",
-    tagColor: "bg-[#A0522D]",
-    category: "botanical-creep-vine",
-  },
-  {
-    id: 7,
-    nameEn: "Al-Khousah",
-    nameAr: "الخصوصة",
-    image: images.des7,
-    tagEn: "ARTISANAL",
-    tagAr: "حرفي",
-    tagColor: "bg-[#C8A97E]",
-    category: "al-khousah",
-  },
-];
-
-// Filter options
-const filterOptions = [
-  {
-    key: "all",
-    labelEn: "All Designs",
-    labelAr: "جميع التصاميم",
-    value: "all",
-  },
-  {
-    key: "abstract-floral-stonework",
-    labelEn: "Abstract Floral Stonework",
-    labelAr: "زهور مجردة منقوشة",
-    value: "abstract-floral-stonework",
-  },
-  {
-    key: "geometric-royal-grid",
-    labelEn: "Geometric Royal Grid",
-    labelAr: "شبكة ملكية هندسية",
-    value: "geometric-royal-grid",
-  },
-  {
-    key: "double-sleeve-crystal-cascade",
-    labelEn: "Double Sleeve Crystal Cascade",
-    labelAr: "شلال كريستالي بالأكمام المزدوجة",
-    value: "double-sleeve-crystal-cascade",
-  },
-  {
-    key: "al-khousah",
-    labelEn: "Al-Khousah",
-    labelAr: "الخصوصة",
-    value: "al-khousah",
-  },
-  {
-    key: "al-halaj-coin-dot",
-    labelEn: "Al-Halaj Coin Dot",
-    labelAr: "الهلالج كوين دوت",
-    value: "al-halaj-coin-dot",
-  },
-];
+interface TailorDesignExtended {
+  _id: string;
+  slug: string;
+  name: string;
+  nameAr?: string;
+  description?: string;
+  descriptionAr?: string;
+  images?: string[];
+  category: string;
+  basePrice: number;
+  tailoringFee: number;
+  estimatedMeters: number;
+  estimatedDays: number;
+  tailorSlug: string;
+  tailorName: string;
+  tailorNameAr?: string;
+}
 
 type FilterValue = string;
 
@@ -129,12 +40,62 @@ export function TrendingSection() {
   const localParams = params.locale as string;
   const isArabic = localParams === "ar";
   const t = getTranslation(localParams);
+
+  const [designs, setDesigns] = useState<TailorDesignExtended[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<FilterValue>("all");
 
-  const filteredDesigns =
-    selectedFilter === "all"
-      ? trendingDesigns
-      : trendingDesigns.filter((design) => design.category === selectedFilter);
+  useEffect(() => {
+    const fetchDesigns = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await api.get<{
+          success: boolean;
+          items: TailorDesignExtended[];
+        }>("/api/tailors/designs/all?limit=100");
+        if (!data?.success) {
+          throw new Error("Failed to load designs");
+        }
+        setDesigns(data.items || []);
+      } catch (err: unknown) {
+        const message =
+          (err as ApiError)?.message ||
+          (err instanceof Error ? err.message : "Failed to load designs");
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDesigns();
+  }, []);
+
+  const filterOptions = useMemo(
+    () => [
+      {
+        key: "all",
+        labelEn: "All Designs",
+        labelAr: "جميع التصاميم",
+        value: "all",
+      },
+      ...DESIGN_CATEGORIES.map((cat) => ({
+        key: cat,
+        labelEn: cat.charAt(0).toUpperCase() + cat.slice(1),
+        labelAr: formatDesignCategory(cat, localParams as any),
+        value: cat,
+      })),
+    ],
+    [localParams],
+  );
+
+  const filteredDesigns = useMemo(
+    () =>
+      selectedFilter === "all"
+        ? designs
+        : designs.filter((design) => design.category === selectedFilter),
+    [designs, selectedFilter],
+  );
 
   // Embla Carousel with RTL direction support
   const [emblaRef, emblaApi] = useEmblaCarousel(
@@ -142,7 +103,7 @@ export function TrendingSection() {
       align: "start",
       containScroll: "trimSnaps",
       dragFree: false,
-      loop: true,
+      loop: filteredDesigns.length > 1,
       slidesToScroll: 1,
       direction: isArabic ? "rtl" : "ltr",
       breakpoints: {
@@ -235,12 +196,6 @@ export function TrendingSection() {
         : "text-[9px] xs:text-[9px] sm:text-[10px] md:text-[9px] lg:text-[10px] xl:text-[11px]"
     }`;
 
-  const designTitleClass = `[font-family:var(--font-display)] font-normal leading-[1.2] xs:leading-[1.25] tracking-[-0.01em] text-black mb-1 line-clamp-2 ${
-    isArabic
-      ? "text-[18px] xs:text-[20px] sm:text-[22px] md:text-[22px] lg:text-[24px] xl:text-[28px] 2xl:text-[28px]"
-      : "text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px]"
-  }`;
-
   const PrevArrowIcon = () => (
     <svg
       className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-[#1A2A3A] group-hover/prev:text-white transition-colors duration-200"
@@ -269,19 +224,52 @@ export function TrendingSection() {
     </svg>
   );
 
+  if (loading) {
+    return (
+      <section className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 border-(--color-border) mb-12 xs:mb-16 sm:mb-20 md:mb-24">
+        <div className="text-center [font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
+          {isArabic ? "جاري تحميل التصاميم..." : "Loading designs..."}
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 border-(--color-border) mb-12 xs:mb-16 sm:mb-20 md:mb-24">
+        <div className="text-center text-red-500 px-4">{error}</div>
+      </section>
+    );
+  }
+
+  if (designs.length === 0) {
+    return (
+      <section className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 border-(--color-border) mb-12 xs:mb-16 sm:mb-20 md:mb-24">
+        <div className="text-center [font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
+          {isArabic ? "لا توجد تصاميم متاحة" : "No designs available"}
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <section className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-(--space-80)">
+    <section
+      id="designs"
+      className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16"
+    >
       <div className="w-full px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) mx-auto">
         {/* Section Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 xs:mb-10 sm:mb-12 pb-4 xs:pb-5 sm:pb-6 border-b border-(--color-border) gap-4 sm:gap-0">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 xs:mb-10 sm:mb-12 gap-4 sm:gap-0">
           <div>
             <span className={eyebrowClass}>
               <span className="block w-4 xs:w-5 h-px bg-(--color-grey-muted)"></span>
               <span>{t.trendingDesigns.eyebrow}</span>
             </span>
-            <h2 className={titleClass}>{t.trendingDesigns.title}</h2>
+            <h2 className="[font-family:var(--font-display)] text-[32px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[44px] xl:text-[48px] 2xl:text-[56px] font-normal leading-[1.1] xs:leading-[1.09] sm:leading-[1.08] tracking-[-0.01em] text-black">
+              {t.trendingDesigns.title}
+            </h2>
           </div>
-          <Link href="/#all-designs" className={exploreLinkClass}>
+          <Link href="/tailors" className={exploreLinkClass}>
             {t.trendingDesigns.exploreLink}
           </Link>
         </div>
@@ -330,53 +318,65 @@ export function TrendingSection() {
           </button>
 
           {/* Embla Carousel Viewport */}
-          <div className="overflow-hidden" ref={emblaRef}>
-            <div className="flex">
+          <div className="overflow-hidden py-8 -my-8" ref={emblaRef}>
+            <div className="flex -mx-1 xs:-mx-1.5 sm:-mx-2 md:-mx-2.5 lg:-mx-3">
               {filteredDesigns.map((design) => {
-                const displayName = isArabic ? design.nameAr : design.nameEn;
-                const displayTag = isArabic ? design.tagAr : design.tagEn;
+                const { name, description, category } = getDesignDisplayFields(
+                  design,
+                  localParams as any,
+                );
+                const imageUrl = resolveDesignImage(design.images?.[0]);
+                const tailorName = isArabic
+                  ? design.tailorNameAr || design.tailorName
+                  : design.tailorName;
+                const priceText = formatDesignBasePrice(
+                  design.basePrice,
+                  localParams as any,
+                );
 
                 return (
                   <div
-                    key={design.id}
-                    className={`
-                    mx-2
-                      flex-[0_0_calc(100%-8px)] 
-                      xs:flex-[0_0_calc(66.666%-12px)] 
-                      sm:flex-[0_0_calc(50%-16px)] 
-                      md:flex-[0_0_calc(40%-20px)] 
-                      lg:flex-[0_0_calc(33.333%-24px)]
-                      xl:flex-[0_0_calc(28.571%-28px)]
-                      2xl:flex-[0_0_calc(25%-32px)]
-                      group overflow-hidden rounded-lg
-                    `}
+                    key={design._id}
+                    className="flex-[0_0_100%] xs:flex-[0_0_66.666%] sm:flex-[0_0_50%] md:flex-[0_0_40%] lg:flex-[0_0_33.333%] xl:flex-[0_0_28.571%] 2xl:flex-[0_0_25%] px-1 xs:px-1.5 sm:px-2 md:px-2.5 lg:px-3 group py-4"
                   >
-                    <div className="bg-(--bg-page) border border-(--color-border) overflow-hidden transition-all duration-300 hover:shadow-lg h-full">
-                      <div className="aspect-9/9 relative overflow-hidden">
+                    <Link
+                      href={`/designs/${design.slug}`}
+                      className="bg-(--bg-page) border border-(--color-border) rounded-lg transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 h-full flex flex-col hover:cursor-pointer text-left"
+                    >
+                      <div className="aspect-9/9 relative overflow-hidden bg-[#F5F4F0] rounded-t-lg">
                         <img
-                          src={
-                            typeof design.image === "string"
-                              ? design.image
-                              : design.image.src
-                          }
-                          className="w-full h-full object-cover transition-all duration-700 hover:scale-105"
-                          alt={displayName}
+                          src={imageUrl}
+                          className="w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-105"
+                          alt={name}
                         />
-                        <div className="absolute top-2 xs:top-3 left-2 xs:left-3">
-                          <span
-                            className={`${design.tagColor} text-white px-1.5 xs:px-2 py-0.5 xs:py-1 text-[8px] xs:text-[10px] uppercase whitespace-nowrap`}
-                          >
-                            {displayTag}
+                        <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                        <div className="absolute top-2 xs:top-3 left-2 xs:left-3 z-10">
+                          <span className="bg-[#8B6F47] text-white px-2.5 xs:px-3 py-1 xs:py-1.25 text-[10px] xs:text-[12px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.24em] font-bold">
+                            {category}
                           </span>
                         </div>
                       </div>
-                      <div className="p-3 xs:p-4">
-                        <h3 className={designTitleClass}>
-                          {displayName.slice(0, 20) + "..."}
-                        </h3>
-                        {/* "Explore Now" button removed */}
+
+                      <div className="p-3 xs:p-4 sm:p-5 md:p-6 lg:p-(--space-24) flex flex-col grow">
+                        <div className="flex flex-col justify-between items-start gap-2 mb-1 xs:mb-1.5 sm:mb-2">
+                          <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-[1.25] tracking-[-0.01em] text-black mb-1 line-clamp-2">
+                            {name}
+                          </h3>
+                          <span className="[font-family:var(--font-ui)] text-[12px] xs:text-[13px] sm:text-[14px] md:text-[13px] lg:text-[14px] xl:text-[15px] 2xl:text-[16px] tracking-[0.24em] text-black font-normal whitespace-nowrap">
+                            {priceText}
+                          </span>
+                        </div>
+
+                        <p className="[font-family:var(--font-ui)] text-[8px] xs:text-[7px] sm:text-[8px] md:text-[7px] lg:text-[8px] xl:text-[9px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-2 xs:mb-2.5 sm:mb-3 font-normal">
+                          {isArabic ? "الخياط: " : "Tailor: "}
+                          {tailorName}
+                        </p>
+
+                        <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow">
+                          {description}
+                        </p>
                       </div>
-                    </div>
+                    </Link>
                   </div>
                 );
               })}
@@ -385,20 +385,22 @@ export function TrendingSection() {
         </div>
 
         {/* Dots Navigation */}
-        <div className="flex justify-center gap-1.5 xs:gap-2 sm:gap-2.5 md:gap-3 mt-6 xs:mt-8 sm:mt-10 md:mt-12 lg:mt-(--space-32)">
-          {scrollSnaps.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => scrollTo(index)}
-              className={`w-1.5 h-1.5 xs:w-2 xs:h-2 rounded-full transition-all mx-0.5 xs:mx-1 ${
-                index === selectedIndex
-                  ? "bg-black scale-125"
-                  : "bg-gray-400 hover:bg-gray-600"
-              }`}
-              aria-label={`Go to slide ${index + 1}`}
-            />
-          ))}
-        </div>
+        {scrollSnaps.length > 0 && (
+          <div className="flex justify-center gap-1.5 xs:gap-2 sm:gap-2.5 md:gap-3 mt-6 xs:mt-8 sm:mt-10 md:mt-12 lg:mt-(--space-32)">
+            {scrollSnaps.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => scrollTo(index)}
+                className={`w-1.5 h-1.5 xs:w-2 xs:h-2 rounded-full transition-all mx-0.5 xs:mx-1 ${
+                  index === selectedIndex
+                    ? "bg-black scale-125"
+                    : "bg-gray-400 hover:bg-gray-600"
+                }`}
+                aria-label={`Go to slide ${index + 1}`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

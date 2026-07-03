@@ -15,7 +15,7 @@ const CUSTOM_STATUSES = [
   'delivered',
 ];
 
-const PAYMENT_METHODS = ['cod'];
+const PAYMENT_METHODS = ['cod', 'apple_pay'];
 
 const deliveryAddressSchema = new mongoose.Schema(
   {
@@ -77,6 +77,7 @@ const measurementsSchema = new mongoose.Schema(
     neckDepth: { type: Number, min: 0, default: null },
     armholeHeight: { type: Number, min: 0, default: null },
     sleeveOpeningWidth: { type: Number, min: 0, default: null },
+    cuffWidth: { type: Number, min: 0, default: null },
     cuffLength: { type: Number, min: 0, default: null },
     notes: { type: String, default: '', trim: true },
   },
@@ -116,6 +117,49 @@ const statusHistoryEntrySchema = new mongoose.Schema(
     },
   },
   { _id: false }
+);
+
+const customOrderItemSchema = new mongoose.Schema(
+  {
+    designId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Design',
+      required: true,
+    },
+    designSnapshot: {
+      type: designSnapshotSchema,
+      required: true,
+    },
+    tailorShopId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TailorShop',
+      required: true,
+    },
+    fabricId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Fabric',
+      default: null,
+    },
+    fabricStoreId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    fabricSnapshot: {
+      type: fabricSnapshotSchema,
+      default: null,
+    },
+    fabricMeters: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    pricing: {
+      type: pricingSchema,
+      required: true,
+    },
+  },
+  { _id: true }
 );
 
 const customOrderSchema = new mongoose.Schema(
@@ -159,16 +203,20 @@ const customOrderSchema = new mongoose.Schema(
     tailorShopId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'TailorShop',
-      required: true,
+      default: null,
     },
     designId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Design',
-      required: true,
+      default: null,
     },
     designSnapshot: {
       type: designSnapshotSchema,
-      required: true,
+      default: null,
+    },
+    items: {
+      type: [customOrderItemSchema],
+      default: [],
     },
     measurements: {
       type: measurementsSchema,
@@ -176,11 +224,11 @@ const customOrderSchema = new mongoose.Schema(
     },
     customerDeliveryAddress: {
       type: deliveryAddressSchema,
-      required: true,
+      required: false,
     },
     pickupAddress: {
       type: pickupAddressSchema,
-      required: true,
+      required: false,
     },
     status: {
       type: String,
@@ -204,12 +252,15 @@ const customOrderSchema = new mongoose.Schema(
     },
     isPaid: { type: Boolean, default: false, required: true },
     paidAt: { type: Date, default: null },
+    stripePaymentIntentId: { type: String, default: null, trim: true },
     assignedDeliveryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
     },
     estimatedReadyDate: { type: Date, default: null },
+    addPocket: { type: Boolean, default: false },
+    addBottomWideFold: { type: Boolean, default: false },
   },
   {
     timestamps: true,
@@ -221,6 +272,38 @@ customOrderSchema.index({ status: 1, createdAt: -1 });
 customOrderSchema.index({ tailorShopId: 1, status: 1 });
 
 customOrderSchema.pre('validate', function validateFabricSource(next) {
+  const hasItems = Array.isArray(this.items) && this.items.length > 0;
+
+  if (hasItems) {
+    for (const item of this.items) {
+      if (this.fabricSource === 'storefront') {
+        if (!item.fabricId) {
+          return next(
+            new Error('fabricId is required on each item when fabricSource is storefront')
+          );
+        }
+        if (!item.fabricStoreId) {
+          return next(
+            new Error('fabricStoreId is required on each item when fabricSource is storefront')
+          );
+        }
+        if (!item.fabricSnapshot) {
+          return next(
+            new Error('fabricSnapshot is required on each item when fabricSource is storefront')
+          );
+        }
+      }
+
+      if (this.fabricSource === 'self') {
+        item.fabricId = null;
+        item.fabricStoreId = null;
+        item.fabricSnapshot = null;
+      }
+    }
+
+    return next();
+  }
+
   if (this.fabricSource === 'storefront') {
     if (!this.fabricId) {
       return next(new Error('fabricId is required when fabricSource is storefront'));
@@ -237,6 +320,10 @@ customOrderSchema.pre('validate', function validateFabricSource(next) {
     this.fabricId = null;
     this.fabricStoreId = null;
     this.fabricSnapshot = null;
+  }
+
+  if (!this.designId || !this.tailorShopId || !this.designSnapshot) {
+    return next(new Error('designId, tailorShopId, and designSnapshot are required'));
   }
 
   next();

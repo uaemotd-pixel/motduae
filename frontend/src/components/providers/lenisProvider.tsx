@@ -4,16 +4,26 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Lenis from "lenis";
 
+const LENIS_DISABLED_PATHS = ["/admin", "/tailor", "/fabric"];
+
+function shouldDisableLenis(pathname: string) {
+    return LENIS_DISABLED_PATHS.some((segment) => pathname.includes(segment));
+}
+
+function resetScrollStyles() {
+    document.documentElement.classList.remove("lenis", "lenis-smooth", "lenis-stopped");
+    document.documentElement.style.overflow = "";
+    document.documentElement.style.height = "";
+    document.body.style.overflow = "";
+    document.body.style.height = "";
+}
+
 export default function LenisProvider({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
 
     useEffect(() => {
-        if (pathname.includes("/admin") || pathname.includes("/tailor")) {
-            document.documentElement.classList.remove("lenis", "lenis-smooth");
-            document.documentElement.style.overflow = "";
-            document.documentElement.style.height = "";
-            document.body.style.overflow = "";
-            document.body.style.height = "";
+        if (shouldDisableLenis(pathname)) {
+            resetScrollStyles();
             return;
         }
 
@@ -21,19 +31,31 @@ export default function LenisProvider({ children }: { children: React.ReactNode 
             duration: 1.2,
             easing: (t) => 1 - Math.pow(1 - t, 4),
             smoothWheel: true,
-            overscroll: false,    // ← stops Lenis fighting native scroll
+            autoRaf: true,
+            autoResize: true,
         });
 
-        const raf = (time: number) => {
-            lenis.raf(time);
-            requestAnimationFrame(raf);
+        lenis.scrollTo(0, { immediate: true });
+
+        const resizeAfterPaint = () => {
+            requestAnimationFrame(() => lenis.resize());
         };
 
-        const rafId = requestAnimationFrame(raf);
+        resizeAfterPaint();
+        window.addEventListener("load", resizeAfterPaint);
+        window.addEventListener("resize", resizeAfterPaint);
+
+        const resizeTimeouts = [
+            window.setTimeout(() => lenis.resize(), 150),
+            window.setTimeout(() => lenis.resize(), 600),
+        ];
 
         return () => {
-            cancelAnimationFrame(rafId); // ← was missing, caused memory leak too
+            window.removeEventListener("load", resizeAfterPaint);
+            window.removeEventListener("resize", resizeAfterPaint);
+            resizeTimeouts.forEach((id) => window.clearTimeout(id));
             lenis.destroy();
+            resetScrollStyles();
         };
     }, [pathname]);
 

@@ -6,10 +6,11 @@
         "title": "SIGN UP",
         "description": "Create your atelier profile. Access bespoke collections and connect with master artisans.",
         "nameLabel": "Full Name",
+        "phoneLabel": "CONTACT NUMBER",
         "emailLabel": "EMAIL ADDRESS",
         "passwordLabel": "PASSWORD",
         "confirmPasswordLabel": "CONFIRM PASSWORD",
-        "passwordInstruction": "Use 8+ characters with letters & numbers",
+        "passwordInstruction": "Use 8+ characters with one uppercase letter, one number, and one special character",
         "buttonLabel": "CREATE ACCOUNT",
         "buttonProgressLabel": "CREATING ACCOUNT",
         "or": "OR",
@@ -19,6 +20,7 @@
         "termsLabel": "TERMS",
         "copyrightLabel": "© 2024 MOTD BESPOKE • UAE",
         "passwordMismatch": "Passwords do not match.",
+        "phoneInvalid": "Contact number must be exactly 9 digits.",
         "successMessage": "Account created successfully! Redirecting..."
     }
 }
