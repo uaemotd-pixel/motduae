@@ -40,6 +40,7 @@ export default function FabricSelectionStep() {
         useOwnFabric,
         setUseOwnFabric,
         toggleFabric,
+        selectSingleFabric,
         setFabricSource,
         setFirstStepIfUnset,
         resetOrder,
@@ -49,7 +50,7 @@ export default function FabricSelectionStep() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedFilter, setSelectedFilter] = useState<FabricFilter>("all");
-    const [prefillDone, setPrefillDone] = useState(false);
+    const [prefilledSlug, setPrefilledSlug] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchFabrics = async () => {
@@ -91,28 +92,34 @@ export default function FabricSelectionStep() {
     }, [isHydrated, setFirstStepIfUnset, useOwnFabric, setUseOwnFabric, draft.selectedFabrics.length, draft.fabricSource, setFabricSource]);
 
     useEffect(() => {
-        if (!isHydrated || prefillDone || !fabricSlug) return;
+        if (!isHydrated) return;
+        if (!fabricSlug) {
+            setPrefilledSlug(null);
+        }
+    }, [isHydrated, fabricSlug]);
+
+    useEffect(() => {
+        if (!isHydrated || !fabricSlug || prefilledSlug === fabricSlug) return;
 
         const prefillFabric = async () => {
             try {
-                resetOrder("fabric");
                 const data = await api.get<{ success: boolean; item: FabricListItem }>(
                     `/api/fabrics/${fabricSlug}`,
                 );
 
                 if (data?.success && data.item) {
                     setFabricSource("storefront");
-                    toggleFabric(toCustomOrderFabricSelection(data.item));
+                    selectSingleFabric(toCustomOrderFabricSelection(data.item));
                 }
-            } catch {
-                // Ignore invalid slug — customer can still pick manually
+            } catch (err) {
+                console.error("[Fabric Prefill Error]:", err);
             } finally {
-                setPrefillDone(true);
+                setPrefilledSlug(fabricSlug);
             }
         };
 
         prefillFabric();
-    }, [fabricSlug, isHydrated, prefillDone, toggleFabric, setFabricSource, resetOrder]);
+    }, [fabricSlug, isHydrated, prefilledSlug, selectSingleFabric, setFabricSource]);
 
     const filteredFabrics = useMemo(
         () => filterFabricsByMaterial(fabrics, selectedFilter),
