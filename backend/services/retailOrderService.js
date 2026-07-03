@@ -55,17 +55,23 @@ export async function prepareRetailOrder(orderItems) {
 
 export async function deductRetailProductStock(orderItems) {
   for (const item of orderItems) {
-    const product = await ReadyMadeProduct.findById(item.productId);
-    if (!product) continue;
-
     const quantity = item.quantity || 1;
-    product.availableFabricStock -= quantity;
 
-    if (product.availableFabricStock <= 0) {
-      product.availableFabricStock = 0;
-      product.isActive = false;
+    const updated = await ReadyMadeProduct.findOneAndUpdate(
+      { _id: item.productId, availableFabricStock: { $gte: quantity } },
+      { $inc: { availableFabricStock: -quantity } },
+      { new: true },
+    );
+
+    if (!updated) {
+      throw new Error(`Insufficient stock for product: ${item.productId}`);
     }
 
-    await product.save();
+    if (updated.availableFabricStock <= 0) {
+      await ReadyMadeProduct.updateOne(
+        { _id: item.productId },
+        { $set: { availableFabricStock: 0, isActive: false } },
+      );
+    }
   }
 }

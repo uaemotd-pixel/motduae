@@ -12,6 +12,7 @@ import { getTranslation } from "@/lib/getTranslation";
 import { useLocale } from "next-intl";
 import SuccessModal from "@/components/shared/SuccessModal";
 import { api } from "@/lib/api/client";
+import type { ApiError } from "@/lib/api/client";
 import type { CartItem } from "@/context/CartContext";
 import { resolveMediaUrl } from "@/lib/media";
 import ApplePayCheckout from "@/components/payments/ApplePayCheckout";
@@ -323,9 +324,10 @@ export default function CheckoutPage() {
     } catch (err: unknown) {
       console.error("Order error:", err);
       const message =
-        err instanceof Error
+        (err as ApiError)?.message ||
+        (err instanceof Error
           ? err.message
-          : "Something went wrong. Please try again.";
+          : "Something went wrong. Please try again.");
       setErrorMessage(message);
       throw err;
     } finally {
@@ -367,9 +369,10 @@ export default function CheckoutPage() {
     } catch (err: unknown) {
       console.error("Order error:", err);
       const message =
-        err instanceof Error
+        (err as ApiError)?.message ||
+        (err instanceof Error
           ? err.message
-          : "Something went wrong. Please try again.";
+          : "Something went wrong. Please try again.");
       setErrorMessage(message);
     } finally {
       setIsSubmitting(false);

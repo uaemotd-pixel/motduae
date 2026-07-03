@@ -822,6 +822,8 @@ orderRoutes.post("/retail", isAuth, async (req, res) => {
       orderStatus = "confirmed";
     }
 
+    await deductRetailProductStock(orderItems);
+
     const order = await RetailOrder.create({
       userId: req.user._id,
       orderItems: prepared.finalOrderItems,
@@ -835,8 +837,6 @@ orderRoutes.post("/retail", isAuth, async (req, res) => {
       status: orderStatus,
       ...paymentDetails,
     });
-
-    await deductRetailProductStock(orderItems);
 
     res.status(201).json({
       success: true,
