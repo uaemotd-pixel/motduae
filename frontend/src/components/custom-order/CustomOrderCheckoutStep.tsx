@@ -17,6 +17,7 @@ import {
 } from "@/lib/customOrder";
 import { formatCurrency } from "@/lib/format";
 import CustomOrderJourneyRibbon from "@/components/custom-order/CustomOrderJourneyRibbon";
+import ApplePayCheckout from "@/components/payments/ApplePayCheckout";
 import SuccessModal from "@/components/shared/SuccessModal";
 
 const EMIRATES = [
@@ -304,40 +305,75 @@ export default function CustomOrderCheckoutStep() {
     };
   };
 
-  const handlePlaceOrder = async () => {
-    if (!previewPayload || isSubmitting) return;
-
+  const buildOrderPayload = () => {
     let deliveryAddress: CustomOrderDeliveryAddress | undefined = undefined;
 
     if (deliveryType === "delivery") {
       const validated = validateForm();
-      if (!validated) return;
+      if (!validated) {
+        throw new Error(t("required"));
+      }
       deliveryAddress = validated;
     }
 
-    const payload = buildCustomOrderCreatePayload(draft, deliveryAddress || undefined as any);
+    const payload = buildCustomOrderCreatePayload(
+      draft,
+      deliveryAddress || (undefined as any),
+    );
     if (!payload) {
-      setSubmitError(t("incompleteDraft"));
-      return;
+      throw new Error(t("incompleteDraft"));
     }
 
-    const orderPayload = {
+    return {
       ...payload,
       addPocket,
       addBottomWideFold,
       deliveryType,
       deliveryAddress: deliveryType === "delivery" ? deliveryAddress : null,
     };
+  };
 
+  const createCustomPaymentIntent = async () => {
+    if (!previewPayload) {
+      throw new Error(t("incompleteDraft"));
+    }
+
+    if (!measurementsConfirmed) {
+      throw new Error(t("confirmMeasurementsLabel"));
+    }
+
+    const orderPayload = buildOrderPayload();
+    const response = await api.post<{
+      success: boolean;
+      clientSecret: string;
+      paymentIntentId: string;
+      message?: string;
+    }>("/api/payments/intent/custom", orderPayload);
+
+    if (!response.success || !response.clientSecret) {
+      throw new Error(response.message || t("submitError"));
+    }
+
+    return {
+      clientSecret: response.clientSecret,
+      paymentIntentId: response.paymentIntentId,
+    };
+  };
+
+  const completeCustomOrder = async (paymentIntentId: string) => {
     setIsSubmitting(true);
     setSubmitError(null);
 
     try {
+      const orderPayload = buildOrderPayload();
       const response = await api.post<{
         success: boolean;
         orderId: string;
         message?: string;
-      }>("/api/orders/custom", orderPayload);
+      }>("/api/orders/custom", {
+        ...orderPayload,
+        paymentIntentId,
+      });
 
       if (!response?.success || !response.orderId) {
         throw new Error(response.message || t("submitError"));
@@ -357,9 +393,14 @@ export default function CustomOrderCheckoutStep() {
         (err as ApiError)?.message ||
         (err instanceof Error ? err.message : t("submitError"));
       setSubmitError(message);
+      throw err;
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handlePaymentError = (message: string) => {
+    setSubmitError(message);
   };
 
   if (
@@ -671,32 +712,17 @@ export default function CustomOrderCheckoutStep() {
                 </div>
               )}
 
-              {/* Payment - Always Show */}
+              {/* Payment */}
               <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
                 <h2 className="[font-family:var(--font-display)] text-[22px] mb-4">
                   {t("paymentTitle")}
                 </h2>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="radio"
-                    id="custom-cod"
-                    checked
-                    readOnly
-                    className="w-4 h-4 accent-black"
-                  />
-                  <label
-                    htmlFor="custom-cod"
-                    className="[font-family:var(--font-body)] text-[14px] text-black"
-                  >
-                    {t("codLabel")}
-                  </label>
-                </div>
-                <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mt-2">
-                  {t("codDescription")}
+                <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted)">
+                  {t("applePayDescription")}
                 </p>
               </div>
 
-              {/* Confirm & Submit - Always Show */}
+              {/* Confirm measurements */}
               <label className="flex items-start gap-3 mt-6 mb-6 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -714,23 +740,23 @@ export default function CustomOrderCheckoutStep() {
                 <p className="text-red-600 text-sm mb-4">{submitError}</p>
               )}
 
-              <button
-                type="button"
-                onClick={handlePlaceOrder}
+              <ApplePayCheckout
+                amountAed={pricing?.total ?? 0}
+                orderLabel={t("applePayOrderLabel")}
                 disabled={
                   isSubmitting ||
                   loadingPricing ||
                   !pricing ||
                   !measurementsConfirmed
                 }
-                className="w-full px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)]"
-              >
-                {isSubmitting
-                  ? t("processing")
-                  : pricing
-                    ? `${t("placeOrder")} — ${formatCurrency(pricing.total, locale)}`
-                    : t("placeOrder")}
-              </button>
+                processingLabel={t("processing")}
+                loadingLabel={t("loadingApplePay")}
+                unavailableLabel={t("applePayUnavailable")}
+                notConfiguredLabel={t("applePayNotConfigured")}
+                createIntent={createCustomPaymentIntent}
+                onPaid={completeCustomOrder}
+                onError={handlePaymentError}
+              />
 
               <p className="[font-family:var(--font-body)] text-[12px] text-(--color-grey-muted) text-center mt-4">
                 {t("agreeToTerms")}

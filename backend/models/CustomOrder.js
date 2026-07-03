@@ -15,7 +15,7 @@ const CUSTOM_STATUSES = [
   'delivered',
 ];
 
-const PAYMENT_METHODS = ['cod'];
+const PAYMENT_METHODS = ['cod', 'apple_pay'];
 
 const deliveryAddressSchema = new mongoose.Schema(
   {
@@ -252,6 +252,7 @@ const customOrderSchema = new mongoose.Schema(
     },
     isPaid: { type: Boolean, default: false, required: true },
     paidAt: { type: Date, default: null },
+    stripePaymentIntentId: { type: String, default: null, trim: true },
     assignedDeliveryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

@@ -17,6 +17,14 @@ import {
   PricingValidationError,
 } from "../services/pricingService.js";
 import PlatformSettings from "../models/PlatformSettings.js";
+import {
+  prepareRetailOrder,
+  deductRetailProductStock,
+} from "../services/retailOrderService.js";
+import {
+  isStripeConfigured,
+  verifyApplePayPaymentIntent,
+} from "../services/stripeService.js";
 
 const orderRoutes = express.Router();
 
@@ -377,6 +385,26 @@ async function buildMultiItemOrderData(orderInput, deliveryType = "delivery") {
   };
 }
 
+async function getCustomOrderTotalFromBody(body) {
+  const { deliveryType = "delivery" } = body;
+
+  if (isMultiItemPayload(body)) {
+    const orderInput = validateMultiItemOrderInput(body);
+    const { pricing } = await getMultiItemCustomOrderPricing({
+      ...orderInput,
+      deliveryType,
+    });
+    return pricing.total;
+  }
+
+  const orderInput = validateFabricOrderInput(body);
+  const pricing = await getCustomOrderPricing({
+    ...orderInput,
+    deliveryType,
+  });
+  return pricing.total;
+}
+
 orderRoutes.post("/custom/preview", async (req, res) => {
   try {
     const { deliveryType = "delivery" } = req.body;
@@ -431,10 +459,11 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
       measurements,
       customerDeliveryAddress,
       pickupAddress,
-      paymentMethod = "cod",
+      paymentMethod = "apple_pay",
       deliveryType = "delivery",
       addPocket = false,
       addBottomWideFold = false,
+      paymentIntentId,
     } = req.body;
 
     if (!PAYMENT_METHODS.includes(paymentMethod)) {
@@ -443,6 +472,35 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
         message: `paymentMethod must be one of: ${PAYMENT_METHODS.join(", ")}`,
       });
     }
+
+    if (paymentMethod !== "apple_pay") {
+      return res.status(400).json({
+        success: false,
+        message: "Only Apple Pay is accepted",
+      });
+    }
+
+    if (!isStripeConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: "Apple Pay is not configured",
+      });
+    }
+
+    if (!paymentIntentId) {
+      return res.status(400).json({
+        success: false,
+        message: "paymentIntentId is required",
+      });
+    }
+
+    const orderTotal = await getCustomOrderTotalFromBody(req.body);
+    await verifyApplePayPaymentIntent({
+      paymentIntentId,
+      userId: req.user._id,
+      orderType: "custom",
+      expectedAmountAed: orderTotal,
+    });
 
     // Build conditional address based on deliveryType
     const deliveryAddr =
@@ -492,6 +550,9 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
         paymentMethod,
         addPocket,
         addBottomWideFold,
+        isPaid: true,
+        paidAt: new Date(),
+        stripePaymentIntentId: paymentIntentId,
       });
 
       return res.status(201).json({
@@ -573,6 +634,9 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
       paymentMethod,
       addPocket,
       addBottomWideFold,
+      isPaid: true,
+      paidAt: new Date(),
+      stripePaymentIntentId: paymentIntentId,
     });
 
     res.status(201).json({
@@ -590,9 +654,9 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
     }
 
     console.error("POST /api/orders/custom error:", error);
-    res.status(500).json({
+    res.status(error.message?.includes("Payment") ? 400 : 500).json({
       success: false,
-      message: "Failed to create custom order",
+      message: error.message || "Failed to create custom order",
     });
   }
 });
@@ -688,7 +752,7 @@ orderRoutes.get("/custom/:id", isAuth, async (req, res) => {
 
 orderRoutes.post("/retail", isAuth, async (req, res) => {
   try {
-    const { orderItems, shippingAddress } = req.body;
+    const { orderItems, shippingAddress, paymentIntentId } = req.body;
 
     if (!orderItems || orderItems.length === 0) {
       return res.status(400).json({
@@ -704,81 +768,46 @@ orderRoutes.post("/retail", isAuth, async (req, res) => {
       });
     }
 
-    let itemsPrice = 0;
-    const finalOrderItems = [];
-
-    for (const item of orderItems) {
-      const product = await ReadyMadeProduct.findOne({
-        _id: item.productId,
-        isActive: true,
+    if (!isStripeConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: "Apple Pay is not configured",
       });
-
-      if (!product) {
-        return res.status(404).json({
-          success: false,
-          message: `Product not found: ${item.productId}`,
-        });
-      }
-
-      const quantity = item.quantity || 1;
-
-      if (product.availableFabricStock < quantity) {
-        return res.status(400).json({
-          success: false,
-          message: `${product.name} is out of stock`,
-        });
-      }
-
-      finalOrderItems.push({
-        productId: product._id,
-        name: product.name,
-        nameAr: product.nameAr,
-        slug: product.slug,
-        image: product.images?.[0] || "",
-        size: product.metersPerFabric,
-        price: product.finalSellingPriceAED,
-        quantity,
-      });
-
-      itemsPrice += (product.finalSellingPriceAED || 0) * quantity;
     }
 
-    const shippingPrice = 0;
+    if (!paymentIntentId) {
+      return res.status(400).json({
+        success: false,
+        message: "paymentIntentId is required",
+      });
+    }
 
-    const vatRate = 0.05;
+    const prepared = await prepareRetailOrder(orderItems);
 
-    const vatAmount = Number((itemsPrice * vatRate).toFixed(2));
-
-    const totalPrice = itemsPrice + shippingPrice + vatAmount;
+    await verifyApplePayPaymentIntent({
+      paymentIntentId,
+      userId: req.user._id,
+      orderType: "retail",
+      expectedAmountAed: prepared.totalPrice,
+    });
 
     const order = await RetailOrder.create({
       userId: req.user._id,
-      orderItems: finalOrderItems,
+      orderItems: prepared.finalOrderItems,
       shippingAddress,
-      paymentMethod: "cod",
-      itemsPrice,
-      shippingPrice,
-      vatRate,
-      vatAmount,
-      totalPrice,
-      status: "pending",
+      paymentMethod: "apple_pay",
+      itemsPrice: prepared.itemsPrice,
+      shippingPrice: prepared.shippingPrice,
+      vatRate: prepared.vatRate,
+      vatAmount: prepared.vatAmount,
+      totalPrice: prepared.totalPrice,
+      status: "confirmed",
+      isPaid: true,
+      paidAt: new Date(),
+      stripePaymentIntentId: paymentIntentId,
     });
 
-    // Update stock
-    for (const item of orderItems) {
-      const product = await ReadyMadeProduct.findById(item.productId);
-
-      const quantity = item.quantity || 1;
-
-      product.availableFabricStock -= quantity;
-
-      if (product.availableFabricStock <= 0) {
-        product.availableFabricStock = 0;
-        product.isActive = false;
-      }
-
-      await product.save();
-    }
+    await deductRetailProductStock(orderItems);
 
     res.status(201).json({
       success: true,
@@ -789,9 +818,9 @@ orderRoutes.post("/retail", isAuth, async (req, res) => {
   } catch (error) {
     console.error("POST /api/orders/retail error:", error);
 
-    res.status(500).json({
+    res.status(error.message?.includes("Payment") ? 400 : 500).json({
       success: false,
-      message: "Failed to create order",
+      message: error.message || "Failed to create order",
     });
   }
 });

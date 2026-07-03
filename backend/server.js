@@ -15,6 +15,7 @@ import { isAuth, isAdmin, isApprovedTailor, isApprovedFabricStore } from "./midd
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 import customerRouter from "./routes/customerRoutes.js";
 import subAdminRouter from "./routes/subAdminRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use("/api/tailors", tailorRoutes);
 app.use("/api/tailor", isAuth, isApprovedTailor, tailorPortalRoutes);
 app.use("/api/fabric", isAuth, isApprovedFabricStore, fabricPortalRoutes);
 app.use("/api/orders", orderRoutes); // for orders
+app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", isAuth, isAdmin, adminRouter); // admin protected routes
 app.use("/api/customer", customerRouter);
 app.use("/api/subadmins", isAuth, subAdminRouter);

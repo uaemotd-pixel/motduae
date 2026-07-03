@@ -14,6 +14,7 @@ import SuccessModal from "@/components/shared/SuccessModal";
 import { api } from "@/lib/api/client";
 import type { CartItem } from "@/context/CartContext";
 import { resolveMediaUrl } from "@/lib/media";
+import ApplePayCheckout from "@/components/payments/ApplePayCheckout";
 
 const EMIRATES = [
   "Abu Dhabi",
@@ -100,7 +101,6 @@ export default function CheckoutPage() {
     deliveryNotes: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "paypal">("card");
   const [billingAddressSame, setBillingAddressSame] = useState(true);
 
   // --- State for customer profile & loading ---
@@ -244,13 +244,7 @@ export default function CheckoutPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handlePlaceOrder = async () => {
-    if (!validateForm()) return;
-    if (isSubmitting) return;
-
-    setIsSubmitting(true);
-    setErrorMessage(null);
-
+  const buildOrderPayload = () => {
     const orderItems = displayItems.map((item) => ({
       productId: item.id,
       name: item.name,
@@ -259,7 +253,7 @@ export default function CheckoutPage() {
       price: item.price,
     }));
 
-    const payload = {
+    return {
       orderItems,
       shippingAddress: {
         fullName: formData.fullName,
@@ -269,11 +263,47 @@ export default function CheckoutPage() {
         street: formData.street,
         notes: formData.deliveryNotes,
       },
-      paymentMethod: "COD",
     };
+  };
+
+  const createRetailPaymentIntent = async () => {
+    if (!validateForm()) {
+      throw new Error("Please complete all required delivery fields.");
+    }
+
+    const { orderItems } = buildOrderPayload();
+    const response = await api.post<{
+      success: boolean;
+      clientSecret: string;
+      paymentIntentId: string;
+      message?: string;
+    }>("/api/payments/intent/retail", { orderItems });
+
+    if (!response.success || !response.clientSecret) {
+      throw new Error(response.message || "Failed to start Apple Pay");
+    }
+
+    return {
+      clientSecret: response.clientSecret,
+      paymentIntentId: response.paymentIntentId,
+    };
+  };
+
+  const completeRetailOrder = async (paymentIntentId: string) => {
+    setIsSubmitting(true);
+    setErrorMessage(null);
 
     try {
-      const response = await api.post("/api/orders/retail", payload);
+      const payload = buildOrderPayload();
+      const response = await api.post<{
+        success: boolean;
+        orderId: string;
+        message?: string;
+      }>("/api/orders/retail", {
+        ...payload,
+        paymentIntentId,
+      });
+
       if (response.success) {
         setLastOrderId(response.orderId);
         setLastOrderItems(displayItems.map((item) => ({ name: item.name })));
@@ -284,12 +314,21 @@ export default function CheckoutPage() {
       } else {
         throw new Error(response.message || "Order failed");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Order error:", err);
-      setErrorMessage(err.message || "Something went wrong. Please try again.");
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Something went wrong. Please try again.";
+      setErrorMessage(message);
+      throw err;
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handlePaymentError = (message: string) => {
+    setErrorMessage(message);
   };
 
   return (
@@ -480,29 +519,13 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Payment Methods */}
+                {/* Payment */}
                 <div className="border border-(--color-border) rounded-lg p-6 md:p-8 mt-6">
                   <h2 className="[font-family:var(--font-display)] text-xl mb-4">
                     {t.checkout.paymentMethod}
                   </h2>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      id="cod"
-                      name="payment"
-                      checked
-                      readOnly
-                      className="w-4 h-4 accent-black"
-                    />
-                    <label
-                      htmlFor="cod"
-                      className="[font-family:var(--font-body)] text-[14px] text-black"
-                    >
-                      {t.checkout.codLabel}
-                    </label>
-                  </div>
-                  <p className="text-[11px] text-(--color-grey-muted) mt-2">
-                    {t.checkout.codDescription}
+                  <p className="text-[13px] text-(--color-grey-muted) mb-4">
+                    {t.checkout.applePayDescription}
                   </p>
                 </div>
 
@@ -512,38 +535,20 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                <button
-                  onClick={handlePlaceOrder}
-                  disabled={isSubmitting}
-                  className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] mt-6 md:mt-7 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
-                >
-                  {isSubmitting ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg
-                        className="animate-spin h-4 w-4 text-white"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                        />
-                      </svg>
-                      {t.checkout.processing}
-                    </span>
-                  ) : (
-                    `${t.checkout.placeOrder} AED ${total.toFixed(2)}`
-                  )}
-                </button>
+                <div className="mt-6 md:mt-7">
+                  <ApplePayCheckout
+                    amountAed={total}
+                    orderLabel={t.checkout.applePayOrderLabel}
+                    disabled={isSubmitting || displayItems.length === 0}
+                    processingLabel={t.checkout.processing}
+                    loadingLabel={t.checkout.loadingApplePay}
+                    unavailableLabel={t.checkout.applePayUnavailable}
+                    notConfiguredLabel={t.checkout.applePayNotConfigured}
+                    createIntent={createRetailPaymentIntent}
+                    onPaid={completeRetailOrder}
+                    onError={handlePaymentError}
+                  />
+                </div>
                 <p className="text-center text-[12px] text-(--color-grey-muted) mt-4">
                   {t.checkout.agreeToTerms}
                 </p>

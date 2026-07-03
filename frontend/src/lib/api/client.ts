@@ -20,27 +20,52 @@ class ApiClient {
         this.baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
     }
 
+    private resolveBaseUrl(): string {
+        if (typeof window === 'undefined') {
+            return this.baseUrl;
+        }
+
+        try {
+            const configured = new URL(this.baseUrl);
+            if (configured.origin === window.location.origin) {
+                return '';
+            }
+        } catch {
+            // fall through to configured base URL
+        }
+
+        return this.baseUrl;
+    }
+
+    private buildHeaders(extra?: Record<string, string>): Record<string, string> {
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            ...extra,
+        };
+
+        const token = getToken();
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const base = this.resolveBaseUrl() || this.baseUrl;
+        if (base.includes('ngrok')) {
+            headers['ngrok-skip-browser-warning'] = 'true';
+        }
+
+        return headers;
+    }
+
     private async request<T>(
         endpoint: string,
         options: RequestOptions = {}
     ): Promise<T> {
-        const url = `${this.baseUrl}${endpoint}`;
-
-        const defaultHeaders: Record<string, string> = {
-            'Content-Type': 'application/json',
-        };
-
-
-        // Attach JWT token if present
-        const token = getToken();
-        if (token) {
-            defaultHeaders['Authorization'] = `Bearer ${token}`;
-        }
+        const url = `${this.resolveBaseUrl()}${endpoint}`;
 
         const config: RequestInit = {
             ...options,
             headers: {
-                ...defaultHeaders,
+                ...this.buildHeaders(),
                 ...options.headers,
             },
         };
@@ -115,12 +140,9 @@ class ApiClient {
     }
 
     async postFormData<T = any>(endpoint: string, formData: FormData): Promise<T> {
-        const url = `${this.baseUrl}${endpoint}`;
-        const headers: Record<string, string> = {};
-        const token = getToken();
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
-        }
+        const url = `${this.resolveBaseUrl()}${endpoint}`;
+        const headers = this.buildHeaders();
+        delete headers['Content-Type'];
 
         try {
             const response = await fetch(url, {
