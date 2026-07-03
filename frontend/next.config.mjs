@@ -5,13 +5,15 @@ import { fileURLToPath } from "url";
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const frontendRoot = path.dirname(fileURLToPath(import.meta.url));
+const monorepoRoot = path.resolve(frontendRoot, "..");
 const apiProxyTarget =
   process.env.API_PROXY_TARGET || "http://localhost:5000";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  outputFileTracingRoot: monorepoRoot,
   turbopack: {
-    root: frontendRoot,
+    root: monorepoRoot,
   },
   async rewrites() {
     return [
