@@ -1,9 +1,17 @@
 import createNextIntlPlugin from "next-intl/plugin";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
+const frontendRoot = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Monorepo: Turbopack must use frontend/ (not repo root lockfile).
+  turbopack: {
+    root: frontendRoot,
+  },
   // Required when accessing `next dev` through ngrok (iPhone testing).
   allowedDevOrigins: ["*.ngrok-free.dev", "*.ngrok-free.app", "*.ngrok.io"],
   async rewrites() {
@@ -17,6 +25,10 @@ const nextConfig = {
       {
         source: "/api/:path*",
         destination: `${apiTarget}/api/:path*`,
+      },
+      {
+        source: "/uploads/:path*",
+        destination: `${apiTarget}/uploads/:path*`,
       },
     ];
   },

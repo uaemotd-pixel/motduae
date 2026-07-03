@@ -1,5 +1,28 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
+function resolveMediaBase(): string {
+    if (typeof window === "undefined") {
+        if (process.env.NODE_ENV === "development") {
+            return process.env.API_PROXY_TARGET || "http://localhost:5000";
+        }
+        return API_BASE;
+    }
+
+    try {
+        const configured = new URL(API_BASE);
+        if (configured.origin === window.location.origin) {
+            return "";
+        }
+        if (process.env.NODE_ENV === "development") {
+            return "";
+        }
+    } catch {
+        // fall through
+    }
+
+    return API_BASE;
+}
+
 /** Turn stored upload paths into full URLs served by the API. */
 export function resolveMediaUrl(path: string | undefined): string {
     if (!path) return "";
@@ -21,7 +44,8 @@ export function resolveMediaUrl(path: string | undefined): string {
     }
 
     if (normalized.startsWith("/uploads/")) {
-        return `${API_BASE}${normalized}`;
+        const base = resolveMediaBase();
+        return base ? `${base}${normalized}` : normalized;
     }
 
     return normalized;
