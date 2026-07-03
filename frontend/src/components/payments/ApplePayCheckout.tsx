@@ -98,13 +98,7 @@ function ApplePayButtonInner({
     }, 15000);
 
     request
-      .canMakePayment({
-        wallets: {
-          applePay: "always",
-          googlePay: "never",
-          link: "never",
-        },
-      })
+      .canMakePayment()
       .then((result) => {
         if (cancelled) return;
         window.clearTimeout(timeoutId);
