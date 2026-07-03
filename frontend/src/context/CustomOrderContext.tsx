@@ -42,7 +42,9 @@ type CustomOrderContextType = {
   setUseOwnFabric: (value: boolean) => void;
   setDeliveryType: (type: "pickup" | "delivery") => void; // NEW
   toggleFabric: (fabric: CustomOrderFabricSelection) => void;
+  selectSingleFabric: (fabric: CustomOrderFabricSelection) => void;
   toggleDesign: (design: CustomOrderSelectedDesign) => void;
+  selectSingleDesign: (design: CustomOrderSelectedDesign) => void;
   addLineItem: (item: CustomOrderLineItem) => void;
   updateLineItemMeters: (itemId: string, meters: number | null) => void;
   removeLineItem: (itemId: string) => void;
@@ -138,9 +140,46 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const selectSingleFabric = useCallback((fabric: CustomOrderFabricSelection) => {
+    setDraft((prev) => {
+      const selectedFabrics = [fabric];
+      const lineItems = pruneLineItemsForSelections(
+        prev.lineItems,
+        selectedFabrics,
+        prev.selectedDesigns,
+        "storefront",
+      );
+
+      return {
+        ...prev,
+        fabricSource: "storefront",
+        selectedFabrics,
+        lineItems,
+      };
+    });
+  }, []);
+
   const toggleDesign = useCallback((design: CustomOrderSelectedDesign) => {
     setDraft((prev) => {
       const selectedDesigns = toggleDesignInList(prev.selectedDesigns, design);
+      const lineItems = pruneLineItemsForSelections(
+        prev.lineItems,
+        prev.selectedFabrics,
+        selectedDesigns,
+        prev.fabricSource,
+      );
+
+      return {
+        ...prev,
+        selectedDesigns,
+        lineItems,
+      };
+    });
+  }, []);
+
+  const selectSingleDesign = useCallback((design: CustomOrderSelectedDesign) => {
+    setDraft((prev) => {
+      const selectedDesigns = [design];
       const lineItems = pruneLineItemsForSelections(
         prev.lineItems,
         prev.selectedFabrics,
@@ -303,7 +342,9 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       setUseOwnFabric: setUseOwnFabricFlag,
       setDeliveryType: setDeliveryTypeAction,
       toggleFabric,
+      selectSingleFabric,
       toggleDesign,
+      selectSingleDesign,
       addLineItem,
       updateLineItemMeters,
       removeLineItem,
@@ -324,7 +365,9 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       setFabricSource,
       setUseOwnFabricFlag,
       toggleFabric,
+      selectSingleFabric,
       toggleDesign,
+      selectSingleDesign,
       addLineItem,
       updateLineItemMeters,
       removeLineItem,

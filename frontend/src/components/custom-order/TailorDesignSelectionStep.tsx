@@ -32,13 +32,13 @@ export default function TailorDesignSelectionStep() {
     const locale = params.locale === "ar" ? "ar" : "en";
     const designSlugParam = searchParams.get("designSlug");
 
-    const { draft, isHydrated, toggleDesign, setFirstStepIfUnset, resetOrder, setFabricSource } =
+    const { draft, isHydrated, toggleDesign, selectSingleDesign, setFirstStepIfUnset, resetOrder, setFabricSource } =
         useCustomOrder();
 
     const [designs, setDesigns] = useState<TailorDesignListItem[]>([]);
     const [loadingDesigns, setLoadingDesigns] = useState(true);
     const [designsError, setDesignsError] = useState<string | null>(null);
-    const [prefillDone, setPrefillDone] = useState(false);
+    const [prefilledSlug, setPrefilledSlug] = useState<string | null>(null);
 
     useEffect(() => {
         if (!isHydrated) return;
@@ -49,11 +49,17 @@ export default function TailorDesignSelectionStep() {
     }, [isHydrated, setFirstStepIfUnset, draft.selectedFabrics.length, draft.fabricSource, setFabricSource]);
 
     useEffect(() => {
-        if (!isHydrated || prefillDone || !designSlugParam) return;
+        if (!isHydrated) return;
+        if (!designSlugParam) {
+            setPrefilledSlug(null);
+        }
+    }, [isHydrated, designSlugParam]);
+
+    useEffect(() => {
+        if (!isHydrated || !designSlugParam || prefilledSlug === designSlugParam) return;
 
         const prefillFromParams = async () => {
             try {
-                resetOrder("tailor");
                 const designData = await api.get<{
                     success: boolean;
                     item: TailorDesignListItem & { tailorShop?: Parameters<typeof toCustomOrderTailorSelection>[0] };
@@ -69,12 +75,12 @@ export default function TailorDesignSelectionStep() {
                     : toCustomOrderSelectedDesign(designData.item);
 
                 if (selected) {
-                    toggleDesign(selected);
+                    selectSingleDesign(selected);
                 }
-            } catch {
-                // Ignore invalid design slug — customer can still pick manually
+            } catch (err) {
+                console.error("[Design Prefill Error]:", err);
             } finally {
-                setPrefillDone(true);
+                setPrefilledSlug(designSlugParam);
             }
         };
 
@@ -82,15 +88,9 @@ export default function TailorDesignSelectionStep() {
     }, [
         designSlugParam,
         isHydrated,
-        prefillDone,
-        toggleDesign,
-        resetOrder,
+        prefilledSlug,
+        selectSingleDesign,
     ]);
-
-    useEffect(() => {
-        if (!isHydrated || designSlugParam) return;
-        setPrefillDone(true);
-    }, [isHydrated, designSlugParam]);
 
     useEffect(() => {
         const fetchAllDesigns = async () => {
