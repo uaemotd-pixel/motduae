@@ -34,7 +34,7 @@ export function HeroSection() {
   );
 
   return (
-    <section className="relative min-h-[fit] xs:min-h-[85vh] sm:min-h-[90vh] flex flex-col justify-end bg-(--color-near-black) overflow-hidden pt-16 xs:pt-20 sm:pt-24 md:pt-28 lg:pt-0 mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-32">
+    <section className="relative min-h-[fit] xs:min-h-[85vh] sm:min-h-[90vh] flex flex-col justify-end bg-(--color-near-black) overflow-hidden pt-16 xs:pt-20 sm:pt-24 md:pt-28 lg:pt-0 mb-8 xs:mb-10 sm:mb-12 md:mb-14 lg:mb-18">
       {/* Embla Carousel – background layer */}
       <div className="absolute inset-0 w-full h-full z-0">
         <div className="overflow-hidden h-full" ref={emblaRef}>
@@ -104,8 +104,6 @@ export function HeroSection() {
           >
             {t.heroSection.body}
           </p>
-
-
         </div>
       </div>
     </section>

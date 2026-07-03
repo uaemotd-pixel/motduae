@@ -164,3 +164,40 @@ body {
   }
 }
 
+/* For Graphic Element */
+@keyframes luxuryBreath {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+
+  50% {
+    transform: scale(1.03);
+    opacity: 1;
+  }
+}
+
+.animate-luxury {
+  animation: luxuryBreath 5s ease-in-out infinite;
+}
+
+/* Brand Logo for Loading */
+@keyframes brandFloat {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: .85;
+    filter: drop-shadow(0 0 0 rgba(201,162,39,.0));
+  }
+
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+    filter: drop-shadow(0 0 14px rgba(201,162,39,.35));
+  }
+}
+
+.animate-brand{
+    animation:brandFloat 3.5s ease-in-out infinite;
+}
