@@ -2,13 +2,18 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "installCommand": "npm run install:all",
+  "functions": {
+    "api/index.mjs": {
+      "includeFiles": "backend/**"
+    }
+  },
   "builds": [
     {
       "src": "frontend/package.json",
       "use": "@vercel/next"
     },
     {
-      "src": "server/index.mjs",
+      "src": "api/index.mjs",
       "use": "@vercel/node",
       "config": {
         "includeFiles": ["backend/**"]
@@ -18,11 +23,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "server/index.mjs"
+      "dest": "api/index.mjs"
     },
     {
       "src": "/uploads/(.*)",
-      "dest": "server/index.mjs"
+      "dest": "api/index.mjs"
     },
     {
       "handle": "filesystem"
