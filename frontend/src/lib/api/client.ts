@@ -62,11 +62,7 @@ class ApiClient {
             }
 
             if (!response.ok) {
-                const errorMessage =
-                    (typeof data === 'string' && data.trim()) ||
-                    data?.message ||
-                    data?.error ||
-                    this.getDefaultErrorMessage(response.status);
+                const errorMessage = this.sanitizeErrorMessage(data, response.status);
                 const error: ApiError = {
                     status: response.status,
                     message: errorMessage,
@@ -86,6 +82,33 @@ class ApiClient {
                 message: error instanceof Error ? error.message : 'Network error or server is unreachable',
             } as ApiError;
         }
+    }
+
+    private sanitizeErrorMessage(data: unknown, status: number): string {
+        if (typeof data === 'string') {
+            const trimmed = data.trim();
+            if (
+                trimmed.startsWith('<') ||
+                trimmed.includes('__next_error__') ||
+                trimmed.includes('<!DOCTYPE') ||
+                trimmed.length > 300
+            ) {
+                return this.getDefaultErrorMessage(status);
+            }
+            return trimmed;
+        }
+
+        if (data && typeof data === 'object') {
+            const record = data as { message?: string; error?: string };
+            if (typeof record.message === 'string' && record.message.trim()) {
+                return record.message;
+            }
+            if (typeof record.error === 'string' && record.error.trim()) {
+                return record.error;
+            }
+        }
+
+        return this.getDefaultErrorMessage(status);
     }
 
     private getDefaultErrorMessage(status: number): string {
@@ -139,11 +162,7 @@ class ApiClient {
             }
 
             if (!response.ok) {
-                const errorMessage =
-                    (typeof data === 'string' && data.trim()) ||
-                    (data as { message?: string })?.message ||
-                    (data as { error?: string })?.error ||
-                    this.getDefaultErrorMessage(response.status);
+                const errorMessage = this.sanitizeErrorMessage(data, response.status);
                 throw {
                     status: response.status,
                     message: errorMessage,

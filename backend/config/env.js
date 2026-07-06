@@ -20,25 +20,59 @@ function parseCorsOrigin(value) {
   return origins.length === 1 ? origins[0] : origins;
 }
 
+function vercelOrigin() {
+  const url = process.env.VERCEL_URL;
+  return url ? `https://${url}` : null;
+}
+
+function defaultCorsOrigin() {
+  if (process.env.CORS_ORIGIN) {
+    return parseCorsOrigin(process.env.CORS_ORIGIN);
+  }
+  return vercelOrigin() || 'http://localhost:3000';
+}
+
+function defaultFrontendUrl() {
+  return process.env.FRONTEND_URL || vercelOrigin() || 'http://localhost:3000';
+}
+
 export const env = {
-  port: Number(process.env.PORT) || 5000,
-  nodeEnv: process.env.NODE_ENV || 'development',
-  mongodbUri: requireEnv('MONGODB_URI'),
-  jwtSecret: requireEnv('JWT_SECRET'),
-  corsOrigin: parseCorsOrigin(process.env.CORS_ORIGIN),
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
-  googleClientId: process.env.GOOGLE_CLIENT_ID || '',
-  smtp: {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === 'true',
-    user: process.env.SMTP_USER || '',
-    pass: process.env.SMTP_PASS || '',
-    from: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+  get port() {
+    return Number(process.env.PORT) || 5000;
   },
-  stripe: {
-    secretKey: process.env.STRIPE_SECRET_KEY || '',
-    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
-    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+  get nodeEnv() {
+    return process.env.NODE_ENV || 'development';
+  },
+  get mongodbUri() {
+    return requireEnv('MONGODB_URI');
+  },
+  get jwtSecret() {
+    return requireEnv('JWT_SECRET');
+  },
+  get corsOrigin() {
+    return defaultCorsOrigin();
+  },
+  get frontendUrl() {
+    return defaultFrontendUrl();
+  },
+  get googleClientId() {
+    return process.env.GOOGLE_CLIENT_ID || '';
+  },
+  get smtp() {
+    return {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: Number(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === 'true',
+      user: process.env.SMTP_USER || '',
+      pass: process.env.SMTP_PASS || '',
+      from: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+    };
+  },
+  get stripe() {
+    return {
+      secretKey: process.env.STRIPE_SECRET_KEY || '',
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+    };
   },
 };

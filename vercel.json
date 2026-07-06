@@ -8,7 +8,7 @@
       "use": "@vercel/next"
     },
     {
-      "src": "api/index.mjs",
+      "src": "server/index.mjs",
       "use": "@vercel/node",
       "config": {
         "includeFiles": ["backend/**"]
@@ -18,11 +18,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "api/index.mjs"
+      "dest": "server/index.mjs"
     },
     {
       "src": "/uploads/(.*)",
-      "dest": "api/index.mjs"
+      "dest": "server/index.mjs"
     },
     {
       "handle": "filesystem"
