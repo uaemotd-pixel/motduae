@@ -516,6 +516,10 @@ export default function AdminPartnersPage() {
       if (approvalAction === "approve") {
         await api.patch(`/api/admin/fabric-stores/${id}/approve`);
         toast.success(`Fabric store "${name}" approved`);
+
+        const targetRow = rows.find((r) => r.id === id);
+        const originalType = targetRow ? targetRow.type : "pending";
+
         setRows((prev) =>
           prev.map((row) =>
             row.id === id
@@ -523,11 +527,15 @@ export default function AdminPartnersPage() {
               : row
           )
         );
-        setStats((prev) => ({
-          ...prev,
-          approved: prev.approved + 1,
-          pending: prev.pending - 1,
-        }));
+        setStats((prev) => {
+          const nextStats = { ...prev, approved: prev.approved + 1 };
+          if (originalType === "pending") {
+            nextStats.pending = prev.pending - 1;
+          } else if (originalType === "rejected") {
+            nextStats.rejected = prev.rejected - 1;
+          }
+          return nextStats;
+        });
       } else {
         await api.patch(`/api/admin/fabric-stores/${id}/reject`, {
           rejectionNote: rejectNote,
@@ -803,7 +811,15 @@ export default function AdminPartnersPage() {
                       </div>
                     );
                   } else if (isRejected) {
-                    actions = <span className="text-xs text-gray-400 italic">No actions</span>;
+                    actions = (
+                      <button
+                        onClick={() => openApprovalModal("approve", row.id, row.name)}
+                        disabled={busy}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition disabled:opacity-50 hover:cursor-pointer"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Approve
+                      </button>
+                    );
                   } else {
                     actions = (
                       <button

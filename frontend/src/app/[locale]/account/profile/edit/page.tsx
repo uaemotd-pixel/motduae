@@ -72,7 +72,7 @@ const FormField = ({
       htmlFor={name}
       className="block text-xs uppercase tracking-widest text-gray-500"
     >
-      {label} {required && "*"}
+      {label} {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
     </label>
     {children}
     {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
@@ -85,6 +85,15 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [todayStr, setTodayStr] = useState("");
+
+  useEffect(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setTodayStr(`${yyyy}-${mm}-${dd}`);
+  }, []);
 
   const [form, setForm] = useState<FormData>({
     name: "",
@@ -181,6 +190,18 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     const errors: Record<string, string> = {};
     if (!form.name.trim()) errors.name = "Full name is required";
     if (!form.phone.trim()) errors.phone = "Phone number is required";
+    
+    if (!form.dob) {
+      errors.dob = "Date of Birth is required";
+    } else {
+      const dobDate = new Date(form.dob);
+      const now = new Date();
+      now.setHours(23, 59, 59, 999); // allow today as valid DOB
+      if (dobDate > now) {
+        errors.dob = "Date of Birth cannot be in the future";
+      }
+    }
+
     if (!form.address.fullName.trim())
       errors["address.fullName"] = "Full name for address is required";
     if (!form.address.phone.trim())
@@ -308,12 +329,13 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                 </select>
               </FormField>
 
-              <FormField label="Date of Birth" name="dob" required>
+              <FormField label="Date of Birth" name="dob" required error={fieldErrors.dob}>
                 <input
                   type="date"
                   name="dob"
                   value={form.dob}
                   onChange={handleChange}
+                  max={todayStr}
                   className="w-full py-1 border-b border-gray-300 focus:border-black outline-none bg-transparent"
                 />
               </FormField>
@@ -452,7 +474,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !form.dob}
               className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50 flex items-center gap-2"
             >
               {submitting ? (

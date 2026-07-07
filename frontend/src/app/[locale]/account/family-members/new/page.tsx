@@ -98,14 +98,21 @@ export default function FamilyMembersForm({
     >,
   ) => {
     const { name, value } = e.target;
+    let processedValue = value;
+
+    if (name === "phone" || name === "address.phone") {
+      // Keep only digits and limit to 9 characters
+      processedValue = value.replace(/[^0-9]/g, "").slice(0, 9);
+    }
+
     if (name.startsWith("address.")) {
       const field = name.split(".")[1];
       setForm((prev) => ({
         ...prev,
-        address: { ...prev.address, [field]: value },
+        address: { ...prev.address, [field]: processedValue },
       }));
     } else {
-      setForm((prev) => ({ ...prev, [name]: value }));
+      setForm((prev) => ({ ...prev, [name]: processedValue }));
     }
   };
 
@@ -113,6 +120,16 @@ export default function FamilyMembersForm({
     e.preventDefault();
     if (!form.name.trim() || !form.phone.trim()) {
       toast.error("Name and phone are required");
+      return;
+    }
+
+    if (form.phone.length !== 9) {
+      toast.error("Phone number must be exactly 9 digits");
+      return;
+    }
+
+    if (form.address.phone && form.address.phone.length !== 9) {
+      toast.error("Address phone number must be exactly 9 digits");
       return;
     }
 
@@ -175,7 +192,7 @@ export default function FamilyMembersForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium mb-2">
-                Full Name *
+                Full Name <span className="text-red-500 font-bold ml-0.5">*</span>
               </label>
               <input
                 type="text"
@@ -188,7 +205,9 @@ export default function FamilyMembersForm({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Phone *</label>
+              <label className="block text-sm font-medium mb-2">
+                Phone <span className="text-red-500 font-bold ml-0.5">*</span>
+              </label>
               <input
                 type="tel"
                 name="phone"
@@ -196,7 +215,7 @@ export default function FamilyMembersForm({
                 onChange={handleChange}
                 required
                 className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-black"
-                placeholder="+971 50 123 4567"
+                placeholder="50 123 4567"
               />
             </div>
             <div>
