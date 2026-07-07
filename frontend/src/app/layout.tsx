@@ -8,7 +8,6 @@ import { CustomOrderProvider } from "@/context/CustomOrderContext";
 import { Toaster } from "react-hot-toast";
 import { RTLProvider } from "@/components/shared/RTLProvider";
 import { WishlistProvider } from "@/context/WishlistContext";
-import PageTransition from "@/components/shared/PageTransition";
 
 export const metadata: Metadata = {
   title: "MOTD — Mukhawar of the Day",
@@ -31,55 +30,53 @@ export default function RootLayout({
         /> */}
       </head>
       <body className="bg-[#FFFDF9] text-[#000000]" suppressHydrationWarning>
-        <PageTransition>
-          <AuthGoogleProvider>
-            <AuthProvider>
-              <CartProvider>
-                <WishlistProvider>
-                  <CustomOrderProvider>
-                    <RTLProvider>{children}</RTLProvider>
-                    <Toaster
-                      position="top-right"
-                      toastOptions={{
+        <AuthGoogleProvider>
+          <AuthProvider>
+            <CartProvider>
+              <WishlistProvider>
+                <CustomOrderProvider>
+                  <RTLProvider>{children}</RTLProvider>
+                  <Toaster
+                    position="top-right"
+                    toastOptions={{
+                      style: {
+                        fontFamily: "var(--font-body)",
+                        fontSize: "12px",
+                        letterSpacing: "0.24em",
+                        textTransform: "uppercase",
+                        borderRadius: "8px",
+                        padding: "12px 18px",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                      },
+                      success: {
                         style: {
-                          fontFamily: "var(--font-body)",
-                          fontSize: "12px",
-                          letterSpacing: "0.24em",
-                          textTransform: "uppercase",
-                          borderRadius: "8px",
-                          padding: "12px 18px",
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                          background: "#f0fdf4",
+                          color: "#166534",
+                          border: "1px solid #86efac",
                         },
-                        success: {
-                          style: {
-                            background: "#f0fdf4",
-                            color: "#166534",
-                            border: "1px solid #86efac",
-                          },
-                          iconTheme: {
-                            primary: "#16a34a",
-                            secondary: "#ffffff",
-                          },
+                        iconTheme: {
+                          primary: "#16a34a",
+                          secondary: "#ffffff",
                         },
-                        error: {
-                          style: {
-                            background: "#fef2f2",
-                            color: "#991b1b",
-                            border: "1px solid #fca5a5",
-                          },
-                          iconTheme: {
-                            primary: "#dc2626",
-                            secondary: "#ffffff",
-                          },
+                      },
+                      error: {
+                        style: {
+                          background: "#fef2f2",
+                          color: "#991b1b",
+                          border: "1px solid #fca5a5",
                         },
-                      }}
-                    />
-                  </CustomOrderProvider>
-                </WishlistProvider>
-              </CartProvider>
-            </AuthProvider>
-          </AuthGoogleProvider>
-        </PageTransition>
+                        iconTheme: {
+                          primary: "#dc2626",
+                          secondary: "#ffffff",
+                        },
+                      },
+                    }}
+                  />
+                </CustomOrderProvider>
+              </WishlistProvider>
+            </CartProvider>
+          </AuthProvider>
+        </AuthGoogleProvider>
       </body>
     </html>
   );

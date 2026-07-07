@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Link } from "@/i18n/navigation";
 import { useLocale } from "next-intl";
@@ -18,9 +18,18 @@ import logoBlack from "../../../public/PNG/Black/MOTD_Wordmark_Black.png";
 import * as images from "../../../public/images/ImageIndex";
 
 export default function RegisterForm() {
+
   const params = useParams();
   const localeParam = params.locale as string;
   const t = getTranslation(localeParam);
+
+    const searchParams = useSearchParams();
+    const redirectUrl = searchParams.get("redirect");
+    const loginHref = redirectUrl
+        ? `/auth/login?redirect=${encodeURIComponent(redirectUrl)}`
+        : "/auth/login";
+    const localeParam = params.locale as string;
+    const t = getTranslation(localeParam);
 
   const locale = useLocale();
   const { register, loginWithGoogle } = useAuth();
@@ -372,37 +381,28 @@ export default function RegisterForm() {
               />
             </form>
 
-            <footer className="mt-10 md:mt-12 pt-6 border-t border-black/10 text-center fade-in">
-              <p className="font-body-md text-[12px] md:text-[13px] text-black/50 uppercase tracking-[0.15em]">
-                {t.signup.alreadyLabel}
-                <Link
-                  href="/auth/login"
-                  className="text-black font-medium hover:underline underline-offset-4 ml-2"
-                >
-                  {t.signup.signInLabel}
-                </Link>
-              </p>
-              <div className="flex justify-center gap-5 md:gap-6 mt-4">
-                <Link
-                  href="/privacy"
-                  className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors"
-                >
-                  {t.signup.privacyLabel}
-                </Link>
-                <Link
-                  href="/terms"
-                  className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors"
-                >
-                  {t.signup.termsLabel}
-                </Link>
-              </div>
-              <p className="font-label-sm text-[9px] md:text-[10px] text-black/20 mt-4 tracking-widest">
-                {t.signup.copyrightLabel}
-              </p>
-            </footer>
-          </motion.div>
-        </div>
-      </section>
-    </main>
-  );
+                        <footer className="mt-10 md:mt-12 pt-6 border-t border-black/10 text-center fade-in">
+                            <p className="font-body-md text-[12px] md:text-[13px] text-black/50 uppercase tracking-[0.15em]">
+                                {t.signup.alreadyLabel}
+                                <Link href={loginHref} className="text-black font-medium hover:underline underline-offset-4 ml-2">
+                                    {t.signup.signInLabel}
+                                </Link>
+                            </p>
+                            <div className="flex justify-center gap-5 md:gap-6 mt-4">
+                                <Link href="/privacy" className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors">
+                                    {t.signup.privacyLabel}
+                                </Link>
+                                <Link href="/terms" className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors">
+                                    {t.signup.termsLabel}
+                                </Link>
+                            </div>
+                            <p className="font-label-sm text-[9px] md:text-[10px] text-black/20 mt-4 tracking-widest">
+                                {t.signup.copyrightLabel}
+                            </p>
+                        </footer>
+                    </motion.div>
+                </div>
+            </section>
+        </main>
+    );
 }

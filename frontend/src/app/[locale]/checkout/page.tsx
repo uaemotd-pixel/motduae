@@ -1,7 +1,7 @@
 // app/[locale]/checkout/page.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
@@ -54,6 +54,22 @@ type CustomerProfile = {
 };
 
 export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <MainLayout>
+          <div className="min-h-screen bg-(--bg-page) flex items-center justify-center px-4">
+            <div className="w-12 h-12 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+          </div>
+        </MainLayout>
+      }
+    >
+      <CheckoutPageContent />
+    </Suspense>
+  );
+}
+
+function CheckoutPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const params = useParams();

@@ -74,7 +74,7 @@ export async function sendContactMessageEmail({ name, email, subject, message })
   if (!isEmailConfigured()) {
     console.log('============================================================');
     console.log('[Contact Email Fallback Log] Email service not configured.');
-    console.log(`To: motd.uae@gmail.com`);
+    console.log(`To: uaemotd@gmail.com`);
     console.log(`From: ${name} <${email}>`);
     console.log(`Subject: ${subject}`);
     console.log(`Message:\n${message}`);
@@ -83,13 +83,13 @@ export async function sendContactMessageEmail({ name, email, subject, message })
   }
   const mailer = getTransporter();
   const from = env.smtp.from || env.smtp.user;
-  const to = 'motd.uae@gmail.com';
+  const to = 'uaemotd@gmail.com';
 
   await mailer.sendMail({
     from: `"MOTD Contact Form" <${from}>`,
     to,
     replyTo: email,
-    subject: `[Contact Form] ${subject}`,
+    subject: `Contact Form - ${subject}`,
     text: `You have received a new message from ${name} (${email}):\n\nSubject: ${subject}\n\nMessage:\n${message}`,
     html: `
       <div style="background-color: #F8F6F2; padding: 40px 20px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #2D2D2A;">

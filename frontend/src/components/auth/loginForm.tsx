@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Link } from "@/i18n/navigation";
 import { useLocale } from "next-intl";
@@ -14,6 +14,11 @@ import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 export default function LoginPage() {
     const params = useParams();
+    const searchParams = useSearchParams();
+    const redirectUrl = searchParams.get("redirect");
+    const registerHref = redirectUrl
+        ? `/auth/register?redirect=${encodeURIComponent(redirectUrl)}`
+        : "/auth/register";
     const localeParam = params.locale as string;
     const t = getTranslation(localeParam);
 
@@ -224,7 +229,7 @@ export default function LoginPage() {
                         <footer className="mt-8 pt-5 border-t border-black/10 text-center fade-in">
                             <p className="font-body-md text-[11px] text-black/50 uppercase tracking-[0.15em]">
                                 {t.login.alreadyLabel}
-                                <Link href="/auth/register" className="text-black font-medium hover:underline underline-offset-4 ml-2">
+                                <Link href={registerHref} className="text-black font-medium hover:underline underline-offset-4 ml-2">
                                     {t.login.signupLabel}
                                 </Link>
                             </p>

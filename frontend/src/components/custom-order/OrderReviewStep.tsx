@@ -91,8 +91,6 @@ export default function OrderReviewStep() {
         const payload = {
           ...previewPayload,
           deliveryType,
-          shippingFee,
-          vatRate,
         };
 
         const data = await api.post<{
@@ -116,7 +114,7 @@ export default function OrderReviewStep() {
     };
 
     fetchPreview();
-  }, [isHydrated, previewPayload, deliveryType, shippingFee, vatRate, t]);
+  }, [isHydrated, previewPayload, deliveryType, t]);
 
   const canContinue = isReviewStepComplete(draft, pricing !== null);
 
@@ -402,12 +400,7 @@ export default function OrderReviewStep() {
                       {t("lines.subtotal")}
                     </span>
                     <span className="text-black shrink-0">
-                      {formatCurrency(
-                        deliveryType === "delivery"
-                          ? pricing.subtotal
-                          : pricing.subtotal - pricing.deliveryFee,
-                        locale,
-                      )}
+                      {formatCurrency(pricing.subtotal, locale)}
                     </span>
                   </div>
 
@@ -416,13 +409,7 @@ export default function OrderReviewStep() {
                       {t("lines.vat", { rate: vatPercent })}
                     </span>
                     <span className="text-black shrink-0">
-                      {formatCurrency(
-                        deliveryType === "delivery"
-                          ? pricing.vatAmount
-                          : pricing.vatAmount -
-                              pricing.deliveryFee * (vatRate ?? 0.05),
-                        locale,
-                      )}
+                      {formatCurrency(pricing.vatAmount, locale)}
                     </span>
                   </div>
 
@@ -431,13 +418,7 @@ export default function OrderReviewStep() {
                       {t("lines.total")}
                     </span>
                     <span className="[font-family:var(--font-display)] text-[22px] text-black shrink-0">
-                      {formatCurrency(
-                        deliveryType === "delivery"
-                          ? pricing.total
-                          : pricing.total -
-                              pricing.deliveryFee * (1 + (vatRate ?? 0.05)),
-                        locale,
-                      )}
+                      {formatCurrency(pricing.total, locale)}
                     </span>
                   </div>
                 </div>

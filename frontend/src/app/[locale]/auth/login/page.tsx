@@ -1,15 +1,27 @@
 // app/[locale]/auth/login/page.tsx
 "use client";
 
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { navigateAfterLogin } from "@/lib/auth/postLoginRedirect";
 import LoginForm from "../../../../components/auth/loginForm";
-import * as images from "../../../../../public/images/ImageIndex";
-import BrandLoader from "@/components/shared/BrandLoader";
 
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#FFFDF9]">
+          <div className="w-8 h-8 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const { user, isLoading } = useAuth();
   const params = useParams();
   const searchParams = useSearchParams();

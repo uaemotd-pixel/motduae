@@ -319,7 +319,6 @@ const PriceRangeSlider = ({
   maxPrice,
   onMinChange,
   onMaxChange,
-  isAr,
 }: {
   minPrice: number;
   maxPrice: number;
@@ -327,31 +326,63 @@ const PriceRangeSlider = ({
   onMaxChange: (value: number) => void;
   isAr: boolean;
 }) => {
-  const [localMin, setLocalMin] = useState(minPrice);
-  const [localMax, setLocalMax] = useState(maxPrice);
+  const [localMin, setLocalMin] = useState(String(minPrice));
+  const [localMax, setLocalMax] = useState(String(maxPrice));
+  const minTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setLocalMin(minPrice);
+    setLocalMin(String(minPrice));
   }, [minPrice]);
 
   useEffect(() => {
-    setLocalMax(maxPrice);
+    setLocalMax(String(maxPrice));
   }, [maxPrice]);
 
-  const handleMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = Number(e.target.value);
-    if (value <= localMax) {
-      setLocalMin(value);
-      onMinChange(value);
-    }
+  useEffect(() => {
+    return () => {
+      if (minTimerRef.current) clearTimeout(minTimerRef.current);
+      if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
+    };
+  }, []);
+
+  const debouncedMinChange = (value: number) => {
+    if (minTimerRef.current) clearTimeout(minTimerRef.current);
+    minTimerRef.current = setTimeout(() => onMinChange(value), 300);
   };
 
-  const handleMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = Number(e.target.value);
-    if (value >= localMin) {
-      setLocalMax(value);
-      onMaxChange(value);
+  const debouncedMaxChange = (value: number) => {
+    if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
+    maxTimerRef.current = setTimeout(() => onMaxChange(value), 300);
+  };
+
+  const commitMin = (raw: string) => {
+    const parsed = raw === "" ? minPrice : Number(raw);
+    if (Number.isNaN(parsed)) {
+      setLocalMin(String(minPrice));
+      return;
     }
+    const maxVal = Number(localMax);
+    const clamped = Math.min(Math.max(0, parsed), Number.isNaN(maxVal) ? 100000 : maxVal, 100000);
+    setLocalMin(String(clamped));
+    if (minTimerRef.current) clearTimeout(minTimerRef.current);
+    onMinChange(clamped);
+  };
+
+  const commitMax = (raw: string) => {
+    const parsed = raw === "" ? maxPrice : Number(raw);
+    if (Number.isNaN(parsed)) {
+      setLocalMax(String(maxPrice));
+      return;
+    }
+    const minVal = Number(localMin);
+    const clamped = Math.max(
+      Math.min(parsed, 100000),
+      Number.isNaN(minVal) ? 0 : minVal,
+    );
+    setLocalMax(String(clamped));
+    if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
+    onMaxChange(clamped);
   };
 
   return (
@@ -369,12 +400,21 @@ const PriceRangeSlider = ({
           step={1}
           value={localMin}
           onChange={(e) => {
-            const val = Number(e.target.value);
-            if (val >= 0 && val <= localMax && val <= 100000) {
-              setLocalMin(val);
-              onMinChange(val);
+            const raw = e.target.value;
+            setLocalMin(raw);
+            if (raw === "") return;
+            const val = Number(raw);
+            const maxVal = Number(localMax);
+            if (
+              !Number.isNaN(val) &&
+              val >= 0 &&
+              val <= 100000 &&
+              (Number.isNaN(maxVal) || val <= maxVal)
+            ) {
+              debouncedMinChange(val);
             }
           }}
+          onBlur={() => commitMin(localMin)}
           className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition"
         />
         <input
@@ -384,12 +424,20 @@ const PriceRangeSlider = ({
           step={1}
           value={localMax}
           onChange={(e) => {
-            const val = Number(e.target.value);
-            if (val >= localMin && val <= 100000) {
-              setLocalMax(val);
-              onMaxChange(val);
+            const raw = e.target.value;
+            setLocalMax(raw);
+            if (raw === "") return;
+            const val = Number(raw);
+            const minVal = Number(localMin);
+            if (
+              !Number.isNaN(val) &&
+              val <= 100000 &&
+              (Number.isNaN(minVal) || val >= minVal)
+            ) {
+              debouncedMaxChange(val);
             }
           }}
+          onBlur={() => commitMax(localMax)}
           className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition"
         />
       </div>
@@ -701,7 +749,7 @@ export default function ReadyMadeCatalogPage() {
 
   if (!mounted) return null;
 
-  const SidebarContent = () => (
+  const sidebarContent = (
     <div className="flex flex-col gap-8">
       {/* Category */}
       <div>
@@ -977,7 +1025,7 @@ export default function ReadyMadeCatalogPage() {
           {/* Mobile Filters Drawer */}
           {mobileFiltersOpen && (
             <div className="lg:hidden border-b border-[#E4E0D8] bg-[#FDFAF5] px-4 sm:px-8 lg:px-12 py-8 overflow-hidden">
-              <SidebarContent />
+              {sidebarContent}
             </div>
           )}
 
@@ -987,7 +1035,7 @@ export default function ReadyMadeCatalogPage() {
               data-lenis-prevent
               className="hidden lg:block w-80 shrink-0 border-r border-[#E4E0D8] p-8 h-screen sticky top-34 overflow-y-auto"
             >
-              <SidebarContent />
+              {sidebarContent}
             </aside>
 
             <div className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">

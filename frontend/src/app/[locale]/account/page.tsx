@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "@/i18n/navigation";
@@ -141,6 +141,23 @@ function isAccountTab(value: string | null): value is AccountTab {
 }
 
 export default function AccountPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-black text-white">
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            Loading account…
+          </div>
+        </div>
+      }
+    >
+      <AccountPageContent />
+    </Suspense>
+  );
+}
+
+function AccountPageContent() {
   const { user, isLoading: authLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();

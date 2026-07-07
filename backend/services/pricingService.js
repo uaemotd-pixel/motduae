@@ -12,6 +12,14 @@ export class PricingValidationError extends Error {
 
 const roundMoney = (amount) => Number(amount.toFixed(2));
 
+export function resolveDeliveryFee(defaultDeliveryFee, deliveryType = 'delivery') {
+  if (deliveryType === 'pickup') {
+    return 0;
+  }
+
+  return defaultDeliveryFee;
+}
+
 /**
  * Pure pricing calculator for custom tailoring orders.
  * Formula: designBase + fabricCost + tailoringFee + deliveryFee, then VAT.
@@ -212,6 +220,7 @@ export function buildCustomOrderPricing({
   fabricSource,
   fabricMeters,
   settings,
+  deliveryType = 'delivery',
 }) {
   if (!design) {
     throw new PricingValidationError('design is required');
@@ -240,7 +249,7 @@ export function buildCustomOrderPricing({
     fabricMeters,
     fabricSource,
     fabricPricePerMeter: fabric?.pricePerMeter ?? 0,
-    deliveryFee: settings.defaultDeliveryFee,
+    deliveryFee: resolveDeliveryFee(settings.defaultDeliveryFee, deliveryType),
     vatRate: settings.vatRate,
     currency: settings.currency,
   });
@@ -255,6 +264,7 @@ export async function getCustomOrderPricing({
   fabricId = null,
   fabricSource,
   fabricMeters,
+  deliveryType = 'delivery',
 }) {
   const [settings, design] = await Promise.all([
     PlatformSettings.getSettings(),
@@ -289,6 +299,7 @@ export async function getCustomOrderPricing({
     fabricSource,
     fabricMeters,
     settings,
+    deliveryType,
   });
 }
 
@@ -337,7 +348,11 @@ export function buildCustomOrderItemPricing({
 /**
  * Load entities and return aggregated pricing for multiple line items.
  */
-export async function getMultiItemCustomOrderPricing({ items, fabricSource }) {
+export async function getMultiItemCustomOrderPricing({
+  items,
+  fabricSource,
+  deliveryType = 'delivery',
+}) {
   if (!Array.isArray(items) || items.length === 0) {
     throw new PricingValidationError('At least one item is required');
   }
@@ -383,7 +398,10 @@ export async function getMultiItemCustomOrderPricing({ items, fabricSource }) {
 
   return {
     pricing: aggregateCustomOrderPricing(itemPricings, {
-      deliveryFee: settings.defaultDeliveryFee,
+      deliveryFee: resolveDeliveryFee(
+        settings.defaultDeliveryFee,
+        deliveryType,
+      ),
       vatRate: settings.vatRate,
       currency: settings.currency,
     }),
