@@ -188,7 +188,7 @@ export default function FabricDetailView({
             {/* CTA Button */}
             <Link
               href={customOrderHref}
-              className="block w-full py-4 bg-black text-white text-center text-sm tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition-colors"
+              className="block w-full py-4 bg-black text-white text-center text-sm tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition-colors hover:cursor-pointer"
             >
               {labels.selectForCustomOrder}
             </Link>

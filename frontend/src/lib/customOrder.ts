@@ -27,6 +27,7 @@ export interface CustomOrderFabricSelection {
   material?: string;
   pricePerMeter: number;
   image?: string;
+  stockInMeters?: number;
 }
 
 export interface CustomOrderTailorSelection {
@@ -508,13 +509,17 @@ export function toCustomOrderFabricSelection(
     material: item.material,
     pricePerMeter: item.pricePerMeter,
     image: resolveFabricImage(item.images?.[0]),
+    stockInMeters: item.stockInMeters,
   };
 }
 
 export function isFabricStepComplete(draft: CustomOrderDraft): boolean {
   if (draft.fabricSource === "self") return true;
   if (draft.fabricSource === "storefront" && draft.selectedFabrics.length > 0) {
-    return true;
+    const hasOutOfStock = draft.selectedFabrics.some(
+      (f) => f.stockInMeters !== undefined && f.stockInMeters <= 0
+    );
+    return !hasOutOfStock;
   }
   return false;
 }

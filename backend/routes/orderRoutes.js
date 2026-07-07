@@ -286,25 +286,27 @@ function formatCustomOrderLineItems(order) {
 }
 
 async function deductFabricStock(fabricId, meters) {
-  const fabric = await Fabric.findById(fabricId);
+  const fabric = await Fabric.findOne({ _id: fabricId, isActive: true });
 
-  if (!fabric || !fabric.isActive) {
-    throw new PricingValidationError("fabric not found");
+  if (!fabric) {
+    throw new PricingValidationError("fabric not found or is inactive");
   }
 
-  if (fabric.stockInMeters < meters) {
+  // Atomically decrement stock only if it's greater than or equal to requested meters.
+  // This prevents the stock from ever going negative (below 0).
+  const updatedFabric = await Fabric.findOneAndUpdate(
+    { _id: fabricId, stockInMeters: { $gte: meters } },
+    { $inc: { stockInMeters: -meters } },
+    { new: true }
+  );
+
+  if (!updatedFabric) {
     throw new PricingValidationError(
       `Insufficient fabric stock for ${fabric.name}. Available: ${fabric.stockInMeters} meters.`,
     );
   }
 
-  fabric.stockInMeters -= meters;
-  if (fabric.stockInMeters === 0) {
-    fabric.isActive = false;
-  }
-  await fabric.save();
-
-  return fabric;
+  return updatedFabric;
 }
 
 async function buildMultiItemOrderData(orderInput, deliveryType = "delivery") {
