@@ -81,38 +81,9 @@ const FormField = ({
 
 const UAE_PHONE_REGEX = /^\+971[0-9]{9}$/;
 
-const validateUAEPhone = (phone: string): boolean => {
-  const cleaned = phone.replace(/\s/g, "");
-  return UAE_PHONE_REGEX.test(cleaned);
-};
-
-const formatUAEPhone = (phone: string): string => {
-  if (!phone) return "—";
-  const cleaned = phone.replace(/\s/g, "");
-  if (!UAE_PHONE_REGEX.test(cleaned)) return phone;
-  const digits = cleaned.slice(4);
-  return `+971 ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5)}`;
-};
-
-const normalizeUAEPhone = (phone: string): string => {
-  const cleaned = phone.replace(/\s/g, "");
-  const digits = cleaned.replace(/\D/g, "");
-
-  if (/^\+971\d{9}$/.test(cleaned)) {
-    const num = cleaned.slice(4);
-    return `+971 ${num.slice(0, 2)} ${num.slice(2, 5)} ${num.slice(5)}`;
-  }
-  if (digits.startsWith("971") && digits.length === 12) {
-    const num = digits.slice(3);
-    return `+971 ${num.slice(0, 2)} ${num.slice(2, 5)} ${num.slice(5)}`;
-  }
-  return `+971 ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5)}`;
-};
-
 const validatePhone = (phone: string): string | null => {
   if (!phone) return "Phone number is required";
-  const normalized = normalizeUAEPhone(phone);
-  const cleaned = normalized.replace(/\s/g, "");
+  const cleaned = phone.replace(/\s/g, "");
   if (!UAE_PHONE_REGEX.test(cleaned)) {
     return "Enter valid UAE number (+971 XX XXX XXXX)";
   }
@@ -242,7 +213,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     return /^[a-zA-Z\s\-']+$/.test(value.trim());
   };
 
-  // Handle text-only input (letters, spaces, hyphens, apostrophes only)
+  // Handle text-only input
   const handleTextOnlyInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     const filtered = value.replace(/[^a-zA-Z\s\-']/g, "");
@@ -302,7 +273,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
 
-    // Validate name - letters, spaces, hyphens, apostrophes only
+    // Validate name
     if (!form.name.trim()) {
       errors.name = "Full name is required";
     } else if (!validateTextOnly(form.name)) {
@@ -310,8 +281,13 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
         "Name can only contain letters, spaces, hyphens, and apostrophes";
     }
 
-    const phoneError = validatePhone(form.phone);
-    if (phoneError) errors.phone = phoneError;
+    // Validate phone - must be +971 followed by 9 digits
+    if (!form.phone) {
+      errors.phone = "Phone number is required";
+    } else {
+      const phoneError = validatePhone(form.phone);
+      if (phoneError) errors.phone = phoneError;
+    }
 
     // Validate address full name
     if (!form.address.fullName.trim()) {
@@ -321,8 +297,13 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
         "Name can only contain letters, spaces, hyphens, and apostrophes";
     }
 
-    const addrPhoneError = validatePhone(form.address.phone);
-    if (addrPhoneError) errors["address.phone"] = addrPhoneError;
+    // Validate address phone
+    if (!form.address.phone) {
+      errors["address.phone"] = "Phone number for address is required";
+    } else {
+      const addrPhoneError = validatePhone(form.address.phone);
+      if (addrPhoneError) errors["address.phone"] = addrPhoneError;
+    }
 
     // Validate emirate
     if (!form.address.emirate.trim()) {
@@ -338,7 +319,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
       errors["address.city"] = "City can only contain letters and spaces";
     }
 
-    // Validate building (allow letters, numbers, spaces, hyphens)
+    // Validate building
     if (
       form.address.building.trim() &&
       !/^[a-zA-Z0-9\s\-]+$/.test(form.address.building.trim())
@@ -347,7 +328,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
         "Building can only contain letters, numbers, spaces, and hyphens";
     }
 
-    // Validate DOB not future
+    // Validate DOB
     if (form.dob) {
       const dobDate = new Date(form.dob);
       const today = new Date();
@@ -371,18 +352,15 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     setSubmitting(true);
 
     try {
-      const normalizedPhone = normalizeUAEPhone(form.phone);
-      const normalizedAddrPhone = normalizeUAEPhone(form.address.phone);
-
       const payload = {
         name: form.name.trim(),
-        phone: normalizedPhone,
+        phone: form.phone, // Already has +971
         gender: form.gender,
         dob: form.dob ? new Date(form.dob) : undefined,
         profilePic: form.profilePic.trim() || null,
         address: {
           fullName: form.address.fullName.trim(),
-          phone: normalizedAddrPhone,
+          phone: form.address.phone, // Already has +971
           emirate: form.address.emirate.trim(),
           city: form.address.city.trim(),
           street: form.address.street.trim() || "",
@@ -472,16 +450,6 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                         if (fieldErrors.phone) {
                           setFieldErrors((prev) => ({ ...prev, phone: "" }));
                         }
-                      }
-                    }}
-                    onBlur={() => {
-                      const error = validatePhone(form.phone);
-                      if (error) {
-                        setFieldErrors((prev) => ({ ...prev, phone: error }));
-                      } else {
-                        setFieldErrors((prev) => ({ ...prev, phone: "" }));
-                        const normalized = normalizeUAEPhone(form.phone);
-                        setForm((prev) => ({ ...prev, phone: normalized }));
                       }
                     }}
                     placeholder="XXXXXXXXX"
@@ -652,27 +620,6 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                             "address.phone": "",
                           }));
                         }
-                      }
-                    }}
-                    onBlur={() => {
-                      const error = validatePhone(form.address.phone);
-                      if (error) {
-                        setFieldErrors((prev) => ({
-                          ...prev,
-                          "address.phone": error,
-                        }));
-                      } else {
-                        setFieldErrors((prev) => ({
-                          ...prev,
-                          "address.phone": "",
-                        }));
-                        const normalized = normalizeUAEPhone(
-                          form.address.phone,
-                        );
-                        setForm((prev) => ({
-                          ...prev,
-                          address: { ...prev.address, phone: normalized },
-                        }));
                       }
                     }}
                     placeholder="XXXXXXXXX"

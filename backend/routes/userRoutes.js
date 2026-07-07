@@ -1,15 +1,19 @@
-import express from 'express';
-import expressAsyncHandler from 'express-async-handler';
-import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
-import { OAuth2Client } from 'google-auth-library';
-import { isAuth, isAdmin, generateToken } from '../middleware/auth.js';
-import User from '../models/User.js';
-import Customer from '../models/customer.js';
-import SubAdmin from '../models/SubAdmin.js';
-import { env } from '../config/env.js';
-import { validatePassword } from '../utils/passwordValidation.js';
-import { isEmailConfigured, sendPasswordResetEmail, sendContactMessageEmail } from '../services/emailService.js';
+import express from "express";
+import expressAsyncHandler from "express-async-handler";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import { OAuth2Client } from "google-auth-library";
+import { isAuth, isAdmin, generateToken } from "../middleware/auth.js";
+import User from "../models/User.js";
+import Customer from "../models/customer.js";
+import SubAdmin from "../models/SubAdmin.js";
+import { env } from "../config/env.js";
+import { validatePassword } from "../utils/passwordValidation.js";
+import {
+  isEmailConfigured,
+  sendPasswordResetEmail,
+  sendContactMessageEmail,
+} from "../services/emailService.js";
 
 const userRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -36,7 +40,7 @@ const sendUserResponse = (res, user) => {
 };
 
 const hashResetToken = (token) =>
-  crypto.createHash('sha256').update(token).digest('hex');
+  crypto.createHash("sha256").update(token).digest("hex");
 
 const assertPasswordValid = (password, res) => {
   const result = validatePassword(password);
@@ -52,7 +56,7 @@ userRouter.get(
   isAuth,
   isAdmin,
   expressAsyncHandler(async (_req, res) => {
-    const users = await User.find({}).select('-password -resetPasswordToken');
+    const users = await User.find({}).select("-password -resetPasswordToken");
     res.send(users);
   }),
 );
@@ -61,7 +65,9 @@ userRouter.get(
   "/profile",
   isAuth,
   expressAsyncHandler(async (req, res) => {
-    const user = await User.findById(req.user._id).select('-resetPasswordToken');
+    const user = await User.findById(req.user._id).select(
+      "-resetPasswordToken",
+    );
     if (!user) {
       res.status(404).send({ message: "User not found" });
       return;
@@ -100,19 +106,20 @@ userRouter.post(
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
-      res.status(401).send({ message: 'Invalid email or password' });
+      res.status(401).send({ message: "Invalid email or password" });
       return;
     }
 
     if (!user.password) {
       res.status(401).send({
-        message: 'This account uses Google sign-in. Please continue with Google.',
+        message:
+          "This account uses Google sign-in. Please continue with Google.",
       });
       return;
     }
 
     if (!bcrypt.compareSync(password, user.password)) {
-      res.status(401).send({ message: 'Invalid email or password' });
+      res.status(401).send({ message: "Invalid email or password" });
       return;
     }
 
@@ -144,18 +151,19 @@ userRouter.post(
 );
 
 userRouter.post(
-  '/auth/google',
+  "/auth/google",
   expressAsyncHandler(async (req, res) => {
     const { credential } = req.body;
 
     if (!credential) {
-      res.status(400).send({ message: 'Google credential is required' });
+      res.status(400).send({ message: "Google credential is required" });
       return;
     }
 
     if (!googleClient) {
       res.status(503).send({
-        message: 'Google sign-in is not configured. Set GOOGLE_CLIENT_ID in backend/.env',
+        message:
+          "Google sign-in is not configured. Set GOOGLE_CLIENT_ID in backend/.env",
       });
       return;
     }
@@ -168,21 +176,21 @@ userRouter.post(
       });
       payload = ticket.getPayload();
     } catch {
-      res.status(401).send({ message: 'Invalid Google sign-in token' });
+      res.status(401).send({ message: "Invalid Google sign-in token" });
       return;
     }
 
     const googleId = payload.sub;
     const email = payload.email?.toLowerCase().trim();
-    const name = payload.name?.trim() || email?.split('@')[0] || 'Customer';
+    const name = payload.name?.trim() || email?.split("@")[0] || "Customer";
 
     if (!googleId || !email) {
-      res.status(400).send({ message: 'Google account email is required' });
+      res.status(400).send({ message: "Google account email is required" });
       return;
     }
 
     if (payload.email_verified === false) {
-      res.status(401).send({ message: 'Google email is not verified' });
+      res.status(401).send({ message: "Google email is not verified" });
       return;
     }
 
@@ -193,15 +201,15 @@ userRouter.post(
     }
 
     if (user) {
-      if (user.role !== 'customer') {
+      if (user.role !== "customer") {
         res.status(403).send({
-          message: 'Google sign-in is available for customer accounts only',
+          message: "Google sign-in is available for customer accounts only",
         });
         return;
       }
 
       if (user.isActive === false) {
-        res.status(403).send({ message: 'Account is deactivated' });
+        res.status(403).send({ message: "Account is deactivated" });
         return;
       }
 
@@ -209,10 +217,10 @@ userRouter.post(
         user.googleId = googleId;
       }
 
-      if (user.authProvider === 'local' && user.password) {
-        user.authProvider = 'local';
+      if (user.authProvider === "local" && user.password) {
+        user.authProvider = "local";
       } else {
-        user.authProvider = 'google';
+        user.authProvider = "google";
       }
 
       if (!user.name && name) {
@@ -225,8 +233,8 @@ userRouter.post(
         name,
         email,
         googleId,
-        authProvider: 'google',
-        role: 'customer',
+        authProvider: "google",
+        role: "customer",
       });
       await user.save();
 
@@ -238,25 +246,25 @@ userRouter.post(
     }
 
     sendUserResponse(res, user);
-  })
+  }),
 );
 
 userRouter.post(
-  '/forgot-password',
+  "/forgot-password",
   expressAsyncHandler(async (req, res) => {
     const { email } = req.body;
     const genericMessage =
-      'If an account exists with that email, a reset link has been sent.';
+      "If an account exists with that email, a reset link has been sent.";
 
     if (!email?.trim()) {
-      res.status(400).send({ message: 'Email is required' });
+      res.status(400).send({ message: "Email is required" });
       return;
     }
 
     if (!isEmailConfigured()) {
       res.status(503).send({
         message:
-          'Password reset email is not configured. Set SMTP_USER and SMTP_PASS in backend/.env',
+          "Password reset email is not configured. Set SMTP_USER and SMTP_PASS in backend/.env",
       });
       return;
     }
@@ -266,11 +274,11 @@ userRouter.post(
 
     if (
       user &&
-      user.role === 'customer' &&
+      user.role === "customer" &&
       user.password &&
       user.isActive !== false
     ) {
-      const rawToken = crypto.randomBytes(32).toString('hex');
+      const rawToken = crypto.randomBytes(32).toString("hex");
       user.resetPasswordToken = hashResetToken(rawToken);
       user.resetPasswordExpires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
       await user.save({ validateBeforeSave: false });
@@ -283,23 +291,25 @@ userRouter.post(
         user.resetPasswordToken = undefined;
         user.resetPasswordExpires = undefined;
         await user.save({ validateBeforeSave: false });
-        console.error('Failed to send password reset email:', error);
-        res.status(500).send({ message: 'Failed to send reset email. Try again later.' });
+        console.error("Failed to send password reset email:", error);
+        res
+          .status(500)
+          .send({ message: "Failed to send reset email. Try again later." });
         return;
       }
     }
 
     res.send({ message: genericMessage });
-  })
+  }),
 );
 
 userRouter.post(
-  '/reset-password',
+  "/reset-password",
   expressAsyncHandler(async (req, res) => {
     const { token, password } = req.body;
 
     if (!token || !password) {
-      res.status(400).send({ message: 'Token and new password are required' });
+      res.status(400).send({ message: "Token and new password are required" });
       return;
     }
 
@@ -314,7 +324,7 @@ userRouter.post(
     });
 
     if (!user) {
-      res.status(400).send({ message: 'Reset link is invalid or has expired' });
+      res.status(400).send({ message: "Reset link is invalid or has expired" });
       return;
     }
 
@@ -324,11 +334,11 @@ userRouter.post(
 
     await user.save();
     sendUserResponse(res, user);
-  })
+  }),
 );
 
 userRouter.post(
-  '/signup/tailor',
+  "/signup/tailor",
   expressAsyncHandler(async (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) {
@@ -345,7 +355,7 @@ userRouter.post(
     const normalizedEmail = email.toLowerCase().trim();
     const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
-      res.status(400).send({ message: 'User already exists' });
+      res.status(400).send({ message: "User already exists" });
       return;
     }
 
@@ -353,22 +363,24 @@ userRouter.post(
       name: name.trim(),
       email: normalizedEmail,
       password: bcrypt.hashSync(password, BCRYPT_ROUNDS),
-      role: 'tailor',
-      approvalStatus: 'pending',
-      authProvider: 'local',
+      role: "tailor",
+      approvalStatus: "pending",
+      authProvider: "local",
     });
 
     const createdUser = await user.save();
     sendUserResponse(res, createdUser);
-  })
+  }),
 );
 
 userRouter.post(
-  '/signup/fabricStore',
+  "/signup/fabricStore",
   expressAsyncHandler(async (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) {
-      res.status(400).send({ message: 'Name, email, and password are required' });
+      res
+        .status(400)
+        .send({ message: "Name, email, and password are required" });
       return;
     }
 
@@ -383,9 +395,9 @@ userRouter.post(
       name: name.trim(),
       email: normalizedEmail,
       password: bcrypt.hashSync(password, BCRYPT_ROUNDS),
-      role: 'fabric_store',
-      approvalStatus: 'pending',
-      authProvider: 'local',
+      role: "fabric_store",
+      approvalStatus: "pending",
+      authProvider: "local",
     });
 
     const createdUser = await user.save();
@@ -408,12 +420,31 @@ userRouter.post(
       return;
     }
 
+    // Remove spaces and validate
     const phoneTrimmed = phone.trim();
-    if (!/^\d{9}$/.test(phoneTrimmed)) {
-      res
-        .status(400)
-        .send({ message: "Contact number must be exactly 9 digits" });
-      return;
+
+    // Check if it already has +971
+    let fullPhone;
+    if (phoneTrimmed.startsWith("+971")) {
+      // Already has +971, validate it
+      if (!/^\+971\d{9}$/.test(phoneTrimmed)) {
+        res.status(400).send({
+          message:
+            "Invalid UAE phone number format. Must be +971 followed by 9 digits",
+        });
+        return;
+      }
+      fullPhone = phoneTrimmed;
+    } else {
+      // Add +971 if missing
+      const digits = phoneTrimmed.replace(/\D/g, "");
+      if (!/^\d{9}$/.test(digits)) {
+        res.status(400).send({
+          message: "Contact number must be exactly 9 digits",
+        });
+        return;
+      }
+      fullPhone = `+971${digits}`;
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -428,8 +459,8 @@ userRouter.post(
       email: normalizedEmail,
       password: bcrypt.hashSync(password, BCRYPT_ROUNDS),
       role: "customer",
-      phone: phone.trim(),
-      authProvider: 'local',
+      phone: fullPhone, // Store as +971501234567
+      authProvider: "local",
     });
 
     const createdUser = await user.save();
@@ -437,7 +468,7 @@ userRouter.post(
     const customer = new Customer({
       userId: createdUser._id,
       name: createdUser.name,
-      phone: phone.trim(),
+      phone: fullPhone, // Store as +971501234567
     });
     await customer.save();
 
@@ -464,17 +495,17 @@ userRouter.put(
 
     const updatedUser = await user.save();
     sendUserResponse(res, updatedUser);
-  })
+  }),
 );
 
 userRouter.put(
-  '/change-password',
+  "/change-password",
   isAuth,
   expressAsyncHandler(async (req, res) => {
     const { currentPassword, password } = req.body;
 
     if (!password) {
-      res.status(400).send({ message: 'New password is required' });
+      res.status(400).send({ message: "New password is required" });
       return;
     }
 
@@ -484,25 +515,25 @@ userRouter.put(
 
     const user = await User.findById(req.user._id);
     if (!user) {
-      res.status(404).send({ message: 'User not found' });
+      res.status(404).send({ message: "User not found" });
       return;
     }
 
     if (user.password) {
       if (!currentPassword) {
-        res.status(400).send({ message: 'Current password is required' });
+        res.status(400).send({ message: "Current password is required" });
         return;
       }
       if (!bcrypt.compareSync(currentPassword, user.password)) {
-        res.status(401).send({ message: 'Current password is incorrect' });
+        res.status(401).send({ message: "Current password is incorrect" });
         return;
       }
     }
 
     user.password = bcrypt.hashSync(password, BCRYPT_ROUNDS);
-    user.authProvider = user.googleId ? user.authProvider : 'local';
+    user.authProvider = user.googleId ? user.authProvider : "local";
     if (!user.googleId) {
-      user.authProvider = 'local';
+      user.authProvider = "local";
     }
 
     const updatedUser = await user.save();
@@ -511,16 +542,21 @@ userRouter.put(
 );
 
 userRouter.post(
-  '/contact',
+  "/contact",
   expressAsyncHandler(async (req, res) => {
     const { name, email, subject, message } = req.body;
-    if (!name?.trim() || !email?.trim() || !subject?.trim() || !message?.trim()) {
-      return res.status(400).send({ message: 'All fields are required' });
+    if (
+      !name?.trim() ||
+      !email?.trim() ||
+      !subject?.trim() ||
+      !message?.trim()
+    ) {
+      return res.status(400).send({ message: "All fields are required" });
     }
 
     await sendContactMessageEmail({ name, email, subject, message });
-    res.send({ success: true, message: 'Message sent successfully' });
-  })
+    res.send({ success: true, message: "Message sent successfully" });
+  }),
 );
 
 export default userRouter;

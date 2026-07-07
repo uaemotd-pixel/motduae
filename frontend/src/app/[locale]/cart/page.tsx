@@ -7,19 +7,38 @@ import MainLayout from "../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 import { useCart } from "@/context/CartContext";
 import { resolveMediaUrl } from "@/lib/media";
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api/client";
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, clearCart } = useCart();
   const params = useParams();
   const router = useRouter();
   const locale = params.locale as string;
+  const [vatRate, setVatRate] = useState(0);
+
+  // Fetch VAT rate from platform settings
+  useEffect(() => {
+    async function fetchVatRate() {
+      try {
+        const data = await api.get("/api/orders/settings");
+        if (data?.vatRate !== undefined && data?.vatRate !== null) {
+          const rate = data.vatRate > 1 ? data.vatRate / 100 : data.vatRate;
+          setVatRate(rate);
+        }
+      } catch (error) {
+        console.error("Failed to fetch VAT rate:", error);
+      }
+    }
+    fetchVatRate();
+  }, []);
 
   // Calculate totals
   const subtotal = items.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0,
   );
-  const vat = subtotal * 0.05;
+  const vat = subtotal * vatRate;
   const total = subtotal + vat;
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -206,7 +225,7 @@ export default function CartPage() {
                     </div>
                     <div className="flex justify-between [font-family:var(--font-ui)] text-[13px] xs:text-[14px]">
                       <span className="text-(--color-grey-muted)">
-                        VAT (5%)
+                        VAT ({(vatRate * 100).toFixed(0)}%)
                       </span>
                       <span className="text-black">AED {vat.toFixed(2)}</span>
                     </div>

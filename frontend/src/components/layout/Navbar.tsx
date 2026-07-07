@@ -29,19 +29,6 @@ const MOBILE_NAV_LINKS = [
 ] as const;
 
 // SVG Icons (unchanged)
-const SearchIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" />
-  </svg>
-);
 
 const WishlistIcon = ({ className }: { className?: string }) => (
   <svg
@@ -241,14 +228,6 @@ export function Navbar() {
         {/* RIGHT ICONS */}
         <div className="flex items-center gap-1 xs:gap-1.5 sm:gap-2 md:gap-2 lg:gap-3 xl:gap-3 2xl:gap-4">
           <LocaleSwitcher />
-          {/* Search Icon */}
-          <button
-            type="button"
-            className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center"
-            aria-label={t.navbar.actions.search}
-          >
-            <SearchIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
-          </button>
 
           {/* Wishlist Icon */}
           <Link
@@ -353,19 +332,7 @@ export function Navbar() {
           </ul>
 
           {/* Mobile bottom icons grid */}
-          <div className="grid grid-cols-4 gap-2 border-t border-(--color-border) pt-4 xs:pt-5">
-            <button
-              type="button"
-              className="flex flex-col items-center gap-1 group hover:opacity-50 transition"
-              aria-label={t.navbar.actions.search}
-              onClick={closeMenu}
-            >
-              <SearchIcon className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5" />
-              <span className={bottomLabelClass}>
-                {t.navbar.actions.search}
-              </span>
-            </button>
-
+          <div className="grid grid-cols-3 gap-2 border-t border-(--color-border) pt-4 xs:pt-5">
             {accountHref ? (
               <Link
                 href={accountHref}
