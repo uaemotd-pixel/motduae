@@ -209,9 +209,6 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
     if (number.startsWith("971")) {
       number = number.slice(3);
     }
-    if (!/^5\d{8}$/.test(number)) {
-      return phone;
-    }
     return `+971 ${number.slice(0, 2)} ${number.slice(2, 5)} ${number.slice(5)}`;
   };
 

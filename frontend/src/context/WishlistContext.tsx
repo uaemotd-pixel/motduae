@@ -9,6 +9,7 @@ export type WishlistItem = {
   name: string;
   image: string;
   price: number;
+  size: string;
   quantity: number;
   maxStock?: number;
 };
@@ -20,7 +21,9 @@ type WishlistContextType = {
   ) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
-  toggleItem?: (item: Omit<WishlistItem, "quantity"> & { maxStock?: number }) => void;
+  toggleItem?: (
+    item: Omit<WishlistItem, "quantity"> & { maxStock?: number },
+  ) => void;
   clearWishlist: () => void;
   totalItems: number;
   isInWishlist: (id: string) => boolean;
@@ -38,7 +41,9 @@ function normalizeStoredItems(stored: unknown): WishlistItem[] {
     .map((item) => {
       const rawMax = item.maxStock;
       const parsed = Number(rawMax);
-      const maxStock = Number.isFinite(parsed) ? Math.max(0, parsed) : undefined;
+      const maxStock = Number.isFinite(parsed)
+        ? Math.max(0, parsed)
+        : undefined;
 
       return {
         id: item.id,
@@ -93,7 +98,10 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       const existing = prev.find((p) => p.id === item.id);
       if (existing) {
         // if maxStock is undefined -> treat as unlimited
-        if (existing.maxStock == null || existing.quantity < existing.maxStock) {
+        if (
+          existing.maxStock == null ||
+          existing.quantity < existing.maxStock
+        ) {
           setTimeout(
             () =>
               showToast(
@@ -115,13 +123,20 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       setTimeout(() => showToast(`${item.name} added to wishlist`), 0);
       // only include maxStock when it's a finite number
       const parsed = Number(item.maxStock);
-      const maxStock = Number.isFinite(parsed) ? Math.max(0, parsed) : undefined;
-      return [...prev, { ...item, quantity: 1, ...(maxStock != null ? { maxStock } : {}) }];
+      const maxStock = Number.isFinite(parsed)
+        ? Math.max(0, parsed)
+        : undefined;
+      return [
+        ...prev,
+        { ...item, quantity: 1, ...(maxStock != null ? { maxStock } : {}) },
+      ];
     });
   };
 
   // Toggle: add if not present, remove if present
-  const toggleItem = (item: Omit<WishlistItem, "quantity"> & { maxStock?: number }) => {
+  const toggleItem = (
+    item: Omit<WishlistItem, "quantity"> & { maxStock?: number },
+  ) => {
     const exists = items.some((i) => i.id === item.id);
     if (exists) removeItem(item.id);
     else addItem(item);

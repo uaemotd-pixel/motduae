@@ -160,10 +160,19 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
         customer.defaultAddressId = customer.addresses[0]._id;
       }
       await customer.save();
+
+      // Update User if customer created
+      if (name || phone) {
+        await User.findByIdAndUpdate(userId, {
+          name: name?.trim() || req.user.name,
+          phone: phone?.trim() || undefined,
+        });
+      }
+
       return res.status(201).json(customer);
     }
 
-    // Update top-level fields
+    // Update customer fields
     if (name !== undefined) customer.name = name.trim();
     if (phone !== undefined) customer.phone = phone?.trim() || undefined;
     if (gender !== undefined) customer.gender = gender;
@@ -171,12 +180,11 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
     if (profilePic !== undefined)
       customer.profilePic = profilePic?.trim() || undefined;
 
-    // Update default address (find or push)
+    // Update address
     if (address) {
       const defaultAddr =
         customer.addresses.find((a) => a.isDefault) || customer.addresses[0];
       if (defaultAddr) {
-        // update existing
         if (address.label) defaultAddr.label = address.label;
         if (address.fullName) defaultAddr.fullName = address.fullName;
         if (address.phone) defaultAddr.phone = address.phone;
@@ -189,7 +197,6 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
         if (address.unit) defaultAddr.unit = address.unit;
         if (address.postalCode) defaultAddr.postalCode = address.postalCode;
       } else {
-        // no address exists – create new
         customer.addresses.push({
           ...address,
           isDefault: true,
@@ -203,6 +210,16 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
     }
 
     await customer.save();
+
+    // ✅ Update User collection - FIXED
+    if (name !== undefined || phone !== undefined) {
+      const updateData = {};
+      if (name !== undefined) updateData.name = name.trim();
+      if (phone !== undefined) updateData.phone = phone?.trim() || undefined;
+
+      await User.findByIdAndUpdate(userId, updateData);
+    }
+
     res.json(customer);
   } catch (err) {
     if (err.code === 11000) {
@@ -231,14 +248,7 @@ customerRouter.get("/family-members", isAuth, async (req, res) => {
 // ─── POST /family-members ─────────────────────────────────────────────
 customerRouter.post("/family-members", isAuth, async (req, res) => {
   const userId = req.user._id;
-  const {
-    name,
-    phone,
-    email,
-    relationship,
-    address,
-    measurements,
-  } = req.body;
+  const { name, phone, email, relationship, address, measurements } = req.body;
 
   if (!name?.trim() || !phone?.trim()) {
     return res.status(400).json({ error: "Name and phone are required" });
@@ -284,14 +294,7 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
 customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
   const userId = req.user._id;
   const memberId = req.params.id;
-  const {
-    name,
-    phone,
-    email,
-    relationship,
-    address,
-    measurements,
-  } = req.body;
+  const { name, phone, email, relationship, address, measurements } = req.body;
 
   if (!name?.trim() || !phone?.trim()) {
     return res.status(400).json({ error: "Name and phone are required" });

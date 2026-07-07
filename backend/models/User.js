@@ -27,7 +27,12 @@ const userSchema = new mongoose.Schema(
     },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
-    phone: { type: String, trim: true },
+    phone: {
+      type: String,
+      required: true,
+      trim: true,
+      match: [/^\+971\d{9}$/, "Phone must be +971 followed by 9 digits"],
+    },
     role: {
       type: String,
       enum: ROLES,
@@ -38,7 +43,9 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: APPROVAL_STATUSES,
       default: function defaultApprovalStatus() {
-        return (this.role === "tailor" || this.role === "fabric_store") ? "pending" : "approved";
+        return this.role === "tailor" || this.role === "fabric_store"
+          ? "pending"
+          : "approved";
       },
       required: true,
     },

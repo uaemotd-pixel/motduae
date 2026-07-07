@@ -1,32 +1,99 @@
 "use client";
 
-import { Link } from "@/i18n/navigation";
+import { useState, useEffect } from "react";
+import { Link, useRouter } from "@/i18n/navigation";
+import { useParams } from "next/navigation";
 import { Heart, Trash2, Plus, Minus, ArrowLeft } from "lucide-react";
 import MainLayout from "../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 import { useWishlist } from "@/context/WishlistContext";
+import { api } from "@/lib/api/client";
+import { resolveMediaUrl } from "@/lib/media";
 
 export default function WishlistPage() {
+  const router = useRouter();
+  const params = useParams();
+  const locale = params.locale as string;
   const { wishItems, removeItem, clearWishlist, updateQuantity } =
     useWishlist();
+  const [vatRate, setVatRate] = useState(0);
 
-  // Buy Now (single item)
+  // Fetch VAT rate from platform settings
+  useEffect(() => {
+    async function fetchVatRate() {
+      try {
+        const data = await api.get("/api/orders/settings");
+        if (data?.vatRate !== undefined && data?.vatRate !== null) {
+          const rate = data.vatRate > 1 ? data.vatRate / 100 : data.vatRate;
+          setVatRate(rate);
+        }
+      } catch (error) {
+        console.error("Failed to fetch VAT rate:", error);
+      }
+    }
+    fetchVatRate();
+  }, []);
+
+  // Buy Now (single item) - follow cart pattern
   const handleBuyNow = (item: any) => {
-    console.log("Buy Now button is clicked");
+    // Convert wishlist item to cart item format
+    const params = new URLSearchParams({
+      buyNow: "true",
+      productId: item.id,
+      slug: item.slug || "",
+      name: item.name,
+      image: item.image || "",
+      price: String(item.price),
+      size: item.size || "Standard",
+      quantity: String(item.quantity || 1),
+      maxStock: String(item.maxStock || 0),
+      fromWishlist: "true",
+    });
+
+    // Navigate to checkout
+    router.push(`/checkout?${params.toString()}`);
   };
 
-  // Buy All
+  // In WishlistPage - handleBuyAll
   const handleBuyAll = () => {
-    console.log("Buy All Clicked");
+    const firstItem = wishItems[0];
+
+    // Build URL params for first item
+    const params = new URLSearchParams({
+      buyNow: "true",
+      productId: firstItem.id,
+      slug: firstItem.slug || "",
+      name: firstItem.name,
+      image: firstItem.image || "",
+      price: String(firstItem.price),
+      size: firstItem.size || "Standard",
+      quantity: String(firstItem.quantity || 1),
+      maxStock: String(firstItem.maxStock || 0),
+      fromWishlistAll: "true", // This flag tells checkout to read sessionStorage
+    });
+
+    // Store all items in sessionStorage
+    const allItems = wishItems.map((item) => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      image: item.image,
+      size: item.size || "Standard",
+      maxStock: item.maxStock,
+    }));
+    sessionStorage.setItem("checkoutItems", JSON.stringify(allItems));
+
+    router.push(`/checkout?${params.toString()}`);
   };
 
-  // Totals – now using item.quantity directly
+  // Totals
   const totalItems = wishItems.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = wishItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0,
   );
-  const vat = subtotal * 0.05;
+  const vat = subtotal * vatRate;
   const total = subtotal + vat;
 
   // Empty state
@@ -87,91 +154,89 @@ export default function WishlistPage() {
               {/* Items list */}
               <div className="lg:col-span-2 space-y-4">
                 <div className="bg-(--bg-page) border border-(--color-border) rounded-lg overflow-hidden divide-y divide-(--color-border)">
-                  {wishItems.map((item) => {
-                    // Use item.quantity directly
-                    return (
-                      <div
-                        key={`${item.id}`} // use type to avoid duplicate keys
-                        className="p-4 xs:p-5 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6"
-                      >
-                        {/* Image */}
-                        <div className="w-full sm:w-28 h-28 bg-[#F5F5F0] rounded-md overflow-hidden shrink-0">
-                          <img
-                            src={item.image || "/placeholder.png"}
-                            alt={item.name}
-                            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                          />
-                        </div>
+                  {wishItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-4 xs:p-5 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6"
+                    >
+                      {/* Image */}
+                      <div className="w-full sm:w-28 h-28 bg-[#F5F5F0] rounded-md overflow-hidden shrink-0">
+                        <img
+                          src={
+                            resolveMediaUrl(item.image) || "/placeholder.png"
+                          }
+                          alt={item.name}
+                          className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                        />
+                      </div>
 
-                        {/* Details */}
-                        <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                          <div className="space-y-1">
-                            <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] font-normal text-black">
-                              {item.name}
-                            </h3>
-                            <p className="[font-family:var(--font-ui)] text-[14px] xs:text-[16px] font-medium text-black">
-                              AED {item.price.toFixed(2)}
-                            </p>
-                          </div>
-
-                          {/* Quantity & Actions */}
-                          <div className="flex flex-wrap items-center gap-3">
-                            {/* Quantity selector */}
-                            <div className="flex items-center border border-(--color-border) rounded-md">
-                              <button
-                                onClick={() => {
-                                  if (item.quantity > 1)
-                                    updateQuantity(item.id, item.quantity - 1);
-                                }}
-                                disabled={item.quantity <= 1}
-                                className="px-2 py-1.5 disabled:opacity-40 hover:bg-black/5 transition hover:cursor-pointer"
-                              >
-                                <Minus size={14} />
-                              </button>
-                              <span className="w-8 text-center font-ui text-sm">
-                                {item.quantity}
-                              </span>
-                              <button
-                                onClick={() =>
-                                  updateQuantity(item.id, item.quantity + 1)
-                                }
-                                // only disable when maxStock is known and reached
-                                disabled={
-                                  item.maxStock != null &&
-                                  item.quantity >= item.maxStock
-                                }
-                                className="px-2 py-1.5 disabled:opacity-40 hover:bg-black/5 transition hover:cursor-pointer"
-                              >
-                                <Plus size={14} />
-                              </button>
-                            </div>
-
-                            {/* Buy Now */}
-                            <button
-                              onClick={() => handleBuyNow(item)}
-                              className="px-3 py-1.5 bg-black text-white text-[10px] uppercase tracking-[0.24em] hover:bg-gray-800 transition hover:cursor-pointer"
-                            >
-                              Buy Now
-                            </button>
-                            <button
-                              onClick={() => removeItem(item.id)}
-                              className="text-(--color-grey-muted) hover:text-red-600 transition hover:cursor-pointer"
-                              aria-label="Remove from wishlist"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Item total (desktop) */}
-                        <div className="hidden sm:block text-right min-w-20">
+                      {/* Details */}
+                      <div className="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="space-y-1">
+                          <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] font-normal text-black">
+                            {item.name}
+                          </h3>
                           <p className="[font-family:var(--font-ui)] text-[14px] xs:text-[16px] font-medium text-black">
-                            AED {(item.price * item.quantity).toFixed(2)}
+                            AED {item.price.toFixed(2)}
                           </p>
                         </div>
+
+                        {/* Quantity & Actions */}
+                        <div className="flex flex-wrap items-center gap-3">
+                          {/* Quantity selector */}
+                          <div className="flex items-center border border-(--color-border) rounded-md">
+                            <button
+                              onClick={() => {
+                                if (item.quantity > 1)
+                                  updateQuantity(item.id, item.quantity - 1);
+                              }}
+                              disabled={item.quantity <= 1}
+                              className="px-2 py-1.5 disabled:opacity-40 hover:bg-black/5 transition hover:cursor-pointer"
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="w-8 text-center font-ui text-sm">
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() =>
+                                updateQuantity(item.id, item.quantity + 1)
+                              }
+                              disabled={
+                                item.maxStock != null &&
+                                item.quantity >= item.maxStock
+                              }
+                              className="px-2 py-1.5 disabled:opacity-40 hover:bg-black/5 transition hover:cursor-pointer"
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+
+                          {/* Buy Now */}
+                          <button
+                            onClick={() => handleBuyNow(item)}
+                            className="px-3 py-1.5 bg-black text-white text-[10px] uppercase tracking-[0.24em] hover:bg-gray-800 transition hover:cursor-pointer"
+                          >
+                            Buy Now
+                          </button>
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="text-(--color-grey-muted) hover:text-red-600 transition hover:cursor-pointer"
+                            aria-label="Remove from wishlist"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       </div>
-                    );
-                  })}
+
+                      {/* Item total (desktop) */}
+                      <div className="hidden sm:block text-right min-w-20">
+                        <p className="[font-family:var(--font-ui)] text-[14px] xs:text-[16px] font-medium text-black">
+                          AED {(item.price * item.quantity).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 <button
@@ -199,7 +264,7 @@ export default function WishlistPage() {
                     </div>
                     <div className="flex justify-between [font-family:var(--font-ui)] text-[13px] xs:text-[14px]">
                       <span className="text-(--color-grey-muted)">
-                        VAT (5%)
+                        VAT ({(vatRate * 100).toFixed(0)}%)
                       </span>
                       <span className="text-black">AED {vat.toFixed(2)}</span>
                     </div>

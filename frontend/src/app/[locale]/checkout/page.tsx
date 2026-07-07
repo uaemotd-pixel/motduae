@@ -14,6 +14,7 @@ import SuccessModal from "@/components/shared/SuccessModal";
 import { api } from "@/lib/api/client";
 import type { ApiError } from "@/lib/api/client";
 import type { CartItem } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 import { resolveMediaUrl } from "@/lib/media";
 import ApplePayCheckout from "@/components/payments/ApplePayCheckout";
 
@@ -76,20 +77,72 @@ function CheckoutPageContent() {
   const t = getTranslation(localeParams);
   const locale = useLocale();
   const initialFillDone = useRef<boolean>(false);
+  const checkoutItemsRef = useRef<CartItem[] | null>(null);
+  const fromWishlistAllRef = useRef<boolean>(false);
+  const [vatRate, setVatRate] = useState(0);
 
   const { items, clearCart } = useCart();
   const { user, isLoading, isAuthenticated } = useAuth();
+  const { clearWishlist, removeItem: removeWishlistItem } = useWishlist();
+  const fromWishlist = searchParams.get("fromWishlist") === "true";
+
+  // Fetch VAT rate from platform settings
+  useEffect(() => {
+    async function fetchVatRate() {
+      try {
+        const data = await api.get("/api/orders/settings");
+        if (data?.vatRate !== undefined && data?.vatRate !== null) {
+          const rate = data.vatRate > 1 ? data.vatRate / 100 : data.vatRate;
+          setVatRate(rate);
+        }
+      } catch (error) {
+        console.error("Failed to fetch VAT rate:", error);
+      }
+    }
+    fetchVatRate();
+  }, []);
 
   // --- Buy Now state ---
   const [buyNowState, setBuyNowState] = useState<{
     isBuyNow: boolean;
     item: CartItem | null;
+    items: CartItem[] | null;
   } | null>(null);
 
   useEffect(() => {
     const isBuyNow = searchParams.get("buyNow") === "true";
+    const fromWishlistAll = searchParams.get("fromWishlistAll") === "true";
+    fromWishlistAllRef.current = fromWishlistAll;
+
     let item: CartItem | null = null;
-    if (isBuyNow) {
+    let itemsArray: CartItem[] | null = null;
+
+    if (isBuyNow && fromWishlistAll) {
+      if (!checkoutItemsRef.current) {
+        const stored = sessionStorage.getItem("checkoutItems");
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+              checkoutItemsRef.current = parsed;
+            }
+          } catch (error) {
+            console.error("Failed to parse wishlist items:", error);
+            checkoutItemsRef.current = null;
+          }
+        }
+      }
+
+      if (checkoutItemsRef.current && checkoutItemsRef.current.length > 0) {
+        itemsArray = checkoutItemsRef.current;
+        item = itemsArray[0];
+      }
+    }
+
+    if (
+      isBuyNow &&
+      (!fromWishlistAll || !itemsArray || itemsArray.length === 0)
+    ) {
       item = {
         id: searchParams.get("productId") || "",
         slug: searchParams.get("slug") || "",
@@ -100,14 +153,38 @@ function CheckoutPageContent() {
         quantity: parseInt(searchParams.get("quantity") || "2"),
         maxStock: parseInt(searchParams.get("maxStock") || "0"),
       };
+      itemsArray = null;
     }
-    setBuyNowState({ isBuyNow, item });
+
+    setBuyNowState({ isBuyNow, item, items: itemsArray });
   }, [searchParams]);
+
+  useEffect(() => {
+    if (
+      buyNowState?.isBuyNow &&
+      buyNowState.items &&
+      buyNowState.items.length > 0
+    ) {
+      sessionStorage.removeItem("checkoutItems");
+    }
+  }, [buyNowState]);
 
   const isBuyNow = buyNowState?.isBuyNow ?? false;
   const buyNowItem = buyNowState?.item ?? null;
-  const displayItems = isBuyNow && buyNowItem ? [buyNowItem] : items;
-  const shouldClearCart = !isBuyNow;
+  const buyNowItems = buyNowState?.items ?? null;
+
+  // Determine display items: multiple wishlist items > single buyNow > cart
+  const getDisplayItems = (): CartItem[] => {
+    if (isBuyNow && buyNowItems && buyNowItems.length > 0) {
+      return buyNowItems;
+    }
+    if (isBuyNow && buyNowItem) {
+      return [buyNowItem];
+    }
+    return items;
+  };
+
+  const displayItems = getDisplayItems();
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -133,9 +210,11 @@ function CheckoutPageContent() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"cod" | "apple_pay">("cod");
+  const [paymentMethod, setPaymentMethod] = useState<"cod" | "apple_pay">(
+    "cod",
+  );
 
-  // Redirect if not logged in — preserve query params (e.g. buyNow) so checkout state survives login
+  // Redirect if not logged in — preserve query params
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       const query = searchParams.toString();
@@ -143,7 +222,7 @@ function CheckoutPageContent() {
         ? `/${locale}/checkout?${query}`
         : `/${locale}/checkout`;
       const redirect = encodeURIComponent(checkoutPath);
-      router.push(`/${locale}/auth/login?redirect=${redirect}`);
+      router.push(`/auth/login?redirect=${redirect}`);
     }
   }, [isLoading, isAuthenticated, router, locale, searchParams]);
 
@@ -155,7 +234,6 @@ function CheckoutPageContent() {
         setProfileLoading(true);
         const data = await api.get<CustomerProfile>("/api/customer/profile");
         setCustomerProfile(data);
-        // Auto-fill form from default address (or first) and top-level fields
         const defaultAddr =
           data.addresses?.find((a) => a.isDefault) || data.addresses?.[0];
         if (defaultAddr) {
@@ -168,7 +246,6 @@ function CheckoutPageContent() {
             street: defaultAddr.street || "",
           }));
         } else {
-          // No address: at least fill name and phone from top-level
           setFormData((prev) => ({
             ...prev,
             fullName: data.name || prev.fullName,
@@ -178,7 +255,6 @@ function CheckoutPageContent() {
         initialFillDone.current = true;
       } catch (err: any) {
         if (err.status === 404) {
-          // No profile – use user name fallback later
           console.log("No customer profile found.");
         } else {
           console.error("Failed to fetch customer profile:", err);
@@ -231,7 +307,7 @@ function CheckoutPageContent() {
     (sum, i) => sum + i.price * i.quantity,
     0,
   );
-  const vat = subtotal * 0.05;
+  const vat = subtotal * vatRate;
   const total = subtotal + vat;
 
   const handleChange = (
@@ -288,6 +364,21 @@ function CheckoutPageContent() {
     };
   };
 
+  const clearCompletedCheckoutItems = () => {
+    if (!isBuyNow) {
+      clearCart();
+    }
+
+    if (fromWishlistAllRef.current) {
+      clearWishlist();
+      return;
+    }
+
+    if (fromWishlist && buyNowItem?.id) {
+      removeWishlistItem(buyNowItem.id);
+    }
+  };
+
   const createRetailPaymentIntent = async () => {
     if (!validateForm()) {
       throw new Error("Please complete all required delivery fields.");
@@ -331,9 +422,8 @@ function CheckoutPageContent() {
         setLastOrderId(response.orderId);
         setLastOrderItems(displayItems.map((item) => ({ name: item.name })));
         setShowSuccessModal(true);
-        if (!isBuyNow) {
-          clearCart();
-        }
+
+        clearCompletedCheckoutItems();
       } else {
         throw new Error(response.message || "Order failed");
       }
@@ -376,9 +466,8 @@ function CheckoutPageContent() {
         setLastOrderId(response.orderId);
         setLastOrderItems(displayItems.map((item) => ({ name: item.name })));
         setShowSuccessModal(true);
-        if (!isBuyNow) {
-          clearCart();
-        }
+
+        clearCompletedCheckoutItems();
       } else {
         throw new Error(response.message || "Order failed");
       }
@@ -408,8 +497,11 @@ function CheckoutPageContent() {
                 <div className="md:sticky md:top-24">
                   <div className="bg-white border border-(--color-border) rounded-lg p-6 md:p-8">
                     <ul className="space-y-6">
-                      {displayItems.map((item) => (
-                        <li key={item.id} className="flex items-start gap-4">
+                      {displayItems.map((item, index) => (
+                        <li
+                          key={item.id || index}
+                          className="flex items-start gap-4"
+                        >
                           <div className="w-20 h-20 shrink-0 bg-[#F5F5F0] rounded-md overflow-hidden">
                             <img
                               src={resolveMediaUrl(item.image)}
@@ -453,7 +545,7 @@ function CheckoutPageContent() {
                           </span>
                         </li>
                         <li className="flex flex-wrap gap-4">
-                          {t.checkout.vat}
+                          {t.checkout.vat} ({(vatRate * 100).toFixed(0)}%)
                           <span className="ml-auto text-black">
                             AED {vat.toFixed(2)}
                           </span>
@@ -642,7 +734,9 @@ function CheckoutPageContent() {
                       disabled={isSubmitting || displayItems.length === 0}
                       className="w-full h-12 bg-black text-white [font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.24em] hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isSubmitting ? t.checkout.processing : t.checkout.placeOrder}
+                      {isSubmitting
+                        ? t.checkout.processing
+                        : t.checkout.placeOrder}
                     </button>
                   ) : (
                     <ApplePayCheckout
