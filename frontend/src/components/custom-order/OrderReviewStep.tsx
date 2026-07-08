@@ -76,7 +76,6 @@ export default function OrderReviewStep() {
   useEffect(() => {
     if (!isHydrated) return;
     if (!previewPayload) {
-      // Make the UI state explicit so we don't appear as if pricing is “missing”.
       setPricing(null);
       setPricingError(null);
       return;
@@ -114,7 +113,7 @@ export default function OrderReviewStep() {
     };
 
     fetchPreview();
-  }, [isHydrated, previewPayload, deliveryType, t]);
+  }, [isHydrated, previewPayload, deliveryType, t, shippingFee, vatRate]);
 
   const canContinue = isReviewStepComplete(draft, pricing !== null);
 
@@ -130,16 +129,31 @@ export default function OrderReviewStep() {
     router.push("/custom-order/checkout");
   };
 
-  const convertMetersToWara = (meters: number): number => {
-    return Math.round((meters / WARA_TO_METERS) * 10000) / 10000;
-  };
-
-  const formatFabricAmount = (meters: number, unit: FabricUnit): string => {
-    if (unit === "wara") {
-      return `${meters.toFixed(2)} wara`;
+  const invalidPreviewReason = useMemo(() => {
+    if (!draft.lineItems || draft.lineItems.length === 0) {
+      // Fallback string so we don't crash when translation keys are missing
+      return "Add at least one item to calculate pricing.";
     }
-    return `${meters} ${t("meters")}`;
-  };
+
+    if (draft.fabricSource === "storefront") {
+      const missingFabric = draft.lineItems.some((li) => !li.fabric);
+      if (missingFabric) return "Please select fabric for all items.";
+    }
+
+    const invalidMeters = draft.lineItems.some((li) => {
+      if (li.fabricMeters === null) return true;
+      if (li.fabricMeters === 0) return true;
+      const metersInMeters =
+        li.fabricUnit === "wara"
+          ? li.fabricMeters * WARA_TO_METERS
+          : li.fabricMeters;
+      return metersInMeters < 2 || metersInMeters > 7;
+    });
+
+    if (invalidMeters) return t("pricingNotReady.invalidMeters");
+    // Fallback for any other invalid state.
+    return t("pricingNotReady.generic");
+  }, [draft.fabricSource, draft.lineItems, t]);
 
   if (!isHydrated) {
     return (
@@ -211,6 +225,7 @@ export default function OrderReviewStep() {
                         )}
                       </dd>
                     </div>
+
                     <div>
                       <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
                         {t("tailor")}
@@ -219,6 +234,7 @@ export default function OrderReviewStep() {
                         {tailorName}
                       </dd>
                     </div>
+
                     <div>
                       <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
                         {t("fabric")}
@@ -227,6 +243,7 @@ export default function OrderReviewStep() {
                         {fabricName}
                       </dd>
                     </div>
+
                     <div>
                       <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
                         {t("fabricMeters")}
@@ -275,6 +292,7 @@ export default function OrderReviewStep() {
                 ) : (
                   t("measurementsNotProvided")
                 )}
+
                 {draft.measurements.notes.trim() && (
                   <p className="mt-3 text-[14px] normal-case tracking-normal text-(--color-grey-muted)">
                     <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-black block mb-1">
@@ -305,6 +323,7 @@ export default function OrderReviewStep() {
                   </p>
                 </div>
               )}
+
               <div className={loadingPricing ? "opacity-50" : ""}>
                 <div className="space-y-3 [font-family:var(--font-body)] text-[14px]">
                   <div className="flex justify-between gap-4">
@@ -363,7 +382,6 @@ export default function OrderReviewStep() {
                           >
                             Pickup
                           </span>
-
                           <input
                             type="checkbox"
                             checked={deliveryType === "delivery"}
@@ -374,9 +392,7 @@ export default function OrderReviewStep() {
                             }
                             className="sr-only peer"
                           />
-
-                          <div className="relative w-11 h-6 bg-[#D1CDC5] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-black/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-0.5 after:inset-s-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black shadow-inner"></div>
-
+                          <div className="relative w-11 h-6 bg-[#D1CDC5] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-black/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-0.5 after:inset-s-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black shadow-inner" />
                           <span
                             className={`text-[10px] uppercase tracking-[0.2em] font-ui transition-colors ml-2 ${
                               deliveryType === "delivery"
@@ -430,7 +446,11 @@ export default function OrderReviewStep() {
             <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted) py-8">
               {t("loadingPricing")}
             </p>
-          ) : null}
+          ) : (
+            <p className="text-(--color-grey-muted) py-8">
+              {invalidPreviewReason}
+            </p>
+          )}
         </section>
       </div>
 

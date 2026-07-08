@@ -223,6 +223,9 @@
     "unknownDesign": "تصميم مخصص"
   },
   "CustomOrderReview": {
+    "pricingNotReady": {
+      "generic": "التسعير غير جاهز. يرجى المحاولة مرة أخرى."
+    },
     "stepLabel": "الخطوة {step} من {total}",
     "title": "مراجعة طلبك",
     "description": "تأكد من اختياراتك وراجع تفصيل الأسعار قبل الدفع.",

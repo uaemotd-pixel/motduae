@@ -177,6 +177,9 @@
     "unknownDesign": "Custom design"
   },
   "CustomOrderReview": {
+     "pricingNotReady": {
+      "generic": "Pricing not available. Please try again."
+    },
     "stepLabel": "Step {step} of {total}",
     "title": "Review Your Order",
     "description": "Confirm your selections and review the itemized price breakdown before checkout.",
