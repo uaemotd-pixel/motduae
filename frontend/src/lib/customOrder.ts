@@ -517,7 +517,7 @@ export function isFabricStepComplete(draft: CustomOrderDraft): boolean {
   if (draft.fabricSource === "self") return true;
   if (draft.fabricSource === "storefront" && draft.selectedFabrics.length > 0) {
     const hasOutOfStock = draft.selectedFabrics.some(
-      (f) => f.stockInMeters !== undefined && f.stockInMeters <= 0
+      (f) => f.stockInMeters !== undefined && f.stockInMeters <= 0,
     );
     return !hasOutOfStock;
   }

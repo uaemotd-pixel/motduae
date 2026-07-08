@@ -74,14 +74,14 @@ export default function OrderReviewStep() {
 
   // Recalculate pricing when delivery type changes
   useEffect(() => {
-    if (
-      !isHydrated ||
-      !previewPayload ||
-      shippingFee === null ||
-      vatRate === null
-    ) {
+    if (!isHydrated) return;
+    if (!previewPayload) {
+      // Make the UI state explicit so we don't appear as if pricing is “missing”.
+      setPricing(null);
+      setPricingError(null);
       return;
     }
+    if (shippingFee === null || vatRate === null) return;
 
     const fetchPreview = async () => {
       try {
@@ -228,8 +228,10 @@ export default function OrderReviewStep() {
                       </dd>
                     </div>
                     <div>
-                      <dt className="...">{t("fabricMeters")}</dt>
-                      <dd className="...">
+                      <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                        {t("fabricMeters")}
+                      </dt>
+                      <dd className="[font-family:var(--font-body)] text-[15px] text-black">
                         {item.fabricMeters ? (
                           <span>
                             {item.fabricUnit === "wara"
@@ -452,7 +454,7 @@ export default function OrderReviewStep() {
             type="button"
             onClick={handleContinue}
             disabled={!canContinue}
-            className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)]"
+            className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)] hover:cursor-pointer"
           >
             {t("continue")}
           </button>

@@ -363,7 +363,11 @@ const PriceRangeSlider = ({
       return;
     }
     const maxVal = Number(localMax);
-    const clamped = Math.min(Math.max(0, parsed), Number.isNaN(maxVal) ? 100000 : maxVal, 100000);
+    const clamped = Math.min(
+      Math.max(0, parsed),
+      Number.isNaN(maxVal) ? 100000 : maxVal,
+      100000,
+    );
     setLocalMin(String(clamped));
     if (minTimerRef.current) clearTimeout(minTimerRef.current);
     onMinChange(clamped);
@@ -924,7 +928,15 @@ export default function ReadyMadeCatalogPage() {
                             />
                             {color}
                             <button
-                              onClick={() => setColorFilter([])}
+                              onClick={() => {
+                                setFilters((prev) => ({
+                                  ...prev,
+                                  colors: prev.colors.filter(
+                                    (c) => c !== color,
+                                  ),
+                                }));
+                                setCurrentPage(1);
+                              }}
                               className="hover:opacity-70 flex items-center justify-center"
                             >
                               <svg

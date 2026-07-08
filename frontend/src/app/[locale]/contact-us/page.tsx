@@ -105,10 +105,10 @@ export default function ContactUsPage() {
                         {isAr ? "البريد الإلكتروني" : "EMAIL ADDRESS"}
                       </span>
                       <a
-                        href="mailto:motd.uae@gmail.com"
+                        href="mailto:uaemotd@gmail.com"
                         className="text-sm sm:text-base font-medium text-black hover:opacity-70 transition-opacity decoration-1"
                       >
-                        motd.uae@gmail.com
+                        uaemotd@gmail.com
                       </a>
                     </div>
                   </div>
@@ -122,10 +122,10 @@ export default function ContactUsPage() {
                         {isAr ? "رقم الهاتف" : "PHONE NUMBER"}
                       </span>
                       <a
-                        href="tel:506932325"
+                        href="tel:+971569722533"
                         className="text-sm sm:text-base font-medium text-black hover:opacity-70 transition-opacity decoration-1"
                       >
-                        +971 50 693 2325
+                        +971 56 972 2533
                       </a>
                     </div>
                   </div>

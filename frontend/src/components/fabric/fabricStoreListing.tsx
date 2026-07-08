@@ -920,7 +920,13 @@ export default function FabricsCatalogPage() {
                           />
                           {color}
                           <button
-                            onClick={() => setColorFilter([])}
+                            onClick={() => {
+                              setFilters((prev) => ({
+                                ...prev,
+                                colors: prev.colors.filter((c) => c !== color),
+                              }));
+                              setCurrentPage(1);
+                            }}
                             className="hover:opacity-70 flex items-center justify-center"
                           >
                             <svg
