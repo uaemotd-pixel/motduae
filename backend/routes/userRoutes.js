@@ -384,6 +384,10 @@ userRouter.post(
       return;
     }
 
+    if (!assertPasswordValid(password, res)) {
+      return;
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
     const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {

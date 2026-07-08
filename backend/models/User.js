@@ -29,9 +29,21 @@ const userSchema = new mongoose.Schema(
     resetPasswordExpires: { type: Date },
     phone: {
       type: String,
-      required: true,
       trim: true,
-      match: [/^\+971\d{9}$/, "Phone must be +971 followed by 9 digits"],
+      validate: {
+        validator: function validatePhone(v) {
+          const isCustomer = this.role === "customer";
+          const isGoogleCustomer =
+            isCustomer && this.authProvider === "google";
+
+          if (!v || v === "") {
+            return !isCustomer || isGoogleCustomer;
+          }
+
+          return /^\+971\d{9}$/.test(v);
+        },
+        message: "Phone must be +971 followed by 9 digits when provided",
+      },
     },
     role: {
       type: String,
@@ -59,6 +71,20 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ role: 1, approvalStatus: 1 });
+
+userSchema.pre("validate", function requireCustomerPhone(next) {
+  if (
+    this.role === "customer" &&
+    this.authProvider === "local" &&
+    (!this.phone || !/^\+971\d{9}$/.test(this.phone))
+  ) {
+    this.invalidate(
+      "phone",
+      "Phone is required for customer accounts (+971 followed by 9 digits)",
+    );
+  }
+  next();
+});
 
 userSchema.pre("save", function syncDerivedFields(next) {
   this.isAdmin = this.role === "admin" || this.role === "sub-admin";
