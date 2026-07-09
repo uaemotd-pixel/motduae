@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import MeasurementBodyDiagram from "@/components/custom-order/measurement-diagram/MeasurementBodyDiagram";
@@ -93,7 +93,9 @@ function MeasurementInput({
           value={formatMeasurementValue(value)}
           onChange={(e) => onChange(field, e.target.value)}
           disabled={disabled}
-          className={`flex-1 min-w-0 border ${error ? "border-red-500" : "border-gray-200"} ${
+          className={`flex-1 min-w-0 border ${
+            error ? "border-red-500" : "border-gray-200"
+          } ${
             disabled ? "bg-gray-50 text-gray-700" : "bg-white text-black"
           } px-2.5 sm:px-4 py-2.5 sm:py-3 font-body text-[15px] sm:text-[16px] focus:outline-none focus:border-black transition rounded-lg w-full`}
         />
@@ -129,10 +131,12 @@ const DEFAULT_MEASUREMENTS: MeasurementData = {
   notes: "",
 };
 
-export default function AccountMeasurementsPage() {
+type PageInnerProps = {
+  memberIdParam: string | null;
+};
+
+function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
   const t = useTranslations("CustomOrderMeasurements");
-  const searchParams = useSearchParams();
-  const memberIdParam = searchParams.get("memberId");
 
   const [measurements, setMeasurements] =
     useState<MeasurementData>(DEFAULT_MEASUREMENTS);
@@ -174,6 +178,7 @@ export default function AccountMeasurementsPage() {
     } else {
       fetchCustomerMeasurements();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMemberId]);
 
   const fetchMembers = async () => {
@@ -425,7 +430,6 @@ export default function AccountMeasurementsPage() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          {/* Beautified Member Dropdown */}
           <div className="relative w-full sm:w-auto min-w-50" ref={memberRef}>
             <button
               type="button"
@@ -669,5 +673,27 @@ export default function AccountMeasurementsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function MeasurementsWithSearchParams() {
+  const searchParams = useSearchParams();
+  const memberIdParam = searchParams.get("memberId");
+  return <AccountMeasurementsPageInner memberIdParam={memberIdParam} />;
+}
+
+export default function AccountMeasurementsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sm:p-12 text-center">
+            <p className="text-gray-500">Loading measurements...</p>
+          </div>
+        </div>
+      }
+    >
+      <MeasurementsWithSearchParams />
+    </Suspense>
   );
 }
