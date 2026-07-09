@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { Save, Loader2, X, ChevronDown, ChevronUp, Ruler } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api/client";
-import CustomerImageUpload from "@/components/shared/customerImageUpload";
 import FormField from "@/components/admin/FormField";
 import { motion, AnimatePresence } from "framer-motion";
 import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
@@ -16,6 +15,7 @@ type FormData = {
   relationship: Relationship;
   phone: string;
   email: string;
+  dob: string; // yyyy-mm-dd
   address: {
     fullName: string;
     phone: string;
@@ -24,21 +24,6 @@ type FormData = {
     street: string;
     building: string;
     postalCode: string;
-  };
-  measurements: {
-    totalLength: number | null;
-    shoulderWidth: number | null;
-    armLength: number | null;
-    chestWidth: number | null;
-    waist: number | null;
-    hips: number | null;
-    neckWidth: number | null;
-    neckDepth: number | null;
-    armholeHeight: number | null;
-    sleeveOpeningWidth: number | null;
-    cuffWidth: number | null;
-    cuffLength: number | null;
-    notes: string;
   };
 };
 
@@ -51,9 +36,9 @@ type FamilyMemberFormProps = {
     relationship: Relationship;
     phone: string;
     email?: string;
+    dob?: string | Date;
     profilePic?: string;
     address?: Partial<FormData["address"]>;
-    measurements?: Partial<FormData["measurements"]>;
   };
 };
 
@@ -84,6 +69,7 @@ const DEFAULT_FORM: FormData = {
   relationship: "other",
   phone: "",
   email: "",
+  dob: "",
   address: {
     fullName: "",
     phone: "",
@@ -92,21 +78,6 @@ const DEFAULT_FORM: FormData = {
     street: "",
     building: "",
     postalCode: "",
-  },
-  measurements: {
-    totalLength: null,
-    shoulderWidth: null,
-    armLength: null,
-    chestWidth: null,
-    waist: null,
-    hips: null,
-    neckWidth: null,
-    neckDepth: null,
-    armholeHeight: null,
-    sleeveOpeningWidth: null,
-    cuffWidth: null,
-    cuffLength: null,
-    notes: "",
   },
 };
 
@@ -129,18 +100,6 @@ const UAE_EMIRATES = [
   "Ras Al Khaimah",
   "Fujairah",
 ];
-
-// Convert cm to inches
-const cmToInches = (cm: number | null | undefined): number | null => {
-  if (cm === null || cm === undefined) return null;
-  return Math.round((cm / 2.54) * 10) / 10;
-};
-
-// Convert inches to cm
-const inchesToCm = (inches: number | null | undefined): number | null => {
-  if (inches === null || inches === undefined) return null;
-  return Math.round(inches * 2.54 * 10) / 10;
-};
 
 export default function FamilyMembersForm({
   onCancel,
@@ -193,23 +152,9 @@ export default function FamilyMembersForm({
           building: initialData.address?.building || "",
           postalCode: initialData.address?.postalCode || "",
         },
-        measurements: {
-          totalLength: cmToInches(initialData.measurements?.totalLength),
-          shoulderWidth: cmToInches(initialData.measurements?.shoulderWidth),
-          armLength: cmToInches(initialData.measurements?.armLength),
-          chestWidth: cmToInches(initialData.measurements?.chestWidth),
-          waist: cmToInches(initialData.measurements?.waist),
-          hips: cmToInches(initialData.measurements?.hips),
-          neckWidth: cmToInches(initialData.measurements?.neckWidth),
-          neckDepth: cmToInches(initialData.measurements?.neckDepth),
-          armholeHeight: cmToInches(initialData.measurements?.armholeHeight),
-          sleeveOpeningWidth: cmToInches(
-            initialData.measurements?.sleeveOpeningWidth,
-          ),
-          cuffWidth: cmToInches(initialData.measurements?.cuffWidth),
-          cuffLength: cmToInches(initialData.measurements?.cuffLength),
-          notes: initialData.measurements?.notes || "",
-        },
+        dob: initialData.dob
+          ? new Date(initialData.dob).toISOString().slice(0, 10)
+          : "",
       });
     }
   }, [initialData]);
@@ -220,29 +165,6 @@ export default function FamilyMembersForm({
     >,
   ) => {
     const { name, value } = e.target;
-
-    // Handle measurement fields
-    if (name.startsWith("measurements.")) {
-      const field = name.split(".")[1];
-      if (field === "notes") {
-        setForm((prev) => ({
-          ...prev,
-          measurements: { ...prev.measurements, notes: value },
-        }));
-      } else {
-        const numValue = value === "" ? null : parseFloat(value);
-        if (
-          numValue === null ||
-          (typeof numValue === "number" && numValue >= 0)
-        ) {
-          setForm((prev) => ({
-            ...prev,
-            measurements: { ...prev.measurements, [field]: numValue },
-          }));
-        }
-      }
-      return;
-    }
 
     if (name === "phone") {
       const digits = value.replace(/\D/g, "");
@@ -308,6 +230,18 @@ export default function FamilyMembersForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (form.dob) {
+      const selected = new Date(form.dob + "T00:00:00");
+      const now = new Date();
+      if (
+        selected.getTime() >
+        new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+      ) {
+        toast.error("D.O.B cannot be in the future");
+        return;
+      }
+    }
+
     if (!form.name.trim()) {
       toast.error("Full name is required", ERROR_TOAST);
       return;
@@ -339,6 +273,7 @@ export default function FamilyMembersForm({
         phone: normalizedPhone,
         relationship: form.relationship,
         email: form.email.trim() || undefined,
+        dob: form.dob || undefined,
         address: {
           fullName: form.address.fullName.trim() || form.name.trim(),
           phone: normalizedAddrPhone || normalizedPhone,
@@ -347,21 +282,6 @@ export default function FamilyMembersForm({
           street: form.address.street.trim(),
           building: form.address.building.trim(),
           postalCode: form.address.postalCode.trim(),
-        },
-        measurements: {
-          totalLength: inchesToCm(form.measurements.totalLength),
-          shoulderWidth: inchesToCm(form.measurements.shoulderWidth),
-          armLength: inchesToCm(form.measurements.armLength),
-          chestWidth: inchesToCm(form.measurements.chestWidth),
-          waist: inchesToCm(form.measurements.waist),
-          hips: inchesToCm(form.measurements.hips),
-          neckWidth: inchesToCm(form.measurements.neckWidth),
-          neckDepth: inchesToCm(form.measurements.neckDepth),
-          armholeHeight: inchesToCm(form.measurements.armholeHeight),
-          sleeveOpeningWidth: inchesToCm(form.measurements.sleeveOpeningWidth),
-          cuffWidth: inchesToCm(form.measurements.cuffWidth),
-          cuffLength: inchesToCm(form.measurements.cuffLength),
-          notes: form.measurements.notes || "",
         },
       };
 
@@ -535,6 +455,17 @@ export default function FamilyMembersForm({
                 placeholder="example@email.com"
               />
             </FormField>
+
+            <FormField label="D.O.B" name="dob">
+              <input
+                type="date"
+                name="dob"
+                value={form.dob}
+                onChange={handleChange}
+                max={new Date().toISOString().slice(0, 10)}
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+              />
+            </FormField>
           </div>
         </section>
 
@@ -676,274 +607,6 @@ export default function FamilyMembersForm({
                 className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
             </FormField>
-          </div>
-        </section>
-
-        {/* Measurements Section */}
-        <section>
-          <h2 className="text-sm sm:text-base font-medium text-black mb-4 sm:mb-6 flex items-center gap-2">
-            <Ruler className="w-4 h-4" />
-            Body Measurements (Optional)
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            <FormField
-              label="Total Length (in)"
-              name="measurements.totalLength"
-            >
-              <input
-                type="number"
-                name="measurements.totalLength"
-                value={form.measurements.totalLength ?? ""}
-                onChange={handleChange}
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "Minus") {
-                    e.preventDefault();
-                  }
-                }}
-                onWheel={(e) => e.preventDefault()}
-                placeholder="e.g. 67"
-                min="0"
-                step="0.1"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-              />
-            </FormField>
-
-            <FormField
-              label="Shoulder Width (in)"
-              name="measurements.shoulderWidth"
-            >
-              <input
-                type="number"
-                name="measurements.shoulderWidth"
-                value={form.measurements.shoulderWidth ?? ""}
-                onChange={handleChange}
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "Minus") {
-                    e.preventDefault();
-                  }
-                }}
-                onWheel={(e) => e.preventDefault()}
-                placeholder="e.g. 18"
-                min="0"
-                step="0.1"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-              />
-            </FormField>
-
-            <FormField label="Arm Length (in)" name="measurements.armLength">
-              <input
-                type="number"
-                name="measurements.armLength"
-                value={form.measurements.armLength ?? ""}
-                onChange={handleChange}
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "Minus") {
-                    e.preventDefault();
-                  }
-                }}
-                onWheel={(e) => e.preventDefault()}
-                placeholder="e.g. 24"
-                min="0"
-                step="0.1"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-              />
-            </FormField>
-
-            <FormField label="Chest Width (in)" name="measurements.chestWidth">
-              <input
-                type="number"
-                name="measurements.chestWidth"
-                value={form.measurements.chestWidth ?? ""}
-                onChange={handleChange}
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "Minus") {
-                    e.preventDefault();
-                  }
-                }}
-                onWheel={(e) => e.preventDefault()}
-                placeholder="e.g. 39"
-                min="0"
-                step="0.1"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-              />
-            </FormField>
-
-            <FormField label="Waist (in)" name="measurements.waist">
-              <input
-                type="number"
-                name="measurements.waist"
-                value={form.measurements.waist ?? ""}
-                onChange={handleChange}
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "Minus") {
-                    e.preventDefault();
-                  }
-                }}
-                onWheel={(e) => e.preventDefault()}
-                placeholder="e.g. 31"
-                min="0"
-                step="0.1"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-              />
-            </FormField>
-
-            <FormField label="Hips (in)" name="measurements.hips">
-              <input
-                type="number"
-                name="measurements.hips"
-                value={form.measurements.hips ?? ""}
-                onChange={handleChange}
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "Minus") {
-                    e.preventDefault();
-                  }
-                }}
-                onWheel={(e) => e.preventDefault()}
-                placeholder="e.g. 39"
-                min="0"
-                step="0.1"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-              />
-            </FormField>
-
-            <FormField label="Neck Width (in)" name="measurements.neckWidth">
-              <input
-                type="number"
-                name="measurements.neckWidth"
-                value={form.measurements.neckWidth ?? ""}
-                onChange={handleChange}
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "Minus") {
-                    e.preventDefault();
-                  }
-                }}
-                onWheel={(e) => e.preventDefault()}
-                placeholder="e.g. 15"
-                min="0"
-                step="0.1"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-              />
-            </FormField>
-
-            <FormField label="Neck Depth (in)" name="measurements.neckDepth">
-              <input
-                type="number"
-                name="measurements.neckDepth"
-                value={form.measurements.neckDepth ?? ""}
-                onChange={handleChange}
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "Minus") {
-                    e.preventDefault();
-                  }
-                }}
-                onWheel={(e) => e.preventDefault()}
-                placeholder="e.g. 3"
-                min="0"
-                step="0.1"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-              />
-            </FormField>
-
-            <FormField
-              label="Armhole Height (in)"
-              name="measurements.armholeHeight"
-            >
-              <input
-                type="number"
-                name="measurements.armholeHeight"
-                value={form.measurements.armholeHeight ?? ""}
-                onChange={handleChange}
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "Minus") {
-                    e.preventDefault();
-                  }
-                }}
-                onWheel={(e) => e.preventDefault()}
-                placeholder="e.g. 8.5"
-                min="0"
-                step="0.1"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-              />
-            </FormField>
-
-            <FormField
-              label="Sleeve Opening (in)"
-              name="measurements.sleeveOpeningWidth"
-            >
-              <input
-                type="number"
-                name="measurements.sleeveOpeningWidth"
-                value={form.measurements.sleeveOpeningWidth ?? ""}
-                onChange={handleChange}
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "Minus") {
-                    e.preventDefault();
-                  }
-                }}
-                onWheel={(e) => e.preventDefault()}
-                placeholder="e.g. 6"
-                min="0"
-                step="0.1"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-              />
-            </FormField>
-
-            <FormField label="Cuff Width (in)" name="measurements.cuffWidth">
-              <input
-                type="number"
-                name="measurements.cuffWidth"
-                value={form.measurements.cuffWidth ?? ""}
-                onChange={handleChange}
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "Minus") {
-                    e.preventDefault();
-                  }
-                }}
-                onWheel={(e) => e.preventDefault()}
-                placeholder="e.g. 8.5"
-                min="0"
-                step="0.1"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-              />
-            </FormField>
-
-            <FormField label="Cuff Length (in)" name="measurements.cuffLength">
-              <input
-                type="number"
-                name="measurements.cuffLength"
-                value={form.measurements.cuffLength ?? ""}
-                onChange={handleChange}
-                onKeyDown={(e) => {
-                  if (e.key === "-" || e.key === "Minus") {
-                    e.preventDefault();
-                  }
-                }}
-                onWheel={(e) => e.preventDefault()}
-                placeholder="e.g. 2"
-                min="0"
-                step="0.1"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-              />
-            </FormField>
-
-            <div className="sm:col-span-2 lg:col-span-3">
-              <FormField label="Notes" name="measurements.notes">
-                <textarea
-                  name="measurements.notes"
-                  value={form.measurements.notes}
-                  onChange={handleChange}
-                  placeholder="Any special instructions or notes about measurements..."
-                  rows={1}
-                  className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black resize-none overflow-hidden"
-                  style={{ minHeight: "2.75rem" }}
-                  onInput={(e) => {
-                    const target = e.target as HTMLTextAreaElement;
-                    target.style.height = "auto";
-                    target.style.height = target.scrollHeight + "px";
-                  }}
-                />
-              </FormField>
-            </div>
           </div>
         </section>
 

@@ -50,9 +50,15 @@ const savedUserSubSchema = new mongoose.Schema({
     building: { type: String, trim: true },
     postalCode: { type: String, trim: true },
   },
+
+  // Family member DOB + stored age
+  dob: { type: Date },
+  age: { type: Number, default: null },
+
   measurements: measurementsSchema,
   createdAt: { type: Date, default: Date.now },
 });
+
 const reviewSchema = new mongoose.Schema(
   {
     rating: { type: Number, required: true, min: 1, max: 5 },
@@ -77,14 +83,22 @@ const customerSchema = new mongoose.Schema(
     },
     name: { type: String, required: true, trim: true },
     phone: { type: String, trim: true, unique: true, sparse: true },
-    dob: { type: Date }, // date of birth
-    profilePic: { type: String, trim: true }, // URL or path
+
+    // NOTE: customer profile fields
+    dob: { type: Date },
+    profilePic: { type: String, trim: true },
+
     gender: { type: String, enum: ["male", "female", "other", "prefer-not"] },
     addresses: [addressSubSchema],
     defaultAddressId: { type: mongoose.Schema.Types.ObjectId },
+
+    // Family members
     savedUsers: [savedUserSubSchema],
+
     deletedAt: { type: Date, index: true },
     reviews: [reviewSchema],
+
+    // Customer measurements
     measurements: measurementsSchema,
   },
   {
@@ -93,8 +107,6 @@ const customerSchema = new mongoose.Schema(
     toObject: { virtuals: true },
   },
 );
-
-// Removed age, added dob & profilePic
 
 customerSchema.index(
   { userId: 1, deletedAt: 1 },

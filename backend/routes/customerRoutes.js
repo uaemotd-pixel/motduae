@@ -9,6 +9,18 @@ import {
 } from "../middleware/uploadCustomerImage.js";
 import expressAsyncHandler from "express-async-handler";
 
+const calculateAge = (dob) => {
+  if (!dob || Number.isNaN(new Date(dob).getTime())) return null;
+  const birthDate = new Date(dob);
+  const today = new Date();
+  let years = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    years -= 1;
+  }
+  return years < 0 ? 0 : years;
+};
+
 const customerRouter = express.Router();
 
 customerRouter.post(
@@ -248,7 +260,7 @@ customerRouter.get("/family-members", isAuth, async (req, res) => {
 // ─── POST /family-members ─────────────────────────────────────────────
 customerRouter.post("/family-members", isAuth, async (req, res) => {
   const userId = req.user._id;
-  const { name, phone, email, relationship, address, measurements } = req.body;
+  const { name, phone, email, relationship, dob, address } = req.body;
 
   if (!name?.trim() || !phone?.trim()) {
     return res.status(400).json({ error: "Name and phone are required" });
@@ -265,6 +277,9 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
       phone: phone.trim(),
       email: email?.trim() || undefined,
       relationship: relationship || "other",
+      dob: dob ? new Date(dob) : undefined,
+      // age will be calculated and stored as well
+      age: dob ? calculateAge(new Date(dob)) : null,
       address: address
         ? {
             fullName: address.fullName?.trim() || name.trim(),
@@ -276,7 +291,6 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
             postalCode: address.postalCode?.trim() || "",
           }
         : undefined,
-      measurements: measurements || [],
     };
 
     customer.savedUsers.push(newMember);
@@ -294,7 +308,7 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
 customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
   const userId = req.user._id;
   const memberId = req.params.id;
-  const { name, phone, email, relationship, address, measurements } = req.body;
+  const { name, phone, email, relationship, dob, address } = req.body;
 
   if (!name?.trim() || !phone?.trim()) {
     return res.status(400).json({ error: "Name and phone are required" });
@@ -316,6 +330,10 @@ customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
     member.phone = phone.trim();
     member.email = email?.trim() || undefined;
     member.relationship = relationship || "other";
+    if (dob !== undefined) {
+      member.dob = dob ? new Date(dob) : undefined;
+      member.age = dob ? calculateAge(new Date(dob)) : null;
+    }
 
     if (address) {
       member.address = {
@@ -327,10 +345,6 @@ customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
         building: address.building?.trim() || "",
         postalCode: address.postalCode?.trim() || "",
       };
-    }
-
-    if (measurements) {
-      member.measurements = measurements;
     }
 
     await customer.save();
@@ -656,6 +670,76 @@ customerRouter.get(
     res.json({
       success: true,
       measurements: member.measurements || null,
+    });
+  }),
+);
+
+// ─── PUT member measurements ──────────────────────────────────────────
+customerRouter.put(
+  "/family-members/:id/measurements",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    const userId = req.user._id;
+    const memberId = req.params.id;
+    const {
+      totalLength,
+      shoulderWidth,
+      armLength,
+      chestWidth,
+      waist,
+      hips,
+      neckWidth,
+      neckDepth,
+      armholeHeight,
+      sleeveOpeningWidth,
+      cuffWidth,
+      cuffLength,
+      notes,
+    } = req.body;
+
+    const customer = await Customer.findOne({ userId });
+    if (!customer) {
+      return res.status(404).json({ error: "Customer profile not found" });
+    }
+
+    const member = customer.savedUsers.id(memberId);
+    if (!member) {
+      return res.status(404).json({ error: "Family member not found" });
+    }
+
+    // Build measurement object
+    const measurementData = {};
+    const fields = [
+      "totalLength",
+      "shoulderWidth",
+      "armLength",
+      "chestWidth",
+      "waist",
+      "hips",
+      "neckWidth",
+      "neckDepth",
+      "armholeHeight",
+      "sleeveOpeningWidth",
+      "cuffWidth",
+      "cuffLength",
+      "notes",
+    ];
+
+    fields.forEach((field) => {
+      if (req.body[field] !== undefined && req.body[field] !== null) {
+        measurementData[field] = req.body[field];
+      }
+    });
+
+    // Set measurements on member
+    member.measurements = measurementData;
+
+    await customer.save();
+
+    res.json({
+      success: true,
+      message: "Member measurements saved",
+      measurements: member.measurements,
     });
   }),
 );
