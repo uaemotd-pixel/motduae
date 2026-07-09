@@ -19,6 +19,8 @@ import { formatCurrency } from "@/lib/format";
 import CustomOrderJourneyRibbon from "@/components/custom-order/CustomOrderJourneyRibbon";
 import ApplePayCheckout from "@/components/payments/ApplePayCheckout";
 import SuccessModal from "@/components/shared/SuccessModal";
+import toast from "react-hot-toast";
+import { ERROR_TOAST } from "@/lib/tailorPortalToast";
 
 const EMIRATES = [
   "Abu Dhabi",
@@ -337,29 +339,37 @@ export default function CustomOrderCheckoutStep() {
 
   const createCustomPaymentIntent = async () => {
     if (!previewPayload) {
+      toast.error(t("incompleteDraft"), ERROR_TOAST);
       throw new Error(t("incompleteDraft"));
     }
 
     if (!measurementsConfirmed) {
+      toast.error(t("confirmMeasurementsLabel"), ERROR_TOAST);
       throw new Error(t("confirmMeasurementsLabel"));
     }
 
-    const orderPayload = buildOrderPayload();
-    const response = await api.post<{
-      success: boolean;
-      clientSecret: string;
-      paymentIntentId: string;
-      message?: string;
-    }>("/api/payments/intent/custom", orderPayload);
+    try {
+      const orderPayload = buildOrderPayload();
+      const response = await api.post<{
+        success: boolean;
+        clientSecret: string;
+        paymentIntentId: string;
+        message?: string;
+      }>("/api/payments/intent/custom", orderPayload);
 
-    if (!response.success || !response.clientSecret) {
-      throw new Error(response.message || t("submitError"));
+      if (!response.success || !response.clientSecret) {
+        throw new Error(response.message || t("submitError"));
+      }
+
+      return {
+        clientSecret: response.clientSecret,
+        paymentIntentId: response.paymentIntentId,
+      };
+    } catch (err: any) {
+      const message = err.message || t("submitError");
+      toast.error(message, ERROR_TOAST);
+      throw err;
     }
-
-    return {
-      clientSecret: response.clientSecret,
-      paymentIntentId: response.paymentIntentId,
-    };
   };
 
   const completeCustomOrder = async (paymentIntentId: string) => {
@@ -396,6 +406,7 @@ export default function CustomOrderCheckoutStep() {
         (err as ApiError)?.message ||
         (err instanceof Error ? err.message : t("submitError"));
       setSubmitError(message);
+      toast.error(message, ERROR_TOAST);
       throw err;
     } finally {
       setIsSubmitting(false);
@@ -408,7 +419,9 @@ export default function CustomOrderCheckoutStep() {
 
   const placeCodOrder = async () => {
     if (!measurementsConfirmed) {
-      setSubmitError(t("confirmMeasurementsLabel"));
+      const msg = t("confirmMeasurementsLabel");
+      setSubmitError(msg);
+      toast.error(msg, ERROR_TOAST);
       return;
     }
 
@@ -444,6 +457,7 @@ export default function CustomOrderCheckoutStep() {
         (err as ApiError)?.message ||
         (err instanceof Error ? err.message : t("submitError"));
       setSubmitError(message);
+      toast.error(message, ERROR_TOAST);
     } finally {
       setIsSubmitting(false);
     }

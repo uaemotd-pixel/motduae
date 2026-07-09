@@ -17,6 +17,7 @@ import {
 import toast from "react-hot-toast";
 import CustomerImageUpload from "@/components/shared/customerImageUpload";
 import { motion, AnimatePresence } from "framer-motion";
+import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
 
 type Address = {
   _id?: string;
@@ -282,7 +283,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     }
   };
 
-  const validate = (): boolean => {
+  const validate = (): { isValid: boolean; firstError?: string } => {
     const errors: Record<string, string> = {};
 
     // Validate name
@@ -354,14 +355,19 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     }
 
     setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
+    const firstError = Object.values(errors).find(Boolean);
+    return { isValid: Object.keys(errors).length === 0, firstError };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) {
-      const firstError = Object.values(fieldErrors).find(Boolean);
-      if (firstError) toast.error(firstError);
+    const { isValid, firstError } = validate();
+    if (!isValid) {
+      if (firstError) {
+        toast.error(firstError, ERROR_TOAST);
+      } else {
+        toast.error("Please fill in all required fields.", ERROR_TOAST);
+      }
       return;
     }
     setSubmitting(true);
@@ -386,12 +392,12 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
       };
 
       await api.put("/api/customer/profile", payload);
-      toast.success("Profile updated successfully!");
+      toast.success("Profile updated successfully!", SUCCESS_TOAST);
       setTimeout(() => {
         if (onCancel) onCancel();
       }, 1500);
     } catch (err: any) {
-      toast.error(err.message || "Update failed");
+      toast.error(err.message || "Update failed", ERROR_TOAST);
     } finally {
       setSubmitting(false);
     }

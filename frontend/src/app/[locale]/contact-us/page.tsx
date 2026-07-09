@@ -7,6 +7,7 @@ import FadeInSection from "@/components/shared/fadeInSection";
 import toast from "react-hot-toast";
 import { Mail, Phone, Loader2, Send } from "lucide-react";
 import { api } from "@/lib/api/client";
+import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
 
 export default function ContactUsPage() {
   const params = useParams();
@@ -34,6 +35,7 @@ export default function ContactUsPage() {
         isAr
           ? "يرجى ملء جميع الحقول المطلوبة."
           : "Please fill in all required fields.",
+        ERROR_TOAST
       );
       return;
     }
@@ -44,6 +46,7 @@ export default function ContactUsPage() {
         isAr
           ? "يرجى إدخال بريد إلكتروني صحيح."
           : "Please enter a valid email address.",
+        ERROR_TOAST
       );
       return;
     }
@@ -55,6 +58,7 @@ export default function ContactUsPage() {
         isAr
           ? "تم إرسال رسالتك بنجاح! سنتواصل معك قريبًا."
           : "Your message was sent successfully! We will contact you soon.",
+        SUCCESS_TOAST
       );
       setFormData({ name: "", email: "", subject: "", message: "" });
     } catch (error) {
@@ -62,6 +66,7 @@ export default function ContactUsPage() {
         isAr
           ? "فشل إرسال الرسالة. يرجى المحاولة لاحقًا."
           : "Failed to send message. Please try again later.",
+        ERROR_TOAST
       );
     } finally {
       setLoading(false);
