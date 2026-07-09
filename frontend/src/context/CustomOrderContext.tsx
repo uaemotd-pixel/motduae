@@ -30,8 +30,9 @@ import {
   toggleFabricInList,
   useOwnFabric,
   buildCustomOrderPreviewPayload,
-  FabricUnit
+  FabricUnit,
 } from "@/lib/customOrder";
+import { getToken } from "@/lib/auth/token";
 
 type CustomOrderContextType = {
   draft: CustomOrderDraft;
@@ -40,7 +41,7 @@ type CustomOrderContextType = {
   useOwnFabric: boolean;
   setFabricSource: (source: FabricSource) => void;
   setUseOwnFabric: (value: boolean) => void;
-  setDeliveryType: (type: "pickup" | "delivery") => void; // NEW
+  setDeliveryType: (type: "pickup" | "delivery") => void;
   toggleFabric: (fabric: CustomOrderFabricSelection) => void;
   selectSingleFabric: (fabric: CustomOrderFabricSelection) => void;
   toggleDesign: (design: CustomOrderSelectedDesign) => void;
@@ -72,7 +73,20 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     "delivery",
   );
 
+  // Hydrate from sessionStorage only if user is authenticated.
   useEffect(() => {
+    const token = getToken();
+
+    if (!token) {
+      // Clear any previous draft from earlier sessions for logged-out users.
+      sessionStorage.removeItem(CUSTOM_ORDER_STORAGE_KEY);
+      sessionStorage.removeItem(CUSTOM_ORDER_DELIVERY_TYPE_KEY);
+      setDraft(createEmptyCustomOrderDraft());
+      setDeliveryType("delivery");
+      setIsHydrated(true);
+      return;
+    }
+
     const stored = sessionStorage.getItem(CUSTOM_ORDER_STORAGE_KEY);
     if (stored) {
       try {
@@ -140,24 +154,27 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const selectSingleFabric = useCallback((fabric: CustomOrderFabricSelection) => {
-    setDraft((prev) => {
-      const selectedFabrics = [fabric];
-      const lineItems = pruneLineItemsForSelections(
-        prev.lineItems,
-        selectedFabrics,
-        prev.selectedDesigns,
-        "storefront",
-      );
+  const selectSingleFabric = useCallback(
+    (fabric: CustomOrderFabricSelection) => {
+      setDraft((prev) => {
+        const selectedFabrics = [fabric];
+        const lineItems = pruneLineItemsForSelections(
+          prev.lineItems,
+          selectedFabrics,
+          prev.selectedDesigns,
+          "storefront",
+        );
 
-      return {
-        ...prev,
-        fabricSource: "storefront",
-        selectedFabrics,
-        lineItems,
-      };
-    });
-  }, []);
+        return {
+          ...prev,
+          fabricSource: "storefront",
+          selectedFabrics,
+          lineItems,
+        };
+      });
+    },
+    [],
+  );
 
   const toggleDesign = useCallback((design: CustomOrderSelectedDesign) => {
     setDraft((prev) => {
@@ -177,23 +194,26 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const selectSingleDesign = useCallback((design: CustomOrderSelectedDesign) => {
-    setDraft((prev) => {
-      const selectedDesigns = [design];
-      const lineItems = pruneLineItemsForSelections(
-        prev.lineItems,
-        prev.selectedFabrics,
-        selectedDesigns,
-        prev.fabricSource,
-      );
+  const selectSingleDesign = useCallback(
+    (design: CustomOrderSelectedDesign) => {
+      setDraft((prev) => {
+        const selectedDesigns = [design];
+        const lineItems = pruneLineItemsForSelections(
+          prev.lineItems,
+          prev.selectedFabrics,
+          selectedDesigns,
+          prev.fabricSource,
+        );
 
-      return {
-        ...prev,
-        selectedDesigns,
-        lineItems,
-      };
-    });
-  }, []);
+        return {
+          ...prev,
+          selectedDesigns,
+          lineItems,
+        };
+      });
+    },
+    [],
+  );
 
   const addLineItem = useCallback((item: CustomOrderLineItem) => {
     setDraft((prev) => {
@@ -356,7 +376,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       setFirstStepIfUnset,
       getPreviewPayload,
       syncAutoLineItems,
-      updateLineItemUnit
+      updateLineItemUnit,
     }),
     [
       draft,
@@ -379,7 +399,8 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       setFirstStepIfUnset,
       getPreviewPayload,
       syncAutoLineItems,
-      updateLineItemUnit
+      updateLineItemUnit,
+      setDeliveryTypeAction,
     ],
   );
 

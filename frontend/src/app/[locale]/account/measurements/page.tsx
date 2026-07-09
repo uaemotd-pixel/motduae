@@ -1,20 +1,18 @@
-// components/account/MeasurementsForm.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { api } from "@/lib/api/client";
-import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import MeasurementBodyDiagram from "@/components/custom-order/measurement-diagram/MeasurementBodyDiagram";
+import MeasurementNeckDiagram from "@/components/custom-order/measurement-diagram/MeasurementNeckDiagram";
+import MeasurementSleeveDiagram from "@/components/custom-order/measurement-diagram/MeasurementSleeveDiagram";
 import {
-  Ruler,
-  Save,
-  Loader2,
-  X,
-  User,
-  Users,
-  MapPin,
-  Edit,
-} from "lucide-react";
+  BODY_MEASUREMENT_FIELDS,
+  NECK_MEASUREMENT_FIELDS,
+  SLEEVE_MEASUREMENT_FIELDS,
+  getMeasurementLetter,
+} from "@/lib/measurementDiagramLabels";
+import { type CustomOrderMeasurementField } from "@/lib/customOrder";
+import { api } from "@/lib/api/client";
 import toast from "react-hot-toast";
 
 type MeasurementData = {
@@ -33,36 +31,75 @@ type MeasurementData = {
   notes: string;
 };
 
-interface MeasurementsFormProps {
-  onCancel?: () => void;
+function parseOptionalNumber(value: string): number | null {
+  if (value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-const FormField = ({
-  label,
-  name,
-  required,
-  error,
-  children,
-}: {
-  label: string;
-  name?: string;
-  required?: boolean;
+function formatMeasurementValue(value: number | null): string {
+  return value !== null && value > 0 ? String(value) : "";
+}
+
+type MeasurementInputProps = {
+  field: CustomOrderMeasurementField;
+  value: number | null;
+  onChange: (field: CustomOrderMeasurementField, value: string) => void;
+  t: ReturnType<typeof useTranslations<"CustomOrderMeasurements">>;
   error?: string;
-  children: React.ReactNode;
-}) => (
-  <div className="space-y-1.5">
-    <label
-      htmlFor={name}
-      className="block text-[10px] sm:text-xs uppercase tracking-widest text-gray-500"
-    >
-      {label} {required && "*"}
-    </label>
-    {children}
-    {error && (
-      <p className="text-red-500 text-[10px] sm:text-xs mt-1">{error}</p>
-    )}
-  </div>
-);
+  disabled?: boolean;
+};
+
+function MeasurementInput({
+  field,
+  value,
+  onChange,
+  t,
+  error,
+  disabled = false,
+}: MeasurementInputProps) {
+  const letter = getMeasurementLetter(field);
+
+  return (
+    <div className="space-y-1.5 w-full">
+      <label
+        htmlFor={`measurement-${field}`}
+        className="flex flex-wrap items-center gap-x-2 gap-y-1 font-ui text-[10px] uppercase tracking-[0.24em] text-black"
+      >
+        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-black text-[9px] shrink-0">
+          {letter}
+        </span>
+        <span className="min-w-0 wrap-break-word">{t(`fields.${field}`)}</span>
+      </label>
+      <div className="flex items-center gap-2 sm:gap-3">
+        <input
+          id={`measurement-${field}`}
+          type={disabled ? "text" : "number"}
+          min="0.1"
+          step="0.1"
+          inputMode={disabled ? "none" : "decimal"}
+          value={formatMeasurementValue(value)}
+          onChange={(e) => onChange(field, e.target.value)}
+          disabled={disabled}
+          className={`flex-1 min-w-0 border ${error ? "border-red-500" : "border-gray-200"} ${
+            disabled ? "bg-gray-50 text-gray-700" : "bg-white text-black"
+          } px-2.5 sm:px-4 py-2.5 sm:py-3 font-body text-[15px] sm:text-[16px] focus:outline-none focus:border-black transition rounded-lg w-full`}
+        />
+        <span className="font-ui text-[10px] sm:text-[11px] uppercase tracking-[0.2em] text-gray-400 shrink-0">
+          {t("unit")}
+        </span>
+      </div>
+      {error && (
+        <p className="text-red-500 text-[11px] sm:text-[12px] mt-1">{error}</p>
+      )}
+      {!disabled && (
+        <p className="font-body text-[11px] sm:text-[12px] text-gray-400 mt-1">
+          {t(`fields.${field}Hint`)}
+        </p>
+      )}
+    </div>
+  );
+}
 
 const DEFAULT_MEASUREMENTS: MeasurementData = {
   totalLength: null,
@@ -80,130 +117,74 @@ const DEFAULT_MEASUREMENTS: MeasurementData = {
   notes: "",
 };
 
-const DisplayField = ({
-  label,
-  value,
-}: {
-  label: string;
-  value?: string | null;
-}) => (
-  <div className="space-y-1.5">
-    <label className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
-      {label}
-    </label>
-    <div className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border border-transparent rounded-xl bg-transparent text-gray-800 font-medium text-sm sm:text-base">
-      {value || "—"}
-    </div>
-  </div>
-);
+export default function AccountMeasurementsPage() {
+  const t = useTranslations("CustomOrderMeasurements");
 
-export default function MeasurementsForm({ onCancel }: MeasurementsFormProps) {
-  const { user: authUser } = useAuth();
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [measurements, setMeasurements] =
+    useState<MeasurementData>(DEFAULT_MEASUREMENTS);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [form, setForm] = useState<MeasurementData>(DEFAULT_MEASUREMENTS);
-  const [hasExistingMeasurements, setHasExistingMeasurements] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [hasMeasurements, setHasMeasurements] = useState(false);
 
   useEffect(() => {
-    async function loadMeasurements() {
-      if (!authUser) return;
+    const fetchMeasurements = async () => {
       try {
-        setLoading(true);
+        setIsLoading(true);
+        console.log("🔵 Fetching measurements...");
+
         const data = await api.get("/api/customer/customer_measurements");
-        if (data.measurements) {
-          setHasExistingMeasurements(true);
-          // Store directly as inches (already in inches from DB)
-          setForm({
-            totalLength: data.measurements.totalLength,
-            shoulderWidth: data.measurements.shoulderWidth,
-            armLength: data.measurements.armLength,
-            chestWidth: data.measurements.chestWidth,
-            waist: data.measurements.waist,
-            hips: data.measurements.hips,
-            neckWidth: data.measurements.neckWidth,
-            neckDepth: data.measurements.neckDepth,
-            armholeHeight: data.measurements.armholeHeight,
-            sleeveOpeningWidth: data.measurements.sleeveOpeningWidth,
-            cuffWidth: data.measurements.cuffWidth,
-            cuffLength: data.measurements.cuffLength,
-            notes: data.measurements.notes || "",
-          });
-        } else {
-          setHasExistingMeasurements(false);
-          setIsEditing(true);
+        console.log("📄 Data:", data);
+
+        if (data && data.measurements) {
+          const hasData = Object.values(data.measurements).some(
+            (val) => val !== null && val !== undefined && val !== "",
+          );
+
+          if (hasData) {
+            setMeasurements({
+              totalLength: data.measurements.totalLength ?? null,
+              shoulderWidth: data.measurements.shoulderWidth ?? null,
+              armLength: data.measurements.armLength ?? null,
+              chestWidth: data.measurements.chestWidth ?? null,
+              waist: data.measurements.waist ?? null,
+              hips: data.measurements.hips ?? null,
+              neckWidth: data.measurements.neckWidth ?? null,
+              neckDepth: data.measurements.neckDepth ?? null,
+              armholeHeight: data.measurements.armholeHeight ?? null,
+              sleeveOpeningWidth: data.measurements.sleeveOpeningWidth ?? null,
+              cuffWidth: data.measurements.cuffWidth ?? null,
+              cuffLength: data.measurements.cuffLength ?? null,
+              notes: data.measurements.notes || "",
+            });
+            setHasMeasurements(true);
+            console.log("✅ Measurements loaded");
+          }
         }
-      } catch (err: any) {
-        if (err.status === 404) {
-          setHasExistingMeasurements(false);
-          setIsEditing(true);
-        } else {
-          toast.error(err.message || "Failed to load measurements");
-        }
+      } catch (error) {
+        console.error("❌ Fetch error:", error);
+        setHasMeasurements(false);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
-    }
-    loadMeasurements();
-  }, [authUser]);
+    };
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    const { name, value } = e.target;
-
-    if (name === "notes") {
-      setForm((prev) => ({ ...prev, notes: value }));
-      if (fieldErrors[name]) {
-        setFieldErrors((prev) => ({ ...prev, [name]: "" }));
-      }
-      return;
-    }
-
-    // Allow empty, positive numbers with decimals
-    if (value === "") {
-      setForm((prev) => ({ ...prev, [name]: null }));
-    } else {
-      const numValue = parseFloat(value);
-      if (!isNaN(numValue) && numValue >= 0) {
-        // Keep exact decimal value - no rounding
-        setForm((prev) => ({ ...prev, [name]: numValue }));
-      }
-    }
-
-    if (fieldErrors[name]) {
-      setFieldErrors((prev) => ({ ...prev, [name]: "" }));
-    }
-  };
+    fetchMeasurements();
+  }, []);
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
-    const numberFields = [
-      "totalLength",
-      "shoulderWidth",
-      "armLength",
-      "chestWidth",
-      "waist",
-      "hips",
-      "neckWidth",
-      "neckDepth",
-      "armholeHeight",
-      "sleeveOpeningWidth",
-      "cuffWidth",
-      "cuffLength",
+    const required = [
+      ...BODY_MEASUREMENT_FIELDS,
+      ...NECK_MEASUREMENT_FIELDS,
+      ...SLEEVE_MEASUREMENT_FIELDS,
     ];
 
-    numberFields.forEach((field) => {
-      const value = form[field as keyof MeasurementData];
-      if (
-        value !== null &&
-        value !== undefined &&
-        typeof value === "number" &&
-        value < 0
-      ) {
-        errors[field] = "Value must be 0 or greater";
+    required.forEach((f) => {
+      const v = measurements[f as keyof MeasurementData] as number | null;
+      if (v === null || v <= 0) {
+        errors[f] = "Required field";
       }
     });
 
@@ -211,523 +192,265 @@ export default function MeasurementsForm({ onCancel }: MeasurementsFormProps) {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) {
-      const firstError = Object.values(fieldErrors).find(Boolean);
-      if (firstError) toast.error(firstError);
-      return;
-    }
-    setSubmitting(true);
+  const canContinue = () => {
+    const required = [
+      ...BODY_MEASUREMENT_FIELDS,
+      ...NECK_MEASUREMENT_FIELDS,
+      ...SLEEVE_MEASUREMENT_FIELDS,
+    ];
+    return required.every((f) => {
+      const v = measurements[f as keyof MeasurementData] as number | null;
+      return typeof v === "number" && v > 0;
+    });
+  };
 
-    try {
-      const payload: any = {};
-      const fields = [
-        "totalLength",
-        "shoulderWidth",
-        "armLength",
-        "chestWidth",
-        "waist",
-        "hips",
-        "neckWidth",
-        "neckDepth",
-        "armholeHeight",
-        "sleeveOpeningWidth",
-        "cuffWidth",
-        "cuffLength",
-        "notes",
-      ];
-
-      fields.forEach((field) => {
-        const value = form[field as keyof MeasurementData];
-        if (value !== null && value !== undefined && value !== "") {
-          // Store directly as entered (inches) - no conversion
-          payload[field] = field === "notes" ? value : Number(value);
-        }
-      });
-
-      if (hasExistingMeasurements) {
-        await api.put("/api/customer/customer_measurements", payload);
-        toast.success("Measurements updated successfully!");
-      } else {
-        await api.post("/api/customer/customer_measurements", payload);
-        toast.success("Measurements saved successfully!");
-      }
-
-      // Reload measurements and show view mode
-      const data = await api.get("/api/customer/customer_measurements");
-      if (data.measurements) {
-        setHasExistingMeasurements(true);
-        setForm({
-          totalLength: data.measurements.totalLength,
-          shoulderWidth: data.measurements.shoulderWidth,
-          armLength: data.measurements.armLength,
-          chestWidth: data.measurements.chestWidth,
-          waist: data.measurements.waist,
-          hips: data.measurements.hips,
-          neckWidth: data.measurements.neckWidth,
-          neckDepth: data.measurements.neckDepth,
-          armholeHeight: data.measurements.armholeHeight,
-          sleeveOpeningWidth: data.measurements.sleeveOpeningWidth,
-          cuffWidth: data.measurements.cuffWidth,
-          cuffLength: data.measurements.cuffLength,
-          notes: data.measurements.notes || "",
-        });
-      }
-      setIsEditing(false);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save measurements");
-    } finally {
-      setSubmitting(false);
+  const handleNumberChange = (
+    field: CustomOrderMeasurementField,
+    value: string,
+  ) => {
+    setMeasurements((prev) => ({
+      ...prev,
+      [field]: parseOptionalNumber(value),
+    }));
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 
-  const handleEditClick = () => {
+  const handleNotesChange = (value: string) => {
+    setMeasurements((prev) => ({ ...prev, notes: value }));
+  };
+
+  const handleSaveMeasurements = async () => {
+    if (!validate()) return;
+
+    setIsSaving(true);
+
+    try {
+      const data = await api.post("/api/customer/customer_measurements", {
+        totalLength: measurements.totalLength,
+        shoulderWidth: measurements.shoulderWidth,
+        armLength: measurements.armLength,
+        chestWidth: measurements.chestWidth,
+        waist: measurements.waist,
+        hips: measurements.hips,
+        neckWidth: measurements.neckWidth,
+        neckDepth: measurements.neckDepth,
+        armholeHeight: measurements.armholeHeight,
+        sleeveOpeningWidth: measurements.sleeveOpeningWidth,
+        cuffWidth: measurements.cuffWidth,
+        cuffLength: measurements.cuffLength,
+        notes: measurements.notes,
+      });
+
+      console.log("✅ Measurements saved:", data);
+
+      setHasMeasurements(true);
+      setIsEditing(false);
+      toast.success("Measurements saved successfully!");
+    } catch (error) {
+      console.error("❌ Save error:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleEdit = () => {
     setIsEditing(true);
   };
 
   const handleCancel = () => {
-    if (onCancel) {
-      onCancel();
-    } else {
-      setIsEditing(false);
-    }
+    window.location.reload();
   };
 
-  const measurementFields = [
-    { key: "totalLength", label: "Total Length" },
-    { key: "shoulderWidth", label: "Shoulder Width" },
-    { key: "armLength", label: "Arm Length" },
-    { key: "chestWidth", label: "Chest Width" },
-    { key: "waist", label: "Waist" },
-    { key: "hips", label: "Hips" },
-    { key: "neckWidth", label: "Neck Width" },
-    { key: "neckDepth", label: "Neck Depth" },
-    { key: "armholeHeight", label: "Armhole Height" },
-    { key: "sleeveOpeningWidth", label: "Sleeve Opening" },
-    { key: "cuffWidth", label: "Cuff Width" },
-    { key: "cuffLength", label: "Cuff Length" },
-  ];
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8 sm:p-12">
-        <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin text-gray-500" />
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sm:p-12 text-center">
+          <p className="text-gray-500">Loading measurements...</p>
+        </div>
       </div>
     );
   }
 
-  // Show measurement view (not editing)
-  if (hasExistingMeasurements && !isEditing) {
-    return (
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 sm:p-6 md:p-8">
-          <div className="flex justify-between items-center mb-4 sm:mb-6">
-            <h2 className="text-lg sm:text-xl font-medium flex items-center gap-2">
-              <Ruler className="w-5 h-5" />
-              Body Measurements
-            </h2>
-            <div className="flex gap-2">
-              <button
-                onClick={handleEditClick}
-                className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-medium bg-black text-white hover:bg-gray-800 transition flex items-center gap-2 hover:cursor-pointer"
-              >
-                <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                Edit Measurements
-              </button>
-              {onCancel && (
-                <button
-                  onClick={onCancel}
-                  className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition hover:cursor-pointer"
-                >
-                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
-                </button>
+  const isViewMode = hasMeasurements && !isEditing;
+
+  return (
+    <div className="mx-auto max-w-7xl w-full space-y-4 sm:space-y-6 px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="w-full sm:w-auto">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-light text-black tracking-tight">
+            {isViewMode ? "My Measurements" : "Measurements"}
+          </h1>
+          <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">
+            {isViewMode ? "Review your saved measurements" : t("optionalNote")}
+          </p>
+        </div>
+        {isViewMode && (
+          <button
+            type="button"
+            onClick={handleEdit}
+            className="w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 bg-black text-white text-[10px] sm:text-[11px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition font-ui rounded-lg hover:cursor-pointer whitespace-nowrap"
+          >
+            Edit Measurements
+          </button>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 lg:p-8">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)] gap-6 lg:gap-8 xl:gap-12 mb-8 sm:mb-10">
+          <div className="space-y-8 sm:space-y-10">
+            <section>
+              <h2 className="font-display text-[18px] sm:text-[20px] md:text-[22px] font-normal mb-1.5 sm:mb-2">
+                {t("bodySection")}
+              </h2>
+              {!isViewMode && (
+                <p className="font-body text-[12px] sm:text-[13px] text-gray-500 mb-4 sm:mb-6">
+                  {t("bodySectionHint")}
+                </p>
               )}
-            </div>
+              <div className="xl:hidden mb-4 sm:mb-6 flex justify-center overflow-hidden">
+                <div className="w-full max-w-70 sm:max-w-[320px] md:max-w-90 lg:max-w-100 mx-auto">
+                  <MeasurementBodyDiagram />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
+                {BODY_MEASUREMENT_FIELDS.map((field) => (
+                  <MeasurementInput
+                    key={field}
+                    field={field}
+                    value={measurements[field]}
+                    onChange={handleNumberChange}
+                    t={t}
+                    error={fieldErrors[field]}
+                    disabled={isViewMode}
+                  />
+                ))}
+              </div>
+            </section>
+
+            <section className="pt-5 sm:pt-6 border-t border-gray-200">
+              <h2 className="font-display text-[18px] sm:text-[20px] md:text-[22px] font-normal mb-1.5 sm:mb-2">
+                {t("neckSection")}
+              </h2>
+              {!isViewMode && (
+                <p className="font-body text-[12px] sm:text-[13px] text-gray-500 mb-4 sm:mb-6">
+                  {t("neckSectionHint")}
+                </p>
+              )}
+              <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-start">
+                <div className="shrink-0 flex justify-center w-full sm:w-auto">
+                  <div className="w-full max-w-50 sm:max-w-55 md:max-w-60 lg:max-w-65">
+                    <MeasurementNeckDiagram />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:gap-5 md:gap-6 flex-1 min-w-0 w-full sm:max-w-sm">
+                  {NECK_MEASUREMENT_FIELDS.map((field) => (
+                    <MeasurementInput
+                      key={field}
+                      field={field}
+                      value={measurements[field]}
+                      onChange={handleNumberChange}
+                      t={t}
+                      error={fieldErrors[field]}
+                      disabled={isViewMode}
+                    />
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="pt-5 sm:pt-6 border-t border-gray-200">
+              <h2 className="font-display text-[18px] sm:text-[20px] md:text-[22px] font-normal mb-1.5 sm:mb-2">
+                {t("fields.arabicSleeveSection")}
+              </h2>
+              {!isViewMode && (
+                <p className="font-body text-[12px] sm:text-[13px] text-gray-500 mb-4 sm:mb-6">
+                  {t("fields.arabicSleeveSectionHint")}
+                </p>
+              )}
+              <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-start">
+                <div className="shrink-0 flex justify-center w-full sm:w-auto">
+                  <div className="w-full max-w-50 sm:max-w-55 md:max-w-60 lg:max-w-65">
+                    <MeasurementSleeveDiagram />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:gap-5 md:gap-6 flex-1 min-w-0 w-full sm:max-w-sm">
+                  {SLEEVE_MEASUREMENT_FIELDS.map((field) => (
+                    <MeasurementInput
+                      key={field}
+                      field={field}
+                      value={measurements[field]}
+                      onChange={handleNumberChange}
+                      t={t}
+                      error={fieldErrors[field]}
+                      disabled={isViewMode}
+                    />
+                  ))}
+                </div>
+              </div>
+            </section>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {measurementFields.map((field) => {
-              const value = form[field.key as keyof MeasurementData];
-              let displayValue: string = "—";
-              if (value !== null && value !== undefined) {
-                // Show exact value with up to 3 decimal places
-                displayValue = `${Number(value).toFixed(2)} in`;
-              }
-              return (
-                <DisplayField
-                  key={field.key}
-                  label={field.label}
-                  value={displayValue}
-                />
-              );
-            })}
-            {form.notes && (
-              <div className="sm:col-span-2 lg:col-span-3">
-                <DisplayField label="Notes" value={form.notes} />
-              </div>
+          <aside className="hidden xl:block">
+            <div className="sticky top-28 space-y-4">
+              <p className="font-ui text-[10px] uppercase tracking-[0.24em] text-gray-400">
+                {t("diagramGuide")}
+              </p>
+              <MeasurementBodyDiagram />
+            </div>
+          </aside>
+        </div>
+
+        <div className="mb-8 sm:mb-10">
+          <label
+            htmlFor="measurement-notes"
+            className="block font-ui text-[10px] uppercase tracking-[0.24em] text-black mb-1.5 sm:mb-2"
+          >
+            {t("fields.notes")}
+          </label>
+          <textarea
+            id="measurement-notes"
+            rows={4}
+            value={measurements.notes}
+            onChange={(e) => handleNotesChange(e.target.value)}
+            placeholder={t("fields.notesPlaceholder")}
+            disabled={isViewMode}
+            className={`w-full border border-gray-200 px-3 sm:px-4 py-2.5 sm:py-3 font-body text-[14px] sm:text-[15px] focus:outline-none focus:border-black transition resize-y min-h-25 sm:min-h-30 rounded-lg ${
+              isViewMode ? "bg-gray-50 text-gray-700" : "bg-white text-black"
+            }`}
+          />
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 pt-5 sm:pt-6 border-t border-gray-200">
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            {!isViewMode && (
+              <>
+                {hasMeasurements && (
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="w-full sm:w-auto px-6 py-2.5 sm:py-3 bg-gray-200 text-black text-[10px] tracking-[0.22em] uppercase hover:bg-gray-300 transition font-ui rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSaveMeasurements}
+                  disabled={!canContinue() || isSaving}
+                  className="w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 bg-black text-white text-[11px] sm:text-[12px] md:text-[13px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed font-ui rounded-lg hover:cursor-pointer"
+                >
+                  {isSaving
+                    ? "SAVING..."
+                    : hasMeasurements
+                      ? "Update"
+                      : "Submit Measurement"}
+                </button>
+              </>
             )}
           </div>
         </div>
-      </div>
-    );
-  }
-
-  // Show edit form (for new or editing)
-  return (
-    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-      <div className="p-4 sm:p-6 md:p-8">
-        <div className="flex justify-between items-center mb-4 sm:mb-6">
-          <h2 className="text-lg sm:text-xl font-medium flex items-center gap-2">
-            <Ruler className="w-5 h-5" />
-            {hasExistingMeasurements ? "Edit Measurements" : "Add Measurements"}
-          </h2>
-          <button
-            onClick={handleCancel}
-            className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition hover:cursor-pointer"
-          >
-            <X className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
-          {/* Upper Body */}
-          <div className="space-y-3 sm:space-y-4">
-            <h3 className="text-sm sm:text-base font-medium flex items-center gap-2">
-              <User className="w-4 h-4 sm:w-5 sm:h-5" /> Upper Body
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-              <FormField
-                label="Total Length (in)"
-                name="totalLength"
-                error={fieldErrors.totalLength}
-              >
-                <input
-                  type="number"
-                  name="totalLength"
-                  value={form.totalLength ?? ""}
-                  onChange={handleChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onWheel={(e) => e.preventDefault()}
-                  placeholder="e.g. 67.5"
-                  min="0"
-                  step="0.01"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField
-                label="Shoulder Width (in)"
-                name="shoulderWidth"
-                error={fieldErrors.shoulderWidth}
-              >
-                <input
-                  type="number"
-                  name="shoulderWidth"
-                  value={form.shoulderWidth ?? ""}
-                  onChange={handleChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onWheel={(e) => e.preventDefault()}
-                  placeholder="e.g. 18.5"
-                  min="0"
-                  step="0.01"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField
-                label="Arm Length (in)"
-                name="armLength"
-                error={fieldErrors.armLength}
-              >
-                <input
-                  type="number"
-                  name="armLength"
-                  value={form.armLength ?? ""}
-                  onChange={handleChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onWheel={(e) => e.preventDefault()}
-                  placeholder="e.g. 24.5"
-                  min="0"
-                  step="0.01"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField
-                label="Chest Width (in)"
-                name="chestWidth"
-                error={fieldErrors.chestWidth}
-              >
-                <input
-                  type="number"
-                  name="chestWidth"
-                  value={form.chestWidth ?? ""}
-                  onChange={handleChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onWheel={(e) => e.preventDefault()}
-                  placeholder="e.g. 39.5"
-                  min="0"
-                  step="0.01"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField
-                label="Neck Width (in)"
-                name="neckWidth"
-                error={fieldErrors.neckWidth}
-              >
-                <input
-                  type="number"
-                  name="neckWidth"
-                  value={form.neckWidth ?? ""}
-                  onChange={handleChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onWheel={(e) => e.preventDefault()}
-                  placeholder="e.g. 15.5"
-                  min="0"
-                  step="0.01"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField
-                label="Neck Depth (in)"
-                name="neckDepth"
-                error={fieldErrors.neckDepth}
-              >
-                <input
-                  type="number"
-                  name="neckDepth"
-                  value={form.neckDepth ?? ""}
-                  onChange={handleChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onWheel={(e) => e.preventDefault()}
-                  placeholder="e.g. 3.5"
-                  min="0"
-                  step="0.01"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField
-                label="Armhole Height (in)"
-                name="armholeHeight"
-                error={fieldErrors.armholeHeight}
-              >
-                <input
-                  type="number"
-                  name="armholeHeight"
-                  value={form.armholeHeight ?? ""}
-                  onChange={handleChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onWheel={(e) => e.preventDefault()}
-                  placeholder="e.g. 8.5"
-                  min="0"
-                  step="0.01"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField
-                label="Sleeve Opening (in)"
-                name="sleeveOpeningWidth"
-                error={fieldErrors.sleeveOpeningWidth}
-              >
-                <input
-                  type="number"
-                  name="sleeveOpeningWidth"
-                  value={form.sleeveOpeningWidth ?? ""}
-                  onChange={handleChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onWheel={(e) => e.preventDefault()}
-                  placeholder="e.g. 6.5"
-                  min="0"
-                  step="0.01"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-            </div>
-          </div>
-
-          {/* Lower Body */}
-          <div className="space-y-3 sm:space-y-4">
-            <h3 className="text-sm sm:text-base font-medium flex items-center gap-2">
-              <Users className="w-4 h-4 sm:w-5 sm:h-5" /> Lower Body
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-              <FormField
-                label="Waist (in)"
-                name="waist"
-                error={fieldErrors.waist}
-              >
-                <input
-                  type="number"
-                  name="waist"
-                  value={form.waist ?? ""}
-                  onChange={handleChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onWheel={(e) => e.preventDefault()}
-                  placeholder="e.g. 31.5"
-                  min="0"
-                  step="0.01"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField label="Hips (in)" name="hips" error={fieldErrors.hips}>
-                <input
-                  type="number"
-                  name="hips"
-                  value={form.hips ?? ""}
-                  onChange={handleChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onWheel={(e) => e.preventDefault()}
-                  placeholder="e.g. 39.5"
-                  min="0"
-                  step="0.01"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField
-                label="Cuff Width (in)"
-                name="cuffWidth"
-                error={fieldErrors.cuffWidth}
-              >
-                <input
-                  type="number"
-                  name="cuffWidth"
-                  value={form.cuffWidth ?? ""}
-                  onChange={handleChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onWheel={(e) => e.preventDefault()}
-                  placeholder="e.g. 8.5"
-                  min="0"
-                  step="0.01"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField
-                label="Cuff Length (in)"
-                name="cuffLength"
-                error={fieldErrors.cuffLength}
-              >
-                <input
-                  type="number"
-                  name="cuffLength"
-                  value={form.cuffLength ?? ""}
-                  onChange={handleChange}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onWheel={(e) => e.preventDefault()}
-                  placeholder="e.g. 2.5"
-                  min="0"
-                  step="0.01"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-3 sm:space-y-4">
-            <h3 className="text-sm sm:text-base font-medium flex items-center gap-2">
-              <MapPin className="w-4 h-4 sm:w-5 sm:h-5" /> Additional Notes
-            </h3>
-            <div className="grid grid-cols-1 gap-4 sm:gap-5">
-              <FormField label="Notes" name="notes">
-                <textarea
-                  name="notes"
-                  value={form.notes}
-                  onChange={handleChange}
-                  placeholder="Any special instructions or notes about measurements..."
-                  rows={1}
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent resize-none overflow-hidden"
-                  style={{ minHeight: "2.5rem" }}
-                  onInput={(e) => {
-                    const target = e.target as HTMLTextAreaElement;
-                    target.style.height = "auto";
-                    target.style.height = target.scrollHeight + "px";
-                  }}
-                />
-              </FormField>
-            </div>
-          </div>
-
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="px-4 sm:px-6 py-1.5 sm:py-2 text-sm sm:text-base border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer w-full sm:w-auto"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 sm:px-6 py-1.5 sm:py-2 text-sm sm:text-base bg-black text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2 hover:cursor-pointer w-full sm:w-auto"
-            >
-              {submitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              {hasExistingMeasurements
-                ? "Update Measurements"
-                : "Save Measurements"}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );
