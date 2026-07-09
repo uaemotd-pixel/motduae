@@ -65,7 +65,7 @@ function AccountSidebar({
     <>
       <button
         onClick={onToggle}
-        className={`absolute right-0 top-5 w-8 h-8 rounded-full bg-black border-0 text-white hover:bg-white/10 transition flex items-center justify-center z-30 hover:cursor-pointer ${
+        className={`absolute right-0 top-5 w-8 h-8 rounded-full bg-black border-0 text-white/70 hover:text-white transition flex items-center justify-center z-30 hover:cursor-pointer ${
           collapsed ? "rotate-180" : ""
         } hidden lg:flex`}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}

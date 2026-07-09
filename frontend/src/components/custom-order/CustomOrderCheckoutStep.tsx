@@ -109,7 +109,9 @@ export default function CustomOrderCheckoutStep() {
   const [measurementsConfirmed, setMeasurementsConfirmed] = useState(false);
   const [addPocket, setAddPocket] = useState(false);
   const [addBottomWideFold, setAddBottomWideFold] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"cod" | "apple_pay">("cod");
+  const [paymentMethod, setPaymentMethod] = useState<"cod" | "apple_pay">(
+    "cod",
+  );
 
   const [profileLoading, setProfileLoading] = useState(true);
   const [tailorShop, setTailorShop] = useState<TailorShop | null>(null);
@@ -178,14 +180,22 @@ export default function CustomOrderCheckoutStep() {
     }
   }, [isHydrated, draft.lineItems]);
 
+  // In CustomOrderCheckoutStep - replace useEffect
   useEffect(() => {
-    async function fetchCustomerProfile() {
+    async function fetchCustomerOrMemberAddress() {
       if (!isAuthenticated) return;
       try {
         setProfileLoading(true);
+
+        // NOTE: CustomOrderDraft currently only stores a deliveryAddress.
+        // MeasurementsStep selection is NOT persisted into draft, so by design we
+        // can only fetch the authenticated user's default customer address here.
+        console.log("👤 Fetching customer profile for delivery address");
+
         const data = await api.get<CustomerProfile>("/api/customer/profile");
         const defaultAddr =
           data.addresses?.find((a) => a.isDefault) || data.addresses?.[0];
+
         if (defaultAddr) {
           updateDeliveryAddress({
             fullName: defaultAddr.fullName || data.name || "",
@@ -209,7 +219,8 @@ export default function CustomOrderCheckoutStep() {
         setProfileLoading(false);
       }
     }
-    fetchCustomerProfile();
+
+    fetchCustomerOrMemberAddress();
   }, [isAuthenticated, updateDeliveryAddress]);
 
   useEffect(() => {
@@ -501,8 +512,10 @@ export default function CustomOrderCheckoutStep() {
                           {t("design")}
                         </dt>
                         <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                          {getDisplayName(item.design.name, item.design.nameAr) ||
-                            "—"}
+                          {getDisplayName(
+                            item.design.name,
+                            item.design.nameAr,
+                          ) || "—"}
                         </dd>
                       </div>
                       <div className="mt-3">
@@ -510,8 +523,10 @@ export default function CustomOrderCheckoutStep() {
                           {t("tailor")}
                         </dt>
                         <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                          {getDisplayName(item.tailor.name, item.tailor.nameAr) ||
-                            "—"}
+                          {getDisplayName(
+                            item.tailor.name,
+                            item.tailor.nameAr,
+                          ) || "—"}
                         </dd>
                       </div>
                     </div>

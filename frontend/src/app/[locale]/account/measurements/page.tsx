@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
 import MeasurementBodyDiagram from "@/components/custom-order/measurement-diagram/MeasurementBodyDiagram";
 import MeasurementNeckDiagram from "@/components/custom-order/measurement-diagram/MeasurementNeckDiagram";
 import MeasurementSleeveDiagram from "@/components/custom-order/measurement-diagram/MeasurementSleeveDiagram";
@@ -14,6 +15,8 @@ import {
 import { type CustomOrderMeasurementField } from "@/lib/customOrder";
 import { api } from "@/lib/api/client";
 import toast from "react-hot-toast";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 type MeasurementData = {
   totalLength: number | null;
@@ -29,6 +32,15 @@ type MeasurementData = {
   cuffWidth: number | null;
   cuffLength: number | null;
   notes: string;
+};
+
+type FamilyMember = {
+  _id: string;
+  name: string;
+  relationship: string;
+  phone: string;
+  email?: string;
+  measurements?: MeasurementData;
 };
 
 function parseOptionalNumber(value: string): number | null {
@@ -119,6 +131,8 @@ const DEFAULT_MEASUREMENTS: MeasurementData = {
 
 export default function AccountMeasurementsPage() {
   const t = useTranslations("CustomOrderMeasurements");
+  const searchParams = useSearchParams();
+  const memberIdParam = searchParams.get("memberId");
 
   const [measurements, setMeasurements] =
     useState<MeasurementData>(DEFAULT_MEASUREMENTS);
@@ -127,51 +141,145 @@ export default function AccountMeasurementsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [hasMeasurements, setHasMeasurements] = useState(false);
+  const [members, setMembers] = useState<FamilyMember[]>([]);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>("");
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [memberDropdownOpen, setMemberDropdownOpen] = useState(false);
+  const memberRef = useRef<HTMLDivElement>(null);
 
+  // Close dropdown on click outside
   useEffect(() => {
-    const fetchMeasurements = async () => {
-      try {
-        setIsLoading(true);
-        console.log("🔵 Fetching measurements...");
-
-        const data = await api.get("/api/customer/customer_measurements");
-        console.log("📄 Data:", data);
-
-        if (data && data.measurements) {
-          const hasData = Object.values(data.measurements).some(
-            (val) => val !== null && val !== undefined && val !== "",
-          );
-
-          if (hasData) {
-            setMeasurements({
-              totalLength: data.measurements.totalLength ?? null,
-              shoulderWidth: data.measurements.shoulderWidth ?? null,
-              armLength: data.measurements.armLength ?? null,
-              chestWidth: data.measurements.chestWidth ?? null,
-              waist: data.measurements.waist ?? null,
-              hips: data.measurements.hips ?? null,
-              neckWidth: data.measurements.neckWidth ?? null,
-              neckDepth: data.measurements.neckDepth ?? null,
-              armholeHeight: data.measurements.armholeHeight ?? null,
-              sleeveOpeningWidth: data.measurements.sleeveOpeningWidth ?? null,
-              cuffWidth: data.measurements.cuffWidth ?? null,
-              cuffLength: data.measurements.cuffLength ?? null,
-              notes: data.measurements.notes || "",
-            });
-            setHasMeasurements(true);
-            console.log("✅ Measurements loaded");
-          }
-        }
-      } catch (error) {
-        console.error("❌ Fetch error:", error);
-        setHasMeasurements(false);
-      } finally {
-        setIsLoading(false);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (memberRef.current && !memberRef.current.contains(e.target as Node)) {
+        setMemberDropdownOpen(false);
       }
     };
-
-    fetchMeasurements();
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    fetchMembers();
+  }, []);
+
+  useEffect(() => {
+    if (memberIdParam) {
+      setSelectedMemberId(memberIdParam);
+    }
+  }, [memberIdParam]);
+
+  useEffect(() => {
+    if (selectedMemberId) {
+      fetchMemberMeasurements(selectedMemberId);
+    } else {
+      fetchCustomerMeasurements();
+    }
+  }, [selectedMemberId]);
+
+  const fetchMembers = async () => {
+    try {
+      setIsLoadingMembers(true);
+      const data = await api.get("/api/customer/family-members");
+      const membersArray = data?.items ?? data?.savedUsers ?? [];
+      setMembers(Array.isArray(membersArray) ? membersArray : []);
+      console.log("📋 Members loaded:", membersArray);
+      if (Array.isArray(membersArray) && membersArray.length > 0) {
+        console.log("🧾 First member for dropdown:", {
+          _id: membersArray[0]._id,
+          name: membersArray[0].name,
+          relationship: membersArray[0].relationship,
+        });
+      }
+    } catch (error) {
+      console.error("❌ Failed to fetch members:", error);
+      setMembers([]);
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  };
+
+  const fetchCustomerMeasurements = async () => {
+    try {
+      setIsLoading(true);
+      const data = await api.get("/api/customer/customer_measurements");
+
+      if (data?.measurements) {
+        const hasData = Object.values(data.measurements).some(
+          (val) => val !== null && val !== undefined && val !== "",
+        );
+
+        if (hasData) {
+          setMeasurements({
+            totalLength: data.measurements.totalLength ?? null,
+            shoulderWidth: data.measurements.shoulderWidth ?? null,
+            armLength: data.measurements.armLength ?? null,
+            chestWidth: data.measurements.chestWidth ?? null,
+            waist: data.measurements.waist ?? null,
+            hips: data.measurements.hips ?? null,
+            neckWidth: data.measurements.neckWidth ?? null,
+            neckDepth: data.measurements.neckDepth ?? null,
+            armholeHeight: data.measurements.armholeHeight ?? null,
+            sleeveOpeningWidth: data.measurements.sleeveOpeningWidth ?? null,
+            cuffWidth: data.measurements.cuffWidth ?? null,
+            cuffLength: data.measurements.cuffLength ?? null,
+            notes: data.measurements.notes || "",
+          });
+          setHasMeasurements(true);
+        }
+      }
+    } catch (error) {
+      console.error("❌ Fetch customer measurements error:", error);
+      setHasMeasurements(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchMemberMeasurements = async (memberId: string) => {
+    try {
+      setIsLoading(true);
+      const data = await api.get(
+        `/api/customer/family-members/${memberId}/measurements`,
+      );
+
+      if (data?.measurements) {
+        const hasData = Object.values(data.measurements).some(
+          (val) => val !== null && val !== undefined && val !== "",
+        );
+
+        if (hasData) {
+          setMeasurements({
+            totalLength: data.measurements.totalLength ?? null,
+            shoulderWidth: data.measurements.shoulderWidth ?? null,
+            armLength: data.measurements.armLength ?? null,
+            chestWidth: data.measurements.chestWidth ?? null,
+            waist: data.measurements.waist ?? null,
+            hips: data.measurements.hips ?? null,
+            neckWidth: data.measurements.neckWidth ?? null,
+            neckDepth: data.measurements.neckDepth ?? null,
+            armholeHeight: data.measurements.armholeHeight ?? null,
+            sleeveOpeningWidth: data.measurements.sleeveOpeningWidth ?? null,
+            cuffWidth: data.measurements.cuffWidth ?? null,
+            cuffLength: data.measurements.cuffLength ?? null,
+            notes: data.measurements.notes || "",
+          });
+          setHasMeasurements(true);
+        } else {
+          setMeasurements(DEFAULT_MEASUREMENTS);
+          setHasMeasurements(false);
+        }
+      } else {
+        setMeasurements(DEFAULT_MEASUREMENTS);
+        setHasMeasurements(false);
+      }
+    } catch (error) {
+      console.error("❌ Fetch member measurements error:", error);
+      setMeasurements(DEFAULT_MEASUREMENTS);
+      setHasMeasurements(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
@@ -221,13 +329,24 @@ export default function AccountMeasurementsPage() {
     setMeasurements((prev) => ({ ...prev, notes: value }));
   };
 
+  const handleMemberSelect = (memberId: string) => {
+    console.log("🧷 Selected member from dropdown:", memberId);
+    setSelectedMemberId(memberId);
+    setMemberDropdownOpen(false);
+    setIsEditing(false);
+  };
+
   const handleSaveMeasurements = async () => {
     if (!validate()) return;
-
     setIsSaving(true);
 
     try {
-      const data = await api.post("/api/customer/customer_measurements", {
+      let url = "/api/customer/customer_measurements";
+      if (selectedMemberId) {
+        url = `/api/customer/family-members/${selectedMemberId}/measurements`;
+      }
+
+      await api.put(url, {
         totalLength: measurements.totalLength,
         shoulderWidth: measurements.shoulderWidth,
         armLength: measurements.armLength,
@@ -243,13 +362,12 @@ export default function AccountMeasurementsPage() {
         notes: measurements.notes,
       });
 
-      console.log("✅ Measurements saved:", data);
-
       setHasMeasurements(true);
       setIsEditing(false);
       toast.success("Measurements saved successfully!");
     } catch (error) {
       console.error("❌ Save error:", error);
+      toast.error("Failed to save measurements");
     } finally {
       setIsSaving(false);
     }
@@ -260,7 +378,12 @@ export default function AccountMeasurementsPage() {
   };
 
   const handleCancel = () => {
-    window.location.reload();
+    if (selectedMemberId) {
+      fetchMemberMeasurements(selectedMemberId);
+    } else {
+      fetchCustomerMeasurements();
+    }
+    setIsEditing(false);
   };
 
   if (isLoading) {
@@ -274,27 +397,120 @@ export default function AccountMeasurementsPage() {
   }
 
   const isViewMode = hasMeasurements && !isEditing;
+  const selectedMember = Array.isArray(members)
+    ? members.find((m) => m._id === selectedMemberId)
+    : undefined;
+
+  const getMemberDisplayName = (member: FamilyMember) => {
+    return `${member.name} (${member.relationship})`;
+  };
 
   return (
     <div className="mx-auto max-w-7xl w-full space-y-4 sm:space-y-6 px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
         <div className="w-full sm:w-auto">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-light text-black tracking-tight">
-            {isViewMode ? "My Measurements" : "Measurements"}
+            {selectedMemberId && selectedMember
+              ? `${selectedMember.name}'s Measurements`
+              : isViewMode
+                ? "My Measurements"
+                : "Measurements"}
           </h1>
           <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">
-            {isViewMode ? "Review your saved measurements" : t("optionalNote")}
+            {selectedMemberId
+              ? `Manage measurements for ${selectedMember?.relationship || "family member"}`
+              : isViewMode
+                ? "Review your saved measurements"
+                : t("optionalNote")}
           </p>
         </div>
-        {isViewMode && (
-          <button
-            type="button"
-            onClick={handleEdit}
-            className="w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 bg-black text-white text-[10px] sm:text-[11px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition font-ui rounded-lg hover:cursor-pointer whitespace-nowrap"
-          >
-            Edit Measurements
-          </button>
-        )}
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          {/* Beautified Member Dropdown */}
+          <div className="relative w-full sm:w-auto min-w-50" ref={memberRef}>
+            <button
+              type="button"
+              onClick={() => setMemberDropdownOpen(!memberDropdownOpen)}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-black transition bg-white flex items-center justify-between hover:cursor-pointer"
+              disabled={isLoadingMembers || !Array.isArray(members)}
+            >
+              <span
+                className={selectedMemberId ? "text-black" : "text-gray-400"}
+              >
+                {selectedMemberId && selectedMember
+                  ? getMemberDisplayName(selectedMember)
+                  : "My Measurements"}
+              </span>
+              {memberDropdownOpen ? (
+                <ChevronUp className="w-4 h-4 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-400" />
+              )}
+            </button>
+
+            <AnimatePresence>
+              {memberDropdownOpen && (
+                <motion.ul
+                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50 py-1"
+                  style={{ overscrollBehavior: "contain" }}
+                  onWheel={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
+                >
+                  <motion.li
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.05 }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleMemberSelect("")}
+                      className={`w-full text-left px-4 py-2.5 text-[15px] hover:bg-gray-50 transition hover:cursor-pointer ${
+                        !selectedMemberId
+                          ? "text-black font-medium bg-gray-50"
+                          : "text-gray-700"
+                      }`}
+                    >
+                      My Measurements
+                    </button>
+                  </motion.li>
+                  {members.map((member, index) => (
+                    <motion.li
+                      key={member._id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.05 * (index + 2) }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleMemberSelect(member._id)}
+                        className={`w-full text-left px-4 py-2.5 text-[15px] hover:bg-gray-50 transition hover:cursor-pointer ${
+                          selectedMemberId === member._id
+                            ? "text-black font-medium bg-gray-50"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        {getMemberDisplayName(member)}
+                      </button>
+                    </motion.li>
+                  ))}
+                </motion.ul>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {isViewMode && (
+            <button
+              type="button"
+              onClick={handleEdit}
+              className="w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 bg-black text-white text-[10px] sm:text-[11px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition font-ui rounded-lg hover:cursor-pointer whitespace-nowrap"
+            >
+              Edit Measurements
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 lg:p-8">
