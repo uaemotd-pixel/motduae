@@ -140,6 +140,7 @@ const toDesignListItem = (design) => ({
   images: design.images,
   category: design.category,
   basePrice: design.basePrice,
+  priceType: design.priceType,
   tailoringFee: design.tailoringFee,
   estimatedMeters: design.estimatedMeters,
   estimatedDays: design.estimatedDays,

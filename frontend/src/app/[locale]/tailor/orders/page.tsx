@@ -65,6 +65,7 @@ interface Order {
     total: number;
     currency: string;
     tailoringFee: number;
+    designBase: number;
   };
   addPocket?: boolean;
   addBottomWideFold?: boolean;
@@ -399,13 +400,22 @@ export default function TailorOrdersPage() {
                   </div>
 
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("total")}</p>
-                    <p className="font-medium text-black text-sm">
-                      {formatCurrency(order.pricing.tailoringFee, order.pricing.currency)}
-                    </p>
-                    <p className="text-2xs text-gray-400">
-                      {locale === "ar" ? "رسوم الخياطة فقط" : "Tailoring fee only"}
-                    </p>
+                    <div className="mb-2">
+                      <p className="text-3xs text-gray-400 uppercase tracking-wider mb-0.5">
+                        {locale === "ar" ? "رسوم الخياطة" : "Tailoring Fee"}
+                      </p>
+                      <p className="font-semibold text-black text-xs">
+                        {formatCurrency(order.pricing.tailoringFee, order.pricing.currency)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-3xs text-gray-400 uppercase tracking-wider mb-0.5">
+                        {locale === "ar" ? "رسوم التصميم" : "Design Fee"}
+                      </p>
+                      <p className="font-semibold text-black text-xs">
+                        {formatCurrency(order.pricing.designBase, order.pricing.currency)}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -474,7 +484,7 @@ export default function TailorOrdersPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border-t border-gray-100 bg-gray-50/70 items-center">
                   <div className="text-xs text-gray-500">
                     {locale === "ar" ? "الرقم التعريفي للطلب:" : "Order ID:"}{" "}
-                    <span className="font-mono text-black font-medium">#{order._id.toUpperCase()}</span>
+                    <span className="font-mono text-black font-medium">#{order._id.slice(-8).toUpperCase()}</span>
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-2 sm:justify-end sm:items-center flex-wrap">
