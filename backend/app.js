@@ -11,11 +11,18 @@ import orderRoutes from "./routes/orderRoutes.js";
 import adminRouter from "./routes/adminRoutes.js";
 import tailorPortalRoutes from "./routes/tailorPortalRoutes.js";
 import fabricPortalRoutes from "./routes/fabricPortalRoutes.js";
-import { isAuth, isAdmin, isApprovedTailor, isApprovedFabricStore } from "./middleware/auth.js";
+import {
+  isAuth,
+  isAdmin,
+  isApprovedTailor,
+  isApprovedFabricStore,
+} from "./middleware/auth.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 import customerRouter from "./routes/customerRoutes.js";
 import subAdminRouter from "./routes/subAdminRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
+import notificationRouter from "./routes/notificationRoutes.js";
+import customerNotificationRouter from "./routes/customerNotificationRoutes.js";
 
 const app = express();
 
@@ -47,9 +54,15 @@ app.use("/api/tailors", tailorRoutes);
 app.use("/api/tailor", isAuth, isApprovedTailor, tailorPortalRoutes);
 app.use("/api/fabric", isAuth, isApprovedFabricStore, fabricPortalRoutes);
 app.use("/api/orders", orderRoutes);
+// Expose order routes under admin namespace as well so admin UI can call
+// /api/admin/orders/custom/:id/return-accept and /return-reject
+app.use("/api/admin/orders", isAuth, isAdmin, orderRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", isAuth, isAdmin, adminRouter);
+app.use("/api/admin", isAuth, isAdmin, notificationRouter);
 app.use("/api/customer", customerRouter);
+app.use("/api/customer", customerNotificationRouter);
+
 app.use("/api/subadmins", isAuth, subAdminRouter);
 app.use(notFound);
 app.use(errorHandler);

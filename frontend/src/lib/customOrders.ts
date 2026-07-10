@@ -9,6 +9,9 @@ export const CUSTOM_ORDER_STATUSES = [
   "ready",
   "out_for_delivery",
   "delivered",
+  // Returns & refunds flow (added after delivery)
+  "return_requested",
+  "refund_processed",
 ] as const;
 
 export type CustomOrderStatus = (typeof CUSTOM_ORDER_STATUSES)[number];

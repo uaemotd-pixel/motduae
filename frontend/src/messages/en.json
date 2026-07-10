@@ -179,7 +179,7 @@
     "unknownDesign": "Custom design"
   },
   "CustomOrderReview": {
-     "pricingNotReady": {
+    "pricingNotReady": {
       "generic": "Pricing not available. Please try again."
     },
     "stepLabel": "Step {step} of {total}",
@@ -991,7 +991,9 @@
         "in_production": "In production",
         "ready": "Ready",
         "out_for_delivery": "Out for delivery",
-        "delivered": "Delivered"
+        "delivered": "Delivered",
+        "return_requested": "Return requested",
+        "refund_processed": "Refund processed"
       }
     },
     "retail": {
@@ -1039,10 +1041,17 @@
         },
         "delivered": {
           "title": "Delivered"
+        },
+        "return_requested": {
+          "title": "Return requested"
+        },
+        "refund_processed": {
+          "title": "Refund processed"
         }
       }
     }
   },
+
   "Footer": {
     "logoAlt": "MOTD — Mukhawar of the Day",
     "tagline": "Bespoke Eastern luxury tailored for the modern world.",

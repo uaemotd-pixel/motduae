@@ -27,6 +27,7 @@ import CustomerReviewsView from "@/components/reviews/CustomerReviewsView";
 import ChangePasswordForm from "@/components/account/ChangePasswordForm";
 import BrandLoader from "@/components/shared/BrandLoader";
 import MeasurementsForm from "./measurements/page";
+import CustomerNotificationPage from "./notification/page";
 
 const NAV_ITEMS = [
   { id: "profile", label: "Profile", icon: User },
@@ -375,10 +376,7 @@ function AccountPageContent() {
                   transition={{ duration: 0.25 }}
                   className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 md:p-8 shadow-sm"
                 >
-                  <h2 className="text-xl font-semibold mb-4">Notifications</h2>
-                  <p className="text-gray-500">
-                    You have no new notifications.
-                  </p>
+                  <CustomerNotificationPage />
                 </motion.div>
               )}
 

@@ -1236,7 +1236,9 @@
         "in_production": { "title": "قيد الإنتاج" },
         "ready": { "title": "القطعة جاهزة" },
         "out_for_delivery": { "title": "في التوصيل" },
-        "delivered": { "title": "تم التسليم" }
+        "delivered": { "title": "تم التسليم" },
+        "return_requested": { "title": "تم طلب الإرجاع" },
+        "refund_processed": { "title": "تمت معالجة المبلغ المسترد" }
       }
     }
   },

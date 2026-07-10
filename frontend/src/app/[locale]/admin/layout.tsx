@@ -17,6 +17,7 @@ import {
   X,
   UserRoundPlus,
   UserRoundPen,
+  Bell,
 } from "lucide-react";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 
@@ -86,6 +87,7 @@ export default function AdminLayout({
     { label: "Orders", href: "/admin/orders", icon: ShoppingBag },
     { label: "Fabric Stores", href: "/admin/partners", icon: Store },
     { label: "Sub Admin", href: "/admin/sub-admin", icon: UserRoundPen },
+    { label: "Notifications", href: "/admin/notifications", icon: Bell },
     { label: "Settings", href: "/admin/settings", icon: Settings },
   ];
 

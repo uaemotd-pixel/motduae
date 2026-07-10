@@ -30,11 +30,13 @@ interface CustomOrderItem {
     name: string;
     nameAr?: string;
   };
-  tailorShopId: {
-    _id: string;
-    name: string;
-    nameAr?: string;
-  } | string;
+  tailorShopId:
+    | {
+        _id: string;
+        name: string;
+        nameAr?: string;
+      }
+    | string;
   fabricSnapshot?: {
     name: string;
     nameAr?: string;
@@ -132,7 +134,9 @@ export default function AdminCustomOrdersPage() {
   // Filters State
   const [filterCustomer, setFilterCustomer] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("");
-  const [filterFrom, setFilterFrom] = useState<string>(getFirstDayOfMonthString());
+  const [filterFrom, setFilterFrom] = useState<string>(
+    getFirstDayOfMonthString(),
+  );
   const [filterTo, setFilterTo] = useState<string>(getTodayString());
 
   const statusLabel = (status: string) => {
@@ -146,7 +150,9 @@ export default function AdminCustomOrdersPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get<Order[] | { items: Order[] }>("/api/admin/orders/custom");
+      const res = await api.get<Order[] | { items: Order[] }>(
+        "/api/admin/orders/custom",
+      );
       const ordersData = Array.isArray(res) ? res : res.items || [];
       setOrders(ordersData);
 
@@ -167,7 +173,10 @@ export default function AdminCustomOrdersPage() {
     fetchOrders();
   }, []);
 
-  const handleStatusChange = async (order: Order, newStatus: CustomOrderStatus) => {
+  const handleStatusChange = async (
+    order: Order,
+    newStatus: CustomOrderStatus,
+  ) => {
     setUpdatingOrderId(order._id);
     try {
       await api.patch(`/api/admin/orders/custom/${order._id}/status`, {
@@ -200,8 +209,10 @@ export default function AdminCustomOrdersPage() {
           typeof order.userId === "object" ? order.userId : null,
           "",
         ).toLowerCase();
-        const customerEmail =
-          (typeof order.userId === "object" && order.userId?.email || "").toLowerCase();
+        const customerEmail = (
+          (typeof order.userId === "object" && order.userId?.email) ||
+          ""
+        ).toLowerCase();
         const orderId = order._id.toLowerCase();
 
         if (
@@ -260,7 +271,9 @@ export default function AdminCustomOrdersPage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">{t("title")}</h1>
+          <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
+            {t("title")}
+          </h1>
           <p className="text-gray-500 text-sm mt-1">{t("subtitle")}</p>
         </div>
 
@@ -283,14 +296,19 @@ export default function AdminCustomOrdersPage() {
           },
           {
             label: t("stats.inProduction"),
-            value: filteredOrders.filter((o) => o.status === "in_production").length,
+            value: filteredOrders.filter((o) => o.status === "in_production")
+              .length,
           },
           {
             label: t("stats.delivered"),
-            value: filteredOrders.filter((o) => o.status === "delivered").length,
+            value: filteredOrders.filter((o) => o.status === "delivered")
+              .length,
           },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+          <div
+            key={stat.label}
+            className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm"
+          >
             <p className="text-xs text-gray-400">{stat.label}</p>
             <p className="text-xl font-light mt-1">{stat.value}</p>
           </div>
@@ -307,7 +325,11 @@ export default function AdminCustomOrdersPage() {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder={locale === "ar" ? "البحث باسم العميل أو بريده..." : "Search client name/email..."}
+              placeholder={
+                locale === "ar"
+                  ? "البحث باسم العميل أو بريده..."
+                  : "Search client name/email..."
+              }
               value={filterCustomer}
               onChange={(e) => setFilterCustomer(e.target.value)}
               className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition"
@@ -324,7 +346,9 @@ export default function AdminCustomOrdersPage() {
             onChange={(e) => setFilterStatus(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition hover:cursor-pointer"
           >
-            <option value="">{locale === "ar" ? "كل الحالات" : "All Statuses"}</option>
+            <option value="">
+              {locale === "ar" ? "كل الحالات" : "All Statuses"}
+            </option>
             {CUSTOM_ORDER_STATUSES.map((status) => (
               <option key={status} value={status}>
                 {statusLabel(status)}
@@ -365,9 +389,14 @@ export default function AdminCustomOrdersPage() {
       {/* Orders List Section */}
       {filteredOrders.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center bg-white rounded-2xl border border-gray-100 py-20 shadow-sm">
-          <PackageSearch className="w-16 h-16 text-gray-300 mb-4" strokeWidth={1} />
+          <PackageSearch
+            className="w-16 h-16 text-gray-300 mb-4"
+            strokeWidth={1}
+          />
           <p className="text-gray-500 mt-1 max-w-sm">
-            {locale === "ar" ? "لم يتم العثور على طلبات مطابقة لمعايير التصفية." : "No custom orders found matching the filter criteria."}
+            {locale === "ar"
+              ? "لم يتم العثور على طلبات مطابقة لمعايير التصفية."
+              : "No custom orders found matching the filter criteria."}
           </p>
         </div>
       ) : (
@@ -381,9 +410,14 @@ export default function AdminCustomOrdersPage() {
               t("unknownCustomer"),
             );
             const customerEmail =
-              typeof order.userId === "object" ? order.userId.email : "";
+              order.userId && typeof order.userId === "object"
+                ? order.userId.email || ""
+                : "";
+
             const tailorName = readPartnerName(
-              typeof order.tailorShopId === "object" ? order.tailorShopId : null,
+              typeof order.tailorShopId === "object"
+                ? order.tailorShopId
+                : null,
               t("unknownTailor"),
             );
             const fabricName = order.fabricSnapshot?.name || t("unknownFabric");
@@ -396,14 +430,21 @@ export default function AdminCustomOrdersPage() {
                 {/* Upper card info grid */}
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-5">
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("columns.customer")}</p>
-                    <p className="font-medium text-sm text-black">{customerName}</p>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                      {t("columns.customer")}
+                    </p>
+                    <p className="font-medium text-sm text-black">
+                      {customerName}
+                    </p>
                     {customerEmail && (
                       <p className="text-xs text-gray-500">{customerEmail}</p>
                     )}
-                    {typeof order.userId === "object" && order.userId?.phone && (
-                      <p className="text-xs text-gray-500 font-mono mt-0.5">{order.userId.phone}</p>
-                    )}
+                    {typeof order.userId === "object" &&
+                      order.userId?.phone && (
+                        <p className="text-xs text-gray-500 font-mono mt-0.5">
+                          {order.userId.phone}
+                        </p>
+                      )}
                   </div>
 
                   <div className="md:col-span-2 space-y-3">
@@ -412,24 +453,37 @@ export default function AdminCustomOrdersPage() {
                     </p>
                     {order.items && order.items.length > 0 ? (
                       order.items.map((item, idx) => (
-                        <div key={idx} className="bg-gray-50/50 rounded-xl p-3 border border-gray-100/50 space-y-1">
+                        <div
+                          key={idx}
+                          className="bg-gray-50/50 rounded-xl p-3 border border-gray-100/50 space-y-1"
+                        >
                           <div className="flex justify-between items-start gap-2">
                             <span className="text-xs font-semibold text-black">
                               {item.designSnapshot?.name || t("unknownDesign")}
                             </span>
                             {item.pricing?.total !== undefined && (
                               <span className="text-xs font-medium text-gray-500 font-mono">
-                                {formatCurrency(item.pricing.total, order.pricing.currency)}
+                                {formatCurrency(
+                                  item.pricing.total,
+                                  order.pricing.currency,
+                                )}
                               </span>
                             )}
                           </div>
                           <div className="flex flex-col gap-0.5 text-[11px] text-gray-500">
                             <span>
-                              {t("fabricLabel", { name: item.fabricSnapshot?.name || t("unknownFabric") })}
+                              {t("fabricLabel", {
+                                name:
+                                  item.fabricSnapshot?.name ||
+                                  t("unknownFabric"),
+                              })}
                             </span>
                             <span>
                               {locale === "ar" ? `الخياط: ` : `Tailor: `}
-                              {readPartnerName(item.tailorShopId, t("unknownTailor"))}
+                              {readPartnerName(
+                                item.tailorShopId,
+                                t("unknownTailor"),
+                              )}
                             </span>
                           </div>
                         </div>
@@ -442,9 +496,7 @@ export default function AdminCustomOrdersPage() {
                           </span>
                         </div>
                         <div className="flex flex-col gap-0.5 text-[11px] text-gray-500">
-                          <span>
-                            {t("fabricLabel", { name: fabricName })}
-                          </span>
+                          <span>{t("fabricLabel", { name: fabricName })}</span>
                           <span>
                             {locale === "ar" ? `الخياط: ` : `Tailor: `}
                             {tailorName}
@@ -455,7 +507,9 @@ export default function AdminCustomOrdersPage() {
                   </div>
 
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("columns.status")}</p>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                      {t("columns.status")}
+                    </p>
                     <StatusBadge
                       status={order.status}
                       label={statusLabel(order.status)}
@@ -463,17 +517,26 @@ export default function AdminCustomOrdersPage() {
                   </div>
 
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{t("columns.date")}</p>
-                    <p className="text-sm text-black">{formatOrderDate(order.createdAt, locale)}</p>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                      {t("columns.date")}
+                    </p>
+                    <p className="text-sm text-black">
+                      {formatOrderDate(order.createdAt, locale)}
+                    </p>
                   </div>
                 </div>
 
                 {/* Lower card action footer */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border-t border-gray-100 bg-gray-50/70 items-center">
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider">{t("columns.total")}</p>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider">
+                      {t("columns.total")}
+                    </p>
                     <p className="font-medium text-black text-base mt-0.5">
-                      {formatCurrency(order.pricing.total, order.pricing.currency)}
+                      {formatCurrency(
+                        order.pricing.total,
+                        order.pricing.currency,
+                      )}
                     </p>
                   </div>
 
@@ -488,16 +551,20 @@ export default function AdminCustomOrdersPage() {
                           [order._id]: e.target.value,
                         }))
                       }
-                      className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm flex-1 min-w-[140px] focus:outline-none focus:border-black text-black bg-white transition"
+                      className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm flex-1 min-w-35 focus:outline-none focus:border-black text-black bg-white transition"
                       disabled={isUpdating}
                     />
 
                     {previousStatus && (
                       <button
                         type="button"
-                        onClick={() => handleStatusChange(order, previousStatus)}
-                        disabled={isUpdating}
-                        className="border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-[140px] hover:bg-gray-100 disabled:opacity-50 hover:cursor-pointer transition"
+                        onClick={() =>
+                          handleStatusChange(order, previousStatus)
+                        }
+                        disabled={
+                          isUpdating || order.status === "return_requested"
+                        }
+                        className="border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-35 hover:bg-gray-100 disabled:opacity-50 hover:cursor-pointer transition"
                       >
                         {isUpdating ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-500" />
@@ -511,8 +578,15 @@ export default function AdminCustomOrdersPage() {
                       <button
                         type="button"
                         onClick={() => handleStatusChange(order, nextStatus)}
-                        disabled={isUpdating}
-                        className="bg-black text-white px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-[140px] disabled:opacity-50 hover:cursor-pointer transition font-medium"
+                        disabled={
+                          isUpdating ||
+                          order.status === "delivered" ||
+                          [
+                            "return_requested", 
+                            "refund_processed",
+                          ].includes(nextStatus)
+                        }
+                        className="bg-black text-white px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-35 disabled:opacity-50 hover:cursor-pointer transition font-medium"
                       >
                         {isUpdating ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />

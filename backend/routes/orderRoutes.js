@@ -1,7 +1,9 @@
 import express from "express";
 import expressAsyncHandler from "express-async-handler";
 import mongoose from "mongoose";
-import RetailOrder, { PAYMENT_METHODS as RETAIL_PAYMENT_METHODS } from "../models/RetailOrder.js";
+import RetailOrder, {
+  PAYMENT_METHODS as RETAIL_PAYMENT_METHODS,
+} from "../models/RetailOrder.js";
 import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
 import CustomOrder, {
   FABRIC_SOURCES,
@@ -11,6 +13,8 @@ import Design from "../models/Design.js";
 import Fabric from "../models/Fabric.js";
 import TailorShop from "../models/TailorShop.js";
 import { isAuth } from "../middleware/auth.js";
+import AdminNotification from "../models/AdminNotification.js";
+
 import {
   getCustomOrderPricing,
   getMultiItemCustomOrderPricing,
@@ -298,7 +302,7 @@ async function deductFabricStock(fabricId, meters) {
   const updatedFabric = await Fabric.findOneAndUpdate(
     { _id: fabricId, stockInMeters: { $gte: meters } },
     { $inc: { stockInMeters: -meters } },
-    { new: true }
+    { new: true },
   );
 
   if (!updatedFabric) {
@@ -953,4 +957,243 @@ orderRoutes.get(
   }),
 );
 
+function requireCustomOrderStatus(order, allowed) {
+  if (!allowed.includes(order.status)) {
+    throw new PricingValidationError(
+      `Order status must be one of: ${allowed.join(", ")}`,
+    );
+  }
+}
+
+orderRoutes.post("/custom/:id/return-request", isAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Invalid order ID" });
+    }
+
+    const order = await CustomOrder.findById(id);
+    if (!order) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
+    }
+
+    if (order.userId.toString() !== req.user._id && !req.user.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to modify this order",
+      });
+    }
+
+    requireCustomOrderStatus(order, ["delivered"]);
+
+    const {
+      returnCondition,
+      returnReason,
+      returnComment,
+      returnPickupAddress,
+    } = req.body;
+
+    if (!returnCondition || typeof returnCondition !== "string") {
+      return res
+        .status(400)
+        .json({ success: false, message: "returnCondition is required" });
+    }
+    if (
+      !returnReason ||
+      typeof returnReason !== "string" ||
+      !returnReason.trim()
+    ) {
+      return res
+        .status(400)
+        .json({ success: false, message: "returnReason is required" });
+    }
+    if (!returnPickupAddress || typeof returnPickupAddress !== "object") {
+      return res
+        .status(400)
+        .json({ success: false, message: "returnPickupAddress is required" });
+    }
+
+    const normalizedReturnPickupAddress =
+      normalizePickupAddress(returnPickupAddress);
+
+    order.returnCondition = returnCondition;
+    order.returnReason = returnReason;
+    order.returnComment =
+      typeof returnComment === "string" ? returnComment : "";
+    order.returnPickupAddress = normalizedReturnPickupAddress;
+
+    order.status = "return_requested";
+    order.statusHistory = [
+      ...(order.statusHistory || []),
+      {
+        status: "return_requested",
+        note: "Return requested",
+        changedAt: new Date(),
+        changedBy: req.user._id,
+      },
+    ];
+
+    await order.save();
+
+    // Notify admins that a return was requested
+    await AdminNotification.create({
+      type: "custom_return_requested",
+      title: "Return requested",
+      message: `Customer requested a return for order ${order._id}`,
+      orderId: order._id,
+      createdBy: req.user._id,
+      read: false,
+    });
+
+    return res.json({ success: true, order });
+  } catch (error) {
+    if (error instanceof PricingValidationError) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+
+    console.error("POST /api/orders/custom/:id/return-request error:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to submit return request" });
+  }
+});
+
+// Admin: Accept custom return request (creates customer dashboard notification)
+// POST /api/admin/orders/custom/:id/return-accept
+orderRoutes.post("/custom/:id/return-accept", isAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Invalid order ID" });
+    }
+
+    if (!req.user?.isAdmin) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+
+    const order = await CustomOrder.findById(id);
+    if (!order) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
+    }
+
+    // Only accept when a return was requested
+    if (order.status !== "return_requested") {
+      return res.status(400).json({
+        success: false,
+        message: `Return cannot be accepted while order status is ${order.status}`,
+      });
+    }
+
+    // When admin accepts return we finalize the return/refund flow.
+    // Requirement: status must NOT progress into `items_delivered` automatically.
+    // Admin acceptance should result in `refund_processed` for customer visibility.
+
+    order.status = "refund_processed";
+    order.statusHistory = [
+      ...(order.statusHistory || []),
+      {
+        status: "refund_processed",
+        note: "Return accepted, refund processed",
+        changedAt: new Date(),
+        changedBy: req.user._id,
+      },
+    ];
+    await order.save();
+
+    // Create customer-facing notification
+    // NOTE: current system uses a single AdminNotification model; until a dedicated CustomerNotification model exists,
+    // we still create the notification record expected by /api/customer/notifications.
+    await AdminNotification.create({
+      type: "custom_return_accepted",
+      title: "Refund processed",
+      message: `Your return request for order ${order._id} has been accepted and your refund has been processed.`,
+      orderId: order._id,
+      createdBy: req.user._id,
+      read: false,
+    });
+
+    res.json({ success: true, order });
+  } catch (error) {
+    console.error(
+      "POST /api/admin/orders/custom/:id/return-accept error:",
+      error,
+    );
+    res.status(500).json({
+      success: false,
+      message: "Failed to accept return",
+    });
+  }
+});
+
+// Admin: Reject custom return request (creates customer notification)
+// POST /api/admin/orders/custom/:id/return-reject
+orderRoutes.post("/custom/:id/return-reject", isAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Invalid order ID" });
+    }
+
+    if (!req.user?.isAdmin) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+
+    const order = await CustomOrder.findById(id);
+    if (!order) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
+    }
+
+    // Only reject when a return was requested
+    if (order.status !== "return_requested") {
+      return res.status(400).json({
+        success: false,
+        message: `Return cannot be rejected while order status is ${order.status}`,
+      });
+    }
+
+    order.status = "rejected";
+    order.statusHistory = [
+      ...(order.statusHistory || []),
+      {
+        status: "rejected",
+        note: "Return request rejected by admin",
+        changedAt: new Date(),
+        changedBy: req.user._id,
+      },
+    ];
+    await order.save();
+
+    // Notify customer about rejection
+    await AdminNotification.create({
+      type: "custom_return_rejected",
+      title: "Return request rejected",
+      message: `Your return request for order ${order._id} has been rejected.`,
+      orderId: order._id,
+      createdBy: req.user._id,
+      read: false,
+    });
+
+    res.json({ success: true, order });
+  } catch (error) {
+    console.error("POST /api/admin/orders/custom/:id/return-reject error:", error);
+    res.status(500).json({ success: false, message: "Failed to reject return" });
+  }
+});
+
+// NOTE: exports must remain at end
 export default orderRoutes;
