@@ -98,7 +98,7 @@ export default function FabricPortalShell({ children }: FabricPortalShellProps) 
                 type="button"
                 onClick={() => {
                     logout();
-                    router.push("/auth/login");
+                    router.push("/auth/login?redirect=/fabric");
                 }}
                 className="flex items-center gap-3 px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-(--color-grey-muted) hover:text-black transition [font-family:var(--font-ui)] mt-4"
             >

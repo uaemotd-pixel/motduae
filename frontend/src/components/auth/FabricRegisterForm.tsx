@@ -7,12 +7,13 @@ import { useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { type ApiError } from "@/lib/api/client";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import logoBlack from "../../../public/PNG/Black/MOTD_Wordmark_Black.png";
 import * as images from "../../../public/images/ImageIndex";
 
 export default function FabricRegisterForm() {
     const t = useTranslations("FabricRegister");
-    const { registerFabricStore } = useAuth();
+    const { registerFabricStore, loginWithGoogle } = useAuth();
 
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
@@ -41,6 +42,22 @@ export default function FabricRegisterForm() {
             const message =
                 (err as ApiError)?.message ||
                 (err instanceof Error ? err.message : "Registration failed");
+            setError(message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleGoogleRegister = async (credential: string) => {
+        setError("");
+        setIsLoading(true);
+        try {
+            await loginWithGoogle(credential, { mode: "register", role: "fabric_store" });
+            setSubmitted(true);
+        } catch (err: unknown) {
+            const message =
+                (err as ApiError)?.message ||
+                (err instanceof Error ? err.message : "Google sign-up failed");
             setError(message);
         } finally {
             setIsLoading(false);
@@ -245,13 +262,28 @@ export default function FabricRegisterForm() {
                                     >
                                         {isLoading ? t("submitting") : t("submit")}
                                     </button>
+
+                                    <div className="relative py-3 flex items-center">
+                                        <div className="grow border-t border-black/10" />
+                                        <span className="shrink mx-3 font-label-sm text-[10px] text-black/40 uppercase tracking-[0.2em]">
+                                            {t("or")}
+                                        </span>
+                                        <div className="grow border-t border-black/10" />
+                                    </div>
+
+                                    <GoogleSignInButton
+                                        onSuccess={handleGoogleRegister}
+                                        disabled={isLoading}
+                                        label={t("googleSignUp")}
+                                        onError={(message) => setError(message)}
+                                    />
                                 </form>
 
                                 <footer className="mt-10 md:mt-12 pt-6 border-t border-black/10 text-center">
                                     <p className="font-body-md text-[12px] md:text-[13px] text-black/50 uppercase tracking-[0.15em]">
                                         {t("alreadyHaveAccount")}{" "}
                                         <Link
-                                            href="/auth/login"
+                                            href="/auth/login?redirect=/fabric"
                                             className="text-black font-medium hover:underline underline-offset-4"
                                         >
                                             {t("signIn")}

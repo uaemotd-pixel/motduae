@@ -10,7 +10,16 @@ import * as images from "../../../public/images/ImageIndex";
 import { motion } from "framer-motion";
 import { getTranslation } from "@/lib/getTranslation";
 import { useAuth } from "@/context/AuthContext";
+import type { GoogleAuthRole } from "@/context/AuthContext";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+
+function getRoleHintFromRedirect(redirectUrl: string | null): GoogleAuthRole | undefined {
+    if (!redirectUrl) return undefined;
+    const path = redirectUrl.replace(/^\/(en|ar)(?=\/|$)/, "");
+    if (path.startsWith("/tailor")) return "tailor";
+    if (path.startsWith("/fabric")) return "fabric_store";
+    return undefined;
+}
 
 export default function LoginPage() {
     const params = useParams();
@@ -30,6 +39,10 @@ export default function LoginPage() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
     const { login, loginWithGoogle } = useAuth();
+    const googleRoleHint = getRoleHintFromRedirect(redirectUrl);
+    const forgetPasswordHref = googleRoleHint
+        ? `/auth/forgetPassword?redirect=${encodeURIComponent(redirectUrl!)}`
+        : "/auth/forgetPassword";
 
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -52,7 +65,10 @@ export default function LoginPage() {
         setSuccess("");
         setIsLoading(true);
         try {
-            await loginWithGoogle(credential);
+            await loginWithGoogle(credential, {
+                mode: "login",
+                ...(googleRoleHint ? { role: googleRoleHint } : {}),
+            });
             setSuccess(t.login.successMessage || "Login successful! Redirecting...");
         } catch (err: any) {
             setError(err.message || "Google sign-in failed.");
@@ -145,7 +161,7 @@ export default function LoginPage() {
                                         {t.login.passwordLabel}
                                     </label>
                                     <Link
-                                        href="/auth/forgetPassword"
+                                        href={forgetPasswordHref}
                                         className="font-label-sm text-[9px] text-black/40 hover:text-black transition-colors uppercase tracking-[0.15em]"
                                     >
                                         {t.login.forgetPassword}

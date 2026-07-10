@@ -1,13 +1,18 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
-import Image from "next/image";
-import logoBlack from "../../../public/PNG/Black/MOTD_Wordmark_Black.png";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 
-export default function ForgotPassword() {
+function ForgotPasswordForm() {
+    const searchParams = useSearchParams();
+    const redirectUrl = searchParams.get("redirect");
+    const loginHref = redirectUrl
+        ? `/auth/login?redirect=${encodeURIComponent(redirectUrl)}`
+        : "/auth/login";
+
     const [email, setEmail] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
@@ -160,7 +165,7 @@ export default function ForgotPassword() {
                                     <p className="font-body-md text-[12px] md:text-[13px] text-black/50 uppercase tracking-[0.15em]">
                                         Remember your password?
                                         <Link
-                                            href="/auth/login"
+                                            href={loginHref}
                                             className="text-black font-medium hover:underline underline-offset-4 ml-2"
                                         >
                                             BACK TO SIGN IN
@@ -201,7 +206,7 @@ export default function ForgotPassword() {
                                 <div className="space-y-4">
 
                                     <Link
-                                        href="/auth/login"
+                                        href={loginHref}
                                         className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] flex items-center justify-center"
                                     >
                                         BACK TO SIGN IN
@@ -266,5 +271,19 @@ export default function ForgotPassword() {
                 }
             `}</style>
         </main>
+    );
+}
+
+export default function ForgotPassword() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen flex items-center justify-center bg-[#FFFDF9]">
+                    <div className="w-8 h-8 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                </div>
+            }
+        >
+            <ForgotPasswordForm />
+        </Suspense>
     );
 }

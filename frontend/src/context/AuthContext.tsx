@@ -41,6 +41,14 @@ export interface User {
     perms?: Record<string, boolean>;
 }
 
+export type GoogleAuthRole = "customer" | "tailor" | "fabric_store";
+export type GoogleAuthMode = "login" | "register";
+
+export interface GoogleAuthOptions {
+    mode?: GoogleAuthMode;
+    role?: GoogleAuthRole;
+}
+
 function mapApiUser(data: ApiUserResponse): User {
     return {
         id: data._id,
@@ -61,7 +69,7 @@ interface AuthContextType {
     user: User | null;
     isLoading: boolean;
     login: (email: string, password: string) => Promise<User>;
-    loginWithGoogle: (credential: string) => Promise<User>;
+    loginWithGoogle: (credential: string, options?: GoogleAuthOptions) => Promise<User>;
     register: (username: string, email: string, password: string, phone: string) => Promise<void>;
     registerTailor: (name: string, email: string, password: string) => Promise<User>;
     registerFabricStore: (name: string, email: string, password: string) => Promise<User>;
@@ -122,9 +130,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return persistSession(response);
     };
 
-    const loginWithGoogle = async (credential: string): Promise<User> => {
+    const loginWithGoogle = async (
+        credential: string,
+        options?: GoogleAuthOptions,
+    ): Promise<User> => {
         const response = await api.post<ApiUserResponse>('/api/users/auth/google', {
             credential,
+            mode: options?.mode ?? 'login',
+            ...(options?.role ? { role: options.role } : {}),
         });
         return persistSession(response);
     };

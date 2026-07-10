@@ -12,7 +12,7 @@ export default function FabricRejectedState() {
 
     const handleLogout = () => {
         logout();
-        router.push("/auth/login");
+        router.push("/auth/login?redirect=/fabric");
     };
 
     return (

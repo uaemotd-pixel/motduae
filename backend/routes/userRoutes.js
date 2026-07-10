@@ -23,6 +23,25 @@ const googleClient = env.googleClientId
   ? new OAuth2Client(env.googleClientId)
   : null;
 
+const GOOGLE_AUTH_ROLES = new Set(["customer", "tailor", "fabric_store"]);
+const PARTNER_ROLES = new Set(["tailor", "fabric_store"]);
+
+const linkGoogleToUser = (user, { googleId, name }) => {
+  if (!user.googleId) {
+    user.googleId = googleId;
+  }
+
+  if (user.authProvider === "local" && user.password) {
+    user.authProvider = "local";
+  } else {
+    user.authProvider = "google";
+  }
+
+  if (!user.name && name) {
+    user.name = name;
+  }
+};
+
 const sendUserResponse = (res, user) => {
   res.send({
     _id: user._id,
@@ -153,7 +172,7 @@ userRouter.post(
 userRouter.post(
   "/auth/google",
   expressAsyncHandler(async (req, res) => {
-    const { credential } = req.body;
+    const { credential, mode = "login", role: requestedRole } = req.body;
 
     if (!credential) {
       res.status(400).send({ message: "Google credential is required" });
@@ -167,6 +186,16 @@ userRouter.post(
       });
       return;
     }
+
+    const authMode = mode === "register" ? "register" : "login";
+    const registerRole =
+      requestedRole === "tailor" || requestedRole === "fabric_store"
+        ? requestedRole
+        : "customer";
+    const loginRoleHint =
+      requestedRole === "tailor" || requestedRole === "fabric_store"
+        ? requestedRole
+        : null;
 
     let payload;
     try {
@@ -200,10 +229,64 @@ userRouter.post(
       user = await User.findOne({ email });
     }
 
+    if (authMode === "register") {
+      if (user) {
+        if (user.role !== registerRole) {
+          res.status(400).send({
+            message: `An account with this email already exists as a ${user.role.replace("_", " ")}`,
+          });
+          return;
+        }
+
+        if (user.isActive === false) {
+          res.status(403).send({ message: "Account is deactivated" });
+          return;
+        }
+
+        linkGoogleToUser(user, { googleId, name });
+        await user.save();
+        sendUserResponse(res, user);
+        return;
+      }
+
+      const userFields = {
+        name,
+        email,
+        googleId,
+        authProvider: "google",
+        role: registerRole,
+      };
+
+      if (PARTNER_ROLES.has(registerRole)) {
+        userFields.approvalStatus = "pending";
+      }
+
+      user = new User(userFields);
+      await user.save();
+
+      if (registerRole === "customer") {
+        const customer = new Customer({
+          userId: user._id,
+          name: user.name,
+        });
+        await customer.save();
+      }
+
+      sendUserResponse(res, user);
+      return;
+    }
+
     if (user) {
-      if (user.role !== "customer") {
+      if (!GOOGLE_AUTH_ROLES.has(user.role)) {
         res.status(403).send({
-          message: "Google sign-in is available for customer accounts only",
+          message: "Google sign-in is not available for this account type",
+        });
+        return;
+      }
+
+      if (loginRoleHint && user.role !== loginRoleHint) {
+        res.status(403).send({
+          message: `This account is not a ${loginRoleHint.replace("_", " ")} account`,
         });
         return;
       }
@@ -213,37 +296,33 @@ userRouter.post(
         return;
       }
 
-      if (!user.googleId) {
-        user.googleId = googleId;
-      }
-
-      if (user.authProvider === "local" && user.password) {
-        user.authProvider = "local";
-      } else {
-        user.authProvider = "google";
-      }
-
-      if (!user.name && name) {
-        user.name = name;
-      }
-
+      linkGoogleToUser(user, { googleId, name });
       await user.save();
-    } else {
-      user = new User({
-        name,
-        email,
-        googleId,
-        authProvider: "google",
-        role: "customer",
-      });
-      await user.save();
-
-      const customer = new Customer({
-        userId: user._id,
-        name: user.name,
-      });
-      await customer.save();
+      sendUserResponse(res, user);
+      return;
     }
+
+    if (loginRoleHint) {
+      res.status(404).send({
+        message: "No account found. Please register first.",
+      });
+      return;
+    }
+
+    user = new User({
+      name,
+      email,
+      googleId,
+      authProvider: "google",
+      role: "customer",
+    });
+    await user.save();
+
+    const customer = new Customer({
+      userId: user._id,
+      name: user.name,
+    });
+    await customer.save();
 
     sendUserResponse(res, user);
   }),
@@ -272,12 +351,7 @@ userRouter.post(
     const normalizedEmail = email.toLowerCase().trim();
     const user = await User.findOne({ email: normalizedEmail });
 
-    if (
-      user &&
-      user.role === "customer" &&
-      user.password &&
-      user.isActive !== false
-    ) {
+    if (user && GOOGLE_AUTH_ROLES.has(user.role) && user.isActive !== false) {
       const rawToken = crypto.randomBytes(32).toString("hex");
       user.resetPasswordToken = hashResetToken(rawToken);
       user.resetPasswordExpires = new Date(Date.now() + RESET_TOKEN_TTL_MS);

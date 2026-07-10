@@ -12,7 +12,7 @@ export default function TailorPendingState() {
 
     const handleLogout = () => {
         logout();
-        router.push("/auth/login");
+        router.push("/auth/login?redirect=/tailor");
     };
 
     return (
