@@ -134,9 +134,20 @@ export default function DesignDetailView({
 
           {/* Right Column - Text & Attribution & CTA */}
           <div className="space-y-6">
-            <span className="inline-block text-white text-[10px] uppercase tracking-[0.2em] px-2 py-1 bg-[#8B6F47]">
-              {category}
-            </span>
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="inline-block text-white text-[10px] uppercase tracking-[0.25em] px-2.5 py-1.5 bg-[#8B6F47] rounded-none">
+                {category}
+              </span>
+              <span className={`inline-block text-[10px] uppercase tracking-[0.25em] px-2.5 py-1.5 font-semibold rounded-none border ${
+                design.priceType === "per_meter"
+                  ? "bg-amber-50 text-amber-800 border-amber-200"
+                  : "bg-gray-50 text-gray-800 border-gray-200"
+              }`}>
+                {design.priceType === "per_meter"
+                  ? (locale === "ar" ? "سعر لكل متر" : "Per Meter Price")
+                  : (locale === "ar" ? "سعر ثابت" : "Fixed Price")}
+              </span>
+            </div>
 
             <div>
               <h1 className="[font-family:var(--font-display)] text-3xl sm:text-4xl text-black leading-tight mb-3 font-normal">
