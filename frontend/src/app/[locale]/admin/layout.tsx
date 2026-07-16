@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Link } from "@/i18n/navigation";
+import { api } from "@/lib/api/client";
+
 import {
   LayoutDashboard,
   Shirt,
@@ -30,6 +32,7 @@ export default function AdminLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   // Extract locale from pathname (e.g., "/en/admin" -> "en")
   const locale = pathname.split("/")[1] || "en";
@@ -64,7 +67,35 @@ export default function AdminLayout({
     }
   }, [user, isLoading, router, locale]);
 
+  useEffect(() => {
+    const loadCount = async () => {
+      try {
+        if (!user || user.role !== "admin") return;
+
+        const data = await api.get<{
+          success: boolean;
+          count: number;
+        }>("/api/admin/notifications/unread-count");
+
+        if (data?.success && typeof data.count === "number") {
+          setUnreadNotificationCount(data.count);
+        }
+      } catch {
+        // ignore badge errors
+      }
+    };
+
+    loadCount();
+
+    // If the user visits notifications page, refresh badge count.
+    // This keeps sidebar unread count in sync after marking as read.
+    if (pathname?.includes(`/${locale}/admin/notifications`)) {
+      loadCount();
+    }
+  }, [user, pathname, locale]);
+
   // ===================== LOADING STATE =====================
+
   if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-black text-white">
@@ -133,8 +164,18 @@ export default function AdminLayout({
                                 : "text-white/70 hover:bg-white/10"
                             }`}
             >
-              <Icon className="w-4 h-4" />
+              <div className="relative flex items-center">
+                <Icon className="w-4 h-4" />
+              </div>
               {item.label}
+              {item.href === "/admin/notifications" &&
+                unreadNotificationCount > 0 && (
+                  <span className="min-w-5 h-5 px-1 rounded-full bg-white text-black text-[11px] font-semibold flex items-center justify-center shadow-sm">
+                    {unreadNotificationCount > 99
+                      ? "99+"
+                      : unreadNotificationCount}
+                  </span>
+                )}
             </Link>
           );
         })}
@@ -190,11 +231,7 @@ export default function AdminLayout({
 
       {/* Main Content Area */}
       <main
-        className={`
-                    min-h-screen bg-gray-100 text-black p-4 xs:p-6 sm:p-8 md:p-10 pb-16
-                    transition-all duration-300
-                    lg:ml-72
-                `}
+        className={`min-h-screen bg-gray-100 text-black p-4 xs:p-6 sm:p-8 md:p-10 pb-16 transition-all duration-300 lg:ml-72`}
       >
         {/* Mobile Toggle Button */}
         <button

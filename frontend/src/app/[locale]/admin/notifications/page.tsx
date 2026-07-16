@@ -33,6 +33,7 @@ type NotificationItem = {
   read?: boolean;
   orderId?: string;
   order_id?: string;
+  tailorId?: string | null;
   returnPickupAddress?: {
     fullName: string;
     line1: string;
@@ -51,7 +52,7 @@ type NotificationItem = {
     pickupAddress: {
       fullName: string;
       line1: string;
-      line2: string;
+      line2?: string;
       city: string;
       state: string;
       postalCode: string;
@@ -90,6 +91,8 @@ export default function AdminNotificationsPage() {
   const [processingReturn, setProcessingReturn] = useState<
     Record<string, boolean>
   >({});
+  const [markingRead, setMarkingRead] = useState<Record<string, boolean>>({});
+  const [markAllLoading, setMarkAllLoading] = useState(false);
 
   useEffect(() => {
     const run = async () => {
@@ -124,6 +127,8 @@ export default function AdminNotificationsPage() {
                 undefined,
               returnData: raw?.returnData || raw?.return_data || undefined,
               status: raw?.status || "pending",
+              read: typeof raw?.read === "boolean" ? raw.read : false,
+              tailorId: typeof raw?.tailorId === "string" ? raw.tailorId : null,
             };
           },
         );
@@ -257,6 +262,30 @@ export default function AdminNotificationsPage() {
     );
   };
 
+  const handleMarkAsRead = async (notificationId: string) => {
+    if (!notificationId) return;
+
+    setMarkingRead((prev) => ({ ...prev, [notificationId]: true }));
+
+    try {
+      await api.post(`/api/admin/notifications/mark-read`, {
+        id: notificationId,
+      });
+
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === notificationId ? { ...it, read: true } : it,
+        ),
+      );
+
+      toast.success("Marked as read");
+    } catch (err: unknown) {
+      toast.error(getApiErrMessage(err, "Failed to mark as read"));
+    } finally {
+      setMarkingRead((prev) => ({ ...prev, [notificationId]: false }));
+    }
+  };
+
   const handleAcceptReturn = async (
     orderId: string,
     notificationId: string,
@@ -268,7 +297,6 @@ export default function AdminNotificationsPage() {
     try {
       await api.post(`/api/admin/orders/custom/${orderId}/return-accept`, {});
 
-      // Update notification status
       setItems((prev) =>
         prev.map((it) =>
           it.id === notificationId
@@ -296,7 +324,6 @@ export default function AdminNotificationsPage() {
     try {
       await api.post(`/api/admin/orders/custom/${orderId}/return-reject`, {});
 
-      // Update notification status
       setItems((prev) =>
         prev.map((it) =>
           it.id === notificationId
@@ -327,7 +354,46 @@ export default function AdminNotificationsPage() {
 
         <div className="flex items-center gap-2 text-gray-500">
           <Bell className="w-4 h-4" />
-          <span className="text-sm">{sortedItems.length}</span>
+          <span className="text-sm">
+            {sortedItems.filter((x) => !x.read).length}
+          </span>
+          <button
+            type="button"
+            disabled={
+              markAllLoading || sortedItems.filter((x) => !x.read).length === 0
+            }
+            className="ml-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 transition disabled:opacity-50 hover:cursor-pointer"
+            onClick={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+
+              const unreadIds = sortedItems
+                .filter((x) => !x.read)
+                .map((x) => x.id)
+                .filter(Boolean);
+              if (unreadIds.length === 0) return;
+
+              setMarkAllLoading(true);
+              try {
+                await api.post(`/api/admin/notifications/mark-all-read`, {});
+                setItems((prev) => prev.map((it) => ({ ...it, read: true })));
+                toast.success("All notifications marked as read");
+              } catch (err: unknown) {
+                toast.error(
+                  getApiErrMessage(err, "Failed to mark all as read"),
+                );
+              } finally {
+                setMarkAllLoading(false);
+              }
+            }}
+          >
+            {markAllLoading ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Check className="w-3 h-3" />
+            )}
+            MARK ALL AS READ
+          </button>
         </div>
       </div>
 
@@ -356,12 +422,12 @@ export default function AdminNotificationsPage() {
               normalizedStatus === "return_requested" ||
               normalizedStatus === "approved";
 
-            const orderIdForActions = n.orderId || n.order_id;
             const isProcessed =
               n.status === "approved" ||
               n.status === "rejected" ||
               n.status === "refund_processed";
-            const isProcessing = processingReturn[n.id] || false;
+
+            const isProcessingMark = markingRead[n.id] || false;
 
             return (
               <div
@@ -374,7 +440,31 @@ export default function AdminNotificationsPage() {
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <div className="text-xs uppercase tracking-wider text-gray-400">
-                      {n.type || "notification"}
+                      {(() => {
+                        // Convert backend `type` into readable label.
+                        const type = n.type || "";
+                        const key = type.toLowerCase();
+
+                        if (key === "user_customer_registered") {
+                          return "New customer is registered";
+                        }
+                        if (key === "user_tailor_registered") {
+                          return "New tailor is registered";
+                        }
+                        if (key === "user_fabric_store_registered") {
+                          return "New fabric store is registered";
+                        }
+
+                        if (key === "retail_order_placed") {
+                          return "New ready-made order";
+                        }
+
+                        if (key === "custom_order_placed") {
+                          return "New custom order";
+                        }
+
+                        return type || "notification";
+                      })()}
                       {isProcessed && (
                         <span className="ml-2 text-green-600">
                           • {n.status}
@@ -456,6 +546,29 @@ export default function AdminNotificationsPage() {
                           <p className="text-sm text-gray-700">{n.message}</p>
                         )}
 
+                        {/* MARK AS READ button */}
+                        {!n.read && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={isProcessingMark}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 transition disabled:opacity-50"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleMarkAsRead(n.id);
+                              }}
+                            >
+                              {isProcessingMark ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Check className="w-3 h-3" />
+                              )}
+                              MARK AS READ
+                            </button>
+                          </div>
+                        )}
+
                         {/* Return Pickup Address - Top Level */}
                         {n.returnPickupAddress && (
                           <div className="space-y-3">
@@ -501,9 +614,33 @@ export default function AdminNotificationsPage() {
                               </div>
                             )}
 
-                            {/* Pickup Address from Return Data */}
                             {n.returnData.pickupAddress &&
                               renderPickupAddress(n.returnData.pickupAddress)}
+                          </div>
+                        )}
+
+                        {/* Tailor approval notification (admin action link) */}
+                        {n.type === "user_tailor_registered" && n.tailorId && (
+                          <div className="border-t border-gray-200 pt-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                                <Check className="w-4 h-4" />
+                                Tailor Approval
+                              </div>
+                              <a
+                                href={`/${locale}/admin/tailors`}
+                                onClick={(e) => {
+                                  // allow normal navigation
+                                  e.stopPropagation();
+                                }}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition"
+                              >
+                                Approve Tailor
+                              </a>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">
+                              Review and approve the registered tailor.
+                            </p>
                           </div>
                         )}
 
@@ -519,7 +656,7 @@ export default function AdminNotificationsPage() {
                                 <div className="flex items-center gap-2">
                                   <button
                                     type="button"
-                                    disabled={isProcessing}
+                                    disabled={processingReturn[n.id] || false}
                                     className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition disabled:opacity-50"
                                     onClick={(e) => {
                                       e.preventDefault();
@@ -530,7 +667,7 @@ export default function AdminNotificationsPage() {
                                       );
                                     }}
                                   >
-                                    {isProcessing ? (
+                                    {processingReturn[n.id] ? (
                                       <Loader2 className="w-3 h-3 animate-spin" />
                                     ) : (
                                       <Check className="w-3 h-3" />
@@ -539,7 +676,7 @@ export default function AdminNotificationsPage() {
                                   </button>
                                   <button
                                     type="button"
-                                    disabled={isProcessing}
+                                    disabled={processingReturn[n.id] || false}
                                     className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition disabled:opacity-50"
                                     onClick={(e) => {
                                       e.preventDefault();
@@ -550,7 +687,7 @@ export default function AdminNotificationsPage() {
                                       );
                                     }}
                                   >
-                                    {isProcessing ? (
+                                    {processingReturn[n.id] ? (
                                       <Loader2 className="w-3 h-3 animate-spin" />
                                     ) : (
                                       <X className="w-3 h-3" />
@@ -655,7 +792,6 @@ export default function AdminNotificationsPage() {
                                   </div>
                                 )}
 
-                                {/* Show delivery address from order */}
                                 {customOrderDetails[n.orderId]
                                   ?.customerDeliveryAddress && (
                                   <div className="mt-2 pt-2 border-t border-gray-100">

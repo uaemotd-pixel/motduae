@@ -15,7 +15,7 @@ type OrderTimelineProps = {
   currentStatus: CustomOrderStatus;
   statusHistory: CustomOrderStatusHistoryEntry[];
   locale: Locale;
-};
+};  
 
 export default function OrderTimeline({
   currentStatus,

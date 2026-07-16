@@ -463,7 +463,8 @@
       "dashboard": "Dashboard",
       "shop": "Store Profile",
       "fabrics": "Fabrics",
-      "orders": "Orders"
+      "orders": "Orders",
+      "notifications": "Notifications"
     },
     "pending": {
       "eyebrow": "Fabric Portal",

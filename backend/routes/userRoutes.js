@@ -14,6 +14,7 @@ import {
   sendPasswordResetEmail,
   sendContactMessageEmail,
 } from "../services/emailService.js";
+import { createAdminNotificationForNewUser } from "../services/adminNotificationService.js";
 
 const userRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -443,9 +444,25 @@ userRouter.post(
     });
 
     const createdUser = await user.save();
+
+    // Create admin dashboard notification for new tailor signup
+    // Admin UI expects: tailor/cust/fabric-store specific display message.
+    await createAdminNotificationForNewUser({
+      type: `user_${createdUser.role}_registered`,
+      title: "User registration",
+      message: `${createdUser.name} is registered as ${createdUser.role.replace(
+        "_",
+        " ",
+      )}.`,
+      createdBy: createdUser._id,
+      tailorUserId: createdUser._id,
+    });
+
+
     sendUserResponse(res, createdUser);
   }),
 );
+
 
 userRouter.post(
   "/signup/fabricStore",
@@ -479,7 +496,21 @@ userRouter.post(
     });
 
     const createdUser = await user.save();
+
+    // Create admin dashboard notification for new fabric_store signup
+    await createAdminNotificationForNewUser({
+      type: `user_${createdUser.role}_registered`,
+      title: "User registration",
+      message: `${createdUser.name} is registered as ${createdUser.role.replace(
+        "_",
+        " ",
+      )}.`,
+      createdBy: createdUser._id,
+      tailorUserId: null,
+    });
+
     sendUserResponse(res, createdUser);
+
   }),
 );
 
@@ -543,10 +574,23 @@ userRouter.post(
 
     const createdUser = await user.save();
 
+    // Create admin dashboard notification for new user signup
+    // Supports all partner/user roles (customer, tailor, fabric_store).
+    await createAdminNotificationForNewUser({
+      type: `${createdUser.role}_registered`,
+      title: "New user registered",
+      message: `${createdUser.name} (${createdUser.email}) has registered as ${createdUser.role.replace(
+        "_",
+        " ",
+      )}.`,
+      createdBy: createdUser._id,
+      tailorUserId: createdUser.role === "tailor" ? createdUser._id : null,
+    });
+
     const customer = new Customer({
       userId: createdUser._id,
       name: createdUser.name,
-      phone: fullPhone, // Store as +971501234567
+      phone: fullPhone,
     });
     await customer.save();
 

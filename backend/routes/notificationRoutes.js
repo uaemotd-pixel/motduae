@@ -35,6 +35,7 @@ notificationRouter.get(
     const enriched = notifications.map((n) => ({
       ...n,
       status: n.orderId ? orderStatusMap[String(n.orderId)] || null : null,
+      tailorId: n.tailorUserId || null,
     }));
 
     res.send({
@@ -77,6 +78,27 @@ notificationRouter.post(
   }),
 );
 
+// POST /api/admin/notifications/mark-all-read
+notificationRouter.post(
+  "/notifications/mark-all-read",
+  isAuth,
+  isAdmin,
+  expressAsyncHandler(async (_req, res) => {
+    const result = await AdminNotification.updateMany(
+      { read: false },
+      { $set: { read: true, readAt: new Date() } },
+    );
+
+    res.send({
+      success: true,
+      updatedCount:
+        typeof result?.modifiedCount === "number"
+          ? result.modifiedCount
+          : result?.nModified,
+    });
+  }),
+);
+
 // DELETE /api/admin/notifications/:id
 notificationRouter.delete(
   "/notifications/:id",
@@ -102,6 +124,17 @@ notificationRouter.delete(
     }
 
     res.send({ success: true, deletedId: id });
+  }),
+);
+
+// GET /api/admin/notifications/unread-count
+notificationRouter.get(
+  "/notifications/unread-count",
+  isAuth,
+  isAdmin,
+  expressAsyncHandler(async (_req, res) => {
+    const count = await AdminNotification.countDocuments({ read: false });
+    res.send({ success: true, count });
   }),
 );
 

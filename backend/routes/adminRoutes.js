@@ -20,6 +20,7 @@ import {
   processFabricImage,
 } from "../middleware/uploadFabricImages.js";
 import Customer from "../models/customer.js";
+import { createAdminNotificationForNewUser } from "../services/adminNotificationService.js";
 
 const adminRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -374,11 +375,21 @@ adminRouter.post(
     });
     await shop.save();
 
+    // Create admin notification for new fabric store partner creation
+    await createAdminNotificationForNewUser({
+      type: `user_${user.role}_registered`,
+      title: "User registration",
+      message: `${user.name} is registered as fabric store.`,
+      createdBy: user._id,
+      tailorUserId: null,
+    });
+
     res.status(201).send({
       message: "Partner created",
       user: partnerPublicFields(user),
       shop,
     });
+
   }),
 );
 
@@ -1308,11 +1319,11 @@ adminRouter.put(
       (typeof returnAllowedDays !== "number" || returnAllowedDays < 0)
     ) {
       res.status(400).send({
-        message: "Return allowed days must be a valid number greater than or equal to 0",
+        message:
+          "Return allowed days must be a valid number greater than or equal to 0",
       });
       return;
     }
-
 
     // 2. Fetch the current singleton record
     let settings = await PlatformSettings.findOne({});
@@ -1335,7 +1346,6 @@ adminRouter.put(
     if (returnAllowedDays !== undefined)
       settings.returnAllowedDays = returnAllowedDays;
     if (currency !== undefined) settings.currency = currency; // Fixed AED standard in MVP layout
-
 
     const updatedSettings = await settings.save();
     res.send({

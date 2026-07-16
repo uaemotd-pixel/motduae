@@ -580,7 +580,8 @@
       "dashboard": "لوحة التحكم",
       "shop": "ملف المتجر",
       "fabrics": "الأقمشة",
-      "orders": "الطلبات"
+      "orders": "الطلبات",
+      "notifications" : "إشعارات"
     },
     "pending": {
       "eyebrow": "بوابة الأقمشة",
