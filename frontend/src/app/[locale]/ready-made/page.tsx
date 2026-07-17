@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Link, useRouter } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
+import { Share2 } from "lucide-react";
+
 import {
   getReadyMadeDisplayFields,
   ReadyMadeListItem,
@@ -145,6 +147,17 @@ const SearchOffIcon = () => (
     />
   </svg>
 );
+
+async function copyToClipboard(text: string) {
+  if (typeof navigator === "undefined") return;
+  await navigator.clipboard.writeText(text);
+}
+
+function buildShareUrl(basePath: string, href: string) {
+  const trimmedBase = basePath.replace(/\/+$/, "");
+  const trimmedHref = href.replace(/^\/+/, "");
+  return `${trimmedBase}/${trimmedHref}`;
+}
 
 // ─── Checkbox component ──────────────────────────────────────────────────────
 const CustomCheckbox = ({
@@ -570,6 +583,40 @@ export default function ReadyMadeCatalogPage() {
   const params = useParams();
   const locale = params.locale === "ar" ? "ar" : "en";
   const isAr = locale === "ar";
+
+  const getLocaleBasePath = () => `/${locale}`;
+
+  const handleShare = useCallback(
+    async (hrefPath: string) => {
+      const basePath = getLocaleBasePath();
+      const relativeUrl = buildShareUrl(basePath, hrefPath);
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
+      const fullUrl = origin ? `${origin}${relativeUrl}` : relativeUrl;
+
+      const shareData = {
+        title: "MOTD",
+        text: isAr ? "اطلع على المنتج" : "Check this product",
+        url: fullUrl,
+      };
+
+      try {
+        if (typeof navigator !== "undefined" && "share" in navigator) {
+          await navigator.share(shareData as any);
+          return;
+        }
+      } catch {
+        // user cancelled or share failed: fall back to copy
+      }
+
+      try {
+        await copyToClipboard(fullUrl);
+      } catch {
+        window.prompt("Copy link:", fullUrl);
+      }
+    },
+    [isAr, locale],
+  );
 
   const [mounted, setMounted] = useState(false);
   const [products, setProducts] = useState<ReadyMadeListItem[]>([]);
@@ -1128,7 +1175,22 @@ export default function ReadyMadeCatalogPage() {
                             </span>
                           )}
 
-                          <div className="absolute top-4 right-4 z-10">
+                          <div className="absolute top-2 right-2 z-20 flex items-center gap-1">
+                            <button
+                              type="button"
+                              aria-label={isAr ? "مشاركة" : "Share"}
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                await handleShare(
+                                  `/ready-made/${product.slug}`,
+                                );
+                              }}
+                              className="flex items-center justify-center w-6 h-6 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer border-0 shrink-0"
+                            >
+                              <Share2 className="w-3 h-3 text-black" />
+                            </button>
+
                             <WishlistButton
                               item={{
                                 id: product._id,
@@ -1144,6 +1206,7 @@ export default function ReadyMadeCatalogPage() {
                                   ? { maxStock: product.availableFabricStock }
                                   : {}),
                               }}
+                              className="relative! top-0! right-0! translate-x-0! [&>button]:w-6! [&>button]:h-6! [&>button]:min-w-0! [&>button]:min-h-0! [&>button]:p-0! [&>button]:m-0! [&>button]:bg-white/90! [&>button]:backdrop-blur-sm! [&>button]:shadow-sm! [&>button]:rounded-full!"
                             />
                           </div>
 
@@ -1173,7 +1236,6 @@ export default function ReadyMadeCatalogPage() {
                               AED {price.toFixed(2)}
                             </span>
 
-                            {/* Replace the plain text span with color swatches */}
                             <div className="flex items-center gap-1.5 my-1 flex-wrap">
                               {product.colors &&
                               Array.isArray(product.colors) ? (

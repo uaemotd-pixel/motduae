@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
 import {
   FABRIC_FILTER_OPTIONS,
@@ -11,6 +11,7 @@ import {
   getFabricDisplayFields,
   resolveFabricImage,
 } from "@/lib/fabrics";
+import { Share2 } from "lucide-react";
 
 const colorOptions = [
   { name: "Aqua", value: "aqua", bg: "#00FFFF" },
@@ -144,6 +145,17 @@ const SearchOffIcon = () => (
     />
   </svg>
 );
+
+async function copyToClipboard(text: string) {
+  if (typeof navigator === "undefined") return;
+  await navigator.clipboard.writeText(text);
+}
+
+function buildShareUrl(basePath: string, href: string) {
+  const trimmedBase = basePath.replace(/\/+$/, "");
+  const trimmedHref = href.replace(/^\/+/, "");
+  return `${trimmedBase}/${trimmedHref}`;
+}
 
 // ─── Checkbox component ──────────────────────────────────────────────────────
 const CustomCheckbox = ({
@@ -362,7 +374,11 @@ const PriceRangeSlider = ({
       return;
     }
     const maxVal = Number(localMax);
-    const clamped = Math.min(Math.max(0, parsed), Number.isNaN(maxVal) ? 100000 : maxVal, 100000);
+    const clamped = Math.min(
+      Math.max(0, parsed),
+      Number.isNaN(maxVal) ? 100000 : maxVal,
+      100000,
+    );
     setLocalMin(String(clamped));
     if (minTimerRef.current) clearTimeout(minTimerRef.current);
     onMinChange(clamped);
@@ -565,6 +581,40 @@ export default function FabricsCatalogPage() {
   const params = useParams();
   const locale = params.locale === "ar" ? "ar" : "en";
   const isAr = locale === "ar";
+
+  const getLocaleBasePath = () => `/${locale}`;
+
+  const handleShare = useCallback(
+    async (hrefPath: string) => {
+      const basePath = getLocaleBasePath();
+      const relativeUrl = buildShareUrl(basePath, hrefPath);
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
+      const fullUrl = origin ? `${origin}${relativeUrl}` : relativeUrl;
+
+      const shareData = {
+        title: "MOTD",
+        text: isAr ? "اطلع على المنتج" : "Check this product",
+        url: fullUrl,
+      };
+
+      try {
+        if (typeof navigator !== "undefined" && "share" in navigator) {
+          await navigator.share(shareData as any);
+          return;
+        }
+      } catch {
+        // user cancelled or share failed: fall back to copy
+      }
+
+      try {
+        await copyToClipboard(fullUrl);
+      } catch {
+        window.prompt("Copy link:", fullUrl);
+      }
+    },
+    [isAr, locale],
+  );
 
   const [mounted, setMounted] = useState(false);
   const [fabrics, setFabrics] = useState<FabricListItem[]>([]);
@@ -1107,7 +1157,22 @@ export default function FabricsCatalogPage() {
                               alt={title}
                               className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                             />
+
                             <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+                            {/* Top-right Share button */}
+                            <button
+                              type="button"
+                              aria-label={isAr ? "مشاركة" : "Share"}
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                await handleShare(`/fabrics/${fabric.slug}`);
+                              }}
+                              className="absolute top-2 xs:top-3 right-2 z-20 p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer"
+                            >
+                              <Share2 className="w-4 h-4 text-black" />
+                            </button>
                           </Link>
 
                           <Link

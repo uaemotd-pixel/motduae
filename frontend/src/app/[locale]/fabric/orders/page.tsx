@@ -152,6 +152,7 @@ export default function FabricOrdersPage() {
   const getNextFabricStatus = (currentStatus: string): string | null => {
     const nextMap: Record<string, string> = {
       confirmed: "fabric_delivered",
+      fabric_delivered: "confirmed",
     };
 
     return nextMap[currentStatus] || null;
@@ -194,18 +195,15 @@ export default function FabricOrdersPage() {
       // 1. Customer name/email/phone filter
       if (filterCustomer.trim()) {
         const term = filterCustomer.toLowerCase();
-        const customerName = readPartnerName(
-          typeof order.userId === "object" ? order.userId : null,
-          "",
-        ).toLowerCase();
-        const customerEmail = (
-          (typeof order.userId === "object" && order.userId?.email) ||
-          ""
-        ).toLowerCase();
-        const customerPhone = (
-          (typeof order.userId === "object" && order.userId?.phone) ||
-          ""
-        ).toLowerCase();
+
+        const user =
+          order.userId && typeof order.userId === "object"
+            ? order.userId
+            : null;
+
+        const customerName = readPartnerName(user, "").toLowerCase();
+        const customerEmail = (user?.email || "").toLowerCase();
+        const customerPhone = (user?.phone || "").toLowerCase();
         const orderId = order._id.toLowerCase();
 
         if (
@@ -337,10 +335,13 @@ export default function FabricOrdersPage() {
               typeof order.userId === "object" ? order.userId : null,
               locale === "ar" ? "عميل غير معروف" : "Unknown Customer",
             );
-            const customerEmail =
-              typeof order.userId === "object" ? order.userId.email : "";
-            const customerPhone =
-              typeof order.userId === "object" ? order.userId.phone : "";
+            const user =
+              order.userId && typeof order.userId === "object"
+                ? order.userId
+                : null;
+
+            const customerEmail = user?.email || "";
+            const customerPhone = user?.phone || "";
             const fabricName =
               order.fabricSnapshot?.name ||
               (locale === "ar" ? "قماش خاص" : "Self Fabric");
@@ -403,46 +404,56 @@ export default function FabricOrdersPage() {
                         label={statusLabel(order.status)}
                       />
 
-                      <select
-                        value={order.status}
-                        disabled={updatingOrderId === order._id}
-                        onChange={(e) => {
-                          const next = e.target.value;
-                          if (next === order.status) return;
-                          if (!next) return;
+                      {(["confirmed", "fabric_delivered"] as const).includes(
+                        order.status as "confirmed" | "fabric_delivered",
+                      ) && (
+                        <div className="relative">
+                          <select
+                            value={order.status}
+                            disabled={updatingOrderId === order._id}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              if (next === order.status) return;
+                              if (!next) return;
 
-                          // Only allow the fabric-flow progression
-                          if (
-                            next !== getNextFabricStatus(order.status) &&
-                            getNextFabricStatus(order.status) !== null
-                          )
-                            return;
+                              // Only allow the fabric-flow progression (two-way)
+                              if (next !== getNextFabricStatus(order.status)) return;
 
-                          updateOrderStatus(order._id);
-                        }}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-[11px] md:text-xs bg-white text-black transition hover:cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed [font-family:var(--font-body)]"
-                      >
-                        {(() => {
-                          const next = getNextFabricStatus(order.status);
-                          // If no next status, keep only current status option
-                          if (!next) {
-                            return (
-                              <option value={order.status}>
-                                {statusLabel(order.status)}
-                              </option>
-                            );
-                          }
+                              updateOrderStatus(order._id);
+                            }}
+                            className="w-full appearance-none border border-gray-200 rounded-lg px-3 py-1.5 text-[11px] md:text-xs bg-white text-black transition hover:cursor-pointer disabled:bg-gray-50 disabled:text-gray-400 disabled:opacity-100 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black/15 focus:border-black/20 [font-family:var(--font-body)]"
+                          >
+                            {(() => {
+                              const next = getNextFabricStatus(order.status);
+                              // For allowed statuses, next must exist; keep safe fallback.
+                              if (!next) {
+                                return (
+                                  <option value={order.status}>
+                                    {statusLabel(order.status)}
+                                  </option>
+                                );
+                              }
 
-                          return (
-                            <>
-                              <option value={order.status}>
-                                {statusLabel(order.status)}
-                              </option>
-                              <option value={next}>{statusLabel(next)}</option>
-                            </>
-                          );
-                        })()}
-                      </select>
+                              return (
+                                <>
+                                  <option value={order.status}>
+                                    {statusLabel(order.status)}
+                                  </option>
+                                  <option value={next}>{statusLabel(next)}</option>
+                                </>
+                              );
+                            })()}
+                          </select>
+
+                          <div
+                            className={`pointer-events-none absolute inset-y-0 ${
+                              locale === "ar" ? "left-3" : "right-3"
+                            } flex items-center`}
+                          >
+                            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 

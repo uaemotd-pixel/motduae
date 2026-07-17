@@ -16,6 +16,26 @@ import {
   getFabricDisplayFields,
 } from "@/lib/fabrics";
 import { resolveMediaUrl } from "@/lib/media";
+import { Share2 } from "lucide-react";
+import { usePathname } from "next/navigation";
+
+async function copyToClipboard(text: string) {
+  if (typeof navigator === "undefined") return;
+  await navigator.clipboard.writeText(text);
+}
+
+function buildShareUrl(basePath: string, href: string) {
+  const trimmedBase = basePath.replace(/\/+$/, "");
+  const trimmedHref = href.replace(/^\/+/, "");
+  return `${trimmedBase}/${trimmedHref}`;
+}
+
+function getLocaleBasePath(pathname: string, fallbackLocale: string) {
+  const parts = (pathname || "").split("/").filter(Boolean);
+  const maybeLocale = parts[0];
+  if (maybeLocale === "en" || maybeLocale === "ar") return `/${maybeLocale}`;
+  return `/${fallbackLocale || "en"}`;
+}
 
 // Define TAG COLORS
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
@@ -36,7 +56,9 @@ const getTagStyles = (tagValue?: string) => {
 
 export function PremiumFabrics() {
   const t = useTranslations("PremiumFabrics");
+  const pathname = usePathname();
   const params = useParams();
+
   const locale = params.locale === "ar" ? "ar" : "en";
 
   const [fabrics, setFabrics] = useState<FabricListItem[]>([]);
@@ -108,6 +130,46 @@ export function PremiumFabrics() {
   const [nextBtnEnabled, setNextBtnEnabled] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [scrollSnaps, setScrollSnaps] = useState<number[]>([]);
+
+  const getLocaleBasePath = useCallback(() => {
+    const p = pathname || "";
+    const parts = p.split("/").filter(Boolean);
+    const maybeLocale = parts[0];
+    if (maybeLocale === "en" || maybeLocale === "ar") return `/${maybeLocale}`;
+    return `/${locale || "en"}`;
+  }, [pathname, locale]);
+
+  const handleShare = useCallback(
+    async (hrefPath: string) => {
+      const relativeUrl = buildShareUrl(getLocaleBasePath(), hrefPath);
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
+      const fullUrl = origin ? `${origin}${relativeUrl}` : relativeUrl;
+
+      const shareData = {
+        title: "MOTD",
+        text: locale === "ar" ? "اطلع على القماش" : "Check this fabric",
+        url: fullUrl,
+      };
+
+      try {
+        if (typeof navigator !== "undefined" && "share" in navigator) {
+          await navigator.share(shareData as any);
+          return;
+        }
+      } catch {
+        // ignore and fallback
+      }
+
+      try {
+        await copyToClipboard(fullUrl);
+      } catch {
+        // eslint-disable-next-line no-alert
+        window.prompt("Copy link:", fullUrl);
+      }
+    },
+    [getLocaleBasePath, locale],
+  );
 
   const onSelect = useCallback(() => {
     if (!emblaApi) return;
@@ -287,13 +349,15 @@ export function PremiumFabrics() {
                     getFabricDisplayFields(item, locale);
                   const imageUrl = resolveMediaUrl(item.images?.[0]);
                   const { bg, text } = getTagStyles(item.tag);
+                  const hrefPath = `/fabrics/${item.slug}`;
+
                   return (
                     <div
                       key={item._id}
                       className="flex-[0_0_100%] xs:flex-[0_0_66.666%] sm:flex-[0_0_50%] md:flex-[0_0_40%] lg:flex-[0_0_33.333%] xl:flex-[0_0_28.571%] 2xl:flex-[0_0_25%] px-1 xs:px-1.5 sm:px-2 md:px-2.5 lg:px-3 group py-4"
                     >
                       <Link
-                        href={`/fabrics/${item.slug}`}
+                        href={hrefPath}
                         className="bg-(--bg-page) border border-(--color-border) rounded-lg transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 h-full flex flex-col hover:cursor-pointer"
                       >
                         <div className="aspect-9/9 relative overflow-hidden rounded-t-lg">
@@ -303,7 +367,22 @@ export function PremiumFabrics() {
                             alt={title}
                           />
 
+                          {/* Top-right Share button */}
+                          <button
+                            type="button"
+                            aria-label={locale === "ar" ? "مشاركة" : "Share"}
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              await handleShare(hrefPath);
+                            }}
+                            className="absolute top-2 xs:top-3 right-2 z-20 p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer"
+                          >
+                            <Share2 className="w-4 h-4 text-black" />
+                          </button>
+
                           <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
                           {item.tag && (
                             <div className="absolute top-2 xs:top-3 left-2 xs:left-3 z-10">
                               <span

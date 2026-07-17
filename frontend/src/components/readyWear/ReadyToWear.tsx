@@ -13,16 +13,16 @@ import {
   resolveReadyMadeImage,
 } from "@/lib/readyMade";
 import WishlistButton from "../shared/wishlistButton";
+import { Share2 } from "lucide-react";
 
-// Define TAG COLORS
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
-  new: { bg: "#2D5A3D", text: "#FFFFFF" }, // Deep muted green
-  bestseller: { bg: "#8B7355", text: "#FFFFFF" }, // Warm taupe
-  premium: { bg: "#4A4A4A", text: "#FFFFFF" }, // Charcoal (matches theme)
-  limited: { bg: "#8B3A3A", text: "#FFFFFF" }, // Muted burgundy
-  exclusive: { bg: "#C4A47A", text: "#000000" }, // Soft gold/beige
-  trending: { bg: "#3A5A78", text: "#FFFFFF" }, // Muted navy
-  handmade: { bg: "#6B4F3C", text: "#FFFFFF" }, // Earthy brown
+  new: { bg: "#2D5A3D", text: "#FFFFFF" },
+  bestseller: { bg: "#8B7355", text: "#FFFFFF" },
+  premium: { bg: "#4A4A4A", text: "#FFFFFF" },
+  limited: { bg: "#8B3A3A", text: "#FFFFFF" },
+  exclusive: { bg: "#C4A47A", text: "#000000" },
+  trending: { bg: "#3A5A78", text: "#FFFFFF" },
+  handmade: { bg: "#6B4F3C", text: "#FFFFFF" },
 };
 
 const getTagStyles = (tagValue?: string) => {
@@ -35,10 +35,18 @@ export function ReadyToWearSection() {
   const params = useParams();
   const locale = params.locale === "ar" ? "ar" : "en";
   const t = getTranslation(locale);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [products, setProducts] = useState<ReadyMadeListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -129,6 +137,60 @@ export function ReadyToWearSection() {
     [emblaApi],
   );
 
+  const isMobile = useCallback(() => {
+    if (typeof window === "undefined") return false;
+    return "ontouchstart" in window || navigator.maxTouchPoints > 0;
+  }, []);
+
+  const getFullUrl = useCallback(
+    (hrefPath: string) => {
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
+      const basePath = locale === "ar" ? "/ar" : "/en";
+      return `${origin}${basePath}${hrefPath}`;
+    },
+    [locale],
+  );
+
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+  }, []);
+
+  const handleShare = useCallback(
+    async (hrefPath: string) => {
+      const fullUrl = getFullUrl(hrefPath);
+
+      const shareData = {
+        title: "MOTD",
+        text: locale === "ar" ? "اطلع على المنتج" : "Check this product",
+        url: fullUrl,
+      };
+
+      try {
+        if (typeof navigator !== "undefined" && "share" in navigator) {
+          await navigator.share(shareData as any);
+          return;
+        }
+      } catch {
+        // ignore and fallback to copy/prompt
+      }
+
+      try {
+        await navigator.clipboard.writeText(fullUrl);
+        showToast(locale === "ar" ? "تم نسخ الرابط!" : "Link copied!");
+      } catch {
+        const copied = window.prompt(
+          locale === "ar" ? "انسخ الرابط:" : "Copy link:",
+          fullUrl,
+        );
+        if (copied !== null) {
+          showToast(locale === "ar" ? "تم نسخ الرابط!" : "Link copied!");
+        }
+      }
+    },
+    [getFullUrl, locale, showToast],
+  );
+
   if (loading) {
     return (
       <section className="bg-(--bg-page) py-12">
@@ -162,6 +224,12 @@ export function ReadyToWearSection() {
       id="ready-made"
       className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16"
     >
+      {toastMessage && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-black text-white px-6 py-3 rounded-lg shadow-lg [font-family:var(--font-ui)] text-sm tracking-wide animate-fade-in-up">
+          {toastMessage}
+        </div>
+      )}
+
       <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 xs:mb-10 sm:mb-12 md:mb-14 lg:mb-(--space-64) gap-4 xs:gap-5 sm:gap-6 md:gap-(--space-24)">
           <div>
@@ -232,48 +300,58 @@ export function ReadyToWearSection() {
                   locale,
                 );
                 const image = resolveReadyMadeImage(item.images?.[0]);
-
-                // Localized tag (use item.tagAr for Arabic, fallback to tag)
                 const tag = locale === "ar" ? item.tagAr || item.tag : item.tag;
-
                 const price = item.finalSellingPriceAED ?? 0;
                 const { bg, text } = getTagStyles(item.tag);
+                const hrefPath = `/ready-made/${item.slug}`;
 
                 return (
                   <div
                     key={item._id}
                     className="flex-[0_0_100%] xs:flex-[0_0_66.666%] sm:flex-[0_0_50%] md:flex-[0_0_40%] lg:flex-[0_0_33.333%] xl:flex-[0_0_28.571%] 2xl:flex-[0_0_25%] px-1 xs:px-1.5 sm:px-2 md:px-2.5 lg:px-3 group py-4"
                   >
-                    <Link
-                      href={`/ready-made/${item.slug}`}
-                      className="block h-full"
-                    >
+                    <Link href={hrefPath} className="block h-full">
                       <div className="group bg-(--bg-page) border border-(--color-border) rounded-lg overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 h-full flex flex-col hover:cursor-pointer text-left">
-                        {/* Image with overlay and tag – now 4:3 and max-height */}
                         <div className="relative overflow-hidden bg-(--color-border)/10 rounded-t-lg">
                           <img
                             src={image}
                             alt={title}
                             className="w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-105"
                           />
-                          {/* Overlay gradient */}
-                          <WishlistButton
-                            item={{
-                              id: item._id,
-                              name: title,
-                              image: image,
-                              price: item.finalSellingPriceAED || 0,
-                              slug: item.slug,
-                              size: String(item.metersPerFabric ?? ""),
-                              quantity: 1,
-                              // don't pass 0 for unknown stock; undefined = unknown/unlimited
-                              ...(Number.isFinite(item.availableFabricStock)
-                                ? { maxStock: item.availableFabricStock }
-                                : {}),
-                            }}
-                          />
                           <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                          {/* Tag – placed after overlay so it stays on top */}
+
+                          {/* Action Buttons Container */}
+                          <div className="absolute top-2 xs:top-3 right-2 xs:right-3 z-20 flex items-center gap-1.5 xs:gap-2">
+                            <button
+                              type="button"
+                              aria-label={locale === "ar" ? "مشاركة" : "Share"}
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                await handleShare(hrefPath);
+                              }}
+                              className="p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer border-0 flex items-center justify-center w-8 h-8 xs:w-9 xs:h-9"
+                            >
+                              <Share2 className="w-4 h-4 text-black" />
+                            </button>
+
+                            <WishlistButton
+                              item={{
+                                id: item._id,
+                                name: title,
+                                image: image,
+                                price: item.finalSellingPriceAED || 0,
+                                slug: item.slug,
+                                size: String(item.metersPerFabric ?? ""),
+                                quantity: 1,
+                                ...(Number.isFinite(item.availableFabricStock)
+                                  ? { maxStock: item.availableFabricStock }
+                                  : {}),
+                              }}
+                              className="relative! top-0! right-0! translate-x-0"
+                            />
+                          </div>
+
                           {tag && (
                             <div
                               className="absolute top-2 xs:top-3 left-2 xs:left-3 z-10 px-2.5 xs:px-3 py-1 xs:py-1.25 text-[10px] xs:text-[12px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.24em] font-bold shadow-sm"
@@ -284,7 +362,6 @@ export function ReadyToWearSection() {
                           )}
                         </div>
 
-                        {/* Content – compact padding */}
                         <div className="p-3 xs:p-4 sm:p-5 md:p-6 lg:p-(--space-24) flex flex-col grow">
                           <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-[1.25] tracking-[-0.01em] text-black mb-1.5 line-clamp-2">
                             {title}

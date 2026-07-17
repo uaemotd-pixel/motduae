@@ -14,6 +14,8 @@ import {
   formatDesignCategory,
 } from "@/lib/tailors";
 import { DESIGN_CATEGORIES } from "@/lib/tailorDesigns";
+import { Share2 } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 interface TailorDesignExtended {
   _id: string;
@@ -36,11 +38,25 @@ interface TailorDesignExtended {
 
 type FilterValue = string;
 
+async function copyToClipboard(text: string) {
+  if (typeof navigator === "undefined") return;
+  await navigator.clipboard.writeText(text);
+}
+
+function buildShareUrl(basePath: string, href: string) {
+  // href is already a path like /designs/slug (no locale). basePath includes locale.
+  // Example: /en + /designs/abc => /en/designs/abc
+  const trimmedBase = basePath.replace(/\/+$/, "");
+  const trimmedHref = href.replace(/^\/+/, "");
+  return `${trimmedBase}/${trimmedHref}`;
+}
+
 export function TrendingSection() {
   const params = useParams();
   const localParams = params.locale as string;
   const isArabic = localParams === "ar";
   const t = getTranslation(localParams);
+  const pathname = usePathname();
 
   const [designs, setDesigns] = useState<TailorDesignExtended[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,7 +183,6 @@ export function TrendingSection() {
     }
   }, [filteredDesigns, emblaApi]);
 
-  // --- Dynamic Arabic font size classes ---
   const eyebrowClass = `[font-family:var(--font-ui)] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-2 xs:mb-3 flex items-center gap-2 xs:gap-3 ${
     isArabic
       ? "text-[14px] xs:text-[11px] sm:text-[12px] md:text-[11px] lg:text-[12px] xl:text-[14px]"
@@ -223,6 +238,51 @@ export function TrendingSection() {
     >
       {isArabic ? <path d="M15 18l-6-6 6-6" /> : <path d="M9 18l6-6-6-6" />}
     </svg>
+  );
+
+  const getLocaleBasePath = () => {
+    // pathname is like /en/something; locale base path is /en (or /ar)
+    // Fallback to "" if pathname is unavailable.
+    const p = pathname || "";
+    const parts = p.split("/").filter(Boolean);
+    const maybeLocale = parts[0];
+    if (maybeLocale === "en" || maybeLocale === "ar") return `/${maybeLocale}`;
+    return `/${localParams || "en"}`;
+  };
+
+  const handleShare = useCallback(
+    async (hrefPath: string) => {
+      const basePath = getLocaleBasePath();
+      const relativeUrl = buildShareUrl(basePath, hrefPath);
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
+      const fullUrl = origin ? `${origin}${relativeUrl}` : relativeUrl;
+
+      const shareData = {
+        title: "MOTD",
+        text: isArabic ? "اطلع على التصميم" : "Check this design",
+        url: fullUrl,
+      };
+
+      try {
+        // Prefer native share (works well on mobile)
+        if (typeof navigator !== "undefined" && "share" in navigator) {
+          await navigator.share(shareData as any);
+          return;
+        }
+      } catch {
+        // If user cancels native share, fall back to copy.
+      }
+
+      try {
+        await copyToClipboard(fullUrl);
+      } catch {
+        // Last resort: open prompt
+        // eslint-disable-next-line no-alert
+        window.prompt("Copy link:", fullUrl);
+      }
+    },
+    [isArabic, pathname, localParams],
   );
 
   if (loading) {
@@ -336,13 +396,15 @@ export function TrendingSection() {
                   design.priceType,
                 );
 
+                const hrefPath = `/designs/${design.slug}`;
+
                 return (
                   <div
                     key={design._id}
                     className="flex-[0_0_100%] xs:flex-[0_0_66.666%] sm:flex-[0_0_50%] md:flex-[0_0_40%] lg:flex-[0_0_33.333%] xl:flex-[0_0_28.571%] 2xl:flex-[0_0_25%] px-1 xs:px-1.5 sm:px-2 md:px-2.5 lg:px-3 group py-4"
                   >
                     <Link
-                      href={`/designs/${design.slug}`}
+                      href={hrefPath}
                       className="bg-(--bg-page) border border-(--color-border) rounded-lg transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 h-full flex flex-col hover:cursor-pointer text-left"
                     >
                       <div className="aspect-9/9 relative overflow-hidden bg-[#F5F4F0] rounded-t-lg">
@@ -352,6 +414,21 @@ export function TrendingSection() {
                           alt={name}
                         />
                         <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                        {/* Top-right Share button */}
+                        <button
+                          type="button"
+                          aria-label={isArabic ? "مشاركة" : "Share"}
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            await handleShare(hrefPath);
+                          }}
+                          className="absolute top-2 xs:top-3 right-2 z-20 p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer"
+                        >
+                          <Share2 className="w-4 h-4 text-black" />
+                        </button>
+
                         <div className="absolute top-2 xs:top-3 left-2 xs:left-3 z-10">
                           <span className="bg-[#8B6F47] text-white px-2.5 xs:px-3 py-1 xs:py-1.25 text-[10px] xs:text-[12px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.24em] font-bold">
                             {category}

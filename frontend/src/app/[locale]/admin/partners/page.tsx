@@ -157,7 +157,7 @@ function ApprovalModal({
         {showNote && onNoteChange && (
           <div className="mt-4">
             <textarea
-              className="w-full min-h-[100px] border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:border-black resize-y"
+              className="w-full min-h-25 border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:border-black resize-y"
               placeholder={notePlaceholder}
               value={noteValue}
               onChange={(e) => onNoteChange(e.target.value)}
@@ -272,11 +272,7 @@ function PartnerFormModal({
               className={inputClassName}
             />
           </FormField>
-          <FormField
-            label="Password"
-            name="password"
-            required
-          >
+          <FormField label="Password" name="password" required>
             <input
               id="password"
               type="password"
@@ -319,7 +315,9 @@ export default function AdminPartnersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "approved" | "pending" | "rejected">("all");
+  const [activeTab, setActiveTab] = useState<
+    "all" | "approved" | "pending" | "rejected"
+  >("all");
 
   const [stats, setStats] = useState({
     total: 0,
@@ -340,8 +338,13 @@ export default function AdminPartnersPage() {
   } | null>(null);
 
   const [approvalModalOpen, setApprovalModalOpen] = useState(false);
-  const [approvalAction, setApprovalAction] = useState<"approve" | "reject" | null>(null);
-  const [selectedPending, setSelectedPending] = useState<{ id: string; name: string } | null>(null);
+  const [approvalAction, setApprovalAction] = useState<
+    "approve" | "reject" | null
+  >(null);
+  const [selectedPending, setSelectedPending] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [rejectNote, setRejectNote] = useState("");
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
@@ -349,20 +352,28 @@ export default function AdminPartnersPage() {
     setLoading(true);
     setError(null);
     try {
-      const approvedShopsRes = await api.get<{ items: ApprovedShop[] }>("/api/admin/fabric-shops");
+      const approvedShopsRes = await api.get<{ items: ApprovedShop[] }>(
+        "/api/admin/fabric-shops",
+      );
       const approvedShops = approvedShopsRes.items || [];
 
-      const approvedUsersRes = await api.get<{ items: ApprovedUser[] }>("/api/admin/fabric-stores/approved-users");
+      const approvedUsersRes = await api.get<{ items: ApprovedUser[] }>(
+        "/api/admin/fabric-stores/approved-users",
+      );
       const approvedUsers = approvedUsersRes.items || [];
 
-      const pendingRes = await api.get<any[]>("/api/admin/fabric-stores/pending");
+      const pendingRes = await api.get<any[]>(
+        "/api/admin/fabric-stores/pending",
+      );
       const pending = Array.isArray(pendingRes) ? pendingRes : [];
 
-      const rejectedRes = await api.get<{ items: RejectedUser[] }>("/api/admin/fabric-stores/rejected-stores");
+      const rejectedRes = await api.get<{ items: RejectedUser[] }>(
+        "/api/admin/fabric-stores/rejected-stores",
+      );
       const rejectedUsers = rejectedRes.items || [];
 
       const shopOwnerIds = new Set(
-        approvedShops.map((shop) => shop.ownerId?._id).filter(Boolean)
+        approvedShops.map((shop) => shop.ownerId?._id).filter(Boolean),
       );
 
       const shopRows: FabricRow[] = approvedShops.map((shop) => ({
@@ -417,7 +428,9 @@ export default function AdminPartnersPage() {
 
       setRows(combined);
 
-      const approvedCount = approvedShops.length + approvedUsers.filter((u) => !shopOwnerIds.has(u._id)).length;
+      const approvedCount =
+        approvedShops.length +
+        approvedUsers.filter((u) => !shopOwnerIds.has(u._id)).length;
       setStats({
         total: approvedCount + pending.length + rejectedUsers.length,
         approved: approvedCount,
@@ -450,7 +463,11 @@ export default function AdminPartnersPage() {
     }
   };
 
-  const openToggleModal = (shopId: string, shopName: string, currentStatus: boolean) => {
+  const openToggleModal = (
+    shopId: string,
+    shopName: string,
+    currentStatus: boolean,
+  ) => {
     setPendingToggle({ shopId, shopName, currentStatus });
     setToggleModalOpen(true);
   };
@@ -473,8 +490,8 @@ export default function AdminPartnersPage() {
         prev.map((row) =>
           row.id === shopId && row.type === "approved"
             ? { ...row, isActive: newStatus }
-            : row
-        )
+            : row,
+        ),
       );
       toast.success(`Shop "${shopName}" ${actionVerb}`);
     } catch (err) {
@@ -491,7 +508,11 @@ export default function AdminPartnersPage() {
     setPendingToggle(null);
   };
 
-  const openApprovalModal = (action: "approve" | "reject", storeId: string, storeName: string) => {
+  const openApprovalModal = (
+    action: "approve" | "reject",
+    storeId: string,
+    storeName: string,
+  ) => {
     setApprovalAction(action);
     setSelectedPending({ id: storeId, name: storeName });
     setRejectNote("");
@@ -524,8 +545,8 @@ export default function AdminPartnersPage() {
           prev.map((row) =>
             row.id === id
               ? { ...row, type: "approved", shopName: null, isActive: false }
-              : row
-          )
+              : row,
+          ),
         );
         setStats((prev) => {
           const nextStats = { ...prev, approved: prev.approved + 1 };
@@ -544,8 +565,8 @@ export default function AdminPartnersPage() {
         toast.success(`Fabric store "${name}" rejected`);
         setRows((prev) =>
           prev.map((row) =>
-            row.id === id ? { ...row, type: "rejected" } : row
-          )
+            row.id === id ? { ...row, type: "rejected" } : row,
+          ),
         );
         setStats((prev) => ({
           ...prev,
@@ -554,7 +575,9 @@ export default function AdminPartnersPage() {
         }));
       }
     } catch (err) {
-      toast.error(getApiErrorMessage(err, `Failed to ${approvalAction} partner`));
+      toast.error(
+        getApiErrorMessage(err, `Failed to ${approvalAction} partner`),
+      );
     } finally {
       setActionInProgress(null);
     }
@@ -571,7 +594,7 @@ export default function AdminPartnersPage() {
       (r) =>
         r.name?.toLowerCase().includes(term) ||
         r.email?.toLowerCase().includes(term) ||
-        r.shopName?.toLowerCase().includes(term)
+        r.shopName?.toLowerCase().includes(term),
     );
   }, [rows, activeTab, searchTerm]);
 
@@ -583,7 +606,7 @@ export default function AdminPartnersPage() {
         year: "numeric",
         month: "short",
         day: "numeric",
-      }
+      },
     );
   };
 
@@ -593,7 +616,10 @@ export default function AdminPartnersPage() {
         <div className="h-8 w-48 bg-gray-200 rounded" />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-6">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white rounded-2xl p-4 border border-gray-100">
+            <div
+              key={i}
+              className="bg-white rounded-2xl p-4 border border-gray-100"
+            >
               <div className="h-4 w-24 bg-gray-200 rounded mb-2" />
               <div className="h-6 w-16 bg-gray-200 rounded" />
             </div>
@@ -637,9 +663,13 @@ export default function AdminPartnersPage() {
       {/* Modals */}
       <ToggleModal
         isOpen={toggleModalOpen}
-        title={pendingToggle?.currentStatus ? "Deactivate Shop" : "Reactivate Shop"}
+        title={
+          pendingToggle?.currentStatus ? "Deactivate Shop" : "Reactivate Shop"
+        }
         message={`Are you sure you want to ${pendingToggle?.currentStatus ? "deactivate" : "reactivate"} "${pendingToggle?.shopName || "this shop"}"?`}
-        confirmLabel={pendingToggle?.currentStatus ? "Deactivate" : "Reactivate"}
+        confirmLabel={
+          pendingToggle?.currentStatus ? "Deactivate" : "Reactivate"
+        }
         cancelLabel="Cancel"
         onConfirm={executeToggle}
         onCancel={cancelToggle}
@@ -647,8 +677,16 @@ export default function AdminPartnersPage() {
 
       <ApprovalModal
         isOpen={approvalModalOpen}
-        title={approvalAction === "approve" ? `Approve "${selectedPending?.name || "Fabric Store"}"` : `Reject "${selectedPending?.name || "Fabric Store"}"`}
-        message={approvalAction === "approve" ? "This store will be able to set up their shop profile and list fabrics." : "Explain a reason of rejection *"}
+        title={
+          approvalAction === "approve"
+            ? `Approve "${selectedPending?.name || "Fabric Store"}"`
+            : `Reject "${selectedPending?.name || "Fabric Store"}"`
+        }
+        message={
+          approvalAction === "approve"
+            ? "This store will be able to set up their shop profile and list fabrics."
+            : "Explain a reason of rejection *"
+        }
         confirmLabel={approvalAction === "approve" ? "Approve" : "Reject"}
         cancelLabel="Cancel"
         onConfirm={executeApproval}
@@ -700,7 +738,9 @@ export default function AdminPartnersPage() {
         </div>
         <div className="bg-white rounded-2xl p-4 border border-gray-100">
           <p className="text-xs text-gray-400 uppercase">Approved</p>
-          <p className="text-2xl font-light text-black mt-1">{stats.approved}</p>
+          <p className="text-2xl font-light text-black mt-1">
+            {stats.approved}
+          </p>
         </div>
         <div className="bg-white rounded-2xl p-4 border border-gray-100">
           <p className="text-xs text-gray-400 uppercase">Pending</p>
@@ -708,7 +748,9 @@ export default function AdminPartnersPage() {
         </div>
         <div className="bg-white rounded-2xl p-4 border border-gray-100">
           <p className="text-xs text-gray-400 uppercase">Rejected</p>
-          <p className="text-2xl font-light text-black mt-1">{stats.rejected}</p>
+          <p className="text-2xl font-light text-black mt-1">
+            {stats.rejected}
+          </p>
         </div>
       </div>
 
@@ -746,7 +788,9 @@ export default function AdminPartnersPage() {
       {filteredRows.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
           <Store className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-          <p className="text-gray-500">No partners found matching the criteria.</p>
+          <p className="text-gray-500">
+            No partners found matching the criteria.
+          </p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
@@ -754,13 +798,27 @@ export default function AdminPartnersPage() {
             <table className="min-w-full">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-150">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shop</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Shop
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Joined
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -784,7 +842,9 @@ export default function AdminPartnersPage() {
                     );
                   } else {
                     statusBadge = (
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${row.isActive ? "bg-black text-white" : "bg-gray-200 text-black"}`}>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${row.isActive ? "bg-black text-white" : "bg-gray-200 text-black"}`}
+                      >
                         {row.isActive ? "Active" : "Inactive"}
                       </span>
                     );
@@ -795,14 +855,18 @@ export default function AdminPartnersPage() {
                     actions = (
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => openApprovalModal("approve", row.id, row.name)}
+                          onClick={() =>
+                            openApprovalModal("approve", row.id, row.name)
+                          }
                           disabled={busy}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition disabled:opacity-50 hover:cursor-pointer"
                         >
                           <CheckCircle className="w-3.5 h-3.5" /> Approve
                         </button>
                         <button
-                          onClick={() => openApprovalModal("reject", row.id, row.name)}
+                          onClick={() =>
+                            openApprovalModal("reject", row.id, row.name)
+                          }
                           disabled={busy}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition disabled:opacity-50 hover:cursor-pointer"
                         >
@@ -813,7 +877,9 @@ export default function AdminPartnersPage() {
                   } else if (isRejected) {
                     actions = (
                       <button
-                        onClick={() => openApprovalModal("approve", row.id, row.name)}
+                        onClick={() =>
+                          openApprovalModal("approve", row.id, row.name)
+                        }
                         disabled={busy}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition disabled:opacity-50 hover:cursor-pointer"
                       >
@@ -823,24 +889,46 @@ export default function AdminPartnersPage() {
                   } else {
                     actions = (
                       <button
-                        onClick={() => openToggleModal(row.id, row.shopName || "Shop", row.isActive || false)}
+                        onClick={() =>
+                          openToggleModal(
+                            row.id,
+                            row.shopName || "Shop",
+                            row.isActive || false,
+                          )
+                        }
                         disabled={busy || !row.shopName}
                         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition disabled:opacity-50 hover:cursor-pointer ${
-                          row.isActive ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
+                          row.isActive
+                            ? "bg-red-600 hover:bg-red-700"
+                            : "bg-green-600 hover:bg-green-700"
                         } ${!row.shopName ? "opacity-50 cursor-not-allowed" : ""}`}
                       >
-                        {busy ? "Toggling..." : row.isActive ? "Deactivate" : "Reactivate"}
+                        {busy
+                          ? "Toggling..."
+                          : row.isActive
+                            ? "Deactivate"
+                            : "Reactivate"}
                       </button>
                     );
                   }
 
                   return (
                     <tr key={row.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-black">{row.name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{row.email}</td>
-                      <td className="px-6 py-4 text-sm capitalize">{row.type}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{row.shopName || "—"}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{formatDate(row.createdAt)}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-black">
+                        {row.name}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {row.email}
+                      </td>
+                      <td className="px-6 py-4 text-sm capitalize">
+                        {row.type}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {row.shopName || "—"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {formatDate(row.createdAt)}
+                      </td>
                       <td className="px-6 py-4 text-sm">{statusBadge}</td>
                       <td className="px-6 py-4 text-sm">{actions}</td>
                     </tr>

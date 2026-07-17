@@ -569,6 +569,28 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
         ...paymentDetails,
       });
 
+      // Notify admins about custom order placement
+      const customerName = req.user?.name || "Customer";
+      const itemNames = (order.items || []).map((it) => {
+        const designName = it?.designSnapshot?.name;
+        const fabricName = it?.fabricSnapshot?.name;
+        const designPart = designName ? `Design: ${designName}` : null;
+        const fabricPart = fabricName ? `Fabric: ${fabricName}` : null;
+        return [designPart, fabricPart].filter(Boolean).join(" • ");
+      }).filter(Boolean);
+      const itemNameText = itemNames.length ? itemNames.join(", ") : "Custom item";
+
+      const message = `${customerName} has placed order for ${itemNameText} for AED ${Number(order.pricing?.total ?? 0).toFixed(2)}`;
+
+      await AdminNotification.create({
+        type: "custom_order_placed",
+        title: "New Custom order",
+        message,
+        orderId: order._id,
+        createdBy: req.user._id,
+        read: false,
+      });
+
       return res.status(201).json({
         success: true,
         message: "Custom order created successfully",
@@ -847,6 +869,27 @@ orderRoutes.post("/retail", isAuth, async (req, res) => {
       totalPrice: prepared.totalPrice,
       status: orderStatus,
       ...paymentDetails,
+    });
+
+    // Notify admins about ready-made order placement
+    const customerName = req.user?.name || "Customer";
+    const itemNames = (prepared.finalOrderItems || [])
+      .map((i) => i?.name)
+      .filter(Boolean);
+
+    // Friendly message format required by UI:
+    // "{name} has placed order for {item name} for AED {price}"
+    const message = `${customerName} has placed order for ${itemNames.join(", ")} for AED ${Number(
+      prepared.totalPrice,
+    ).toFixed(2)}`;
+
+    await AdminNotification.create({
+      type: "retail_order_placed",
+      title: "New Ready-made order",
+      message,
+      orderId: order._id,
+      createdBy: req.user._id,
+      read: false,
     });
 
     res.status(201).json({
@@ -1245,6 +1288,16 @@ orderRoutes.post("/custom/:id/mark-received", isAuth, async (req, res) => {
 
     await order.save();
 
+    // Notify customer about delivery completion
+    await AdminNotification.create({
+      type: "custom_status_delivered",
+      title: "Order Delivered",
+      message: `Your custom order ${order._id} has been delivered.`,
+      orderId: order._id,
+      createdBy: req.user._id,
+      read: false,
+    });
+
     return res.json({ success: true, order });
   } catch (error) {
     console.error("POST /api/orders/custom/:id/mark-received error:", error);
@@ -1298,6 +1351,14 @@ orderRoutes.post("/custom/:id/return-reject", isAuth, async (req, res) => {
     await order.save();
 
     // Notify customer about rejection
+    await AdminNotification.create({
+      type: "custom_status_return_rejected",
+      title: "Return Rejected",
+      message: `Your return request for order ${order._id} has been rejected.`,
+      orderId: order._id,
+      createdBy: req.user._id,
+      read: false,
+    });
     await AdminNotification.create({
       type: "custom_return_rejected",
       title: "Return request rejected",

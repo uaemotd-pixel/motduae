@@ -9,6 +9,8 @@ import {
   formatPricePerMeter,
   getFabricDisplayFields,
 } from "@/lib/fabrics";
+import { Share2 } from "lucide-react";
+
 import StoreAttribution from "@/components/fabric/StoreAttribution";
 import { resolveMediaUrl } from "@/lib/media";
 import InnerImageZoom from "react-inner-image-zoom";
@@ -37,6 +39,31 @@ export default function FabricDetailView({
   labels,
 }: FabricDetailViewProps) {
   const { title, description } = getFabricDisplayFields(fabric, locale);
+
+  const handleShare = async () => {
+    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+    if (!shareUrl) return;
+
+    const shareTitle = title;
+    const shareText = `${title} - ${formatMaterialLabel(fabric.material, locale)}`;
+
+    try {
+      if (typeof navigator !== "undefined" && typeof (navigator as any).share === "function") {
+        await (navigator as any).share({ title: shareTitle, text: shareText, url: shareUrl });
+        return;
+      }
+
+      if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        await navigator.clipboard.writeText(shareUrl);
+        return;
+      }
+
+      window.prompt("Copy link:", shareUrl);
+    } catch {
+      // no-op
+    }
+  };
+
   const images = fabric.images?.length
     ? fabric.images.map(resolveMediaUrl)
     : [resolveMediaUrl(undefined)];
@@ -65,13 +92,22 @@ export default function FabricDetailView({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Left Column - Images */}
           <div className="space-y-4">
-            <div className="aspect-square bg-[#F5F4F0] overflow-hidden rounded-sm">
+          <div className="aspect-square bg-[#F5F4F0] overflow-hidden rounded-sm relative">
+              <button
+                type="button"
+                aria-label="Share"
+                onClick={handleShare}
+                className="absolute top-3 right-3 z-10 inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/90 text-black shadow-sm hover:bg-white focus:outline-none focus:ring-2 focus:ring-black/20 hover:cursor-pointer"
+              >
+                <Share2 className="w-5 h-5" />
+              </button>
               <InnerImageZoom
                 src={images[activeImage]}
                 zoomScale={1.5}
                 className="w-full h-auto"
               />
             </div>
+
             {images.length > 1 && (
               <div className="flex gap-2 overflow-x-auto">
                 {images.map((image, index) => (

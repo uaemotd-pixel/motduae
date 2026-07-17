@@ -6,6 +6,7 @@ const adminNotificationSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     message: { type: String, default: "", trim: true },
     orderId: { type: mongoose.Schema.Types.ObjectId, ref: "CustomOrder", default: null },
+    tailorUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     createdAt: { type: Date, default: Date.now },
     read: { type: Boolean, default: false },
     readAt: { type: Date, default: null },
