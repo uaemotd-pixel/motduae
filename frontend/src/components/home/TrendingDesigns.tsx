@@ -354,7 +354,7 @@ export function TrendingSection() {
           <button
             onClick={scrollPrev}
             disabled={!prevBtnEnabled}
-            className={`hidden sm:flex absolute ${
+            className={`hidden sm:flex absolute hover:cursor-pointer ${
               isArabic ? "right-0" : "left-0"
             } top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/trending:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/prev ${
               !prevBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
@@ -368,7 +368,7 @@ export function TrendingSection() {
           <button
             onClick={scrollNext}
             disabled={!nextBtnEnabled}
-            className={`hidden sm:flex absolute ${
+            className={`hidden sm:flex absolute hover:cursor-pointer ${
               isArabic ? "left-0" : "right-0"
             } top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/trending:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/next ${
               !nextBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
@@ -451,7 +451,7 @@ export function TrendingSection() {
                           {tailorName}
                         </p>
 
-                        <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow">
+                        <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow text-justify">
                           {description}
                         </p>
                       </div>
@@ -470,7 +470,7 @@ export function TrendingSection() {
               <button
                 key={index}
                 onClick={() => scrollTo(index)}
-                className={`w-1.5 h-1.5 xs:w-2 xs:h-2 rounded-full transition-all mx-0.5 xs:mx-1 ${
+                className={`w-1.5 h-1.5 xs:w-2 xs:h-2 rounded-full transition-all mx-0.5 xs:mx-1 hover:cursor-pointer ${
                   index === selectedIndex
                     ? "bg-black scale-125"
                     : "bg-gray-400 hover:bg-gray-600"
