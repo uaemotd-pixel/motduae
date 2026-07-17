@@ -1175,51 +1175,261 @@ adminRouter.patch(
 // C-08: Admin dashboard stats
 // ==========================================
 
+function getTimeframeWindow(timeframe) {
+  const now = new Date();
+
+  // Normalize now to avoid edge-case partial-day issues:
+  // We'll use UTC boundaries for consistency.
+  const end = new Date(now);
+  end.setUTCHours(23, 59, 59, 999);
+
+  let start;
+  let prevStart;
+  let prevEnd;
+
+  if (timeframe === "week") {
+    // last 7 days
+    start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - 6);
+
+    prevEnd = new Date(start);
+    prevEnd.setUTCHours(23, 59, 59, 999);
+
+    prevStart = new Date(prevEnd);
+    prevStart.setUTCDate(prevStart.getUTCDate() - 6);
+  } else if (timeframe === "year") {
+    // last 12 months
+    start = new Date(end);
+    start.setUTCMonth(start.getUTCMonth() - 11);
+
+    prevEnd = new Date(start);
+    prevEnd.setUTCHours(23, 59, 59, 999);
+
+    prevStart = new Date(prevEnd);
+    prevStart.setUTCMonth(prevStart.getUTCMonth() - 11);
+  } else {
+    // month (default) -> last 1 month
+    start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - 29);
+
+    prevEnd = new Date(start);
+    prevEnd.setUTCHours(23, 59, 59, 999);
+
+    prevStart = new Date(prevEnd);
+    prevStart.setUTCDate(prevStart.getUTCDate() - 29);
+  }
+
+  return { start, end, prevStart, prevEnd };
+}
+
+function safeGrowthPercent(current, previous) {
+  const prev = typeof previous === "number" ? previous : 0;
+  const curr = typeof current === "number" ? current : 0;
+
+  if (prev <= 0) {
+    // recommended behavior from confirmation: if previous is 0, growth = 0
+    return 0;
+  }
+  return ((curr - prev) / prev) * 100;
+}
+
 // GET /api/admin/dashboard
-// Split retail/custom orderCount + revenue. Empty DB returns zeros. No combined total (C-12 sums client-side).
+// Split retail/custom orderCount + revenue with growth + charts + recent activity.
 adminRouter.get(
   "/dashboard",
   expressAsyncHandler(async (req, res) => {
-    // 1. Aggregate Retail Orders (Count and Sum of totalPrice)
-    const retailStats = await RetailOrder.aggregate([
-      {
-        $group: {
-          _id: null,
-          orderCount: { $sum: 1 },
-          revenue: { $sum: "$totalPrice" },
+    const timeframeRaw = req.query.timeframe;
+    const timeframe =
+      timeframeRaw === "week" || timeframeRaw === "month" || timeframeRaw === "year"
+        ? timeframeRaw
+        : "month";
+
+    const { start, end, prevStart, prevEnd } = getTimeframeWindow(timeframe);
+
+    const revenueExprRetail = "$totalPrice";
+    const revenueExprCustom = "$pricing.total";
+
+    // Current window aggregates
+    const [retailNow, customNow] = await Promise.all([
+      RetailOrder.aggregate([
+        { $match: { createdAt: { $gte: start, $lte: end } } },
+        {
+          $group: {
+            _id: null,
+            orderCount: { $sum: 1 },
+            revenue: { $sum: revenueExprRetail },
+          },
         },
-      },
+      ]),
+      CustomOrder.aggregate([
+        { $match: { createdAt: { $gte: start, $lte: end } } },
+        {
+          $group: {
+            _id: null,
+            orderCount: { $sum: 1 },
+            revenue: { $sum: revenueExprCustom },
+          },
+        },
+      ]),
     ]);
 
-    // 2. Aggregate Custom Orders (Count and Sum of pricing.total)
-    const customStats = await CustomOrder.aggregate([
-      {
-        $group: {
-          _id: null,
-          orderCount: { $sum: 1 },
-          revenue: { $sum: "$pricing.total" },
+    const retailNowResult = retailNow[0] || { orderCount: 0, revenue: 0 };
+    const customNowResult = customNow[0] || { orderCount: 0, revenue: 0 };
+
+    // Previous window aggregates (for growth)
+    const [retailPrev, customPrev] = await Promise.all([
+      RetailOrder.aggregate([
+        { $match: { createdAt: { $gte: prevStart, $lte: prevEnd } } },
+        {
+          $group: {
+            _id: null,
+            orderCount: { $sum: 1 },
+            revenue: { $sum: revenueExprRetail },
+          },
         },
-      },
+      ]),
+      CustomOrder.aggregate([
+        { $match: { createdAt: { $gte: prevStart, $lte: prevEnd } } },
+        {
+          $group: {
+            _id: null,
+            orderCount: { $sum: 1 },
+            revenue: { $sum: revenueExprCustom },
+          },
+        },
+      ]),
     ]);
 
-    // Extract values safely, defaulting to 0 if no orders exist yet
-    const retailResult = retailStats[0] || { orderCount: 0, revenue: 0 };
-    const customResult = customStats[0] || { orderCount: 0, revenue: 0 };
+    const retailPrevResult = retailPrev[0] || { orderCount: 0, revenue: 0 };
+    const customPrevResult = customPrev[0] || { orderCount: 0, revenue: 0 };
 
-    // Formulate response layout matching team architecture specifications
-    const dashboardSummary = {
+    const retailGrowth = safeGrowthPercent(
+      retailNowResult.revenue,
+      retailPrevResult.revenue,
+    );
+    const customGrowth = safeGrowthPercent(
+      customNowResult.revenue,
+      customPrevResult.revenue,
+    );
+
+    // Monthly data for charts: keep month-based grouping (frontend assumes a month chart)
+    const monthEnd = new Date();
+    const monthStarts = [];
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date(monthEnd);
+      d.setUTCMonth(d.getUTCMonth() - i);
+      d.setUTCDate(1);
+      d.setUTCHours(0, 0, 0, 0);
+      monthStarts.push(d);
+    }
+
+    function monthLabel(d) {
+      return d.toLocaleString("en-US", { month: "short" });
+    }
+
+    // Build month aggregation maps
+    const monthKey = (d) => `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
+
+    const startRange = monthStarts[0];
+    const endRange = new Date(monthEnd);
+    endRange.setUTCHours(23, 59, 59, 999);
+
+    const [retailMonthlyAgg, customMonthlyAgg] = await Promise.all([
+      RetailOrder.aggregate([
+        { $match: { createdAt: { $gte: startRange, $lte: endRange } } },
+        {
+          $group: {
+            _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
+            orderCount: { $sum: 1 },
+            revenue: { $sum: "$totalPrice" },
+          },
+        },
+      ]),
+      CustomOrder.aggregate([
+        { $match: { createdAt: { $gte: startRange, $lte: endRange } } },
+        {
+          $group: {
+            _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
+            orderCount: { $sum: 1 },
+            revenue: { $sum: "$pricing.total" },
+          },
+        },
+      ]),
+    ]);
+
+    const retailMonthlyMap = new Map();
+    for (const row of retailMonthlyAgg) {
+      const key = `${row._id.year}-${row._id.month}`;
+      retailMonthlyMap.set(key, row.revenue || 0);
+    }
+
+    const customMonthlyMap = new Map();
+    for (const row of customMonthlyAgg) {
+      const key = `${row._id.year}-${row._id.month}`;
+      customMonthlyMap.set(key, row.revenue || 0);
+    }
+
+    const monthlyData = monthStarts.map((d) => {
+      const key = monthKey(d);
+      return {
+        month: monthLabel(d),
+        retail: retailMonthlyMap.get(key) || 0,
+        custom: customMonthlyMap.get(key) || 0,
+      };
+    });
+
+    // Recent activity: latest 5 combined (most recent createdAt)
+    const [recentRetail, recentCustom] = await Promise.all([
+      RetailOrder.find({})
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select("_id createdAt status totalPrice userId"),
+      CustomOrder.find({})
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select("_id createdAt status pricing")
+        .lean(),
+    ]);
+
+    const normalizedRetail = (recentRetail || []).map((o) => ({
+      id: o._id.toString(),
+      type: "retail",
+      amount: o.totalPrice || 0,
+      status: o.status,
+      date: o.createdAt ? o.createdAt.toISOString() : "",
+    }));
+
+    const normalizedCustom = (recentCustom || []).map((o) => ({
+      id: o._id.toString(),
+      type: "custom",
+      amount: o.pricing?.total || 0,
+      status: o.status,
+      date: o.createdAt ? o.createdAt.toISOString() : "",
+    }));
+
+    const recentOrders = [...normalizedRetail, ...normalizedCustom]
+      .sort((a, b) => {
+        const at = a.date ? new Date(a.date).getTime() : 0;
+        const bt = b.date ? new Date(b.date).getTime() : 0;
+        return bt - at;
+      })
+      .slice(0, 5);
+
+    res.send({
       retail: {
-        orderCount: retailResult.orderCount,
-        revenue: retailResult.revenue,
+        orderCount: retailNowResult.orderCount,
+        revenue: retailNowResult.revenue,
+        growth: retailGrowth,
       },
       custom: {
-        orderCount: customResult.orderCount,
-        revenue: customResult.revenue,
+        orderCount: customNowResult.orderCount,
+        revenue: customNowResult.revenue,
+        growth: customGrowth,
       },
-      currency: "AED", // Project base pricing currency standard
-    };
-
-    res.send(dashboardSummary);
+      currency: "AED",
+      monthlyData,
+      recentOrders,
+    });
   }),
 );
 
