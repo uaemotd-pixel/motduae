@@ -92,7 +92,7 @@ export default function FabricDetailView({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Left Column - Images */}
           <div className="space-y-4">
-          <div className="aspect-square bg-[#F5F4F0] overflow-hidden rounded-sm relative">
+          <div className="bg-[#F5F4F0] overflow-hidden rounded-sm relative">
               <button
                 type="button"
                 aria-label="Share"
@@ -104,7 +104,7 @@ export default function FabricDetailView({
               <InnerImageZoom
                 src={images[activeImage]}
                 zoomScale={1.5}
-                className="w-full h-auto"
+                className="w-full h-full object-cover"
               />
             </div>
 
