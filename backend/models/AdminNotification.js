@@ -24,4 +24,3 @@ const AdminNotification = mongoose.model(
 );
 
 export default AdminNotification;
-

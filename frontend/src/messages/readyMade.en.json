@@ -6,6 +6,13 @@
             "condition": "Condition:",
             "returnReason": "Return reason:",
             "originalDesign": "Original design:"
+        },
+        "detail": {
+            "madeWithHeading": "Made with",
+            "madeWithDescription": "This piece was tailored from the fabric and design below. View each to explore details or start a custom order.",
+            "viewFabricLabel": "Source fabric",
+            "viewDesignLabel": "Tailor design",
+            "viewDetails": "View details"
         }
     }
 }

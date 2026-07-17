@@ -12,6 +12,7 @@ import { resolveMediaUrl } from "@/lib/media";
 import InnerImageZoom from "react-inner-image-zoom";
 import "react-inner-image-zoom/lib/styles.min.css";
 import { resolveReadyMadeImage } from "@/lib/readyMade";
+import { getTranslation } from "@/lib/getTranslation";
 
 // Product color mapping (for swatches)
 const colorOptions = [
@@ -152,6 +153,7 @@ export default function ReadyMadeDetailPage() {
   const router = useRouter();
   const slug = params.slug as string;
   const locale = params.locale as string;
+  const t = getTranslation(locale).readyMade.detail;
   const { addItem: addToCart } = useCart();
   const {
     wishItems,
@@ -548,35 +550,59 @@ export default function ReadyMadeDetailPage() {
 
                     {/* Fabric and Design Link Buttons */}
                     {(product.fabricId || product.designId) && (
-                      <div className="grid grid-cols-2 gap-4 mt-2">
-                        {product.fabricId && product.fabricId.slug && (
-                          <Link
-                            href={`/${locale}/fabrics/${product.fabricId.slug}`}
-                            className="w-full py-3 px-4 border border-black text-center text-[10px] md:text-[11px] tracking-[0.12em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:bg-black hover:text-white hover:cursor-pointer flex items-center justify-center min-h-11.5"
-                          >
-                            <span>
-                              Fabric:{" "}
-                              {locale === "ar"
-                                ? product.fabricId.nameAr ||
-                                  product.fabricId.name
-                                : product.fabricId.name}
-                            </span>
-                          </Link>
-                        )}
-                        {product.designId && product.designId.slug && (
-                          <Link
-                            href={`/${locale}/designs/${product.designId.slug}`}
-                            className="w-full py-3 px-4 border border-black text-center text-[10px] md:text-[11px] tracking-[0.12em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:bg-black hover:text-white hover:cursor-pointer flex items-center justify-center min-h-11.5"
-                          >
-                            <span>
-                              Design:{" "}
-                              {locale === "ar"
-                                ? product.designId.nameAr ||
-                                  product.designId.name
-                                : product.designId.name}
-                            </span>
-                          </Link>
-                        )}
+                      <div className="mt-2 pt-4 border-t border-(--color-border)">
+                        <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
+                          {t.madeWithHeading}
+                        </span>
+                        <p className="[font-family:var(--font-body)] text-[13px] xs:text-[14px] leading-relaxed text-(--color-grey-muted) mb-4">
+                          {t.madeWithDescription}
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {product.fabricId && product.fabricId.slug && (
+                            <Link
+                              href={`/${locale}/fabrics/${product.fabricId.slug}`}
+                              className="group border border-(--color-border) bg-[#FAFAF8] p-4 transition-all duration-300 hover:border-black hover:bg-white hover:cursor-pointer"
+                            >
+                              <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) block mb-1">
+                                {t.viewFabricLabel}
+                              </span>
+                              <span className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] text-black block mb-2">
+                                {locale === "ar"
+                                  ? product.fabricId.nameAr ||
+                                    product.fabricId.name
+                                  : product.fabricId.name}
+                              </span>
+                              <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.18em] text-black/70 group-hover:text-black inline-flex items-center gap-1">
+                                {t.viewDetails}
+                                <span aria-hidden="true">
+                                  {locale === "ar" ? "←" : "→"}
+                                </span>
+                              </span>
+                            </Link>
+                          )}
+                          {product.designId && product.designId.slug && (
+                            <Link
+                              href={`/${locale}/designs/${product.designId.slug}`}
+                              className="group border border-(--color-border) bg-[#FAFAF8] p-4 transition-all duration-300 hover:border-black hover:bg-white hover:cursor-pointer"
+                            >
+                              <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) block mb-1">
+                                {t.viewDesignLabel}
+                              </span>
+                              <span className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] text-black block mb-2">
+                                {locale === "ar"
+                                  ? product.designId.nameAr ||
+                                    product.designId.name
+                                  : product.designId.name}
+                              </span>
+                              <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.18em] text-black/70 group-hover:text-black inline-flex items-center gap-1">
+                                {t.viewDetails}
+                                <span aria-hidden="true">
+                                  {locale === "ar" ? "←" : "→"}
+                                </span>
+                              </span>
+                            </Link>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

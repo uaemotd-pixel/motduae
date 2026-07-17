@@ -6,6 +6,13 @@
             "condition": "الحالة:",
             "returnReason": "سبب الإرجاع:",
             "originalDesign": "التصميم الأصلي:"
+        },
+        "detail": {
+            "madeWithHeading": "صُنع من",
+            "madeWithDescription": "تم تفصيل هذه القطعة من القماش والتصميم أدناه. اضغط على أي منهما لعرض التفاصيل أو بدء طلب تفصيل مخصص.",
+            "viewFabricLabel": "القماش المستخدم",
+            "viewDesignLabel": "تصميم الخياط",
+            "viewDetails": "عرض التفاصيل"
         }
     }
 }
