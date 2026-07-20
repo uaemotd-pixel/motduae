@@ -1,13 +1,12 @@
 import { api, type ApiError } from "@/lib/api/client";
 
 export const DESIGN_CATEGORIES = [
-  "kandura",
-  "abaya",
-  "bisht",
-  "mukhawar",
-  "jalabiya",
-  "kaftan",
-  "thob",
+  "hand-embroidered",
+  "crystal-embellished",
+  "non-crystal",
+  "talli",
+  "khous",
+  "beaded",
 ] as const;
 
 export type DesignCategory = (typeof DESIGN_CATEGORIES)[number];
@@ -64,7 +63,7 @@ export function emptyTailorDesignForm(): TailorDesignFormData {
     description: "",
     descriptionAr: "",
     images: [""],
-    category: "kandura",
+    category: "hand-embroidered",
     basePrice: 0,
     priceType: "fixed",
     tailoringFee: DEFAULT_TAILORING_FEE,
@@ -98,7 +97,7 @@ export function designToForm(
     images: design.images?.length ? [...design.images] : [""],
     category: (DESIGN_CATEGORIES.includes(design.category as DesignCategory)
       ? design.category
-      : "kandura") as DesignCategory,
+      : "hand-embroidered") as DesignCategory,
     basePrice: design.basePrice ?? 0,
     priceType: design.priceType ?? "fixed",
     tailoringFee: design.tailoringFee ?? DEFAULT_TAILORING_FEE,

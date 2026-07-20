@@ -14,11 +14,13 @@ type Relationship =
   | "aunt"
   | "sister"
   | "daughter"
+  | "friend"
   | "other";
 
 type FormData = {
   name: string;
   relationship: Relationship;
+  customRelationship: string;
   phone: string;
   email: string;
   dob: string; // yyyy-mm-dd
@@ -73,6 +75,7 @@ const normalizeUAEPhone = (phone: string): string => {
 const DEFAULT_FORM: FormData = {
   name: "",
   relationship: "other",
+  customRelationship: "",
   phone: "",
   email: "",
   dob: "",
@@ -94,6 +97,7 @@ const RELATIONSHIP_OPTIONS = [
   { value: "aunt", label: "Aunt" },
   { value: "sister", label: "Sister" },
   { value: "daughter", label: "Daughter" },
+  { value: "friend", label: "Friend" },
   { value: "other", label: "Other" },
 ];
 
@@ -145,9 +149,12 @@ export default function FamilyMembersForm({
 
   useEffect(() => {
     if (initialData) {
+      const knownRelationships = ["wife", "mother", "aunt", "sister", "daughter", "friend", "other"];
+      const isKnown = knownRelationships.includes(initialData.relationship);
       setForm({
         name: initialData.name || "",
-        relationship: initialData.relationship || "other",
+        relationship: isKnown ? initialData.relationship : "other",
+        customRelationship: isKnown ? "" : initialData.relationship || "",
         phone: initialData.phone || "",
         email: initialData.email || "",
         address: {
@@ -278,10 +285,14 @@ export default function FamilyMembersForm({
         ? normalizeUAEPhone(form.address.phone)
         : "";
 
+      const relationshipValue = form.relationship === "other" && form.customRelationship.trim()
+        ? form.customRelationship.trim()
+        : form.relationship;
+
       const payload = {
         name: form.name.trim(),
         phone: normalizedPhone,
-        relationship: form.relationship,
+        relationship: relationshipValue,
         email: form.email.trim() || undefined,
         dob: form.dob || undefined,
         address: {
@@ -453,6 +464,19 @@ export default function FamilyMembersForm({
                   )}
                 </AnimatePresence>
               </div>
+              {/* Custom relationship input when "Other" is selected */}
+              {form.relationship === "other" && (
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    name="customRelationship"
+                    value={form.customRelationship}
+                    onChange={handleChange}
+                    placeholder="Please specify relationship..."
+                    className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                  />
+                </div>
+              )}
             </FormField>
 
             <FormField label="Email" name="email">

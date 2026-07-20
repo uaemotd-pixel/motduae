@@ -979,13 +979,12 @@
         "slug": "أحرف إنجليزية صغيرة وأرقام وشرطات فقط."
       },
       "categories": {
-        "kandura": "كندورة",
-        "abaya": "عباية",
-        "bisht": "بشت",
-        "mukhawar": "مخاوَر",
-        "jalabiya": "جلابية",
-        "kaftan": "قفطان",
-        "thob": "ثوب"
+        "hand-embroidered": "شغل يد",
+        "abaya": "مع فصوص",
+        "bisht": "بدون فصوص",
+        "mukhawar": "تلّي",
+        "jalabiya": "خوص",
+        "kaftan": "مع خرز"
       },
       "upload": {
         "chooseFile": "اختر صورة",
