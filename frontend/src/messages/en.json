@@ -862,13 +862,12 @@
         "slug": "Lowercase letters, numbers, and hyphens only."
       },
       "categories": {
-        "kandura": "Kandura",
-        "abaya": "Abaya",
-        "bisht": "Bisht",
-        "mukhawar": "Mukhawar",
-        "jalabiya": "Jalabiya",
-        "kaftan": "Kaftan",
-        "thob": "Thob"
+        "hand-embroidered": "Hand Embroidered",
+        "crystal-embellished": "Crystal Embellished",
+        "non-crystal": "Non-Crystal",
+        "talli": "Talli",
+        "khous": "Khous",
+        "beaded": "Beaded"
       },
       "upload": {
         "chooseFile": "Choose image",

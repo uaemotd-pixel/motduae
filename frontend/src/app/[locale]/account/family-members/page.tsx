@@ -18,7 +18,14 @@ import { api } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
 
 // ─── Types ──────────────────────────────────────────────────────────────
-type Relationship = "wife" | "mother" | "aunt" | "sister" | "daughter" | "other";
+type Relationship =
+  | "wife"
+  | "mother"
+  | "aunt"
+  | "sister"
+  | "daughter"
+  | "friend"
+  | "other";
 
 type FamilyMember = {
   _id: string;
@@ -30,12 +37,23 @@ type FamilyMember = {
   createdAt: string;
 };
 
-const RELATIONSHIP_LABELS: Record<Relationship, string> = {
+const KNOWN_RELATIONSHIPS = [
+  "wife",
+  "mother",
+  "aunt",
+  "sister",
+  "daughter",
+  "friend",
+  "other",
+];
+
+const RELATIONSHIP_LABELS: Record<string, string> = {
   wife: "Wife",
   mother: "Mother",
   aunt: "Aunt",
   sister: "Sister",
   daughter: "Daughter",
+  friend: "Friend",
   other: "Other",
 };
 
@@ -90,6 +108,11 @@ export default function FamilyMembersPage() {
     });
   };
 
+  // Helper to get display label for relationship
+  const getRelationshipLabel = (rel: string) => {
+    return RELATIONSHIP_LABELS[rel] || rel;
+  };
+
   // Filter members
   const filteredMembers = members.filter((m) => {
     const term = searchTerm.toLowerCase();
@@ -97,7 +120,7 @@ export default function FamilyMembersPage() {
       m.name.toLowerCase().includes(term) ||
       m.phone.includes(term) ||
       (m.email && m.email.toLowerCase().includes(term)) ||
-      RELATIONSHIP_LABELS[m.relationship].toLowerCase().includes(term)
+      getRelationshipLabel(m.relationship).toLowerCase().includes(term)
     );
   });
 
@@ -209,7 +232,7 @@ export default function FamilyMembersPage() {
                         </p>
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-[10px] sm:text-xs text-gray-500 truncate flex-1">
-                            {RELATIONSHIP_LABELS[member.relationship]}
+                            {getRelationshipLabel(member.relationship)}
                           </p>
                           <div className="flex gap-0.5 sm:gap-1 shrink-0">
                             <button
@@ -307,7 +330,7 @@ export default function FamilyMembersPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden sm:table-cell">
-                        {RELATIONSHIP_LABELS[member.relationship]}
+                        {getRelationshipLabel(member.relationship)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden md:table-cell">
                         {member.phone}

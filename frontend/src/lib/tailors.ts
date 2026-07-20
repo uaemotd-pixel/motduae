@@ -33,13 +33,12 @@ export interface TailorShopDetailItem extends TailorShopListItem {
 }
 
 export type DesignCategory =
-  | "kandura"
-  | "thob"
-  | "jalabiya"
-  | "abaya"
-  | "bisht"
-  | "mukhawar"
-  | "kaftan";
+  | "hand-embroidered"
+  | "crystal-embellished"
+  | "non-crystal"
+  | "talli"
+  | "khous"
+  | "beaded";
 
 export interface TailorDesignListItem {
   _id: string;
@@ -146,13 +145,12 @@ export function getDesignDisplayFields(
 
 export function formatDesignCategory(category: string, locale: Locale): string {
   const labels: Record<DesignCategory, { en: string; ar: string }> = {
-    kandura: { en: "Kandura", ar: "كندورة" },
-    thob: { en: "Thob", ar: "ثوب" },
-    jalabiya: { en: "Jalabiya", ar: "جلابية" },
-    abaya: { en: "Abaya", ar: "عباية" },
-    bisht: { en: "Bisht", ar: "بشت" },
-    mukhawar: { en: "Mukhawar", ar: "مخاوَر" },
-    kaftan: { en: "Kaftan", ar: "قفطان" },
+    "hand-embroidered": { en: "Hand Embroidered", ar: "شغل يد" },
+    "crystal-embellished": { en: "Crystal Embellished", ar: "مع فصوص" },
+    "non-crystal": { en: "Non-Crystal", ar: "بدون فصوص" },
+    talli: { en: "Talli", ar: "تلّي" },
+    khous: { en: "Khous", ar: "خوص" },
+    beaded: { en: "Beaded", ar: "مع خرز" },
   };
 
   const entry = labels[category as DesignCategory];

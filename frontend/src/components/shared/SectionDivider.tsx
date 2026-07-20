@@ -24,37 +24,21 @@ export default function SectionDivider({
       className={`relative flex items-center justify-center py-16 px-6 overflow-hidden ${className}`}
     >
       {/* Left Line */}
-      <div className="h-px flex-1 max-w-48 bg-gradient-to-r from-transparent via-stone-300 to-stone-300" />
+      <div className="h-px flex-1 max-w-48 bg-black" />
 
       {/* Center Decoration */}
-      <div className="mx-8 flex items-center gap-4">
+      <div className="mx-8 flex items-center justify-center">
         <img
           src={divider}
           alt=""
           aria-hidden
           draggable={false}
-          className="w-5 md:w-6 opacity-40 select-none pointer-events-none"
-        />
-
-        <img
-          src={divider}
-          alt=""
-          aria-hidden
-          draggable={false}
-          className="w-12 md:w-14 animate-divider select-none pointer-events-none"
-        />
-
-        <img
-          src={divider}
-          alt=""
-          aria-hidden
-          draggable={false}
-          className="w-5 md:w-6 opacity-40 select-none pointer-events-none"
+          className="w-12 md:w-14 animate-divider select-none pointer-events-none brightness-0"
         />
       </div>
 
       {/* Right Line */}
-      <div className="h-px flex-1 max-w-48 bg-gradient-to-l from-transparent via-stone-300 to-stone-300" />
+      <div className="h-px flex-1 max-w-48 bg-black" />
 
       {/* Animation */}
       <style jsx>{`
@@ -62,14 +46,10 @@ export default function SectionDivider({
           0%,
           100% {
             transform: translateY(0) scale(1);
-            opacity: 0.9;
-            filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
           }
 
           50% {
             transform: translateY(-2px) scale(1.05);
-            opacity: 1;
-            filter: drop-shadow(0 0 10px rgba(201, 162, 39, 0.25));
           }
         }
 

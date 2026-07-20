@@ -1,13 +1,12 @@
 import mongoose from "mongoose";
 
 const DESIGN_CATEGORIES = [
-  "kandura",
-  "abaya",
-  "bisht",
-  "mukhawar",
-  "jalabiya",
-  "kaftan",
-  "thob",
+  "hand-embroidered",
+  "crystal-embellished",
+  "non-crystal",
+  "talli",
+  "khous",
+  "beaded",
 ];
 
 const designSchema = new mongoose.Schema(

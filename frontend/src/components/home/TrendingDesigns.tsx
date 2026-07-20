@@ -189,12 +189,6 @@ export function TrendingSection() {
       : "text-[10px] xs:text-[9px] sm:text-[10px] md:text-[9px] lg:text-[9px] xl:text-[10px]"
   }`;
 
-  const titleClass = `[font-family:var(--font-display)] font-normal leading-[1.1] xs:leading-[1.09] sm:leading-[1.08] tracking-[-0.01em] text-black ${
-    isArabic
-      ? "text-[38px] xs:text-[38px] sm:text-[42px] md:text-[48px] lg:text-[44px] xl:text-[52px] 2xl:text-[58px]"
-      : "text-[32px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[36px] xl:text-[42px] 2xl:text-[48px]"
-  }`;
-
   const exploreLinkClass = `[font-family:var(--font-ui)] uppercase tracking-[0.24em] text-black flex items-center gap-2 shrink-0 pb-0.5 xs:pb-[3px] border-b border-black hover:opacity-50 transition-opacity duration-150 self-start sm:self-auto ${
     isArabic
       ? "text-[11px] xs:text-[11px] sm:text-[12px] md:text-[11px] lg:text-[11px] xl:text-[12px]"
