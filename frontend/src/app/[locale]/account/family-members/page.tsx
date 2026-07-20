@@ -10,18 +10,15 @@ import {
   Plus,
   Edit,
   Trash2,
-  Heart,
-  Users2,
   UserPlus,
   Loader2,
-  Clock,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
 
 // ─── Types ──────────────────────────────────────────────────────────────
-type Relationship = "mother" | "aunt" | "sister" | "daughter" | "other";
+type Relationship = "wife" | "mother" | "aunt" | "sister" | "daughter" | "other";
 
 type FamilyMember = {
   _id: string;
@@ -34,6 +31,7 @@ type FamilyMember = {
 };
 
 const RELATIONSHIP_LABELS: Record<Relationship, string> = {
+  wife: "Wife",
   mother: "Mother",
   aunt: "Aunt",
   sister: "Sister",
@@ -71,19 +69,6 @@ export default function FamilyMembersPage() {
   useEffect(() => {
     fetchMembers();
   }, [fetchMembers]);
-
-  const stats = {
-    total: members.length,
-    mothers: members.filter((m) => m.relationship === "mother").length,
-    others: members.filter((m) => m.relationship !== "mother").length,
-    recent: members.filter((m) => {
-      const now = new Date();
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
-      startOfWeek.setHours(0, 0, 0, 0);
-      return new Date(m.createdAt) >= startOfWeek;
-    }).length,
-  };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Remove this family member?")) return;
@@ -154,65 +139,6 @@ export default function FamilyMembersPage() {
   // ── Render ──
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-        <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-5 border border-gray-200 shadow-sm hover:shadow-md transition hover:border-gray-400">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Total
-            </p>
-            <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-gray-100 flex items-center justify-center">
-              <Users className="w-3 h-3 sm:w-5 sm:h-5 text-gray-700" />
-            </div>
-          </div>
-          <p className="text-xl sm:text-3xl font-medium text-black mt-1 sm:mt-2">
-            {stats.total}
-          </p>
-        </div>
-
-        <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-5 border border-gray-200 shadow-sm hover:shadow-md transition hover:border-gray-400">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Mothers
-            </p>
-            <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-gray-100 flex items-center justify-center">
-              <Heart className="w-3 h-3 sm:w-5 sm:h-5 text-gray-700" />
-            </div>
-          </div>
-          <p className="text-xl sm:text-3xl font-medium text-black mt-1 sm:mt-2">
-            {stats.mothers}
-          </p>
-        </div>
-
-        <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-5 border border-gray-200 shadow-sm hover:shadow-md transition hover:border-gray-400">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Other
-            </p>
-            <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-gray-100 flex items-center justify-center">
-              <Users2 className="w-3 h-3 sm:w-5 sm:h-5 text-gray-700" />
-            </div>
-          </div>
-          <p className="text-xl sm:text-3xl font-medium text-black mt-1 sm:mt-2">
-            {stats.others}
-          </p>
-        </div>
-
-        <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-5 border border-gray-200 shadow-sm hover:shadow-md transition hover:border-gray-400">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
-              This Week
-            </p>
-            <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-gray-100 flex items-center justify-center">
-              <Clock className="w-3 h-3 sm:w-5 sm:h-5 text-gray-700" />
-            </div>
-          </div>
-          <p className="text-xl sm:text-3xl font-medium text-black mt-1 sm:mt-2">
-            {stats.recent}
-          </p>
-        </div>
-      </div>
-
       {/* Search + Add Button */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="relative flex-1 max-w-md">
@@ -230,7 +156,7 @@ export default function FamilyMembersPage() {
           className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-black/80 transition hover:cursor-pointer"
         >
           <UserPlus className="w-4 h-4" />
-          Add Family Member
+          Add Member
         </button>
       </div>
 
@@ -242,7 +168,7 @@ export default function FamilyMembersPage() {
           <p className="text-gray-500">
             {searchTerm
               ? "No members match your search."
-              : "No family members added yet."}
+              : "No members added yet."}
           </p>
           {!searchTerm && (
             <button

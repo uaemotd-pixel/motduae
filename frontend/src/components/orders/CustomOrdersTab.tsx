@@ -19,7 +19,7 @@ import {
   type CustomOrderListItem,
 } from "@/lib/customOrders";
 import OrderTimeline from "@/components/orders/OrderTimeline";
-import { X, ChevronDown, ChevronUp, Package } from "lucide-react";
+import { ChevronDown, ChevronUp, Package } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type ReturnDraft = {
@@ -39,9 +39,8 @@ type ReturnDraft = {
 
 type ReturnState = {
   checked: Record<string, boolean>;
-  confirming: Record<string, boolean>;
   error: Record<string, string | null>;
-  modalOpen: Record<string, boolean>;
+  formOpen: Record<string, boolean>;
   dropdownOpen: Record<string, boolean>;
   submitting: Record<string, boolean>;
   success: Record<string, string | null>;
@@ -98,9 +97,8 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
 
   const [returnState, setReturnState] = useState<ReturnState>({
     checked: {},
-    confirming: {},
     error: {},
-    modalOpen: {},
+    formOpen: {},
     dropdownOpen: {},
     submitting: {},
     success: {},
@@ -111,15 +109,6 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
     submitting: {},
     error: {},
   });
-
-  const isAnyModalOpen = Object.values(returnState.modalOpen).some(Boolean);
-
-  useEffect(() => {
-    document.body.style.overflow = isAnyModalOpen ? "hidden" : "unset";
-    return () => {
-      document.body.style.overflow = "unset";
-    };
-  }, [isAnyModalOpen]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -238,38 +227,49 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
     );
   };
 
-  const openReturnModal = (orderId: string) => {
-    const defaultAddr = getDefaultAddress();
-    setReturnState((prev) => ({
-      ...prev,
-      modalOpen: { ...prev.modalOpen, [orderId]: true },
-      error: { ...prev.error, [orderId]: null },
-      success: { ...prev.success, [orderId]: null },
-      draft: {
-        ...prev.draft,
-        [orderId]: {
-          condition: "Good",
-          reason: "",
-          comment: "",
-          pickupAddress: {
-            fullName: defaultAddr?.fullName || customerProfile?.name || "",
-            line1: defaultAddr?.street || "",
-            line2: defaultAddr?.building || "",
-            city: defaultAddr?.city || "",
-            state: defaultAddr?.emirate || "",
-            postalCode: defaultAddr?.postalCode || "",
-            phone: defaultAddr?.phone || customerProfile?.phone || "",
+  const toggleReturnForm = (orderId: string) => {
+    const isOpen = returnState.formOpen[orderId];
+    if (!isOpen) {
+      const defaultAddr = getDefaultAddress();
+      setReturnState((prev) => ({
+        ...prev,
+        formOpen: { ...prev.formOpen, [orderId]: true },
+        error: { ...prev.error, [orderId]: null },
+        success: { ...prev.success, [orderId]: null },
+        draft: {
+          ...prev.draft,
+          [orderId]: {
+            condition: "Good",
+            reason: "",
+            comment: "",
+            pickupAddress: {
+              fullName: defaultAddr?.fullName || customerProfile?.name || "",
+              line1: defaultAddr?.street || "",
+              line2: defaultAddr?.building || "",
+              city: defaultAddr?.city || "",
+              state: defaultAddr?.emirate || "",
+              postalCode: defaultAddr?.postalCode || "",
+              phone: defaultAddr?.phone || customerProfile?.phone || "",
+            },
           },
         },
-      },
-    }));
+      }));
+    } else {
+      setReturnState((prev) => ({
+        ...prev,
+        formOpen: { ...prev.formOpen, [orderId]: false },
+        dropdownOpen: { ...prev.dropdownOpen, [orderId]: false },
+      }));
+    }
   };
 
-  const closeReturnModal = (orderId: string) => {
+  const closeReturnForm = (orderId: string) => {
     setReturnState((prev) => ({
       ...prev,
-      modalOpen: { ...prev.modalOpen, [orderId]: false },
+      formOpen: { ...prev.formOpen, [orderId]: false },
       dropdownOpen: { ...prev.dropdownOpen, [orderId]: false },
+      error: { ...prev.error, [orderId]: null },
+      success: { ...prev.success, [orderId]: null },
     }));
   };
 
@@ -330,7 +330,7 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
         },
         checked: { ...prev.checked, [orderId]: false },
       }));
-      setTimeout(() => closeReturnModal(orderId), 3000);
+      setTimeout(() => closeReturnForm(orderId), 3000);
     } catch (err: unknown) {
       setReturnState((prev) => ({
         ...prev,
@@ -561,7 +561,6 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
                           },
                         }))
                       }
-                      disabled={!!returnState.confirming[order.id]}
                       className="mt-0.5 w-4 h-4 accent-black"
                     />
                     <span className="text-[11px] uppercase tracking-[0.16em] text-black">
@@ -569,27 +568,358 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
                     </span>
                   </label>
 
-                  {returnState.error[order.id] && (
-                    <p className="mt-2 text-red-600 text-sm">
-                      {returnState.error[order.id]}
-                    </p>
-                  )}
+                  {returnState.error[order.id] &&
+                    !returnState.formOpen[order.id] && (
+                      <p className="mt-2 text-red-600 text-sm">
+                        {returnState.error[order.id]}
+                      </p>
+                    )}
 
                   <div className="mt-3">
                     <button
                       type="button"
-                      onClick={() => openReturnModal(order.id)}
-                      disabled={
-                        !returnState.checked[order.id] ||
-                        !!returnState.confirming[order.id]
-                      }
+                      onClick={() => toggleReturnForm(order.id)}
+                      disabled={!returnState.checked[order.id]}
                       className="inline-block px-6 py-2 bg-black text-white text-[10px] tracking-[0.2em] uppercase hover:bg-[#2A2A28] transition font-ui rounded-lg disabled:opacity-50 disabled:hover:bg-black"
                     >
-                      {returnState.confirming[order.id]
-                        ? t("loading")
+                      {returnState.formOpen[order.id]
+                        ? "Cancel return"
                         : "Confirm return"}
                     </button>
                   </div>
+
+                  {/* Inline Return Form */}
+                  <AnimatePresence>
+                    {returnState.formOpen[order.id] && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="mt-4 pt-4 border-t border-gray-200"
+                      >
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[11px] uppercase tracking-[0.14em] text-gray-400 block mb-1.5">
+                                Condition{" "}
+                                <span className="text-red-500">*</span>
+                              </label>
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setReturnState((prev) => ({
+                                      ...prev,
+                                      dropdownOpen: {
+                                        ...prev.dropdownOpen,
+                                        [order.id]:
+                                          !prev.dropdownOpen[order.id],
+                                      },
+                                    }))
+                                  }
+                                  className="w-full border border-gray-200 rounded-xl p-2.5 text-sm text-black focus:outline-none focus:border-black transition bg-white flex items-center justify-between hover:cursor-pointer"
+                                >
+                                  <span>
+                                    {returnState.draft[order.id]?.condition ||
+                                      "Select condition"}
+                                  </span>
+                                  {returnState.dropdownOpen[order.id] ? (
+                                    <ChevronUp className="w-4 h-4 text-gray-400" />
+                                  ) : (
+                                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                                  )}
+                                </button>
+                                <AnimatePresence>
+                                  {returnState.dropdownOpen[order.id] && (
+                                    <motion.ul
+                                      initial={{
+                                        opacity: 0,
+                                        y: -10,
+                                        scale: 0.95,
+                                      }}
+                                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                      transition={{
+                                        duration: 0.15,
+                                        ease: "easeOut",
+                                      }}
+                                      className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto z-10 py-1"
+                                      role="listbox"
+                                    >
+                                      {CONDITION_OPTIONS.map((option) => (
+                                        <li key={option.value}>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              updateDraft(order.id, {
+                                                condition: option.value,
+                                              });
+                                              setReturnState((prev) => ({
+                                                ...prev,
+                                                dropdownOpen: {
+                                                  ...prev.dropdownOpen,
+                                                  [order.id]: false,
+                                                },
+                                              }));
+                                            }}
+                                            className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition hover:cursor-pointer ${
+                                              returnState.draft[order.id]
+                                                ?.condition === option.value
+                                                ? "text-black font-medium bg-gray-50"
+                                                : "text-gray-700"
+                                            }`}
+                                          >
+                                            {option.label}
+                                          </button>
+                                        </li>
+                                      ))}
+                                    </motion.ul>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="text-[11px] uppercase tracking-[0.14em] text-gray-400 block mb-1.5">
+                                Reason <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={
+                                  returnState.draft[order.id]?.reason ?? ""
+                                }
+                                onChange={(e) =>
+                                  updateDraft(order.id, {
+                                    reason: e.target.value,
+                                  })
+                                }
+                                placeholder="e.g. Size doesn't fit"
+                                className="w-full border border-gray-200 rounded-xl p-2.5 text-sm text-black focus:outline-none focus:border-black transition bg-white"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[11px] uppercase tracking-[0.14em] text-gray-400 block mb-1.5">
+                              Comment{" "}
+                              <span className="text-gray-400 text-[9px]">
+                                (optional)
+                              </span>
+                            </label>
+                            <textarea
+                              value={returnState.draft[order.id]?.comment ?? ""}
+                              onChange={(e) =>
+                                updateDraft(order.id, {
+                                  comment: e.target.value,
+                                })
+                              }
+                              rows={2}
+                              className="w-full border border-gray-200 rounded-xl p-3 text-sm text-black focus:outline-none focus:border-black transition resize-y min-h-15 bg-white"
+                              placeholder="Add any additional details (optional)..."
+                            />
+                          </div>
+
+                          <div className="pt-2">
+                            <h5 className="text-[11px] uppercase tracking-[0.14em] text-gray-400">
+                              Pickup address{" "}
+                              <span className="text-red-500">*</span>
+                            </h5>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Prefilled from delivery address. Edit if needed.
+                            </p>
+
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
+                                  Full name{" "}
+                                  <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  value={
+                                    returnState.draft[order.id]?.pickupAddress
+                                      .fullName ?? ""
+                                  }
+                                  onChange={(e) =>
+                                    updateAddress(order.id, {
+                                      fullName: e.target.value,
+                                    })
+                                  }
+                                  className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
+                                  placeholder="John Doe"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
+                                  Phone <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-sm">
+                                    +971
+                                  </span>
+                                  <input
+                                    type="tel"
+                                    value={
+                                      returnState.draft[
+                                        order.id
+                                      ]?.pickupAddress.phone
+                                        ?.replace(/\D/g, "")
+                                        .slice(3) ?? ""
+                                    }
+                                    onChange={(e) => {
+                                      const digits = e.target.value.replace(
+                                        /\D/g,
+                                        "",
+                                      );
+                                      if (digits.length <= 9) {
+                                        updateAddress(order.id, {
+                                          phone: `+971${digits}`,
+                                        });
+                                      }
+                                    }}
+                                    placeholder="50 123 4567"
+                                    maxLength={9}
+                                    className="w-full border border-gray-200 rounded-xl p-2 pl-14 text-sm text-black focus:outline-none focus:border-black transition bg-white font-mono"
+                                  />
+                                </div>
+                                <p className="text-[8px] text-gray-400 mt-0.5">
+                                  Enter 9 digits after +971
+                                </p>
+                              </div>
+                              <div className="sm:col-span-2">
+                                <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
+                                  Address line 1{" "}
+                                  <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  value={
+                                    returnState.draft[order.id]?.pickupAddress
+                                      .line1 ?? ""
+                                  }
+                                  onChange={(e) =>
+                                    updateAddress(order.id, {
+                                      line1: e.target.value,
+                                    })
+                                  }
+                                  className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
+                                  placeholder="Street address"
+                                />
+                              </div>
+                              <div className="sm:col-span-2">
+                                <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
+                                  Address line 2
+                                </label>
+                                <input
+                                  value={
+                                    returnState.draft[order.id]?.pickupAddress
+                                      .line2 ?? ""
+                                  }
+                                  onChange={(e) =>
+                                    updateAddress(order.id, {
+                                      line2: e.target.value,
+                                    })
+                                  }
+                                  className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
+                                  placeholder="Apartment, suite, etc."
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
+                                  City <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  value={
+                                    returnState.draft[order.id]?.pickupAddress
+                                      .city ?? ""
+                                  }
+                                  onChange={(e) =>
+                                    updateAddress(order.id, {
+                                      city: e.target.value,
+                                    })
+                                  }
+                                  className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
+                                  placeholder="Dubai"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
+                                  State <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  value={
+                                    returnState.draft[order.id]?.pickupAddress
+                                      .state ?? ""
+                                  }
+                                  onChange={(e) =>
+                                    updateAddress(order.id, {
+                                      state: e.target.value,
+                                    })
+                                  }
+                                  className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
+                                  placeholder="Dubai"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
+                                  Postal code{" "}
+                                  <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  value={
+                                    returnState.draft[order.id]?.pickupAddress
+                                      .postalCode ?? ""
+                                  }
+                                  onChange={(e) =>
+                                    updateAddress(order.id, {
+                                      postalCode: e.target.value,
+                                    })
+                                  }
+                                  className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
+                                  placeholder="00000"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {returnState.error[order.id] && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                              <p className="text-red-600 text-sm">
+                                {returnState.error[order.id]}
+                              </p>
+                            </div>
+                          )}
+                          {returnState.success[order.id] && (
+                            <div className="p-3 bg-green-50 border border-green-200 rounded-xl">
+                              <p className="text-green-700 text-sm">
+                                {returnState.success[order.id]}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => closeReturnForm(order.id)}
+                              className="w-full sm:w-auto px-6 py-2.5 border border-gray-200 rounded-xl text-black text-[11px] uppercase tracking-[0.14em] font-ui hover:bg-gray-50 transition disabled:opacity-50"
+                              disabled={!!returnState.submitting[order.id]}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => submitReturn(order.id)}
+                              disabled={!!returnState.submitting[order.id]}
+                              className="w-full sm:w-auto px-6 py-2.5 bg-black text-white rounded-xl text-[11px] uppercase tracking-[0.14em] font-ui hover:bg-[#2A2A28] transition disabled:opacity-50"
+                            >
+                              {returnState.submitting[order.id]
+                                ? t("loading")
+                                : "Submit return"}
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             )}
@@ -651,366 +981,6 @@ export default function CustomOrdersTab({ locale }: CustomOrdersTabProps) {
                       />
                     </>
                   )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <AnimatePresence>
-              {returnState.modalOpen[order.id] && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label="Return request"
-                  className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
-                  onClick={(e) => {
-                    if (e.target === e.currentTarget)
-                      closeReturnModal(order.id);
-                  }}
-                >
-                  <motion.div
-                    initial={{ y: 40, opacity: 0, scale: 0.95 }}
-                    animate={{ y: 0, opacity: 1, scale: 1 }}
-                    exit={{ y: 40, opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.25, ease: "easeOut" }}
-                    className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col my-4 sm:my-8 h-[calc(100vh-2rem)] sm:h-[90vh]"
-                  >
-                    <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-white flex items-start justify-between gap-4 shrink-0">
-                      <div>
-                        <h4 className="font-display text-xl sm:text-2xl">
-                          Return this order
-                        </h4>
-                        <p className="text-sm text-gray-500 mt-1">
-                          Tell us the details and we'll review your request.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => closeReturnModal(order.id)}
-                        className="w-10 h-10 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition flex items-center justify-center text-gray-500 hover:text-black shrink-0"
-                        aria-label="Close"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0 overscroll-contain">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-[11px] uppercase tracking-[0.14em] text-gray-400 block mb-1.5">
-                            Condition <span className="text-red-500">*</span>
-                          </label>
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setReturnState((prev) => ({
-                                  ...prev,
-                                  dropdownOpen: {
-                                    ...prev.dropdownOpen,
-                                    [order.id]: !prev.dropdownOpen[order.id],
-                                  },
-                                }))
-                              }
-                              className="w-full border border-gray-200 rounded-xl p-2.5 text-sm text-black focus:outline-none focus:border-black transition bg-white flex items-center justify-between hover:cursor-pointer"
-                              aria-haspopup="listbox"
-                              aria-expanded={returnState.dropdownOpen[order.id]}
-                            >
-                              <span>
-                                {returnState.draft[order.id]?.condition ||
-                                  "Select condition"}
-                              </span>
-                              {returnState.dropdownOpen[order.id] ? (
-                                <ChevronUp className="w-4 h-4 text-gray-400" />
-                              ) : (
-                                <ChevronDown className="w-4 h-4 text-gray-400" />
-                              )}
-                            </button>
-                            <AnimatePresence>
-                              {returnState.dropdownOpen[order.id] && (
-                                <motion.ul
-                                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                                  transition={{
-                                    duration: 0.15,
-                                    ease: "easeOut",
-                                  }}
-                                  className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto z-50 py-1"
-                                  style={{ overscrollBehavior: "contain" }}
-                                  role="listbox"
-                                >
-                                  {CONDITION_OPTIONS.map((option) => (
-                                    <li key={option.value}>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          updateDraft(order.id, {
-                                            condition: option.value,
-                                          });
-                                          setReturnState((prev) => ({
-                                            ...prev,
-                                            dropdownOpen: {
-                                              ...prev.dropdownOpen,
-                                              [order.id]: false,
-                                            },
-                                          }));
-                                        }}
-                                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition hover:cursor-pointer ${
-                                          returnState.draft[order.id]
-                                            ?.condition === option.value
-                                            ? "text-black font-medium bg-gray-50"
-                                            : "text-gray-700"
-                                        }`}
-                                        role="option"
-                                        aria-selected={
-                                          returnState.draft[order.id]
-                                            ?.condition === option.value
-                                        }
-                                      >
-                                        {option.label}
-                                      </button>
-                                    </li>
-                                  ))}
-                                </motion.ul>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="text-[11px] uppercase tracking-[0.14em] text-gray-400 block mb-1.5">
-                            Reason <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={returnState.draft[order.id]?.reason ?? ""}
-                            onChange={(e) =>
-                              updateDraft(order.id, { reason: e.target.value })
-                            }
-                            placeholder="e.g. Size doesn't fit"
-                            className="w-full border border-gray-200 rounded-xl p-2.5 text-sm text-black focus:outline-none focus:border-black transition bg-white"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="mt-4">
-                        <label className="text-[11px] uppercase tracking-[0.14em] text-gray-400 block mb-1.5">
-                          Comment{" "}
-                          <span className="text-gray-400 text-[9px]">
-                            (optional)
-                          </span>
-                        </label>
-                        <textarea
-                          value={returnState.draft[order.id]?.comment ?? ""}
-                          onChange={(e) =>
-                            updateDraft(order.id, { comment: e.target.value })
-                          }
-                          rows={3}
-                          className="w-full border border-gray-200 rounded-xl p-3 text-sm text-black focus:outline-none focus:border-black transition resize-y min-h-20 bg-white"
-                          placeholder="Add any additional details (optional)..."
-                        />
-                      </div>
-
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <h5 className="text-[11px] uppercase tracking-[0.14em] text-gray-400">
-                          Pickup address <span className="text-red-500">*</span>
-                        </h5>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Prefilled from delivery address. Edit if needed.
-                        </p>
-
-                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
-                              Full name <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              value={
-                                returnState.draft[order.id]?.pickupAddress
-                                  .fullName ?? ""
-                              }
-                              onChange={(e) =>
-                                updateAddress(order.id, {
-                                  fullName: e.target.value,
-                                })
-                              }
-                              className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
-                              placeholder="John Doe"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
-                              Phone <span className="text-red-500">*</span>
-                            </label>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-sm">
-                                +971
-                              </span>
-                              <input
-                                type="tel"
-                                value={
-                                  returnState.draft[
-                                    order.id
-                                  ]?.pickupAddress.phone
-                                    ?.replace(/\D/g, "")
-                                    .slice(3) ?? ""
-                                }
-                                onChange={(e) => {
-                                  const digits = e.target.value.replace(
-                                    /\D/g,
-                                    "",
-                                  );
-                                  if (digits.length <= 9) {
-                                    updateAddress(order.id, {
-                                      phone: `+971${digits}`,
-                                    });
-                                  }
-                                }}
-                                placeholder="50 123 4567"
-                                maxLength={9}
-                                className="w-full border border-gray-200 rounded-xl p-2 pl-14 text-sm text-black focus:outline-none focus:border-black transition bg-white font-mono"
-                              />
-                            </div>
-                            <p className="text-[8px] text-gray-400 mt-0.5">
-                              Enter 9 digits after +971
-                            </p>
-                          </div>
-                          <div className="sm:col-span-2">
-                            <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
-                              Address line 1{" "}
-                              <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              value={
-                                returnState.draft[order.id]?.pickupAddress
-                                  .line1 ?? ""
-                              }
-                              onChange={(e) =>
-                                updateAddress(order.id, {
-                                  line1: e.target.value,
-                                })
-                              }
-                              className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
-                              placeholder="Street address"
-                            />
-                          </div>
-                          <div className="sm:col-span-2">
-                            <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
-                              Address line 2
-                            </label>
-                            <input
-                              value={
-                                returnState.draft[order.id]?.pickupAddress
-                                  .line2 ?? ""
-                              }
-                              onChange={(e) =>
-                                updateAddress(order.id, {
-                                  line2: e.target.value,
-                                })
-                              }
-                              className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
-                              placeholder="Apartment, suite, etc."
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
-                              City <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              value={
-                                returnState.draft[order.id]?.pickupAddress
-                                  .city ?? ""
-                              }
-                              onChange={(e) =>
-                                updateAddress(order.id, {
-                                  city: e.target.value,
-                                })
-                              }
-                              className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
-                              placeholder="Dubai"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
-                              State <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              value={
-                                returnState.draft[order.id]?.pickupAddress
-                                  .state ?? ""
-                              }
-                              onChange={(e) =>
-                                updateAddress(order.id, {
-                                  state: e.target.value,
-                                })
-                              }
-                              className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
-                              placeholder="Dubai"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
-                              Postal code{" "}
-                              <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                              value={
-                                returnState.draft[order.id]?.pickupAddress
-                                  .postalCode ?? ""
-                              }
-                              onChange={(e) =>
-                                updateAddress(order.id, {
-                                  postalCode: e.target.value,
-                                })
-                              }
-                              className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
-                              placeholder="00000"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {returnState.error[order.id] && (
-                        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl">
-                          <p className="text-red-600 text-sm">
-                            {returnState.error[order.id]}
-                          </p>
-                        </div>
-                      )}
-                      {returnState.success[order.id] && (
-                        <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-xl">
-                          <p className="text-green-700 text-sm">
-                            {returnState.success[order.id]}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="px-4 sm:px-6 py-4 border-t border-gray-200 bg-white flex flex-col-reverse sm:flex-row items-center justify-end gap-3 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => closeReturnModal(order.id)}
-                        className="w-full sm:w-auto px-6 py-2.5 border border-gray-200 rounded-xl text-black text-[11px] uppercase tracking-[0.14em] font-ui hover:bg-gray-50 transition disabled:opacity-50"
-                        disabled={!!returnState.submitting[order.id]}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => submitReturn(order.id)}
-                        disabled={!!returnState.submitting[order.id]}
-                        className="w-full sm:w-auto px-6 py-2.5 bg-black text-white rounded-xl text-[11px] uppercase tracking-[0.14em] font-ui hover:bg-[#2A2A28] transition disabled:opacity-50"
-                      >
-                        {returnState.submitting[order.id]
-                          ? t("loading")
-                          : "Submit return"}
-                      </button>
-                    </div>
-                  </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
