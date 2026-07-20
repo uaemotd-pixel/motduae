@@ -11,7 +11,7 @@ import { getTranslation } from "@/lib/getTranslation";
 import { useParams } from "next/navigation";
 
 const NAV_LINKS = [
-  { key: "designs", href: "/#designs" },
+  { key: "designs", href: "/designs/designShop" },
   { key: "fabrics", href: "/fabrics/fabricStore" },
   { key: "brands", href: "/tailors" },
   { key: "joinOurCommunity", href: "/#join-our-community" },
