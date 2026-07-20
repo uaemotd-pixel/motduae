@@ -38,7 +38,7 @@ const savedUserSubSchema = new mongoose.Schema({
   gender: { type: String, enum: ["male", "female", "other", "prefer-not"] },
   relationship: {
     type: String,
-    enum: ["mother", "aunt", "sister", "daughter", "other"],
+    enum: ["wife", "mother", "aunt", "sister", "daughter", "other"],
     default: "other",
   },
   address: {

@@ -8,7 +8,13 @@ import FormField from "@/components/admin/FormField";
 import { motion, AnimatePresence } from "framer-motion";
 import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
 
-type Relationship = "mother" | "aunt" | "sister" | "daughter" | "other";
+type Relationship =
+  | "wife"
+  | "mother"
+  | "aunt"
+  | "sister"
+  | "daughter"
+  | "other";
 
 type FormData = {
   name: string;
@@ -83,6 +89,7 @@ const DEFAULT_FORM: FormData = {
 
 // Add relationship options
 const RELATIONSHIP_OPTIONS = [
+  { value: "wife", label: "Wife" },
   { value: "mother", label: "Mother" },
   { value: "aunt", label: "Aunt" },
   { value: "sister", label: "Sister" },
@@ -257,7 +264,10 @@ export default function FamilyMembersForm({
     }
 
     if (form.address.phone && !validateUAEPhone(form.address.phone)) {
-      toast.error("Enter valid UAE number for address (+971 XX XXX XXXX)", ERROR_TOAST);
+      toast.error(
+        "Enter valid UAE number for address (+971 XX XXX XXXX)",
+        ERROR_TOAST,
+      );
       return;
     }
 
