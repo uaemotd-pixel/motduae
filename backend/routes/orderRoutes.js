@@ -27,6 +27,8 @@ import {
   notifyCustomStatusChange,
 } from "../services/notificationService.js";
 
+import AdminNotification from "../models/AdminNotification.js";
+
 import {
   getCustomOrderPricing,
   getMultiItemCustomOrderPricing,
