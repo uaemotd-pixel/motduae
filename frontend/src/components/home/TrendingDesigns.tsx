@@ -14,6 +14,15 @@ import {
   formatDesignCategory,
 } from "@/lib/tailors";
 import { DESIGN_CATEGORIES } from "@/lib/tailorDesigns";
+
+const CATEGORY_COLORS: Record<string, string> = {
+  "hand-embroidered": "#8B6B4D",
+  "crystal-embellished": "#1A2A3A",
+  "non-crystal": "#5A6B5A",
+  talli: "#B8860B",
+  khous: "#4A3A2A",
+  beaded: "#6B2A5A",
+};
 import { Share2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 
@@ -324,7 +333,7 @@ export function TrendingSection() {
               {t.trendingDesigns.title}
             </h2>
           </div>
-          <Link href="/tailors" className={exploreLinkClass}>
+          <Link href="/designs/designShop" className={exploreLinkClass}>
             {t.trendingDesigns.exploreLink}
           </Link>
         </div>
@@ -335,7 +344,7 @@ export function TrendingSection() {
             <button
               key={filter.key}
               onClick={() => setSelectedFilter(filter.value)}
-              className={filterChipClass(selectedFilter === filter.value)}
+              className={`${filterChipClass(selectedFilter === filter.value)} hover:cursor-pointer`}
             >
               {isArabic ? filter.labelAr : filter.labelEn}
             </button>
@@ -424,7 +433,10 @@ export function TrendingSection() {
                         </button>
 
                         <div className="absolute top-2 xs:top-3 left-2 xs:left-3 z-10">
-                          <span className="bg-[#8B6F47] text-white px-2.5 xs:px-3 py-1 xs:py-1.25 text-[10px] xs:text-[12px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.24em] font-bold">
+                          <span
+                            className="text-white px-2.5 xs:px-3 py-1 xs:py-1.25 text-[10px] xs:text-[12px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.24em] font-bold"
+                            style={{ backgroundColor: CATEGORY_COLORS[design.category] || '#000000' }}
+                          >
                             {category}
                           </span>
                         </div>

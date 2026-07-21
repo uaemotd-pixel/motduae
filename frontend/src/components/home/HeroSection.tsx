@@ -2,7 +2,6 @@
 
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
-import { Link } from "@/i18n/navigation";
 import * as images from "../../../public/images/ImageIndex";
 import { getTranslation } from "@/lib/getTranslation";
 import { useParams } from "next/navigation";
@@ -46,7 +45,7 @@ export function HeroSection() {
                   alt={`${t.heroSection.imageAlt} ${idx + 1}`}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-black/10" />
+                <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/25 to-black/10" />
               </div>
             ))}
           </div>
@@ -94,7 +93,7 @@ export function HeroSection() {
           {/* Description paragraph */}
           <p
             className={`
-              [font-family:var(--font-body)] leading-[1.6] xs:leading-[1.7] sm:leading-[1.8] text-white/60 max-w-100 w-full mb-6 xs:mb-8
+              [font-family:var(--font-body)] leading-[1.6] xs:leading-[1.7] sm:leading-[1.8] text-white/60 max-w-100 w-full mb-6 xs:mb-8 text-justify
               ${
                 isArabic
                   ? "text-[16px] xs:text-[15px] sm:text-[16px] md:text-[15px] lg:text-[16px] xl:text-[20px]"

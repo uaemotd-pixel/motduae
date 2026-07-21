@@ -9,6 +9,15 @@ import {
   getDesignDisplayFields,
   formatDesignBasePrice,
 } from "@/lib/tailors";
+
+const CATEGORY_COLORS: Record<string, string> = {
+  "hand-embroidered": "#8B6B4D",
+  "crystal-embellished": "#1A2A3A",
+  "non-crystal": "#5A6B5A",
+  talli: "#B8860B",
+  khous: "#4A3A2A",
+  beaded: "#6B2A5A",
+};
 import { Share2 } from "lucide-react";
 import InnerImageZoom from "react-inner-image-zoom";
 import "react-inner-image-zoom/lib/styles.min.css";
@@ -301,7 +310,13 @@ export default function DesignDetailView({
               className={`${getStickyClass()} space-y-6`}
             >
               <div className="flex flex-wrap gap-2 items-center">
-                <span className="inline-block text-white text-[10px] uppercase tracking-[0.25em] px-2.5 py-1.5 bg-[#8B6F47] rounded-none">
+                <span
+                  className="inline-block text-white text-[10px] uppercase tracking-[0.25em] px-2.5 py-1.5 rounded-none"
+                  style={{
+                    backgroundColor:
+                      CATEGORY_COLORS[design.category] || "#000000",
+                  }}
+                >
                   {category}
                 </span>
                 <span
