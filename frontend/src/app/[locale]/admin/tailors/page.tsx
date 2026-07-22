@@ -16,6 +16,7 @@ import {
   Loader2,
   Image as ImageIcon,
 } from "lucide-react";
+import { ImageModal } from "@/components/shared/ImageModal";
 
 // ---------- Modal for Deactivate/Reactivate ----------
 interface ToggleModalProps {
@@ -234,6 +235,14 @@ export default function AdminTailorsPage() {
   } | null>(null);
   const [rejectNote, setRejectNote] = useState("");
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string>("");
+
+  // pop up image function
+  const handleImageClick = (imageUrl: string) => {
+    setSelectedImage(imageUrl);
+    setImageModalOpen(true);
+  };
 
   // ---------- Data fetching ----------
   const fetchData = async () => {
@@ -494,7 +503,8 @@ export default function AdminTailorsPage() {
         <img
           src={imageUrl}
           alt={row.name}
-          className="w-9 h-9 rounded-full object-cover"
+          className="w-9 h-9 rounded-full object-cover hover:cursor-pointer"
+          onClick={() => handleImageClick(imageUrl)}
         />
       );
     }
@@ -864,6 +874,12 @@ export default function AdminTailorsPage() {
           </div>
         </div>
       )}
+      <ImageModal
+        isOpen={imageModalOpen}
+        imageUrl={selectedImage}
+        alt="Tailors image"
+        onClose={() => setImageModalOpen(false)}
+      />
     </div>
   );
 }

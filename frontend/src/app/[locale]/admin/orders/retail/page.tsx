@@ -13,6 +13,7 @@ import {
 import toast from "react-hot-toast";
 import StatusBadge from "@/components/admin/StatusBadge";
 import AdminOrdersTabs from "@/components/admin/AdminOrdersTabs";
+import { ImageModal } from "@/components/shared/ImageModal";
 
 type RetailOrder = {
   _id: string;
@@ -209,6 +210,14 @@ export default function AdminRetailOrdersPage() {
     getFirstDayOfMonthString(),
   );
   const [filterTo, setFilterTo] = useState<string>(getTodayString());
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string>("");
+
+  // pop up image function
+  const handleImageClick = (imageUrl: string) => {
+    setSelectedImage(imageUrl);
+    setImageModalOpen(true);
+  };
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -511,7 +520,8 @@ export default function AdminRetailOrdersPage() {
                               <img
                                 src={itemImage}
                                 alt={item.name}
-                                className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                                className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0 hover:cursor-pointer"
+                                onClick={() => handleImageClick(itemImage)}
                               />
                             )}
                             <div className="min-w-0">
@@ -598,6 +608,13 @@ export default function AdminRetailOrdersPage() {
           })}
         </div>
       )}
+
+      <ImageModal
+        isOpen={imageModalOpen}
+        imageUrl={selectedImage}
+        alt="Retail Order image"
+        onClose={() => setImageModalOpen(false)}
+      />
     </div>
   );
 }

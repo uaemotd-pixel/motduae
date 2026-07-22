@@ -3,11 +3,11 @@ import MainLayout from "../../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 
 export default function CustomOrderMeasurementsPage() {
-    return (
-        <MainLayout>
-            <FadeInSection>
-                <MeasurementsStep />
-            </FadeInSection>
-        </MainLayout>
-    );
+  return (
+    <MainLayout>
+      <FadeInSection>
+        <MeasurementsStep />
+      </FadeInSection>
+    </MainLayout>
+  );
 }

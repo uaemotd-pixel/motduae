@@ -9,12 +9,10 @@ import Link from "next/link";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { resolveMediaUrl } from "@/lib/media";
-import InnerImageZoom from "react-inner-image-zoom";
-import "react-inner-image-zoom/lib/styles.min.css";
 import { resolveReadyMadeImage } from "@/lib/readyMade";
 import { getTranslation } from "@/lib/getTranslation";
+import ZoomImageEffect from "@/components/shared/ZoomImageEffect";
 
-// Product color mapping (for swatches)
 const colorOptions = [
   { name: "Aqua", value: "aqua", bg: "#00FFFF" },
   { name: "Aquamarine", value: "aquamarine", bg: "#7FFFD4" },
@@ -130,18 +128,16 @@ const getColorHex = (colorName: string): string => {
   return found?.bg || "#CCCCCC";
 };
 
-// Tag color palette – elegant, muted, brand‑compliant
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
-  new: { bg: "#2D5A3D", text: "#FFFFFF" }, // Deep muted green
-  bestseller: { bg: "#8B7355", text: "#FFFFFF" }, // Warm taupe
-  premium: { bg: "#4A4A4A", text: "#FFFFFF" }, // Charcoal
-  limited: { bg: "#8B3A3A", text: "#FFFFFF" }, // Muted burgundy
-  exclusive: { bg: "#C4A47A", text: "#000000" }, // Soft gold/beige
-  trending: { bg: "#3A5A78", text: "#FFFFFF" }, // Muted navy
-  handmade: { bg: "#6B4F3C", text: "#FFFFFF" }, // Earthy brown
+  new: { bg: "#2D5A3D", text: "#FFFFFF" },
+  bestseller: { bg: "#8B7355", text: "#FFFFFF" },
+  premium: { bg: "#4A4A4A", text: "#FFFFFF" },
+  limited: { bg: "#8B3A3A", text: "#FFFFFF" },
+  exclusive: { bg: "#C4A47A", text: "#000000" },
+  trending: { bg: "#3A5A78", text: "#FFFFFF" },
+  handmade: { bg: "#6B4F3C", text: "#FFFFFF" },
 };
 
-// Helper to get tag styles from key
 const getTagStyles = (tagKey?: string) => {
   if (!tagKey) return { bg: "#1A1A1A", text: "#FFFFFF" };
   const key = tagKey.toLowerCase().trim();
@@ -165,7 +161,8 @@ export default function ReadyMadeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [selectedImage, setSelectedImage] = useState<string>("");
+  const [selectedImage, setSelectedImage] =
+    useState<string>("/placeholder.png");
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -177,7 +174,8 @@ export default function ReadyMadeDetailPage() {
           throw new Error("Product not found");
         }
         setProduct(data.item);
-        setSelectedImage(resolveReadyMadeImage(data.item.images?.[0]));
+        const img = resolveReadyMadeImage(data.item.images?.[0]);
+        setSelectedImage(img || "/placeholder.png");
       } catch (err: any) {
         setError(err?.message || "Failed to load product");
       } finally {
@@ -217,7 +215,6 @@ export default function ReadyMadeDetailPage() {
     router.push(`/${locale}/checkout?buyNow=true&${params.toString()}`);
   };
 
-  // Wishlist toggle
   const liked = product
     ? wishItems.some((item) => item.id === product._id)
     : false;
@@ -238,7 +235,6 @@ export default function ReadyMadeDetailPage() {
     }
   };
 
-  // Loading state
   if (loading) {
     return (
       <MainLayout>
@@ -254,7 +250,6 @@ export default function ReadyMadeDetailPage() {
     );
   }
 
-  // Error or missing product
   if (error || !product) {
     return (
       <MainLayout>
@@ -302,21 +297,17 @@ export default function ReadyMadeDetailPage() {
     );
   }
 
-  // Extra guard
   if (!product) return null;
 
-  // Product data
   const title = product.name;
   const desc = product.description;
   const images = product.images?.length ? product.images : ["/placeholder.png"];
   const price = product.finalSellingPriceAED || 0;
   const stock = product.availableFabricStock || 0;
-  const tag = product.tag; // key like "new", "bestseller", etc.
+  const tag = product.tag;
   const fabricType = product.fabricType;
   const colors = product.colors || [];
   const size = product.metersPerFabric;
-
-  // Tag styles based on key (no longer using tagColor from DB)
   const tagStyles = getTagStyles(tag);
 
   return (
@@ -324,7 +315,6 @@ export default function ReadyMadeDetailPage() {
       <FadeInSection>
         <div className="bg-(--bg-page) pt-8 xs:pt-10 sm:pt-12 pb-12 xs:pb-16 sm:pb-20 md:pb-24">
           <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto max-w-7xl">
-            {/* Breadcrumb */}
             <nav className="mb-6 xs:mb-8">
               <ol className="flex flex-wrap items-center gap-1.5 text-[10px] xs:text-[11px] [font-family:var(--font-ui)] uppercase tracking-[0.2em]">
                 <li>
@@ -352,15 +342,17 @@ export default function ReadyMadeDetailPage() {
               </ol>
             </nav>
 
-            {/* Product Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 xs:gap-10 md:gap-12 lg:gap-(--space-40)">
               {/* Left: Gallery */}
               <div className="space-y-4">
                 <div className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group">
-                  <InnerImageZoom
-                    src={resolveMediaUrl(selectedImage)}
-                    zoomScale={1.5}
-                    className="w-full h-full"
+                  <ZoomImageEffect
+                    key={selectedImage}
+                    src={selectedImage}
+                    alt={title}
+                    className="w-full h-auto"
+                    lensSize={150}
+                    zoomLevel={3}
                   />
                   {tag && (
                     <div
@@ -376,23 +368,26 @@ export default function ReadyMadeDetailPage() {
                 </div>
                 {images.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto pb-2">
-                    {images.map((img: string, idx: number) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSelectedImage(resolveMediaUrl(img))}
-                        className={`shrink-0 w-20 xs:w-24 h-20 xs:h-24 rounded-md overflow-hidden border-2 transition-all duration-200 ${
-                          selectedImage === img
-                            ? "border-black"
-                            : "border-transparent opacity-60 hover:opacity-100"
-                        }`}
-                      >
-                        <img
-                          src={resolveMediaUrl(img)}
-                          alt={`Thumbnail ${idx + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ))}
+                    {images.map((img: string, idx: number) => {
+                      const thumbUrl = resolveMediaUrl(img);
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => setSelectedImage(thumbUrl)}
+                          className={`shrink-0 w-20 xs:w-24 h-20 xs:h-24 rounded-md overflow-hidden border-2 transition-all duration-200 ${
+                            selectedImage === thumbUrl
+                              ? "border-black"
+                              : "border-transparent opacity-60 hover:opacity-100"
+                          }`}
+                        >
+                          <img
+                            src={thumbUrl}
+                            alt={`Thumbnail ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -424,7 +419,6 @@ export default function ReadyMadeDetailPage() {
                   </button>
                 </div>
 
-                {/* Price */}
                 <div className="border-b border-(--color-border) pb-4 mb-4">
                   <p className="[font-family:var(--font-ui)] text-[20px] xs:text-[24px] sm:text-[28px] tracking-[0.24em] text-black">
                     AED {price}
@@ -499,7 +493,6 @@ export default function ReadyMadeDetailPage() {
 
                 <div className="mt-2 pt-4 border-t border-(--color-border)">
                   <div className="flex flex-col gap-4 mb-6">
-                    {/* Row: quantity controls + Buy Now */}
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <button
@@ -535,7 +528,6 @@ export default function ReadyMadeDetailPage() {
                       </button>
                     </div>
 
-                    {/* Add to Cart as full‑width block */}
                     <button
                       onClick={handleAddToCart}
                       disabled={stock < 1}
@@ -548,7 +540,6 @@ export default function ReadyMadeDetailPage() {
                       Add to Cart
                     </button>
 
-                    {/* Fabric and Design Link Buttons */}
                     {(product.fabricId || product.designId) && (
                       <div className="mt-2 pt-4 border-t border-(--color-border)">
                         <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
@@ -613,7 +604,6 @@ export default function ReadyMadeDetailPage() {
         </div>
       </FadeInSection>
 
-      {/* Mobile sticky bar */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-(--color-border) p-4 shadow-lg z-30">
         <div className="flex gap-3">
           <button

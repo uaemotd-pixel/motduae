@@ -1,3 +1,5 @@
+// components/fabric/FabricDetailView.tsx
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -11,12 +13,10 @@ import {
   getFabricDisplayFields,
 } from "@/lib/fabrics";
 import { Share2 } from "lucide-react";
-
 import StoreAttribution from "@/components/fabric/StoreAttribution";
 import { resolveMediaUrl } from "@/lib/media";
-import InnerImageZoom from "react-inner-image-zoom";
-import "react-inner-image-zoom/lib/styles.min.css";
 import { COLOR_OPTIONS } from "@/lib/createFabricAdmin";
+import ZoomImageEffect from "../shared/ZoomImageEffect";
 
 type FabricDetailViewProps = {
   fabric: FabricDetailItem;
@@ -217,10 +217,12 @@ export default function FabricDetailView({
                 >
                   <Share2 className="w-5 h-5" />
                 </button>
-                <InnerImageZoom
+                <ZoomImageEffect
                   src={images[activeImage]}
-                  zoomScale={1.5}
-                  className="w-full h-full object-cover"
+                  alt={fabric.name}
+                  className="w-full h-auto"
+                  lensSize={150}
+                  zoomLevel={4}
                 />
               </motion.div>
 

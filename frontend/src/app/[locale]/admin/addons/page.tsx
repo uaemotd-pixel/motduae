@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import { ImageModal } from "@/components/shared/ImageModal";
 
 interface ToggleModalProps {
   isOpen: boolean;
@@ -106,6 +107,14 @@ export default function AdminAddOnsPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<AddOnItem | null>(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string>("");
+
+  // pop up image function
+  const handleImageClick = (imageUrl: string) => {
+    setSelectedImage(imageUrl);
+    setImageModalOpen(true);
+  };
 
   // Close menu on outside click
   useEffect(() => {
@@ -227,7 +236,8 @@ export default function AdminAddOnsPage() {
         <img
           src={item.thumbnailImage}
           alt={item.name}
-          className="w-10 h-10 rounded-lg object-cover"
+          className="w-10 h-10 rounded-lg object-cover hover:cursor-pointer"
+          onClick={() => handleImageClick(item.thumbnailImage)}
         />
       );
     }
@@ -478,6 +488,13 @@ export default function AdminAddOnsPage() {
           </div>
         </div>
       )}
+
+      <ImageModal
+        isOpen={imageModalOpen}
+        imageUrl={selectedImage}
+        alt="AddOns Image"
+        onClose={() => setImageModalOpen(false)}
+      />
     </div>
   );
 }

@@ -17,6 +17,7 @@ import {
   type CustomOrderStatus,
 } from "@/lib/customOrders";
 import type { Locale } from "@/i18n/routing";
+import { ImageModal } from "@/components/shared/ImageModal";
 
 interface OrderUser {
   _id: string;
@@ -141,6 +142,14 @@ export default function AdminCustomOrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [note, setNote] = useState<Record<string, string>>({});
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string>("");
+
+  // pop up image function
+  const handleImageClick = (imageUrl: string) => {
+    setSelectedImage(imageUrl);
+    setImageModalOpen(true);
+  };
 
   // Date defaults: current month-to-date
   const getTodayString = () => {
@@ -531,7 +540,10 @@ export default function AdminCustomOrdersPage() {
                                 <img
                                   src={itemDesignImage}
                                   alt={item.designSnapshot?.name || "Design"}
-                                  className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                                  className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0 hover:cursor-pointer"
+                                  onClick={() =>
+                                    handleImageClick(itemDesignImage)
+                                  }
                                 />
                               )}
                               <div className="flex justify-between items-start gap-2 flex-1">
@@ -556,7 +568,10 @@ export default function AdminCustomOrdersPage() {
                                   <img
                                     src={itemFabricImage}
                                     alt={item.fabricSnapshot?.name || "Fabric"}
-                                    className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                                    className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0 hover:cursor-pointer"
+                                    onClick={() =>
+                                      handleImageClick(itemFabricImage)
+                                    }
                                   />
                                 )}
                                 {t("fabricLabel", {
@@ -573,7 +588,10 @@ export default function AdminCustomOrdersPage() {
                                       item.tailorShopId,
                                       t("unknownTailor"),
                                     )}
-                                    className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                                    className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0 hover:cursor-pointer"
+                                    onClick={() =>
+                                      handleImageClick(itemTailorLogo)
+                                    }
                                   />
                                 )}
                                 {locale === "ar" ? `الخياط:` : `Tailor:`}{" "}
@@ -755,6 +773,13 @@ export default function AdminCustomOrdersPage() {
           })}
         </div>
       )}
+
+      <ImageModal
+        isOpen={imageModalOpen}
+        imageUrl={selectedImage}
+        alt="Custom Order Image"
+        onClose={() => setImageModalOpen(false)}
+      />
     </div>
   );
 }

@@ -9,6 +9,8 @@ import {
   getDesignDisplayFields,
   formatDesignBasePrice,
 } from "@/lib/tailors";
+import { ImageModal } from "@/components/shared/ImageModal";
+import ZoomImageEffect from "@/components/shared/ZoomImageEffect";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "hand-embroidered": "#8B6B4D",
@@ -19,8 +21,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   beaded: "#6B2A5A",
 };
 import { Share2 } from "lucide-react";
-import InnerImageZoom from "react-inner-image-zoom";
-import "react-inner-image-zoom/lib/styles.min.css";
 
 export interface TailorShopInfo {
   _id: string;
@@ -87,6 +87,8 @@ export default function DesignDetailView({
   const rightRef = useRef<HTMLDivElement>(null);
   const [stickySide, setStickySide] = useState<"left" | "right" | null>(null);
   const [isLargeScreen, setIsLargeScreen] = useState(false);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState("");
 
   useEffect(() => {
     const checkScreen = () => {
@@ -222,6 +224,14 @@ export default function DesignDetailView({
 
   return (
     <div ref={containerRef} className="bg-(--bg-page) min-h-screen pt-20 pb-12">
+      {/* Image Modal */}
+      <ImageModal
+        isOpen={imageModalOpen}
+        imageUrl={selectedImage}
+        alt={name}
+        onClose={() => setImageModalOpen(false)}
+      />
+
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -229,7 +239,10 @@ export default function DesignDetailView({
           transition={{ duration: 0.4 }}
           className="flex items-center gap-2 text-[10px] tracking-[0.2em] uppercase text-(--color-grey-muted) mb-6"
         >
-          <Link href="/tailors" className="hover:text-black transition">
+          <Link
+            href="/designs/designShop"
+            className="hover:text-black transition"
+          >
             {labels.designs}
           </Link>
           <span>/</span>
@@ -252,7 +265,7 @@ export default function DesignDetailView({
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
-                className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group"
+                className="w-full relative bg-[#F5F5F0] rounded-lg group"
               >
                 <button
                   type="button"
@@ -263,11 +276,16 @@ export default function DesignDetailView({
                   <Share2 className="w-5 h-5" />
                 </button>
 
-                <InnerImageZoom
-                  src={images[activeImage]}
-                  zoomScale={1.5}
-                  className="w-full h-auto"
-                />
+                {/* Main Image with Zoom Effect */}
+                <div className="relative w-full">
+                  <ZoomImageEffect
+                    src={images[activeImage]}
+                    alt={name}
+                    className="w-full h-auto"
+                    lensSize={150}
+                    zoomLevel={4}
+                  />
+                </div>
               </motion.div>
 
               {images.length > 1 && (

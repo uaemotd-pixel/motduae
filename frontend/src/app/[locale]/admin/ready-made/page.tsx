@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import { ImageModal } from "@/components/shared/ImageModal";
 
 interface ReadyMadeItem {
   _id: string;
@@ -50,6 +51,14 @@ export default function AdminReadyMadePage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ReadyMadeItem | null>(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string>("");
+
+  // pop up image function
+  const handleImageClick = (imageUrl: string) => {
+    setSelectedImage(imageUrl);
+    setImageModalOpen(true);
+  };
 
   // Close menu on outside click
   useEffect(() => {
@@ -141,7 +150,10 @@ export default function AdminReadyMadePage() {
         <img
           src={item.images[0]}
           alt={item.name}
-          className="w-10 h-10 rounded-lg object-cover"
+          className="w-10 h-10 rounded-lg object-cover hover:cursor-pointer"
+          onClick={() =>
+            handleImageClick(item.images?.[0] || "IMAGE NOT FOUND")
+          }
         />
       );
     }
@@ -476,6 +488,13 @@ export default function AdminReadyMadePage() {
           </div>
         </div>
       )}
+
+      <ImageModal
+        isOpen={imageModalOpen}
+        imageUrl={selectedImage}
+        alt="Ready Made Image"
+        onClose={() => setImageModalOpen(false)}
+      />
     </div>
   );
 }

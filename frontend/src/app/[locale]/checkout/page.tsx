@@ -194,6 +194,7 @@ function CheckoutPageContent() {
     emirate: "",
     city: "",
     street: "",
+    building: "",
     deliveryNotes: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -246,6 +247,7 @@ function CheckoutPageContent() {
             emirate: defaultAddr.emirate || "",
             city: defaultAddr.city || "",
             street: defaultAddr.street || "",
+            building: defaultAddr.building || "",
           }));
         } else {
           setFormData((prev) => ({
@@ -362,6 +364,7 @@ function CheckoutPageContent() {
         emirate: formData.emirate,
         city: formData.city,
         street: formData.street,
+        building: formData.building,
         notes: formData.deliveryNotes,
       },
     };
@@ -660,7 +663,7 @@ function CheckoutPageContent() {
                         </p>
                       )}
                     </div>
-                    <div className="sm:col-span-2">
+                    <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
                         {t.checkout.streetBuilding} *
                       </label>
@@ -676,6 +679,18 @@ function CheckoutPageContent() {
                           {errors.street}
                         </p>
                       )}
+                    </div>
+                    <div>
+                      <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
+                        {t.checkout.building}
+                      </label>
+                      <input
+                        type="text"
+                        name="building"
+                        value={formData.building}
+                        onChange={handleChange}
+                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                      />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">

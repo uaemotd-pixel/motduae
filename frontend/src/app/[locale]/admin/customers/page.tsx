@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from "next/navigation";
@@ -17,6 +17,7 @@ import {
   VenusAndMars,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { ImageModal } from "@/components/shared/ImageModal";
 
 // ============================================
 // Reusable Confirmation Modal
@@ -132,6 +133,14 @@ export default function AdminCustomersPage() {
     right: number;
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string>("");
+
+  // pop up image function
+  const handleImageClick = (imageUrl: string) => {
+    setSelectedImage(imageUrl);
+    setImageModalOpen(true);
+  };
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -286,7 +295,10 @@ export default function AdminCustomersPage() {
         <img
           src={customer.profilePic}
           alt={customer.name}
-          className="w-9 h-9 rounded-full object-cover"
+          className="w-9 h-9 rounded-full object-cover hover:cursor-pointer"
+          onClick={() =>
+            handleImageClick(customer?.profilePic || "IMAGE NOT FOUND")
+          }
         />
       );
     }
@@ -667,6 +679,13 @@ export default function AdminCustomersPage() {
           </button>
         </div>
       )}
+
+      <ImageModal
+        isOpen={imageModalOpen}
+        imageUrl={selectedImage}
+        alt="Customer image"
+        onClose={() => setImageModalOpen(false)}
+      />
     </div>
   );
 }

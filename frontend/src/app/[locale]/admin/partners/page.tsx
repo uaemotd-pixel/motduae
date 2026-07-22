@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import FormField from "@/components/admin/FormField";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import { ImageModal } from "@/components/shared/ImageModal";
 
 // ---------- Types ----------
 interface FabricRow {
@@ -368,6 +369,14 @@ export default function AdminPartnersPage() {
   } | null>(null);
   const [rejectNote, setRejectNote] = useState("");
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string>("");
+
+  // pop up image function
+  const handleImageClick = (imageUrl: string) => {
+    setSelectedImage(imageUrl);
+    setImageModalOpen(true);
+  };
 
   // Close menu on outside click
   useEffect(() => {
@@ -522,7 +531,8 @@ export default function AdminPartnersPage() {
         <img
           src={row.logo}
           alt={row.name}
-          className="w-9 h-9 rounded-full object-cover"
+          className="w-9 h-9 rounded-full object-cover hover:cursor-pointer"
+          onClick={() => handleImageClick(row.logo as string)}
         />
       );
     }
@@ -1061,6 +1071,13 @@ export default function AdminPartnersPage() {
           </div>
         </div>
       )}
+
+      <ImageModal
+        isOpen={imageModalOpen}
+        imageUrl={selectedImage}
+        alt="Fabric Store Image"
+        onClose={() => setImageModalOpen(false)}
+      />
     </div>
   );
 }
