@@ -63,6 +63,11 @@ const addOnSchema = new mongoose.Schema(
       default: true,
       required: true,
     },
+    fabricShopId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "FabricShop",
+      required: false,
+    },
   },
   {
     timestamps: true,

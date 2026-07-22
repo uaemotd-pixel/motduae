@@ -3,11 +3,19 @@ import expressAsyncHandler from "express-async-handler";
 import FabricShop from "../models/FabricShop.js";
 import Fabric from "../models/Fabric.js";
 import CustomOrder from "../models/CustomOrder.js";
+import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
+import AddOn from "../models/AddOn.js";
 import {
   uploadSingleImageMiddleware,
   processTailorShopImage,
   processTailorDesignImage,
+  uploadReadyMadeImageMiddleware,
+  processReadyMadeImage,
 } from "../middleware/uploadReadyMadeImage.js";
+import {
+  uploadSingleAddOnImageMiddleware,
+  processAddOnImage,
+} from "../middleware/uploadAddOnImages.js";
 
 const fabricPortalRouter = express.Router();
 
@@ -574,6 +582,416 @@ fabricPortalRouter.patch(
 
     res.json({ success: true, order });
   }),
+);
+
+// ==========================================
+// Fabric Portal Image Uploads
+// ==========================================
+
+// POST /api/fabric/uploads/ready-made
+fabricPortalRouter.post(
+  "/uploads/ready-made",
+  uploadReadyMadeImageMiddleware,
+  expressAsyncHandler(async (req, res) => {
+    if (!req.file) {
+      res.status(400).send({ message: "No image file provided" });
+      return;
+    }
+    const url = await processReadyMadeImage(req.file);
+    res.status(201).send({ success: true, url });
+  })
+);
+
+// POST /api/fabric/uploads/addons
+fabricPortalRouter.post(
+  "/uploads/addons",
+  uploadSingleAddOnImageMiddleware,
+  expressAsyncHandler(async (req, res) => {
+    if (!req.file) {
+      res.status(400).send({ message: "No image file provided" });
+      return;
+    }
+    const url = await processAddOnImage(req.file);
+    res.status(201).send({ success: true, url });
+  })
+);
+
+// ==========================================
+// Fabric Portal Ready-Made CRUD
+// ==========================================
+
+// GET /api/fabric/ready-made
+fabricPortalRouter.get(
+  "/ready-made",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      return;
+    }
+    const products = await ReadyMadeProduct.find({ fabricShopId: shop._id }).sort({ createdAt: -1 });
+    res.json(products);
+  })
+);
+
+// GET /api/fabric/ready-made/:id
+fabricPortalRouter.get(
+  "/ready-made/:id",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      return;
+    }
+    const product = await ReadyMadeProduct.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    if (!product) {
+      res.status(404).json({ success: false, message: "Ready-made product not found" });
+      return;
+    }
+    res.json(product);
+  })
+);
+
+// POST /api/fabric/ready-made
+fabricPortalRouter.post(
+  "/ready-made",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      return;
+    }
+
+    const {
+      name,
+      nameAr,
+      code,
+      description,
+      descriptionAr,
+      tag,
+      tagAr,
+      colors,
+      thumbnailImage,
+      images,
+      fabricId,
+      tailorShopId,
+      designId,
+      fabricType,
+      fabricTypeAr,
+      tailorName,
+      tailorNameAr,
+      metersPerFabric,
+      fabricPriceAED,
+      mukhawarPriceAED,
+      finalSellingPriceAED,
+      availableFabricStock,
+      isActive,
+    } = req.body;
+
+    let slug = req.body.slug?.trim();
+    if (!slug) {
+      const base = name || nameAr || "ready-made";
+      slug = base
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    }
+
+    const newProduct = new ReadyMadeProduct({
+      name,
+      nameAr,
+      code,
+      slug,
+      description,
+      descriptionAr,
+      tag,
+      tagAr,
+      colors: Array.isArray(colors) ? colors : [],
+      thumbnailImage,
+      images: Array.isArray(images) ? images : [],
+      fabricShopId: shop._id,
+      fabricId,
+      tailorShopId: tailorShopId || undefined,
+      designId: designId || undefined,
+      fabricType: fabricType || "",
+      fabricTypeAr: fabricTypeAr || "",
+      tailorName: tailorName || "",
+      tailorNameAr: tailorNameAr || "",
+      metersPerFabric,
+      fabricPriceAED,
+      mukhawarPriceAED,
+      finalSellingPriceAED,
+      availableFabricStock,
+      isActive: isActive !== undefined ? isActive : true,
+    });
+
+    const createdProduct = await newProduct.save();
+    res.status(201).json(createdProduct);
+  })
+);
+
+// PUT /api/fabric/ready-made/:id
+fabricPortalRouter.put(
+  "/ready-made/:id",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      return;
+    }
+
+    const product = await ReadyMadeProduct.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    if (!product) {
+      res.status(404).json({ success: false, message: "Ready-made product not found" });
+      return;
+    }
+
+    product.name = req.body.name ?? product.name;
+    product.nameAr = req.body.nameAr ?? product.nameAr;
+    product.slug = req.body.slug ?? product.slug;
+    product.code = req.body.code ?? product.code;
+    product.description = req.body.description ?? product.description;
+    product.descriptionAr = req.body.descriptionAr ?? product.descriptionAr;
+    product.tag = req.body.tag ?? product.tag;
+    product.tagAr = req.body.tagAr ?? product.tagAr;
+
+    if (req.body.colors !== undefined) {
+      product.colors = Array.isArray(req.body.colors) ? req.body.colors : [];
+    }
+
+    product.thumbnailImage = req.body.thumbnailImage ?? product.thumbnailImage;
+    product.images = req.body.images ?? product.images;
+    product.fabricId = req.body.fabricId ?? product.fabricId;
+    product.tailorShopId = req.body.tailorShopId !== undefined ? req.body.tailorShopId : product.tailorShopId;
+    product.designId = req.body.designId !== undefined ? req.body.designId : product.designId;
+
+    product.fabricType = req.body.fabricType ?? product.fabricType;
+    product.fabricTypeAr = req.body.fabricTypeAr ?? product.fabricTypeAr;
+    product.tailorName = req.body.tailorName ?? product.tailorName;
+    product.tailorNameAr = req.body.tailorNameAr ?? product.tailorNameAr;
+
+    product.metersPerFabric = req.body.metersPerFabric ?? product.metersPerFabric;
+    product.fabricPriceAED = req.body.fabricPriceAED ?? product.fabricPriceAED;
+    product.mukhawarPriceAED = req.body.mukhawarPriceAED ?? product.mukhawarPriceAED;
+    product.finalSellingPriceAED = req.body.finalSellingPriceAED ?? product.finalSellingPriceAED;
+    product.availableFabricStock = req.body.availableFabricStock ?? product.availableFabricStock;
+    product.isActive = req.body.isActive ?? product.isActive;
+
+    product.size = req.body.size ?? product.size;
+    product.style = req.body.style ?? product.style;
+    product.city = req.body.city ?? product.city;
+    product.returnReason = req.body.returnReason ?? product.returnReason;
+    product.condition = req.body.condition ?? product.condition;
+    product.countInStock = req.body.countInStock ?? product.countInStock;
+
+    const updatedProduct = await product.save();
+    res.json(updatedProduct);
+  })
+);
+
+// DELETE /api/fabric/ready-made/:id
+fabricPortalRouter.delete(
+  "/ready-made/:id",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      return;
+    }
+
+    const product = await ReadyMadeProduct.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    if (product) {
+      await product.deleteOne();
+      res.json({ message: "Ready-made product deleted" });
+    } else {
+      res.status(404).json({ message: "Ready-made product not found" });
+    }
+  })
+);
+
+// ==========================================
+// Fabric Portal Add-Ons CRUD
+// ==========================================
+
+// GET /api/fabric/addons
+fabricPortalRouter.get(
+  "/addons",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      return;
+    }
+    const addons = await AddOn.find({ fabricShopId: shop._id }).sort({ createdAt: -1 });
+    res.json(addons);
+  })
+);
+
+// GET /api/fabric/addons/:id
+fabricPortalRouter.get(
+  "/addons/:id",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      return;
+    }
+    const addon = await AddOn.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    if (!addon) {
+      res.status(404).json({ success: false, message: "Addon not found" });
+      return;
+    }
+    res.json(addon);
+  })
+);
+
+// POST /api/fabric/addons
+fabricPortalRouter.post(
+  "/addons",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      return;
+    }
+
+    const {
+      name,
+      nameAr,
+      description,
+      descriptionAr,
+      price,
+      stock,
+      thumbnailImage,
+      images,
+      tag,
+      tagAr,
+      isActive,
+    } = req.body;
+
+    let slug = req.body.slug?.trim();
+    if (!slug) {
+      const base = name || nameAr || "addon";
+      slug = base
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    }
+
+    const addon = new AddOn({
+      name,
+      nameAr,
+      slug,
+      description,
+      descriptionAr,
+      price,
+      stock,
+      thumbnailImage,
+      images: Array.isArray(images) ? images : [],
+      tag,
+      tagAr,
+      isActive: isActive !== undefined ? isActive : true,
+      fabricShopId: shop._id,
+    });
+
+    const savedAddon = await addon.save();
+    res.status(201).json(savedAddon);
+  })
+);
+
+// PUT /api/fabric/addons/:id
+fabricPortalRouter.put(
+  "/addons/:id",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      return;
+    }
+
+    const addon = await AddOn.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    if (!addon) {
+      res.status(404).json({ success: false, message: "Addon not found" });
+      return;
+    }
+
+    const {
+      name,
+      nameAr,
+      slug,
+      description,
+      descriptionAr,
+      price,
+      stock,
+      thumbnailImage,
+      images,
+      tag,
+      tagAr,
+      isActive,
+    } = req.body;
+
+    addon.name = name ?? addon.name;
+    addon.nameAr = nameAr ?? addon.nameAr;
+    addon.slug = slug ?? addon.slug;
+    addon.description = description ?? addon.description;
+    addon.descriptionAr = descriptionAr ?? addon.descriptionAr;
+    addon.price = price ?? addon.price;
+    addon.stock = stock ?? addon.stock;
+    addon.thumbnailImage = thumbnailImage ?? addon.thumbnailImage;
+    addon.images = images ?? addon.images;
+    addon.tag = tag ?? addon.tag;
+    addon.tagAr = tagAr ?? addon.tagAr;
+    addon.isActive = isActive !== undefined ? isActive : addon.isActive;
+
+    const updatedAddon = await addon.save();
+    res.json(updatedAddon);
+  })
+);
+
+// DELETE /api/fabric/addons/:id
+fabricPortalRouter.delete(
+  "/addons/:id",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      return;
+    }
+
+    const addon = await AddOn.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    if (addon) {
+      await addon.deleteOne();
+      res.json({ message: "Addon deleted successfully" });
+    } else {
+      res.status(404).json({ message: "Addon not found" });
+    }
+  })
+);
+
+// PATCH /api/fabric/addons/:id/toggle-active
+fabricPortalRouter.patch(
+  "/addons/:id/toggle-active",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      return;
+    }
+
+    const addon = await AddOn.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    if (!addon) {
+      res.status(404).json({ success: false, message: "Addon not found" });
+      return;
+    }
+
+    addon.isActive = !addon.isActive;
+    await addon.save();
+    res.json({
+      success: true,
+      message: `Addon ${addon.isActive ? "activated" : "deactivated"} successfully`,
+      isActive: addon.isActive,
+    });
+  })
 );
 
 export default fabricPortalRouter;
