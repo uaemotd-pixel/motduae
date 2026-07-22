@@ -25,6 +25,7 @@ export interface CustomOrderDesignSummary {
   nameAr?: string;
   slug?: string;
   category?: string;
+  images?: string[];
 }
 
 export interface CustomOrderTailorSummary {
@@ -38,6 +39,7 @@ export interface CustomOrderFabricSummary {
   name: string;
   nameAr?: string;
   material?: string;
+  images?: string[];
 }
 
 export interface CustomOrderLineItemSummary {

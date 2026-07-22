@@ -261,7 +261,7 @@ function formatTailorShopSummary(tailorShop) {
   };
 }
 
-function formatDesignSummary(snapshot) {
+function formatDesignSummary(snapshot, designIdDoc) {
   if (!snapshot) return null;
 
   return {
@@ -269,24 +269,26 @@ function formatDesignSummary(snapshot) {
     nameAr: snapshot.nameAr || "",
     slug: snapshot.slug || "",
     category: snapshot.category || "",
+    images: (designIdDoc && designIdDoc.images) || [],
   };
 }
 
-function formatFabricSummary(snapshot) {
+function formatFabricSummary(snapshot, fabricIdDoc) {
   if (!snapshot) return null;
 
   return {
     name: snapshot.name,
     nameAr: snapshot.nameAr || "",
     material: snapshot.material || "",
+    images: (fabricIdDoc && fabricIdDoc.images) || [],
   };
 }
 
 function formatCustomOrderLineItems(order) {
   if (Array.isArray(order.items) && order.items.length > 0) {
     return order.items.map((item) => ({
-      design: formatDesignSummary(item.designSnapshot),
-      fabric: formatFabricSummary(item.fabricSnapshot),
+      design: formatDesignSummary(item.designSnapshot, item.designId),
+      fabric: formatFabricSummary(item.fabricSnapshot, item.fabricId),
       fabricMeters: item.fabricMeters,
       tailorShop: formatTailorShopSummary(item.tailorShopId),
     }));
@@ -296,8 +298,8 @@ function formatCustomOrderLineItems(order) {
 
   return [
     {
-      design: formatDesignSummary(order.designSnapshot),
-      fabric: formatFabricSummary(order.fabricSnapshot),
+      design: formatDesignSummary(order.designSnapshot, order.designId),
+      fabric: formatFabricSummary(order.fabricSnapshot, order.fabricId),
       fabricMeters: order.fabricMeters,
       tailorShop: formatTailorShopSummary(order.tailorShopId),
     },
@@ -791,8 +793,12 @@ orderRoutes.get("/custom/mine", isAuth, async (req, res) => {
       .sort({ createdAt: -1 })
       .populate("tailorShopId", "name nameAr slug")
       .populate("items.tailorShopId", "name nameAr slug")
+      .populate("designId", "images")
+      .populate("fabricId", "images")
+      .populate("items.designId", "images")
+      .populate("items.fabricId", "images")
       .select(
-        "_id createdAt status fabricSource designSnapshot fabricSnapshot fabricMeters pricing tailorShopId userId items addons",
+        "_id createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters pricing tailorShopId userId items addons",
       );
 
     const formatted = orders.map((order) => {
