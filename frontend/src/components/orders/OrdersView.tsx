@@ -1,12 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import CustomOrdersTab from "@/components/orders/CustomOrdersTab";
-import RetailOrdersTab from "@/components/orders/RetailOrdersTab";
-
-type OrdersTab = "custom" | "retail";
 
 type OrdersViewProps = {
   embedded?: boolean;
@@ -17,22 +13,10 @@ type OrdersViewProps = {
 export default function OrdersView({
   embedded = false,
   initialOrderId = null,
-  initialOrderType = null,
 }: OrdersViewProps) {
   const t = useTranslations("OrdersPage");
   const params = useParams();
   const locale = params.locale === "ar" ? "ar" : "en";
-  const [activeTab, setActiveTab] = useState<OrdersTab>(
-    initialOrderType === "retail" ? "retail" : "custom",
-  );
-
-  useEffect(() => {
-    if (initialOrderType === "retail") {
-      setActiveTab("retail");
-    } else if (initialOrderType === "custom") {
-      setActiveTab("custom");
-    }
-  }, [initialOrderType]);
 
   return (
     <div
@@ -64,38 +48,8 @@ export default function OrdersView({
         </div>
       )}
 
-      <div className="flex gap-1.5 sm:gap-2 mb-6 sm:mb-8 overflow-x-auto pb-2 scrollbar-hide">
-        <button
-          type="button"
-          onClick={() => setActiveTab("custom")}
-          className={`px-3 sm:px-4 py-1.5 sm:py-2 border text-[8px] sm:text-[10px] uppercase tracking-[0.18em] sm:tracking-[0.22em] whitespace-nowrap [font-family:var(--font-ui)] transition-all hover:cursor-pointer ${
-            activeTab === "custom"
-              ? "bg-black text-white border-black"
-              : "text-black border-(--color-border) hover:border-black"
-          }`}
-        >
-          {t("tabs.custom")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("retail")}
-          className={`px-3 sm:px-4 py-1.5 sm:py-2 border text-[8px] sm:text-[10px] uppercase tracking-[0.18em] sm:tracking-[0.22em] whitespace-nowrap [font-family:var(--font-ui)] transition-all hover:cursor-pointer ${
-            activeTab === "retail"
-              ? "bg-black text-white border-black"
-              : "text-black border-(--color-border) hover:border-black"
-          }`}
-        >
-          {t("tabs.retail")}
-        </button>
-      </div>
-
       <div className="min-h-60 sm:min-h-72 lg:min-h-80">
-        {activeTab === "custom" && (
-          <CustomOrdersTab locale={locale} initialOrderId={initialOrderId} />
-        )}
-        {activeTab === "retail" && (
-          <RetailOrdersTab locale={locale} initialOrderId={initialOrderId} />
-        )}
+        <CustomOrdersTab locale={locale} initialOrderId={initialOrderId} />
       </div>
     </div>
   );
