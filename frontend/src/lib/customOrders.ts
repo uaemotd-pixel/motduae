@@ -67,6 +67,19 @@ export interface CustomOrderListItem {
     price: number;
     thumbnailImage: string;
   }>;
+  pricing?: {
+    designBase: number;
+    fabricMeters: number;
+    fabricPricePerMeter: number;
+    fabricCost: number;
+    tailoringFee: number;
+    deliveryFee: number;
+    subtotal: number;
+    vatRate: number;
+    vatAmount: number;
+    total: number;
+    currency: string;
+  } | null;
 }
 
 export interface CustomOrderStatusHistoryEntry {
@@ -105,12 +118,25 @@ export type RetailOrderListItem = {
   status: string;
   totalPrice: number;
   currency: string;
+  itemsPrice?: number;
+  shippingPrice?: number;
+  vatAmount?: number;
+  vatRate?: number;
   items: Array<{
     name: string;
+    nameAr?: string;
     image: string;
     size?: string;
     price: number;
     quantity: number;
+    fabricName?: string;
+    fabricNameAr?: string;
+    fabricImage?: string;
+    fabricSlug?: string;
+    designName?: string;
+    designNameAr?: string;
+    designImage?: string;
+    designSlug?: string;
   }>;
 };
 
