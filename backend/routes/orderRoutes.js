@@ -820,6 +820,7 @@ orderRoutes.get("/custom/mine", isAuth, async (req, res) => {
           primaryItem?.tailorShop ??
           formatTailorShopSummary(order.tailorShopId),
         addons: order.addons || [],
+        pricing: order.pricing || null,
       };
     });
 
@@ -1000,7 +1001,15 @@ orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
   try {
     const orders = await RetailOrder.find({ userId: req.user._id })
       .sort({ createdAt: -1 })
-      .select("_id createdAt status totalPrice currency orderItems");
+      .populate({
+        path: "orderItems.productId",
+        select: "name nameAr thumbnailImage fabricType fabricTypeAr fabricId designId",
+        populate: [
+          { path: "fabricId", select: "name nameAr images slug" },
+          { path: "designId", select: "name nameAr images slug" },
+        ],
+      })
+      .select("_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate");
 
     const formatted = orders.map((order) => ({
       id: order._id,
@@ -1008,14 +1017,32 @@ orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
       status: order.status,
       totalPrice: order.totalPrice,
       currency: order.currency,
+      itemsPrice: order.itemsPrice,
+      shippingPrice: order.shippingPrice,
+      vatAmount: order.vatAmount,
+      vatRate: order.vatRate,
       items:
-        order.orderItems?.map((item) => ({
-          name: item.name,
-          image: item.image,
-          size: item.size,
-          price: item.price,
-          quantity: item.quantity,
-        })) || [],
+        order.orderItems?.map((item) => {
+          const product = item.productId || {};
+          const fabric = product.fabricId || {};
+          const design = product.designId || {};
+          return {
+            name: item.name,
+            nameAr: item.nameAr,
+            image: item.image,
+            size: item.size,
+            price: item.price,
+            quantity: item.quantity,
+            fabricName: fabric.name || product.fabricType || "",
+            fabricNameAr: fabric.nameAr || product.fabricTypeAr || "",
+            fabricImage: fabric.images?.[0] || "",
+            fabricSlug: fabric.slug || "",
+            designName: design.name || product.name || "",
+            designNameAr: design.nameAr || product.nameAr || "",
+            designImage: design.images?.[0] || product.thumbnailImage || "",
+            designSlug: design.slug || "",
+          };
+        }) || [],
     }));
 
     res.json({ success: true, orders: formatted });
