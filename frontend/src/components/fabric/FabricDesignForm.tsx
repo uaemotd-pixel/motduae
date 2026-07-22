@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronDown } from "lucide-react";
 import { Link, useRouter } from "@/i18n/navigation";
 import FormField from "@/components/admin/FormField";
 import FabricImageUpload from "@/components/admin/FabricImageUpload";
@@ -37,38 +39,38 @@ type FabricDesignFormProps = {
 type FieldKey = keyof FabricFormData;
 
 const TOAST_BASE = {
-    position: "top-right" as const,
-    duration: 6000,
-    style: {
-        fontFamily: "var(--font-body)",
-        fontSize: "13px",
-        letterSpacing: "0.04em",
-        borderRadius: "0",
-        padding: "14px 18px",
-        maxWidth: "360px",
-    },
+  position: "top-right" as const,
+  duration: 6000,
+  style: {
+    fontFamily: "var(--font-body)",
+    fontSize: "13px",
+    letterSpacing: "0.04em",
+    borderRadius: "0",
+    padding: "14px 18px",
+    maxWidth: "360px",
+  },
 };
 
 const SUCCESS_TOAST = {
-    ...TOAST_BASE,
-    style: {
-        ...TOAST_BASE.style,
-        background: "#f0fdf4",
-        color: "#166534",
-        border: "1px solid #86efac",
-    },
-    iconTheme: { primary: "#16a34a", secondary: "#ffffff" },
+  ...TOAST_BASE,
+  style: {
+    ...TOAST_BASE.style,
+    background: "#f0fdf4",
+    color: "#166534",
+    border: "1px solid #86efac",
+  },
+  iconTheme: { primary: "#16a34a", secondary: "#ffffff" },
 };
 
 const ERROR_TOAST = {
-    ...TOAST_BASE,
-    style: {
-        ...TOAST_BASE.style,
-        background: "#fef2f2",
-        color: "#991b1b",
-        border: "1px solid #fca5a5",
-    },
-    iconTheme: { primary: "#dc2626", secondary: "#ffffff" },
+  ...TOAST_BASE,
+  style: {
+    ...TOAST_BASE.style,
+    background: "#fef2f2",
+    color: "#991b1b",
+    border: "1px solid #fca5a5",
+  },
+  iconTheme: { primary: "#dc2626", secondary: "#ffffff" },
 };
 
 export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
@@ -80,12 +82,25 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [shopMissing, setShopMissing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Partial<Record<string, string>>>({});
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<string, string>>
+  >({});
   const [formData, setFormData] = useState<FabricFormData>(emptyFabricForm());
   const [slugTouched, setSlugTouched] = useState(false);
   const [shopName, setShopName] = useState<string>("");
   const [isColorDropdownOpen, setIsColorDropdownOpen] = useState(false);
+  const [isMaterialDropdownOpen, setIsMaterialDropdownOpen] = useState(false);
+  const [isMaterialArDropdownOpen, setIsMaterialArDropdownOpen] =
+    useState(false);
+  const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
+  const [isTagArDropdownOpen, setIsTagArDropdownOpen] = useState(false);
+  const [isEmirateDropdownOpen, setIsEmirateDropdownOpen] = useState(false);
   const colorDropdownRef = useRef<HTMLDivElement>(null);
+  const materialDropdownRef = useRef<HTMLDivElement>(null);
+  const materialArDropdownRef = useRef<HTMLDivElement>(null);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
+  const tagArDropdownRef = useRef<HTMLDivElement>(null);
+  const emirateDropdownRef = useRef<HTMLDivElement>(null);
   const formActionsRef = useRef<HTMLDivElement>(null);
   const previousImageCountRef = useRef(formData.images.length);
 
@@ -108,6 +123,36 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         !colorDropdownRef.current.contains(event.target as Node)
       ) {
         setIsColorDropdownOpen(false);
+      }
+      if (
+        materialDropdownRef.current &&
+        !materialDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsMaterialDropdownOpen(false);
+      }
+      if (
+        materialArDropdownRef.current &&
+        !materialArDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsMaterialArDropdownOpen(false);
+      }
+      if (
+        tagDropdownRef.current &&
+        !tagDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsTagDropdownOpen(false);
+      }
+      if (
+        tagArDropdownRef.current &&
+        !tagArDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsTagArDropdownOpen(false);
+      }
+      if (
+        emirateDropdownRef.current &&
+        !emirateDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsEmirateDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -159,10 +204,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     };
   }, [fabricId, isEditMode, t]);
 
-  const handleChange = (
-    field: FieldKey,
-    value: unknown,
-  ) => {
+  const handleChange = (field: FieldKey, value: unknown) => {
     setFormData((prev) => {
       const next = { ...prev, [field]: value } as FabricFormData;
 
@@ -270,7 +312,8 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     if (!formData.storePickupAddress.phone.trim()) {
       errors["storePickupAddress.phone"] = "Phone is required";
     } else if (!/^\d{9}$/.test(formData.storePickupAddress.phone.trim())) {
-      errors["storePickupAddress.phone"] = "Phone number must be exactly 9 digits";
+      errors["storePickupAddress.phone"] =
+        "Phone number must be exactly 9 digits";
     }
 
     setFieldErrors(errors);
@@ -450,18 +493,56 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
               error={fieldErrors.material}
               required
             >
-              <select
-                value={formData.material}
-                onChange={(e) => handleChange("material", e.target.value)}
-                className={`${INPUT_CLASS} cursor-pointer`}
-              >
-                <option value="">Select material</option>
-                {FABRIC_MATERIALS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.en}
-                  </option>
-                ))}
-              </select>
+              <div className="relative" ref={materialDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsMaterialDropdownOpen((prev) => !prev)}
+                  className={`${INPUT_CLASS} cursor-pointer text-left flex items-center justify-between gap-2`}
+                >
+                  <span className="truncate">
+                    {formData.material ? (
+                      FABRIC_MATERIALS.find(
+                        (m) => m.value === formData.material,
+                      )?.en
+                    ) : (
+                      <span className="text-xs text-black/60">
+                        Select material
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`shrink-0 text-black/40 transition-transform duration-200 ${isMaterialDropdownOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                <AnimatePresence>
+                  {isMaterialDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden"
+                    >
+                      <div className="max-h-44 overflow-auto">
+                        {FABRIC_MATERIALS.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              handleChange("material", opt.value);
+                              setIsMaterialDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-[13px] hover:bg-neutral-50 transition ${formData.material === opt.value ? "bg-neutral-100 font-medium" : ""}`}
+                          >
+                            {opt.en}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </FormField>
 
             {/* MATERIAL (AR) */}
@@ -471,19 +552,55 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
               error={fieldErrors.materialAr}
               required
             >
-              <select
-                value={formData.materialAr}
-                onChange={(e) => handleChange("materialAr", e.target.value)}
-                className={`${INPUT_CLASS} text-right cursor-pointer`}
-                dir="rtl"
-              >
-                <option value="">اختر النوع</option>
-                {FABRIC_MATERIALS.map((opt) => (
-                  <option key={opt.value} value={opt.ar}>
-                    {opt.ar}
-                  </option>
-                ))}
-              </select>
+              <div className="relative" ref={materialArDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsMaterialArDropdownOpen((prev) => !prev)}
+                  className={`${INPUT_CLASS} cursor-pointer text-right flex items-center justify-between gap-2`}
+                  dir="rtl"
+                >
+                  <span className="truncate">
+                    {formData.materialAr ? (
+                      FABRIC_MATERIALS.find((m) => m.ar === formData.materialAr)
+                        ?.ar
+                    ) : (
+                      <span className="text-xs text-black/60">اختر النوع</span>
+                    )}
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`shrink-0 text-black/40 transition-transform duration-200 ${isMaterialArDropdownOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                <AnimatePresence>
+                  {isMaterialArDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden"
+                      dir="rtl"
+                    >
+                      <div className="max-h-44 overflow-auto">
+                        {FABRIC_MATERIALS.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              handleChange("materialAr", opt.ar);
+                              setIsMaterialArDropdownOpen(false);
+                            }}
+                            className={`w-full text-right px-3 py-2 text-[13px] hover:bg-neutral-50 transition ${formData.materialAr === opt.ar ? "bg-neutral-100 font-medium" : ""}`}
+                          >
+                            {opt.ar}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </FormField>
 
             {/* COLORS */}
@@ -497,7 +614,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 <button
                   type="button"
                   onClick={() => setIsColorDropdownOpen((prev) => !prev)}
-                  className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent min-h-7 flex items-center cursor-pointer"
+                  className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent min-h-7 flex items-center justify-between gap-2 cursor-pointer"
                 >
                   {selectedColors.length === 0 ? (
                     <span className="text-xs text-black/60 leading-none">
@@ -521,87 +638,159 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                       ))}
                     </div>
                   )}
+                  <ChevronDown
+                    size={14}
+                    className={`shrink-0 text-black/40 transition-transform duration-200 ${isColorDropdownOpen ? "rotate-180" : ""}`}
+                  />
                 </button>
 
-                {isColorDropdownOpen && (
-                  <div className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm p-3 z-50">
-                    <div className="max-h-44 overflow-auto flex flex-col gap-2">
-                      {COLOR_OPTIONS.map((opt) => {
-                        const selected = selectedColors.includes(opt.value);
-                        return (
-                          <label
-                            key={opt.value}
-                            className="flex items-center gap-2 cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selected}
-                              onChange={() => toggleColor(opt.value)}
-                              className="accent-black"
-                            />
-                            <span className="inline-flex items-center gap-2">
-                              <span
-                                className="w-4 h-4 rounded-full border border-gray-200"
-                                style={{ backgroundColor: opt.value }}
+                <AnimatePresence>
+                  {isColorDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm p-3 z-50 origin-top"
+                    >
+                      <div className="max-h-44 overflow-auto flex flex-col gap-2">
+                        {COLOR_OPTIONS.map((opt) => {
+                          const selected = selectedColors.includes(opt.value);
+                          return (
+                            <label
+                              key={opt.value}
+                              className="flex items-center gap-2 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => toggleColor(opt.value)}
+                                className="accent-black"
                               />
-                              <span className="text-xs">
-                                {opt.en} / {opt.ar}
+                              <span className="inline-flex items-center gap-2">
+                                <span
+                                  className="w-4 h-4 rounded-full border border-gray-200"
+                                  style={{ backgroundColor: opt.value }}
+                                />
+                                <span className="text-xs">
+                                  {opt.en} / {opt.ar}
+                                </span>
                               </span>
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </FormField>
-          </div>
-
-          {/* STORE PARTNER (Extract from store profile, read-only) */}
-          <div className="md:col-span-2">
-            <FormField label="STORE PARTNER" name="storePartner" required>
-              <input
-                type="text"
-                value={shopName}
-                readOnly
-                disabled
-                className={`${INPUT_CLASS} opacity-60 bg-gray-50 cursor-not-allowed`}
-              />
             </FormField>
           </div>
 
           {/* TAG (EN) */}
           <FormField label="TAG (EN)" name="tag" error={fieldErrors.tag}>
-            <select
-              value={formData.tag}
-              onChange={(e) => handleChange("tag", e.target.value)}
-              className={`${INPUT_CLASS} cursor-pointer`}
-            >
-              <option value="">Select tag (optional)</option>
-              {FABRIC_TAGS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.en}
-                </option>
-              ))}
-            </select>
+            <div className="relative" ref={tagDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsTagDropdownOpen((prev) => !prev)}
+                className={`${INPUT_CLASS} cursor-pointer text-left flex items-center justify-between gap-2`}
+              >
+                <span className="truncate">
+                  {formData.tag ? (
+                    FABRIC_TAGS.find((m) => m.value === formData.tag)?.en
+                  ) : (
+                    <span className="text-xs text-black/60">
+                      Select tag (optional)
+                    </span>
+                  )}
+                </span>
+                <ChevronDown
+                  size={14}
+                  className={`shrink-0 text-black/40 transition-transform duration-200 ${isTagDropdownOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              <AnimatePresence>
+                {isTagDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden"
+                  >
+                    <div className="max-h-44 overflow-auto">
+                      {FABRIC_TAGS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            handleChange("tag", opt.value);
+                            setIsTagDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-[13px] hover:bg-neutral-50 transition ${formData.tag === opt.value ? "bg-neutral-100 font-medium" : ""}`}
+                        >
+                          {opt.en}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </FormField>
 
           {/* TAG (AR) */}
           <FormField label="TAG (AR)" name="tagAr" error={fieldErrors.tagAr}>
-            <select
-              value={formData.tagAr}
-              onChange={(e) => handleChange("tagAr", e.target.value)}
-              className={`${INPUT_CLASS} text-right cursor-pointer`}
-              dir="rtl"
-            >
-              <option value="">اختر الوسم (اختياري)</option>
-              {FABRIC_TAGS.map((opt) => (
-                <option key={opt.value} value={opt.ar}>
-                  {opt.ar}
-                </option>
-              ))}
-            </select>
+            <div className="relative" ref={tagArDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsTagArDropdownOpen((prev) => !prev)}
+                className={`${INPUT_CLASS} cursor-pointer text-right flex items-center justify-between gap-2`}
+                dir="rtl"
+              >
+                <span className="truncate">
+                  {formData.tagAr ? (
+                    FABRIC_TAGS.find((m) => m.ar === formData.tagAr)?.ar
+                  ) : (
+                    <span className="text-xs text-black/60">
+                      اختر الوسم (اختياري)
+                    </span>
+                  )}
+                </span>
+                <ChevronDown
+                  size={14}
+                  className={`shrink-0 text-black/40 transition-transform duration-200 ${isTagArDropdownOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              <AnimatePresence>
+                {isTagArDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden"
+                    dir="rtl"
+                  >
+                    <div className="max-h-44 overflow-auto">
+                      {FABRIC_TAGS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            handleChange("tagAr", opt.ar);
+                            setIsTagArDropdownOpen(false);
+                          }}
+                          className={`w-full text-right px-3 py-2 text-[13px] hover:bg-neutral-50 transition ${formData.tagAr === opt.ar ? "bg-neutral-100 font-medium" : ""}`}
+                        >
+                          {opt.ar}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </FormField>
 
           {/* PRICE PER METER (AED) */}
@@ -619,6 +808,19 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 const val = e.target.value;
                 if (val === "" || /^\d*\.?\d*$/.test(val)) {
                   handleChange("pricePerMeter", val);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  const current = Number(formData.pricePerMeter) || 0;
+                  const next = parseFloat((current + 0.01).toFixed(2));
+                  handleChange("pricePerMeter", next);
+                } else if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  const current = Number(formData.pricePerMeter) || 0;
+                  const next = Math.max(0, current - 0.01);
+                  handleChange("pricePerMeter", parseFloat(next.toFixed(2)));
                 }
               }}
               className={INPUT_CLASS}
@@ -643,6 +845,18 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                   handleChange("stockInMeters", val);
                 }
               }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  const current = Number(formData.stockInMeters) || 0;
+                  handleChange("stockInMeters", current + 1);
+                } else if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  const current = Number(formData.stockInMeters) || 0;
+                  const next = Math.max(0, current - 1);
+                  handleChange("stockInMeters", next);
+                }
+              }}
               className={INPUT_CLASS}
               placeholder="e.g., 100"
             />
@@ -661,18 +875,62 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 error={fieldErrors["storePickupAddress.emirate"]}
                 required
               >
-                <select
-                  value={formData.storePickupAddress.emirate}
-                  onChange={(e) => handlePickupChange("emirate", e.target.value)}
-                  className={`${INPUT_CLASS} cursor-pointer`}
-                >
-                  <option value="">Select emirate</option>
-                  {UAE_EMIRATES.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.en} / {opt.ar}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative" ref={emirateDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsEmirateDropdownOpen((prev) => !prev)}
+                    className={`${INPUT_CLASS} cursor-pointer text-left flex items-center justify-between gap-2`}
+                  >
+                    <span className="truncate">
+                      {formData.storePickupAddress.emirate ? (
+                        (() => {
+                          const found = UAE_EMIRATES.find(
+                            (e) =>
+                              e.value === formData.storePickupAddress.emirate,
+                          );
+                          return found
+                            ? `${found.en} / ${found.ar}`
+                            : formData.storePickupAddress.emirate;
+                        })()
+                      ) : (
+                        <span className="text-xs text-black/60">
+                          Select emirate
+                        </span>
+                      )}
+                    </span>
+                    <ChevronDown
+                      size={14}
+                      className={`shrink-0 text-black/40 transition-transform duration-200 ${isEmirateDropdownOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  <AnimatePresence>
+                    {isEmirateDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden"
+                      >
+                        <div className="max-h-44 overflow-auto">
+                          {UAE_EMIRATES.map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => {
+                                handlePickupChange("emirate", opt.value);
+                                setIsEmirateDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 text-[13px] hover:bg-neutral-50 transition ${formData.storePickupAddress.emirate === opt.value ? "bg-neutral-100 font-medium" : ""}`}
+                            >
+                              {opt.en} / {opt.ar}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </FormField>
 
               {/* CITY */}
@@ -717,7 +975,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 <input
                   type="text"
                   value={formData.storePickupAddress.building}
-                  onChange={(e) => handlePickupChange("building", e.target.value)}
+                  onChange={(e) =>
+                    handlePickupChange("building", e.target.value)
+                  }
                   className={INPUT_CLASS}
                   placeholder="e.g., Al Fattan Tower"
                 />
@@ -738,7 +998,10 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                     value={formData.storePickupAddress.phone}
                     onChange={(e) => {
                       const val = e.target.value;
-                      if ((val === "" || /^\d*$/.test(val)) && val.length <= 9) {
+                      if (
+                        (val === "" || /^\d*$/.test(val)) &&
+                        val.length <= 9
+                      ) {
                         handlePickupChange("phone", val);
                       }
                     }}
@@ -770,7 +1033,10 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
               <p className="text-xs text-red-500 mb-2">{fieldErrors.images}</p>
             )}
             {formData.images.map((url, idx) => (
-              <div key={idx} className="mb-4 p-4 border border-gray-100 rounded-lg">
+              <div
+                key={idx}
+                className="mb-4 p-4 border border-gray-100 rounded-lg"
+              >
                 <FabricImageUpload
                   value={url}
                   onChange={(val) => handleImageChange(idx, val)}
@@ -804,7 +1070,10 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                   onChange={(e) => handleChange("isActive", e.target.checked)}
                   className="w-4 h-4 accent-black cursor-pointer"
                 />
-                <label htmlFor="isActive" className="text-sm text-gray-700 cursor-pointer">
+                <label
+                  htmlFor="isActive"
+                  className="text-sm text-gray-700 cursor-pointer"
+                >
                   Product is active (visible to customers)
                 </label>
               </div>

@@ -50,7 +50,7 @@ interface CustomOrderItem {
 
 interface Order {
   _id: string;
-  userId: OrderUser | string;
+  userId: OrderUser | string | null;
   status: string;
   createdAt: string;
   pricing: {
@@ -128,11 +128,14 @@ export default function FabricDashboardPage() {
 
   const formatOrderDateLocal = (dateStr: string) => {
     if (!dateStr) return "";
-    return new Date(dateStr).toLocaleDateString(locale === "ar" ? "ar-AE" : "en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    return new Date(dateStr).toLocaleDateString(
+      locale === "ar" ? "ar-AE" : "en-US",
+      {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      },
+    );
   };
 
   const filteredPricingOrders = useMemo(() => {
@@ -140,11 +143,15 @@ export default function FabricDashboardPage() {
       if (pricingSearch.trim()) {
         const term = pricingSearch.toLowerCase();
         const customerName = readPartnerName(
-          typeof order.userId === "object" ? order.userId : null,
+          order.userId && typeof order.userId === "object"
+            ? order.userId
+            : null,
           "",
         ).toLowerCase();
         const customerEmail = (
-          typeof order.userId === "object" ? order.userId.email || "" : ""
+          order.userId && typeof order.userId === "object"
+            ? order.userId.email || ""
+            : ""
         ).toLowerCase();
         const orderIdHex = order._id.toLowerCase();
         return (
@@ -216,7 +223,9 @@ export default function FabricDashboardPage() {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder={isAr ? "البحث عن عميل أو طلب..." : "Search customer or order..."}
+              placeholder={
+                isAr ? "البحث عن عميل أو طلب..." : "Search customer or order..."
+              }
               value={pricingSearch}
               onChange={(e) => setPricingSearch(e.target.value)}
               className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:border-black text-black bg-white transition"
@@ -233,9 +242,14 @@ export default function FabricDashboardPage() {
           </div>
         ) : filteredPricingOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <PackageSearch className="w-12 h-12 text-gray-300 mb-3" strokeWidth={1} />
+            <PackageSearch
+              className="w-12 h-12 text-gray-300 mb-3"
+              strokeWidth={1}
+            />
             <p className="text-xs text-gray-400">
-              {isAr ? "لا توجد طلبات متطابقة." : "No orders found matching filters."}
+              {isAr
+                ? "لا توجد طلبات متطابقة."
+                : "No orders found matching filters."}
             </p>
           </div>
         ) : (
@@ -243,23 +257,32 @@ export default function FabricDashboardPage() {
             <table className="w-full border-collapse text-left text-xs text-gray-500">
               <thead className="bg-gray-50/70 text-[9px] uppercase tracking-wider text-gray-400 font-semibold border-b border-gray-100">
                 <tr>
-                  <th className="px-4 py-3">{isAr ? "رقم الطلب" : "Order ID"}</th>
+                  <th className="px-4 py-3">
+                    {isAr ? "رقم الطلب" : "Order ID"}
+                  </th>
                   <th className="px-4 py-3">{isAr ? "العميل" : "Customer"}</th>
                   <th className="px-4 py-3">{isAr ? "التاريخ" : "Date"}</th>
-                  <th className="px-4 py-3">{isAr ? "رسوم القماش" : "Fabric Fee"}</th>
+                  <th className="px-4 py-3">
+                    {isAr ? "رسوم القماش" : "Fabric Fee"}
+                  </th>
                   <th className="px-4 py-3">{isAr ? "الحالة" : "Status"}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredPricingOrders.map((order) => {
                   const customerName = readPartnerName(
-                    typeof order.userId === "object" ? order.userId : null,
+                    order.userId && typeof order.userId === "object"
+                      ? order.userId
+                      : null,
                     isAr ? "عميل غير معروف" : "Unknown Customer",
                   );
                   const fabricFee = getFabricFee(order);
 
                   return (
-                    <tr key={order._id} className="hover:bg-gray-50/50 transition-colors">
+                    <tr
+                      key={order._id}
+                      className="hover:bg-gray-50/50 transition-colors"
+                    >
                       <td className="px-4 py-3 font-mono font-medium text-black text-2xs">
                         #{order._id.slice(-8).toUpperCase()}
                       </td>
@@ -267,7 +290,7 @@ export default function FabricDashboardPage() {
                         <span className="font-medium text-black block">
                           {customerName}
                         </span>
-                        {typeof order.userId === "object" && (
+                        {order.userId && typeof order.userId === "object" && (
                           <span className="text-3xs text-gray-400 block mt-0.5">
                             {order.userId.email}
                           </span>
