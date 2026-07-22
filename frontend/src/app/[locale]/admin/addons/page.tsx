@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { Link } from "@/i18n/navigation";
@@ -12,8 +14,12 @@ import {
   AlertCircle,
   Search,
   RefreshCw,
+  MoreVertical,
+  Eye,
+  Image as ImageIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
 interface ToggleModalProps {
   isOpen: boolean;
@@ -91,9 +97,43 @@ export default function AdminAddOnsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [menuItem, setMenuItem] = useState<AddOnItem | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<AddOnItem | null>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuPosition(null);
+        setMenuItem(null);
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuPosition]);
+
+  // Close menu on escape
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuPosition(null);
+        setMenuItem(null);
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [menuPosition]);
 
   const fetchItems = async () => {
     try {
@@ -116,22 +156,26 @@ export default function AdminAddOnsPage() {
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
     try {
       const data = await api.patch<{ success: boolean; isActive: boolean }>(
-        `/api/admin/addons/${id}/toggle-active`
+        `/api/admin/addons/${id}/toggle-active`,
       );
       setItems((prev) =>
         prev.map((item) =>
-          item._id === id ? { ...item, isActive: data.isActive } : item
-        )
+          item._id === id ? { ...item, isActive: data.isActive } : item,
+        ),
       );
       toast.success(
-        `Add-on ${data.isActive ? "activated" : "deactivated"} successfully`
+        `Add-on ${data.isActive ? "activated" : "deactivated"} successfully`,
       );
+      setMenuPosition(null);
+      setMenuItem(null);
     } catch (err: any) {
       toast.error(getApiErrorMessage(err, "Failed to toggle status"));
     }
   };
 
   const openDeleteModal = (item: AddOnItem) => {
+    setMenuPosition(null);
+    setMenuItem(null);
     setItemToDelete(item);
     setModalOpen(true);
   };
@@ -168,11 +212,112 @@ export default function AdminAddOnsPage() {
     });
   }, [items, searchTerm]);
 
-  const activeCount = useMemo(() => items.filter((i) => i.isActive).length, [items]);
-  const inactiveCount = useMemo(() => items.filter((i) => !i.isActive).length, [items]);
+  const activeCount = useMemo(
+    () => items.filter((i) => i.isActive).length,
+    [items],
+  );
+  const inactiveCount = useMemo(
+    () => items.filter((i) => !i.isActive).length,
+    [items],
+  );
+
+  const getItemImage = (item: AddOnItem) => {
+    if (item.thumbnailImage) {
+      return (
+        <img
+          src={item.thumbnailImage}
+          alt={item.name}
+          className="w-10 h-10 rounded-lg object-cover"
+        />
+      );
+    }
+    return (
+      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+        <ImageIcon className="w-5 h-5 text-gray-400" />
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={modalOpen}
+        title="Delete Add-On?"
+        message={`Are you sure you want to delete "${itemToDelete?.name}"? This action is permanent and cannot be undone.`}
+        confirmLabel={deletingId ? "Deleting..." : "Delete"}
+        cancelLabel="Cancel"
+        onConfirm={handleDeleteConfirm}
+        onCancel={closeDeleteModal}
+        isLoading={!!deletingId}
+        isDanger={true}
+      />
+
+      {/* Floating Menu Portal */}
+      {menuPosition &&
+        menuItem &&
+        createPortal(
+          <AnimatePresence>
+            <motion.div
+              ref={menuRef}
+              style={{
+                position: "fixed",
+                top: menuPosition.top,
+                right: menuPosition.right,
+                zIndex: 50,
+              }}
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="w-fit bg-white rounded-xl shadow-lg border border-gray-200 py-1 px-2 overflow-hidden"
+            >
+              <Link
+                href={`/admin/addons/${menuItem._id}`}
+                onClick={() => {
+                  setMenuPosition(null);
+                  setMenuItem(null);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer"
+              >
+                <Eye className="w-4 h-4 shrink-0" />
+                <span>Details</span>
+              </Link>
+              <Link
+                href={`/admin/addons/${menuItem._id}`}
+                onClick={() => {
+                  setMenuPosition(null);
+                  setMenuItem(null);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer"
+              >
+                <Edit className="w-4 h-4 shrink-0" />
+                <span>Edit</span>
+              </Link>
+              <button
+                onClick={() =>
+                  handleToggleActive(menuItem._id, menuItem.isActive)
+                }
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 shrink-0" />
+                <span>{menuItem.isActive ? "Deactivate" : "Activate"}</span>
+              </button>
+              <div className="border-t border-gray-100 my-1"></div>
+              <button
+                onClick={() => {
+                  openDeleteModal(menuItem);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left hover:cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4 shrink-0" />
+                <span>Delete</span>
+              </button>
+            </motion.div>
+          </AnimatePresence>,
+          document.body,
+        )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -244,7 +389,9 @@ export default function AdminAddOnsPage() {
         <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
           <div>
-            <h4 className="text-sm font-medium text-red-800">Error Loading Add-Ons</h4>
+            <h4 className="text-sm font-medium text-red-800">
+              Error Loading Add-Ons
+            </h4>
             <p className="text-xs text-red-700 mt-1">{error}</p>
           </div>
         </div>
@@ -258,10 +405,15 @@ export default function AdminAddOnsPage() {
         </div>
       ) : filteredItems.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl py-16 px-4 text-center shadow-sm">
-          <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-3" strokeWidth={1} />
+          <Sparkles
+            className="w-12 h-12 text-gray-300 mx-auto mb-3"
+            strokeWidth={1}
+          />
           <h3 className="text-sm font-medium text-black">No Add-Ons Found</h3>
           <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto">
-            {searchTerm ? "No products match your search query." : "Start by adding your first addon product using the button above."}
+            {searchTerm
+              ? "No products match your search query."
+              : "Start by adding your first addon product using the button above."}
           </p>
         </div>
       ) : (
@@ -270,9 +422,8 @@ export default function AdminAddOnsPage() {
             <table className="w-full border-collapse text-left text-sm text-gray-500">
               <thead className="bg-gray-50/70 text-[10px] uppercase tracking-wider text-gray-400 font-semibold border-b border-gray-100">
                 <tr>
-                  <th className="px-6 py-4">Preview</th>
-                  <th className="px-6 py-4">Name (EN / AR)</th>
-                  <th className="px-6 py-4">Price (AED)</th>
+                  <th className="px-6 py-4">Name</th>
+                  <th className="px-6 py-4">Price</th>
                   <th className="px-6 py-4">Stock</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4 text-right">Actions</th>
@@ -281,59 +432,44 @@ export default function AdminAddOnsPage() {
               <tbody className="divide-y divide-gray-100">
                 {filteredItems.map((item) => (
                   <tr key={item._id} className="hover:bg-gray-50/50 transition">
-                    <td className="px-6 py-4">
-                      <div className="w-12 h-12 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden relative">
-                        <img
-                          src={item.thumbnailImage || "/placeholder.jpg"}
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                        />
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        {getItemImage(item)}
+                        <span className="text-sm font-medium text-black">
+                          {item.name || "—"}
+                        </span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="font-medium text-black block text-sm">
-                        {item.name}
-                      </span>
-                      <span className="text-xs text-gray-400 block mt-0.5">
-                        {item.nameAr}
-                      </span>
                     </td>
                     <td className="px-6 py-4 font-medium text-black">
                       {item.price.toFixed(2)}
                     </td>
-                    <td className="px-6 py-4 text-black">
-                      {item.stock}
-                    </td>
+                    <td className="px-6 py-4 text-black">{item.stock}</td>
                     <td className="px-6 py-4">
-                      <button
-                        onClick={() => handleToggleActive(item._id, item.isActive)}
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border hover:cursor-pointer transition-colors ${
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           item.isActive
-                            ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-                            : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                            ? "bg-white text-black border border-black/30"
+                            : "bg-gray-100 text-gray-500 border border-gray-200"
                         }`}
                       >
                         {item.isActive ? "Active" : "Inactive"}
-                      </button>
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link
-                          href={`/admin/addons/${item._id}`}
-                          className="p-1 text-gray-400 hover:text-black transition"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Link>
-                        <button
-                          onClick={() => openDeleteModal(item)}
-                          disabled={deletingId === item._id}
-                          className="p-1 text-gray-400 hover:text-red-600 transition disabled:opacity-50 hover:cursor-pointer"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setMenuPosition({
+                            top: rect.bottom + 8,
+                            right: window.innerWidth - rect.right,
+                          });
+                          setMenuItem(item);
+                        }}
+                        className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center"
+                        title="Actions"
+                      >
+                        <MoreVertical className="w-5 h-5 hover:cursor-pointer" />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -342,17 +478,6 @@ export default function AdminAddOnsPage() {
           </div>
         </div>
       )}
-
-      {/* Delete Confirmation Modal */}
-      <ToggleModal
-        isOpen={modalOpen}
-        title="Delete Add-On?"
-        message={`Are you sure you want to delete "${itemToDelete?.name}"? This action is permanent and cannot be undone.`}
-        confirmLabel="Delete Product"
-        cancelLabel="Cancel"
-        onConfirm={handleDeleteConfirm}
-        onCancel={closeDeleteModal}
-      />
     </div>
   );
 }

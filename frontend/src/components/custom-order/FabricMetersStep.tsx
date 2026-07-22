@@ -19,7 +19,6 @@ import {
   type CustomOrderLineItem,
   useOwnFabric,
   WARA_TO_METERS,
-  convertToMeters,
   type FabricUnit,
 } from "@/lib/customOrder";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
@@ -43,7 +42,6 @@ export default function FabricMetersStep() {
 
   const [addDesignId, setAddDesignId] = useState("");
   const [addFabricId, setAddFabricId] = useState("");
-  const [unit, setUnit] = useState<FabricUnit>("meters");
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -193,6 +191,60 @@ export default function FabricMetersStep() {
           total: CUSTOM_ORDER_TOTAL_STEPS,
         })}
       />
+
+      {availablePairs.length > 0 && (
+        <div className="border border-(--color-border) bg-[#FDFAF5] p-6 mb-8 max-w-2xl">
+          <h3 className="[font-family:var(--font-display)] text-[18px] mb-4">
+            {t("addItemTitle")}
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-black mb-2">
+                {t("selectDesign")}
+              </label>
+              <select
+                value={addDesignId}
+                onChange={(e) => setAddDesignId(e.target.value)}
+                className="w-full border border-(--color-border) bg-white px-3 py-2.5 [font-family:var(--font-body)] text-[14px]"
+              >
+                <option value="">{t("selectDesignPlaceholder")}</option>
+                {draft.selectedDesigns.map((design) => (
+                  <option key={design._id} value={design._id}>
+                    {getDisplayName(design.name, design.nameAr)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {!usingOwnFabric && (
+              <div>
+                <label className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-black mb-2">
+                  {t("selectFabric")}
+                </label>
+                <select
+                  value={addFabricId}
+                  onChange={(e) => setAddFabricId(e.target.value)}
+                  className="w-full border border-(--color-border) bg-white px-3 py-2.5 [font-family:var(--font-body)] text-[14px]"
+                >
+                  <option value="">{t("selectFabricPlaceholder")}</option>
+                  {draft.selectedFabrics.map((fabric) => (
+                    <option key={fabric._id} value={fabric._id}>
+                      {getDisplayName(fabric.name, fabric.nameAr)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleAddItem}
+            disabled={!addDesignId || (!usingOwnFabric && !addFabricId)}
+            className="px-6 py-2.5 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 [font-family:var(--font-ui)]"
+          >
+            {t("addItem")}
+          </button>
+        </div>
+      )}
 
       {(draft.selectedFabrics.length > 0 ||
         draft.selectedDesigns.length > 0) && (
@@ -353,60 +405,6 @@ export default function FabricMetersStep() {
         <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-10 text-(--color-grey-muted) mb-8">
           {t("noItemsYet")}
         </p>
-      )}
-
-      {availablePairs.length > 0 && (
-        <div className="border border-(--color-border) bg-[#FDFAF5] p-6 mb-8 max-w-2xl">
-          <h3 className="[font-family:var(--font-display)] text-[18px] mb-4">
-            {t("addItemTitle")}
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-black mb-2">
-                {t("selectDesign")}
-              </label>
-              <select
-                value={addDesignId}
-                onChange={(e) => setAddDesignId(e.target.value)}
-                className="w-full border border-(--color-border) bg-white px-3 py-2.5 [font-family:var(--font-body)] text-[14px]"
-              >
-                <option value="">{t("selectDesignPlaceholder")}</option>
-                {draft.selectedDesigns.map((design) => (
-                  <option key={design._id} value={design._id}>
-                    {getDisplayName(design.name, design.nameAr)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {!usingOwnFabric && (
-              <div>
-                <label className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-black mb-2">
-                  {t("selectFabric")}
-                </label>
-                <select
-                  value={addFabricId}
-                  onChange={(e) => setAddFabricId(e.target.value)}
-                  className="w-full border border-(--color-border) bg-white px-3 py-2.5 [font-family:var(--font-body)] text-[14px]"
-                >
-                  <option value="">{t("selectFabricPlaceholder")}</option>
-                  {draft.selectedFabrics.map((fabric) => (
-                    <option key={fabric._id} value={fabric._id}>
-                      {getDisplayName(fabric.name, fabric.nameAr)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={handleAddItem}
-            disabled={!addDesignId || (!usingOwnFabric && !addFabricId)}
-            className="px-6 py-2.5 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 [font-family:var(--font-ui)]"
-          >
-            {t("addItem")}
-          </button>
-        </div>
       )}
 
       <div className="border border-(--color-border) bg-white p-6 max-w-2xl mb-10">

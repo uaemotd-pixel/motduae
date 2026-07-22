@@ -212,3 +212,14 @@ body {
 .animate-pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Hide scrollbar visually in admin sidebar while keeping scroll functionality */
+/* Using data attribute outside @layer base to guarantee override over layered global styles */
+[data-sidebar] {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+[data-sidebar]::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+}

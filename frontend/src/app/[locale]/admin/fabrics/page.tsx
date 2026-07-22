@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { Link } from "@/i18n/navigation";
@@ -13,7 +15,12 @@ import {
   AlertCircle,
   Search,
   RefreshCw,
+  Eye,
+  Image as ImageIcon,
+  MoreVertical,
 } from "lucide-react";
+import toast from "react-hot-toast";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
 interface FabricItem {
   _id: string;
@@ -45,6 +52,44 @@ export default function AdminFabricsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [menuItem, setMenuItem] = useState<FabricItem | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<FabricItem | null>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuPosition(null);
+        setMenuItem(null);
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuPosition]);
+
+  // Close menu on escape
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuPosition(null);
+        setMenuItem(null);
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [menuPosition]);
 
   useEffect(() => {
     fetchItems();
@@ -63,16 +108,31 @@ export default function AdminFabricsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t.adminFabrics.list.delete_confirm)) {
-      return;
-    }
+  const openDeleteModal = (item: FabricItem) => {
+    setMenuPosition(null);
+    setMenuItem(null);
+    setItemToDelete(item);
+    setModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    setModalOpen(false);
+    setItemToDelete(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+    const id = itemToDelete._id;
+    const itemName = itemToDelete.name || "Item";
     setDeletingId(id);
     try {
       await api.delete(`/api/admin/fabrics/${id}`);
+      toast.success(`"${itemName}" deleted successfully`);
       await fetchItems();
+      closeDeleteModal();
     } catch (err: unknown) {
-      alert(getApiErrorMessage(err, t.adminFabrics.list.delete_failed));
+      toast.error(getApiErrorMessage(err, "Failed to delete the item."));
+      closeDeleteModal();
     } finally {
       setDeletingId(null);
     }
@@ -126,6 +186,23 @@ export default function AdminFabricsPage() {
     return store.length > 12
       ? `${store.slice(0, 6)}...${store.slice(-6)}`
       : store;
+  };
+
+  const getItemImage = (item: FabricItem) => {
+    if (item.images && item.images.length > 0) {
+      return (
+        <img
+          src={item.images[0]}
+          alt={item.name}
+          className="w-10 h-10 rounded-lg object-cover"
+        />
+      );
+    }
+    return (
+      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+        <ImageIcon className="w-5 h-5 text-gray-400" />
+      </div>
+    );
   };
 
   if (loading) {
@@ -185,6 +262,75 @@ export default function AdminFabricsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={modalOpen}
+        title="Delete Fabric"
+        message={`Are you sure you want to delete "${itemToDelete?.name || "this item"}"? This action cannot be undone.`}
+        confirmLabel={deletingId ? "Deleting..." : "Delete"}
+        cancelLabel="Cancel"
+        onConfirm={handleDeleteConfirm}
+        onCancel={closeDeleteModal}
+        isLoading={!!deletingId}
+        isDanger={true}
+      />
+
+      {/* Floating Menu Portal */}
+      {menuPosition &&
+        menuItem &&
+        createPortal(
+          <AnimatePresence>
+            <motion.div
+              ref={menuRef}
+              style={{
+                position: "fixed",
+                top: menuPosition.top,
+                right: menuPosition.right,
+                zIndex: 50,
+              }}
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="w-fit bg-white rounded-xl shadow-lg border border-gray-200 py-1 px-2 overflow-hidden"
+            >
+              <Link
+                href={`/admin/fabrics/${menuItem._id}/edit`}
+                onClick={() => {
+                  setMenuPosition(null);
+                  setMenuItem(null);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left"
+              >
+                <Edit className="w-4 h-4 shrink-0" />
+                <span>Edit</span>
+              </Link>
+              <Link
+                href={`/admin/fabrics/${menuItem._id}`}
+                onClick={() => {
+                  setMenuPosition(null);
+                  setMenuItem(null);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left"
+              >
+                <Eye className="w-4 h-4 shrink-0" />
+                <span>Details</span>
+              </Link>
+              <div className="border-t border-gray-100 my-1"></div>
+              <button
+                onClick={() => {
+                  openDeleteModal(menuItem);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left hover:cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4 shrink-0" />
+                <span>Delete</span>
+              </button>
+            </motion.div>
+          </AnimatePresence>,
+          document.body,
+        )}
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
@@ -236,7 +382,7 @@ export default function AdminFabricsPage() {
         </div>
         <button
           onClick={fetchItems}
-          className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white"
+          className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer"
         >
           <RefreshCw className="w-4 h-4" /> {t.adminFabrics.list.refresh}
         </button>
@@ -294,8 +440,13 @@ export default function AdminFabricsPage() {
                     key={item._id}
                     className="group hover:bg-gray-50 transition-all duration-200"
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-black">
-                      {item.name}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        {getItemImage(item)}
+                        <span className="text-sm font-medium text-black">
+                          {item.name || "—"}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                       {item.material}
@@ -313,21 +464,20 @@ export default function AdminFabricsPage() {
                       <StatusBadge isActive={item.isActive} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        <Link
-                          href={`/admin/fabrics/${item._id}/edit`}
-                          className="text-gray-400 hover:text-black transition-colors"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Link>
-                        <button
-                          onClick={() => handleDelete(item._id)}
-                          disabled={deletingId === item._id}
-                          className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setMenuPosition({
+                            top: rect.bottom + 8,
+                            right: window.innerWidth - rect.right,
+                          });
+                          setMenuItem(item);
+                        }}
+                        className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center"
+                        title="Actions"
+                      >
+                        <MoreVertical className="w-5 h-5 hover:cursor-pointer" />
+                      </button>
                     </td>
                   </tr>
                 ))}

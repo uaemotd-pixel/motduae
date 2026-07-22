@@ -6,7 +6,6 @@ import { api, getApiErrorMessage } from "@/lib/api/client";
 import FabricAdminFormFields from "@/components/admin/FabricAdminFormFields";
 import { getTranslation } from "@/lib/getTranslation";
 import {
-  defaultFabricForm,
   FabricFormData,
   fromApiFabric,
   PickupAddress,
@@ -196,7 +195,7 @@ export default function EditFabricPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50"
+            className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50 cursor-pointer"
           >
             {submitting
               ? t.adminFabrics.edit.submitting
@@ -205,7 +204,7 @@ export default function EditFabricPage() {
           <button
             type="button"
             onClick={() => router.back()}
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition cursor-pointer"
           >
             {t.adminFabrics.form.cancel_button}
           </button>
