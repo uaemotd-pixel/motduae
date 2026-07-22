@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
@@ -15,8 +17,14 @@ import {
   Loader2,
   Store,
   Plus,
+  MoreVertical,
+  Eye,
+  Edit,
+  Trash2,
+  Image as ImageIcon,
 } from "lucide-react";
 import FormField from "@/components/admin/FormField";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
 // ---------- Types ----------
 interface FabricRow {
@@ -28,6 +36,7 @@ interface FabricRow {
   shopName: string | null;
   isActive: boolean;
   phone?: string;
+  logo?: string;
 }
 
 interface ApprovedShop {
@@ -35,11 +44,13 @@ interface ApprovedShop {
   name: string;
   isActive: boolean;
   createdAt: string;
+  logo?: string;
   ownerId: {
     _id: string;
     name: string;
     email: string;
     approvalStatus: string;
+    profilePic?: string;
   } | null;
 }
 
@@ -48,6 +59,7 @@ interface ApprovedUser {
   name: string;
   email: string;
   createdAt: string;
+  profilePic?: string;
 }
 
 interface RejectedUser {
@@ -55,6 +67,7 @@ interface RejectedUser {
   name: string;
   email: string;
   createdAt: string;
+  profilePic?: string;
 }
 
 // ---------- Modals ----------
@@ -326,6 +339,14 @@ export default function AdminPartnersPage() {
     rejected: 0,
   });
 
+  // Menu state
+  const [menuItem, setMenuItem] = useState<FabricRow | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   // Modals state
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
@@ -347,6 +368,34 @@ export default function AdminPartnersPage() {
   } | null>(null);
   const [rejectNote, setRejectNote] = useState("");
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuPosition(null);
+        setMenuItem(null);
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuPosition]);
+
+  // Close menu on escape
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuPosition(null);
+        setMenuItem(null);
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [menuPosition]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -384,6 +433,7 @@ export default function AdminPartnersPage() {
         type: "approved",
         shopName: shop.name,
         isActive: shop.isActive,
+        logo: shop.logo || shop.ownerId?.profilePic,
       }));
 
       const approvedUserRows: FabricRow[] = approvedUsers
@@ -396,6 +446,7 @@ export default function AdminPartnersPage() {
           type: "approved",
           shopName: null,
           isActive: false,
+          logo: user.profilePic,
         }));
 
       const pendingRows: FabricRow[] = pending.map((user) => ({
@@ -407,6 +458,7 @@ export default function AdminPartnersPage() {
         phone: user.phone || "",
         shopName: null,
         isActive: false,
+        logo: user.profilePic,
       }));
 
       const rejectedRows: FabricRow[] = rejectedUsers.map((user) => ({
@@ -417,6 +469,7 @@ export default function AdminPartnersPage() {
         type: "rejected",
         shopName: null,
         isActive: false,
+        logo: user.profilePic,
       }));
 
       const combined = [
@@ -463,11 +516,30 @@ export default function AdminPartnersPage() {
     }
   };
 
+  const getAvatar = (row: FabricRow) => {
+    if (row.logo) {
+      return (
+        <img
+          src={row.logo}
+          alt={row.name}
+          className="w-9 h-9 rounded-full object-cover"
+        />
+      );
+    }
+    return (
+      <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
+        <Store className="w-5 h-5 text-gray-400" />
+      </div>
+    );
+  };
+
   const openToggleModal = (
     shopId: string,
     shopName: string,
     currentStatus: boolean,
   ) => {
+    setMenuPosition(null);
+    setMenuItem(null);
     setPendingToggle({ shopId, shopName, currentStatus });
     setToggleModalOpen(true);
   };
@@ -513,6 +585,8 @@ export default function AdminPartnersPage() {
     storeId: string,
     storeName: string,
   ) => {
+    setMenuPosition(null);
+    setMenuItem(null);
     setApprovalAction(action);
     setSelectedPending({ id: storeId, name: storeName });
     setRejectNote("");
@@ -628,8 +702,8 @@ export default function AdminPartnersPage() {
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mt-6">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="p-4 border-b border-gray-100">
-              <div className="grid grid-cols-6 gap-4">
-                {[...Array(6)].map((_, j) => (
+              <div className="grid grid-cols-7 gap-4">
+                {[...Array(7)].map((_, j) => (
                   <div key={j} className="h-4 bg-gray-200 rounded" />
                 ))}
               </div>
@@ -703,6 +777,93 @@ export default function AdminPartnersPage() {
         onSubmit={handleCreate}
         loading={formLoading}
       />
+
+      {/* Floating Menu Portal */}
+      {menuPosition &&
+        menuItem &&
+        createPortal(
+          <AnimatePresence>
+            <motion.div
+              ref={menuRef}
+              style={{
+                position: "fixed",
+                top: menuPosition.top,
+                right: menuPosition.right,
+                zIndex: 50,
+              }}
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="w-fit bg-white rounded-xl shadow-lg border border-gray-200 py-1 overflow-hidden"
+            >
+              <button
+                onClick={() => {
+                  toast.success(`Viewing details for "${menuItem.name}"`);
+                  setMenuPosition(null);
+                  setMenuItem(null);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer"
+              >
+                <Eye className="w-4 h-4 shrink-0" />
+                <span>Details</span>
+              </button>
+              {menuItem.type === "pending" && (
+                <>
+                  <button
+                    onClick={() => {
+                      openApprovalModal("approve", menuItem.id, menuItem.name);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-green-700 hover:bg-green-50 transition-colors text-left"
+                  >
+                    <CheckCircle className="w-4 h-4 shrink-0" />
+                    <span>Approve</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      openApprovalModal("reject", menuItem.id, menuItem.name);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left"
+                  >
+                    <XCircle className="w-4 h-4 shrink-0" />
+                    <span>Reject</span>
+                  </button>
+                </>
+              )}
+              {menuItem.type === "rejected" && (
+                <button
+                  onClick={() => {
+                    openApprovalModal("approve", menuItem.id, menuItem.name);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-green-700 hover:bg-green-50 transition-colors text-left"
+                >
+                  <CheckCircle className="w-4 h-4 shrink-0" />
+                  <span>Approve</span>
+                </button>
+              )}
+              {menuItem.type === "approved" && (
+                <button
+                  onClick={() => {
+                    openToggleModal(
+                      menuItem.id,
+                      menuItem.shopName || "Shop",
+                      menuItem.isActive || false,
+                    );
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:cursor-pointer ${
+                    menuItem.isActive
+                      ? "text-red-600 hover:bg-red-50"
+                      : "text-green-700 hover:bg-green-50"
+                  }`}
+                >
+                  <Store className="w-4 h-4 shrink-0" />
+                  <span>{menuItem.isActive ? "Deactivate" : "Reactivate"}</span>
+                </button>
+              )}
+            </motion.div>
+          </AnimatePresence>,
+          document.body,
+        )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -799,7 +960,7 @@ export default function AdminPartnersPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-150">
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
+                    Partner
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Email
@@ -816,7 +977,7 @@ export default function AdminPartnersPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -850,87 +1011,48 @@ export default function AdminPartnersPage() {
                     );
                   }
 
-                  let actions;
-                  if (isPending) {
-                    actions = (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() =>
-                            openApprovalModal("approve", row.id, row.name)
-                          }
-                          disabled={busy}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition disabled:opacity-50 hover:cursor-pointer"
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" /> Approve
-                        </button>
-                        <button
-                          onClick={() =>
-                            openApprovalModal("reject", row.id, row.name)
-                          }
-                          disabled={busy}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition disabled:opacity-50 hover:cursor-pointer"
-                        >
-                          <XCircle className="w-3.5 h-3.5" /> Reject
-                        </button>
-                      </div>
-                    );
-                  } else if (isRejected) {
-                    actions = (
-                      <button
-                        onClick={() =>
-                          openApprovalModal("approve", row.id, row.name)
-                        }
-                        disabled={busy}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition disabled:opacity-50 hover:cursor-pointer"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" /> Approve
-                      </button>
-                    );
-                  } else {
-                    actions = (
-                      <button
-                        onClick={() =>
-                          openToggleModal(
-                            row.id,
-                            row.shopName || "Shop",
-                            row.isActive || false,
-                          )
-                        }
-                        disabled={busy || !row.shopName}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition disabled:opacity-50 hover:cursor-pointer ${
-                          row.isActive
-                            ? "bg-red-600 hover:bg-red-700"
-                            : "bg-green-600 hover:bg-green-700"
-                        } ${!row.shopName ? "opacity-50 cursor-not-allowed" : ""}`}
-                      >
-                        {busy
-                          ? "Toggling..."
-                          : row.isActive
-                            ? "Deactivate"
-                            : "Reactivate"}
-                      </button>
-                    );
-                  }
-
                   return (
                     <tr key={row.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-black">
-                        {row.name}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          {getAvatar(row)}
+                          <span className="text-sm font-medium text-black">
+                            {row.name}
+                          </span>
+                        </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {row.email}
                       </td>
-                      <td className="px-6 py-4 text-sm capitalize">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm capitalize">
                         {row.type}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {row.shopName || "—"}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {formatDate(row.createdAt)}
                       </td>
-                      <td className="px-6 py-4 text-sm">{statusBadge}</td>
-                      <td className="px-6 py-4 text-sm">{actions}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {statusBadge}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <button
+                          onClick={(e) => {
+                            const rect =
+                              e.currentTarget.getBoundingClientRect();
+                            setMenuPosition({
+                              top: rect.bottom + 8,
+                              right: window.innerWidth - rect.right,
+                            });
+                            setMenuItem(row);
+                          }}
+                          className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center"
+                          title="Actions"
+                        >
+                          <MoreVertical className="w-5 h-5 hover:cursor-pointer" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}

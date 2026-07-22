@@ -7,7 +7,6 @@ import FormField from "@/components/admin/FormField";
 import ImageUpload from "@/components/admin/ImageUpload";
 import { getTranslation } from "@/lib/getTranslation";
 import {
-  defaultReadyMadeForm,
   fromApiProduct,
   toApiPayload,
   type ReadyMadeFormData,
@@ -894,14 +893,14 @@ export default function EditReadyMadePage() {
           <button
             type="submit"
             disabled={submitting}
-            className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50"
+            className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50 hover:cursor-pointer"
           >
             {submitting ? "Saving..." : "Update Product"}
           </button>
           <button
             type="button"
             onClick={() => router.back()}
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer"
           >
             Cancel
           </button>

@@ -25,22 +25,38 @@ interface OrderUser {
   phone?: string;
 }
 
+interface DesignPopulated {
+  _id: string;
+  images: string[];
+}
+
+interface TailorShopPopulated {
+  _id: string;
+  name: string;
+  nameAr?: string;
+  location?: string;
+  city?: string;
+  logo?: string;
+  coverImage?: string;
+}
+
+interface FabricPopulated {
+  _id: string;
+  images: string[];
+}
+
 interface CustomOrderItem {
   designSnapshot: {
     name: string;
     nameAr?: string;
   };
-  tailorShopId:
-    | {
-        _id: string;
-        name: string;
-        nameAr?: string;
-      }
-    | string;
+  tailorShopId: TailorShopPopulated | string;
   fabricSnapshot?: {
     name: string;
     nameAr?: string;
   } | null;
+  designId?: DesignPopulated | string | null;
+  fabricId?: FabricPopulated | string | null;
   pricing?: {
     total: number;
   };
@@ -49,9 +65,11 @@ interface CustomOrderItem {
 interface Order {
   _id: string;
   userId: OrderUser | string;
-  tailorShopId: { _id: string; name: string } | string;
+  tailorShopId: TailorShopPopulated | string;
   designSnapshot?: { name: string };
+  designId?: DesignPopulated | string | null;
   fabricSnapshot?: { name: string } | null;
+  fabricId?: FabricPopulated | string | null;
   status: string;
   createdAt: string;
   pricing: {
@@ -430,6 +448,45 @@ export default function AdminCustomOrdersPage() {
             );
             const fabricName = order.fabricSnapshot?.name || t("unknownFabric");
 
+            const getFabricImage = (
+              fabricId: FabricPopulated | string | null | undefined,
+            ): string | null => {
+              if (
+                fabricId &&
+                typeof fabricId === "object" &&
+                fabricId.images?.length > 0
+              ) {
+                return fabricId.images[0];
+              }
+              return null;
+            };
+
+            const getDesignImage = (
+              designId: DesignPopulated | string | null | undefined,
+            ): string | null => {
+              if (
+                designId &&
+                typeof designId === "object" &&
+                designId.images?.length > 0
+              ) {
+                return designId.images[0];
+              }
+              return null;
+            };
+
+            const getTailorLogo = (
+              shop: TailorShopPopulated | string | null | undefined,
+            ): string | null => {
+              if (shop && typeof shop === "object" && shop.logo) {
+                return shop.logo;
+              }
+              return null;
+            };
+
+            const orderFabricImage = getFabricImage(order.fabricId);
+            const orderDesignImage = getDesignImage(order.designId);
+            const orderTailorLogo = getTailorLogo(order.tailorShopId);
+
             return (
               <div
                 key={order._id}
@@ -460,52 +517,110 @@ export default function AdminCustomOrdersPage() {
                       {locale === "ar" ? "العناصر المطلوبة" : "Order Items"}
                     </p>
                     {order.items && order.items.length > 0 ? (
-                      order.items.map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="bg-gray-50/50 rounded-xl border border-gray-100/50 space-y-1"
-                        >
-                          <div className="flex justify-between items-start gap-2">
-                            <span className="text-xs font-medium text-black">
-                              {item.designSnapshot?.name || t("unknownDesign")}
-                            </span>
-                            {item.pricing?.total !== undefined && (
-                              <span className="text-xs font-medium text-gray-500 font-mono">
-                                {formatCurrency(
-                                  item.pricing.total,
-                                  order.pricing.currency,
+                      order.items.map((item, idx) => {
+                        const itemFabricImage = getFabricImage(item.fabricId);
+                        const itemDesignImage = getDesignImage(item.designId);
+                        const itemTailorLogo = getTailorLogo(item.tailorShopId);
+                        return (
+                          <div
+                            key={idx}
+                            className="bg-gray-50/50 rounded-xl border border-gray-100/50 space-y-1"
+                          >
+                            <div className="flex items-center gap-2">
+                              {itemDesignImage && (
+                                <img
+                                  src={itemDesignImage}
+                                  alt={item.designSnapshot?.name || "Design"}
+                                  className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                                />
+                              )}
+                              <div className="flex justify-between items-start gap-2 flex-1">
+                                <span className="text-xs font-normal text-gray-500">
+                                  Design:
+                                  {item.designSnapshot?.name ||
+                                    t("unknownDesign")}
+                                </span>
+                                {item.pricing?.total !== undefined && (
+                                  <span className="text-xs font-medium text-gray-500 font-mono">
+                                    {formatCurrency(
+                                      item.pricing.total,
+                                      order.pricing.currency,
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-0.5 text-[11px] text-gray-500">
+                              <span className="flex items-center gap-2">
+                                {itemFabricImage && (
+                                  <img
+                                    src={itemFabricImage}
+                                    alt={item.fabricSnapshot?.name || "Fabric"}
+                                    className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                                  />
+                                )}
+                                {t("fabricLabel", {
+                                  name:
+                                    item.fabricSnapshot?.name ||
+                                    t("unknownFabric"),
+                                })}
+                              </span>
+                              <span className="flex items-center gap-1.5">
+                                {itemTailorLogo && (
+                                  <img
+                                    src={itemTailorLogo}
+                                    alt={readPartnerName(
+                                      item.tailorShopId,
+                                      t("unknownTailor"),
+                                    )}
+                                    className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                                  />
+                                )}
+                                {locale === "ar" ? `الخياط:` : `Tailor:`}{" "}
+                                {readPartnerName(
+                                  item.tailorShopId,
+                                  t("unknownTailor"),
                                 )}
                               </span>
-                            )}
+                            </div>
                           </div>
-                          <div className="flex flex-col gap-0.5 text-[11px] text-gray-500">
-                            <span>
-                              {t("fabricLabel", {
-                                name:
-                                  item.fabricSnapshot?.name ||
-                                  t("unknownFabric"),
-                              })}
-                            </span>
-                            <span>
-                              {locale === "ar" ? `الخياط:` : `Tailor:`}{" "}
-                              {readPartnerName(
-                                item.tailorShopId,
-                                t("unknownTailor"),
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="bg-gray-50/50 rounded-xl p-3 border border-gray-100/50 space-y-">
-                        <div className="flex justify-between items-start gap-2">
-                          <span className="text-xs font-medium text-black">
-                            {order.designSnapshot?.name || t("unknownDesign")}
-                          </span>
+                        <div className="flex items-center gap-2">
+                          {orderDesignImage && (
+                            <img
+                              src={orderDesignImage}
+                              alt={order.designSnapshot?.name || "Design"}
+                              className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                            />
+                          )}
+                          <div className="flex justify-between items-start gap-2 flex-1">
+                            <span className="text-xs font-medium text-black">
+                              {order.designSnapshot?.name || t("unknownDesign")}
+                            </span>
+                          </div>
                         </div>
                         <div className="flex flex-col gap-0.5 text-[11px] text-gray-500">
-                          <span>{t("fabricLabel", { name: fabricName })}</span>
-                          <span>
+                          <span className="flex items-center gap-2">
+                            {orderFabricImage && (
+                              <img
+                                src={orderFabricImage}
+                                alt={fabricName}
+                                className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                              />
+                            )}
+                            {t("fabricLabel", { name: fabricName })}
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            {orderTailorLogo && (
+                              <img
+                                src={orderTailorLogo}
+                                alt={tailorName}
+                                className="w-5 h-5 rounded-full object-cover border border-gray-200 shrink-0"
+                              />
+                            )}
                             {locale === "ar" ? `الخياط:` : `Tailor:`}{" "}
                             {tailorName}
                           </span>
@@ -516,16 +631,29 @@ export default function AdminCustomOrdersPage() {
                   {order.addons && order.addons.length > 0 && (
                     <div className="md:col-span-2 space-y-2 border-t border-gray-100 pt-3 mt-1">
                       <p className="text-xs text-gray-400 uppercase tracking-wider mb-1 font-medium">
-                        {locale === "ar" ? "الإضافات المختارة" : "Selected Add-Ons"}
+                        {locale === "ar"
+                          ? "الإضافات المختارة"
+                          : "Selected Add-Ons"}
                       </p>
                       <div className="space-y-1.5 bg-gray-50/50 p-3 rounded-xl border border-gray-100/50">
                         {order.addons.map((addon, idx) => {
-                          const name = locale === "ar" ? addon.nameAr || addon.name : addon.name;
+                          const name =
+                            locale === "ar"
+                              ? addon.nameAr || addon.name
+                              : addon.name;
                           return (
-                            <div key={idx} className="flex justify-between items-center text-xs">
-                              <span className="text-gray-600 font-medium">{name}</span>
+                            <div
+                              key={idx}
+                              className="flex justify-between items-center text-xs"
+                            >
+                              <span className="text-gray-600 font-medium">
+                                {name}
+                              </span>
                               <span className="text-black font-semibold font-mono">
-                                {formatCurrency(addon.price, order.pricing.currency)}
+                                {formatCurrency(
+                                  addon.price,
+                                  order.pricing.currency,
+                                )}
                               </span>
                             </div>
                           );

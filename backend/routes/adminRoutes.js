@@ -1100,6 +1100,7 @@ adminRouter.get(
 
     const orders = await RetailOrder.find(filter)
       .populate("userId", "name email phone")
+      .populate("orderItems.productId", "thumbnailImage images")
       .sort({ createdAt: -1 });
 
     res.send(orders);
@@ -1149,8 +1150,12 @@ adminRouter.get(
   expressAsyncHandler(async (req, res) => {
     const orders = await CustomOrder.find({})
       .populate("userId", "name email phone")
-      .populate("tailorShopId", "name location city")
-      .populate("items.tailorShopId", "name location city")
+      .populate("tailorShopId", "name nameAr location city logo coverImage")
+      .populate("items.tailorShopId", "name nameAr location city logo coverImage")
+      .populate("designId", "images")
+      .populate("items.designId", "images")
+      .populate("fabricId", "images")
+      .populate("items.fabricId", "images")
       .sort({ createdAt: -1 });
 
     res.send(orders);
@@ -1633,6 +1638,30 @@ adminRouter.get(
       User.countDocuments(filter),
     ]);
 
+    // Enrich customers with profile data from Customer model (profilePic, gender)
+    const userIds = customers.map((c) => c._id);
+    const customerProfiles = await Customer.find({ userId: { $in: userIds } })
+      .select("profilePic gender userId")
+      .lean();
+
+    const profileMap = new Map();
+    for (const profile of customerProfiles) {
+      profileMap.set(profile.userId.toString(), profile);
+    }
+
+    const enrichedCustomers = customers.map((user) => {
+      const userObj = user.toObject();
+      const profile = profileMap.get(user._id.toString());
+      if (profile) {
+        userObj.profilePic = profile.profilePic || null;
+        userObj.gender = profile.gender || null;
+      } else {
+        userObj.profilePic = null;
+        userObj.gender = null;
+      }
+      return userObj;
+    });
+
     // Summary stats
     const totalActive = await User.countDocuments({
       role: "customer",
@@ -1661,7 +1690,7 @@ adminRouter.get(
         inactive: totalInactive,
         newThisMonth,
       },
-      items: customers,
+      items: enrichedCustomers,
     });
   }),
 );

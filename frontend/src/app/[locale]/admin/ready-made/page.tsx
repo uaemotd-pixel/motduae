@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { Link } from "@/i18n/navigation";
@@ -12,79 +14,24 @@ import {
   AlertCircle,
   Search,
   RefreshCw,
+  Eye,
+  Image as ImageIcon,
+  MoreVertical,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
-// Toggle Modal Props (unchanged)
-interface ToggleModalProps {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  confirmLabel: string;
-  cancelLabel: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-function ToggleModal({
-  isOpen,
-  title,
-  message,
-  confirmLabel,
-  cancelLabel,
-  onConfirm,
-  onCancel,
-}: ToggleModalProps) {
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) onCancel();
-    };
-    if (isOpen) document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onCancel]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onCancel()}
-    >
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100">
-        <div className="p-6">
-          <h3 className="text-lg font-medium text-black">{title}</h3>
-          <p className="mt-2 text-sm text-gray-600">{message}</p>
-          <div className="mt-6 flex justify-end gap-3">
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:cursor-pointer transition"
-            >
-              {cancelLabel}
-            </button>
-            <button
-              onClick={onConfirm}
-              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 hover:cursor-pointer transition"
-            >
-              {confirmLabel}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ✅ Correct interface – use availableFabricStock
 interface ReadyMadeItem {
   _id: string;
   name: string;
   fabricType: string;
   tailorName: string;
   finalSellingPriceAED: number;
-  availableFabricStock: number; // ✅ correct field
+  availableFabricStock: number;
   status: "available" | "sold";
   createdAt: string;
   updatedAt: string;
+  images?: string[];
 }
 
 export default function AdminReadyMadePage() {
@@ -94,9 +41,43 @@ export default function AdminReadyMadePage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [menuItem, setMenuItem] = useState<ReadyMadeItem | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ReadyMadeItem | null>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuPosition(null);
+        setMenuItem(null);
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuPosition]);
+
+  // Close menu on escape
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuPosition(null);
+        setMenuItem(null);
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [menuPosition]);
 
   useEffect(() => {
     fetchItems();
@@ -116,7 +97,6 @@ export default function AdminReadyMadePage() {
     }
   };
 
-  // ✅ Filter using availableFabricStock
   const filteredItems = useMemo(() => {
     if (!searchTerm) return items;
     const term = searchTerm.toLowerCase();
@@ -136,7 +116,6 @@ export default function AdminReadyMadePage() {
     });
   }, [items, searchTerm]);
 
-  // ✅ Stats using availableFabricStock
   const availableItems = items.filter((i) => i.availableFabricStock > 0).length;
   const soldItems = items.filter((i) => i.availableFabricStock === 0).length;
 
@@ -156,7 +135,26 @@ export default function AdminReadyMadePage() {
     );
   };
 
+  const getItemImage = (item: ReadyMadeItem) => {
+    if (item.images && item.images.length > 0) {
+      return (
+        <img
+          src={item.images[0]}
+          alt={item.name}
+          className="w-10 h-10 rounded-lg object-cover"
+        />
+      );
+    }
+    return (
+      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+        <ImageIcon className="w-5 h-5 text-gray-400" />
+      </div>
+    );
+  };
+
   const openDeleteModal = (item: ReadyMadeItem) => {
+    setMenuPosition(null);
+    setMenuItem(null);
     setItemToDelete(item);
     setModalOpen(true);
   };
@@ -206,12 +204,10 @@ export default function AdminReadyMadePage() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="p-4 border-b border-gray-100">
-                <div className="grid grid-cols-5 gap-4">
-                  <div className="h-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded"></div>
+                <div className="grid grid-cols-6 gap-4">
+                  {[...Array(6)].map((_, j) => (
+                    <div key={j} className="h-4 bg-gray-200 rounded"></div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -243,7 +239,8 @@ export default function AdminReadyMadePage() {
 
   return (
     <div className="space-y-6">
-      <ToggleModal
+      {/* Confirmation Modal */}
+      <ConfirmationModal
         isOpen={modalOpen}
         title="Delete Item"
         message={`Are you sure you want to delete "${itemToDelete?.name || "this item"}"? This action cannot be undone.`}
@@ -251,7 +248,65 @@ export default function AdminReadyMadePage() {
         cancelLabel="Cancel"
         onConfirm={handleDeleteConfirm}
         onCancel={closeDeleteModal}
+        isLoading={!!deletingId}
+        isDanger={true}
       />
+
+      {/* Floating Menu Portal */}
+      {menuPosition &&
+        menuItem &&
+        createPortal(
+          <AnimatePresence>
+            <motion.div
+              ref={menuRef}
+              style={{
+                position: "fixed",
+                top: menuPosition.top,
+                right: menuPosition.right,
+                zIndex: 50,
+              }}
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="w-fit px-2 bg-white rounded-xl shadow-lg border border-gray-200 py-1 overflow-hidden"
+            >
+              <Link
+                href={`/admin/ready-made/${menuItem._id}/edit`}
+                onClick={() => {
+                  setMenuPosition(null);
+                  setMenuItem(null);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
+              >
+                <Edit className="w-4 h-4 shrink-0" />
+                <span>Edit</span>
+              </Link>
+              <Link
+                href={`/admin/ready-made/${menuItem._id}`}
+                onClick={() => {
+                  setMenuPosition(null);
+                  setMenuItem(null);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors text-left"
+              >
+                <Eye className="w-4 h-4 shrink-0" />
+                <span>Details</span>
+              </Link>
+              <div className="border-t border-gray-100 my-1"></div>
+              <button
+                onClick={() => {
+                  openDeleteModal(menuItem);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left hover:cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4 shrink-0" />
+                <span>Delete</span>
+              </button>
+            </motion.div>
+          </AnimatePresence>,
+          document.body,
+        )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -357,7 +412,7 @@ export default function AdminReadyMadePage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -371,8 +426,13 @@ export default function AdminReadyMadePage() {
                       key={item._id}
                       className="group hover:bg-gray-50 transition-all duration-200"
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-black">
-                        {item.name || "—"}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          {getItemImage(item)}
+                          <span className="text-sm font-medium text-black">
+                            {item.name || "—"}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {item.fabricType || "—"}
@@ -391,22 +451,22 @@ export default function AdminReadyMadePage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <StatusBadge status={status} />
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-left">
-                        <div className="flex items-center gap-3">
-                          <Link
-                            href={`/admin/ready-made/${item._id}/edit`}
-                            className="inline-flex items-center gap-1 text-gray-400 group-hover:text-black transition-colors"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Link>
-                          <button
-                            onClick={() => openDeleteModal(item)}
-                            disabled={deletingId === item._id}
-                            className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <button
+                          onClick={(e) => {
+                            const rect =
+                              e.currentTarget.getBoundingClientRect();
+                            setMenuPosition({
+                              top: rect.bottom + 8,
+                              right: window.innerWidth - rect.right,
+                            });
+                            setMenuItem(item);
+                          }}
+                          className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center"
+                          title="Actions"
+                        >
+                          <MoreVertical className="w-5 h-5 hover:cursor-pointer" />
+                        </button>
                       </td>
                     </tr>
                   );

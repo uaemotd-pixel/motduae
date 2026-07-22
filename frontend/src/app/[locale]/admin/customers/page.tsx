@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
-import { getTranslation } from "@/lib/getTranslation";
 import {
   AlertCircle,
   Search,
@@ -11,11 +12,14 @@ import {
   User,
   Trash2,
   Power,
+  MoreHorizontal,
+  Eye,
+  VenusAndMars,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
 // ============================================
-// Reusable Confirmation Modal (no external deps)
+// Reusable Confirmation Modal
 // ============================================
 type ConfirmationModalProps = {
   isOpen: boolean;
@@ -52,14 +56,14 @@ function ConfirmationModal({
           <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer"
               disabled={isLoading}
             >
               {cancelLabel}
             </button>
             <button
               onClick={onConfirm}
-              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800 transition disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800 transition disabled:opacity-50 hover:cursor-pointer"
               disabled={isLoading}
             >
               {confirmLabel}
@@ -82,6 +86,8 @@ type Customer = {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  profilePic?: string | null;
+  gender?: string | null;
 };
 
 type Stats = {
@@ -108,7 +114,6 @@ type ModalAction = "delete" | "toggle";
 export default function AdminCustomersPage() {
   const params = useParams();
   const localeParam = params.locale as string;
-  const t = getTranslation(localeParam);
 
   const [items, setItems] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,6 +126,12 @@ export default function AdminCustomersPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [stats, setStats] = useState<Stats | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [menuCustomer, setMenuCustomer] = useState<Customer | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -128,6 +139,34 @@ export default function AdminCustomersPage() {
     action: ModalAction;
     customer: Customer | null;
   }>({ action: "delete", customer: null });
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuPosition(null);
+        setMenuCustomer(null);
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuPosition]);
+
+  // Close menu on escape
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuPosition(null);
+        setMenuCustomer(null);
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [menuPosition]);
 
   const fetchItems = useCallback(
     async (page = 1) => {
@@ -183,19 +222,18 @@ export default function AdminCustomersPage() {
     });
   };
 
-  // Open modal for action
   const openModal = (action: ModalAction, customer: Customer) => {
+    setMenuPosition(null);
+    setMenuCustomer(null);
     setModalConfig({ action, customer });
     setModalOpen(true);
   };
 
-  // Close modal
   const closeModal = () => {
     setModalOpen(false);
     setModalConfig({ action: "delete", customer: null });
   };
 
-  // Confirm action
   const handleConfirm = async () => {
     const { action, customer } = modalConfig;
     if (!customer) return;
@@ -241,6 +279,40 @@ export default function AdminCustomersPage() {
       {isActive ? "Active" : "Inactive"}
     </span>
   );
+
+  const getAvatar = (customer: Customer) => {
+    if (customer.profilePic) {
+      return (
+        <img
+          src={customer.profilePic}
+          alt={customer.name}
+          className="w-9 h-9 rounded-full object-cover"
+        />
+      );
+    }
+
+    const gender = customer.gender?.toLowerCase();
+    if (gender === "male") {
+      return (
+        <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center">
+          <User className="w-5 h-5 text-blue-600" />
+        </div>
+      );
+    }
+    if (gender === "female") {
+      return (
+        <div className="w-9 h-9 rounded-full bg-pink-100 flex items-center justify-center">
+          <VenusAndMars className="w-5 h-5 text-pink-600" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
+        <User className="w-5 h-5 text-gray-500" />
+      </div>
+    );
+  };
 
   if (loading && items.length === 0) {
     return (
@@ -327,6 +399,60 @@ export default function AdminCustomersPage() {
         onCancel={closeModal}
         isLoading={actionLoading === modalConfig.customer?._id}
       />
+
+      {/* Floating Menu Portal */}
+      {menuPosition &&
+        menuCustomer &&
+        createPortal(
+          <AnimatePresence>
+            <motion.div
+              ref={menuRef}
+              style={{
+                position: "fixed",
+                top: menuPosition.top,
+                right: menuPosition.right,
+                zIndex: 50,
+              }}
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="w-fit bg-white rounded-xl shadow-lg border border-gray-200 py-1 overflow-hidden hover:cursor-pointer"
+            >
+              <button
+                onClick={() => {
+                  toast.success(`Viewing details for "${menuCustomer.name}"`);
+                  setMenuPosition(null);
+                  setMenuCustomer(null);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer"
+              >
+                <Eye className="w-4 h-4 shrink-0" />
+                <span>Details</span>
+              </button>
+              <button
+                onClick={() => {
+                  openModal("toggle", menuCustomer);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer"
+              >
+                <Power className="w-4 h-4 shrink-0" />
+                <span>{menuCustomer.isActive ? "Deactivate" : "Activate"}</span>
+              </button>
+              <div className="border-t border-gray-100 my-1"></div>
+              <button
+                onClick={() => {
+                  openModal("delete", menuCustomer);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left hover:cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4 shrink-0" />
+                <span>Delete</span>
+              </button>
+            </motion.div>
+          </AnimatePresence>,
+          document.body,
+        )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -450,7 +576,7 @@ export default function AdminCustomersPage() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
+                    Customer
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Email
@@ -464,7 +590,7 @@ export default function AdminCustomersPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -475,8 +601,13 @@ export default function AdminCustomersPage() {
                     key={customer._id}
                     className="group hover:bg-gray-50 transition-all duration-200"
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-black">
-                      {customer.name}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        {getAvatar(customer)}
+                        <span className="text-sm font-medium text-black">
+                          {customer.name}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                       {customer.email}
@@ -490,22 +621,21 @@ export default function AdminCustomersPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <StatusBadge isActive={customer.isActive} />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => openModal("toggle", customer)}
-                          className="text-gray-400 hover:text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          title={customer.isActive ? "Deactivate" : "Activate"}
-                        >
-                          <Power className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openModal("delete", customer)}
-                          className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <button
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setMenuPosition({
+                            top: rect.bottom + 8,
+                            right: window.innerWidth - rect.right,
+                          });
+                          setMenuCustomer(customer);
+                        }}
+                        className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
+                        title="Actions"
+                      >
+                        <MoreHorizontal className="w-5 h-5" />
+                      </button>
                     </td>
                   </tr>
                 ))}

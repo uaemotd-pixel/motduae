@@ -179,7 +179,10 @@ export default function AdminLayout({
   return (
     <div className="relative min-h-screen bg-black text-white">
       {/* Desktop Sidebar (always visible on lg+) */}
-      <aside className="fixed left-0 top-0 w-72 h-full border-r border-white/10 flex-col p-6 bg-black z-20 overflow-y-auto hidden lg:flex">
+      <aside
+        data-sidebar
+        className="fixed left-0 top-0 w-72 h-full border-r border-white/10 flex-col p-6 bg-black z-20 overflow-y-auto hidden lg:flex"
+      >
         <SidebarContent />
       </aside>
 
@@ -193,7 +196,8 @@ export default function AdminLayout({
         onClick={() => setIsSidebarOpen(false)}
       />
       <aside
-        className={`fixed left-0 top-0 w-72 h-full bg-black border-r border-white/10 flex flex-col p-6 z-40 transition-transform duration-300 ease-in-out lg:hidden ${
+        data-sidebar
+        className={`fixed left-0 top-0 w-72 h-full bg-black border-r border-white/10 flex flex-col p-6 z-40 transition-transform duration-300 ease-in-out lg:hidden overflow-y-auto ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

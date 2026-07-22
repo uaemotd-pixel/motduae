@@ -27,6 +27,12 @@ type RetailOrder = {
     image: string;
     size?: string;
     slug?: string;
+    productId?:
+      | {
+          thumbnailImage?: string;
+          images?: string[];
+        }
+      | string;
   }[];
   totalPrice: number;
   currency: string;
@@ -490,21 +496,37 @@ export default function AdminRetailOrdersPage() {
                     <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">
                       {t.columns.items}
                     </p>
-                    <p
-                      className="text-sm text-black truncate max-w-[200px]"
-                      title={order.orderItems
-                        .map((item) => item.name)
-                        .join(", ")}
-                    >
-                      {order.orderItems.map((item) => item.name).join(", ")}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {order.orderItems.reduce(
-                        (acc, item) => acc + item.quantity,
-                        0,
-                      )}{" "}
-                      items
-                    </p>
+                    <div className="space-y-2">
+                      {order.orderItems.map((item, idx) => {
+                        const itemImage =
+                          item.image ||
+                          (typeof item.productId === "object" && item.productId
+                            ? item.productId.thumbnailImage ||
+                              item.productId.images?.[0] ||
+                              ""
+                            : "");
+                        return (
+                          <div key={idx} className="flex items-center gap-2">
+                            {itemImage && (
+                              <img
+                                src={itemImage}
+                                alt={item.name}
+                                className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0"
+                              />
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-sm text-black truncate max-w-50">
+                                {item.name}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Qty: {item.quantity}
+                                {item.size ? ` | ${item.size}` : ""}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div>
@@ -543,7 +565,7 @@ export default function AdminRetailOrdersPage() {
                           handleStatusChange(order._id, previousStatus)
                         }
                         disabled={isUpdating}
-                        className="border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-[140px] hover:bg-gray-100 disabled:opacity-50 hover:cursor-pointer transition"
+                        className="border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-35 hover:bg-gray-100 disabled:opacity-50 hover:cursor-pointer transition"
                       >
                         {isUpdating ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
@@ -560,7 +582,7 @@ export default function AdminRetailOrdersPage() {
                           handleStatusChange(order._id, nextStatus)
                         }
                         disabled={isUpdating}
-                        className="bg-black text-white px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-[140px] disabled:opacity-50 hover:cursor-pointer transition"
+                        className="bg-black text-white px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-35 disabled:opacity-50 hover:cursor-pointer transition"
                       >
                         {isUpdating ? (
                           <Loader2 className="w-3 h-3 animate-spin" />

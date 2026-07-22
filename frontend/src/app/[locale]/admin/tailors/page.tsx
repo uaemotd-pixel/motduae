@@ -14,6 +14,7 @@ import {
   XCircle,
   Clock,
   Loader2,
+  Image as ImageIcon,
 } from "lucide-react";
 
 // ---------- Modal for Deactivate/Reactivate ----------
@@ -159,11 +160,13 @@ interface ApprovedTailor {
   _id: string;
   name: string;
   isActive: boolean;
+  logo?: string;
   ownerId: {
     _id: string;
     name: string;
     email: string;
     approvalStatus: string;
+    profilePic?: string;
   };
   createdAt: string;
 }
@@ -174,6 +177,7 @@ interface ApprovedUser {
   email: string;
   createdAt: string;
   approvalStatus: "approved";
+  profilePic?: string;
 }
 
 interface RejectedUser {
@@ -182,6 +186,7 @@ interface RejectedUser {
   email: string;
   createdAt: string;
   approvalStatus: "rejected";
+  profilePic?: string;
 }
 
 type TailorRow = {
@@ -195,12 +200,11 @@ type TailorRow = {
   phone?: string;
   address?: string;
   ownerId?: ApprovedTailor["ownerId"];
+  logo?: string;
+  profilePic?: string;
 };
 
 export default function AdminTailorsPage() {
-  const params = useParams();
-  const localeParam = params.locale as string;
-
   const [rows, setRows] = useState<TailorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -271,6 +275,8 @@ export default function AdminTailorsPage() {
         shopName: shop.name,
         isActive: shop.isActive,
         ownerId: shop.ownerId,
+        logo: shop.logo || shop.ownerId?.profilePic,
+        profilePic: shop.ownerId?.profilePic,
       }));
 
       const approvedUserRows: TailorRow[] = approvedUsers
@@ -283,6 +289,7 @@ export default function AdminTailorsPage() {
           type: "approved",
           shopName: null,
           isActive: false,
+          profilePic: user.profilePic,
         }));
 
       const pendingRows: TailorRow[] = pending.map((user) => ({
@@ -293,6 +300,7 @@ export default function AdminTailorsPage() {
         type: "pending",
         phone: user.phone || "",
         address: user.address || "",
+        profilePic: user.profilePic,
       }));
 
       const rejectedRows: TailorRow[] = rejectedUsers.map((user) => ({
@@ -303,6 +311,7 @@ export default function AdminTailorsPage() {
         type: "rejected",
         shopName: null,
         isActive: false,
+        profilePic: user.profilePic,
       }));
 
       const combined = [
@@ -478,6 +487,24 @@ export default function AdminTailorsPage() {
       day: "numeric",
     });
 
+  const getAvatar = (row: TailorRow) => {
+    const imageUrl = row.logo || row.profilePic;
+    if (imageUrl) {
+      return (
+        <img
+          src={imageUrl}
+          alt={row.name}
+          className="w-9 h-9 rounded-full object-cover"
+        />
+      );
+    }
+    return (
+      <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
+        <Users className="w-5 h-5 text-gray-400" />
+      </div>
+    );
+  };
+
   // ---------- Loading / Error ----------
   if (loading) {
     return (
@@ -498,8 +525,8 @@ export default function AdminTailorsPage() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mt-6 overflow-hidden">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="p-4 border-b border-gray-100">
-                <div className="grid grid-cols-6 gap-4">
-                  {[...Array(6)].map((_, j) => (
+                <div className="grid grid-cols-7 gap-4">
+                  {[...Array(7)].map((_, j) => (
                     <div key={j} className="h-4 bg-gray-200 rounded" />
                   ))}
                 </div>
@@ -778,8 +805,13 @@ export default function AdminTailorsPage() {
                       key={row.id}
                       className="group hover:bg-gray-50 transition-all duration-200"
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-black">
-                        {row.name}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          {getAvatar(row)}
+                          <span className="text-sm font-medium text-black">
+                            {row.name || "—"}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {row.email}
