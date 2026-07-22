@@ -5,19 +5,26 @@ import { useParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
 import { Share2 } from "lucide-react";
-
 import MainLayout from "../../main/layout";
-
 import FadeInSection from "@/components/shared/fadeInSection";
-import WishlistButton from "@/components/shared/wishlistButton";
 
 import {
   getDesignDisplayFields,
   resolveDesignImage,
+  formatDesignCategory,
   type TailorDesignListItem,
 } from "@/lib/tailors";
 
 import { formatDesignBasePrice } from "@/lib/tailors";
+
+const CATEGORY_COLORS: Record<string, string> = {
+  "hand-embroidered": "#8B6B4D",
+  "crystal-embellished": "#1A2A3A",
+  "non-crystal": "#5A6B5A",
+  talli: "#B8860B",
+  khous: "#4A3A2A",
+  beaded: "#6B2A5A",
+};
 
 const SearchOffIcon = () => (
   <svg
@@ -439,10 +446,10 @@ export default function DesignShopCatalogPage() {
 
     return Array.from(counts.entries()).map(([cat, count]) => ({
       id: cat,
-      label: String(cat),
+      label: formatDesignCategory(cat, locale as any),
       count,
     }));
-  }, [designs]);
+  }, [designs, locale]);
 
   let filteredDesigns = designs.filter((item) => {
     if (filters.categories.length > 0) {
@@ -453,10 +460,6 @@ export default function DesignShopCatalogPage() {
     const price = item.basePrice ?? 0;
     if (price < filters.minPrice || price > filters.maxPrice) return false;
 
-    // Age filter (days): use estimatedDays.
-    // If a design doesn't have an estimatedDays value, exclude it only when
-    // the user is filtering by age (otherwise it would incorrectly match 0-...
-    // and feel unreliable).
     const hasAgeFilter = filters.ageMin !== 0 || filters.ageMax !== 120;
     const ageValueRaw = (item as any).estimatedDays;
     const ageValue: number | null =
@@ -554,6 +557,12 @@ export default function DesignShopCatalogPage() {
               <CustomCheckbox
                 checked={filters.categories.includes(cat.id)}
                 onChange={() => toggleCategory(cat.id)}
+              />
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{
+                  backgroundColor: CATEGORY_COLORS[cat.id] || "#000000",
+                }}
               />
               <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
                 {cat.label}
@@ -836,8 +845,15 @@ export default function DesignShopCatalogPage() {
                           className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-500 flex flex-col h-full"
                         >
                           <Link href={`/designs/${design.slug}`}>
-                            {category && (
-                              <span className="absolute top-4 left-4 z-10 px-2.5 xs:px-3 py-1 xs:py-1.25 text-[10px] xs:text-[12px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.24em] font-bold shadow-sm bg-black text-white">
+                            {(category || design.category) && (
+                              <span
+                                className="absolute top-4 left-4 z-10 px-2.5 xs:px-3 py-1 xs:py-1.25 text-[10px] xs:text-[12px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.24em] font-bold shadow-sm text-white"
+                                style={{
+                                  backgroundColor:
+                                    CATEGORY_COLORS[design.category] ||
+                                    "#000000",
+                                }}
+                              >
                                 {category}
                               </span>
                             )}
