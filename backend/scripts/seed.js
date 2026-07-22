@@ -101,6 +101,7 @@ async function seedUsersAndSettings() {
       password,
       role: "fabric_store",
       isActive: true,
+      approvalStatus: "approved",
     },
     {
       name: "Mauzan Textiles",
@@ -108,6 +109,7 @@ async function seedUsersAndSettings() {
       password,
       role: "fabric_store",
       isActive: true,
+      approvalStatus: "approved",
     },
     {
       name: "Sharjah Heritage Fabrics",
@@ -115,6 +117,7 @@ async function seedUsersAndSettings() {
       password,
       role: "fabric_store",
       isActive: true,
+      approvalStatus: "approved",
     },
   ]);
 
