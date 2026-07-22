@@ -514,118 +514,149 @@ export default function CustomOrdersTab({
           return (
             <article
               key={`custom-${order.id}`}
-              className="border border-gray-200 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+              className="border border-gray-200 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden p-4 sm:p-6"
             >
-              <div className="p-4 sm:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1.5 font-ui">
-                      {t("orderId", { id: shortenOrderId(order.id) })}
-                    </p>
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-gray-400 mb-4 font-ui">
-                      {formatOrderDate(order.date, locale)}
-                    </p>
+              {/* Top info line */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-3 mb-4 gap-2">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-ui font-medium">
+                    {t("orderId", { id: shortenOrderId(order.id) })}
+                  </p>
+                  <p className="text-[11px] text-gray-500 font-ui mt-0.5">
+                    {formatOrderDate(order.date, locale)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] uppercase tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                    {t(`statuses.${order.status}`)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleTimeline(order.id)}
+                    className="text-[10px] uppercase tracking-[0.18em] text-gray-400 hover:text-black transition hover:cursor-pointer whitespace-nowrap"
+                    aria-expanded={isExpanded}
+                  >
+                    {isExpanded ? t("hideTimeline") : t("viewTimeline")}
+                  </button>
+                </div>
+              </div>
 
-                    <div className="space-y-4">
-                      {items.map((item, index) => {
-                        const designName = getDesignDisplayName(item.design, locale) || t("unknownDesign");
-                        const fabricName = order.fabricSource === "self"
-                          ? t("ownFabric")
-                          : getFabricDisplayName(item.fabric, locale) || t("unknownFabric");
-                        const tailorName = getTailorDisplayName(item.tailorShop, locale);
-
-                        const dImage = item.design?.images?.[0];
-                        const fImage = order.fabricSource === "storefront" ? item.fabric?.images?.[0] : null;
-
-                        return (
-                          <div key={index} className="space-y-2">
-                            {/* Design Row */}
-                            {dImage && (
-                              <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded border border-gray-200 shrink-0">
-                                  <img
-                                    src={resolveDesignImage(dImage)}
-                                    alt="Design"
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                                <span className="text-xs sm:text-sm text-black">
-                                  <strong className="text-gray-500 font-normal">{locale === "ar" ? "التصميم: " : "Design: "}</strong> {designName}
-                                </span>
+              {/* 3-Column Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Column 1: Designs */}
+                <div className="space-y-3">
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
+                    {locale === "ar" ? "التصاميم" : "DESIGNS"}
+                  </p>
+                  <div className="space-y-3">
+                    {items.map((item, index) => {
+                      const designName = getDesignDisplayName(item.design, locale) || t("unknownDesign");
+                      const dImage = item.design?.images?.[0];
+                      return (
+                        <div key={index} className="flex items-center gap-3 bg-gray-50/50 p-2.5 rounded-xl border border-gray-100">
+                          <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded-lg border border-gray-200 shrink-0">
+                            {dImage ? (
+                              <img
+                                src={resolveDesignImage(dImage)}
+                                alt="Design"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
+                                <Package size={18} />
                               </div>
-                            )}
-
-                            {/* Fabric Row */}
-                            <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded border border-gray-200 shrink-0 flex items-center justify-center">
-                                {fImage ? (
-                                  <img
-                                    src={resolveFabricImage(fImage)}
-                                    alt="Fabric"
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                                    <Package size={16} />
-                                  </div>
-                                )}
-                              </div>
-                              <span className="text-xs sm:text-sm text-black">
-                                <strong className="text-gray-500 font-normal">{locale === "ar" ? "القماش: " : "Fabric: "}</strong> {fabricName}
-                              </span>
-                            </div>
-
-                            {/* Tailor Row */}
-                            {tailorName && (
-                              <p className="text-[10px] sm:text-xs text-gray-500 font-ui uppercase tracking-wider pl-15">
-                                <span className="text-gray-400 font-normal">{locale === "ar" ? "الخياط: " : "Tailor: "}</span>{tailorName}
-                              </p>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
+                          <span className="text-xs sm:text-sm text-black font-medium line-clamp-2">
+                            {designName}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
+                </div>
 
-                  <div className="flex flex-col items-end gap-3 shrink-0">
-                    <div className="flex flex-row items-center gap-2 flex-wrap justify-end">
-                      <span className="text-[10px] uppercase tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
-                        {t(`statuses.${order.status}`)}
+                {/* Column 2: Fabrics */}
+                <div className="space-y-3">
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
+                    {locale === "ar" ? "الأقمشة" : "FABRICS"}
+                  </p>
+                  <div className="space-y-3">
+                    {items.map((item, index) => {
+                      const fabricName = order.fabricSource === "self"
+                        ? t("ownFabric")
+                        : getFabricDisplayName(item.fabric, locale) || t("unknownFabric");
+                      const fImage = order.fabricSource === "storefront" ? item.fabric?.images?.[0] : null;
+                      const tailorName = getTailorDisplayName(item.tailorShop, locale);
+                      return (
+                        <div key={index} className="space-y-2 bg-gray-50/50 p-2.5 rounded-xl border border-gray-100">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded-lg border border-gray-200 shrink-0 flex items-center justify-center">
+                              {fImage ? (
+                                <img
+                                  src={resolveFabricImage(fImage)}
+                                  alt="Fabric"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
+                                  <Package size={16} />
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-xs sm:text-sm text-black font-medium line-clamp-2">
+                              {fabricName}
+                            </span>
+                          </div>
+                          {tailorName && (
+                            <p className="text-[9px] uppercase tracking-[0.1em] text-gray-400 font-ui pl-1">
+                              {locale === "ar" ? "الخياط: " : "Tailor: "} {tailorName}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Column 3: Add-ons / Summary */}
+                <div className="space-y-3">
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
+                    {locale === "ar" ? "الإضافات والملخص" : "ADD-ONS & SUMMARY"}
+                  </p>
+
+                  {order.addons && order.addons.length > 0 ? (
+                    <div className="border border-gray-200 rounded-xl p-3 bg-[#FDFAF5]">
+                      <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mb-1.5 font-semibold text-left">
+                        {locale === "ar" ? "الإضافات المختارة" : "SELECTED ADD-ONS"}
+                      </p>
+                      <ul className="space-y-1.5">
+                        {order.addons.map((addon: any, idx: number) => {
+                          const name = locale === "ar" ? addon.nameAr || addon.name : addon.name;
+                          return (
+                            <li key={idx} className="flex justify-between items-center text-xs text-gray-600">
+                              <span>{name}</span>
+                              <span className="font-semibold text-black">{formatCurrency(addon.price, locale)}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="border border-dashed border-gray-200 rounded-xl p-3 text-center text-[10px] text-gray-400 uppercase tracking-wider font-ui py-6">
+                      {locale === "ar" ? "لا توجد إضافات" : "No Add-Ons"}
+                    </div>
+                  )}
+
+                  {/* Total price */}
+                  <div className="flex justify-between items-center border-t border-gray-100 pt-3">
+                    <span className="text-xs uppercase tracking-wider text-gray-400 font-ui">
+                      {locale === "ar" ? "المجموع الإجمالي" : "Total Price"}
+                    </span>
+                    {order.total !== undefined && (
+                      <span className="font-display text-base sm:text-lg font-semibold text-black whitespace-nowrap">
+                        {formatCurrency(order.total, locale)}
                       </span>
-                      {order.total !== undefined && (
-                        <span className="font-display text-lg sm:text-xl text-black whitespace-nowrap">
-                          {formatCurrency(order.total, locale)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-row items-center gap-2 flex-wrap justify-end">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleTimeline(order.id)}
-                        className="text-[10px] uppercase tracking-[0.18em] text-gray-400 hover:text-black transition hover:cursor-pointer whitespace-nowrap"
-                        aria-expanded={isExpanded}
-                      >
-                        {isExpanded ? t("hideTimeline") : t("viewTimeline")}
-                      </button>
-                    </div>
-
-                    {order.addons && order.addons.length > 0 && (
-                      <div className="border border-gray-100 rounded-xl p-3 bg-[#FDFAF5] text-right mt-2 w-full max-w-[200px]">
-                        <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mb-1.5 font-semibold text-left">
-                          {locale === "ar" ? "الإضافات المختارة" : "SELECTED ADD-ONS"}
-                        </p>
-                        <ul className="space-y-1.5">
-                          {order.addons.map((addon: any, idx: number) => {
-                            const name = locale === "ar" ? addon.nameAr || addon.name : addon.name;
-                            return (
-                              <li key={idx} className="flex justify-between items-center text-[11px] text-gray-600">
-                                <span>{name}</span>
-                                <span className="font-semibold text-black">{formatCurrency(addon.price, locale)}</span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
                     )}
                   </div>
                 </div>
@@ -1055,124 +1086,106 @@ export default function CustomOrdersTab({
           return (
             <article
               key={`retail-${order.id}`}
-              className="border border-gray-200 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+              className="border border-gray-200 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden p-4 sm:p-6"
             >
-              <div className="p-4 sm:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                  <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
-                    {order.items[0]?.image && (
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 bg-[#F0EBE3] overflow-hidden rounded-lg border border-gray-200">
-                        <img
-                          src={resolveReadyMadeImage(order.items[0].image)}
-                          alt={order.items[0].name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1.5 font-ui">
-                        {tRetail("orderId", { id: shortenOrderId(order.id) })}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                        <h3 className="font-display text-lg sm:text-xl mb-0.5 truncate">
-                          {order.items[0]?.name || tRetail("unknownItem")}
-                        </h3>
-                        {isMulti && (
-                          <span className="[font-family:var(--font-ui)] text-[8px] sm:text-[10px] text-(--color-grey-muted) bg-[#F0EBE3] px-1.5 sm:px-2 py-0.5 rounded shrink-0">
-                            +{order.items.length - 1} more
-                          </span>
-                        )}
-                      </div>
-                      {!isMulti && (
-                        <>
-                          {order.items[0]?.size && (
-                            <p className="[font-family:var(--font-ui)] text-[8px] sm:text-[10px] uppercase tracking-[0.14em] sm:tracking-[0.16em] text-(--color-grey-muted) mt-0.5 sm:mt-1">
-                              {tRetail("size")}: {order.items[0].size}
-                            </p>
-                          )}
-                          <p className="[font-family:var(--font-ui)] text-[8px] sm:text-[10px] text-(--color-grey-muted) mt-0.5">
-                            Quantity: {order.items[0].quantity}
-                          </p>
-                        </>
-                      )}
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-gray-400 mt-2 font-ui">
-                        {formatOrderDate(order.date.toString(), locale)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    <div className="flex flex-row items-center gap-2 flex-wrap justify-end">
-                      <span className="text-[10px] uppercase tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
-                        {tRetail(`statuses.${order.status}`, {
-                          defaultValue: order.status,
-                        })}
-                      </span>
-                      {order.totalPrice !== undefined && (
-                        <span className="font-display text-lg sm:text-xl text-black whitespace-nowrap">
-                          {formatCurrency(order.totalPrice, locale)}
-                        </span>
-                      )}
-                    </div>
-                    {isMulti && (
-                      <div className="flex flex-row items-center gap-2 flex-wrap justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setRetailExpandedId(isExpanded ? null : order.id)}
-                          className="text-[10px] uppercase tracking-[0.18em] text-gray-400 hover:text-black transition hover:cursor-pointer whitespace-nowrap"
-                          aria-expanded={isExpanded}
-                        >
-                          {isExpanded ? "Hide items" : "Show all items"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
+              {/* Top info line */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-3 mb-4 gap-2">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1.5 font-ui font-medium">
+                    {tRetail("orderId", { id: shortenOrderId(order.id) })}
+                  </p>
+                  <p className="text-[11px] text-gray-500 font-ui mt-0.5">
+                    {formatOrderDate(order.date.toString(), locale)}
+                  </p>
                 </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] uppercase tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                    {tRetail(`statuses.${order.status}`, {
+                      defaultValue: order.status,
+                    })}
+                  </span>
+                  {isMulti && (
+                    <button
+                      type="button"
+                      onClick={() => setRetailExpandedId(isExpanded ? null : order.id)}
+                      className="text-[10px] uppercase tracking-[0.18em] text-gray-400 hover:text-black transition hover:cursor-pointer whitespace-nowrap"
+                      aria-expanded={isExpanded}
+                    >
+                      {isExpanded ? "Hide items" : "Show all items"}
+                    </button>
+                  )}
+                </div>
+              </div>
 
-                {isMulti && isExpanded && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <div className="space-y-3">
-                      {order.items.map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center gap-3 sm:gap-4 bg-[#FDFAF5] p-3 rounded-xl border border-gray-100"
-                        >
-                          <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded-lg shrink-0">
-                            <img
-                              src={resolveReadyMadeImage(item.image)}
-                              alt={item.name}
-                              className="w-full h-full object-cover"
-                            />
+              {/* Grid content */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Column 1: Designs */}
+                <div className="space-y-3">
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
+                    {locale === "ar" ? "التصاميم" : "DESIGNS"}
+                  </p>
+                  <div className="space-y-3">
+                    {(isExpanded ? order.items : [order.items[0]]).map((item, idx) => (
+                      item && (
+                        <div key={idx} className="flex items-center gap-3 bg-gray-50/50 p-2.5 rounded-xl border border-gray-100">
+                          <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded-lg border border-gray-200 shrink-0">
+                            {item.image ? (
+                              <img
+                                src={resolveReadyMadeImage(item.image)}
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
+                                <Package size={18} />
+                              </div>
+                            )}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-display text-sm text-black truncate">
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs sm:text-sm text-black font-medium line-clamp-2">
                               {item.name}
-                            </p>
-                            <div className="flex flex-wrap gap-2 sm:gap-3 text-[10px] [font-family:var(--font-ui)] text-gray-500 uppercase tracking-wider">
-                              {item.size && (
-                                <span>
-                                  {tRetail("size")}: {item.size}
-                                </span>
-                              )}
-                              <span>× {item.quantity}</span>
-                              <span>
-                                {formatCurrency(item.price, locale)} each
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <span className="font-display text-xs sm:text-sm font-semibold text-black">
-                              {formatCurrency(
-                                item.price * item.quantity,
-                                locale,
-                              )}
+                            </span>
+                            <span className="block text-[10px] text-gray-500 font-ui mt-0.5">
+                              Qty: {item.quantity} {item.size && `| Size: ${item.size}`}
                             </span>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      )
+                    ))}
                   </div>
-                )}
+                </div>
+
+                {/* Column 2: Fabrics */}
+                <div className="space-y-3">
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
+                    {locale === "ar" ? "الأقمشة" : "FABRICS"}
+                  </p>
+                  <div className="border border-dashed border-gray-200 rounded-xl p-3 text-center text-[10px] text-gray-400 uppercase tracking-wider font-ui py-6 bg-gray-50/20">
+                    {locale === "ar" ? "مشمول مع التصميم" : "Included in Ready-made"}
+                  </div>
+                </div>
+
+                {/* Column 3: Add-Ons / Summary */}
+                <div className="space-y-3">
+                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
+                    {locale === "ar" ? "المجموع" : "SUMMARY"}
+                  </p>
+                  <div className="border border-dashed border-gray-200 rounded-xl p-3 text-center text-[10px] text-gray-400 uppercase tracking-wider font-ui py-6 bg-gray-50/20">
+                    {locale === "ar" ? "لا توجد إضافات" : "No Add-Ons"}
+                  </div>
+
+                  {/* Total price */}
+                  <div className="flex justify-between items-center border-t border-gray-100 pt-3">
+                    <span className="text-xs uppercase tracking-wider text-gray-400 font-ui">
+                      {locale === "ar" ? "المجموع الإجمالي" : "Total Price"}
+                    </span>
+                    {order.totalPrice !== undefined && (
+                      <span className="font-display text-base sm:text-lg font-semibold text-black whitespace-nowrap">
+                        {formatCurrency(order.totalPrice, locale)}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </article>
           );
