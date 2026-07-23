@@ -228,17 +228,17 @@ export default function MOTDGuidePage() {
     <MainLayout>
       <div className="bg-[#FFFDF9] min-h-screen">
         {/* 1. Page Header */}
-        <section className="relative overflow-hidden py-16 sm:py-24 bg-black text-white text-center">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.04),transparent_60%)]"></div>
+        <section className="relative overflow-hidden py-16 sm:py-24 bg-white text-black text-center border-b border-[#E8E8E4]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(0,0,0,0.02),transparent_60%)]"></div>
           <div className="max-w-4xl mx-auto px-4 sm:px-6 relative z-10 space-y-4">
-            <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.32em] text-white/50 block">
+            <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.32em] text-[#8A8A80] block">
               {isAr ? "دليل MOTD" : "THE MOTD GUIDE"}
             </span>
-            <h1 className="[font-family:var(--font-display)] text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-white leading-tight">
+            <h1 className="[font-family:var(--font-display)] text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-black leading-tight">
               {isAr ? "دليل مخوّر اليوم" : "The MOTD Guide"}
             </h1>
-            <div className="h-px w-20 bg-white/20 mx-auto my-3"></div>
-            <p className="[font-family:var(--font-body)] text-white/70 max-w-2xl mx-auto text-[15px] sm:text-[18px] leading-relaxed font-light">
+            <div className="h-px w-20 bg-black/10 mx-auto my-3"></div>
+            <p className="[font-family:var(--font-body)] text-[#5A5A56] max-w-2xl mx-auto text-[15px] sm:text-[18px] leading-relaxed font-light">
               {isAr
                 ? "كل ما تحتاج لمعرفته حول طلب وتفصيل والعناية والاستمتاع بالمخور الخاص بك."
                 : "Everything you need to know about ordering, tailoring, caring for and enjoying your Mukhawar."}
@@ -246,12 +246,12 @@ export default function MOTDGuidePage() {
             <div className="pt-4 flex justify-center">
               <motion.button 
                 onClick={() => sectionsContainerRef.current?.scrollIntoView({ behavior: "smooth" })}
-                className="flex items-center gap-2 text-xs uppercase tracking-widest text-white/60 hover:text-white transition cursor-pointer"
+                className="flex items-center gap-2 text-xs uppercase tracking-widest text-[#8A8A80] hover:text-black transition cursor-pointer"
                 animate={{ y: [0, 5, 0] }}
                 transition={{ repeat: Infinity, duration: 2 }}
               >
                 <span>{isAr ? "استكشف الدليل" : "Explore Guide"}</span>
-                <ArrowDown className="w-3.5 h-3.5" />
+                <ArrowDown className="w-3.5 h-3.5 text-[#8A8A80]" />
               </motion.button>
             </div>
           </div>

@@ -469,52 +469,20 @@ export default function OrderReviewStep() {
                     </div>
                   )}
 
-                  {/* Delivery/Pickup Toggle */}
+                  {/* Delivery Method (Static, only Delivery option exists) */}
                   <div className="py-3 border-t border-(--color-border) first:border-t-0">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
                       <span className="text-(--color-grey-muted) [font-family:var(--font-body)] text-[14px]">
                         Delivery Method
                       </span>
 
-                      <div className="flex items-center justify-between sm:justify-end gap-2">
-                        <label className="inline-flex items-center cursor-pointer select-none">
-                          <span
-                            className={`text-[10px] uppercase tracking-[0.2em] font-ui transition-colors mr-2 ${
-                              deliveryType === "pickup"
-                                ? "text-black"
-                                : "text-gray-400"
-                            }`}
-                          >
-                            Pickup
-                          </span>
-                          <input
-                            type="checkbox"
-                            checked={deliveryType === "delivery"}
-                            onChange={(e) =>
-                              setDeliveryType(
-                                e.target.checked ? "delivery" : "pickup",
-                              )
-                            }
-                            className="sr-only peer"
-                          />
-                          <div className="relative w-11 h-6 bg-[#D1CDC5] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-black/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-0.5 after:inset-s-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-black shadow-inner" />
-                          <span
-                            className={`text-[10px] uppercase tracking-[0.2em] font-ui transition-colors ml-2 ${
-                              deliveryType === "delivery"
-                                ? "text-black"
-                                : "text-gray-400"
-                            }`}
-                          >
-                            Delivery
-                          </span>
-                        </label>
-                      </div>
+                      <span className="text-black [font-family:var(--font-body)] text-[14px] font-semibold">
+                        Delivery
+                      </span>
                     </div>
 
                     <p className="mt-1.5 text-[10px] text-gray-400 font-ui tracking-[0.12em] text-right">
-                      {deliveryType === "delivery"
-                        ? `AED ${shippingFee ?? 35} delivery fee applies`
-                        : "Free pickup from store"}
+                      AED {shippingFee ?? 35} delivery fee applies
                     </p>
                   </div>
 

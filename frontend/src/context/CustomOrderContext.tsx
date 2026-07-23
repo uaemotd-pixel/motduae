@@ -97,12 +97,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const storedDeliveryType = sessionStorage.getItem(
-      CUSTOM_ORDER_DELIVERY_TYPE_KEY,
-    );
-    if (storedDeliveryType === "pickup" || storedDeliveryType === "delivery") {
-      setDeliveryType(storedDeliveryType);
-    }
+    setDeliveryType("delivery");
 
     setIsHydrated(true);
   }, []);
@@ -365,7 +360,8 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
   );
 
   const setDeliveryTypeAction = useCallback((type: "pickup" | "delivery") => {
-    setDeliveryType(type);
+    setDeliveryType("delivery");
+    sessionStorage.setItem(CUSTOM_ORDER_DELIVERY_TYPE_KEY, "delivery");
   }, []);
 
   const value = useMemo<CustomOrderContextType>(
