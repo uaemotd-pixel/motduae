@@ -63,9 +63,13 @@ export default function FabricMetersStep() {
 
   const canContinue = isMetersStepComplete(draft);
   const stepNumber = getCustomOrderStepNumber("meters", draft.firstStep);
-  const backPath = getBackPathFromMeters(draft.firstStep);
+  const backPath = getBackPathFromMeters(draft);
   const backLabel =
-    draft.firstStep === "tailor" ? t("backToFabric") : t("backToTailor");
+    draft.firstStep === "tailor"
+      ? usingOwnFabric
+        ? t("backToTailor")
+        : t("backToFabric")
+      : t("backToTailor");
 
   const needsManualPairing =
     draft.lineItems.length === 0 &&

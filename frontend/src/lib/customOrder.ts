@@ -217,12 +217,13 @@ export function getNextPathAfterTailor(draft: CustomOrderDraft): string {
   return "/custom-order/fabric";
 }
 
-export function getBackPathFromMeters(
-  firstStep: CustomOrderFirstStep | null,
-): string {
-  return firstStep === "tailor"
-    ? "/custom-order/fabric"
-    : "/custom-order/tailor";
+export function getBackPathFromMeters(draft: CustomOrderDraft): string {
+  if (draft.firstStep === "tailor") {
+    return draft.fabricSource === "self"
+      ? "/custom-order/tailor"
+      : "/custom-order/fabric";
+  }
+  return "/custom-order/tailor";
 }
 
 export function getCustomOrderEntryPath(
