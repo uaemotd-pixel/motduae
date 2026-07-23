@@ -540,7 +540,6 @@ export default function CustomOrdersTab({
                   <span className="inline-flex items-center text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md">
                     {locale === "ar" ? "تفصيل" : "Custom Order"}
                   </span>
-
                   <span className="text-[10px] uppercase tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
                     {t(`statuses.${order.status}`)}
                   </span>
@@ -555,7 +554,6 @@ export default function CustomOrdersTab({
                 </div>
               </div>
 
-
               {/* 4-Column Grid */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 {/* Column 1: Designs */}
@@ -567,77 +565,19 @@ export default function CustomOrdersTab({
                     {items.map((item, index) => {
                       const designName = getDesignDisplayName(item.design, locale) || t("unknownDesign");
                       const dImage = item.design?.images?.[0];
-
-
-              {/* 3-Column Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Column 1: Designs */}
-                <div className="space-y-3">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "التصاميم" : "DESIGNS"}
-                  </p>
-                  <div className="space-y-3">
-                    {items.map((item, index) => {
-                      const designName = getDesignDisplayName(item.design, locale) || t("unknownDesign");
-                      const dImage = item.design?.images?.[0];
-                      return (
-                        <div key={index} className="flex items-center gap-3 bg-gray-50/50 p-2.5 rounded-xl border border-gray-100">
-                          <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded-lg border border-gray-200 shrink-0">
-                            {dImage ? (
-                              <img
-                                src={resolveDesignImage(dImage)}
-                                alt="Design"
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                                <Package size={18} />
-                              </div>
-                            )}
-                          </div>
-                          <span className="text-xs sm:text-sm text-black font-medium line-clamp-2">
-                            {designName}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Column 2: Fabrics */}
-                <div className="space-y-3">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "الأقمشة" : "FABRICS"}
-                  </p>
-                  <div className="space-y-3">
-                    {items.map((item, index) => {
-                      const fabricName = order.fabricSource === "self"
-                        ? t("ownFabric")
-                        : getFabricDisplayName(item.fabric, locale) || t("unknownFabric");
-                      const fImage = order.fabricSource === "storefront" ? item.fabric?.images?.[0] : null;
-
                       const tailorName = getTailorDisplayName(item.tailorShop, locale);
                       return (
                         <div key={index} className="space-y-2 bg-gray-50/50 p-2.5 rounded-xl border border-gray-100">
                           <div className="flex items-center gap-3">
-
                             <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded-lg border border-gray-200 shrink-0">
                               {dImage ? (
                                 <img
                                   src={resolveDesignImage(dImage)}
                                   alt="Design"
-
-                            <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded-lg border border-gray-200 shrink-0 flex items-center justify-center">
-                              {fImage ? (
-                                <img
-                                  src={resolveFabricImage(fImage)}
-                                  alt="Fabric"
-
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-
                                   <Package size={18} />
                                 </div>
                               )}
@@ -686,21 +626,6 @@ export default function CustomOrdersTab({
                           <span className="text-xs text-black font-medium line-clamp-2">
                             {fabricName}
                           </span>
-
-                                  <Package size={16} />
-                                </div>
-                              )}
-                            </div>
-                            <span className="text-xs sm:text-sm text-black font-medium line-clamp-2">
-                              {fabricName}
-                            </span>
-                          </div>
-                          {tailorName && (
-                            <p className="text-[9px] uppercase tracking-[0.1em] text-gray-400 font-ui pl-1">
-                              {locale === "ar" ? "الخياط: " : "Tailor: "} {tailorName}
-                            </p>
-                          )}
-
                         </div>
                       );
                     })}
@@ -714,25 +639,12 @@ export default function CustomOrdersTab({
                   </p>
                   {order.addons && order.addons.length > 0 ? (
                     <div className="border border-gray-200 rounded-xl p-3 bg-[#FDFAF5]">
-
-                {/* Column 3: Add-ons / Summary */}
-                <div className="space-y-3">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "الإضافات والملخص" : "ADD-ONS & SUMMARY"}
-                  </p>
-
-                  {order.addons && order.addons.length > 0 ? (
-                    <div className="border border-gray-200 rounded-xl p-3 bg-[#FDFAF5]">
-                      <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mb-1.5 font-semibold text-left">
-                        {locale === "ar" ? "الإضافات المختارة" : "SELECTED ADD-ONS"}
-                      </p>
                       <ul className="space-y-1.5">
                         {order.addons.map((addon: any, idx: number) => {
                           const name = locale === "ar" ? addon.nameAr || addon.name : addon.name;
                           return (
                             <li key={idx} className="flex justify-between items-center text-xs text-gray-600">
                               <span className="font-medium">{name}</span>
-                              <span>{name}</span>
                               <span className="font-semibold text-black">{formatCurrency(addon.price, locale)}</span>
                             </li>
                           );
@@ -818,23 +730,6 @@ export default function CustomOrdersTab({
                           )}
                         </span>
                       </div>
-
-                    </div>
-                  ) : (
-                    <div className="border border-dashed border-gray-200 rounded-xl p-3 text-center text-[10px] text-gray-400 uppercase tracking-wider font-ui py-6">
-                      {locale === "ar" ? "لا توجد إضافات" : "No Add-Ons"}
-                    </div>
-                  )}
-
-                  {/* Total price */}
-                  <div className="flex justify-between items-center border-t border-gray-100 pt-3">
-                    <span className="text-xs uppercase tracking-wider text-gray-400 font-ui">
-                      {locale === "ar" ? "المجموع الإجمالي" : "Total Price"}
-                    </span>
-                    {order.total !== undefined && (
-                      <span className="font-display text-base sm:text-lg font-semibold text-black whitespace-nowrap">
-                        {formatCurrency(order.total, locale)}
-                      </span>
                     )}
                     <div className="flex justify-between pt-2 border-t border-gray-200">
                       <span className="font-semibold text-black">{tReview("lines.subtotal", { defaultValue: "Subtotal" })}</span>
@@ -1292,7 +1187,6 @@ export default function CustomOrdersTab({
                   <span className="inline-flex items-center text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 font-semibold bg-amber-50 text-amber-700 border border-amber-200 rounded-md">
                     {locale === "ar" ? "جاهز" : "Ready-Made Order"}
                   </span>
-
                   <span className="text-[10px] uppercase tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
                     {tRetail(`statuses.${order.status}`, {
                       defaultValue: order.status,
@@ -1466,80 +1360,6 @@ export default function CustomOrdersTab({
                   </div>
                 </div>
               )}
-
-                </div>
-              </div>
-
-              {/* Grid content */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Column 1: Designs */}
-                <div className="space-y-3">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "التصاميم" : "DESIGNS"}
-                  </p>
-                  <div className="space-y-3">
-                    {(isExpanded ? order.items : [order.items[0]]).map((item, idx) => (
-                      item && (
-                        <div key={idx} className="flex items-center gap-3 bg-gray-50/50 p-2.5 rounded-xl border border-gray-100">
-                          <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded-lg border border-gray-200 shrink-0">
-                            {item.image ? (
-                              <img
-                                src={resolveReadyMadeImage(item.image)}
-                                alt={item.name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                                <Package size={18} />
-                              </div>
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <span className="text-xs sm:text-sm text-black font-medium line-clamp-2">
-                              {item.name}
-                            </span>
-                            <span className="block text-[10px] text-gray-500 font-ui mt-0.5">
-                              Qty: {item.quantity} {item.size && `| Size: ${item.size}`}
-                            </span>
-                          </div>
-                        </div>
-                      )
-                    ))}
-                  </div>
-                </div>
-
-                {/* Column 2: Fabrics */}
-                <div className="space-y-3">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "الأقمشة" : "FABRICS"}
-                  </p>
-                  <div className="border border-dashed border-gray-200 rounded-xl p-3 text-center text-[10px] text-gray-400 uppercase tracking-wider font-ui py-6 bg-gray-50/20">
-                    {locale === "ar" ? "مشمول مع التصميم" : "Included in Ready-made"}
-                  </div>
-                </div>
-
-                {/* Column 3: Add-Ons / Summary */}
-                <div className="space-y-3">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "المجموع" : "SUMMARY"}
-                  </p>
-                  <div className="border border-dashed border-gray-200 rounded-xl p-3 text-center text-[10px] text-gray-400 uppercase tracking-wider font-ui py-6 bg-gray-50/20">
-                    {locale === "ar" ? "لا توجد إضافات" : "No Add-Ons"}
-                  </div>
-
-                  {/* Total price */}
-                  <div className="flex justify-between items-center border-t border-gray-100 pt-3">
-                    <span className="text-xs uppercase tracking-wider text-gray-400 font-ui">
-                      {locale === "ar" ? "المجموع الإجمالي" : "Total Price"}
-                    </span>
-                    {order.totalPrice !== undefined && (
-                      <span className="font-display text-base sm:text-lg font-semibold text-black whitespace-nowrap">
-                        {formatCurrency(order.totalPrice, locale)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
             </article>
           );
         }
