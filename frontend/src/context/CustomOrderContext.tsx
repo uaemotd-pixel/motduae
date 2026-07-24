@@ -39,9 +39,13 @@ type CustomOrderContextType = {
   isHydrated: boolean;
   deliveryType: "pickup" | "delivery";
   useOwnFabric: boolean;
+  addPocket: boolean;
+  addBottomWideFold: boolean;
   setFabricSource: (source: FabricSource) => void;
   setUseOwnFabric: (value: boolean) => void;
   setDeliveryType: (type: "pickup" | "delivery") => void;
+  setAddPocket: (val: boolean) => void;
+  setAddBottomWideFold: (val: boolean) => void;
   toggleFabric: (fabric: CustomOrderFabricSelection) => void;
   selectSingleFabric: (fabric: CustomOrderFabricSelection) => void;
   toggleDesign: (design: CustomOrderSelectedDesign) => void;
@@ -73,6 +77,8 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
   const [deliveryType, setDeliveryType] = useState<"pickup" | "delivery">(
     "delivery",
   );
+  const [addPocket, setAddPocket] = useState<boolean>(false);
+  const [addBottomWideFold, setAddBottomWideFold] = useState<boolean>(false);
 
   // Hydrate from sessionStorage only if user is authenticated.
   useEffect(() => {
@@ -82,8 +88,12 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       // Clear any previous draft from earlier sessions for logged-out users.
       sessionStorage.removeItem(CUSTOM_ORDER_STORAGE_KEY);
       sessionStorage.removeItem(CUSTOM_ORDER_DELIVERY_TYPE_KEY);
+      sessionStorage.removeItem("customOrderAddPocket");
+      sessionStorage.removeItem("customOrderAddBottomFold");
       setDraft(createEmptyCustomOrderDraft());
       setDeliveryType("delivery");
+      setAddPocket(false);
+      setAddBottomWideFold(false);
       setIsHydrated(true);
       return;
     }
@@ -98,6 +108,15 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     }
 
     setDeliveryType("delivery");
+
+    const storedPocket = sessionStorage.getItem("customOrderAddPocket");
+    if (storedPocket !== null) {
+      setAddPocket(storedPocket === "true");
+    }
+    const storedFold = sessionStorage.getItem("customOrderAddBottomFold");
+    if (storedFold !== null) {
+      setAddBottomWideFold(storedFold === "true");
+    }
 
     setIsHydrated(true);
   }, []);
@@ -359,6 +378,16 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     [draft],
   );
 
+  const setAddPocketAction = useCallback((val: boolean) => {
+    setAddPocket(val);
+    sessionStorage.setItem("customOrderAddPocket", String(val));
+  }, []);
+
+  const setAddBottomWideFoldAction = useCallback((val: boolean) => {
+    setAddBottomWideFold(val);
+    sessionStorage.setItem("customOrderAddBottomFold", String(val));
+  }, []);
+
   const setDeliveryTypeAction = useCallback((type: "pickup" | "delivery") => {
     setDeliveryType("delivery");
     sessionStorage.setItem(CUSTOM_ORDER_DELIVERY_TYPE_KEY, "delivery");
@@ -370,9 +399,13 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       isHydrated,
       deliveryType,
       useOwnFabric: useOwnFabric(draft),
+      addPocket,
+      addBottomWideFold,
       setFabricSource,
       setUseOwnFabric: setUseOwnFabricFlag,
       setDeliveryType: setDeliveryTypeAction,
+      setAddPocket: setAddPocketAction,
+      setAddBottomWideFold: setAddBottomWideFoldAction,
       toggleFabric,
       selectSingleFabric,
       toggleDesign,
@@ -395,6 +428,8 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       draft,
       isHydrated,
       deliveryType,
+      addPocket,
+      addBottomWideFold,
       setFabricSource,
       setUseOwnFabricFlag,
       toggleFabric,
@@ -414,6 +449,8 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       syncAutoLineItems,
       updateLineItemUnit,
       setDeliveryTypeAction,
+      setAddPocketAction,
+      setAddBottomWideFoldAction,
       toggleAddon,
     ],
   );

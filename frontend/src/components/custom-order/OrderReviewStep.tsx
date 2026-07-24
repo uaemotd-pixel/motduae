@@ -39,7 +39,17 @@ export default function OrderReviewStep() {
   const params = useParams();
   const locale = params.locale === "ar" ? "ar" : "en";
 
-  const { draft, isHydrated, deliveryType, setDeliveryType, toggleAddon } = useCustomOrder();
+  const {
+    draft,
+    isHydrated,
+    deliveryType,
+    setDeliveryType,
+    toggleAddon,
+    addPocket,
+    addBottomWideFold,
+    setAddPocket,
+    setAddBottomWideFold,
+  } = useCustomOrder();
   const usingOwnFabric = useOwnFabric(draft);
 
   const [pricing, setPricing] = useState<CustomOrderPricingBreakdown | null>(
@@ -400,8 +410,9 @@ export default function OrderReviewStep() {
           )}
         </section>
 
-        {/* Right column - Pricing with toggle */}
-        <section className="border border-(--color-border) bg-white p-6 sm:p-8">
+        {/* Right column - Pricing with toggle & Order Options */}
+        <div className="flex flex-col gap-6">
+          <section className="border border-(--color-border) bg-white p-6 sm:p-8">
           <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
             {t("pricingTitle")}
           </h2>
@@ -525,7 +536,45 @@ export default function OrderReviewStep() {
             </p>
           )}
         </section>
+
+        {/* Order Options - Always Show */}
+        <div className="border border-(--color-border) bg-[#FDFBF7] p-6 sm:p-8">
+          <h2 className="[font-family:var(--font-display)] text-[20px] mb-4">
+            {locale === "ar"
+              ? "خيارات الطلب (اختياري)"
+              : "Order Options (Optional)"}
+          </h2>
+          <div className="space-y-4">
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                id="add-pocket-checkbox"
+                checked={addPocket}
+                onChange={(e) => setAddPocket(e.target.checked)}
+                className="w-4 h-4 mt-0.5 accent-black shrink-0"
+              />
+              <span className="[font-family:var(--font-body)] text-[13px] text-black leading-tight">
+                {locale === "ar" ? "إضافة جيب" : "Add a Pocket"}
+              </span>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                id="add-bottom-wide-fold-checkbox"
+                checked={addBottomWideFold}
+                onChange={(e) => setAddBottomWideFold(e.target.checked)}
+                className="w-4 h-4 mt-0.5 accent-black shrink-0"
+              />
+              <span className="[font-family:var(--font-body)] text-[13px] text-black leading-tight">
+                {locale === "ar"
+                  ? "إضافة طية سفلية عريضة"
+                  : "Add a bottom wide fold"}
+              </span>
+            </label>
+          </div>
+        </div>
       </div>
+    </div>
 
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-6 border-t border-(--color-border)">
         <Link
