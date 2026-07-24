@@ -184,6 +184,14 @@ export function createEmptyCustomOrderDraft(
   };
 }
 
+export function isDraftEmpty(draft: CustomOrderDraft): boolean {
+  return (
+    draft.selectedFabrics.length === 0 &&
+    draft.selectedDesigns.length === 0 &&
+    draft.lineItems.length === 0
+  );
+}
+
 function normalizeFirstStep(value: unknown): CustomOrderFirstStep | null {
   return value === "fabric" || value === "tailor" ? value : null;
 }
@@ -207,12 +215,16 @@ export function getCustomOrderStepNumber(
 
 export function getNextPathAfterFabric(draft: CustomOrderDraft): string {
   if (draft.firstStep === "fabric") return "/custom-order/tailor";
+  if (draft.fabricSource === "self") return "/custom-order/meters";
   if (isTailorStepComplete(draft)) return "/custom-order/meters";
   return "/custom-order/tailor";
 }
 
 export function getNextPathAfterTailor(draft: CustomOrderDraft): string {
-  if (draft.firstStep === "tailor") return "/custom-order/fabric";
+  if (draft.firstStep === "tailor") {
+    if (draft.fabricSource === "self") return "/custom-order/meters";
+    return "/custom-order/fabric";
+  }
   if (isFabricStepComplete(draft)) return "/custom-order/meters";
   return "/custom-order/fabric";
 }
@@ -235,8 +247,13 @@ export function getCustomOrderEntryPath(
 }
 
 export function getCustomOrderResumePath(draft: CustomOrderDraft): string {
-  if (!isFabricStepComplete(draft)) return "/custom-order/fabric";
-  if (!isTailorStepComplete(draft)) return "/custom-order/tailor";
+  if (draft.firstStep === "tailor") {
+    if (!isTailorStepComplete(draft)) return "/custom-order/tailor";
+    if (!isFabricStepComplete(draft)) return "/custom-order/fabric";
+  } else {
+    if (!isFabricStepComplete(draft)) return "/custom-order/fabric";
+    if (!isTailorStepComplete(draft)) return "/custom-order/tailor";
+  }
   if (!isMetersStepComplete(draft)) return "/custom-order/meters";
   return "/custom-order/review";
 }

@@ -54,9 +54,6 @@ export async function prepareRetailOrder(orderItems) {
       stock = product.availableFabricStock;
     }
 
-    const stock = isAddon ? product.stock : product.availableFabricStock;
-
-
     if (stock < quantity) {
       throw new Error(`${product.name} is out of stock`);
     }
@@ -91,13 +88,6 @@ export async function prepareRetailOrder(orderItems) {
     });
 
     itemsPrice += (finalPrice || 0) * quantity;
-
-      size: isAddon ? 'N/A' : product.metersPerFabric,
-      price: isAddon ? product.price : product.finalSellingPriceAED,
-      quantity,
-    });
-
-    itemsPrice += (isAddon ? product.price : product.finalSellingPriceAED || 0) * quantity;
   }
 
   const shippingPrice = 0;

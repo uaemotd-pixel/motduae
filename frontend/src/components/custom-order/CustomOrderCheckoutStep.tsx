@@ -433,6 +433,7 @@ export default function CustomOrderCheckoutStep() {
 
       setOrderId(response.orderId);
       setSuccessOrderItems(orderItemNames);
+      resetOrder();
       setShowSuccess(true);
     } catch (err: unknown) {
       const message =
@@ -484,6 +485,7 @@ export default function CustomOrderCheckoutStep() {
 
       setOrderId(response.orderId);
       setSuccessOrderItems(orderItemNames);
+      resetOrder();
       setShowSuccess(true);
     } catch (err: unknown) {
       const message =
@@ -911,7 +913,6 @@ export default function CustomOrderCheckoutStep() {
         isOpen={showSuccess}
         onClose={() => {
           setShowSuccess(false);
-          resetOrder();
           router.push("/account/userAccount?tab=orders");
         }}
         title={t("successTitle")}
