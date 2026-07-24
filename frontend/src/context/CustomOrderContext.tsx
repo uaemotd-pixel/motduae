@@ -31,6 +31,7 @@ import {
   useOwnFabric,
   buildCustomOrderPreviewPayload,
   FabricUnit,
+  isDraftEmpty,
 } from "@/lib/customOrder";
 import { getToken } from "@/lib/auth/token";
 
@@ -58,7 +59,7 @@ type CustomOrderContextType = {
   updateMeasurements: (measurements: Partial<CustomOrderMeasurements>) => void;
   updateDeliveryAddress: (address: Partial<CustomOrderDeliveryAddress>) => void;
   resetOrder: (firstStep?: CustomOrderFirstStep | null) => void;
-  setFirstStepIfUnset: (step: CustomOrderFirstStep) => void;
+  claimFirstStep: (step: CustomOrderFirstStep) => void;
   getPreviewPayload: () => CustomOrderPreviewPayload | null;
   syncAutoLineItems: () => void;
   updateLineItemUnit: (itemId: string, unit: FabricUnit) => void;
@@ -360,17 +361,23 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
 
   const resetOrder = useCallback(
     (firstStep: CustomOrderFirstStep | null = null) => {
-      setDraft(createEmptyCustomOrderDraft(firstStep));
+      const empty = createEmptyCustomOrderDraft(firstStep);
+      setDraft(empty);
       setDeliveryType("delivery");
+      sessionStorage.setItem(CUSTOM_ORDER_STORAGE_KEY, JSON.stringify(empty));
+      sessionStorage.setItem(CUSTOM_ORDER_DELIVERY_TYPE_KEY, "delivery");
     },
     [],
   );
 
-  const setFirstStepIfUnset = useCallback((step: CustomOrderFirstStep) => {
-    setDraft((prev) => ({
-      ...prev,
-      firstStep: prev.firstStep ?? step,
-    }));
+  const claimFirstStep = useCallback((step: CustomOrderFirstStep) => {
+    setDraft((prev) => {
+      if (isDraftEmpty(prev) && prev.firstStep !== step) {
+        return createEmptyCustomOrderDraft(step);
+      }
+      if (prev.firstStep !== null) return prev;
+      return { ...prev, firstStep: step };
+    });
   }, []);
 
   const getPreviewPayload = useCallback(
@@ -418,7 +425,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       updateMeasurements,
       updateDeliveryAddress,
       resetOrder,
-      setFirstStepIfUnset,
+      claimFirstStep,
       getPreviewPayload,
       syncAutoLineItems,
       updateLineItemUnit,
@@ -444,7 +451,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       updateMeasurements,
       updateDeliveryAddress,
       resetOrder,
-      setFirstStepIfUnset,
+      claimFirstStep,
       getPreviewPayload,
       syncAutoLineItems,
       updateLineItemUnit,

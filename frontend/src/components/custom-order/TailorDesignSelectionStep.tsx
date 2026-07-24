@@ -32,7 +32,7 @@ export default function TailorDesignSelectionStep() {
     const locale = params.locale === "ar" ? "ar" : "en";
     const designSlugParam = searchParams.get("designSlug");
 
-    const { draft, isHydrated, toggleDesign, selectSingleDesign, setFirstStepIfUnset, resetOrder, setFabricSource, useOwnFabric: usingOwnFabric, setUseOwnFabric } =
+    const { draft, isHydrated, toggleDesign, selectSingleDesign, claimFirstStep, setFabricSource, useOwnFabric: usingOwnFabric, setUseOwnFabric } =
         useCustomOrder();
 
     const [designs, setDesigns] = useState<TailorDesignListItem[]>([]);
@@ -42,7 +42,7 @@ export default function TailorDesignSelectionStep() {
 
     useEffect(() => {
         if (!isHydrated) return;
-        setFirstStepIfUnset("tailor");
+        claimFirstStep("tailor");
         if (draft.selectedFabrics.length > 0 && !draft.fabricSource) {
             setFabricSource("storefront");
         }
@@ -51,7 +51,7 @@ export default function TailorDesignSelectionStep() {
         }
     }, [
         isHydrated,
-        setFirstStepIfUnset,
+        claimFirstStep,
         draft.selectedFabrics.length,
         draft.fabricSource,
         draft.firstStep,
@@ -156,7 +156,7 @@ export default function TailorDesignSelectionStep() {
     const handleUseOwnFabric = () => {
         setUseOwnFabric(true);
         if (isTailorStepComplete(draft)) {
-            router.push("/custom-order/meters");
+            router.push(getNextPathAfterTailor({ ...draft, fabricSource: "self" }));
         }
     };
 

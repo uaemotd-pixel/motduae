@@ -2,6 +2,7 @@ import ReadyMadeProduct from '../models/ReadyMadeProduct.js';
 import AddOn from '../models/AddOn.js';
 import Fabric from '../models/Fabric.js';
 
+
 export async function prepareRetailOrder(orderItems) {
   if (!orderItems || orderItems.length === 0) {
     throw new Error('No order items provided');
@@ -18,6 +19,7 @@ export async function prepareRetailOrder(orderItems) {
 
     let isAddon = false;
     let isFabric = false;
+
     if (!product) {
       product = await AddOn.findOne({
         _id: item.productId,
@@ -122,7 +124,6 @@ export async function deductRetailProductStock(orderItems) {
         { new: true },
       );
     }
-
     // If not updated, try updating Fabric
     if (!updated) {
       updated = await Fabric.findOneAndUpdate(

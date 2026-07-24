@@ -39,11 +39,10 @@ export default function FabricSelectionStep() {
         draft,
         isHydrated,
         useOwnFabric,
-        setUseOwnFabric,
         toggleFabric,
         selectSingleFabric,
         setFabricSource,
-        setFirstStepIfUnset,
+        claimFirstStep,
         resetOrder,
     } = useCustomOrder();
 
@@ -83,14 +82,17 @@ export default function FabricSelectionStep() {
 
     useEffect(() => {
         if (!isHydrated) return;
-        setFirstStepIfUnset("fabric");
-        if (useOwnFabric) {
-            setUseOwnFabric(false);
-        }
+        claimFirstStep("fabric");
         if (draft.selectedFabrics.length > 0 && !draft.fabricSource) {
             setFabricSource("storefront");
         }
-    }, [isHydrated, setFirstStepIfUnset, useOwnFabric, setUseOwnFabric, draft.selectedFabrics.length, draft.fabricSource, setFabricSource]);
+    }, [
+        isHydrated,
+        claimFirstStep,
+        draft.selectedFabrics.length,
+        draft.fabricSource,
+        setFabricSource,
+    ]);
 
     useEffect(() => {
         if (!isHydrated) return;
@@ -135,7 +137,7 @@ export default function FabricSelectionStep() {
     const stepNumber = getCustomOrderStepNumber("fabric", draft.firstStep);
     const continueLabel = draft.firstStep === "fabric"
         ? t("continueToTailor")
-        : isTailorStepComplete(draft)
+        : useOwnFabric || isTailorStepComplete(draft)
           ? t("continueToMeters")
           : t("continueToTailor");
     const showBackToTailor = draft.firstStep === "tailor";
