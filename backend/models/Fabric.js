@@ -35,10 +35,9 @@ const fabricSchema = new mongoose.Schema(
         message: "At least one image is required",
       },
     },
-    // Material – English (enum) and Arabic (string)
+    // Material – English (string) and Arabic (string)
     material: {
       type: String,
-      enum: FABRIC_MATERIALS,
       required: true,
     },
     materialAr: { type: String, trim: true, default: "" },
@@ -83,7 +82,10 @@ fabricSchema.pre("save", async function populateFabricShopId(next) {
         this.fabricShopId = shop._id;
       }
     } catch (err) {
-      console.error("Failed to auto-populate fabricShopId on pre-save hook:", err);
+      console.error(
+        "Failed to auto-populate fabricShopId on pre-save hook:",
+        err,
+      );
     }
   }
   next();

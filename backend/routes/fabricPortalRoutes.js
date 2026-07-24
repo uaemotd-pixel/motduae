@@ -6,6 +6,7 @@ import CustomOrder from "../models/CustomOrder.js";
 import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
 import AddOn from "../models/AddOn.js";
 import RetailOrder from "../models/RetailOrder.js";
+import Material from "../models/Material.js";
 import {
   uploadSingleImageMiddleware,
   processTailorShopImage,
@@ -225,6 +226,21 @@ fabricPortalRouter.post(
     }
     const url = await processTailorDesignImage(req.file);
     res.status(201).json({ success: true, url });
+  }),
+);
+
+// GET /api/fabric/materials?domain=fabrics
+// Fabric stores can read active materials for a given domain
+fabricPortalRouter.get(
+  "/materials",
+  expressAsyncHandler(async (req, res) => {
+    const { domain } = req.query;
+    const filter = { isActive: true };
+    if (domain) filter.domain = domain;
+    const materials = await Material.find(filter)
+      .sort({ name: 1 })
+      .select("name nameAr");
+    res.send(materials);
   }),
 );
 

@@ -1,15 +1,11 @@
 import { api, type ApiError } from "@/lib/api/client";
 
-export const DESIGN_CATEGORIES = [
-  "hand-embroidered",
-  "crystal-embellished",
-  "non-crystal",
-  "talli",
-  "khous",
-  "beaded",
-] as const;
-
-export type DesignCategory = (typeof DESIGN_CATEGORIES)[number];
+export interface DesignCategoryOption {
+  _id: string;
+  name: string;
+  nameAr: string;
+  isActive: boolean;
+}
 
 export interface TailorDesignProfile {
   _id: string;
@@ -20,7 +16,7 @@ export interface TailorDesignProfile {
   description: string;
   descriptionAr: string;
   images: string[];
-  category: DesignCategory | string;
+  category: string;
   basePrice: number;
   priceType?: "fixed" | "per_meter";
   tailoringFee: number;
@@ -40,7 +36,7 @@ export interface TailorDesignFormData {
   description: string;
   descriptionAr: string;
   images: string[];
-  category: DesignCategory;
+  category: string;
   basePrice: number;
   priceType: "fixed" | "per_meter";
   tailoringFee: number;
@@ -63,7 +59,7 @@ export function emptyTailorDesignForm(): TailorDesignFormData {
     description: "",
     descriptionAr: "",
     images: [""],
-    category: "hand-embroidered",
+    category: "",
     basePrice: 0,
     priceType: "fixed",
     tailoringFee: DEFAULT_TAILORING_FEE,
@@ -95,9 +91,7 @@ export function designToForm(
     description: design.description ?? "",
     descriptionAr: design.descriptionAr ?? "",
     images: design.images?.length ? [...design.images] : [""],
-    category: (DESIGN_CATEGORIES.includes(design.category as DesignCategory)
-      ? design.category
-      : "hand-embroidered") as DesignCategory,
+    category: design.category ?? "",
     basePrice: design.basePrice ?? 0,
     priceType: design.priceType ?? "fixed",
     tailoringFee: design.tailoringFee ?? DEFAULT_TAILORING_FEE,
@@ -177,4 +171,11 @@ export async function deleteTailorDesign(id: string): Promise<void> {
 
 export function isShopMissingError(error: unknown): boolean {
   return (error as ApiError)?.status === 404;
+}
+
+export async function fetchDesignCategories(): Promise<DesignCategoryOption[]> {
+  const data = await api.get<DesignCategoryOption[]>(
+    "/api/tailors/categories/designs",
+  );
+  return Array.isArray(data) ? data : [];
 }

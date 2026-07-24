@@ -10,6 +10,7 @@ import FormField from "@/components/admin/FormField";
 import FabricImageUpload from "@/components/admin/FabricImageUpload";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import { fetchOwnFabricShop } from "@/lib/fabricShop";
+import { api } from "@/lib/api/client";
 import {
   FABRIC_MATERIALS,
   FABRIC_TAGS,
@@ -95,6 +96,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const [isTagArDropdownOpen, setIsTagArDropdownOpen] = useState(false);
   const [isEmirateDropdownOpen, setIsEmirateDropdownOpen] = useState(false);
+  const [dbMaterials, setDbMaterials] = useState<
+    { name: string; nameAr: string; _id: string }[]
+  >([]);
   const colorDropdownRef = useRef<HTMLDivElement>(null);
   const materialDropdownRef = useRef<HTMLDivElement>(null);
   const materialArDropdownRef = useRef<HTMLDivElement>(null);
@@ -115,6 +119,26 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     }
     previousImageCountRef.current = formData.images.length;
   }, [formData.images.length]);
+
+  // Fetch materials from DB for the "fabrics" domain
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ name: string; nameAr: string; _id: string }[]>(
+        "/api/fabric/materials?domain=fabrics",
+      )
+      .then((data) => {
+        if (!cancelled && Array.isArray(data) && data.length > 0) {
+          setDbMaterials(data);
+        }
+      })
+      .catch(() => {
+        // Silently fall back to FABRIC_MATERIALS
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -399,6 +423,16 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     );
   }
 
+  const materialOptionsEn =
+    dbMaterials.length > 0
+      ? dbMaterials.map((m) => ({ value: m.name, label: m.name }))
+      : FABRIC_MATERIALS.map((m) => ({ value: m.value, label: m.en }));
+
+  const materialOptionsAr =
+    dbMaterials.length > 0
+      ? dbMaterials.map((m) => ({ value: m.nameAr, label: m.nameAr }))
+      : FABRIC_MATERIALS.map((m) => ({ value: m.ar, label: m.ar }));
+
   const selectedColors = formData.colors || [];
 
   return (
@@ -501,9 +535,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 >
                   <span className="truncate">
                     {formData.material ? (
-                      FABRIC_MATERIALS.find(
+                      materialOptionsEn.find(
                         (m) => m.value === formData.material,
-                      )?.en
+                      )?.label
                     ) : (
                       <span className="text-xs text-black/60">
                         Select material
@@ -525,7 +559,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                       className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden"
                     >
                       <div className="max-h-44 overflow-auto">
-                        {FABRIC_MATERIALS.map((opt) => (
+                        {materialOptionsEn.map((opt) => (
                           <button
                             key={opt.value}
                             type="button"
@@ -535,7 +569,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                             }}
                             className={`w-full text-left px-3 py-2 text-[13px] hover:bg-neutral-50 transition ${formData.material === opt.value ? "bg-neutral-100 font-medium" : ""}`}
                           >
-                            {opt.en}
+                            {opt.label}
                           </button>
                         ))}
                       </div>
@@ -561,8 +595,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 >
                   <span className="truncate">
                     {formData.materialAr ? (
-                      FABRIC_MATERIALS.find((m) => m.ar === formData.materialAr)
-                        ?.ar
+                      materialOptionsAr.find(
+                        (m) => m.value === formData.materialAr,
+                      )?.label
                     ) : (
                       <span className="text-xs text-black/60">اختر النوع</span>
                     )}
@@ -583,17 +618,17 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                       dir="rtl"
                     >
                       <div className="max-h-44 overflow-auto">
-                        {FABRIC_MATERIALS.map((opt) => (
+                        {materialOptionsAr.map((opt) => (
                           <button
                             key={opt.value}
                             type="button"
                             onClick={() => {
-                              handleChange("materialAr", opt.ar);
+                              handleChange("materialAr", opt.value);
                               setIsMaterialArDropdownOpen(false);
                             }}
-                            className={`w-full text-right px-3 py-2 text-[13px] hover:bg-neutral-50 transition ${formData.materialAr === opt.ar ? "bg-neutral-100 font-medium" : ""}`}
+                            className={`w-full text-right px-3 py-2 text-[13px] hover:bg-neutral-50 transition ${formData.materialAr === opt.value ? "bg-neutral-100 font-medium" : ""}`}
                           >
-                            {opt.ar}
+                            {opt.label}
                           </button>
                         ))}
                       </div>

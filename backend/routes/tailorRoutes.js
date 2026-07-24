@@ -4,6 +4,7 @@ import TailorShop from "../models/TailorShop.js";
 import Design from "../models/Design.js";
 import Customer from "../models/customer.js";
 import User from "../models/User.js";
+import Category from "../models/Category.js";
 import { env } from "../config/env.js";
 
 const tailorRoutes = express.Router();
@@ -144,6 +145,25 @@ const toDesignListItem = (design) => ({
   tailoringFee: design.tailoringFee,
   estimatedMeters: design.estimatedMeters,
   estimatedDays: design.estimatedDays,
+});
+
+// GET /api/tailors/categories/designs — public endpoint to fetch design categories (no auth required)
+tailorRoutes.get("/categories/designs", async (req, res) => {
+  try {
+    const categories = await Category.find({
+      domain: "designs",
+      isActive: true,
+    })
+      .sort({ name: 1 })
+      .select("name nameAr isActive");
+    res.json(categories);
+  } catch (error) {
+    console.error("GET /api/tailors/categories/designs error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch categories",
+    });
+  }
 });
 
 // GET /api/tailors/designs/all — fetch all active designs with tailor shop info

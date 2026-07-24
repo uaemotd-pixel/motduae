@@ -4,27 +4,36 @@ import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
-import { Share2 } from "lucide-react";
+import { Share2, ChevronDown, ChevronUp } from "lucide-react";
 import MainLayout from "../../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 
 import {
   getDesignDisplayFields,
   resolveDesignImage,
-  formatDesignCategory,
   type TailorDesignListItem,
 } from "@/lib/tailors";
-
 import { formatDesignBasePrice } from "@/lib/tailors";
 
-const CATEGORY_COLORS: Record<string, string> = {
-  "hand-embroidered": "#8B6B4D",
-  "crystal-embellished": "#1A2A3A",
-  "non-crystal": "#5A6B5A",
-  talli: "#B8860B",
-  khous: "#4A3A2A",
-  beaded: "#6B2A5A",
-};
+interface FilterOption {
+  _id: string;
+  name: string;
+  nameAr?: string;
+  isActive?: boolean;
+}
+
+const CATEGORY_COLOR_PALETTE = [
+  "#8B6B4D",
+  "#1A2A3A",
+  "#5A6B5A",
+  "#B8860B",
+  "#4A3A2A",
+  "#6B2A5A",
+  "#2A5A6B",
+  "#6B4A2A",
+  "#4A6B2A",
+  "#6B2A2A",
+];
 
 const SearchOffIcon = () => (
   <svg
@@ -66,7 +75,7 @@ const CustomCheckbox = ({
     aria-checked={checked}
     onClick={onChange}
     className={`
-      w-4 h-4 shrink-0 border transition-all duration-150 flex items-center justify-center
+      w-4 h-4 shrink-0 border transition-all duration-150 flex items-center justify-center cursor-pointer
       ${checked ? "bg-black border-black" : "bg-transparent border-[#C8C4BC] hover:border-black"}
     `}
   >
@@ -89,6 +98,37 @@ const FilterLabel = ({ children }: { children: React.ReactNode }) => (
     {children}
   </p>
 );
+
+const CollapsibleFilter = ({
+  label,
+  children,
+  count,
+}: {
+  label: string;
+  children: React.ReactNode;
+  count?: number;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="border-b border-[#E4E0D8] pb-4">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between py-2 hover:opacity-70 transition-opacity cursor-pointer"
+      >
+        <span className="text-[10px] tracking-[0.22em] font-normal text-black uppercase">
+          {label} {count !== undefined && `(${count})`}
+        </span>
+        {isOpen ? (
+          <ChevronUp className="w-4 h-4 text-[#8A8A80]" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-[#8A8A80]" />
+        )}
+      </button>
+      {isOpen && <div className="mt-3 flex flex-col gap-2">{children}</div>}
+    </div>
+  );
+};
 
 const PriceRangeSlider = ({
   minPrice,
@@ -193,7 +233,7 @@ const PriceRangeSlider = ({
             }
           }}
           onBlur={() => commitMin(localMin)}
-          className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition"
+          className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition cursor-pointer"
         />
 
         <input
@@ -217,7 +257,7 @@ const PriceRangeSlider = ({
             }
           }}
           onBlur={() => commitMax(localMax)}
-          className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition"
+          className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition cursor-pointer"
         />
       </div>
     </div>
@@ -266,7 +306,7 @@ const Pagination = ({
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="group relative w-10 h-10 flex items-center justify-center rounded-lg border border-[#E4E0D8] bg-transparent text-black disabled:opacity-40 disabled:cursor-not-allowed hover:border-black hover:bg-black hover:text-white transition-all duration-200"
+        className="group relative w-10 h-10 flex items-center justify-center rounded-lg border border-[#E4E0D8] bg-transparent text-black disabled:opacity-40 disabled:cursor-not-allowed hover:border-black hover:bg-black hover:text-white transition-all duration-200 cursor-pointer"
         aria-label="Previous page"
       >
         <svg
@@ -291,7 +331,7 @@ const Pagination = ({
           disabled={page === "..."}
           className={`
             min-w-10 h-10 px-2 flex items-center justify-center rounded-lg font-mono text-[13px] tracking-wide
-            transition-all duration-200
+            transition-all duration-200 cursor-pointer
             ${
               page === currentPage
                 ? "bg-black text-white border-black"
@@ -308,7 +348,7 @@ const Pagination = ({
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="group relative w-10 h-10 flex items-center justify-center rounded-lg border border-[#E4E0D8] bg-transparent text-black disabled:opacity-40 disabled:cursor-not-allowed hover:border-black hover:bg-black hover:text-white transition-all duration-200"
+        className="group relative w-10 h-10 flex items-center justify-center rounded-lg border border-[#E4E0D8] bg-transparent text-black disabled:opacity-40 disabled:cursor-not-allowed hover:border-black hover:bg-black hover:text-white transition-all duration-200 cursor-pointer"
         aria-label="Next page"
       >
         <svg
@@ -327,6 +367,10 @@ const Pagination = ({
 
 type FilterState = {
   categories: string[];
+  materials: string[];
+  patterns: string[];
+  seasons: string[];
+  tags: string[];
   minPrice: number;
   maxPrice: number;
   ageMin: number;
@@ -380,8 +424,18 @@ export default function DesignShopCatalogPage() {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
 
+  const [categories, setCategories] = useState<FilterOption[]>([]);
+  const [materials, setMaterials] = useState<FilterOption[]>([]);
+  const [patterns, setPatterns] = useState<FilterOption[]>([]);
+  const [seasons, setSeasons] = useState<FilterOption[]>([]);
+  const [tags, setTags] = useState<FilterOption[]>([]);
+
   const [filters, setFilters] = useState<FilterState>({
     categories: [],
+    materials: [],
+    patterns: [],
+    seasons: [],
+    tags: [],
     minPrice: 0,
     maxPrice: 100000,
     ageMin: 0,
@@ -410,13 +464,13 @@ export default function DesignShopCatalogPage() {
 
   useEffect(() => setMounted(true), []);
 
+  // Fetch designs
   useEffect(() => {
     const fetchDesigns = async () => {
       try {
         setLoading(true);
         setFetchError(null);
 
-        // GET /api/tailors/designs/all
         const data = await api.get<{
           success: boolean;
           items: TailorDesignListItem[];
@@ -437,29 +491,140 @@ export default function DesignShopCatalogPage() {
     fetchDesigns();
   }, []);
 
-  const categoryOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    designs.forEach((item) => {
-      const active = item.category;
-      if (active) counts.set(active, (counts.get(active) || 0) + 1);
-    });
+  // Fetch all filter data from /api/filters
+  useEffect(() => {
+    const fetchFilters = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: {
+            categories: FilterOption[];
+            materials: FilterOption[];
+            patterns: FilterOption[];
+            seasons: FilterOption[];
+            tags: FilterOption[];
+          };
+        }>("/api/filters/all");
 
-    return Array.from(counts.entries()).map(([cat, count]) => ({
-      id: cat,
-      label: formatDesignCategory(cat, locale as any),
-      count,
-    }));
-  }, [designs, locale]);
+        if (response.success && response.data) {
+          setCategories(
+            Array.isArray(response.data.categories)
+              ? response.data.categories
+              : [],
+          );
+          setMaterials(
+            Array.isArray(response.data.materials)
+              ? response.data.materials
+              : [],
+          );
+          setPatterns(
+            Array.isArray(response.data.patterns) ? response.data.patterns : [],
+          );
+          setSeasons(
+            Array.isArray(response.data.seasons) ? response.data.seasons : [],
+          );
+          setTags(Array.isArray(response.data.tags) ? response.data.tags : []);
+        } else {
+          setCategories([]);
+          setMaterials([]);
+          setPatterns([]);
+          setSeasons([]);
+          setTags([]);
+        }
+      } catch (err) {
+        console.error("Filter fetch failed:", err);
+        setCategories([]);
+        setMaterials([]);
+        setPatterns([]);
+        setSeasons([]);
+        setTags([]);
+      }
+    };
+
+    fetchFilters();
+  }, []);
+
+  const categoryOptions = useMemo(() => {
+    return categories.map((cat, index) => {
+      const designCount = designs.filter(
+        (d) => d.category === cat._id || d.category === cat.name,
+      ).length;
+      return {
+        id: cat._id,
+        label: isAr ? cat.nameAr || cat.name : cat.name,
+        color: CATEGORY_COLOR_PALETTE[index % CATEGORY_COLOR_PALETTE.length],
+        count: designCount,
+      };
+    });
+  }, [categories, designs, isAr]);
 
   let filteredDesigns = designs.filter((item) => {
+    // Category filter
     if (filters.categories.length > 0) {
-      if (!item.category || !filters.categories.includes(item.category))
-        return false;
+      if (!item.category) return false;
+      const isMatch = filters.categories.some(
+        (catId) =>
+          catId === item.category ||
+          categories.some((c) => c._id === catId && c.name === item.category),
+      );
+      if (!isMatch) return false;
     }
 
+    // Material filter
+    if (filters.materials.length > 0) {
+      const itemMat = (item as any).material;
+      if (!itemMat) return false;
+      const isMatch = filters.materials.some(
+        (matId) =>
+          matId === itemMat ||
+          materials.some((m) => m._id === matId && m.name === itemMat),
+      );
+      if (!isMatch) return false;
+    }
+
+    // Pattern filter
+    if (filters.patterns.length > 0) {
+      const itemPat = (item as any).pattern;
+      if (!itemPat) return false;
+      const isMatch = filters.patterns.some(
+        (patId) =>
+          patId === itemPat ||
+          patterns.some((p) => p._id === patId && p.name === itemPat),
+      );
+      if (!isMatch) return false;
+    }
+
+    // Season filter
+    if (filters.seasons.length > 0) {
+      const itemSeason = (item as any).season;
+      if (!itemSeason) return false;
+      const isMatch = filters.seasons.some(
+        (seaId) =>
+          seaId === itemSeason ||
+          seasons.some((s) => s._id === seaId && s.name === itemSeason),
+      );
+      if (!isMatch) return false;
+    }
+
+    // Tags filter
+    if (filters.tags.length > 0) {
+      const itemTags = (item as any).tags;
+      if (!itemTags || !Array.isArray(itemTags)) return false;
+      const hasTag = itemTags.some((t: string) =>
+        filters.tags.some(
+          (tagId) =>
+            tagId === t ||
+            tags.some((tag) => tag._id === tagId && tag.name === t),
+        ),
+      );
+      if (!hasTag) return false;
+    }
+
+    // Price filter
     const price = item.basePrice ?? 0;
     if (price < filters.minPrice || price > filters.maxPrice) return false;
 
+    // Age filter
     const hasAgeFilter = filters.ageMin !== 0 || filters.ageMax !== 120;
     const ageValueRaw = (item as any).estimatedDays;
     const ageValue: number | null =
@@ -501,6 +666,10 @@ export default function DesignShopCatalogPage() {
 
   const hasActiveFilters =
     filters.categories.length > 0 ||
+    filters.materials.length > 0 ||
+    filters.patterns.length > 0 ||
+    filters.seasons.length > 0 ||
+    filters.tags.length > 0 ||
     filters.minPrice > 0 ||
     filters.maxPrice < 100000 ||
     filters.ageMin > 0 ||
@@ -513,6 +682,17 @@ export default function DesignShopCatalogPage() {
         ? prev.categories.filter((c) => c !== id)
         : [...prev.categories, id],
     }));
+    setCurrentPage(1);
+  };
+
+  const toggleFilter = (key: keyof FilterState, id: string) => {
+    setFilters((prev) => {
+      const arr = prev[key] as string[];
+      return {
+        ...prev,
+        [key]: arr.includes(id) ? arr.filter((c) => c !== id) : [...arr, id],
+      };
+    });
     setCurrentPage(1);
   };
 
@@ -529,6 +709,10 @@ export default function DesignShopCatalogPage() {
   const clearAllFilters = () => {
     setFilters({
       categories: [],
+      materials: [],
+      patterns: [],
+      seasons: [],
+      tags: [],
       minPrice: 0,
       maxPrice: 100000,
       ageMin: 0,
@@ -545,37 +729,116 @@ export default function DesignShopCatalogPage() {
   if (!mounted) return null;
 
   const sidebarContent = (
-    <div className="flex flex-col gap-8">
-      <div>
-        <FilterLabel>{isAr ? "الفئة" : "Category"}</FilterLabel>
-        <div className="flex flex-col gap-3">
-          {categoryOptions.map((cat) => (
-            <label
-              key={cat.id}
-              className="flex items-center gap-3 cursor-pointer group"
-            >
-              <CustomCheckbox
-                checked={filters.categories.includes(cat.id)}
-                onChange={() => toggleCategory(cat.id)}
-              />
-              <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{
-                  backgroundColor: CATEGORY_COLORS[cat.id] || "#000000",
-                }}
-              />
-              <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
-                {cat.label}
-              </span>
-              <span className="text-[10px] text-[#8A8A80] font-mono">
-                ({cat.count})
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
+    <div className="flex flex-col gap-4">
+      {/* Categories - 1st */}
+      {categories.length > 0 && (
+        <CollapsibleFilter
+          label={isAr ? "الفئة" : "Category"}
+          count={filters.categories.length}
+        >
+          <div className="flex flex-col gap-2">
+            {categoryOptions.map((cat) => (
+              <label
+                key={cat.id}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <CustomCheckbox
+                  checked={filters.categories.includes(cat.id)}
+                  onChange={() => toggleCategory(cat.id)}
+                />
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: cat.color }}
+                />
+                <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
+                  {cat.label}
+                </span>
+                <span className="text-[10px] text-[#8A8A80] font-mono">
+                  ({cat.count})
+                </span>
+              </label>
+            ))}
+          </div>
+        </CollapsibleFilter>
+      )}
 
-      <div>
+      {/* Materials - 2nd */}
+      {materials.length > 0 && (
+        <CollapsibleFilter
+          label={isAr ? "الخامة" : "Material"}
+          count={filters.materials.length}
+        >
+          <div className="flex flex-col gap-2">
+            {materials.map((mat) => (
+              <label
+                key={mat._id}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <CustomCheckbox
+                  checked={filters.materials.includes(mat._id)}
+                  onChange={() => toggleFilter("materials", mat._id)}
+                />
+                <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
+                  {isAr ? mat.nameAr || mat.name : mat.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </CollapsibleFilter>
+      )}
+
+      {/* Patterns - 3rd */}
+      {patterns.length > 0 && (
+        <CollapsibleFilter
+          label={isAr ? "النقش" : "Pattern"}
+          count={filters.patterns.length}
+        >
+          <div className="flex flex-col gap-2">
+            {patterns.map((pat) => (
+              <label
+                key={pat._id}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <CustomCheckbox
+                  checked={filters.patterns.includes(pat._id)}
+                  onChange={() => toggleFilter("patterns", pat._id)}
+                />
+                <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
+                  {isAr ? pat.nameAr || pat.name : pat.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </CollapsibleFilter>
+      )}
+
+      {/* Seasons - 4th */}
+      {seasons.length > 0 && (
+        <CollapsibleFilter
+          label={isAr ? "الموسم" : "Season"}
+          count={filters.seasons.length}
+        >
+          <div className="flex flex-col gap-2">
+            {seasons.map((sea) => (
+              <label
+                key={sea._id}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <CustomCheckbox
+                  checked={filters.seasons.includes(sea._id)}
+                  onChange={() => toggleFilter("seasons", sea._id)}
+                />
+                <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
+                  {isAr ? sea.nameAr || sea.name : sea.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </CollapsibleFilter>
+      )}
+
+      {/* Price Range - 5th */}
+      <div className="border-b border-[#E4E0D8] pb-4">
         <FilterLabel>{isAr ? "نطاق السعر" : "Price Range"}</FilterLabel>
         <PriceRangeSlider
           minPrice={filters.minPrice}
@@ -585,7 +848,8 @@ export default function DesignShopCatalogPage() {
         />
       </div>
 
-      <div>
+      {/* Age Range - 6th */}
+      <div className="border-b border-[#E4E0D8] pb-4">
         <FilterLabel>{isAr ? "عمر التصميم" : "Age Range"}</FilterLabel>
         <div className="space-y-4">
           <div className="flex justify-between text-[13px] font-mono text-[#7A7A72]">
@@ -606,7 +870,7 @@ export default function DesignShopCatalogPage() {
                 if (!Number.isNaN(val)) setAgeMin(val);
               }}
               onBlur={() => setAgeMin(filters.ageMin)}
-              className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition"
+              className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition cursor-pointer"
             />
 
             <input
@@ -625,17 +889,43 @@ export default function DesignShopCatalogPage() {
                 if (filters.ageMax < 0) setAgeMax(0);
                 if (filters.ageMax > 120) setAgeMax(120);
               }}
-              className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition"
+              className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition cursor-pointer"
             />
           </div>
         </div>
       </div>
 
+      {/* Tags - 7th (last) */}
+      {tags.length > 0 && (
+        <CollapsibleFilter
+          label={isAr ? "الوسم" : "Tag"}
+          count={filters.tags.length}
+        >
+          <div className="flex flex-col gap-2">
+            {tags.map((tag) => (
+              <label
+                key={tag._id}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <CustomCheckbox
+                  checked={filters.tags.includes(tag._id)}
+                  onChange={() => toggleFilter("tags", tag._id)}
+                />
+                <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
+                  {isAr ? tag.nameAr || tag.name : tag.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </CollapsibleFilter>
+      )}
+
+      {/* Clear All */}
       {hasActiveFilters && (
         <button
           type="button"
           onClick={clearAllFilters}
-          className="w-full py-3 px-4 border border-black text-[10px] tracking-[0.2em] uppercase font-normal transition-all duration-200 hover:bg-black hover:text-white"
+          className="w-full py-3 px-4 border border-black text-[10px] tracking-[0.2em] uppercase font-normal transition-all duration-200 hover:bg-black hover:text-white mt-2 cursor-pointer"
         >
           {isAr ? "مسح جميع الفلاتر" : "Clear All Filters"}
         </button>
@@ -673,7 +963,7 @@ export default function DesignShopCatalogPage() {
                 <div className="flex items-center gap-4">
                   <button
                     onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-                    className="lg:hidden flex items-center gap-2 text-[11px] tracking-[0.18em] uppercase hover:text-black/60 transition-colors"
+                    className="lg:hidden flex items-center gap-2 text-[11px] tracking-[0.18em] uppercase hover:text-black/60 transition-colors cursor-pointer"
                   >
                     <svg
                       className="w-4 h-4"
@@ -704,7 +994,7 @@ export default function DesignShopCatalogPage() {
                           {cat}
                           <button
                             onClick={() => toggleCategory(cat)}
-                            className="hover:opacity-70 flex items-center justify-center"
+                            className="hover:opacity-70 flex items-center justify-center cursor-pointer"
                           >
                             <svg
                               className="w-3 h-3"
@@ -731,7 +1021,7 @@ export default function DesignShopCatalogPage() {
                               setMinPrice(0);
                               setMaxPrice(100000);
                             }}
-                            className="hover:opacity-70 flex items-center justify-center"
+                            className="hover:opacity-70 flex items-center justify-center cursor-pointer"
                           >
                             <svg
                               className="w-3 h-3"
@@ -787,8 +1077,14 @@ export default function DesignShopCatalogPage() {
           <div className="flex flex-col lg:flex-row min-h-screen relative">
             <aside
               data-lenis-prevent
-              className="hidden lg:block w-80 shrink-0 border-r border-[#E4E0D8] p-8 h-screen sticky top-34 overflow-y-auto"
+              className="hidden lg:block w-80 shrink-0 border-r border-[#E4E0D8] p-8 h-screen sticky top-34 overflow-y-auto scrollbar-hide"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
+              <style jsx>{`
+                .scrollbar-hide::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
               {sidebarContent}
             </aside>
 
@@ -817,11 +1113,11 @@ export default function DesignShopCatalogPage() {
                   <p className="text-[#7A7A72] text-[13px] max-w-xs leading-relaxed mb-8">
                     {isAr
                       ? "حاول تعديل الفلاتر للعثور على ما تبحث عنه."
-                      : "Try adjusting your filters to find what you’re looking for."}
+                      : "Try adjusting your filters to find what you're looking for."}
                   </p>
                   <button
                     onClick={clearAllFilters}
-                    className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition-colors duration-200 rounded-full"
+                    className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition-colors duration-200 rounded-full cursor-pointer"
                   >
                     {isAr ? "مسح جميع الفلاتر" : "Clear All Filters"}
                   </button>
@@ -839,6 +1135,19 @@ export default function DesignShopCatalogPage() {
                         design.priceType,
                       );
 
+                      const categoryColor = (() => {
+                        const catIndex = categories.findIndex(
+                          (c) =>
+                            c._id === design.category ||
+                            c.name === design.category,
+                        );
+                        return catIndex >= 0
+                          ? CATEGORY_COLOR_PALETTE[
+                              catIndex % CATEGORY_COLOR_PALETTE.length
+                            ]
+                          : "#000000";
+                      })();
+
                       return (
                         <div
                           key={design._id}
@@ -848,11 +1157,7 @@ export default function DesignShopCatalogPage() {
                             {(category || design.category) && (
                               <span
                                 className="absolute top-4 left-4 z-10 px-2.5 xs:px-3 py-1 xs:py-1.25 text-[10px] xs:text-[12px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.24em] font-bold shadow-sm text-white"
-                                style={{
-                                  backgroundColor:
-                                    CATEGORY_COLORS[design.category] ||
-                                    "#000000",
-                                }}
+                                style={{ backgroundColor: categoryColor }}
                               >
                                 {category}
                               </span>
@@ -867,7 +1172,7 @@ export default function DesignShopCatalogPage() {
                                   e.stopPropagation();
                                   await handleShare(`/designs/${design.slug}`);
                                 }}
-                                className="absolute top-3 xs:top-3 right-3 z-20 p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer"
+                                className="absolute top-3 xs:top-3 right-3 z-20 p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform cursor-pointer"
                               >
                                 <Share2 className="w-3 h-3 text-black" />
                               </button>

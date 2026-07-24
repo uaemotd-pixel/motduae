@@ -10,15 +10,16 @@ import NumericInput from "@/components/tailor/NumericInput";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import { ERROR_TOAST, SUCCESS_TOAST } from "@/lib/tailorPortalToast";
 import {
-  DESIGN_CATEGORIES,
   SLUG_PATTERN,
   createTailorDesign,
   designToForm,
   emptyTailorDesignForm,
   fetchTailorDesign,
+  fetchDesignCategories,
   isShopMissingError,
   slugifyDesignName,
   updateTailorDesign,
+  type DesignCategoryOption,
   type TailorDesignFormData,
 } from "@/lib/tailorDesigns";
 
@@ -50,8 +51,38 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     emptyTailorDesignForm(),
   );
   const [slugTouched, setSlugTouched] = useState(false);
+  const [categoryOptions, setCategoryOptions] = useState<
+    DesignCategoryOption[]
+  >([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const formActionsRef = useRef<HTMLDivElement>(null);
   const previousImageCountRef = useRef(formData.images.length);
+
+  // Fetch design categories from the admin categories API
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const cats = await fetchDesignCategories();
+        if (cancelled) return;
+        setCategoryOptions(cats);
+        // Set default category to first one if current is empty
+        setFormData((prev) =>
+          prev.category === "" && cats.length > 0
+            ? { ...prev, category: cats[0]._id }
+            : prev,
+        );
+      } catch {
+        // silently fail — user will see empty dropdown
+      } finally {
+        if (!cancelled) setCategoriesLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (formData.images.length > previousImageCountRef.current) {
@@ -348,12 +379,19 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
                 value={formData.category}
                 onChange={(e) => handleChange("category", e.target.value)}
                 className={INPUT_CLASS}
+                disabled={categoriesLoading}
               >
-                {DESIGN_CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {t(`categories.${category}`)}
-                  </option>
-                ))}
+                {categoriesLoading ? (
+                  <option value="">Loading...</option>
+                ) : categoryOptions.length === 0 ? (
+                  <option value="">No categories available</option>
+                ) : (
+                  categoryOptions.map((cat) => (
+                    <option key={cat._id} value={cat._id}>
+                      {cat.nameAr ? `${cat.name} (${cat.nameAr})` : cat.name}
+                    </option>
+                  ))
+                )}
               </select>
             </FormField>
 

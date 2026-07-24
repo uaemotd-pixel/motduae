@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { useRouter, usePathname, useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Link } from "@/i18n/navigation";
 import { useNotificationUnreadCount } from "@/hooks/useNotifications";
@@ -21,8 +22,14 @@ import {
   UserRoundPlus,
   UserRoundPen,
   Bell,
-  DollarSign,
   Sparkles,
+  ChevronDown,
+  ChevronRight,
+  Tag,
+  Layers,
+  Palette,
+  Leaf,
+  Tags
 } from "lucide-react";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 
@@ -34,14 +41,16 @@ export default function AdminLayout({
   const { user, isLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const params = useParams();
+  const locale = (params.locale as string) || "en";
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [settingsExpanded, setSettingsExpanded] = useState(
+    pathname.startsWith(`/${locale}/admin/settings`),
+  );
   const { count: unreadNotificationCount } = useNotificationUnreadCount(
     "admin",
     Boolean(user && user.role === "admin"),
   );
-
-  // Extract locale from pathname (e.g., "/en/admin" -> "en")
-  const locale = pathname.split("/")[1] || "en";
 
   // Close sidebar on route change (mobile only)
   useEffect(() => {
@@ -99,8 +108,18 @@ export default function AdminLayout({
     { label: "Fabric Stores", href: "/admin/partners", icon: Store },
     { label: "Sub Admin", href: "/admin/sub-admin", icon: UserRoundPen },
     { label: "Notifications", href: "/admin/notifications", icon: Bell },
-    { label: "Settings", href: "/admin/settings", icon: Settings },
   ];
+
+  const settingsSubItems = [
+    { label: "General", href: "/admin/settings/general", icon: Settings },
+    { label: "Categories", href: "/admin/settings/categories", icon: Tag },
+    { label: "Materials", href: "/admin/settings/materials", icon: Layers },
+    { label: "Patterns", href: "/admin/settings/patterns", icon: Palette },
+    { label: "Seasons", href: "/admin/settings/seasons", icon: Leaf },
+    { label: "Tags", href: "/admin/settings/tags", icon: Tags },
+  ];
+
+  const isSettingsActive = pathname.startsWith(`/${locale}/admin/settings`);
 
   // Helper to check active link (exact or subpath)
   const isActiveLink = (href: string) => {
@@ -128,7 +147,7 @@ export default function AdminLayout({
       </div>
 
       {/* NAV */}
-      <nav className="flex-1 space-y-2">
+      <nav className="flex-1 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = isActiveLink(item.href);
@@ -159,6 +178,73 @@ export default function AdminLayout({
             </Link>
           );
         })}
+
+        {/* Settings Toggle */}
+        <div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSettingsExpanded(!settingsExpanded);
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition hover:cursor-pointer
+              ${
+                isSettingsActive
+                  ? "bg-white text-black shadow-md"
+                  : "text-white/70 hover:bg-white/10"
+              }`}
+          >
+            <Settings className="w-4 h-4" />
+            <span className="flex-1 text-left">Settings</span>
+            {settingsExpanded ? (
+              <ChevronDown className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5" />
+            )}
+          </button>
+
+          {/* Settings Sub-items */}
+          <AnimatePresence initial={false}>
+            {settingsExpanded && (
+              <motion.div
+                key="settings-sub-items"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+                className="overflow-hidden"
+              >
+                <div className="ml-3 mt-1 space-y-1 border-l border-white/20 pl-3">
+                  {settingsSubItems.map((subItem) => {
+                    const SubIcon = subItem.icon;
+                    const isSubActive = isActiveLink(subItem.href);
+                    return (
+                      <motion.div
+                        key={subItem.href}
+                        initial={{ x: -6, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                      >
+                        <Link
+                          href={subItem.href}
+                          onClick={() => setIsSidebarOpen(false)}
+                          className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition
+                            ${
+                              isSubActive
+                                ? "bg-white/20 text-white shadow-sm"
+                                : "text-white/60 hover:bg-white/10"
+                            }`}
+                        >
+                          <SubIcon className="w-3.5 h-3.5" />
+                          {subItem.label}
+                        </Link>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </nav>
 
       {/* LOGOUT */}
@@ -212,7 +298,6 @@ export default function AdminLayout({
           <SidebarContent />
         </div>
       </aside>
-
       {/* Main Content Area */}
       <main
         className={`min-h-screen bg-gray-100 text-black p-4 xs:p-6 sm:p-8 md:p-10 pb-16 transition-all duration-300 lg:ml-72`}

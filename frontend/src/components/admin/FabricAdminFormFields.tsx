@@ -14,6 +14,7 @@ import {
   COLOR_OPTIONS,
 } from "@/lib/createFabricAdmin";
 import { FabricUnitValue, WARA_TO_METERS } from "@/lib/fabrics";
+import { api } from "@/lib/api/client";
 
 type FabricAdminFormFieldsProps = {
   formData: FabricFormData;
@@ -36,6 +37,34 @@ export default function FabricAdminFormFields({
 }: FabricAdminFormFieldsProps) {
   const [isColorDropdownOpen, setIsColorDropdownOpen] = useState(false);
   const colorDropdownRef = useRef<HTMLDivElement>(null);
+  const [dbMaterials, setDbMaterials] = useState<
+    { name: string; nameAr: string; _id: string }[]
+  >([]);
+  const [materialsLoading, setMaterialsLoading] = useState(true);
+
+  // Fetch materials from DB for "fabrics" domain
+  useEffect(() => {
+    let cancelled = false;
+    const fetchMaterials = async () => {
+      try {
+        setMaterialsLoading(true);
+        const data = await api.get<
+          { name: string; nameAr: string; _id: string }[]
+        >("/api/admin/materials?domain=fabrics");
+        if (!cancelled) {
+          setDbMaterials(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        // Silently fall back to FABRIC_MATERIALS
+      } finally {
+        if (!cancelled) setMaterialsLoading(false);
+      }
+    };
+    fetchMaterials();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const selectedColors = Array.isArray(formData.colors) ? formData.colors : [];
 
@@ -111,14 +140,21 @@ export default function FabricAdminFormFields({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Material options – map directly from FABRIC_MATERIALS (inferred types)
-  const materialOptionsEn = FABRIC_MATERIALS.map((m) => ({
-    value: m.value,
-    label: m.en,
+  // Material options – use DB materials if loaded, fall back to FABRIC_MATERIALS
+  const materialOptionsEn = (
+    dbMaterials.length > 0 ? dbMaterials : FABRIC_MATERIALS
+  ).map((m) => ({
+    value:
+      "name" in m ? m.name : (m as (typeof FABRIC_MATERIALS)[number]).value,
+    label: "name" in m ? m.name : (m as (typeof FABRIC_MATERIALS)[number]).en,
   }));
-  const materialOptionsAr = FABRIC_MATERIALS.map((m) => ({
-    value: m.ar,
-    label: m.ar,
+  const materialOptionsAr = (
+    dbMaterials.length > 0 ? dbMaterials : FABRIC_MATERIALS
+  ).map((m) => ({
+    value:
+      "nameAr" in m ? m.nameAr! : (m as (typeof FABRIC_MATERIALS)[number]).ar,
+    label:
+      "nameAr" in m ? m.nameAr! : (m as (typeof FABRIC_MATERIALS)[number]).ar,
   }));
 
   // Tag options – map directly from FABRIC_TAGS

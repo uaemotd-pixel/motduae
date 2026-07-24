@@ -24,6 +24,7 @@ import subAdminRouter from "./routes/subAdminRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import notificationRouter from "./routes/notificationRoutes.js";
 import customerNotificationRouter from "./routes/customerNotificationRoutes.js";
+import filterRoutes from "./routes/filterRoutes.js";
 
 const app = express();
 
@@ -64,8 +65,8 @@ app.use("/api/admin", isAuth, isAdmin, adminRouter);
 app.use("/api/admin", isAuth, isAdmin, notificationRouter);
 app.use("/api/customer", customerRouter);
 app.use("/api/customer", customerNotificationRouter);
-
 app.use("/api/subadmins", isAuth, subAdminRouter);
+app.use("/api/filters", filterRoutes);
 app.use(notFound);
 app.use(errorHandler);
 

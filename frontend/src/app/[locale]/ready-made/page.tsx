@@ -2,9 +2,11 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
-import { Share2 } from "lucide-react";
+import { Share2, ChevronDown, ChevronUp } from "lucide-react";
+import FadeInSection from "@/components/shared/fadeInSection";
+import MainLayout from "../main/layout";
 
 import {
   getReadyMadeDisplayFields,
@@ -12,8 +14,13 @@ import {
   resolveReadyMadeImage,
 } from "@/lib/readyMade";
 import WishlistButton from "@/components/shared/wishlistButton";
-import MainLayout from "../main/layout";
-import FadeInSection from "@/components/shared/fadeInSection";
+
+interface FilterOption {
+  _id: string;
+  name: string;
+  nameAr?: string;
+  isActive?: boolean;
+}
 
 const colorOptions = [
   { name: "Aqua", value: "aqua", bg: "#00FFFF" },
@@ -126,12 +133,15 @@ const colorOptions = [
 interface FilterState {
   categories: string[];
   colors: string[];
+  materials: string[];
+  patterns: string[];
+  seasons: string[];
+  tags: string[];
   minPrice: number;
   maxPrice: number;
   inStockOnly: boolean;
 }
 
-// ─── Search-off SVG ───────────────────────────────────────────────────────────
 const SearchOffIcon = () => (
   <svg
     className="w-12 h-12 text-[#8A8A80] mb-4"
@@ -159,7 +169,6 @@ function buildShareUrl(basePath: string, href: string) {
   return `${trimmedBase}/${trimmedHref}`;
 }
 
-// ─── Checkbox component ──────────────────────────────────────────────────────
 const CustomCheckbox = ({
   checked,
   onChange,
@@ -173,7 +182,7 @@ const CustomCheckbox = ({
     aria-checked={checked}
     onClick={onChange}
     className={`
-      w-4 h-4 shrink-0 border transition-all duration-150 flex items-center justify-center
+      w-4 h-4 shrink-0 border transition-all duration-150 flex items-center justify-center cursor-pointer
       ${checked ? "bg-black border-black" : "bg-transparent border-[#C8C4BC] hover:border-black"}
     `}
   >
@@ -191,14 +200,43 @@ const CustomCheckbox = ({
   </button>
 );
 
-// ─── Section label ────────────────────────────────────────────────────────────
 const FilterLabel = ({ children }: { children: React.ReactNode }) => (
   <p className="text-[10px] tracking-[0.22em] font-normal text-black uppercase mb-3 pb-2.5 border-b border-[#E4E0D8] w-full">
     {children}
   </p>
 );
 
-// ─── Color Dropdown with Checkboxes ──────────────────────────────────────────
+const CollapsibleFilter = ({
+  label,
+  children,
+  count,
+}: {
+  label: string;
+  children: React.ReactNode;
+  count?: number;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="border-b border-[#E4E0D8] pb-4">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between py-2 hover:opacity-70 transition-opacity cursor-pointer"
+      >
+        <span className="text-[10px] tracking-[0.22em] font-normal text-black uppercase">
+          {label} {count !== undefined && `(${count})`}
+        </span>
+        {isOpen ? (
+          <ChevronUp className="w-4 h-4 text-[#8A8A80]" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-[#8A8A80]" />
+        )}
+      </button>
+      {isOpen && <div className="mt-3 flex flex-col gap-2">{children}</div>}
+    </div>
+  );
+};
+
 const ColorDropdown = ({
   selected,
   onChange,
@@ -243,7 +281,7 @@ const ColorDropdown = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full border border-[#E4E0D8] bg-transparent px-4 py-3 text-[11px] tracking-[0.14em] uppercase font-mono flex items-center justify-between hover:border-black transition"
+        className="w-full border border-[#E4E0D8] bg-transparent px-4 py-3 text-[11px] tracking-[0.14em] uppercase font-mono flex items-center justify-between hover:border-black transition cursor-pointer"
       >
         <span>
           {selectedCount > 0
@@ -281,7 +319,7 @@ const ColorDropdown = ({
               onChange([]);
               setSearch("");
             }}
-            className="w-full px-4 py-2.5 text-left text-[11px] tracking-[0.14em] uppercase hover:bg-[#EDE8E0] transition"
+            className="w-full px-4 py-2.5 text-left text-[11px] tracking-[0.14em] uppercase hover:bg-[#EDE8E0] transition cursor-pointer"
           >
             {isAr ? "إلغاء الكل" : "Clear All"}
           </button>
@@ -289,7 +327,7 @@ const ColorDropdown = ({
             <button
               key={c.value}
               onClick={() => toggleColor(c.value)}
-              className={`w-full px-4 py-2.5 text-left text-[11px] tracking-[0.14em] flex items-center gap-3 hover:bg-[#EDE8E0] transition ${
+              className={`w-full px-4 py-2.5 text-left text-[11px] tracking-[0.14em] flex items-center gap-3 hover:bg-[#EDE8E0] transition cursor-pointer ${
                 selected.includes(c.value) ? "bg-[#EDE8E0]" : ""
               }`}
             >
@@ -326,7 +364,6 @@ const ColorDropdown = ({
   );
 };
 
-// ─── Price Range Slider ──────────────────────────────────────────────────────
 const PriceRangeSlider = ({
   minPrice,
   maxPrice,
@@ -337,20 +374,14 @@ const PriceRangeSlider = ({
   maxPrice: number;
   onMinChange: (value: number) => void;
   onMaxChange: (value: number) => void;
-  isAr: boolean;
 }) => {
   const [localMin, setLocalMin] = useState(String(minPrice));
   const [localMax, setLocalMax] = useState(String(maxPrice));
   const minTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    setLocalMin(String(minPrice));
-  }, [minPrice]);
-
-  useEffect(() => {
-    setLocalMax(String(maxPrice));
-  }, [maxPrice]);
+  useEffect(() => setLocalMin(String(minPrice)), [minPrice]);
+  useEffect(() => setLocalMax(String(maxPrice)), [maxPrice]);
 
   useEffect(() => {
     return () => {
@@ -432,7 +463,7 @@ const PriceRangeSlider = ({
             }
           }}
           onBlur={() => commitMin(localMin)}
-          className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition"
+          className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition cursor-pointer"
         />
         <input
           type="number"
@@ -455,14 +486,13 @@ const PriceRangeSlider = ({
             }
           }}
           onBlur={() => commitMax(localMax)}
-          className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition"
+          className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition cursor-pointer"
         />
       </div>
     </div>
   );
 };
 
-// ─── Pagination Component ─────────────────────────────────────────────────────
 const Pagination = ({
   currentPage,
   totalPages,
@@ -505,7 +535,7 @@ const Pagination = ({
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="group relative w-10 h-10 flex items-center justify-center rounded-lg border border-[#E4E0D8] bg-transparent text-black disabled:opacity-40 disabled:cursor-not-allowed hover:border-black hover:bg-black hover:text-white transition-all duration-200"
+        className="group relative w-10 h-10 flex items-center justify-center rounded-lg border border-[#E4E0D8] bg-transparent text-black disabled:opacity-40 disabled:cursor-not-allowed hover:border-black hover:bg-black hover:text-white transition-all duration-200 cursor-pointer"
         aria-label="Previous page"
       >
         <svg
@@ -530,7 +560,7 @@ const Pagination = ({
           disabled={page === "..."}
           className={`
             min-w-10 h-10 px-2 flex items-center justify-center rounded-lg font-mono text-[13px] tracking-wide
-            transition-all duration-200
+            transition-all duration-200 cursor-pointer
             ${
               page === currentPage
                 ? "bg-black text-white border-black"
@@ -547,7 +577,7 @@ const Pagination = ({
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="group relative w-10 h-10 flex items-center justify-center rounded-lg border border-[#E4E0D8] bg-transparent text-black disabled:opacity-40 disabled:cursor-not-allowed hover:border-black hover:bg-black hover:text-white transition-all duration-200"
+        className="group relative w-10 h-10 flex items-center justify-center rounded-lg border border-[#E4E0D8] bg-transparent text-black disabled:opacity-40 disabled:cursor-not-allowed hover:border-black hover:bg-black hover:text-white transition-all duration-200 cursor-pointer"
         aria-label="Next page"
       >
         <svg
@@ -606,7 +636,7 @@ export default function ReadyMadeCatalogPage() {
           return;
         }
       } catch {
-        // user cancelled or share failed: fall back to copy
+        // fall back
       }
 
       try {
@@ -620,6 +650,11 @@ export default function ReadyMadeCatalogPage() {
 
   const [mounted, setMounted] = useState(false);
   const [products, setProducts] = useState<ReadyMadeListItem[]>([]);
+  const [categories, setCategories] = useState<FilterOption[]>([]);
+  const [materials, setMaterials] = useState<FilterOption[]>([]);
+  const [patterns, setPatterns] = useState<FilterOption[]>([]);
+  const [seasons, setSeasons] = useState<FilterOption[]>([]);
+  const [tags, setTags] = useState<FilterOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -628,6 +663,10 @@ export default function ReadyMadeCatalogPage() {
   const [filters, setFilters] = useState<FilterState>({
     categories: [],
     colors: [],
+    materials: [],
+    patterns: [],
+    seasons: [],
+    tags: [],
     minPrice: 0,
     maxPrice: 100000,
     inStockOnly: false,
@@ -639,6 +678,7 @@ export default function ReadyMadeCatalogPage() {
     setMounted(true);
   }, []);
 
+  // Fetch products
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -665,20 +705,72 @@ export default function ReadyMadeCatalogPage() {
     fetchProducts();
   }, []);
 
-  const categoryOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    products.forEach((item) => {
-      const activeTag = isAr ? item.tagAr || item.tag : item.tag;
-      if (activeTag) {
-        counts.set(activeTag, (counts.get(activeTag) || 0) + 1);
+  // Fetch all filter data from /api/filters
+  useEffect(() => {
+    const fetchFilters = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: {
+            categories: FilterOption[];
+            materials: FilterOption[];
+            patterns: FilterOption[];
+            seasons: FilterOption[];
+            tags: FilterOption[];
+          };
+        }>("/api/filters/all");
+
+        if (response.success && response.data) {
+          setCategories(
+            Array.isArray(response.data.categories)
+              ? response.data.categories
+              : [],
+          );
+          setMaterials(
+            Array.isArray(response.data.materials)
+              ? response.data.materials
+              : [],
+          );
+          setPatterns(
+            Array.isArray(response.data.patterns) ? response.data.patterns : [],
+          );
+          setSeasons(
+            Array.isArray(response.data.seasons) ? response.data.seasons : [],
+          );
+          setTags(Array.isArray(response.data.tags) ? response.data.tags : []);
+        } else {
+          setCategories([]);
+          setMaterials([]);
+          setPatterns([]);
+          setSeasons([]);
+          setTags([]);
+        }
+      } catch (err) {
+        console.error("Filter fetch failed:", err);
+        setCategories([]);
+        setMaterials([]);
+        setPatterns([]);
+        setSeasons([]);
+        setTags([]);
       }
+    };
+
+    fetchFilters();
+  }, []);
+
+  const categoryOptions = useMemo(() => {
+    return categories.map((cat) => {
+      const count = products.filter((p) => {
+        const activeTag = isAr ? p.tagAr || p.tag : p.tag;
+        return activeTag === cat.name;
+      }).length;
+      return {
+        id: cat._id,
+        label: isAr ? cat.nameAr || cat.name : cat.name,
+        count,
+      };
     });
-    return Array.from(counts.entries()).map(([tag, count]) => ({
-      id: tag,
-      label: tag.toUpperCase(),
-      count,
-    }));
-  }, [products, isAr]);
+  }, [categories, products, isAr]);
 
   const matchesColorFilter = (
     productColors: string[] | string | undefined,
@@ -698,19 +790,78 @@ export default function ReadyMadeCatalogPage() {
   };
 
   let filteredProducts = products.filter((item) => {
-    const activeTag = isAr ? item.tagAr || item.tag : item.tag;
+    // Category filter
     if (filters.categories.length > 0) {
-      if (!activeTag || !filters.categories.includes(activeTag)) {
-        return false;
-      }
+      const activeTag = isAr ? item.tagAr || item.tag : item.tag;
+      if (!activeTag) return false;
+      const isMatch = filters.categories.some(
+        (catId) =>
+          catId === activeTag ||
+          categories.some((c) => c._id === catId && c.name === activeTag),
+      );
+      if (!isMatch) return false;
     }
+
+    // Material filter
+    if (filters.materials.length > 0) {
+      const itemMat = (item as any).material;
+      if (!itemMat) return false;
+      const isMatch = filters.materials.some(
+        (matId) =>
+          matId === itemMat ||
+          materials.some((m) => m._id === matId && m.name === itemMat),
+      );
+      if (!isMatch) return false;
+    }
+
+    // Pattern filter
+    if (filters.patterns.length > 0) {
+      const itemPat = (item as any).pattern;
+      if (!itemPat) return false;
+      const isMatch = filters.patterns.some(
+        (patId) =>
+          patId === itemPat ||
+          patterns.some((p) => p._id === patId && p.name === itemPat),
+      );
+      if (!isMatch) return false;
+    }
+
+    // Season filter
+    if (filters.seasons.length > 0) {
+      const itemSeason = (item as any).season;
+      if (!itemSeason) return false;
+      const isMatch = filters.seasons.some(
+        (seaId) =>
+          seaId === itemSeason ||
+          seasons.some((s) => s._id === seaId && s.name === itemSeason),
+      );
+      if (!isMatch) return false;
+    }
+
+    // Tags filter
+    if (filters.tags.length > 0) {
+      const itemTags = (item as any).tags;
+      if (!itemTags || !Array.isArray(itemTags)) return false;
+      const hasTag = itemTags.some((t: string) =>
+        filters.tags.some(
+          (tagId) =>
+            tagId === t ||
+            tags.some((tag) => tag._id === tagId && tag.name === t),
+        ),
+      );
+      if (!hasTag) return false;
+    }
+
+    // Color filter
     if (!matchesColorFilter(item.colors, filters.colors)) return false;
 
+    // Price filter
     const price = item.finalSellingPriceAED ?? 0;
     if (price < filters.minPrice || price > filters.maxPrice) {
       return false;
     }
 
+    // Stock filter
     if (filters.inStockOnly) {
       if (item.availableFabricStock === 0) {
         return false;
@@ -745,6 +896,10 @@ export default function ReadyMadeCatalogPage() {
   const hasActiveFilters =
     filters.categories.length > 0 ||
     filters.colors.length > 0 ||
+    filters.materials.length > 0 ||
+    filters.patterns.length > 0 ||
+    filters.seasons.length > 0 ||
+    filters.tags.length > 0 ||
     filters.minPrice > 0 ||
     filters.maxPrice < 100000 ||
     filters.inStockOnly;
@@ -758,6 +913,47 @@ export default function ReadyMadeCatalogPage() {
     }));
     setCurrentPage(1);
   };
+
+  const toggleMaterial = (id: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      materials: prev.materials.includes(id)
+        ? prev.materials.filter((m) => m !== id)
+        : [...prev.materials, id],
+    }));
+    setCurrentPage(1);
+  };
+
+  const togglePattern = (id: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      patterns: prev.patterns.includes(id)
+        ? prev.patterns.filter((p) => p !== id)
+        : [...prev.patterns, id],
+    }));
+    setCurrentPage(1);
+  };
+
+  const toggleSeason = (id: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      seasons: prev.seasons.includes(id)
+        ? prev.seasons.filter((s) => s !== id)
+        : [...prev.seasons, id],
+    }));
+    setCurrentPage(1);
+  };
+
+  const toggleTag = (id: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      tags: prev.tags.includes(id)
+        ? prev.tags.filter((t) => t !== id)
+        : [...prev.tags, id],
+    }));
+    setCurrentPage(1);
+  };
+
   const setColorFilter = (values: string[]) => {
     setFilters((prev) => ({
       ...prev,
@@ -765,6 +961,7 @@ export default function ReadyMadeCatalogPage() {
     }));
     setCurrentPage(1);
   };
+
   const setMinPrice = (value: number) => {
     setFilters((prev) => ({
       ...prev,
@@ -772,6 +969,7 @@ export default function ReadyMadeCatalogPage() {
     }));
     setCurrentPage(1);
   };
+
   const setMaxPrice = (value: number) => {
     setFilters((prev) => ({
       ...prev,
@@ -779,20 +977,27 @@ export default function ReadyMadeCatalogPage() {
     }));
     setCurrentPage(1);
   };
+
   const toggleInStock = () => {
     setFilters((prev) => ({ ...prev, inStockOnly: !prev.inStockOnly }));
     setCurrentPage(1);
   };
+
   const clearAllFilters = () => {
     setFilters({
       categories: [],
       colors: [],
+      materials: [],
+      patterns: [],
+      seasons: [],
+      tags: [],
       minPrice: 0,
       maxPrice: 100000,
       inStockOnly: false,
     });
     setCurrentPage(1);
   };
+
   const handlePageChange = (value: number) => {
     setCurrentPage(value);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -801,33 +1006,37 @@ export default function ReadyMadeCatalogPage() {
   if (!mounted) return null;
 
   const sidebarContent = (
-    <div className="flex flex-col gap-8">
-      {/* Category */}
-      <div>
-        <FilterLabel>{isAr ? "الفئة" : "Category"}</FilterLabel>
-        <div className="flex flex-col gap-3">
-          {categoryOptions.map((cat) => (
-            <label
-              key={cat.id}
-              className="flex items-center gap-3 cursor-pointer group"
-            >
-              <CustomCheckbox
-                checked={filters.categories.includes(cat.id)}
-                onChange={() => toggleCategory(cat.id)}
-              />
-              <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
-                {cat.label}
-              </span>
-              <span className="text-[10px] text-[#8A8A80] font-mono">
-                ({cat.count})
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
+    <div className="flex flex-col gap-4">
+      {/* Categories - 1st */}
+      {categories.length > 0 && (
+        <CollapsibleFilter
+          label={isAr ? "الفئة" : "Category"}
+          count={filters.categories.length}
+        >
+          <div className="flex flex-col gap-2">
+            {categoryOptions.map((cat) => (
+              <label
+                key={cat.id}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <CustomCheckbox
+                  checked={filters.categories.includes(cat.id)}
+                  onChange={() => toggleCategory(cat.id)}
+                />
+                <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
+                  {cat.label}
+                </span>
+                <span className="text-[10px] text-[#8A8A80] font-mono">
+                  ({cat.count})
+                </span>
+              </label>
+            ))}
+          </div>
+        </CollapsibleFilter>
+      )}
 
-      {/* Color - Dropdown with Checkboxes */}
-      <div>
+      {/* Colors - 2nd */}
+      <div className="border-b border-[#E4E0D8] pb-4">
         <FilterLabel>{isAr ? "اللون" : "Color"}</FilterLabel>
         <ColorDropdown
           selected={filters.colors}
@@ -836,20 +1045,119 @@ export default function ReadyMadeCatalogPage() {
         />
       </div>
 
-      {/* Price Range - Slider */}
-      <div>
+      {/* Materials - 3rd */}
+      {materials.length > 0 && (
+        <CollapsibleFilter
+          label={isAr ? "الخامة" : "Material"}
+          count={filters.materials.length}
+        >
+          <div className="flex flex-col gap-2">
+            {materials.map((mat) => (
+              <label
+                key={mat._id}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <CustomCheckbox
+                  checked={filters.materials.includes(mat._id)}
+                  onChange={() => toggleMaterial(mat._id)}
+                />
+                <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
+                  {isAr ? mat.nameAr || mat.name : mat.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </CollapsibleFilter>
+      )}
+
+      {/* Patterns - 4th */}
+      {patterns.length > 0 && (
+        <CollapsibleFilter
+          label={isAr ? "النقش" : "Pattern"}
+          count={filters.patterns.length}
+        >
+          <div className="flex flex-col gap-2">
+            {patterns.map((pat) => (
+              <label
+                key={pat._id}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <CustomCheckbox
+                  checked={filters.patterns.includes(pat._id)}
+                  onChange={() => togglePattern(pat._id)}
+                />
+                <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
+                  {isAr ? pat.nameAr || pat.name : pat.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </CollapsibleFilter>
+      )}
+
+      {/* Seasons - 5th */}
+      {seasons.length > 0 && (
+        <CollapsibleFilter
+          label={isAr ? "الموسم" : "Season"}
+          count={filters.seasons.length}
+        >
+          <div className="flex flex-col gap-2">
+            {seasons.map((sea) => (
+              <label
+                key={sea._id}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <CustomCheckbox
+                  checked={filters.seasons.includes(sea._id)}
+                  onChange={() => toggleSeason(sea._id)}
+                />
+                <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
+                  {isAr ? sea.nameAr || sea.name : sea.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </CollapsibleFilter>
+      )}
+
+      {/* Tags - 6th */}
+      {tags.length > 0 && (
+        <CollapsibleFilter
+          label={isAr ? "الوسم" : "Tag"}
+          count={filters.tags.length}
+        >
+          <div className="flex flex-col gap-2">
+            {tags.map((tag) => (
+              <label
+                key={tag._id}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <CustomCheckbox
+                  checked={filters.tags.includes(tag._id)}
+                  onChange={() => toggleTag(tag._id)}
+                />
+                <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
+                  {isAr ? tag.nameAr || tag.name : tag.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </CollapsibleFilter>
+      )}
+
+      {/* Price Range - 7th */}
+      <div className="border-b border-[#E4E0D8] pb-4">
         <FilterLabel>{isAr ? "نطاق السعر" : "Price Range"}</FilterLabel>
         <PriceRangeSlider
           minPrice={filters.minPrice}
           maxPrice={filters.maxPrice}
           onMinChange={setMinPrice}
           onMaxChange={setMaxPrice}
-          isAr={isAr}
         />
       </div>
 
-      {/* Availability */}
-      <div>
+      {/* Availability - 8th (last) */}
+      <div className="border-b border-[#E4E0D8] pb-4">
         <FilterLabel>{isAr ? "التوفر" : "Availability"}</FilterLabel>
         <label className="flex items-center gap-3 cursor-pointer group">
           <CustomCheckbox
@@ -867,7 +1175,7 @@ export default function ReadyMadeCatalogPage() {
         <button
           type="button"
           onClick={clearAllFilters}
-          className="w-full py-3 px-4 border border-black text-[10px] tracking-[0.2em] uppercase font-normal transition-all duration-200 hover:bg-black hover:text-white"
+          className="w-full py-3 px-4 border border-black text-[10px] tracking-[0.2em] uppercase font-normal transition-all duration-200 hover:bg-black hover:text-white mt-2 cursor-pointer"
         >
           {isAr ? "مسح جميع الفلاتر" : "Clear All Filters"}
         </button>
@@ -909,7 +1217,7 @@ export default function ReadyMadeCatalogPage() {
                 <div className="flex items-center gap-4">
                   <button
                     onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-                    className="lg:hidden flex items-center gap-2 text-[11px] tracking-[0.18em] uppercase hover:text-black/60 transition-colors"
+                    className="lg:hidden flex items-center gap-2 text-[11px] tracking-[0.18em] uppercase hover:text-black/60 transition-colors cursor-pointer"
                   >
                     <svg
                       className="w-4 h-4"
@@ -940,7 +1248,7 @@ export default function ReadyMadeCatalogPage() {
                           {cat}
                           <button
                             onClick={() => toggleCategory(cat)}
-                            className="hover:opacity-70 flex items-center justify-center"
+                            className="hover:opacity-70 flex items-center justify-center cursor-pointer"
                           >
                             <svg
                               className="w-3 h-3"
@@ -984,7 +1292,7 @@ export default function ReadyMadeCatalogPage() {
                                 }));
                                 setCurrentPage(1);
                               }}
-                              className="hover:opacity-70 flex items-center justify-center"
+                              className="hover:opacity-70 flex items-center justify-center cursor-pointer"
                             >
                               <svg
                                 className="w-3 h-3"
@@ -1012,7 +1320,7 @@ export default function ReadyMadeCatalogPage() {
                               setMinPrice(0);
                               setMaxPrice(100000);
                             }}
-                            className="hover:opacity-70 flex items-center justify-center"
+                            className="hover:opacity-70 flex items-center justify-center cursor-pointer"
                           >
                             <svg
                               className="w-3 h-3"
@@ -1035,7 +1343,7 @@ export default function ReadyMadeCatalogPage() {
                           {isAr ? "في المخزن" : "In Stock"}
                           <button
                             onClick={toggleInStock}
-                            className="hover:opacity-70 flex items-center justify-center"
+                            className="hover:opacity-70 flex items-center justify-center cursor-pointer"
                           >
                             <svg
                               className="w-3 h-3"
@@ -1092,8 +1400,14 @@ export default function ReadyMadeCatalogPage() {
           <div className="flex flex-col lg:flex-row min-h-screen relative">
             <aside
               data-lenis-prevent
-              className="hidden lg:block w-80 shrink-0 border-r border-[#E4E0D8] p-8 h-screen sticky top-34 overflow-y-auto"
+              className="hidden lg:block w-80 shrink-0 border-r border-[#E4E0D8] p-8 h-screen sticky top-34 overflow-y-auto scrollbar-hide"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             >
+              <style jsx>{`
+                .scrollbar-hide::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
               {sidebarContent}
             </aside>
 
@@ -1126,7 +1440,7 @@ export default function ReadyMadeCatalogPage() {
                   </p>
                   <button
                     onClick={clearAllFilters}
-                    className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition-colors duration-200 rounded-full"
+                    className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition-colors duration-200 rounded-full cursor-pointer"
                   >
                     {isAr ? "مسح جميع الفلاتر" : "Clear All Filters"}
                   </button>
@@ -1186,7 +1500,7 @@ export default function ReadyMadeCatalogPage() {
                                   `/ready-made/${product.slug}`,
                                 );
                               }}
-                              className="flex items-center justify-center w-6 h-6 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer border-0 shrink-0"
+                              className="flex items-center justify-center w-6 h-6 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform cursor-pointer border-0 shrink-0"
                             >
                               <Share2 className="w-3 h-3 text-black" />
                             </button>
