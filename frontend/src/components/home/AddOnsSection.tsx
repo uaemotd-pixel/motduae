@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import { api } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
 import { Share2 } from "lucide-react";
+import WishlistButton from "../shared/wishlistButton";
 
 interface AddOnListItem {
   _id: string;
@@ -283,19 +284,38 @@ export function AddOnsSection() {
                   key={item._id}
                   className="embla__slide min-w-[270px] xs:min-w-[310px] md:min-w-[360px] max-w-[380px] shrink-0"
                 >
-                  <div className="group relative flex flex-col h-full bg-white border border-black/5 overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-md">
+                  <Link
+                    href={`/addons/${item.slug}`}
+                    className="group relative flex flex-col h-full bg-white border border-black/5 overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-md block cursor-pointer"
+                  >
                     {/* Share & actions */}
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleShare(`/addons/${item.slug}`);
-                      }}
-                      className="absolute top-4 right-4 z-10 w-9 h-9 bg-white/95 backdrop-blur-xs rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition duration-300 hover:bg-black hover:text-white"
-                      title="Share product"
-                    >
-                      <Share2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="absolute top-2 xs:top-3 right-2 xs:right-3 z-20 flex items-center gap-1.5 xs:gap-2">
+                      <button
+                        type="button"
+                        aria-label={isAr ? "مشاركة" : "Share"}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          await handleShare(`/addons/${item.slug}`);
+                        }}
+                        className="p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer border-0 flex items-center justify-center w-8 h-8 xs:w-9 xs:h-9"
+                      >
+                        <Share2 className="w-4 h-4 text-black" />
+                      </button>
+
+                      <WishlistButton
+                        item={{
+                          id: item._id,
+                          name: displayName,
+                          image: resolveMediaUrl(item.thumbnailImage) || "",
+                          price: item.price,
+                          slug: item.slug,
+                          size: "N/A",
+                          quantity: 1,
+                          ...(Number.isFinite(item.stock) ? { maxStock: item.stock } : {}),
+                        }}
+                      />
+                    </div>
 
                     {/* Tag badge */}
                     {displayTag && (
@@ -338,7 +358,7 @@ export function AddOnsSection() {
                         </p>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 </div>
               );
             })}

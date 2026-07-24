@@ -1,4 +1,5 @@
 import ReadyMadeProduct from '../models/ReadyMadeProduct.js';
+import AddOn from '../models/AddOn.js';
 
 export async function prepareRetailOrder(orderItems) {
   if (!orderItems || orderItems.length === 0) {
@@ -9,18 +10,30 @@ export async function prepareRetailOrder(orderItems) {
   const finalOrderItems = [];
 
   for (const item of orderItems) {
-    const product = await ReadyMadeProduct.findOne({
+    let product = await ReadyMadeProduct.findOne({
       _id: item.productId,
       isActive: true,
     });
+
+    let isAddon = false;
+    if (!product) {
+      product = await AddOn.findOne({
+        _id: item.productId,
+        isActive: true,
+      });
+      if (product) {
+        isAddon = true;
+      }
+    }
 
     if (!product) {
       throw new Error(`Product not found: ${item.productId}`);
     }
 
     const quantity = item.quantity || 1;
+    const stock = isAddon ? product.stock : product.availableFabricStock;
 
-    if (product.availableFabricStock < quantity) {
+    if (stock < quantity) {
       throw new Error(`${product.name} is out of stock`);
     }
 
@@ -29,13 +42,13 @@ export async function prepareRetailOrder(orderItems) {
       name: product.name,
       nameAr: product.nameAr,
       slug: product.slug,
-      image: product.images?.[0] || '',
-      size: product.metersPerFabric,
-      price: product.finalSellingPriceAED,
+      image: isAddon ? (product.thumbnailImage || '') : (product.images?.[0] || ''),
+      size: isAddon ? 'N/A' : product.metersPerFabric,
+      price: isAddon ? product.price : product.finalSellingPriceAED,
       quantity,
     });
 
-    itemsPrice += (product.finalSellingPriceAED || 0) * quantity;
+    itemsPrice += (isAddon ? product.price : product.finalSellingPriceAED || 0) * quantity;
   }
 
   const shippingPrice = 0;
@@ -57,11 +70,21 @@ export async function deductRetailProductStock(orderItems) {
   for (const item of orderItems) {
     const quantity = item.quantity || 1;
 
-    const updated = await ReadyMadeProduct.findOneAndUpdate(
+    // Try updating ReadyMadeProduct first
+    let updated = await ReadyMadeProduct.findOneAndUpdate(
       { _id: item.productId, availableFabricStock: { $gte: quantity } },
       { $inc: { availableFabricStock: -quantity } },
       { new: true },
     );
+
+    // If not updated, try updating AddOn
+    if (!updated) {
+      updated = await AddOn.findOneAndUpdate(
+        { _id: item.productId, stock: { $gte: quantity } },
+        { $inc: { stock: -quantity } },
+        { new: true },
+      );
+    }
 
     if (!updated) {
       throw new Error(`Insufficient stock for product: ${item.productId}`);

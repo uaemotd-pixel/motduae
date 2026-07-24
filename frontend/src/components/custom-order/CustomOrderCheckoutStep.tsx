@@ -91,8 +91,15 @@ export default function CustomOrderCheckoutStep() {
   const locale = params.locale === "ar" ? "ar" : "en";
 
   const { user, isLoading, isAuthenticated } = useAuth();
-  const { draft, isHydrated, updateDeliveryAddress, resetOrder, deliveryType } =
-    useCustomOrder();
+  const {
+    draft,
+    isHydrated,
+    updateDeliveryAddress,
+    resetOrder,
+    deliveryType,
+    addPocket,
+    addBottomWideFold,
+  } = useCustomOrder();
   const usingOwnFabric = useOwnFabric(draft);
 
   const [pricing, setPricing] = useState<CustomOrderPricingBreakdown | null>(
@@ -109,8 +116,6 @@ export default function CustomOrderCheckoutStep() {
     Array<{ name: string }>
   >([]);
   const [measurementsConfirmed, setMeasurementsConfirmed] = useState(false);
-  const [addPocket, setAddPocket] = useState(false);
-  const [addBottomWideFold, setAddBottomWideFold] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "apple_pay">(
     "cod",
   );
@@ -585,53 +590,16 @@ export default function CustomOrderCheckoutStep() {
                    </div>
                  )}
 
-                 <div className="pt-4 border-t border-(--color-border) flex justify-between items-center gap-4">
-                  <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-black">
-                    {t("total")}
-                  </span>
-                  <span className="[font-family:var(--font-display)] text-[24px] text-black">
-                    {pricing ? formatCurrency(pricing.total, locale) : "—"}
-                  </span>
-                </div>
-              </aside>
-
-              {/* Order Options - Always Show */}
-              <div className="border border-(--color-border) bg-[#FDFBF7] p-6 sm:p-8">
-                <h2 className="[font-family:var(--font-display)] text-[20px] mb-4">
-                  {locale === "ar"
-                    ? "خيارات الطلب (اختياري)"
-                    : "Order Options (Optional)"}
-                </h2>
-                <div className="space-y-4">
-                  <label className="flex items-start gap-3 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      id="add-pocket-checkbox"
-                      checked={addPocket}
-                      onChange={(e) => setAddPocket(e.target.checked)}
-                      className="w-4 h-4 mt-0.5 accent-black shrink-0"
-                    />
-                    <span className="[font-family:var(--font-body)] text-[13px] text-black leading-tight">
-                      {locale === "ar" ? "إضافة جيب" : "Add a Pocket"}
-                    </span>
-                  </label>
-                  <label className="flex items-start gap-3 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      id="add-bottom-wide-fold-checkbox"
-                      checked={addBottomWideFold}
-                      onChange={(e) => setAddBottomWideFold(e.target.checked)}
-                      className="w-4 h-4 mt-0.5 accent-black shrink-0"
-                    />
-                    <span className="[font-family:var(--font-body)] text-[13px] text-black leading-tight">
-                      {locale === "ar"
-                        ? "إضافة طية سفلية عريضة"
-                        : "Add a bottom wide fold"}
-                    </span>
-                  </label>
-                </div>
+                  <div className="pt-4 border-t border-(--color-border) flex justify-between items-center gap-4">
+                   <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-black">
+                     {t("total")}
+                   </span>
+                   <span className="[font-family:var(--font-display)] text-[24px] text-black">
+                     {pricing ? formatCurrency(pricing.total, locale) : "—"}
+                   </span>
+                  </div>
+                </aside>
               </div>
-            </div>
 
             <section>
               {/* Delivery Address or Pickup Info */}
