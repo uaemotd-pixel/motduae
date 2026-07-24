@@ -1,5 +1,6 @@
 import ReadyMadeProduct from '../models/ReadyMadeProduct.js';
 import AddOn from '../models/AddOn.js';
+import Fabric from '../models/Fabric.js';
 
 export async function prepareRetailOrder(orderItems) {
   if (!orderItems || orderItems.length === 0) {
@@ -16,6 +17,7 @@ export async function prepareRetailOrder(orderItems) {
     });
 
     let isAddon = false;
+    let isFabric = false;
     if (!product) {
       product = await AddOn.findOne({
         _id: item.productId,
@@ -27,14 +29,49 @@ export async function prepareRetailOrder(orderItems) {
     }
 
     if (!product) {
+      product = await Fabric.findOne({
+        _id: item.productId,
+        isActive: true,
+      });
+      if (product) {
+        isFabric = true;
+      }
+    }
+
+    if (!product) {
       throw new Error(`Product not found: ${item.productId}`);
     }
 
     const quantity = item.quantity || 1;
-    const stock = isAddon ? product.stock : product.availableFabricStock;
+    let stock;
+    if (isAddon) {
+      stock = product.stock;
+    } else if (isFabric) {
+      stock = product.stockInMeters;
+    } else {
+      stock = product.availableFabricStock;
+    }
 
     if (stock < quantity) {
       throw new Error(`${product.name} is out of stock`);
+    }
+
+    let finalPrice;
+    if (isAddon) {
+      finalPrice = product.price;
+    } else if (isFabric) {
+      finalPrice = product.pricePerMeter;
+    } else {
+      finalPrice = product.finalSellingPriceAED;
+    }
+
+    let sizeLabel;
+    if (isAddon) {
+      sizeLabel = 'N/A';
+    } else if (isFabric) {
+      sizeLabel = 'Per Meter';
+    } else {
+      sizeLabel = product.metersPerFabric;
     }
 
     finalOrderItems.push({
@@ -43,12 +80,12 @@ export async function prepareRetailOrder(orderItems) {
       nameAr: product.nameAr,
       slug: product.slug,
       image: isAddon ? (product.thumbnailImage || '') : (product.images?.[0] || ''),
-      size: isAddon ? 'N/A' : product.metersPerFabric,
-      price: isAddon ? product.price : product.finalSellingPriceAED,
+      size: sizeLabel,
+      price: finalPrice,
       quantity,
     });
 
-    itemsPrice += (isAddon ? product.price : product.finalSellingPriceAED || 0) * quantity;
+    itemsPrice += (finalPrice || 0) * quantity;
   }
 
   const shippingPrice = 0;
@@ -82,6 +119,15 @@ export async function deductRetailProductStock(orderItems) {
       updated = await AddOn.findOneAndUpdate(
         { _id: item.productId, stock: { $gte: quantity } },
         { $inc: { stock: -quantity } },
+        { new: true },
+      );
+    }
+
+    // If not updated, try updating Fabric
+    if (!updated) {
+      updated = await Fabric.findOneAndUpdate(
+        { _id: item.productId, stockInMeters: { $gte: quantity } },
+        { $inc: { stockInMeters: -quantity } },
         { new: true },
       );
     }

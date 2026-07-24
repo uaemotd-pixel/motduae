@@ -18,6 +18,7 @@ import {
 import { resolveMediaUrl } from "@/lib/media";
 import { Share2 } from "lucide-react";
 import { usePathname } from "next/navigation";
+import WishlistButton from "../shared/wishlistButton";
 
 async function copyToClipboard(text: string) {
   if (typeof navigator === "undefined") return;
@@ -367,19 +368,36 @@ export function PremiumFabrics() {
                             alt={title}
                           />
 
-                          {/* Top-right Share button */}
-                          <button
-                            type="button"
-                            aria-label={locale === "ar" ? "مشاركة" : "Share"}
-                            onClick={async (e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              await handleShare(hrefPath);
-                            }}
-                            className="absolute top-2 xs:top-3 right-2 z-20 p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer"
-                          >
-                            <Share2 className="w-4 h-4 text-black" />
-                          </button>
+                          {/* Share & Wishlist Actions */}
+                          <div className="absolute top-2 xs:top-3 right-2 xs:right-3 z-20 flex items-center gap-1.5 xs:gap-2">
+                            <button
+                              type="button"
+                              aria-label={locale === "ar" ? "مشاركة" : "Share"}
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                await handleShare(hrefPath);
+                              }}
+                              className="p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer border-0 flex items-center justify-center w-8 h-8 xs:w-9 xs:h-9"
+                            >
+                              <Share2 className="w-4 h-4 text-black" />
+                            </button>
+
+                            <WishlistButton
+                              item={{
+                                id: item._id,
+                                name: title,
+                                image: imageUrl || "",
+                                price: item.pricePerMeter,
+                                slug: item.slug,
+                                size: "Per Meter",
+                                quantity: 1,
+                                ...(Number.isFinite(item.stockInMeters)
+                                  ? { maxStock: item.stockInMeters }
+                                  : {}),
+                              }}
+                            />
+                          </div>
 
                           <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 

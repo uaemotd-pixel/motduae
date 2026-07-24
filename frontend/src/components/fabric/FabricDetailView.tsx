@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Link } from "@/i18n/navigation";
+import { useRouter } from "next/navigation";
 import type { Locale } from "@/i18n/routing";
 import {
   type FabricDetailItem,
@@ -17,6 +18,8 @@ import StoreAttribution from "@/components/fabric/StoreAttribution";
 import { resolveMediaUrl } from "@/lib/media";
 import { COLOR_OPTIONS } from "@/lib/createFabricAdmin";
 import ZoomImageEffect from "../shared/ZoomImageEffect";
+import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 
 type FabricDetailViewProps = {
   fabric: FabricDetailItem;
@@ -40,11 +43,64 @@ export default function FabricDetailView({
   labels,
 }: FabricDetailViewProps) {
   const { title, description } = getFabricDisplayFields(fabric, locale);
+  const router = useRouter();
+  const { addItem: addToCart } = useCart();
+  const {
+    wishItems,
+    addItem: addToWishlist,
+    removeItem: removeFromWishlist,
+  } = useWishlist();
+
+  const [quantity, setQuantity] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const [stickySide, setStickySide] = useState<"left" | "right" | null>(null);
   const [isLargeScreen, setIsLargeScreen] = useState(false);
+
+  const liked = wishItems.some((item) => item.id === fabric._id);
+
+  const toggleWishlist = () => {
+    if (liked) {
+      removeFromWishlist(fabric._id);
+    } else {
+      addToWishlist({
+        id: fabric._id,
+        slug: fabric.slug,
+        name: title,
+        image: resolveMediaUrl(fabric.images?.[0]) || "",
+        price: fabric.pricePerMeter,
+        size: "Per Meter",
+        maxStock: fabric.stockInMeters,
+      });
+    }
+  };
+
+  const handleAddToCart = () => {
+    addToCart({
+      id: fabric._id,
+      slug: fabric.slug,
+      name: title,
+      image: resolveMediaUrl(fabric.images?.[0]) || "",
+      price: fabric.pricePerMeter,
+      size: "Per Meter",
+      maxStock: fabric.stockInMeters,
+    });
+  };
+
+  const handleBuyNow = () => {
+    const checkoutParams = new URLSearchParams({
+      productId: fabric._id,
+      slug: fabric.slug,
+      name: title,
+      image: resolveMediaUrl(fabric.images?.[0]) || "",
+      price: String(fabric.pricePerMeter),
+      size: "Per Meter",
+      quantity: String(quantity),
+      maxStock: String(fabric.stockInMeters),
+    });
+    router.push(`/${locale}/checkout?buyNow=true&${checkoutParams.toString()}`);
+  };
 
   useEffect(() => {
     const checkScreen = () => {
@@ -281,9 +337,30 @@ export default function FabricDetailView({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.15 }}
               >
-                <h1 className="[font-family:var(--font-display)] text-3xl sm:text-4xl text-black leading-tight mb-3">
-                  {title}
-                </h1>
+                <div className="flex justify-between items-start gap-4 mb-2">
+                  <h1 className="[font-family:var(--font-display)] text-3xl sm:text-4xl text-black leading-tight mb-3">
+                    {title}
+                  </h1>
+                  <button
+                    onClick={toggleWishlist}
+                    className="shrink-0 p-2 rounded-full hover:bg-black/5 transition-colors duration-200"
+                    aria-label="Add to wishlist"
+                  >
+                    <svg
+                      className={`w-6 h-6 transition-colors ${
+                        liked
+                          ? "fill-red-500 stroke-red-500"
+                          : "stroke-black fill-none"
+                      }`}
+                      viewBox="0 0 24 24"
+                      strokeWidth="1.5"
+                      stroke="currentColor"
+                      fill="none"
+                    >
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                    </svg>
+                  </button>
+                </div>
                 <p className="[font-family:var(--font-ui)] text-2xl text-black font-medium">
                   {formatPricePerMeter(fabric.pricePerMeter, locale)}
                 </p>
@@ -389,6 +466,90 @@ export default function FabricDetailView({
                 >
                   {labels.selectForCustomOrder}
                 </Link>
+              </motion.div>
+
+              {/* Buy Only Fabric Options */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.45 }}
+                className="pt-6 border-t border-[#E4E0D8]"
+              >
+                <h3 className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-black mb-3">
+                  {locale === "ar" ? "شراء القماش فقط" : "Buy Fabric Only"}
+                </h3>
+
+                <div className="flex flex-col gap-4">
+                  {/* Availability */}
+                  <div>
+                    <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
+                      {locale === "ar" ? "التوفر" : "Availability"}
+                    </span>
+                    <p
+                      className={`[font-family:var(--font-body)] text-[14px] font-medium ${
+                        fabric.stockInMeters > 0 ? "text-green-700" : "text-red-600"
+                      }`}
+                    >
+                      {fabric.stockInMeters > 0
+                        ? locale === "ar"
+                          ? `متوفر في المخزون (${fabric.stockInMeters} متر)`
+                          : `In stock (${fabric.stockInMeters} meters)`
+                        : locale === "ar"
+                        ? "نفذت الكمية"
+                        : "Out of stock"}
+                    </p>
+                  </div>
+
+                  {/* Quantity & Buy Now */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                        className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
+                        disabled={fabric.stockInMeters < 1 || quantity <= 1}
+                      >
+                        <span className="text-lg">−</span>
+                      </button>
+                      <span className="w-8 text-center text-sm [font-family:var(--font-body)] text-black">
+                        {quantity}
+                      </span>
+                      <button
+                        onClick={() => setQuantity((q) => Math.min(fabric.stockInMeters, q + 1))}
+                        className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
+                        disabled={fabric.stockInMeters < 1 || quantity >= fabric.stockInMeters}
+                      >
+                        <span className="text-lg">+</span>
+                      </button>
+                      <span className="text-[10px] text-gray-500 uppercase tracking-wider font-ui shrink-0">
+                        {locale === "ar" ? "متر" : "Meters"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleBuyNow}
+                      disabled={fabric.stockInMeters < 1}
+                      className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
+                        fabric.stockInMeters < 1
+                          ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
+                          : "hover:bg-black hover:text-white"
+                      }`}
+                    >
+                      {locale === "ar" ? "شراء الآن" : "Buy Now"}
+                    </button>
+                  </div>
+
+                  {/* Add to Cart */}
+                  <button
+                    onClick={handleAddToCart}
+                    disabled={fabric.stockInMeters < 1}
+                    className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
+                      fabric.stockInMeters < 1
+                        ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
+                        : "bg-black text-white hover:bg-white hover:text-black hover:border-black"
+                    }`}
+                  >
+                    {locale === "ar" ? "إضافة إلى السلة" : "Add to Cart"}
+                  </button>
+                </div>
               </motion.div>
             </motion.div>
           </div>
