@@ -221,15 +221,15 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     loadProfile();
   }, [authUser]);
 
-  // Validation function for text-only fields
+  // Validation function for text-only fields (English & Arabic)
   const validateTextOnly = (value: string): boolean => {
-    return /^[a-zA-Z\s\-']+$/.test(value.trim());
+    return /^[a-zA-Z\u0600-\u06FF\s\-']+$/.test(value.trim());
   };
 
   // Handle text-only input
   const handleTextOnlyInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    const filtered = value.replace(/[^a-zA-Z\s\-']/g, "");
+    const filtered = value.replace(/[^a-zA-Z\u0600-\u06FF\s\-']/g, "");
 
     if (name.startsWith("address.")) {
       const field = name.split(".")[1];
@@ -322,21 +322,21 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     // Validate emirate
     if (!form.address.emirate.trim()) {
       errors["address.emirate"] = "Emirate is required";
-    } else if (!/^[a-zA-Z\s]+$/.test(form.address.emirate.trim())) {
+    } else if (!/^[a-zA-Z\u0600-\u06FF\s]+$/.test(form.address.emirate.trim())) {
       errors["address.emirate"] = "Emirate can only contain letters and spaces";
     }
 
     // Validate city
     if (!form.address.city.trim()) {
       errors["address.city"] = "City is required";
-    } else if (!/^[a-zA-Z\s]+$/.test(form.address.city.trim())) {
+    } else if (!/^[a-zA-Z\u0600-\u06FF\s]+$/.test(form.address.city.trim())) {
       errors["address.city"] = "City can only contain letters and spaces";
     }
 
     // Validate building
     if (
       form.address.building.trim() &&
-      !/^[a-zA-Z0-9\s\-]+$/.test(form.address.building.trim())
+      !/^[a-zA-Z0-9\u0600-\u06FF\s\-]+$/.test(form.address.building.trim())
     ) {
       errors["address.building"] =
         "Building can only contain letters, numbers, spaces, and hyphens";

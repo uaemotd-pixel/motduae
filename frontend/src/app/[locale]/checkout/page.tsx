@@ -344,10 +344,10 @@ function CheckoutPageContent() {
 
     let processedValue = value;
     if (name === "fullName") {
-      processedValue = value.replace(/[^A-Za-z\s\-']/g, "");
+      processedValue = value.replace(/[^a-zA-Z\u0600-\u06FF\s\-']/g, "");
     }
     if (name === "city") {
-      processedValue = value.replace(/[^A-Za-z\s\-']/g, "");
+      processedValue = value.replace(/[^a-zA-Z\u0600-\u06FF\s\-']/g, "");
     }
     if (name === "phone") {
       processedValue = value.replace(/[^0-9+]/g, "");
