@@ -49,6 +49,9 @@ export const env = {
   get jwtSecret() {
     return requireEnv('JWT_SECRET');
   },
+  get jwtExpiresIn() {
+    return process.env.JWT_EXPIRES_IN || '1d';
+  },
   get corsOrigin() {
     return defaultCorsOrigin();
   },

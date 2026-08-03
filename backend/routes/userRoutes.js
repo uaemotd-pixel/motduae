@@ -92,6 +92,13 @@ userRouter.get(
       res.status(404).send({ message: "User not found" });
       return;
     }
+    if (user.isActive === false) {
+      res.status(403).send({
+        message: "Account is deactivated",
+        isActive: false,
+      });
+      return;
+    }
     let perms = {};
     if (user.role === "sub-admin") {
       const subAdmin = await SubAdmin.findOne({ email: user.email });

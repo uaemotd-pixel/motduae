@@ -13,11 +13,11 @@ export const generateToken = (user, isGuest = false) => {
       isGuest,
     },
     env.jwtSecret,
-    { expiresIn: "30d" },
+    { expiresIn: env.jwtExpiresIn },
   );
 };
 
-export const isAuth = (req, res, next) => {
+export const isAuth = async (req, res, next) => {
   const authorization = req.headers.authorization;
   if (!authorization?.startsWith("Bearer ")) {
     res.status(401).send({ message: "No Token" });
@@ -25,14 +25,39 @@ export const isAuth = (req, res, next) => {
   }
 
   const token = authorization.slice(7);
-  jwt.verify(token, env.jwtSecret, (err, decode) => {
-    if (err) {
-      res.status(401).send({ message: "Invalid Token" });
+  try {
+    const decode = jwt.verify(token, env.jwtSecret);
+    const user = await User.findById(decode._id).select(
+      "name email role isAdmin isActive approvalStatus",
+    );
+
+    if (!user) {
+      res.status(401).send({ message: "User not found" });
       return;
     }
-    req.user = decode;
+
+    if (user.isActive === false) {
+      res.status(403).send({
+        message: "Account is deactivated",
+        isActive: false,
+      });
+      return;
+    }
+
+    // Revalidate privileged claims from DB so revoked admin/role cannot linger in JWT
+    req.user = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isAdmin: user.isAdmin,
+      approvalStatus: user.approvalStatus,
+      isGuest: Boolean(decode.isGuest),
+    };
     next();
-  });
+  } catch {
+    res.status(401).send({ message: "Invalid Token" });
+  }
 };
 
 export const isAdmin = (req, res, next) => {
