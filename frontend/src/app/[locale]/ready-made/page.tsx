@@ -7,7 +7,7 @@ import { api, type ApiError } from "@/lib/api/client";
 import { Share2, ChevronDown, ChevronUp } from "lucide-react";
 import FadeInSection from "@/components/shared/fadeInSection";
 import MainLayout from "../main/layout";
-
+import colors from "@/components/shared/colors";
 import {
   getReadyMadeDisplayFields,
   ReadyMadeListItem,
@@ -21,114 +21,6 @@ interface FilterOption {
   nameAr?: string;
   isActive?: boolean;
 }
-
-const colorOptions = [
-  { name: "Aqua", value: "aqua", bg: "#00FFFF" },
-  { name: "Aquamarine", value: "aquamarine", bg: "#7FFFD4" },
-  { name: "Beige", value: "beige", bg: "#F5F5DC" },
-  { name: "Bisque", value: "bisque", bg: "#FFE4C4" },
-  { name: "Black", value: "black", bg: "#000000" },
-  { name: "Blue", value: "blue", bg: "#0000FF" },
-  { name: "Blue Violet", value: "blueviolet", bg: "#8A2BE2" },
-  { name: "Brown", value: "brown", bg: "#A52A2A" },
-  { name: "Burlywood", value: "burlywood", bg: "#DEB887" },
-  { name: "Cadet Blue", value: "cadetblue", bg: "#5F9EA0" },
-  { name: "Chocolate", value: "chocolate", bg: "#D2691E" },
-  { name: "Coral", value: "coral", bg: "#FF7F50" },
-  { name: "Cornflower Blue", value: "cornflowerblue", bg: "#6495ED" },
-  { name: "Cornsilk", value: "cornsilk", bg: "#FFF8DC" },
-  { name: "Crimson", value: "crimson", bg: "#DC143C" },
-  { name: "Cyan", value: "cyan", bg: "#00FFFF" },
-  { name: "Dark Blue", value: "darkblue", bg: "#00008B" },
-  { name: "Dark Cyan", value: "darkcyan", bg: "#008B8B" },
-  { name: "Dark Goldenrod", value: "darkgoldenrod", bg: "#B8860B" },
-  { name: "Dark Gray", value: "darkgray", bg: "#A9A9A9" },
-  { name: "Dark Green", value: "darkgreen", bg: "#006400" },
-  { name: "Dark Khaki", value: "darkkhaki", bg: "#BDB76B" },
-  { name: "Dark Magenta", value: "darkmagenta", bg: "#8B008B" },
-  { name: "Dark Orchid", value: "darkorchid", bg: "#9932CC" },
-  { name: "Dark Red", value: "darkred", bg: "#8B0000" },
-  { name: "Dark Salmon", value: "darksalmon", bg: "#E9967A" },
-  { name: "Dark Sea Green", value: "darkseagreen", bg: "#8FBC8F" },
-  { name: "Dark Slate Blue", value: "darkslateblue", bg: "#483D8B" },
-  { name: "Dark Slate Gray", value: "darkslategray", bg: "#2F4F4F" },
-  { name: "Dark Turquoise", value: "darkturquoise", bg: "#00CED1" },
-  { name: "Dark Violet", value: "darkviolet", bg: "#9400D3" },
-  { name: "Deep Pink", value: "deeppink", bg: "#FF1493" },
-  { name: "Deep Sky Blue", value: "deepskyblue", bg: "#00BFFF" },
-  { name: "Dim Gray", value: "dimgray", bg: "#696969" },
-  { name: "Dodger Blue", value: "dodgerblue", bg: "#1E90FF" },
-  { name: "Firebrick", value: "firebrick", bg: "#B22222" },
-  { name: "Fuchsia", value: "fuchsia", bg: "#FF00FF" },
-  { name: "Gainsboro", value: "gainsboro", bg: "#DCDCDC" },
-  { name: "Gold", value: "gold", bg: "#FFD700" },
-  { name: "Goldenrod", value: "goldenrod", bg: "#DAA520" },
-  { name: "Gray", value: "gray", bg: "#808080" },
-  { name: "Green", value: "green", bg: "#008000" },
-  { name: "Green Yellow", value: "greenyellow", bg: "#ADFF2F" },
-  { name: "Grey", value: "grey", bg: "#808080" },
-  { name: "Hot Pink", value: "hotpink", bg: "#FF69B4" },
-  { name: "Indian Red", value: "indianred", bg: "#CD5C5C" },
-  { name: "Indigo", value: "indigo", bg: "#4B0082" },
-  { name: "Ivory", value: "ivory", bg: "#FFFFF0" },
-  { name: "Khaki", value: "khaki", bg: "#F0E68C" },
-  { name: "Lavender", value: "lavender", bg: "#E6E6FA" },
-  { name: "Light Blue", value: "lightblue", bg: "#ADD8E6" },
-  { name: "Light Gray", value: "lightgray", bg: "#D3D3D3" },
-  { name: "Light Green", value: "lightgreen", bg: "#90EE90" },
-  { name: "Light Pink", value: "lightpink", bg: "#FFB6C1" },
-  { name: "Light Salmon", value: "lightsalmon", bg: "#FFA07A" },
-  { name: "Light Sea Green", value: "lightseagreen", bg: "#20B2AA" },
-  { name: "Light Sky Blue", value: "lightskyblue", bg: "#87CEFA" },
-  { name: "Light Slate Gray", value: "lightslategray", bg: "#778899" },
-  { name: "Light Steel Blue", value: "lightsteelblue", bg: "#B0C4DE" },
-  { name: "Maroon", value: "maroon", bg: "#800000" },
-  { name: "Medium Blue", value: "mediumblue", bg: "#0000CD" },
-  { name: "Medium Purple", value: "mediumpurple", bg: "#9370DB" },
-  { name: "Medium Sea Green", value: "mediumseagreen", bg: "#3CB371" },
-  { name: "Medium Slate Blue", value: "mediumslateblue", bg: "#7B68EE" },
-  { name: "Medium Turquoise", value: "mediumturquoise", bg: "#48D1CC" },
-  { name: "Medium Violet Red", value: "mediumvioletred", bg: "#C71585" },
-  { name: "Midnight Blue", value: "midnightblue", bg: "#191970" },
-  { name: "Moccasin", value: "moccasin", bg: "#FFE4B5" },
-  { name: "Navy", value: "navy", bg: "#000080" },
-  { name: "Olive", value: "olive", bg: "#808000" },
-  { name: "Olive Drab", value: "olivedrab", bg: "#6B8E23" },
-  { name: "Orange", value: "orange", bg: "#FFA500" },
-  { name: "Orchid", value: "orchid", bg: "#DA70D6" },
-  { name: "Pale Goldenrod", value: "palegoldenrod", bg: "#EEE8AA" },
-  { name: "Pale Green", value: "palegreen", bg: "#98FB98" },
-  { name: "Pale Turquoise", value: "paleturquoise", bg: "#AFEEEE" },
-  { name: "Pale Violet Red", value: "palevioletred", bg: "#DB7093" },
-  { name: "Peach Puff", value: "peachpuff", bg: "#FFDAB9" },
-  { name: "Pink", value: "pink", bg: "#FFC0CB" },
-  { name: "Plum", value: "plum", bg: "#DDA0DD" },
-  { name: "Powder Blue", value: "powderblue", bg: "#B0E0E6" },
-  { name: "Purple", value: "purple", bg: "#800080" },
-  { name: "Rebecca Purple", value: "rebeccapurple", bg: "#663399" },
-  { name: "Red", value: "red", bg: "#FF0000" },
-  { name: "Rosy Brown", value: "rosybrown", bg: "#BC8F8F" },
-  { name: "Royal Blue", value: "royalblue", bg: "#4169E1" },
-  { name: "Saddle Brown", value: "saddlebrown", bg: "#8B4513" },
-  { name: "Salmon", value: "salmon", bg: "#FA8072" },
-  { name: "Sandy Brown", value: "sandybrown", bg: "#F4A460" },
-  { name: "Sea Green", value: "seagreen", bg: "#2E8B57" },
-  { name: "Silver", value: "silver", bg: "#C0C0C0" },
-  { name: "Sky Blue", value: "skyblue", bg: "#87CEEB" },
-  { name: "Slate Blue", value: "slateblue", bg: "#6A5ACD" },
-  { name: "Slate Gray", value: "slategray", bg: "#708090" },
-  { name: "Steel Blue", value: "steelblue", bg: "#4682B4" },
-  { name: "Tan", value: "tan", bg: "#D2B48C" },
-  { name: "Teal", value: "teal", bg: "#008080" },
-  { name: "Thistle", value: "thistle", bg: "#D8BFD8" },
-  { name: "Tomato", value: "tomato", bg: "#FF6347" },
-  { name: "Turquoise", value: "turquoise", bg: "#40E0D0" },
-  { name: "Violet", value: "violet", bg: "#EE82EE" },
-  { name: "Wheat", value: "wheat", bg: "#F5DEB3" },
-  { name: "White", value: "white", bg: "#FFFFFF" },
-  { name: "Yellow", value: "yellow", bg: "#FFFF00" },
-  { name: "Yellow Green", value: "yellowgreen", bg: "#9ACD32" },
-];
 
 interface FilterState {
   categories: string[];
@@ -270,8 +162,8 @@ const ColorDropdown = ({
     onChange(newSelected);
   };
 
-  const filtered = colorOptions.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase()),
+  const filtered = colors.filter((c) =>
+    c.en.toLowerCase().includes(search.toLowerCase()),
   );
 
   const selectedCount = selected.length;
@@ -333,9 +225,9 @@ const ColorDropdown = ({
             >
               <span
                 className="w-4 h-4 rounded-full shrink-0 border border-[#C8C4BC]"
-                style={{ backgroundColor: c.bg }}
+                style={{ backgroundColor: c.hex }}
               />
-              <span className="flex-1">{c.name}</span>
+              <span className="flex-1">{isAr ? c.ar : c.en}</span>
               {selected.includes(c.value) && (
                 <svg
                   className="w-4 h-4 text-black"
@@ -1267,7 +1159,7 @@ export default function ReadyMadeCatalogPage() {
                         </span>
                       ))}
                       {filters.colors.map((color) => {
-                        const colorObj = colorOptions.find(
+                        const colorObj = colors.find(
                           (c) => c.value === color,
                         );
                         return (
@@ -1278,7 +1170,7 @@ export default function ReadyMadeCatalogPage() {
                             <span
                               className="w-3 h-3 rounded-full border border-white/30"
                               style={{
-                                backgroundColor: colorObj?.bg || "#000",
+                                backgroundColor: colorObj?.hex || "#000",
                               }}
                             />
                             {color}
@@ -1557,7 +1449,7 @@ export default function ReadyMadeCatalogPage() {
                                 product.colors
                                   .slice(0, 4)
                                   .map((color, index) => {
-                                    const colorObj = colorOptions.find(
+                                    const colorObj = colors.find(
                                       (c) =>
                                         c.value.toLowerCase() ===
                                         color.toLowerCase(),
@@ -1568,7 +1460,7 @@ export default function ReadyMadeCatalogPage() {
                                         className="w-5 h-5 rounded-full border border-[#E4E0D8]"
                                         style={{
                                           backgroundColor:
-                                            colorObj?.bg || "#CCCCCC",
+                                            colorObj?.hex || "#CCCCCC",
                                         }}
                                         title={color}
                                       />
