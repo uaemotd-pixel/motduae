@@ -278,7 +278,7 @@ export default function FabricAddOnsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="[font-family:var(--font-display)] text-2xl md:text-3xl font-light text-black tracking-tight flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-[#C9A84C]" strokeWidth={1.5} />
+            <Sparkles className="w-6 h-6 text-black" strokeWidth={1.5} />
             Add-Ons Management
           </h1>
           <p className="text-gray-500 text-sm mt-1">

@@ -24,7 +24,7 @@ export default function TimeframePills({
           onClick={() => onChange(opt)}
           className={`rounded-lg px-3 py-1.5 text-xs font-medium transition [font-family:var(--font-ui)] uppercase tracking-wider ${
             value === opt
-              ? "bg-[var(--dash-charcoal)] text-[var(--dash-gold)] shadow-sm"
+              ? "bg-[var(--dash-charcoal)] text-white shadow-sm"
               : "text-[var(--dash-muted)] hover:text-[var(--dash-ink)]"
           }`}
         >

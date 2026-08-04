@@ -457,7 +457,7 @@ export default function AdminDashboardPage() {
           <button
             type="button"
             onClick={() => fetchStats()}
-            className="mt-6 rounded-xl bg-[var(--dash-charcoal)] px-6 py-2 text-sm text-[var(--dash-gold)] transition hover:opacity-90"
+            className="mt-6 rounded-xl bg-[var(--dash-charcoal)] px-6 py-2 text-sm text-white transition hover:opacity-90"
           >
             Try again
           </button>

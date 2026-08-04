@@ -1,17 +1,17 @@
-/** Chart / UI palette aligned with dashboard CSS tokens */
+/** Chart / UI palette aligned with brand dashboard CSS tokens */
 export const DASH_PALETTE = {
-  gold: "#C9A227",
-  goldSoft: "#E8D5A3",
-  goldMuted: "rgba(201, 162, 39, 0.35)",
-  charcoal: "#292524",
-  charcoalDeep: "#1C1917",
-  sand: "#F5F0E8",
-  sandDeep: "#E7E0D4",
-  muted: "#78716C",
-  surface: "#FFFCF7",
+  gold: "#000000",
+  goldSoft: "#FFFFFF",
+  goldMuted: "rgba(0, 0, 0, 0.35)",
+  charcoal: "#000000",
+  charcoalDeep: "#1A1A1A",
+  sand: "#FFFDF9",
+  sandDeep: "#E8E8E4",
+  muted: "#5A5A56",
+  surface: "#FFFFFF",
   success: "#3F7D5A",
   danger: "#B54A3F",
-  series: ["#C9A227", "#292524", "#A8A29A", "#78716C", "#E8D5A3", "#57534E"],
+  series: ["#000000", "#1A1A1A", "#5A5A56", "#A8A29A", "#E8E8E4", "#57534E"],
 } as const;
 
 export function withAlpha(hex: string, alpha: number): string {

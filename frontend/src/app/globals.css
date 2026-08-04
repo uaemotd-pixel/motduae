@@ -56,16 +56,16 @@
   /* Radius — brand is zero-radius */
   --radius: 0px;
 
-  /* Dashboard surfaces (admin / fabric / tailor portals) */
-  --dash-bg: #f5f0e8;
-  --dash-surface: #fffcf7;
-  --dash-ink: #1c1917;
-  --dash-muted: #78716c;
-  --dash-border: #e7e0d4;
-  --dash-gold: #c9a227;
-  --dash-gold-soft: #e8d5a3;
-  --dash-charcoal: #292524;
-  --dash-charcoal-deep: #1c1917;
+  /* Dashboard surfaces (admin / fabric / tailor portals) — brand palette */
+  --dash-bg: var(--color-off-white);
+  --dash-surface: var(--color-white);
+  --dash-ink: var(--color-black);
+  --dash-muted: var(--color-grey-muted);
+  --dash-border: var(--color-border);
+  --dash-gold: var(--color-black);
+  --dash-gold-soft: var(--color-white);
+  --dash-charcoal: var(--color-black);
+  --dash-charcoal-deep: var(--color-near-black);
   --dash-success: #3f7d5a;
   --dash-danger: #b54a3f;
   --dash-radius: 12px;
@@ -104,7 +104,7 @@ body {
   background: color-mix(in srgb, var(--bg-page) 85%, transparent);
 }
 
-/* Premium Golden Scrollbar - No White anywhere */
+/* Brand scrollbar */
 @layer base {
   /* Webkit browsers */
   ::-webkit-scrollbar {
@@ -113,68 +113,50 @@ body {
   }
 
   ::-webkit-scrollbar-track {
-    background: linear-gradient(135deg, #f5f5f0 0%, #ede9e0 100%);
-    /* Off-White gradients */
+    background: var(--color-off-white);
     border-radius: 10px;
-    box-shadow: inset 0 0 3px rgba(212, 175, 55, 0.2);
   }
 
   .dark ::-webkit-scrollbar-track {
-    background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
-    /* Stone Black gradients */
-    box-shadow: inset 0 0 3px rgba(212, 175, 55, 0.3);
+    background: var(--color-near-black);
   }
 
   ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #000000 0%, #1a1a1a 100%);
-    /* Black to Stone Black */
+    background: var(--color-black);
     border-radius: 9999px;
-    border: 1px solid #d4af37;
-    box-shadow: 0 0 4px rgba(212, 175, 55, 0.4);
+    border: 1px solid var(--color-border);
   }
 
   .dark ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #1a1a1a 0%, #2a2a2a 100%);
-    /* Stone Black gradient */
-    border: 1px solid #d4af37;
-    box-shadow: 0 0 4px rgba(212, 175, 55, 0.5);
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, #d4af37 0%, #b8960f 100%);
-    /* Gold gradient */
-    border: 1px solid #ffd700;
-    box-shadow: 0 0 8px rgba(212, 175, 55, 0.8);
+    background: var(--color-near-black);
   }
 
   .dark ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, #d4af37 0%, #c5a028 100%);
-    /* Gold gradient */
-    border: 1px solid #ffd700;
-    box-shadow: 0 0 12px rgba(212, 175, 55, 0.9);
+    background: #3a3a3a;
   }
 
   /* Corner styling */
   ::-webkit-scrollbar-corner {
-    background: #f5f5f0;
-    border-top: 1px solid rgba(212, 175, 55, 0.3);
+    background: var(--color-off-white);
   }
 
   .dark ::-webkit-scrollbar-corner {
-    background: #1a1a1a;
-    border-top: 1px solid rgba(212, 175, 55, 0.3);
+    background: var(--color-near-black);
   }
 
   /* Firefox */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #000000 #f5f5f0;
-    /* Black thumb, Off-White track */
+    scrollbar-color: var(--color-black) var(--color-off-white);
   }
 
   .dark * {
-    scrollbar-color: #1a1a1a #1a1a1a;
-    /* Stone Black thumb + track */
+    scrollbar-color: #2a2a2a var(--color-near-black);
   }
 }
 

@@ -103,7 +103,7 @@ export default function FabricPortalShell({
               onClick={() => setIsSidebarOpen(false)}
               className={`flex items-center gap-3 px-4 py-3 text-[11px] uppercase tracking-[0.18em] transition [font-family:var(--font-ui)] rounded-xl ${
                 isActive
-                  ? "bg-[var(--dash-charcoal)] text-[var(--dash-gold)]"
+                  ? "bg-black text-white"
                   : "text-[var(--dash-ink)] hover:bg-[var(--dash-bg)]"
               }`}
             >
@@ -164,7 +164,7 @@ export default function FabricPortalShell({
         <button
           type="button"
           onClick={() => setIsSidebarOpen(true)}
-          className="fixed top-4 left-4 z-20 bg-[var(--dash-charcoal)] p-2 text-[var(--dash-gold)] transition hover:bg-[var(--dash-charcoal-deep)] lg:hidden rounded-md"
+          className="fixed top-4 left-4 z-20 bg-black p-2 text-white transition hover:bg-[var(--dash-charcoal-deep)] lg:hidden rounded-md"
           aria-label="Open menu"
         >
           <Menu className="w-5 h-5" />

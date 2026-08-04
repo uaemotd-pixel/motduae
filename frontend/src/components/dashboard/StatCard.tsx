@@ -68,7 +68,7 @@ export default function StatCard({
             </div>
           )}
         </div>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--dash-charcoal)] text-[var(--dash-gold)]">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--dash-charcoal)] text-white">
           <Icon className="h-4 w-4" strokeWidth={1.5} />
         </div>
       </div>
