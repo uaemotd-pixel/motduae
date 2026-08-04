@@ -11,8 +11,9 @@ import {
 function disableGoogleAnalytics(measurementId: string) {
   if (typeof window === "undefined") return;
 
-  (window as Window & Record<string, unknown>)[`ga-disable-${measurementId}`] =
-    true;
+  (window as unknown as Record<string, unknown>)[
+    `ga-disable-${measurementId}`
+  ] = true;
 
   const hostname = window.location.hostname;
   const domains = [hostname, `.${hostname}`];
