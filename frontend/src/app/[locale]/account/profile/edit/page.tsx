@@ -83,10 +83,10 @@ const FormField = ({
 const UAE_PHONE_REGEX = /^\+971[0-9]{9}$/;
 
 const validatePhone = (phone: string): string | null => {
-  if (!phone) return "Phone number is required";
+  if (!phone || phone === "+971") return "Phone number is required";
   const cleaned = phone.replace(/\s/g, "");
   if (!UAE_PHONE_REGEX.test(cleaned)) {
-    return "Enter valid UAE number (+971 XX XXX XXXX)";
+    return "Invalid phone number. Must be 9 digits after +971";
   }
   return null;
 };
@@ -462,7 +462,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                   <input
                     type="tel"
                     name="phone"
-                    value={form.phone.replace(/\D/g, "").slice(3) || ""}
+                    value={form.phone ? (form.phone.replace(/\D/g, "").startsWith("971") ? form.phone.replace(/\D/g, "").slice(3) : form.phone.replace(/\D/g, "").slice(0, 9)) : ""}
                     onChange={(e) => {
                       const digits = e.target.value.replace(/\D/g, "");
                       if (digits.length <= 9) {
@@ -626,7 +626,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                   <input
                     type="tel"
                     name="address.phone"
-                    value={form.address.phone.replace(/\D/g, "").slice(3) || ""}
+                    value={form.address.phone ? (form.address.phone.replace(/\D/g, "").startsWith("971") ? form.address.phone.replace(/\D/g, "").slice(3) : form.address.phone.replace(/\D/g, "").slice(0, 9)) : ""}
                     onChange={(e) => {
                       const digits = e.target.value.replace(/\D/g, "");
                       if (digits.length <= 9) {

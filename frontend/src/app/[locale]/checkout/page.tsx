@@ -350,7 +350,8 @@ function CheckoutPageContent() {
       processedValue = value.replace(/[^a-zA-Z\u0600-\u06FF\s\-']/g, "");
     }
     if (name === "phone") {
-      processedValue = value.replace(/[^0-9+]/g, "");
+      const digits = value.replace(/\D/g, "").slice(0, 9);
+      processedValue = `+971${digits}`;
     }
     setFormData((prev) => ({ ...prev, [name]: processedValue }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
@@ -360,12 +361,12 @@ function CheckoutPageContent() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.fullName.trim()) newErrors.fullName = "Required";
-    if (!formData.phone.trim()) {
+    if (!formData.phone.trim() || formData.phone === "+971") {
       newErrors.phone = "Required";
     } else if (!validateUaePhone(formData.phone)) {
       newErrors.phone = localeParams === "ar"
-        ? "رقم الهاتف غير صحيح. يجب أن يكون بتنسيق دولة الإمارات"
-        : "Invalid phone number. Must be a valid UAE format";
+        ? "رقم الهاتف غير صحيح. يجب أن يكون 9 أرقام بعد +971"
+        : "Invalid phone number. Must be 9 digits after +971";
     }
     if (!formData.emirate) newErrors.emirate = "Required";
     if (!formData.city.trim()) newErrors.city = "Required";
@@ -673,13 +674,22 @@ function CheckoutPageContent() {
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
                         {t.checkout.phone}*
                       </label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-                      />
+                      <div className="relative flex items-center">
+                        <span className={`absolute ${localeParams === "ar" ? "right-0" : "left-0"} text-gray-500 font-mono text-[15px] md:text-[16px]`}>
+                          +971
+                        </span>
+                        <input
+                          type="tel"
+                          name="phone"
+                          value={formData.phone ? (formData.phone.replace(/\D/g, "").startsWith("971") ? formData.phone.replace(/\D/g, "").slice(3) : formData.phone.replace(/\D/g, "").slice(0, 9)) : ""}
+                          onChange={handleChange}
+                          placeholder="XXXXXXXXX"
+                          maxLength={9}
+                          className={`w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-mono rounded-none transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black ${
+                            localeParams === "ar" ? "pr-11 pl-0 text-right" : "pl-11 pr-0 text-left"
+                          }`}
+                        />
+                      </div>
                       {errors.phone && (
                         <p className="text-red-500 text-[11px] mt-1">
                           {errors.phone}

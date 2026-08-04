@@ -11,6 +11,7 @@ export default function ShippingPartnerPage() {
     const isAr = locale === "ar";
 
     const [formSubmitted, setFormSubmitted] = useState(false);
+    const [phoneError, setPhoneError] = useState("");
     const [formData, setFormData] = useState({
         companyName: "",
         contactName: "",
@@ -20,8 +21,18 @@ export default function ShippingPartnerPage() {
         details: ""
     });
 
+    const validateUaePhone = (phone: string): boolean => {
+        const cleaned = phone.replace(/[^\d+]/g, "");
+        return /^\+971\d{9}$/.test(cleaned);
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (!validateUaePhone(formData.phone)) {
+            setPhoneError(isAr ? "رقم الهاتف غير صحيح. يجب أن يكون 9 أرقام بعد +971" : "Invalid phone number. Must be 9 digits after +971");
+            return;
+        }
+        setPhoneError("");
         console.log("Submitted shipping partner request:", formData);
         setFormSubmitted(true);
     };
@@ -96,13 +107,31 @@ export default function ShippingPartnerPage() {
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-xs uppercase tracking-wider text-[#5A5A56] block">{isAr ? "رقم الهاتف" : "Phone Number"}</label>
-                                            <input 
-                                                required
-                                                type="tel" 
-                                                value={formData.phone}
-                                                onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                                                className="w-full h-11 px-4 bg-transparent border border-[#E8E8E4] rounded-lg focus:outline-none focus:border-black text-left"
-                                            />
+                                            <div className="relative flex items-center border border-[#E8E8E4] rounded-lg focus-within:border-black transition-all bg-transparent h-11">
+                                                <span className={`absolute ${isAr ? "right-4" : "left-4"} text-gray-500 font-mono text-[14px]`}>
+                                                    +971
+                                                </span>
+                                                <input 
+                                                    required
+                                                    type="tel" 
+                                                    value={formData.phone ? (formData.phone.replace(/\D/g, "").startsWith("971") ? formData.phone.replace(/\D/g, "").slice(3) : formData.phone.replace(/\D/g, "").slice(0, 9)) : ""}
+                                                    onChange={(e) => {
+                                                        const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
+                                                        setFormData({...formData, phone: `+971${digits}`});
+                                                        if (phoneError) setPhoneError("");
+                                                    }}
+                                                    placeholder="XXXXXXXXX"
+                                                    maxLength={9}
+                                                    className={`w-full h-full bg-transparent focus:outline-none placeholder:text-black/40 text-black font-mono border-0 rounded-lg ${
+                                                        isAr ? "pr-16 pl-4 text-right" : "pl-16 pr-4 text-left"
+                                                    }`}
+                                                />
+                                            </div>
+                                            {phoneError && (
+                                                <p className="text-red-500 text-xs mt-1">
+                                                    {phoneError}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
 

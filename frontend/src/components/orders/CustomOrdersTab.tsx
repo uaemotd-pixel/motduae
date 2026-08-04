@@ -20,7 +20,7 @@ import {
   type RetailOrderListItem,
 } from "@/lib/customOrders";
 import OrderTimeline from "@/components/orders/OrderTimeline";
-import { ChevronDown, ChevronUp, Maximize2, Package } from "lucide-react";
+import { ChevronDown, ChevronUp, Maximize2, Package, Scissors, Sparkles, CheckCircle2, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { resolveDesignImage } from "@/lib/tailors";
 import { resolveFabricImage } from "@/lib/fabrics";
@@ -104,9 +104,19 @@ export default function CustomOrdersTab({
   const [priceDetailsOpenIds, setPriceDetailsOpenIds] = useState<
     Record<string, boolean>
   >({});
+  const [retailFabricDesignOpenIds, setRetailFabricDesignOpenIds] = useState<
+    Record<string, boolean>
+  >({});
 
   const handleTogglePriceDetails = (orderId: string) => {
     setPriceDetailsOpenIds((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
+
+  const handleToggleRetailDetails = (orderId: string) => {
+    setRetailFabricDesignOpenIds((prev) => ({
       ...prev,
       [orderId]: !prev[orderId],
     }));
@@ -597,36 +607,38 @@ export default function CustomOrdersTab({
                 </div>
               </div>
 
-              {/* 4-Column Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {/* Column 1: Designs */}
-                <div className="space-y-3 md:col-span-1">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "التصاميم" : "DESIGNS"}
-                  </p>
-                  <div className="space-y-3">
-                    {items.map((item, index) => {
-                      const designName =
-                        getDesignDisplayName(item.design, locale) ||
-                        t("unknownDesign");
-                      const dImage = item.design?.images?.[0];
-                      const tailorName = getTailorDisplayName(
-                        item.tailorShop,
-                        locale,
-                      );
-                      return (
-                        <div
-                          key={index}
-                          className="space-y-2 bg-gray-50/50 p-2.5 rounded-xl border border-gray-100"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded-lg border border-gray-200 shrink-0 relative group">
+              {/* Row-wise Order Details Layout */}
+              <div className="flex flex-col gap-8 mt-2">
+                {/* Row 1: Designs and Fabrics Details */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-8 border-b border-black/5">
+                  {/* Designs Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-ui font-bold text-black/50">
+                      <Scissors className="w-3.5 h-3.5 text-black/30" />
+                      <span>{locale === "ar" ? "التصاميم" : "DESIGNS"}</span>
+                    </div>
+                    <div className="space-y-4">
+                      {items.map((item, index) => {
+                        const designName =
+                          getDesignDisplayName(item.design, locale) ||
+                          t("unknownDesign");
+                        const dImage = item.design?.images?.[0];
+                        const tailorName = getTailorDisplayName(
+                          item.tailorShop,
+                          locale,
+                        );
+                        return (
+                          <div
+                            key={index}
+                            className="group relative flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-black/5 hover:border-black/15 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-300"
+                          >
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#F0EBE3] overflow-hidden rounded-lg border border-black/5 shrink-0 relative flex items-center justify-center">
                               {dImage ? (
                                 <>
                                   <img
                                     src={resolveDesignImage(dImage)}
                                     alt="Design"
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                   />
                                   <button
                                     onClick={() =>
@@ -642,90 +654,107 @@ export default function CustomOrdersTab({
                                 </>
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                                  <Package size={18} />
+                                  <Package size={20} />
                                 </div>
                               )}
                             </div>
-                            <span className="text-xs text-black font-medium line-clamp-2">
-                              {designName}
-                            </span>
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <h4 className="text-sm font-semibold text-black leading-tight line-clamp-2">
+                                {designName}
+                              </h4>
+                              {tailorName && (
+                                <p className="text-[10px] uppercase tracking-widest text-black/40 font-ui flex items-center gap-1.5 mt-1">
+                                  <span className="w-1.5 h-1.5 bg-black/20 rounded-full inline-block" />
+                                  {locale === "ar" ? "الخياط: " : "Tailor: "}{" "}
+                                  <span className="font-semibold text-black/60">{tailorName}</span>
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          {tailorName && (
-                            <p className="text-[9px] uppercase tracking-widest text-gray-400 font-ui pl-1 mt-1">
-                              {locale === "ar" ? "الخياط: " : "Tailor: "}{" "}
-                              {tailorName}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Fabrics Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-ui font-bold text-black/50">
+                      <Sparkles className="w-3.5 h-3.5 text-black/30" />
+                      <span>{locale === "ar" ? "الأقمشة" : "FABRICS"}</span>
+                    </div>
+                    <div className="space-y-4">
+                      {items.map((item, index) => {
+                        const fabricName =
+                          order.fabricSource === "self"
+                            ? t("ownFabric")
+                            : getFabricDisplayName(item.fabric, locale) ||
+                              t("unknownFabric");
+                        const fImage =
+                          order.fabricSource === "storefront"
+                            ? item.fabric?.images?.[0]
+                            : null;
+                        const isSelf = order.fabricSource === "self";
+                        return (
+                          <div
+                            key={index}
+                            className="group relative flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-black/5 hover:border-black/15 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-300"
+                          >
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#F0EBE3] overflow-hidden rounded-lg border border-black/5 shrink-0 flex items-center justify-center relative">
+                              {fImage ? (
+                                <>
+                                  <img
+                                    src={resolveFabricImage(fImage)}
+                                    alt="Fabric"
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                  />
+                                  <button
+                                    onClick={() =>
+                                      handleImageClick(
+                                        resolveFabricImage(fImage),
+                                        fabricName,
+                                      )
+                                    }
+                                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
+                                  >
+                                    <Maximize2 className="w-4 h-4 text-white" />
+                                  </button>
+                                </>
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
+                                  <Package size={20} />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0 space-y-1.5">
+                              <h4 className="text-sm font-semibold text-black leading-tight line-clamp-2">
+                                {fabricName}
+                              </h4>
+                              <span className={`inline-block text-[8px] uppercase tracking-wider font-semibold font-ui px-2 py-0.5 rounded border ${
+                                isSelf
+                                  ? "bg-amber-50 text-amber-800 border-amber-200"
+                                  : "bg-green-50 text-green-800 border-green-200"
+                              }`}>
+                                {isSelf
+                                  ? (locale === "ar" ? "قماش خاص" : "Customer's Own Fabric")
+                                  : (locale === "ar" ? "قماش من المتجر" : "Storefront Fabric")}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                {/* Column 2: Fabrics */}
-                <div className="space-y-3 md:col-span-1">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "الأقمشة" : "FABRICS"}
-                  </p>
-                  <div className="space-y-3">
-                    {items.map((item, index) => {
-                      const fabricName =
-                        order.fabricSource === "self"
-                          ? t("ownFabric")
-                          : getFabricDisplayName(item.fabric, locale) ||
-                            t("unknownFabric");
-                      const fImage =
-                        order.fabricSource === "storefront"
-                          ? item.fabric?.images?.[0]
-                          : null;
-                      return (
-                        <div
-                          key={index}
-                          className="flex items-center gap-3 bg-gray-50/50 p-2.5 rounded-xl border border-gray-100"
-                        >
-                          <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded-lg border border-gray-200 shrink-0 flex items-center justify-center relative group">
-                            {fImage ? (
-                              <>
-                                <img
-                                  src={resolveFabricImage(fImage)}
-                                  alt="Fabric"
-                                  className="w-full h-full object-cover"
-                                />
-                                <button
-                                  onClick={() =>
-                                    handleImageClick(
-                                      resolveFabricImage(fImage),
-                                      fabricName,
-                                    )
-                                  }
-                                  className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
-                                >
-                                  <Maximize2 className="w-4 h-4 text-white" />
-                                </button>
-                              </>
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                                <Package size={16} />
-                              </div>
-                            )}
-                          </div>
-                          <span className="text-xs text-black font-medium line-clamp-2">
-                            {fabricName}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Column 3: Selected Add-ons */}
-                <div className="space-y-3 md:col-span-1">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "الإضافات" : "SELECTED ADD-ONS"}
-                  </p>
-                  {order.addons && order.addons.length > 0 ? (
-                    <div className="border border-gray-200 rounded-xl p-3 bg-[#FDFAF5]">
-                      <ul className="space-y-1.5">
+                {/* Row 2: Selected Add-ons (Only rendered if present) */}
+                {order.addons && order.addons.length > 0 && (
+                  <div className="space-y-4 pb-8 border-b border-black/5">
+                    <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-ui font-bold text-black/50">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-black/30" />
+                      <span>{locale === "ar" ? "الإضافات" : "SELECTED ADD-ONS"}</span>
+                    </div>
+                    <div className="border border-black/5 rounded-xl p-5 bg-[#FAF9F6]/60 w-full shadow-[inset_0_1px_3px_rgba(0,0,0,0.01)]">
+                      <ul className="divide-y divide-black/5">
                         {order.addons.map((addon: any, idx: number) => {
                           const name =
                             locale === "ar"
@@ -734,10 +763,13 @@ export default function CustomOrdersTab({
                           return (
                             <li
                               key={idx}
-                              className="flex justify-between items-center text-xs text-gray-600"
+                              className="flex justify-between items-center text-xs py-2.5 first:pt-0 last:pb-0"
                             >
-                              <span className="font-medium">{name}</span>
-                              <span className="font-semibold text-black">
+                              <span className="font-medium text-black/70 flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 bg-black rounded-full" />
+                                {name}
+                              </span>
+                              <span className="font-bold text-black">
                                 {formatCurrency(addon.price, locale)}
                               </span>
                             </li>
@@ -745,25 +777,22 @@ export default function CustomOrdersTab({
                         })}
                       </ul>
                     </div>
-                  ) : (
-                    <div className="border border-dashed border-gray-200 rounded-xl p-3 text-center text-[10px] text-gray-400 uppercase tracking-wider font-ui py-6 bg-gray-50/20">
-                      {locale === "ar" ? "لا توجد إضافات" : "No Add-Ons"}
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
-                {/* Column 4: Total Price */}
-                <div className="space-y-3 md:col-span-1">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "المجموع" : "TOTAL PRICE"}
-                  </p>
-                  <div className="bg-gray-50/50 border border-gray-100 rounded-xl p-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] uppercase tracking-wider text-gray-400 font-ui font-semibold">
+                {/* Row 3: Total Price */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-ui font-bold text-black/50">
+                    <Info className="w-3.5 h-3.5 text-black/30" />
+                    <span>{locale === "ar" ? "المجموع" : "TOTAL PRICE"}</span>
+                  </div>
+                  <div className="relative overflow-hidden bg-black text-white rounded-xl p-5 w-full shadow-md flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1.5 before:bg-white/20">
+                    <div className="flex justify-between sm:justify-start items-center gap-6">
+                      <span className="text-[10px] uppercase tracking-widest text-white/60 font-ui font-semibold">
                         {locale === "ar" ? "المجموع الإجمالي" : "Total Price"}
                       </span>
                       {order.total !== undefined && (
-                        <span className="font-display text-base font-semibold text-black whitespace-nowrap">
+                        <span className="font-display text-xl font-bold tracking-tight text-white whitespace-nowrap">
                           {formatCurrency(order.total, locale)}
                         </span>
                       )}
@@ -772,15 +801,18 @@ export default function CustomOrdersTab({
                     <button
                       type="button"
                       onClick={() => handleTogglePriceDetails(order.id)}
-                      className="mt-3 w-full text-center py-1.5 border border-gray-200 bg-white hover:bg-gray-50 text-[10px] uppercase tracking-[0.16em] text-gray-600 hover:text-black rounded-lg transition font-ui font-medium cursor-pointer"
+                      className="text-center py-2.5 px-6 bg-white/10 hover:bg-white/20 border border-white/10 text-[10px] uppercase tracking-widest text-white rounded-lg transition-all duration-300 font-ui font-semibold cursor-pointer select-none flex items-center justify-center gap-2"
                     >
-                      {priceDetailsOpenIds[order.id]
-                        ? locale === "ar"
-                          ? "إخفاء التفاصيل"
-                          : "Hide Price Details"
-                        : locale === "ar"
-                          ? "عرض تفاصيل السعر"
-                          : "View Price Details"}
+                      <span>
+                        {priceDetailsOpenIds[order.id]
+                          ? locale === "ar"
+                            ? "إخفاء التفاصيل"
+                            : "Hide Price Details"
+                          : locale === "ar"
+                            ? "عرض تفاصيل السعر"
+                            : "View Price Details"}
+                      </span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${priceDetailsOpenIds[order.id] ? "rotate-180" : ""}`} />
                     </button>
                   </div>
                 </div>
@@ -788,7 +820,7 @@ export default function CustomOrdersTab({
 
               {/* Price Breakdown collapse section below the grid */}
               {priceDetailsOpenIds[order.id] && order.pricing && (
-                <div className="mt-4 border-t border-gray-100 pt-4 max-w-xl">
+                <div className="mt-4 border-t border-gray-100 pt-4 w-full">
                   <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mb-2 font-ui font-semibold">
                     {locale === "ar" ? "تفاصيل السعر" : "PRICE BREAKDOWN"}
                   </p>
@@ -1356,251 +1388,296 @@ export default function CustomOrdersTab({
                 </div>
               </div>
 
-              {/* Grid content */}
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-stretch">
-                {/* Column 1: Ready-made Item name */}
-                <div className="space-y-3 md:col-span-1">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "الاسم" : "ITEM NAME"}
-                  </p>
-                  <div className="space-y-3">
-                    {(isExpanded ? order.items : [order.items[0]]).map(
-                      (item, idx) =>
-                        item && (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-3 bg-gray-50/50 p-2.5 rounded-xl border border-gray-100"
-                          >
-                            <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded-lg border border-gray-200 shrink-0 relative group">
-                              {item.image ? (
-                                <>
-                                  <img
-                                    src={resolveReadyMadeImage(item.image)}
-                                    alt={item.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <button
-                                    onClick={() =>
-                                      handleImageClick(
-                                        resolveReadyMadeImage(item.image),
-                                        item.name,
-                                      )
-                                    }
-                                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
-                                  >
-                                    <Maximize2 className="w-4 h-4 text-white" />
-                                  </button>
-                                </>
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                                  <Package size={18} />
-                                </div>
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <span className="text-xs text-black font-medium line-clamp-2">
-                                {locale === "ar"
-                                  ? item.nameAr || item.name
-                                  : item.name}
-                              </span>
-                              <span className="block text-[10px] text-gray-500 font-ui mt-0.5">
-                                Qty: {item.quantity}{" "}
-                                {item.size && `| Size: ${item.size}`}
-                              </span>
-                            </div>
-                          </div>
-                        ),
-                    )}
-                  </div>
-                </div>
-
-                {/* Column 2: Fabrics */}
-                <div className="space-y-3 md:col-span-1">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "الأقمشة" : "FABRICS"}
-                  </p>
-                  <div className="space-y-3">
-                    {(isExpanded ? order.items : [order.items[0]]).map(
-                      (item, idx) =>
-                        item && (
-                          <div key={idx} className="space-y-1">
-                            <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.24em] text-gray-400 block font-semibold">
-                              {locale === "ar"
-                                ? "قماش المنتج"
-                                : "SOURCE FABRIC"}
-                            </span>
-                            <span className="[font-family:var(--font-body)] text-xs sm:text-sm font-semibold text-black block leading-tight">
-                              {locale === "ar"
-                                ? item.fabricNameAr ||
-                                  item.fabricName ||
-                                  tRetail("unknownFabric")
-                                : item.fabricName || tRetail("unknownFabric")}
-                            </span>
-                          </div>
-                        ),
-                    )}
-
-                    {(isExpanded ? order.items : [order.items[0]]).map(
-                      (item, idx) => {
-                        if (!item) return null;
-                        const isFabricOnly = item.size === "Per Meter";
-                        const hasFabric =
-                          Boolean(item.fabricName) || isFabricOnly;
-                        const fabricNameDisplay = item.fabricName
-                          ? locale === "ar"
-                            ? item.fabricNameAr || item.fabricName
-                            : item.fabricName
-                          : isFabricOnly
-                            ? locale === "ar"
-                              ? item.nameAr || item.name
-                              : item.name
-                            : "";
-                        const fabricImageDisplay =
-                          item.fabricImage || (isFabricOnly ? item.image : "");
-
-                        return (
-                          <div key={idx} className="space-y-1">
-                            {hasFabric ? (
-                              <div className="flex items-center gap-3 bg-gray-50/50 p-2.5 rounded-xl border border-gray-100">
-                              <div className="w-12 h-12 bg-[#F0EBE3] overflow-hidden rounded-lg border border-gray-200 shrink-0 flex items-center justify-center relative group">
-                                  {fabricImageDisplay ? (
-                                    <>
+              {/* Row-wise Order Details Layout */}
+              <div className="flex flex-col gap-8 mt-2">
+                {/* Row 1: Ready-made Item name & Toggle Button */}
+                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 pb-6 border-b border-black/5">
+                  {/* Left Side: Items name list */}
+                  <div className="flex-1 space-y-3">
+                    <p className="text-[10px] uppercase tracking-[0.2em] font-ui font-bold text-black/50">
+                      {locale === "ar" ? "الاسم" : "ITEM NAME"}
+                    </p>
+                    <div className="space-y-3">
+                      {(isExpanded ? order.items : [order.items[0]]).map(
+                        (item, idx) =>
+                          item && (
+                            <div
+                              key={idx}
+                              className="group flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-black/5 hover:border-black/15 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-300 w-full"
+                            >
+                              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#F0EBE3] overflow-hidden rounded-lg border border-black/5 shrink-0 relative flex items-center justify-center">
+                                {item.image ? (
+                                  <>
                                     <img
-                                      src={resolveFabricImage(
-                                        fabricImageDisplay,
-                                      )}
-                                      alt="Fabric"
-                                      className="w-full h-full object-cover"
+                                      src={resolveReadyMadeImage(item.image)}
+                                      alt={item.name}
+                                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                     />
                                     <button
-                                      onClick={() => handleImageClick(resolveFabricImage(fabricImageDisplay), fabricNameDisplay)}
+                                      onClick={() =>
+                                        handleImageClick(
+                                          resolveReadyMadeImage(item.image),
+                                          item.name,
+                                        )
+                                      }
                                       className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
                                     >
                                       <Maximize2 className="w-4 h-4 text-white" />
                                     </button>
-                                    </>
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                                      <Package size={16} />
-                                    </div>
-                                  )}
-                                </div>
-                                <span className="text-xs text-black font-medium line-clamp-2">
-                                  {fabricNameDisplay}
-                                </span>
+                                  </>
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
+                                    <Package size={20} />
+                                  </div>
+                                )}
                               </div>
-                            ) : (
-                              <div className="border border-dashed border-gray-200 rounded-xl p-3 text-center text-[10px] text-gray-400 uppercase tracking-wider font-ui py-5 bg-gray-50/20">
-                                {locale === "ar" ? "لا يوجد قماش" : "No Fabric"}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      },
-                    )}
-                  </div>
-                </div>
-
-                {/* Column 3: Designs */}
-                <div className="space-y-3 md:col-span-1">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "التصاميم" : "DESIGNS"}
-                  </p>
-                  <div className="space-y-3">
-                    {(isExpanded ? order.items : [order.items[0]]).map(
-                      (item, idx) =>
-                        item && (
-                          <div key={idx} className="space-y-1">
-                            <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.24em] text-gray-400 block font-semibold">
-                              {locale === "ar"
-                                ? "تصميم المنتج"
-                                : "TAILOR DESIGN"}
-                            </span>
-                            <span className="[font-family:var(--font-body)] text-xs sm:text-sm font-semibold text-black block leading-tight">
-                              {locale === "ar"
-                                ? item.designNameAr ||
-                                  item.designName ||
-                                  tRetail("unknownDesign")
-                                : item.designName || tRetail("unknownDesign")}
-                            </span>
-                          </div>
-                        ),
-                    )}
-
-                    {(isExpanded ? order.items : [order.items[0]]).map(
-                      (item, idx) => {
-                        if (!item) return null;
-                        const isFabricOnly = item.size === "Per Meter";
-                        const hasDesign =
-                          Boolean(item.designName) && !isFabricOnly;
-                        return (
-                          <div key={idx} className="space-y-1">
-                            {hasDesign ? (
-                              <div className="flex items-center gap-3 bg-[#FDFAF5]/50 p-2.5 rounded-xl border border-gray-100">
-                              <div className="w-12 h-12 bg-white overflow-hidden rounded-lg border border-gray-200 shrink-0 flex items-center justify-center relative group">
-                                  {item.designImage ? (
-                                    <>
-                                    <img
-                                      src={resolveDesignImage(item.designImage)}
-                                      alt="Design"
-                                      className="w-full h-full object-cover"
-                                    />
-                                    <button
-                                      onClick={() => handleImageClick(resolveDesignImage(item.designImage), locale === "ar" ? item.designNameAr || item.designName : item.designName)}
-                                      className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
-                                    >
-                                      <Maximize2 className="w-4 h-4 text-white" />
-                                    </button>
-                                    </>
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                                      <Package size={18} />
-                                    </div>
-                                  )}
-                                </div>
-                                <span className="text-xs text-black font-medium line-clamp-2">
+                              <div className="min-w-0 flex-1">
+                                <h4 className="text-sm font-semibold text-black leading-tight line-clamp-2">
                                   {locale === "ar"
-                                    ? item.designNameAr || item.designName
-                                    : item.designName}
+                                    ? item.nameAr || item.name
+                                    : item.name}
+                                </h4>
+                                <span className="block text-[10px] text-gray-500 font-ui mt-1 font-semibold">
+                                  Qty: {item.quantity}{" "}
+                                  {item.size && `| Size: ${item.size}`}
                                 </span>
                               </div>
-                            ) : (
-                              <div className="border border-dashed border-gray-200 rounded-xl p-3 text-center text-[10px] text-gray-400 uppercase tracking-wider font-ui py-5 bg-gray-50/20">
-                                {locale === "ar"
-                                  ? "لا يوجد تصميم"
-                                  : "No Design"}
-                              </div>
-                            )}
+                            </div>
+                          ),
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Side: Toggle Fabric & Design Details Button */}
+                  {(() => {
+                    const hasAnyFabric = order.items.some(
+                      (item) =>
+                        item &&
+                        (item.fabricName || item.fabricImage || item.size === "Per Meter")
+                    );
+                    const hasAnyDesign = order.items.some(
+                      (item) =>
+                        item &&
+                        item.designName &&
+                        item.size !== "Per Meter"
+                    );
+                    const showToggle = hasAnyFabric || hasAnyDesign;
+
+                    if (!showToggle) return null;
+
+                    return (
+                      <div className="flex items-center justify-end shrink-0 pt-4 md:pt-0">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleRetailDetails(order.id)}
+                          className="w-full md:w-auto text-center py-2.5 px-6 border border-black/10 hover:border-black/20 bg-white hover:bg-gray-50 text-[10px] uppercase tracking-widest text-black/70 hover:text-black rounded-lg transition-all duration-300 font-ui font-semibold cursor-pointer select-none flex items-center justify-center gap-2 shadow-sm hover:shadow"
+                        >
+                          <span>
+                            {retailFabricDesignOpenIds[order.id]
+                              ? locale === "ar"
+                                ? "إخفاء القماش والتصميم"
+                                : "Hide Fabric & Design"
+                              : locale === "ar"
+                                ? "عرض القماش والتصميم"
+                                : "View Fabric & Design"}
+                          </span>
+                          <ChevronDown
+                            className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                              retailFabricDesignOpenIds[order.id] ? "rotate-180" : ""
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Row 2: Retail Fabric & Design Details (Conditional) */}
+                {(() => {
+                  if (!retailFabricDesignOpenIds[order.id]) return null;
+
+                  const hasAnyFabric = order.items.some(
+                    (item) =>
+                      item &&
+                      (item.fabricName || item.fabricImage || item.size === "Per Meter")
+                  );
+                  const hasAnyDesign = order.items.some(
+                    (item) =>
+                      item &&
+                      item.designName &&
+                      item.size !== "Per Meter"
+                  );
+
+                  if (!hasAnyFabric && !hasAnyDesign) return null;
+
+                  return (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-8 border-b border-black/5">
+                      {/* Designs Section */}
+                      {hasAnyDesign && (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-ui font-bold text-black/50">
+                            <Scissors className="w-3.5 h-3.5 text-black/30" />
+                            <span>{locale === "ar" ? "التصاميم" : "DESIGNS"}</span>
                           </div>
-                        );
-                      },
-                    )}
+                          <div className="space-y-4">
+                            {order.items.map((item, idx) => {
+                              if (!item) return null;
+                              const isFabricOnly = item.size === "Per Meter";
+                              const hasDesign =
+                                Boolean(item.designName) && !isFabricOnly;
+
+                              if (!hasDesign) return null;
+
+                              const designName =
+                                locale === "ar"
+                                  ? item.designNameAr || item.designName
+                                  : item.designName;
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className="group relative flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-black/5 hover:border-black/15 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-300 w-full"
+                                >
+                                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white overflow-hidden rounded-lg border border-black/5 shrink-0 flex items-center justify-center relative">
+                                    {item.designImage ? (
+                                      <>
+                                        <img
+                                          src={resolveDesignImage(item.designImage)}
+                                          alt="Design"
+                                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                        />
+                                        <button
+                                          onClick={() =>
+                                            handleImageClick(
+                                              resolveDesignImage(item.designImage),
+                                              designName,
+                                            )
+                                          }
+                                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
+                                        >
+                                          <Maximize2 className="w-4 h-4 text-white" />
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
+                                        <Package size={20} />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.24em] text-black/40 block font-semibold mb-1">
+                                      {locale === "ar"
+                                        ? "تصميم المنتج"
+                                        : "PRODUCT DESIGN"}
+                                    </span>
+                                    <h4 className="text-sm font-semibold text-black leading-tight line-clamp-2">
+                                      {designName}
+                                    </h4>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Fabrics Section */}
+                      {hasAnyFabric && (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-ui font-bold text-black/50">
+                            <Sparkles className="w-3.5 h-3.5 text-black/30" />
+                            <span>{locale === "ar" ? "الأقمشة" : "FABRICS"}</span>
+                          </div>
+                          <div className="space-y-4">
+                            {order.items.map((item, idx) => {
+                              if (!item) return null;
+                              const isFabricOnly = item.size === "Per Meter";
+                              const hasFabric =
+                                Boolean(item.fabricName) || isFabricOnly;
+
+                              if (!hasFabric) return null;
+
+                              const fabricNameDisplay = item.fabricName
+                                ? locale === "ar"
+                                  ? item.fabricNameAr || item.fabricName
+                                  : item.fabricName
+                                : isFabricOnly
+                                  ? locale === "ar"
+                                    ? item.nameAr || item.name
+                                    : item.name
+                                  : "";
+                              const fabricImageDisplay =
+                                item.fabricImage ||
+                                (isFabricOnly ? item.image : "");
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className="group relative flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-black/5 hover:border-black/15 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-300 w-full"
+                                >
+                                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white overflow-hidden rounded-lg border border-black/5 shrink-0 flex items-center justify-center relative">
+                                    {fabricImageDisplay ? (
+                                      <>
+                                        <img
+                                          src={resolveFabricImage(
+                                            fabricImageDisplay,
+                                          )}
+                                          alt="Fabric"
+                                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                        />
+                                        <button
+                                          onClick={() =>
+                                            handleImageClick(
+                                              resolveFabricImage(
+                                                fabricImageDisplay,
+                                              ),
+                                              fabricNameDisplay,
+                                            )
+                                          }
+                                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
+                                        >
+                                          <Maximize2 className="w-4 h-4 text-white" />
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
+                                        <Package size={20} />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.24em] text-black/40 block font-semibold mb-1">
+                                      {locale === "ar"
+                                        ? "قماش المنتج"
+                                        : "PRODUCT FABRIC"}
+                                    </span>
+                                    <h4 className="text-sm font-semibold text-black leading-tight line-clamp-2">
+                                      {fabricNameDisplay}
+                                    </h4>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Row 3: Total Price */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-ui font-bold text-black/50">
+                    <Info className="w-3.5 h-3.5 text-black/30" />
+                    <span>{locale === "ar" ? "المجموع" : "TOTAL PRICE"}</span>
                   </div>
-                </div>
-
-                {/* Column 4: Add-Ons */}
-                <div className="space-y-3 md:col-span-1">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "الإضافات" : "ADD-ONS"}
-                  </p>
-                  <div className="border border-dashed border-gray-200 rounded-xl p-3 text-center text-[10px] text-gray-400 uppercase tracking-wider font-ui py-6 bg-gray-50/20">
-                    {locale === "ar" ? "لا توجد إضافات" : "No Add-Ons"}
-                  </div>
-                </div>
-
-                {/* Column 5: Total Price */}
-                <div className="space-y-3 md:col-span-1">
-                  <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 font-ui font-semibold">
-                    {locale === "ar" ? "المجموع" : "TOTAL PRICE"}
-                  </p>
-
-                  <div className="bg-gray-50/50 border border-gray-100 rounded-xl p-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] uppercase tracking-wider text-gray-400 font-ui font-semibold">
+                  <div className="relative overflow-hidden bg-black text-white rounded-xl p-5 w-full shadow-md flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1.5 before:bg-white/20">
+                    <div className="flex justify-between sm:justify-start items-center gap-6">
+                      <span className="text-[10px] uppercase tracking-widest text-white/60 font-ui font-semibold">
                         {locale === "ar" ? "المجموع الإجمالي" : "Total Price"}
                       </span>
                       {order.totalPrice !== undefined && (
-                        <span className="font-display text-base font-semibold text-black whitespace-nowrap">
+                        <span className="font-display text-xl font-bold tracking-tight text-white whitespace-nowrap">
                           {formatCurrency(order.totalPrice, locale)}
                         </span>
                       )}
@@ -1609,15 +1686,22 @@ export default function CustomOrdersTab({
                     <button
                       type="button"
                       onClick={() => handleTogglePriceDetails(order.id)}
-                      className="mt-3 w-full text-center py-1.5 border border-gray-200 bg-white hover:bg-gray-50 text-[10px] uppercase tracking-[0.16em] text-gray-600 hover:text-black rounded-lg transition font-ui font-medium cursor-pointer"
+                      className="text-center py-2.5 px-6 bg-white/10 hover:bg-white/20 border border-white/10 text-[10px] uppercase tracking-widest text-white rounded-lg transition-all duration-300 font-ui font-semibold cursor-pointer select-none flex items-center justify-center gap-2"
                     >
-                      {priceDetailsOpenIds[order.id]
-                        ? locale === "ar"
-                          ? "إخفاء التفاصيل"
-                          : "Hide Price Details"
-                        : locale === "ar"
-                          ? "عرض تفاصيل السعر"
-                          : "View Price Details"}
+                      <span>
+                        {priceDetailsOpenIds[order.id]
+                          ? locale === "ar"
+                            ? "إخفاء التفاصيل"
+                            : "Hide Price Details"
+                          : locale === "ar"
+                            ? "عرض تفاصيل السعر"
+                            : "View Price Details"}
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                          priceDetailsOpenIds[order.id] ? "rotate-180" : ""
+                        }`}
+                      />
                     </button>
                   </div>
                 </div>
@@ -1625,7 +1709,7 @@ export default function CustomOrdersTab({
 
               {/* Price Breakdown collapse section below the grid */}
               {priceDetailsOpenIds[order.id] && (
-                <div className="mt-4 border-t border-gray-100 pt-4 max-w-xl">
+                <div className="mt-4 border-t border-gray-100 pt-4 w-full">
                   <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mb-2 font-ui font-semibold">
                     {locale === "ar" ? "تفاصيل السعر" : "PRICE BREAKDOWN"}
                   </p>

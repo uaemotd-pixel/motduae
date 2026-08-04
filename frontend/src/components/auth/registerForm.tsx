@@ -58,7 +58,9 @@ export default function RegisterForm() {
 
     if (phone.length !== 9) {
       setError(
-        t.signup.phoneInvalid || "Contact number must be exactly 9 digits.",
+        localeParam === "ar"
+          ? "رقم الهاتف غير صحيح. يجب أن يكون 9 أرقام بعد +971"
+          : "Invalid phone number. Must be 9 digits after +971"
       );
       return;
     }

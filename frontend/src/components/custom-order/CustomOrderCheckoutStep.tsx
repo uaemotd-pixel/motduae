@@ -324,7 +324,12 @@ export default function CustomOrderCheckoutStep() {
   const address = draft.deliveryAddress;
 
   const handleFieldChange = (field: FormField, value: string) => {
-    updateDeliveryAddress({ [field]: value });
+    let processedValue = value;
+    if (field === "phone") {
+      const digits = value.replace(/\D/g, "").slice(0, 9);
+      processedValue = `+971${digits}`;
+    }
+    updateDeliveryAddress({ [field]: processedValue });
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -345,10 +350,12 @@ export default function CustomOrderCheckoutStep() {
       }
     }
 
-    if (address.phone?.trim() && !validateUaePhone(address.phone)) {
+    if (!address.phone?.trim() || address.phone === "+971") {
+      nextErrors.phone = t("required");
+    } else if (!validateUaePhone(address.phone)) {
       nextErrors.phone = locale === "ar"
-        ? "رقم الهاتف غير صحيح. يجب أن يكون بتنسيق دولة الإمارات"
-        : "Invalid UAE phone number format";
+        ? "رقم الهاتف غير صحيح. يجب أن يكون 9 أرقام بعد +971"
+        : "Invalid phone number. Must be 9 digits after +971";
     }
 
     setErrors(nextErrors);
@@ -701,15 +708,24 @@ export default function CustomOrderCheckoutStep() {
                       >
                         {t("phone")}*
                       </label>
-                      <input
-                        id="checkout-phone"
-                        type="tel"
-                        value={address.phone || ""}
-                        onChange={(e) =>
-                          handleFieldChange("phone", e.target.value)
-                        }
-                        className="w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition"
-                      />
+                      <div className="relative flex items-center">
+                        <span className={`absolute ${locale === "ar" ? "right-4" : "left-4"} text-gray-500 font-mono text-[15px]`}>
+                          +971
+                        </span>
+                        <input
+                          id="checkout-phone"
+                          type="tel"
+                          value={address.phone ? (address.phone.replace(/\D/g, "").startsWith("971") ? address.phone.replace(/\D/g, "").slice(3) : address.phone.replace(/\D/g, "").slice(0, 9)) : ""}
+                          onChange={(e) =>
+                            handleFieldChange("phone", e.target.value)
+                          }
+                          placeholder="XXXXXXXXX"
+                          maxLength={9}
+                          className={`w-full border border-(--color-border) bg-white py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition ${
+                            locale === "ar" ? "pr-16 pl-4 text-right" : "pl-16 pr-4 text-left"
+                          }`}
+                        />
+                      </div>
                       {errors.phone && (
                         <p className="text-red-600 text-[12px] mt-1">
                           {errors.phone}

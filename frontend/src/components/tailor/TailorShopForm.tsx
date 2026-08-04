@@ -115,7 +115,8 @@ export default function TailorShopForm() {
     const handleChange = (field: FieldKey, value: string) => {
         let val = value;
         if (field === "phone") {
-            val = value.replace(/\D/g, "").slice(0, 9);
+            const digits = value.replace(/\D/g, "").slice(0, 9);
+            val = `+971${digits}`;
         }
 
         setFormData((prev) => {
@@ -148,9 +149,9 @@ export default function TailorShopForm() {
         } else if (!SLUG_PATTERN.test(payload.slug.trim().toLowerCase())) {
             errors.slug = t("validation.slugInvalid");
         }
-        if (!payload.phone.trim()) {
+        if (!payload.phone.trim() || payload.phone === "+971") {
             errors.phone = t("validation.phoneRequired");
-        } else if (!/^\d{9}$/.test(payload.phone.trim())) {
+        } else if (!/^\+971\d{9}$/.test(payload.phone.trim())) {
             errors.phone = t("validation.phoneInvalid");
         }
 
@@ -450,14 +451,20 @@ export default function TailorShopForm() {
                         required
                         error={fieldErrors.phone}
                     >
-                        <input
-                            id="phone"
-                            type="tel"
-                            value={formData.phone}
-                            onChange={(e) => handleChange("phone", e.target.value)}
-                            placeholder={t("placeholders.phone")}
-                            className={INPUT_CLASS}
-                        />
+                        <div className="relative flex items-center">
+                            <span className="absolute left-4 text-gray-500 font-mono text-[14px]">
+                                +971
+                            </span>
+                            <input
+                                id="phone"
+                                type="tel"
+                                value={formData.phone ? (formData.phone.replace(/\D/g, "").startsWith("971") ? formData.phone.replace(/\D/g, "").slice(3) : formData.phone.replace(/\D/g, "").slice(0, 9)) : ""}
+                                onChange={(e) => handleChange("phone", e.target.value)}
+                                placeholder="XXXXXXXXX"
+                                maxLength={9}
+                                className={`${INPUT_CLASS} pl-16 font-mono`}
+                            />
+                        </div>
                     </FormField>
                 </section>
 
