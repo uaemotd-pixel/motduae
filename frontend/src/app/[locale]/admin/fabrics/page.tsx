@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef, Fragment } from "react";
+import {
+  useEffect,
+  useState,
+  useMemo,
+  useRef,
+  Fragment,
+  useCallback,
+} from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from "next/navigation";
@@ -27,6 +34,7 @@ import {
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 
 interface FabricItem {
   _id: string;
@@ -49,6 +57,13 @@ interface FabricItem {
   variants?: FabricItem[];
 }
 
+interface ApiResponse {
+  items: FabricItem[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
 export default function AdminFabricsPage() {
   const params = useParams();
   const localeParam = params.locale as string;
@@ -67,6 +82,13 @@ export default function AdminFabricsPage() {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -132,22 +154,52 @@ export default function AdminFabricsPage() {
     }
   }, [menuPosition, menuAnchor]);
 
+  const fetchItems = useCallback(
+    async (page = 1, limitOverride?: number) => {
+      try {
+        setLoading(true);
+        const l = limitOverride || limit;
+        const res = await api.get<ApiResponse>(
+          `/api/admin/fabrics?page=${page}&limit=${l}&search=${encodeURIComponent(searchTerm)}`,
+        );
+
+        setItems(res.items || []);
+        setTotalItems(res.total || 0);
+        setCurrentPage(res.page || 1);
+        setTotalPages(res.totalPages || 1);
+        setError(null);
+      } catch (err: unknown) {
+        setError(getApiErrorMessage(err, t.adminFabrics.list.load_error_title));
+        setItems([]);
+        setTotalItems(0);
+        setTotalPages(1);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [searchTerm, limit, t.adminFabrics.list.load_error_title],
+  );
+
+  // Initial load
   useEffect(() => {
-    fetchItems();
+    fetchItems(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchItems = async () => {
-    try {
-      setLoading(true);
-      const data = await api.get<FabricItem[]>("/api/admin/fabrics");
-      setItems(data);
-      setError(null);
-    } catch (err: unknown) {
-      setError(getApiErrorMessage(err, t.adminFabrics.list.load_error_title));
-    } finally {
-      setLoading(false);
+  // Debounced search - FIX: remove fetchItems and loading from deps
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
     }
-  };
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchItems(1);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]); // Only searchTerm triggers
 
   const openDeleteModal = (item: FabricItem) => {
     setMenuPosition(null);
@@ -170,7 +222,7 @@ export default function AdminFabricsPage() {
     try {
       await api.delete(`/api/admin/fabrics/${id}`);
       toast.success(`"${itemName}" deleted successfully`);
-      await fetchItems();
+      await fetchItems(currentPage);
       closeDeleteModal();
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to delete the item."));
@@ -180,30 +232,14 @@ export default function AdminFabricsPage() {
     }
   };
 
-  const filteredItems = useMemo(() => {
-    if (!searchTerm) return items;
-    const term = searchTerm.toLowerCase();
-    return items.filter((item) => {
-      const name = item.name?.toLowerCase() || "";
-      const material = item.material?.toLowerCase() || "";
-      const storeName =
-        typeof item.listedByStore === "object"
-          ? item.listedByStore.name?.toLowerCase() || ""
-          : "";
-      const storeId =
-        typeof item.listedByStore === "string"
-          ? item.listedByStore.toLowerCase()
-          : "";
-      const city = item.city?.toLowerCase() || "";
-      return (
-        name.includes(term) ||
-        material.includes(term) ||
-        storeName.includes(term) ||
-        storeId.includes(term) ||
-        city.includes(term)
-      );
-    });
-  }, [items, searchTerm]);
+  const handlePageChange = (page: number) => {
+    fetchItems(page);
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    fetchItems(1, newLimit);
+  };
 
   const activeCount = items.filter((i) => i.isActive).length;
   const inactiveCount = items.filter((i) => !i.isActive).length;
@@ -261,7 +297,7 @@ export default function AdminFabricsPage() {
     );
   };
 
-  if (loading) {
+  if (loading && items.length === 0) {
     return (
       <div className="space-y-4 sm:space-y-6">
         <div className="animate-pulse">
@@ -309,7 +345,7 @@ export default function AdminFabricsPage() {
           </p>
           <p className="text-gray-500 mt-2 text-xs sm:text-sm">{error}</p>
           <button
-            onClick={fetchItems}
+            onClick={() => fetchItems(1)}
             className="mt-6 px-6 py-2 bg-black text-white rounded-full hover:bg-gray-800 transition text-sm"
           >
             {t.adminFabrics.list.try_again}
@@ -416,7 +452,7 @@ export default function AdminFabricsPage() {
             {t.adminFabrics.list.total}
           </p>
           <p className="text-xl sm:text-2xl font-light text-black mt-1">
-            {items.length}
+            {totalItems}
           </p>
         </div>
         <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
@@ -449,7 +485,7 @@ export default function AdminFabricsPage() {
           />
         </div>
         <button
-          onClick={fetchItems}
+          onClick={() => fetchItems(currentPage)}
           className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white shrink-0 hover:cursor-pointer"
         >
           <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -459,7 +495,7 @@ export default function AdminFabricsPage() {
         </button>
       </div>
 
-      {filteredItems.length === 0 ? (
+      {items.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sm:p-12 text-center">
           <Package className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500 text-sm sm:text-base">
@@ -508,7 +544,7 @@ export default function AdminFabricsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {filteredItems.map((item) => (
+                  {items.map((item) => (
                     <Fragment key={item._id}>
                       <tr className="group hover:bg-gray-50 transition-all duration-200">
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
@@ -529,7 +565,7 @@ export default function AdminFabricsPage() {
                           {getStoreDisplay(item.listedByStore)}
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {item.storePickupAddress.emirate || "—"}
+                          {item.storePickupAddress?.emirate || "—"}
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                           <StatusBadge isActive={item.isActive} />
@@ -674,7 +710,7 @@ export default function AdminFabricsPage() {
 
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3 sm:space-y-4">
-            {filteredItems.map((item) => (
+            {items.map((item) => (
               <div
                 key={item._id}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4"
@@ -715,7 +751,7 @@ export default function AdminFabricsPage() {
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
                     <MapPin className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                    <span>{item.storePickupAddress.emirate || "—"}</span>
+                    <span>{item.storePickupAddress?.emirate || "—"}</span>
                   </div>
                 </div>
 
@@ -792,6 +828,18 @@ export default function AdminFabricsPage() {
           </div>
         </>
       )}
+
+      {/* Pagination */}
+      <GlobalPagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        showItemsPerPage={true}
+        itemsPerPage={limit}
+        onItemsPerPageChange={handleLimitChange}
+        itemsPerPageOptions={[5, 10, 20, 50, 100]}
+        totalItems={totalItems}
+      />
 
       <ImageModal
         isOpen={imageModalOpen}

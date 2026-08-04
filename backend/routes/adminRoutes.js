@@ -102,13 +102,74 @@ adminRouter.post(
 
 // GET /api/admin/ready-made
 // Admin can view all ready-made products (including inactive/sold)
+// Supports ?page=1&limit=10&search=...&status=available|sold
 adminRouter.get(
   "/ready-made",
   expressAsyncHandler(async (req, res) => {
-    const products = await ReadyMadeProduct.find({
+    const { search, status, page = 1, limit = 10 } = req.query;
+
+    const filter = {
       $or: [{ ownerName: "MOTD Admin" }, { ownerName: { $exists: false } }],
-    }).sort({ createdAt: -1 });
-    res.send(products);
+    };
+
+    // Search by name, fabricType, or tailorName
+    if (search && typeof search === "string") {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$and = [
+        {
+          $or: [
+            { name: regex },
+            { nameAr: regex },
+            { fabricType: regex },
+            { fabricTypeAr: regex },
+            { tailorName: regex },
+            { tailorNameAr: regex },
+          ],
+        },
+      ];
+    }
+
+    // Status filter based on availableFabricStock
+    if (status === "available") {
+      filter.availableFabricStock = { $gt: 0 };
+    } else if (status === "sold") {
+      filter.availableFabricStock = 0;
+    }
+
+    const pageNumber = Math.max(Number(page) || 1, 1);
+    const limitNumber = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const [products, total] = await Promise.all([
+      ReadyMadeProduct.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNumber),
+      ReadyMadeProduct.countDocuments(filter),
+    ]);
+
+    const available = await ReadyMadeProduct.countDocuments({
+      ...filter,
+      availableFabricStock: { $gt: 0 },
+    });
+    const sold = await ReadyMadeProduct.countDocuments({
+      ...filter,
+      availableFabricStock: 0,
+    });
+
+    res.send({
+      success: true,
+      page: pageNumber,
+      limit: limitNumber,
+      total,
+      totalPages: Math.ceil(total / limitNumber) || 0,
+      stats: {
+        total,
+        available,
+        sold,
+      },
+      items: products,
+    });
   }),
 );
 
@@ -351,18 +412,83 @@ adminRouter.post(
 // GET /api/admin/partners/fabric-stores
 // Active partners for fabric form picker; pass ?includeInactive=1 for admin list
 adminRouter.get(
-  "/partners/fabric-stores",
+  "/partners",
   expressAsyncHandler(async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search | "";
+    const type = req.query.type || "all";
+
+    // Build filter for users with fabric_store role
     const filter = { role: "fabric_store" };
-    if (req.query.includeInactive !== "1") {
-      filter.isActive = true;
+
+    // Type filter
+    if (type === "approved") {
+      filter.approvalStatus = "approved";
+    } else if (type === "pending") {
+      filter.approvalStatus = "pending";
+    } else if (type === "rejected") {
+      filter.approvalStatus = "rejected";
     }
 
-    const stores = await User.find(filter)
-      .select("-password")
-      .sort({ name: 1 });
+    // Search filter
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
 
-    res.send(stores);
+    // Get total count for pagination
+    const total = await User.countDocuments(filter);
+
+    // Get paginated users
+    const users = await User.find(filter)
+      .select("-password")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Map users to response format
+    const items = users.map((user) => ({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      createdAt: user.createdAt,
+      type: user.approvalStatus || "pending",
+      shopName: user.shopName || null,
+      isActive: user.isActive || false,
+      phone: user.phone || "",
+      logo: user.profilePic || null,
+    }));
+
+    res.send({
+      items,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  }),
+);
+
+// Stats endpoint
+adminRouter.get(
+  "/partners/stats",
+  expressAsyncHandler(async (req, res) => {
+    const [total, approved, pending, rejected] = await Promise.all([
+      User.countDocuments({ role: "fabric_store" }),
+      User.countDocuments({ role: "fabric_store", approvalStatus: "approved" }),
+      User.countDocuments({ role: "fabric_store", approvalStatus: "pending" }),
+      User.countDocuments({ role: "fabric_store", approvalStatus: "rejected" }),
+    ]);
+
+    res.send({
+      total,
+      approved,
+      pending,
+      rejected,
+    });
   }),
 );
 
@@ -538,28 +664,57 @@ async function assertFabricStorePartner(listedByStore) {
 adminRouter.get(
   "/fabrics",
   expressAsyncHandler(async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+
     const filter = {
-      $or: [
-        { isVariantOf: null },
-        { isVariantOf: { $exists: false } }
-      ]
+      $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
     };
+
     if (req.query.listedByStore) {
       filter.listedByStore = req.query.listedByStore;
     }
-    const fabrics = await Fabric.find(filter)
-      .populate("listedByStore", "name email")
-      .sort({ createdAt: -1 });
+
+    if (search) {
+      filter.$and = [
+        {
+          $or: [
+            { name: { $regex: search, $options: "i" } },
+            { material: { $regex: search, $options: "i" } },
+            { city: { $regex: search, $regex: search, $options: "i" } },
+          ],
+        },
+      ];
+    }
+
+    const [fabrics, total] = await Promise.all([
+      Fabric.find(filter)
+        .populate("listedByStore", "name email")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Fabric.countDocuments(filter),
+    ]);
 
     const fabricsWithVariants = await Promise.all(
       fabrics.map(async (fabric) => {
-        const variants = await Fabric.find({ isVariantOf: fabric._id }).populate("listedByStore", "name email");
+        const variants = await Fabric.find({
+          isVariantOf: fabric._id,
+        }).populate("listedByStore", "name email");
         const obj = fabric.toObject();
         obj.variants = variants;
         return obj;
-      })
+      }),
     );
-    res.send(fabricsWithVariants);
+
+    res.send({
+      items: fabricsWithVariants,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
   }),
 );
 
@@ -776,17 +931,23 @@ adminRouter.put(
           if (existing) {
             if (variant.name) existing.name = variant.name;
             if (variant.nameAr) existing.nameAr = variant.nameAr;
-            if (variant.description !== undefined) existing.description = variant.description;
-            if (variant.descriptionAr !== undefined) existing.descriptionAr = variant.descriptionAr;
+            if (variant.description !== undefined)
+              existing.description = variant.description;
+            if (variant.descriptionAr !== undefined)
+              existing.descriptionAr = variant.descriptionAr;
             if (variant.images) existing.images = variant.images;
             if (variant.material) existing.material = variant.material;
-            if (variant.materialAr !== undefined) existing.materialAr = variant.materialAr;
+            if (variant.materialAr !== undefined)
+              existing.materialAr = variant.materialAr;
             if (variant.colors) existing.colors = variant.colors;
             if (variant.tag !== undefined) existing.tag = variant.tag;
             if (variant.tagAr !== undefined) existing.tagAr = variant.tagAr;
-            if (variant.pricePerMeter !== undefined) existing.pricePerMeter = Number(variant.pricePerMeter);
-            if (variant.stockInMeters !== undefined) existing.stockInMeters = Number(variant.stockInMeters);
-            if (variant.isActive !== undefined) existing.isActive = variant.isActive;
+            if (variant.pricePerMeter !== undefined)
+              existing.pricePerMeter = Number(variant.pricePerMeter);
+            if (variant.stockInMeters !== undefined)
+              existing.stockInMeters = Number(variant.stockInMeters);
+            if (variant.isActive !== undefined)
+              existing.isActive = variant.isActive;
 
             existing.listedByStore = updatedFabric.listedByStore;
             existing.storePickupAddress = updatedFabric.storePickupAddress;
@@ -1112,16 +1273,82 @@ async function toggleTailorShopActive(req, res) {
 adminRouter.get(
   "/tailors",
   expressAsyncHandler(async (req, res) => {
-    const shops = await TailorShop.find({})
-      .populate(tailorShopOwnerPopulate)
-      .sort({ createdAt: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
 
+    // Build search filter for shops
+    let shopFilter = {};
+    if (search) {
+      shopFilter = {
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { "ownerId.name": { $regex: search, $options: "i" } },
+          { "ownerId.email": { $regex: search, $options: "i" } },
+        ],
+      };
+    }
+
+    // Get shops with pagination
+    const [shops, totalShops] = await Promise.all([
+      TailorShop.find(shopFilter)
+        .populate(tailorShopOwnerPopulate)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      TailorShop.countDocuments(shopFilter),
+    ]);
+
+    // Filter out shops with null ownerId
     const items = shops.filter((shop) => shop.ownerId !== null);
 
     res.send({
       success: true,
-      total: items.length,
+      total: totalShops,
+      page,
+      totalPages: Math.ceil(totalShops / limit),
       items,
+    });
+  }),
+);
+
+// Stats endpoint
+adminRouter.get(
+  "/tailors/stats",
+  expressAsyncHandler(async (req, res) => {
+    // Get all tailors data for stats
+    const [allShops, pendingUsers, rejectedUsers] = await Promise.all([
+      TailorShop.find({}).populate(tailorShopOwnerPopulate),
+      User.find({ approvalStatus: "pending", role: "tailor" }),
+      User.find({ approvalStatus: "rejected", role: "tailor" }),
+    ]);
+
+    const approvedShops = allShops.filter((shop) => shop.ownerId !== null);
+    const shopOwnerIds = new Set(
+      approvedShops.map((shop) => shop.ownerId?._id.toString()).filter(Boolean),
+    );
+
+    // Get approved users without shops
+    const approvedUsers = await User.find({
+      approvalStatus: "approved",
+      role: "tailor",
+    });
+    const approvedWithoutShop = approvedUsers.filter(
+      (user) => !shopOwnerIds.has(user._id.toString()),
+    );
+
+    const total =
+      approvedShops.length +
+      approvedWithoutShop.length +
+      pendingUsers.length +
+      rejectedUsers.length;
+
+    res.send({
+      total,
+      approved: approvedShops.length + approvedWithoutShop.length,
+      pending: pendingUsers.length,
+      rejected: rejectedUsers.length,
     });
   }),
 );
@@ -1214,7 +1441,11 @@ function parseQueryDate(value, label) {
 adminRouter.get(
   "/orders/retail",
   expressAsyncHandler(async (req, res) => {
-    const { status, from, to, customer } = req.query;
+    const { status, from, to, customer, page, limit } = req.query;
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const skip = (pageNum - 1) * limitNum;
+
     const filter = {};
 
     if (status) {
@@ -1265,7 +1496,12 @@ adminRouter.get(
         const userIds = matchingUsers.map((user) => user._id);
 
         if (userIds.length === 0) {
-          res.send([]);
+          res.send({
+            items: [],
+            total: 0,
+            page: pageNum,
+            totalPages: 0,
+          });
           return;
         }
 
@@ -1279,12 +1515,22 @@ adminRouter.get(
     const adminProductIds = adminProducts.map((p) => p._id);
     filter["orderItems.productId"] = { $in: adminProductIds };
 
-    const orders = await RetailOrder.find(filter)
-      .populate("userId", "name email phone")
-      .populate("orderItems.productId", "thumbnailImage images")
-      .sort({ createdAt: -1 });
+    const [orders, total] = await Promise.all([
+      RetailOrder.find(filter)
+        .populate("userId", "name email phone")
+        .populate("orderItems.productId", "thumbnailImage images")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      RetailOrder.countDocuments(filter),
+    ]);
 
-    res.send(orders);
+    res.send({
+      items: orders,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum),
+    });
   }),
 );
 
@@ -1667,10 +1913,8 @@ adminRouter.get(
       };
     });
 
-    const totalOrders =
-      retailNowResult.orderCount + customNowResult.orderCount;
-    const totalRevenue =
-      retailNowResult.revenue + customNowResult.revenue;
+    const totalOrders = retailNowResult.orderCount + customNowResult.orderCount;
+    const totalRevenue = retailNowResult.revenue + customNowResult.revenue;
     const aov = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
     const LOW_FABRIC_STOCK = 10;
@@ -2027,7 +2271,7 @@ adminRouter.put(
 adminRouter.get(
   "/customers",
   expressAsyncHandler(async (req, res) => {
-    const { search, status, page = 1, limit = 20 } = req.query;
+    const { search, status, page = 1, limit = 10 } = req.query;
 
     const filter = { role: "customer" };
 
@@ -2178,10 +2422,38 @@ adminRouter.patch(
 adminRouter.get(
   "/addons",
   expressAsyncHandler(async (req, res) => {
-    const addons = await AddOn.find({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+
+    const filter = {
       $or: [{ ownerName: "MOTD Admin" }, { ownerName: { $exists: false } }],
-    }).sort({ createdAt: -1 });
-    res.send(addons);
+    };
+
+    if (search) {
+      filter.$and = [
+        {
+          $or: [
+            { name: { $regex: search, $options: "i" } },
+            { nameAr: { $regex: search, $options: "i" } },
+            { _id: { $regex: search, $options: "i" } },
+          ],
+        },
+      ];
+    }
+
+    const [addons, total] = await Promise.all([
+      AddOn.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      AddOn.countDocuments(filter),
+    ]);
+
+    res.send({
+      items: addons,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
   }),
 );
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from "next/navigation";
@@ -26,6 +26,7 @@ import {
 import FormField from "@/components/admin/FormField";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 
 // ---------- Types ----------
 interface FabricRow {
@@ -69,6 +70,13 @@ interface RejectedUser {
   email: string;
   createdAt: string;
   profilePic?: string;
+}
+
+interface ApiResponse {
+  items: FabricRow[];
+  total: number;
+  page: number;
+  totalPages: number;
 }
 
 // ---------- Modals ----------
@@ -333,6 +341,12 @@ export default function AdminPartnersPage() {
     "all" | "approved" | "pending" | "rejected"
   >("all");
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
+
   const [stats, setStats] = useState({
     total: 0,
     approved: 0,
@@ -347,6 +361,8 @@ export default function AdminPartnersPage() {
     right: number;
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoad = useRef(true);
 
   // Modals state
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -406,110 +422,86 @@ export default function AdminPartnersPage() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [menuPosition]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const approvedShopsRes = await api.get<{ items: ApprovedShop[] }>(
-        "/api/admin/fabric-shops",
-      );
-      const approvedShops = approvedShopsRes.items || [];
+  const fetchData = useCallback(
+    async (
+      page = 1,
+      limitOverride?: number,
+      tabOverride = activeTab,
+      showLoading = true,
+    ) => {
+      if (showLoading) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const l = limitOverride || limit;
+        const search = searchTerm
+          ? `&search=${encodeURIComponent(searchTerm)}`
+          : "";
+        const tabFilter = tabOverride !== "all" ? `&type=${tabOverride}` : "";
 
-      const approvedUsersRes = await api.get<{ items: ApprovedUser[] }>(
-        "/api/admin/fabric-stores/approved-users",
-      );
-      const approvedUsers = approvedUsersRes.items || [];
+        const res = await api.get<ApiResponse>(
+          `/api/admin/partners?page=${page}&limit=${l}${search}${tabFilter}`,
+        );
 
-      const pendingRes = await api.get<any[]>(
-        "/api/admin/fabric-stores/pending",
-      );
-      const pending = Array.isArray(pendingRes) ? pendingRes : [];
+        setRows(res.items || []);
+        setTotalItems(res.total || 0);
+        setCurrentPage(res.page || 1);
+        setTotalPages(res.totalPages || 1);
 
-      const rejectedRes = await api.get<{ items: RejectedUser[] }>(
-        "/api/admin/fabric-stores/rejected-stores",
-      );
-      const rejectedUsers = rejectedRes.items || [];
+        const statsRes = await api.get<{
+          total: number;
+          approved: number;
+          pending: number;
+          rejected: number;
+        }>("/api/admin/partners/stats");
 
-      const shopOwnerIds = new Set(
-        approvedShops.map((shop) => shop.ownerId?._id).filter(Boolean),
-      );
+        setStats({
+          total: statsRes.total || 0,
+          approved: statsRes.approved || 0,
+          pending: statsRes.pending || 0,
+          rejected: statsRes.rejected || 0,
+        });
+      } catch (err) {
+        setError(getApiErrorMessage(err, "Failed to load partners"));
+        toast.error("Failed to load data");
+        setRows([]);
+        setTotalItems(0);
+        setTotalPages(1);
+      } finally {
+        if (showLoading) {
+          setLoading(false);
+        }
+      }
+    },
+    [searchTerm, activeTab, limit],
+  );
 
-      const shopRows: FabricRow[] = approvedShops.map((shop) => ({
-        id: shop._id,
-        name: shop.ownerId?.name || "—",
-        email: shop.ownerId?.email || "—",
-        createdAt: shop.createdAt,
-        type: "approved",
-        shopName: shop.name,
-        isActive: shop.isActive,
-        logo: shop.logo || shop.ownerId?.profilePic,
-      }));
-
-      const approvedUserRows: FabricRow[] = approvedUsers
-        .filter((user) => !shopOwnerIds.has(user._id))
-        .map((user) => ({
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          createdAt: user.createdAt,
-          type: "approved",
-          shopName: null,
-          isActive: false,
-          logo: user.profilePic,
-        }));
-
-      const pendingRows: FabricRow[] = pending.map((user) => ({
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt,
-        type: "pending",
-        phone: user.phone || "",
-        shopName: null,
-        isActive: false,
-        logo: user.profilePic,
-      }));
-
-      const rejectedRows: FabricRow[] = rejectedUsers.map((user) => ({
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt,
-        type: "rejected",
-        shopName: null,
-        isActive: false,
-        logo: user.profilePic,
-      }));
-
-      const combined = [
-        ...shopRows,
-        ...approvedUserRows,
-        ...pendingRows,
-        ...rejectedRows,
-      ];
-
-      setRows(combined);
-
-      const approvedCount =
-        approvedShops.length +
-        approvedUsers.filter((u) => !shopOwnerIds.has(u._id)).length;
-      setStats({
-        total: approvedCount + pending.length + rejectedUsers.length,
-        approved: approvedCount,
-        pending: pending.length,
-        rejected: rejectedUsers.length,
-      });
-    } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to load partners"));
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Initial load - runs once
   useEffect(() => {
-    fetchData();
+    void fetchData(1).finally(() => {
+      isInitialLoad.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Debounced search - only searchTerm triggers
+  useEffect(() => {
+    if (isInitialLoad.current) {
+      return;
+    }
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchData(1);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
 
   const handleCreate = async (data: PartnerFormData) => {
     setFormLoading(true);
@@ -517,7 +509,7 @@ export default function AdminPartnersPage() {
       await api.post("/api/admin/create-partners", data);
       toast.success("Partner created successfully");
       setFormModalOpen(false);
-      fetchData();
+      fetchData(1);
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Failed to create partner"));
     } finally {
@@ -568,17 +560,10 @@ export default function AdminPartnersPage() {
         isActive: newStatus,
       });
 
-      setRows((prev) =>
-        prev.map((row) =>
-          row.id === shopId && row.type === "approved"
-            ? { ...row, isActive: newStatus }
-            : row,
-        ),
-      );
+      await fetchData(currentPage);
       toast.success(`Shop "${shopName}" ${actionVerb}`);
     } catch (err) {
       toast.error(getApiErrorMessage(err, `Failed to ${actionVerb} shop`));
-      fetchData();
     } finally {
       setActionInProgress(null);
       setPendingToggle(null);
@@ -621,42 +606,14 @@ export default function AdminPartnersPage() {
       if (approvalAction === "approve") {
         await api.patch(`/api/admin/fabric-stores/${id}/approve`);
         toast.success(`Fabric store "${name}" approved`);
-
-        const targetRow = rows.find((r) => r.id === id);
-        const originalType = targetRow ? targetRow.type : "pending";
-
-        setRows((prev) =>
-          prev.map((row) =>
-            row.id === id
-              ? { ...row, type: "approved", shopName: null, isActive: false }
-              : row,
-          ),
-        );
-        setStats((prev) => {
-          const nextStats = { ...prev, approved: prev.approved + 1 };
-          if (originalType === "pending") {
-            nextStats.pending = prev.pending - 1;
-          } else if (originalType === "rejected") {
-            nextStats.rejected = prev.rejected - 1;
-          }
-          return nextStats;
-        });
+        await fetchData(currentPage);
       } else {
         await api.patch(`/api/admin/fabric-stores/${id}/reject`, {
           rejectionNote: rejectNote,
           note: rejectNote,
         });
         toast.success(`Fabric store "${name}" rejected`);
-        setRows((prev) =>
-          prev.map((row) =>
-            row.id === id ? { ...row, type: "rejected" } : row,
-          ),
-        );
-        setStats((prev) => ({
-          ...prev,
-          rejected: prev.rejected + 1,
-          pending: prev.pending - 1,
-        }));
+        await fetchData(currentPage);
       }
     } catch (err) {
       toast.error(
@@ -667,20 +624,26 @@ export default function AdminPartnersPage() {
     }
   };
 
+  const handlePageChange = (page: number) => {
+    fetchData(page, undefined, activeTab, false);
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    fetchData(1, newLimit, activeTab, false);
+  };
+
+  const handleTabChange = (
+    tab: "all" | "approved" | "pending" | "rejected",
+  ) => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+    fetchData(1, undefined, tab, false);
+  };
+
   const filteredRows = useMemo(() => {
-    let result = rows;
-    if (activeTab !== "all") {
-      result = rows.filter((r) => r.type === activeTab);
-    }
-    if (!searchTerm.trim()) return result;
-    const term = searchTerm.toLowerCase();
-    return result.filter(
-      (r) =>
-        r.name?.toLowerCase().includes(term) ||
-        r.email?.toLowerCase().includes(term) ||
-        r.shopName?.toLowerCase().includes(term),
-    );
-  }, [rows, activeTab, searchTerm]);
+    return rows;
+  }, [rows]);
 
   const formatDate = (date?: string) => {
     if (!date) return "—";
@@ -694,7 +657,7 @@ export default function AdminPartnersPage() {
     );
   };
 
-  if (loading) {
+  if (loading && rows.length === 0) {
     return (
       <div className="space-y-6 animate-pulse">
         <div className="h-8 w-48 bg-gray-200 rounded" />
@@ -732,7 +695,7 @@ export default function AdminPartnersPage() {
           <p className="text-xl text-black">Failed to load partners</p>
           <p className="text-sm text-gray-500 mt-2">{error}</p>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(1)}
             className="mt-6 px-6 py-2 bg-black text-white rounded-full hover:bg-black/80 transition text-sm hover:cursor-pointer"
           >
             Try Again
@@ -887,7 +850,7 @@ export default function AdminPartnersPage() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(currentPage)}
             className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" /> Refresh
@@ -903,21 +866,33 @@ export default function AdminPartnersPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+        <div
+          key="total"
+          className="bg-white rounded-2xl p-4 border border-gray-100"
+        >
           <p className="text-xs text-gray-400 uppercase">Total</p>
           <p className="text-2xl font-light text-black mt-1">{stats.total}</p>
         </div>
-        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+        <div
+          key="approved"
+          className="bg-white rounded-2xl p-4 border border-gray-100"
+        >
           <p className="text-xs text-gray-400 uppercase">Approved</p>
           <p className="text-2xl font-light text-black mt-1">
             {stats.approved}
           </p>
         </div>
-        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+        <div
+          key="pending"
+          className="bg-white rounded-2xl p-4 border border-gray-100"
+        >
           <p className="text-xs text-gray-400 uppercase">Pending</p>
           <p className="text-2xl font-light text-black mt-1">{stats.pending}</p>
         </div>
-        <div className="bg-white rounded-2xl p-4 border border-gray-100">
+        <div
+          key="rejected"
+          className="bg-white rounded-2xl p-4 border border-gray-100"
+        >
           <p className="text-xs text-gray-400 uppercase">Rejected</p>
           <p className="text-2xl font-light text-black mt-1">
             {stats.rejected}
@@ -931,7 +906,7 @@ export default function AdminPartnersPage() {
           {(["all", "approved", "pending", "rejected"] as const).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => handleTabChange(tab)}
               className={`pb-4 px-1 border-b-2 font-medium text-sm transition-all capitalize hover:cursor-pointer ${
                 activeTab === tab
                   ? "border-black text-black"
@@ -996,7 +971,6 @@ export default function AdminPartnersPage() {
                 {filteredRows.map((row) => {
                   const isPending = row.type === "pending";
                   const isRejected = row.type === "rejected";
-                  const busy = actionInProgress === row.id;
 
                   let statusBadge;
                   if (isPending) {
@@ -1071,6 +1045,18 @@ export default function AdminPartnersPage() {
           </div>
         </div>
       )}
+
+      {/* Pagination */}
+      <GlobalPagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        showItemsPerPage={true}
+        itemsPerPage={limit}
+        onItemsPerPageChange={handleLimitChange}
+        itemsPerPageOptions={[1, 5, 10, 20, 50, 100]}
+        totalItems={totalItems}
+      />
 
       <ImageModal
         isOpen={imageModalOpen}

@@ -18,6 +18,7 @@ import {
 } from "@/lib/customOrders";
 import type { Locale } from "@/i18n/routing";
 import { ImageModal } from "@/components/shared/ImageModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 
 interface OrderUser {
   _id: string;
@@ -144,6 +145,8 @@ export default function AdminCustomOrdersPage() {
   const [note, setNote] = useState<Record<string, string>>({});
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   const handleImageClick = (imageUrl: string) => {
     setSelectedImage(imageUrl);
@@ -272,6 +275,33 @@ export default function AdminCustomOrdersPage() {
       return true;
     });
   }, [orders, filterCustomer, filterStatus, filterFrom, filterTo]);
+
+  const totalItems = filteredOrders.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+
+  const paginatedOrders = useMemo(() => {
+    const startIndex = (currentPage - 1) * limit;
+    return filteredOrders.slice(startIndex, startIndex + limit);
+  }, [filteredOrders, currentPage, limit]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterCustomer, filterStatus, filterFrom, filterTo]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    setCurrentPage(1);
+  };
 
   const getFabricImage = (
     fabricId: FabricPopulated | string | null | undefined,
@@ -448,7 +478,7 @@ export default function AdminCustomOrdersPage() {
         </div>
       </div>
 
-      {filteredOrders.length === 0 ? (
+      {totalItems === 0 ? (
         <div className="flex flex-col items-center justify-center text-center bg-white rounded-2xl border border-gray-100 py-20 shadow-sm">
           <PackageSearch
             className="w-16 h-16 text-gray-300 mb-4"
@@ -462,7 +492,7 @@ export default function AdminCustomOrdersPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredOrders.map((order) => {
+          {paginatedOrders.map((order) => {
             const isUpdating = updatingOrderId === order._id;
             const nextStatus = getNextCustomOrderStatus(order.status);
             const previousStatus = getPreviousCustomOrderStatus(order.status);
@@ -470,12 +500,13 @@ export default function AdminCustomOrdersPage() {
               order.userId &&
               typeof order.userId === "object" &&
               order.userId.email === "customer@motd.test";
-            const customerName = isGuest && (order as any).customerDeliveryAddress?.fullName
-              ? (order as any).customerDeliveryAddress.fullName
-              : readPartnerName(
-                  typeof order.userId === "object" ? order.userId : null,
-                  t("unknownCustomer"),
-                );
+            const customerName =
+              isGuest && (order as any).customerDeliveryAddress?.fullName
+                ? (order as any).customerDeliveryAddress.fullName
+                : readPartnerName(
+                    typeof order.userId === "object" ? order.userId : null,
+                    t("unknownCustomer"),
+                  );
             const customerEmail =
               order.userId && typeof order.userId === "object"
                 ? order.userId.email || ""
@@ -509,20 +540,18 @@ export default function AdminCustomOrdersPage() {
                     {customerEmail && (
                       <p className="text-xs text-gray-500">{customerEmail}</p>
                     )}
-                    {isGuest ? (
-                      (order as any).customerDeliveryAddress?.phone && (
-                        <p className="text-xs text-gray-500 font-mono mt-0.5">
-                          {(order as any).customerDeliveryAddress.phone}
-                        </p>
-                      )
-                    ) : (
-                      typeof order.userId === "object" &&
-                      order.userId?.phone && (
-                        <p className="text-xs text-gray-500 font-mono mt-0.5">
-                          {order.userId.phone}
-                        </p>
-                      )
-                    )}
+                    {isGuest
+                      ? (order as any).customerDeliveryAddress?.phone && (
+                          <p className="text-xs text-gray-500 font-mono mt-0.5">
+                            {(order as any).customerDeliveryAddress.phone}
+                          </p>
+                        )
+                      : typeof order.userId === "object" &&
+                        order.userId?.phone && (
+                          <p className="text-xs text-gray-500 font-mono mt-0.5">
+                            {order.userId.phone}
+                          </p>
+                        )}
                   </div>
 
                   <div className="md:col-span-2 space-y-3">
@@ -800,6 +829,19 @@ export default function AdminCustomOrdersPage() {
             );
           })}
         </div>
+      )}
+
+      {totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
       )}
 
       <ImageModal

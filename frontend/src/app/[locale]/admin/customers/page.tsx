@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ImageModal } from "@/components/shared/ImageModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 
 // ============================================
 // Reusable Confirmation Modal
@@ -140,6 +141,7 @@ export default function AdminCustomersPage() {
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
   const isInitialLoad = useRef(true);
+  const [limit, setLimit] = useState(10);
 
   // pop up image function
   const handleImageClick = (imageUrl: string) => {
@@ -207,61 +209,86 @@ export default function AdminCustomersPage() {
   }, [menuPosition, menuAnchor]);
 
   const fetchItems = useCallback(
-    async (page = 1, showLoading = true) => {
+    async (
+      page = 1,
+      showLoading = true,
+      requestLimit = limit,
+      requestSearch = searchTerm,
+      requestStatus = activeTab,
+    ) => {
       try {
         if (showLoading && isInitialLoad.current) {
           setLoading(true);
         }
-        const status = activeTab === "all" ? "" : activeTab;
+        const status = requestStatus === "all" ? "" : requestStatus;
+
         const res = await api.get<ApiResponse>(
-          `/api/admin/customers?page=${page}&limit=10&status=${status}&search=${encodeURIComponent(searchTerm)}`,
+          `/api/admin/customers?page=${page}&limit=${requestLimit}&status=${status}&search=${encodeURIComponent(requestSearch)}`,
         );
+
         setItems(res.items);
         setStats(res.stats);
         setTotalPages(res.totalPages);
         setCurrentPage(res.page);
         setError(null);
         isInitialLoad.current = false;
+
+        if (res.page > res.totalPages && res.totalPages > 0) {
+          await fetchItems(
+            res.totalPages,
+            false,
+            requestLimit,
+            requestSearch,
+            requestStatus,
+          );
+          return;
+        }
       } catch (err) {
         setError(getApiErrorMessage(err, "Failed to load customers"));
       } finally {
         setLoading(false);
       }
     },
-    [activeTab, searchTerm],
+    [activeTab, searchTerm, limit],
   );
 
   // Initial load - only once
   useEffect(() => {
-    fetchItems(1, true);
-  }, []);
+    void fetchItems(1, true);
+  }, [fetchItems]);
 
   // Debounced search - show loading
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!isInitialLoad.current) {
-        fetchItems(1, true);
+        setCurrentPage(1);
+        void fetchItems(1, true, limit, searchTerm, activeTab);
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchTerm]);
+  }, [searchTerm, limit, activeTab, fetchItems]);
 
   // Tab change - no loading flash
   useEffect(() => {
     if (!isInitialLoad.current) {
-      fetchItems(1, false);
+      setCurrentPage(1);
+      void fetchItems(1, false, limit, searchTerm, activeTab);
     }
-  }, [activeTab]);
+  }, [activeTab, limit, searchTerm, fetchItems]);
 
   const handleTabChange = (tab: "all" | "active" | "inactive") => {
     setActiveTab(tab);
-    setCurrentPage(1);
   };
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage > 0 && newPage <= totalPages) {
-      fetchItems(newPage, false);
-    }
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    void fetchItems(page, false, limit, searchTerm, activeTab);
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    setCurrentPage(1);
+    void fetchItems(1, true, newLimit, searchTerm, activeTab);
   };
 
   const formatDate = (dateStr: string) => {
@@ -307,7 +334,7 @@ export default function AdminCustomersPage() {
         );
       }
       closeModal();
-      fetchItems(currentPage, false);
+      void fetchItems(currentPage, false, limit, searchTerm, activeTab);
     } catch (err) {
       toast.error(
         getApiErrorMessage(
@@ -763,27 +790,16 @@ export default function AdminCustomersPage() {
       )}
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-1.5 sm:gap-2 mt-4">
-          <button
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 text-xs sm:text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition"
-          >
-            Previous
-          </button>
-          <span className="text-xs sm:text-sm text-gray-700">
-            Page {currentPage} of {totalPages}
-          </span>
-          <button
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 text-xs sm:text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition"
-          >
-            Next
-          </button>
-        </div>
-      )}
+      <GlobalPagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        showItemsPerPage={true}
+        itemsPerPage={limit}
+        onItemsPerPageChange={handleLimitChange}
+        itemsPerPageOptions={[2, 5, 10, 20, 50, 100]}
+        totalItems={stats?.totalCustomers}
+      />
 
       <ImageModal
         isOpen={imageModalOpen}

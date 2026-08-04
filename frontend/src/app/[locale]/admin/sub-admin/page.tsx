@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { Edit, Trash2, Search, RefreshCw, Users, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { Link } from "@/i18n/navigation";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 
 interface SubAdmin {
   _id: string;
@@ -12,6 +13,13 @@ interface SubAdmin {
   email: string;
   perms: Record<string, boolean>;
   createdAt: string;
+}
+
+interface ApiResponse {
+  items: SubAdmin[];
+  total: number;
+  page: number;
+  totalPages: number;
 }
 
 export default function SubAdminPage() {
@@ -22,22 +30,59 @@ export default function SubAdminPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
+
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
-    fetchSubs();
+    fetchSubs(1);
   }, []);
 
-  const fetchSubs = async () => {
-    try {
-      setLoading(true);
-      const data = await api.get<SubAdmin[]>("/api/subadmins");
-      setSubs(data);
-    } catch (err: any) {
-      setSubs([]);
-      console.error("Failed to fetch sub‑admins:", err);
-    } finally {
-      setLoading(false);
+  const fetchSubs = useCallback(
+    async (page = 1, limitOverride?: number) => {
+      try {
+        setLoading(true);
+        const l = limitOverride || limit;
+        const search = searchTerm
+          ? `&search=${encodeURIComponent(searchTerm)}`
+          : "";
+        const res = await api.get<ApiResponse>(
+          `/api/subadmins?page=${page}&limit=${l}${search}`,
+        );
+        setSubs(res.items || []);
+        setTotalItems(res.total || 0);
+        setCurrentPage(res.page || 1);
+        setTotalPages(res.totalPages || 1);
+      } catch (err: any) {
+        setSubs([]);
+        setTotalItems(0);
+        setTotalPages(1);
+        console.error("Failed to fetch sub‑admins:", err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [searchTerm, limit],
+  );
+
+  // Debounced search
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
     }
-  };
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchSubs(1);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
 
   const handleDeleteClick = (id: string) => {
     setDeletingId(id);
@@ -50,7 +95,7 @@ export default function SubAdminPage() {
     try {
       await api.delete(`/api/subadmins/${deletingId}`);
       toast.success("Sub-admin deleted");
-      fetchSubs();
+      fetchSubs(currentPage);
       closeModal();
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Delete failed"));
@@ -66,17 +111,20 @@ export default function SubAdminPage() {
     setDeleting(false);
   };
 
-  const filteredSubs = useMemo(() => {
-    if (!searchTerm) return subs;
-    const term = searchTerm.toLowerCase();
-    return subs.filter(
-      (s) =>
-        s.name.toLowerCase().includes(term) ||
-        s.email.toLowerCase().includes(term),
-    );
-  }, [subs, searchTerm]);
+  const handlePageChange = (page: number) => {
+    fetchSubs(page);
+  };
 
-  if (loading) {
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    fetchSubs(1, newLimit);
+  };
+
+  const filteredSubs = useMemo(() => {
+    return subs;
+  }, [subs]);
+
+  if (loading && subs.length === 0) {
     return (
       <div className="space-y-6 animate-pulse">
         <div className="flex justify-between items-center">
@@ -171,7 +219,7 @@ export default function SubAdminPage() {
                 </button>
               </Link>
               <button
-                onClick={fetchSubs}
+                onClick={() => fetchSubs(currentPage)}
                 className="inline-flex items-center gap-2 px-3 py-2 text-sm border rounded-lg bg-white hover:text-black transition hover:cursor-pointer"
                 style={{
                   color: "var(--color-grey-muted)",
@@ -291,6 +339,18 @@ export default function SubAdminPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          <GlobalPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+            showItemsPerPage={true}
+            itemsPerPage={limit}
+            onItemsPerPageChange={handleLimitChange}
+            itemsPerPageOptions={[5, 10, 20, 50, 100]}
+            totalItems={totalItems}
+          />
         </div>
       )}
 

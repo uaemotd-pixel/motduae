@@ -17,6 +17,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { ImageModal } from "@/components/shared/ImageModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 
 // ---------- Modal for Deactivate/Reactivate ----------
 interface ToggleModalProps {
@@ -210,6 +211,8 @@ export default function AdminTailorsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   const [stats, setStats] = useState({
     total: 0,
@@ -489,6 +492,33 @@ export default function AdminTailorsPage() {
     });
   }, [rows, searchTerm]);
 
+  const totalItems = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+
+  const paginatedRows = useMemo(() => {
+    const startIndex = (currentPage - 1) * limit;
+    return filteredRows.slice(startIndex, startIndex + limit);
+  }, [filteredRows, currentPage, limit]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    setCurrentPage(1);
+  };
+
   const formatDate = (date: string) =>
     new Date(date).toLocaleDateString("en-US", {
       year: "numeric",
@@ -677,7 +707,7 @@ export default function AdminTailorsPage() {
         </button>
       </div>
 
-      {filteredRows.length === 0 ? (
+      {totalItems === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
           <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500">
@@ -714,7 +744,7 @@ export default function AdminTailorsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredRows.map((row) => {
+                {paginatedRows.map((row) => {
                   const isPending = row.type === "pending";
                   const isRejected = row.type === "rejected";
                   const busy = actionInProgress === row.id;
@@ -874,6 +904,19 @@ export default function AdminTailorsPage() {
           </div>
         </div>
       )}
+      {totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
+      )}
+
       <ImageModal
         isOpen={imageModalOpen}
         imageUrl={selectedImage}

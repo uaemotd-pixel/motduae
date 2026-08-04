@@ -67,7 +67,7 @@ subAdminRouter.post("/", async (req, res) => {
       isAdmin: true,
     });
     await user.save();
-    console.log('Saved user:', user.toObject());
+    console.log("Saved user:", user.toObject());
 
     res.status(201).json(excludePassword(subAdmin));
   } catch (err) {
@@ -78,8 +78,36 @@ subAdminRouter.post("/", async (req, res) => {
 
 subAdminRouter.get("/", async (req, res) => {
   try {
-    const admins = await SubAdmin.find().select("-password");
-    res.json(admins);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || "";
+
+    // Build search filter
+    const filter = {};
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Get paginated results
+    const [admins, total] = await Promise.all([
+      SubAdmin.find(filter)
+        .select("-password")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      SubAdmin.countDocuments(filter),
+    ]);
+
+    res.json({
+      items: admins,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

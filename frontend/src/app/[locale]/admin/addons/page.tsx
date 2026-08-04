@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAuth } from "@/context/AuthContext";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { Link } from "@/i18n/navigation";
 import {
@@ -21,64 +20,7 @@ import {
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
-
-interface ToggleModalProps {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  confirmLabel: string;
-  cancelLabel: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-function ToggleModal({
-  isOpen,
-  title,
-  message,
-  confirmLabel,
-  cancelLabel,
-  onConfirm,
-  onCancel,
-}: ToggleModalProps) {
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) onCancel();
-    };
-    if (isOpen) document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onCancel]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onCancel()}
-    >
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100">
-        <div className="p-6">
-          <h3 className="text-lg font-medium text-black">{title}</h3>
-          <p className="mt-2 text-sm text-gray-600">{message}</p>
-          <div className="mt-6 flex justify-end gap-3">
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:cursor-pointer transition"
-            >
-              {cancelLabel}
-            </button>
-            <button
-              onClick={onConfirm}
-              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 hover:cursor-pointer transition"
-            >
-              {confirmLabel}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+import GlobalPagination from "@/components/shared/GlobalPagination";
 
 interface AddOnItem {
   _id: string;
@@ -91,8 +33,14 @@ interface AddOnItem {
   createdAt: string;
 }
 
+interface ApiResponse {
+  items: AddOnItem[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
 export default function AdminAddOnsPage() {
-  const { user } = useAuth();
   const [items, setItems] = useState<AddOnItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,10 +53,17 @@ export default function AdminAddOnsPage() {
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<AddOnItem | null>(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // pop up image function
   const handleImageClick = (imageUrl: string) => {
@@ -144,23 +99,53 @@ export default function AdminAddOnsPage() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [menuPosition]);
 
-  const fetchItems = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await api.get<AddOnItem[]>("/api/admin/addons");
-      setItems(data || []);
-    } catch (err: any) {
-      console.error("Failed to load addons:", err);
-      setError(getApiErrorMessage(err, "Failed to load addons"));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchItems = useCallback(
+    async (page = 1, limitOverride?: number) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const l = limitOverride || limit;
+        const search = searchTerm
+          ? `&search=${encodeURIComponent(searchTerm)}`
+          : "";
+        const data = await api.get<ApiResponse>(
+          `/api/admin/addons?page=${page}&limit=${l}${search}`,
+        );
+        setItems(data.items || []);
+        setTotalItems(data.total || 0);
+        setCurrentPage(data.page || 1);
+        setTotalPages(data.totalPages || 1);
+      } catch (err: any) {
+        console.error("Failed to load addons:", err);
+        setError(getApiErrorMessage(err, "Failed to load addons"));
+        setItems([]);
+        setTotalItems(0);
+        setTotalPages(1);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [searchTerm, limit],
+  );
 
   useEffect(() => {
-    fetchItems();
-  }, []);
+    fetchItems(1);
+  }, [fetchItems]);
+
+  // Debounced search
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchItems(1);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm, fetchItems]);
 
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
     try {
@@ -201,8 +186,8 @@ export default function AdminAddOnsPage() {
       setDeletingId(id);
       closeDeleteModal();
       await api.delete(`/api/admin/addons/${id}`);
-      setItems((prev) => prev.filter((item) => item._id !== id));
       toast.success("Add-on deleted successfully");
+      await fetchItems(currentPage);
     } catch (err: any) {
       toast.error(getApiErrorMessage(err, "Failed to delete addon"));
     } finally {
@@ -210,16 +195,18 @@ export default function AdminAddOnsPage() {
     }
   };
 
+  const handlePageChange = (page: number) => {
+    fetchItems(page);
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    fetchItems(1, newLimit);
+  };
+
   const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      const term = searchTerm.toLowerCase();
-      return (
-        item.name.toLowerCase().includes(term) ||
-        item.nameAr.toLowerCase().includes(term) ||
-        item._id.toLowerCase().includes(term)
-      );
-    });
-  }, [items, searchTerm]);
+    return items;
+  }, [items]);
 
   const activeCount = useMemo(
     () => items.filter((i) => i.isActive).length,
@@ -247,6 +234,58 @@ export default function AdminAddOnsPage() {
       </div>
     );
   };
+
+  if (loading && items.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div className="animate-pulse">
+          <div className="h-8 w-48 bg-gray-200 rounded" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+            {[...Array(3)].map((_, i) => (
+              <div
+                key={i}
+                className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+              >
+                <div className="h-4 w-24 bg-gray-200 rounded mb-2" />
+                <div className="h-7 w-16 bg-gray-200 rounded" />
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mt-6 overflow-hidden">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="p-4 border-b border-gray-100">
+                <div className="grid grid-cols-5 gap-4">
+                  {[...Array(5)].map((_, j) => (
+                    <div key={j} className="h-4 bg-gray-200 rounded" />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-md">
+          <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+          <p className="font-normal text-xl text-black">
+            Error Loading Add-Ons
+          </p>
+          <p className="text-gray-500 mt-2 text-sm">{error}</p>
+          <button
+            onClick={() => fetchItems(1)}
+            className="mt-6 px-6 py-2 bg-black text-white rounded-full hover:bg-black/80 transition text-sm hover:cursor-pointer"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -294,7 +333,7 @@ export default function AdminAddOnsPage() {
                 <span>Details</span>
               </Link>
               <Link
-                href={`/admin/addons/${menuItem._id}`}
+                href={`/admin/addons/${menuItem._id}/edit`}
                 onClick={() => {
                   setMenuPosition(null);
                   setMenuItem(null);
@@ -353,19 +392,28 @@ export default function AdminAddOnsPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div
+          key="total"
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+        >
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Total Add-Ons
           </p>
-          <p className="text-2xl font-light text-black mt-1">{items.length}</p>
+          <p className="text-2xl font-light text-black mt-1">{totalItems}</p>
         </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div
+          key="active"
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+        >
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Active
           </p>
           <p className="text-2xl font-light text-black mt-1">{activeCount}</p>
         </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div
+          key="inactive"
+          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+        >
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Inactive
           </p>
@@ -386,7 +434,7 @@ export default function AdminAddOnsPage() {
           />
         </div>
         <button
-          onClick={fetchItems}
+          onClick={() => fetchItems(currentPage)}
           className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer"
         >
           <RefreshCw className="w-4 h-4" />
@@ -394,26 +442,8 @@ export default function AdminAddOnsPage() {
         </button>
       </div>
 
-      {/* Error State */}
-      {error && (
-        <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-sm font-medium text-red-800">
-              Error Loading Add-Ons
-            </h4>
-            <p className="text-xs text-red-700 mt-1">{error}</p>
-          </div>
-        </div>
-      )}
-
       {/* Table / List */}
-      {loading ? (
-        <div className="bg-white border border-gray-100 rounded-2xl p-12 text-center shadow-sm">
-          <div className="animate-spin w-8 h-8 border-2 border-black border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-gray-500 text-sm">Loading add-ons...</p>
-        </div>
-      ) : filteredItems.length === 0 ? (
+      {filteredItems.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl py-16 px-4 text-center shadow-sm">
           <Sparkles
             className="w-12 h-12 text-gray-300 mx-auto mb-3"
@@ -488,6 +518,18 @@ export default function AdminAddOnsPage() {
           </div>
         </div>
       )}
+
+      {/* Pagination */}
+      <GlobalPagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        showItemsPerPage={true}
+        itemsPerPage={limit}
+        onItemsPerPageChange={handleLimitChange}
+        itemsPerPageOptions={[5, 10, 20, 50, 100]}
+        totalItems={totalItems}
+      />
 
       <ImageModal
         isOpen={imageModalOpen}

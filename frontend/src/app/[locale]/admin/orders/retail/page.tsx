@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import {
@@ -14,6 +14,7 @@ import toast from "react-hot-toast";
 import StatusBadge from "@/components/admin/StatusBadge";
 import AdminOrdersTabs from "@/components/admin/AdminOrdersTabs";
 import { ImageModal } from "@/components/shared/ImageModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 
 type RetailOrder = {
   _id: string;
@@ -40,6 +41,13 @@ type RetailOrder = {
   status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
   createdAt: string;
 };
+
+interface ApiResponse {
+  items: RetailOrder[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
 
 const RETAIL_ORDER_STATUSES: RetailOrder["status"][] = [
   "pending",
@@ -190,6 +198,12 @@ export default function AdminRetailOrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
+
   const getTodayString = () => {
     const d = new Date();
     const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -212,6 +226,7 @@ export default function AdminRetailOrdersPage() {
   const [filterTo, setFilterTo] = useState<string>(getTodayString());
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
+  const filterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // pop up image function
   const handleImageClick = (imageUrl: string) => {
@@ -219,34 +234,59 @@ export default function AdminRetailOrdersPage() {
     setImageModalOpen(true);
   };
 
-  const fetchOrders = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const queryParams = new URLSearchParams();
-      if (filterStatus) queryParams.append("status", filterStatus);
-      if (filterCustomer.trim())
-        queryParams.append("customer", filterCustomer.trim());
-      if (filterFrom) queryParams.append("from", filterFrom);
-      if (filterTo) queryParams.append("to", filterTo);
+  const fetchOrders = useCallback(
+    async (page = 1, limitOverride?: number) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const l = limitOverride || limit;
+        const queryParams = new URLSearchParams();
+        queryParams.append("page", page.toString());
+        queryParams.append("limit", l.toString());
+        if (filterStatus) queryParams.append("status", filterStatus);
+        if (filterCustomer.trim())
+          queryParams.append("customer", filterCustomer.trim());
+        if (filterFrom) queryParams.append("from", filterFrom);
+        if (filterTo) queryParams.append("to", filterTo);
 
-      const url = `/api/admin/orders/retail${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
-      const data = await api.get<RetailOrder[]>(url);
-      setOrders(data);
-    } catch (err: any) {
-      console.error("Retail orders fetch error:", err);
-      setError(getApiErrorMessage(err, t.errorTitle));
-    } finally {
-      setLoading(false);
-    }
-  };
+        const url = `/api/admin/orders/retail?${queryParams.toString()}`;
+        const data = await api.get<ApiResponse>(url);
+        setOrders(data.items || []);
+        setTotalItems(data.total || 0);
+        setCurrentPage(data.page || 1);
+        setTotalPages(data.totalPages || 1);
+      } catch (err: any) {
+        console.error("Retail orders fetch error:", err);
+        setError(getApiErrorMessage(err, t.errorTitle));
+        setOrders([]);
+        setTotalItems(0);
+        setTotalPages(1);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [filterCustomer, filterStatus, filterFrom, filterTo, limit],
+  );
 
+  // Debounced filter changes
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      fetchOrders();
-    }, 300); // 300ms debounce
-    return () => clearTimeout(delayDebounceFn);
+    if (filterTimeoutRef.current) {
+      clearTimeout(filterTimeoutRef.current);
+    }
+    filterTimeoutRef.current = setTimeout(() => {
+      fetchOrders(1);
+    }, 300);
+    return () => {
+      if (filterTimeoutRef.current) {
+        clearTimeout(filterTimeoutRef.current);
+      }
+    };
   }, [filterCustomer, filterStatus, filterFrom, filterTo]);
+
+  // Initial load
+  useEffect(() => {
+    fetchOrders(1);
+  }, []);
 
   const handleStatusChange = async (
     orderId: string,
@@ -278,6 +318,15 @@ export default function AdminRetailOrdersPage() {
     } finally {
       setUpdatingOrderId(null);
     }
+  };
+
+  const handlePageChange = (page: number) => {
+    fetchOrders(page);
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    fetchOrders(1, newLimit);
   };
 
   const formatCurrency = (amount: number, currency = "AED") =>
@@ -326,7 +375,7 @@ export default function AdminRetailOrdersPage() {
             <p className="font-semibold text-xl text-black">{t.errorTitle}</p>
             <p className="text-gray-500 mt-2 text-sm">{error}</p>
             <button
-              onClick={fetchOrders}
+              onClick={() => fetchOrders(1)}
               className="mt-6 px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
             >
               {t.tryAgain}
@@ -350,7 +399,7 @@ export default function AdminRetailOrdersPage() {
         </div>
 
         <button
-          onClick={fetchOrders}
+          onClick={() => fetchOrders(currentPage)}
           className="inline-flex items-center gap-2 px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 bg-white hover:cursor-pointer transition shadow-sm"
         >
           <RefreshCw className="w-4 h-4" />
@@ -361,7 +410,7 @@ export default function AdminRetailOrdersPage() {
       {/* Stats Section */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: t.stats.total, value: orders.length },
+          { label: t.stats.total, value: totalItems },
           {
             label: t.stats.pending,
             value: orders.filter((o) => o.status === "pending").length,
@@ -488,7 +537,8 @@ export default function AdminRetailOrdersPage() {
                     </p>
                     <p className="font-medium text-sm text-black">
                       {order.userId?.email === "customer@motd.test"
-                        ? (order as any).shippingAddress?.fullName || t.unknownCustomer
+                        ? (order as any).shippingAddress?.fullName ||
+                          t.unknownCustomer
                         : order.userId?.name || t.unknownCustomer}
                     </p>
                     {order.userId?.email && (
@@ -496,19 +546,17 @@ export default function AdminRetailOrdersPage() {
                         {order.userId.email}
                       </p>
                     )}
-                    {order.userId?.email === "customer@motd.test" ? (
-                      (order as any).shippingAddress?.phone && (
-                        <p className="text-xs text-gray-500 font-mono mt-0.5">
-                          {(order as any).shippingAddress.phone}
-                        </p>
-                      )
-                    ) : (
-                      order.userId?.phone && (
-                        <p className="text-xs text-gray-500 font-mono mt-0.5">
-                          {order.userId.phone}
-                        </p>
-                      )
-                    )}
+                    {order.userId?.email === "customer@motd.test"
+                      ? (order as any).shippingAddress?.phone && (
+                          <p className="text-xs text-gray-500 font-mono mt-0.5">
+                            {(order as any).shippingAddress.phone}
+                          </p>
+                        )
+                      : order.userId?.phone && (
+                          <p className="text-xs text-gray-500 font-mono mt-0.5">
+                            {order.userId.phone}
+                          </p>
+                        )}
                   </div>
 
                   <div>
@@ -618,6 +666,18 @@ export default function AdminRetailOrdersPage() {
           })}
         </div>
       )}
+
+      {/* Pagination */}
+      <GlobalPagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        showItemsPerPage={true}
+        itemsPerPage={limit}
+        onItemsPerPageChange={handleLimitChange}
+        itemsPerPageOptions={[5, 10, 20, 50, 100]}
+        totalItems={totalItems}
+      />
 
       <ImageModal
         isOpen={imageModalOpen}
