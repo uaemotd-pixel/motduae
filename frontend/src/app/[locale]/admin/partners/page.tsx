@@ -1054,7 +1054,7 @@ export default function AdminPartnersPage() {
         showItemsPerPage={true}
         itemsPerPage={limit}
         onItemsPerPageChange={handleLimitChange}
-        itemsPerPageOptions={[1, 5, 10, 20, 50, 100]}
+        itemsPerPageOptions={[5, 10, 20, 50, 100]}
         totalItems={totalItems}
       />
 

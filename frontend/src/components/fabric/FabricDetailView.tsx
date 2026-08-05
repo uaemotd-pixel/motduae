@@ -417,9 +417,9 @@ const { title, description } = getFabricDisplayFields(fabric, locale);
                                 duration: 0.3,
                                 delay: 0.3 + index * 0.05,
                               }}
-                              className="w-7 h-7 rounded-full border border-[#E4E0D8] shrink-0 shadow-sm"
+className="w-7 h-7 rounded-full border border-[#E4E0D8] shrink-0 shadow-sm"
                               style={{
-                                backgroundColor: colorObj?.value || "#CCCCCC",
+                                backgroundColor: colorObj?.hex || "#CCCCCC",
                               }}
                               title={color}
                             />
@@ -456,9 +456,8 @@ const { title, description } = getFabricDisplayFields(fabric, locale);
                       const isActive = v._id === fabric._id;
                       const vTitle =
                         locale === "ar" ? v.nameAr || v.name : v.name;
-                      const imageSrc =
-                        resolveMediaUrl(v.images?.[0]) ||
-                        "/images/placeholder-fabric.jpg";
+const imageSrc =
+                        resolveMediaUrl(v.images?.[0]) || "/images/fab1.png";
                       return (
                         <Link
                           key={v._id}

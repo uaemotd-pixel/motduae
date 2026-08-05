@@ -64,7 +64,8 @@ function isUploadedImage(url: string): boolean {
   );
 }
 
-export const DEFAULT_FABRIC_IMAGE = "/images/placeholder-fabric.jpg";
+// Use an existing public asset as the fallback so broken images never appear.
+export const DEFAULT_FABRIC_IMAGE = "/images/fab1.png";
 
 export function resolveFabricImage(images?: string | string[]): string {
   let raw = DEFAULT_FABRIC_IMAGE;

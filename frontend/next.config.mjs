@@ -6,12 +6,12 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const frontendRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(frontendRoot, "../..");
-const apiProxyTarget =
-  process.env.API_PROXY_TARGET || "http://localhost:5000";
+const apiProxyTarget = process.env.API_PROXY_TARGET || "http://localhost:5000";
+const isDev = process.env.NODE_ENV === "development";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  ...(process.env.NODE_ENV === "development"
+  ...(isDev
     ? {
         turbopack: {
           root: projectRoot,
@@ -19,7 +19,17 @@ const nextConfig = {
       }
     : {}),
   async rewrites() {
+    // In development, proxy /api and /uploads from the Next.js dev server
+    // (:3000) to the standalone Express backend (:5000). In production the
+    // frontend and backend share the same origin (see vercel.json routes),
+    // so no proxy is needed and these rewrites are skipped.
+    if (!isDev) return [];
+
     return [
+      {
+        source: "/api/:path*",
+        destination: `${apiProxyTarget}/api/:path*`,
+      },
       {
         source: "/uploads/:path*",
         destination: `${apiProxyTarget}/uploads/:path*`,

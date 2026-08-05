@@ -641,15 +641,15 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
           />
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 pt-5 sm:pt-6 border-t border-gray-200">
-          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row-reverse items-stretch sm:items-center justify-between gap-3 sm:gap-4 pt-5 sm:pt-6 border-t border-gray-200">
+          <div className="flex flex-col sm:flex-row-reverse gap-3 w-full sm:w-auto">
             {!isViewMode && (
               <>
                 {hasMeasurements && (
                   <button
                     type="button"
                     onClick={handleCancel}
-                    className="w-full sm:w-auto px-6 py-2.5 sm:py-3 bg-gray-200 text-black text-[10px] tracking-[0.22em] uppercase hover:bg-gray-300 transition font-ui rounded-lg"
+                    className="w-full sm:w-auto px-6 py-2.5 sm:py-3 bg-gray-200 text-black text-[10px] tracking-[0.22em] uppercase hover:bg-gray-300 transition font-ui rounded-lg hover:cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -658,7 +658,7 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
                   type="button"
                   onClick={handleSaveMeasurements}
                   disabled={!canContinue() || isSaving}
-                  className="w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 bg-black text-white text-[11px] sm:text-[12px] md:text-[13px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed font-ui rounded-lg hover:cursor-pointer"
+                  className="w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 bg-black text-white text-[10px] sm:text-[11px] md:text-[12px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed font-ui rounded-lg hover:cursor-pointer min-w-35 sm:min-w-40"
                 >
                   {isSaving
                     ? "SAVING..."

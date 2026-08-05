@@ -11,10 +11,16 @@ function getApiBase(): string {
 function resolveMediaBase(): string {
     const apiBase = getApiBase();
 
+    // In development the Next.js dev server proxies /uploads/* to the backend
+    // via next.config rewrites, so media should be requested on the SAME origin
+    // (localhost:3000) rather than pointing the browser directly at the backend
+    // (localhost:5000). Returning "" makes resolveMediaUrl keep the relative
+    // /uploads/... path, which the proxy rewrites to the backend.
+    if (process.env.NODE_ENV === "development") {
+        return "";
+    }
+
     if (typeof window === "undefined") {
-        if (process.env.NODE_ENV === "development") {
-            return process.env.API_PROXY_TARGET || "http://localhost:5000";
-        }
         return apiBase;
     }
 

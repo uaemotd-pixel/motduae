@@ -797,7 +797,7 @@ export default function AdminCustomersPage() {
         showItemsPerPage={true}
         itemsPerPage={limit}
         onItemsPerPageChange={handleLimitChange}
-        itemsPerPageOptions={[2, 5, 10, 20, 50, 100]}
+        itemsPerPageOptions={[5, 10, 20, 50, 100]}
         totalItems={stats?.totalCustomers}
       />
 

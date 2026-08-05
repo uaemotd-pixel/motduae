@@ -55,18 +55,27 @@ export default function EditReadyMadePage() {
   useEffect(() => {
     const loadDropdownData = async () => {
       try {
-        const [shopsRes, fabricsRes, tailorsRes, designsRes, tagsRes] =
+const [shopsRes, fabricsRes, tailorsRes, designsRes, tagsRes] =
           await Promise.all([
             api.get<any>("/api/admin/fabric-shops"),
-            api.get<any[]>("/api/admin/fabrics"),
+            // /api/admin/fabrics returns { items: [...], total, page, totalPages }
+            api.get<any>("/api/admin/fabrics"),
             api.get<any>("/api/admin/tailors"),
             api.get<any[]>("/api/admin/designs"),
             api.get<any[]>("/api/admin/tags"),
           ]);
-        setFabricShops(shopsRes.items || []);
-        setAllFabrics(fabricsRes || []);
+setFabricShops(shopsRes.items || []);
+        setAllFabrics(
+          (Array.isArray(fabricsRes)
+            ? fabricsRes
+            : (fabricsRes as any)?.items || []) as any[],
+        );
         setTailorShops(tailorsRes.items || []);
-        setAllDesigns(designsRes || []);
+        setAllDesigns(
+          (Array.isArray(designsRes)
+            ? designsRes
+            : (designsRes as any)?.items || []) as any[],
+        );
         if (Array.isArray(tagsRes) && tagsRes.length > 0) {
           setAllTags(
             tagsRes.map((t: any) => ({
