@@ -2,8 +2,6 @@
 node_modules/
 
 # Environment
-.env
-.env.local
 .env.*.local
 backend/.env
 frontend/.env.local
@@ -30,5 +28,5 @@ archive/
 backend/uploads/**
 !backend/uploads/.gitkeep
 .vercel
-.env*
 .agents/
+config.bat

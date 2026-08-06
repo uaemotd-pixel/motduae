@@ -681,66 +681,74 @@ export default function ReadyMadeCatalogPage() {
     });
   };
 
-  let filteredProducts = products.filter((item) => {
-    // Category filter
+let filteredProducts = products.filter((item) => {
+    // Category filter (matches product tag to category name)
     if (filters.categories.length > 0) {
       const activeTag = isAr ? item.tagAr || item.tag : item.tag;
       if (!activeTag) return false;
-      const isMatch = filters.categories.some(
-        (catId) =>
-          catId === activeTag ||
-          categories.some((c) => c._id === catId && c.name === activeTag),
+      const matchedCategory = categories.find((c) =>
+        isAr
+          ? c.nameAr === activeTag || c.name === activeTag
+          : c.name === activeTag,
       );
+      const isMatch = filters.categories.some((catId) => {
+        if (matchedCategory && catId === matchedCategory._id) return true;
+        return catId === activeTag;
+      });
       if (!isMatch) return false;
     }
 
-    // Material filter
+    // Material filter (product fabricType)
     if (filters.materials.length > 0) {
-      const itemMat = (item as any).material;
+      const itemMat = isAr
+        ? item.fabricTypeAr || item.fabricType
+        : item.fabricType;
       if (!itemMat) return false;
-      const isMatch = filters.materials.some(
-        (matId) =>
-          matId === itemMat ||
-          materials.some((m) => m._id === matId && m.name === itemMat),
-      );
+      const matchedMaterial = materials.find((m) => m.name === itemMat);
+      const isMatch = filters.materials.some((matId) => {
+        if (matchedMaterial && matId === matchedMaterial._id) return true;
+        return matId === itemMat;
+      });
       if (!isMatch) return false;
     }
 
-    // Pattern filter
+    // Pattern filter (product fabricType)
     if (filters.patterns.length > 0) {
-      const itemPat = (item as any).pattern;
+      const itemPat = isAr
+        ? item.fabricTypeAr || item.fabricType
+        : item.fabricType;
       if (!itemPat) return false;
-      const isMatch = filters.patterns.some(
-        (patId) =>
-          patId === itemPat ||
-          patterns.some((p) => p._id === patId && p.name === itemPat),
-      );
+      const matchedPattern = patterns.find((p) => p.name === itemPat);
+      const isMatch = filters.patterns.some((patId) => {
+        if (matchedPattern && patId === matchedPattern._id) return true;
+        return patId === itemPat;
+      });
       if (!isMatch) return false;
     }
 
-    // Season filter
+    // Season filter (product tag)
     if (filters.seasons.length > 0) {
-      const itemSeason = (item as any).season;
+      const itemSeason = isAr ? item.tagAr || item.tag : item.tag;
       if (!itemSeason) return false;
-      const isMatch = filters.seasons.some(
-        (seaId) =>
-          seaId === itemSeason ||
-          seasons.some((s) => s._id === seaId && s.name === itemSeason),
-      );
+      const matchedSeason = seasons.find((s) => s.name === itemSeason);
+      const isMatch = filters.seasons.some((seaId) => {
+        if (matchedSeason && seaId === matchedSeason._id) return true;
+        return seaId === itemSeason;
+      });
       if (!isMatch) return false;
     }
 
-    // Tags filter
+    // Tags filter (product tag)
     if (filters.tags.length > 0) {
-      const itemTags = (item as any).tags;
-      if (!itemTags || !Array.isArray(itemTags)) return false;
-      const hasTag = itemTags.some((t: string) =>
-        filters.tags.some(
-          (tagId) =>
-            tagId === t ||
-            tags.some((tag) => tag._id === tagId && tag.name === t),
-        ),
+      const itemTag = isAr ? item.tagAr || item.tag : item.tag;
+      if (!itemTag) return false;
+      const matchedTag = tags.find((t) =>
+        isAr ? t.nameAr === itemTag || t.name === itemTag : t.name === itemTag,
       );
+      const hasTag = filters.tags.some((tagId) => {
+        if (matchedTag && tagId === matchedTag._id) return true;
+        return tagId === itemTag;
+      });
       if (!hasTag) return false;
     }
 
