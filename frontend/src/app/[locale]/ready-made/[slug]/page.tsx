@@ -16,8 +16,22 @@ import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import colors from "@/components/shared/colors";
 
 const getColorHex = (colorName: string): string => {
-  const found = colors.find((c) => c.value.toLowerCase() === colorName.toLowerCase());
-  return found?.hex ?? "";
+  const normalized = String(colorName || "").trim().toLowerCase();
+  if (!normalized) return "#CCCCCC";
+
+  // If it's already a hex color, use it directly
+  if (/^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(normalized)) {
+    return normalized;
+  }
+
+  // Match against value, English name, or Arabic name (case-insensitive)
+  const found = colors.find(
+    (c) =>
+      c.value.toLowerCase() === normalized ||
+      c.en.toLowerCase() === normalized ||
+      c.ar === colorName.trim(),
+  );
+  return found?.hex ?? "#CCCCCC";
 };
 
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
