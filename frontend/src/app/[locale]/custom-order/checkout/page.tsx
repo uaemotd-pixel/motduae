@@ -7,7 +7,7 @@ export default function CustomOrderCheckoutPage() {
         <MainLayout>
             <FadeInSection>
                 <CustomOrderCheckoutStep />
-            </FadeInSection>
+            </FadeInSection>g
         </MainLayout>
     );
 }

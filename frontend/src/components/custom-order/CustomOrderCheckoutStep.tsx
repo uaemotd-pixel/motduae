@@ -90,6 +90,22 @@ function validateUaePhone(phone: string): boolean {
   return /^(?:\+?9715|0?5)\d{8}$/.test(cleaned);
 }
 
+// Normalize a UAE phone number to the canonical "+971xxxxxxx" (9 digits after +971)
+function normalizePhone(raw: string): string {
+  let digits = (raw || "").replace(/\D/g, "");
+  // Strip leading UAE country code (971) if present
+  if (digits.startsWith("971")) {
+    digits = digits.slice(3);
+  }
+  // Strip leading trunk zero (05... -> 5...)
+  if (digits.startsWith("0")) {
+    digits = digits.slice(1);
+  }
+  // Cap at 9 digits
+  digits = digits.slice(0, 9);
+  return digits ? `+971${digits}` : "";
+}
+
 export default function CustomOrderCheckoutStep() {
   const t = useTranslations("CustomOrderCheckout");
   const router = useRouter();
@@ -236,10 +252,10 @@ export default function CustomOrderCheckoutStep() {
         const defaultAddr =
           data.addresses?.find((a) => a.isDefault) || data.addresses?.[0];
 
-        if (defaultAddr) {
+if (defaultAddr) {
           updateDeliveryAddress({
             fullName: defaultAddr.fullName || data.name || "",
-            phone: defaultAddr.phone || data.phone || "",
+            phone: normalizePhone(defaultAddr.phone || data.phone || ""),
             emirate: defaultAddr.emirate || "",
             city: defaultAddr.city || "",
             line1: defaultAddr.street || "",
@@ -248,7 +264,7 @@ export default function CustomOrderCheckoutStep() {
         } else {
           updateDeliveryAddress({
             fullName: data.name || "",
-            phone: data.phone || "",
+            phone: normalizePhone(data.phone || ""),
           });
         }
       } catch (err: any) {
@@ -323,11 +339,10 @@ export default function CustomOrderCheckoutStep() {
 
   const address = draft.deliveryAddress;
 
-  const handleFieldChange = (field: FormField, value: string) => {
+const handleFieldChange = (field: FormField, value: string) => {
     let processedValue = value;
     if (field === "phone") {
-      const digits = value.replace(/\D/g, "").slice(0, 9);
-      processedValue = `+971${digits}`;
+      processedValue = normalizePhone(value);
     }
     updateDeliveryAddress({ [field]: processedValue });
     if (errors[field]) {
@@ -715,7 +730,14 @@ export default function CustomOrderCheckoutStep() {
                         <input
                           id="checkout-phone"
                           type="tel"
-                          value={address.phone ? (address.phone.replace(/\D/g, "").startsWith("971") ? address.phone.replace(/\D/g, "").slice(3) : address.phone.replace(/\D/g, "").slice(0, 9)) : ""}
+value={
+                            address.phone
+                              ? normalizePhone(address.phone).replace(
+                                  /^\+971/,
+                                  "",
+                                )
+                              : ""
+                          }
                           onChange={(e) =>
                             handleFieldChange("phone", e.target.value)
                           }
