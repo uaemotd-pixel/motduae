@@ -19,7 +19,7 @@ import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 const COLOR_OPTIONS = colors;
 
 const sanitizeName = (value: string) =>
-  value.replace(/[^a-zA-Z\u0600-\u06FF\s\-']/g, "");
+  value.replace(/[^a-zA-Z0-9\u0600-\u06FF\s\-']/g, "");
 
 export default function EditReadyMadePage() {
   const { user } = useAuth();
@@ -43,7 +43,6 @@ export default function EditReadyMadePage() {
   const [tailorShopOpen, setTailorShopOpen] = useState(false);
   const [designOpen, setDesignOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
-  const [tagArOpen, setTagArOpen] = useState(false);
   const [colorsOpen, setColorsOpen] = useState(false);
 
   const [fabricShops, setFabricShops] = useState<any[]>([]);
@@ -55,7 +54,7 @@ export default function EditReadyMadePage() {
   useEffect(() => {
     const loadDropdownData = async () => {
       try {
-const [shopsRes, fabricsRes, tailorsRes, designsRes, tagsRes] =
+        const [shopsRes, fabricsRes, tailorsRes, designsRes, tagsRes] =
           await Promise.all([
             api.get<any>("/api/admin/fabric-shops"),
             // /api/admin/fabrics returns { items: [...], total, page, totalPages }
@@ -64,7 +63,7 @@ const [shopsRes, fabricsRes, tailorsRes, designsRes, tagsRes] =
             api.get<any[]>("/api/admin/designs"),
             api.get<any[]>("/api/admin/tags"),
           ]);
-setFabricShops(shopsRes.items || []);
+        setFabricShops(shopsRes.items || []);
         setAllFabrics(
           (Array.isArray(fabricsRes)
             ? fabricsRes
@@ -671,71 +670,35 @@ setFabricShops(shopsRes.items || []);
             </AnimatedDropdown>
           </FormField>
 
-          {/* METERS */}
-          <FormField
-            label="Fabric length (in meters)"
-            error={fieldErrors.metersPerFabric}
-            required
-          >
-            <input
-              type="number"
-              min="0"
-              step="0.1"
-              placeholder="3.5"
-              value={getNumberDisplay(formData.metersPerFabric)}
-              onChange={(e) => {
-                if (e.target.value === "") {
-                  handleChange("metersPerFabric", 0);
-                } else {
-                  const val = parseFloat(e.target.value);
-                  if (!isNaN(val) && val >= 0) {
-                    handleChange("metersPerFabric", val);
-                  }
-                }
-              }}
-              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none hover:cursor-text text-xs sm:text-sm"
-            />
-          </FormField>
-
-          {/* FABRIC WIDTH */}
-          <div>
-            <label className="block text-[10px] sm:text-xs uppercase tracking-widest text-gray-500 mb-2">
-              Fabric Width
-            </label>
-            <div className="flex gap-4 sm:gap-6">
-              <label className="flex items-center gap-1.5 sm:gap-2 hover:cursor-pointer">
-                <input
-                  type="radio"
-                  name="fabricWidth"
-                  value="single"
-                  checked={fabricWidth === "single"}
-                  onChange={() => setFabricWidth("single")}
-                  className="accent-black hover:cursor-pointer w-3.5 h-3.5 sm:w-4 sm:h-4"
-                />
-                <span className="text-xs sm:text-sm hover:cursor-pointer">
-                  Single Width
-                </span>
-              </label>
-              <label className="flex items-center gap-1.5 sm:gap-2 hover:cursor-pointer">
-                <input
-                  type="radio"
-                  name="fabricWidth"
-                  value="double"
-                  checked={fabricWidth === "double"}
-                  onChange={() => setFabricWidth("double")}
-                  className="accent-black hover:cursor-pointer w-3.5 h-3.5 sm:w-4 sm:h-4"
-                />
-                <span className="text-xs sm:text-sm hover:cursor-pointer">
-                  Double Width
-                </span>
-              </label>
-            </div>
-          </div>
-
-          {/* PRICES - in one row */}
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          {/* LENGTH + PRICES - in one row */}
+          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             <FormField
-              label="Fabric Price AED"
+              label="Fabric length"
+              error={fieldErrors.metersPerFabric}
+              required
+            >
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                placeholder="3.5"
+                value={getNumberDisplay(formData.metersPerFabric)}
+                onChange={(e) => {
+                  if (e.target.value === "") {
+                    handleChange("metersPerFabric", 0);
+                  } else {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val >= 0) {
+                      handleChange("metersPerFabric", val);
+                    }
+                  }
+                }}
+                className="w-full py-1 border-b border-gray-300 focus:border-black outline-none hover:cursor-text text-xs sm:text-sm"
+              />
+            </FormField>
+
+            <FormField
+              label="Fabric Price"
               error={fieldErrors.fabricPriceAED}
             >
               <input
@@ -752,7 +715,7 @@ setFabricShops(shopsRes.items || []);
             </FormField>
 
             <FormField
-              label="Mukhawar Price AED"
+              label="Mukhawar Price"
               error={fieldErrors.mukhawarPriceAED}
             >
               <input
@@ -769,7 +732,7 @@ setFabricShops(shopsRes.items || []);
             </FormField>
 
             <FormField
-              label="Final Selling Price AED"
+              label="Final Price"
               error={fieldErrors.finalSellingPriceAED}
               required
             >
@@ -787,23 +750,43 @@ setFabricShops(shopsRes.items || []);
             </FormField>
           </div>
 
-          {/* TAG + Color + User in one row */}
+          {/* TAG (ENG + AR) + Color + User in one row */}
           <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-            {/* TAG ENG */}
-            <FormField label="Tag (ENG)" name="tag">
+            {/* TAG ENG + AR */}
+            <FormField label="Tag (ENG / AR)" name="tag">
               <AnimatedDropdown
                 isOpen={tagOpen}
                 onClose={() => setTagOpen(false)}
-                trigger={
-                  <SelectTrigger
-                    value={formData.tag}
-                    placeholder="Select tag"
-                    displayValue={
-                      allTags.find((t) => t.value === formData.tag)?.en || ""
-                    }
-                    onClick={() => setTagOpen(!tagOpen)}
-                  />
-                }
+                trigger={(() => {
+                  const selected = allTags.find(
+                    (t) => t.value === formData.tag,
+                  );
+                  const hasValue = !!formData.tag;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setTagOpen(!tagOpen)}
+                      className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent text-xs sm:text-[14px] flex items-center justify-between hover:cursor-pointer"
+                    >
+                      {hasValue ? (
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="text-black truncate">
+                            {selected?.en || formData.tag}
+                          </span>
+                          <span className="text-gray-500 shrink-0">/</span>
+                          <span className="text-black truncate">
+                            {selected?.ar || formData.tagAr}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">
+                          Select tag (ENG / AR)
+                        </span>
+                      )}
+                      <span className="text-gray-400">▾</span>
+                    </button>
+                  );
+                })()}
                 dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
                 position="bottom-left"
               >
@@ -811,11 +794,12 @@ setFabricShops(shopsRes.items || []);
                   type="button"
                   onClick={() => {
                     handleChange("tag", "");
+                    handleChange("tagAr", "");
                     setTagOpen(false);
                   }}
                   className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
                 >
-                  Select tag
+                  Select tag (ENG / AR)
                 </button>
                 {allTags.map((opt) => (
                   <button
@@ -823,62 +807,14 @@ setFabricShops(shopsRes.items || []);
                     type="button"
                     onClick={() => {
                       handleChange("tag", opt.value);
+                      handleChange("tagAr", opt.ar);
                       setTagOpen(false);
                     }}
-                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer flex items-center justify-between gap-2"
                   >
-                    {opt.en}
-                  </button>
-                ))}
-              </AnimatedDropdown>
-            </FormField>
-
-            {/* TAG AR */}
-            <FormField label="Tag (AR)" name="tagAr">
-              <AnimatedDropdown
-                isOpen={tagArOpen}
-                onClose={() => setTagArOpen(false)}
-                trigger={
-                  <button
-                    type="button"
-                    onClick={() => setTagArOpen(!tagArOpen)}
-                    className="w-full py-1 border-b border-gray-300 focus:border-black text-right bg-transparent text-xs sm:text-[14px] flex items-center justify-between flex-row-reverse hover:cursor-pointer"
-                  >
-                    <span
-                      className={
-                        formData.tagAr ? "text-black" : "text-gray-400"
-                      }
-                    >
-                      {allTags.find((t) => t.value === formData.tagAr)?.ar ||
-                        "اختر الوسم"}
-                    </span>
-                    <span className="text-gray-400">▾</span>
-                  </button>
-                }
-                dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
-                position="bottom-right"
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleChange("tagAr", "");
-                    setTagArOpen(false);
-                  }}
-                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
-                >
-                  اختر الوسم
-                </button>
-                {allTags.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => {
-                      handleChange("tagAr", opt.value);
-                      setTagArOpen(false);
-                    }}
-                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
-                  >
-                    {opt.ar}
+                    <span className="truncate">{opt.en}</span>
+                    <span className="text-gray-500 shrink-0">/</span>
+                    <span className="truncate">{opt.ar}</span>
                   </button>
                 ))}
               </AnimatedDropdown>
@@ -941,8 +877,10 @@ setFabricShops(shopsRes.items || []);
                             className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full border border-gray-200 shrink-0"
                             style={{ background: opt.hex }}
                           />
-                          <span className="text-[8px] sm:text-[10px] lg:text-xs truncate hover:cursor-pointer">
-                            {localeParam === "ar" ? opt.ar : opt.en}
+                          <span className="inline-flex items-center gap-1 text-[8px] sm:text-[10px] lg:text-xs min-w-0 hover:cursor-pointer">
+                            <span className="truncate">{opt.en}</span>
+                            <span className="text-gray-400 shrink-0">/</span>
+                            <span className="truncate">{opt.ar}</span>
                           </span>
                         </span>
                       </label>
