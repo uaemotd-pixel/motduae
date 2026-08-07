@@ -49,10 +49,8 @@ export default function FabricAdminFormFields({
   const [tagsLoading, setTagsLoading] = useState(true);
 
   // Dropdown states for AnimatedDropdown
-  const [openMaterialEn, setOpenMaterialEn] = useState(false);
-  const [openMaterialAr, setOpenMaterialAr] = useState(false);
-  const [openTagEn, setOpenTagEn] = useState(false);
-  const [openTagAr, setOpenTagAr] = useState(false);
+  const [openMaterial, setOpenMaterial] = useState(false);
+  const [openTag, setOpenTag] = useState(false);
   const [openEmirate, setOpenEmirate] = useState(false);
   const [openColors, setOpenColors] = useState(false);
 
@@ -140,24 +138,18 @@ export default function FabricAdminFormFields({
     }
   };
 
-  // Material options - from DB only
-  const materialOptionsEn = dbMaterials.map((m) => ({
+  // Material options - from DB only (combined EN / AR)
+  const materialOptions = dbMaterials.map((m) => ({
     value: m.name,
-    label: m.name,
-  }));
-  const materialOptionsAr = dbMaterials.map((m) => ({
-    value: m.nameAr || m.name,
-    label: m.nameAr || m.name,
+    en: m.name,
+    ar: m.nameAr || m.name,
   }));
 
-  // Tag options - from DB only
-  const tagOptionsEn = dbTags.map((t) => ({
+  // Tag options - from DB only (combined EN / AR)
+  const tagOptions = dbTags.map((t) => ({
     value: t.name,
-    label: t.name,
-  }));
-  const tagOptionsAr = dbTags.map((t) => ({
-    value: t.nameAr || t.name,
-    label: t.nameAr || t.name,
+    en: t.name,
+    ar: t.nameAr || t.name,
   }));
 
   // Custom trigger for select fields
@@ -248,336 +240,212 @@ export default function FabricAdminFormFields({
         />
       </FormField>
 
-      {/* Material (EN) - from DB */}
-      <FormField
-        label="Material (EN)"
-        name="material"
-        required
-        error={fieldErrors.material}
-      >
-        <AnimatedDropdown
-          isOpen={openMaterialEn}
-          onClose={() => setOpenMaterialEn(false)}
-          trigger={
-            <SelectTrigger
-              value={formData.material}
-              placeholder={materialsLoading ? "Loading..." : "Select material"}
-              displayValue={
-                materialOptionsEn.find((o) => o.value === formData.material)
-                  ?.label || ""
-              }
-              onClick={() => setOpenMaterialEn(!openMaterialEn)}
-            />
-          }
-          dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
-          position="bottom-left"
-        >
-          {materialsLoading ? (
-            <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-              Loading materials...
-            </div>
-          ) : materialOptionsEn.length === 0 ? (
-            <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-              No materials found
-            </div>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  onFieldChange("material", "");
-                  setOpenMaterialEn(false);
-                }}
-                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
-              >
-                Select material
-              </button>
-              {materialOptionsEn.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => {
-                    onFieldChange("material", opt.value);
-                    setOpenMaterialEn(false);
-                  }}
-                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </>
-          )}
-        </AnimatedDropdown>
-      </FormField>
-
-      {/* Material (AR) - from DB */}
-      <FormField
-        label="Material (AR)"
-        name="materialAr"
-        required
-        error={fieldErrors.materialAr}
-      >
-        <AnimatedDropdown
-          isOpen={openMaterialAr}
-          onClose={() => setOpenMaterialAr(false)}
-          trigger={
-            <button
-              type="button"
-              onClick={() => setOpenMaterialAr(!openMaterialAr)}
-              className="w-full py-1 border-b border-gray-300 focus:border-black text-right bg-transparent text-xs sm:text-[14px] flex items-center justify-between flex-row-reverse hover:cursor-pointer"
-            >
-              <span
-                className={formData.materialAr ? "text-black" : "text-gray-400"}
-              >
-                {materialOptionsAr.find((o) => o.value === formData.materialAr)
-                  ?.label ||
-                  (materialsLoading ? "جاري التحميل..." : "اختر النوع")}
-              </span>
-              <span className="text-gray-400">▾</span>
-            </button>
-          }
-          dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
-          position="bottom-left"
-        >
-          {materialsLoading ? (
-            <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm text-gray-500">
-              جاري التحميل...
-            </div>
-          ) : materialOptionsAr.length === 0 ? (
-            <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm text-gray-500">
-              لا توجد مواد
-            </div>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  onFieldChange("materialAr", "");
-                  setOpenMaterialAr(false);
-                }}
-                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
-              >
-                اختر النوع
-              </button>
-              {materialOptionsAr.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => {
-                    onFieldChange("materialAr", opt.value);
-                    setOpenMaterialAr(false);
-                  }}
-                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </>
-          )}
-        </AnimatedDropdown>
-      </FormField>
-
-      {/* Colors */}
-      <FormField
-        label="Colors"
-        name="colors"
-        required
-        error={fieldErrors.color}
-      >
-        <AnimatedDropdown
-          isOpen={openColors}
-          onClose={() => setOpenColors(false)}
-          trigger={
-            <button
-              type="button"
-              onClick={() => setOpenColors(!openColors)}
-              className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent min-h-7 flex items-center hover:cursor-pointer"
-            >
-              {selectedColors.length === 0 ? (
-                <span className="text-[10px] sm:text-xs text-black/60 leading-none">
-                  Select colors
-                </span>
-              ) : (
-                <div className="flex flex-wrap gap-1 sm:gap-1.5 items-center">
-                  {COLOR_OPTIONS.filter((c) =>
-                    selectedColors.includes(c.value),
-                  ).map((c) => (
-                    <span
-                      key={c.value}
-                      className="inline-flex items-center justify-center"
-                      title={c.en}
-                    >
-                      <span
-                        className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border border-gray-200 shrink-0"
-                        style={{ background: c.hex }}
-                      />
-                    </span>
-                  ))}
-                </div>
-              )}
-            </button>
-          }
-          dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 p-1.5 sm:p-3 max-h-60 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-400 [&::-webkit-scrollbar-thumb]:rounded-full"
-          position="bottom-left"
-        >
-          <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2 sm:gap-1">
-            {COLOR_OPTIONS.map((opt) => {
-              const selected = selectedColors.includes(opt.value);
-              return (
-                <label
-                  key={opt.value}
-                  className="flex items-center gap-1 sm:gap-1.5 cursor-pointer px-1 py-0.5 hover:bg-gray-50 rounded hover:cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    onChange={() => toggleColor(opt.value)}
-                    className="accent-black w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 hover:cursor-pointer"
-                  />
-                  <span className="inline-flex items-center gap-1 sm:gap-1.5 min-w-0">
-                    <span
-                      className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full border border-gray-200 shrink-0"
-                      style={{ background: opt.hex }}
-                    />
-                    <span className="text-[8px] sm:text-[10px] lg:text-xs truncate hover:cursor-pointer">
-                      {opt.en} / {opt.ar}
-                    </span>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </AnimatedDropdown>
-      </FormField>
-
-      {/* Store Partner */}
-      <div className="md:col-span-2">
-        <StorePartnerPicker
-          value={formData.listedByStore}
-          onChange={(partnerId) => onFieldChange("listedByStore", partnerId)}
-          error={fieldErrors.listedByStore}
-          label="Store Partner"
-          placeholder="Select store partner"
-          loadingLabel="Loading..."
-          emptyLabel="No partners found"
+{/* Material + Tag + Color in one row (order: material -> tag -> colors) */}
+      <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+        {/* Material (ENG / AR) - combined from DB */}
+        <FormField
+          label="Material (ENG / AR)"
+          name="material"
           required
-        />
-      </div>
-
-      {/* Tag (EN) - from DB */}
-      <FormField label="Tag (EN)" name="tag" error={fieldErrors.tag}>
-        <AnimatedDropdown
-          isOpen={openTagEn}
-          onClose={() => setOpenTagEn(false)}
-          trigger={
-            <SelectTrigger
-              value={formData.tag}
-              placeholder={tagsLoading ? "Loading..." : "Select tag (optional)"}
-              displayValue={
-                tagOptionsEn.find((o) => o.value === formData.tag)?.label || ""
-              }
-              onClick={() => setOpenTagEn(!openTagEn)}
-            />
-          }
-          dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
-          position="bottom-left"
+          error={fieldErrors.material}
         >
-          {tagsLoading ? (
-            <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-              Loading tags...
-            </div>
-          ) : tagOptionsEn.length === 0 ? (
-            <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-              No tags found
-            </div>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  onFieldChange("tag", "");
-                  setOpenTagEn(false);
-                }}
-                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
-              >
-                Select tag (optional)
-              </button>
-              {tagOptionsEn.map((opt) => (
+          <AnimatedDropdown
+            isOpen={openMaterial}
+            onClose={() => setOpenMaterial(false)}
+            trigger={
+              <SelectTrigger
+                value={formData.material}
+                placeholder={materialsLoading ? "Loading..." : "Select material"}
+                displayValue={(() => {
+                  const opt = materialOptions.find(
+                    (o) => o.value === formData.material,
+                  );
+                  if (!opt) return "";
+                  return `${opt.en} / ${opt.ar}`;
+                })()}
+                onClick={() => setOpenMaterial(!openMaterial)}
+              />
+            }
+            dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+            position="bottom-left"
+          >
+            {materialsLoading ? (
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                Loading materials...
+              </div>
+            ) : materialOptions.length === 0 ? (
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                No materials found
+              </div>
+            ) : (
+              <>
                 <button
-                  key={opt.value}
                   type="button"
                   onClick={() => {
-                    onFieldChange("tag", opt.value);
-                    setOpenTagEn(false);
+                    onFieldChange("material", "");
+                    onFieldChange("materialAr", "");
+                    setOpenMaterial(false);
                   }}
                   className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
                 >
-                  {opt.label}
+                  Select material
                 </button>
-              ))}
-            </>
-          )}
-        </AnimatedDropdown>
-      </FormField>
+                {materialOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onFieldChange("material", opt.en);
+                      onFieldChange("materialAr", opt.ar);
+                      setOpenMaterial(false);
+                    }}
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                  >
+                    <span>{opt.en} / </span>
+                    <span>{opt.ar}</span>
+                  </button>
+                ))}
+              </>
+            )}
+          </AnimatedDropdown>
+        </FormField>
 
-      {/* Tag (AR) - from DB */}
-      <FormField label="Tag (AR)" name="tagAr" error={fieldErrors.tagAr}>
-        <AnimatedDropdown
-          isOpen={openTagAr}
-          onClose={() => setOpenTagAr(false)}
-          trigger={
-            <button
-              type="button"
-              onClick={() => setOpenTagAr(!openTagAr)}
-              className="w-full py-1 border-b border-gray-300 focus:border-black text-right bg-transparent text-xs sm:text-[14px] flex items-center justify-between flex-row-reverse hover:cursor-pointer"
-            >
-              <span className={formData.tagAr ? "text-black" : "text-gray-400"}>
-                {tagOptionsAr.find((o) => o.value === formData.tagAr)?.label ||
-                  (tagsLoading ? "جاري التحميل..." : "اختر الوسم (اختياري)")}
-              </span>
-              <span className="text-gray-400">▾</span>
-            </button>
-          }
-          dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
-          position="bottom-left"
-        >
-          {tagsLoading ? (
-            <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm text-gray-500">
-              جاري التحميل...
-            </div>
-          ) : tagOptionsAr.length === 0 ? (
-            <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm text-gray-500">
-              لا توجد وسوم
-            </div>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  onFieldChange("tagAr", "");
-                  setOpenTagAr(false);
-                }}
-                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
-              >
-                اختر الوسم (اختياري)
-              </button>
-              {tagOptionsAr.map((opt) => (
+        {/* Tag (ENG / AR) - combined from DB */}
+        <FormField label="Tag (ENG / AR)" name="tag" error={fieldErrors.tag}>
+          <AnimatedDropdown
+            isOpen={openTag}
+            onClose={() => setOpenTag(false)}
+            trigger={
+              <SelectTrigger
+                value={formData.tag}
+                placeholder={
+                  tagsLoading ? "Loading..." : "Select tag (optional)"
+                }
+                displayValue={(() => {
+                  const opt = tagOptions.find((o) => o.value === formData.tag);
+                  if (!opt) return "";
+                  return `${opt.en} / ${opt.ar}`;
+                })()}
+                onClick={() => setOpenTag(!openTag)}
+              />
+            }
+            dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+            position="bottom-left"
+          >
+            {tagsLoading ? (
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                Loading tags...
+              </div>
+            ) : tagOptions.length === 0 ? (
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                No tags found
+              </div>
+            ) : (
+              <>
                 <button
-                  key={opt.value}
                   type="button"
                   onClick={() => {
-                    onFieldChange("tagAr", opt.value);
-                    setOpenTagAr(false);
+                    onFieldChange("tag", "");
+                    onFieldChange("tagAr", "");
+                    setOpenTag(false);
                   }}
-                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
                 >
-                  {opt.label}
+                  Select tag (optional)
                 </button>
-              ))}
-            </>
-          )}
-        </AnimatedDropdown>
-      </FormField>
+                {tagOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onFieldChange("tag", opt.en);
+                      onFieldChange("tagAr", opt.ar);
+                      setOpenTag(false);
+                    }}
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                  >
+                    <span>{opt.en} / </span>
+                    <span>{opt.ar}</span>
+                  </button>
+                ))}
+              </>
+            )}
+          </AnimatedDropdown>
+        </FormField>
+
+        {/* Colors */}
+        <FormField
+          label="Colors"
+          name="colors"
+          required
+          error={fieldErrors.color}
+        >
+          <AnimatedDropdown
+            isOpen={openColors}
+            onClose={() => setOpenColors(false)}
+            trigger={
+              <button
+                type="button"
+                onClick={() => setOpenColors(!openColors)}
+                className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent min-h-7 flex items-center hover:cursor-pointer"
+              >
+                {selectedColors.length === 0 ? (
+                  <span className="text-[10px] sm:text-xs text-black/60 leading-none">
+                    Select colors
+                  </span>
+                ) : (
+                  <div className="flex flex-wrap gap-1 sm:gap-1.5 items-center">
+                    {COLOR_OPTIONS.filter((c) =>
+                      selectedColors.includes(c.value),
+                    ).map((c) => (
+                      <span
+                        key={c.value}
+                        className="inline-flex items-center justify-center"
+                        title={c.en}
+                      >
+                        <span
+                          className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border border-gray-200 shrink-0"
+                          style={{ background: c.hex }}
+                        />
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </button>
+            }
+            dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 p-1.5 sm:p-3 max-h-60 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-400 [&::-webkit-scrollbar-thumb]:rounded-full"
+            position="bottom-left"
+          >
+            <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2 sm:gap-1">
+              {COLOR_OPTIONS.map((opt) => {
+                const selected = selectedColors.includes(opt.value);
+                return (
+                  <label
+                    key={opt.value}
+                    className="flex items-center gap-1 sm:gap-1.5 cursor-pointer px-1 py-0.5 hover:bg-gray-50 rounded hover:cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleColor(opt.value)}
+                      className="accent-black w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 hover:cursor-pointer"
+                    />
+                    <span className="inline-flex items-center gap-1 sm:gap-1.5 min-w-0">
+                      <span
+                        className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full border border-gray-200 shrink-0"
+                        style={{ background: opt.hex }}
+                      />
+                      <span className="text-[8px] sm:text-[10px] lg:text-xs truncate hover:cursor-pointer">
+                        {opt.en} / {opt.ar}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </AnimatedDropdown>
+        </FormField>
+      </div>
 
       {/* Price & Stock */}
       <div className="md:col-span-2">
@@ -621,6 +489,20 @@ export default function FabricAdminFormFields({
             />
           </FormField>
         </div>
+      </div>
+
+      {/* Store Partner */}
+      <div className="md:col-span-2">
+        <StorePartnerPicker
+          value={formData.listedByStore}
+          onChange={(partnerId) => onFieldChange("listedByStore", partnerId)}
+          error={fieldErrors.listedByStore}
+          label="Store Partner"
+          placeholder="Select store partner"
+          loadingLabel="Loading..."
+          emptyLabel="No partners found"
+          required
+        />
       </div>
 
       {/* Pickup Address */}
