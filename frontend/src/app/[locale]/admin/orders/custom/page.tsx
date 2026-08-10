@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import { RefreshCw, Loader2, Search, PackageSearch } from "lucide-react";
 import StatusBadge from "@/components/admin/StatusBadge";
 import AdminOrdersTabs from "@/components/admin/AdminOrdersTabs";
+import { TableSkeleton } from "@/components/ui/Skeleton";
 import {
   formatOrderDate,
   getNextCustomOrderStatus,
@@ -344,7 +345,7 @@ export default function AdminCustomOrdersPage() {
     return (
       <div className="space-y-6">
         <AdminOrdersTabs />
-        <div className="p-6 text-gray-500">{t("loading")}</div>
+        <TableSkeleton rows={6} cols={5} className="rounded-xl" />
       </div>
     );
   }

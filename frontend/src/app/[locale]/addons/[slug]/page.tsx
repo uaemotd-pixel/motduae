@@ -10,6 +10,7 @@ import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { resolveMediaUrl } from "@/lib/media";
 import ZoomImageEffect from "@/components/shared/ZoomImageEffect";
+import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
   new: { bg: "#2D5A3D", text: "#FFFFFF" },
@@ -120,14 +121,7 @@ export default function AddonDetailPage() {
   if (loading) {
     return (
       <MainLayout>
-        <div className="min-h-screen bg-(--bg-page) flex items-center justify-center px-4">
-          <div className="text-center">
-            <div className="w-12 h-12 border-2 border-black/20 border-t-black rounded-full animate-spin mx-auto mb-4" />
-            <p className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] tracking-[0.24em] uppercase text-(--color-grey-muted)">
-              {isAr ? "جاري التحميل..." : "Loading product..."}
-            </p>
-          </div>
-        </div>
+        <DetailPageSkeleton />
       </MainLayout>
     );
   }

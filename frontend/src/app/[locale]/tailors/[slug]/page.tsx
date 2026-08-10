@@ -9,6 +9,7 @@ import type { TailorDesignListItem, TailorShopDetailItem } from "@/lib/tailors";
 import MainLayout from "../../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 import TailorDetailView from "@/components/tailor/TailorDetailView";
+import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 
 export default function TailorShopDetailPage() {
     const params = useParams();
@@ -59,11 +60,7 @@ export default function TailorShopDetailPage() {
     if (loading) {
         return (
             <MainLayout>
-                <div className="min-h-[50vh] flex items-center justify-center">
-                    <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em]">
-                        {t("loading")}
-                    </p>
-                </div>
+                <DetailPageSkeleton />
             </MainLayout>
         );
     }

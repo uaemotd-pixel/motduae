@@ -18,6 +18,7 @@ import {
 } from "@/lib/customOrders";
 import type { Locale } from "@/i18n/routing";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
+import { TableSkeleton } from "@/components/ui/Skeleton";
 
 interface OrderUser {
   _id: string;
@@ -237,7 +238,7 @@ export default function AdminCustomOrdersPage() {
     return (
       <div className="space-y-6">
         <SubAdminOrdersTabs />
-        <div className="p-6 text-gray-500">{t("loading")}</div>
+        <TableSkeleton rows={6} cols={5} className="rounded-xl" />
       </div>
     );
   }

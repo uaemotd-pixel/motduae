@@ -6,6 +6,7 @@ import { Edit, Trash2, Search, RefreshCw, Users, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { Link } from "@/i18n/navigation";
 import GlobalPagination from "@/components/shared/GlobalPagination";
+import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 
 interface SubAdmin {
   _id: string;
@@ -126,23 +127,12 @@ export default function SubAdminPage() {
 
   if (loading && subs.length === 0) {
     return (
-      <div className="space-y-6 animate-pulse">
+      <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <div className="h-8 w-48 bg-gray-200 rounded" />
-          <div className="h-10 w-28 bg-gray-200 rounded-lg" />
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-28 rounded-lg" />
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="p-4 border-b border-gray-100">
-              <div className="grid grid-cols-4 gap-4">
-                <div className="h-4 bg-gray-200 rounded" />
-                <div className="h-4 bg-gray-200 rounded" />
-                <div className="h-4 bg-gray-200 rounded" />
-                <div className="h-4 bg-gray-200 rounded" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <TableSkeleton rows={5} cols={4} className="rounded-2xl" />
       </div>
     );
   }

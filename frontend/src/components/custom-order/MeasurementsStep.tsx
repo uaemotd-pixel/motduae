@@ -20,6 +20,7 @@ import {
   getMeasurementLetter,
 } from "@/lib/measurementDiagramLabels";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
+import { CustomOrderStepSkeleton } from "@/components/ui/Skeleton";
 import MeasurementBodyDiagram from "@/components/custom-order/measurement-diagram/MeasurementBodyDiagram";
 import MeasurementNeckDiagram from "@/components/custom-order/measurement-diagram/MeasurementNeckDiagram";
 import MeasurementSleeveDiagram from "@/components/custom-order/measurement-diagram/MeasurementSleeveDiagram";
@@ -338,13 +339,7 @@ export default function MeasurementsStep() {
     !authChecked ||
     isHydratingCustomerMeasurements
   ) {
-    return (
-      <div className="min-h-[40vh] flex items-center justify-center">
-        <p className="font-ui text-sm uppercase tracking-[0.2em] text-gray-400">
-          {t("loading")}
-        </p>
-      </div>
-    );
+    return <CustomOrderStepSkeleton />;
   }
 
   return (

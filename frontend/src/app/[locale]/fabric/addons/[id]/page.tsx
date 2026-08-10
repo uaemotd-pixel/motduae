@@ -7,6 +7,7 @@ import FormField from "@/components/admin/FormField";
 import ImageUpload from "@/components/admin/ImageUpload";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
+import { FormPageSkeleton } from "@/components/ui/Skeleton";
 
 interface AddOnFormData {
   name: string;
@@ -186,12 +187,7 @@ export default function FabricEditAddOnPage() {
   }));
 
   if (loading) {
-    return (
-      <div className="max-w-5xl mx-auto py-12 text-center bg-white border border-gray-100 rounded-2xl shadow-sm">
-        <div className="animate-spin w-8 h-8 border-2 border-black border-t-transparent rounded-full mx-auto mb-4" />
-        <p className="text-gray-500 text-sm">Loading addon details...</p>
-      </div>
-    );
+    return <FormPageSkeleton fields={8} />;
   }
 
   return (

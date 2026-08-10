@@ -9,6 +9,7 @@ import { api } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
 import { Share2 } from "lucide-react";
 import WishlistButton from "../shared/wishlistButton";
+import { HomeSectionSkeleton } from "@/components/ui/Skeleton";
 
 interface AddOnListItem {
   _id: string;
@@ -186,10 +187,11 @@ export function AddOnsSection() {
 
   if (loading) {
     return (
-      <section className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80)">
-        <div className="text-center [font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
-          {isAr ? "جاري التحميل..." : "Loading Add-Ons..."}
-        </div>
+      <section
+        className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16"
+        id="addons-section"
+      >
+        <HomeSectionSkeleton showFilters={false} cardCount={4} />
       </section>
     );
   }

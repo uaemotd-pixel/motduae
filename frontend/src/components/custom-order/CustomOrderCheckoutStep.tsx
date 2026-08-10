@@ -18,6 +18,7 @@ import {
 import { formatCurrency } from "@/lib/format";
 import CustomOrderJourneyRibbon from "@/components/custom-order/CustomOrderJourneyRibbon";
 import ApplePayCheckout from "@/components/payments/ApplePayCheckout";
+import { FormPageSkeleton } from "@/components/ui/Skeleton";
 import CardPaymentForm from "@/components/payments/CardPaymentForm";
 import SuccessModal from "@/components/shared/SuccessModal";
 import toast from "react-hot-toast";
@@ -577,13 +578,7 @@ const handleFieldChange = (field: FormField, value: string) => {
     profileLoading ||
     shopLoading
   ) {
-    return (
-      <div className="min-h-[40vh] flex items-center justify-center">
-        <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
-          {t("loading")}
-        </p>
-      </div>
-    );
+    return <FormPageSkeleton fields={8} />;
   }
 
   if (!previewPayload && !showSuccess) {

@@ -27,6 +27,7 @@ import { resolveFabricImage } from "@/lib/fabrics";
 import { resolveReadyMadeImage } from "@/lib/readyMade";
 import { useMemo } from "react";
 import { ImageModal } from "@/components/shared/ImageModal";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 type ReturnDraft = {
   condition: string;
@@ -514,8 +515,20 @@ export default function CustomOrdersTab({
 
   if (loading) {
     return (
-      <div className="flex justify-center py-16">
-        <div className="w-8 h-8 border-2 border-gray-300 border-t-black rounded-full animate-spin" />
+      <div className="space-y-3 py-4" role="status" aria-label="Loading">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="border border-(--color-border) bg-white p-4 space-y-3"
+          >
+            <div className="flex justify-between gap-3">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-2/3" />
+          </div>
+        ))}
       </div>
     );
   }

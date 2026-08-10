@@ -11,11 +11,11 @@ import {
   Edit,
   Trash2,
   UserPlus,
-  Loader2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
+import { AccountPanelSkeleton } from "@/components/ui/Skeleton";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type Relationship =
@@ -125,11 +125,7 @@ export default function FamilyMembersPage() {
   });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
-      </div>
-    );
+    return <AccountPanelSkeleton />;
   }
 
   if (addingMember) {

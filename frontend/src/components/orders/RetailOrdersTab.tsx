@@ -13,6 +13,7 @@ import {
 } from "@/lib/customOrders";
 import { resolveReadyMadeImage } from "@/lib/readyMade";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 type RetailOrdersTabProps = {
   locale: Locale;
@@ -66,9 +67,21 @@ export default function RetailOrdersTab({
 
   if (loading) {
     return (
-      <p className="[font-family:var(--font-ui)] text-xs sm:text-sm uppercase tracking-[0.18em] sm:tracking-[0.2em] text-center py-12 sm:py-16 text-(--color-grey-muted)">
-        {t("loading")}
-      </p>
+      <div className="space-y-3 py-4" role="status" aria-label="Loading">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="border border-(--color-border) bg-white p-4 space-y-3"
+          >
+            <div className="flex justify-between gap-3">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-2/3" />
+          </div>
+        ))}
+      </div>
     );
   }
 

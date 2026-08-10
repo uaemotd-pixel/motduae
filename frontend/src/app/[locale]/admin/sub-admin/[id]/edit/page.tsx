@@ -6,6 +6,7 @@ import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
+import { FormPageSkeleton } from "@/components/ui/Skeleton";
 
 type PermKey =
   | "customers"
@@ -172,7 +173,7 @@ export default function EditSubAdminPage() {
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  if (loading) return <FormPageSkeleton fields={8} />;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">

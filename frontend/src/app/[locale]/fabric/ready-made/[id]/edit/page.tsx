@@ -13,6 +13,7 @@ import {
 } from "@/lib/readyMadeAdmin";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
+import { FormPageSkeleton } from "@/components/ui/Skeleton";
 import colors from "@/components/shared/colors";
 
 const COLOR_OPTIONS = colors;
@@ -259,14 +260,7 @@ export default function EditReadyMadePage() {
   };
 
   if (loading || !formData) {
-    return (
-      <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-0">
-        <div className="animate-pulse">
-          <div className="h-6 sm:h-8 w-32 sm:w-48 bg-gray-200 rounded mb-4"></div>
-          <div className="bg-white rounded-2xl p-4 sm:p-6 h-96 border border-gray-100"></div>
-        </div>
-      </div>
-    );
+    return <FormPageSkeleton fields={8} />;
   }
 
   return (

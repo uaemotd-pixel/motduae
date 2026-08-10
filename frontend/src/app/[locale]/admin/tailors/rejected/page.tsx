@@ -15,6 +15,7 @@ import {
   User,
   FileText,
 } from "lucide-react";
+import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 
 // ---------- Types ----------
 interface RejectedUser {
@@ -180,20 +181,8 @@ export default function RejectedTailorsPage() {
   if (loading) {
     return (
       <div className="space-y-4 sm:space-y-6 px-3 sm:px-0">
-        <div className="animate-pulse">
-          <div className="h-6 sm:h-8 w-32 sm:w-48 bg-gray-200 rounded" />
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mt-4 sm:mt-6 overflow-hidden">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="p-3 sm:p-4 border-b border-gray-100">
-                <div className="grid grid-cols-4 sm:grid-cols-5 gap-4">
-                  {[...Array(5)].map((_, j) => (
-                    <div key={j} className="h-3 sm:h-4 bg-gray-200 rounded" />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Skeleton className="h-6 sm:h-8 w-32 sm:w-48" />
+        <TableSkeleton rows={5} cols={5} className="rounded-2xl" />
       </div>
     );
   }
