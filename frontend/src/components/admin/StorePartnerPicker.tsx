@@ -38,10 +38,18 @@ export default function StorePartnerPicker({
     const fetchPartners = async () => {
       try {
         setLoading(true);
-        const data = await api.get<FabricStorePartner[]>(
-          "/api/admin/partners/fabric-stores",
+        const data = await api.get<{ items: FabricStorePartner[] }>(
+          "/api/admin/partners",
         );
-        setPartners(data);
+        // The /api/admin/partners endpoint returns items with { id, name, email, shopName, ... }
+        // Map to FabricStorePartner interface expected by the picker
+        setPartners(
+          (data.items || []).map((p: any) => ({
+            _id: p.id || p._id,
+            name: p.name || "",
+            email: p.email || "",
+          })),
+        );
         setLoadError(null);
       } catch (err) {
         setLoadError(getApiErrorMessage(err, emptyLabel));
@@ -64,11 +72,17 @@ export default function StorePartnerPicker({
         onChange={(e) => onChange(e.target.value)}
         disabled={loading || partners.length === 0}
         className={`w-full py-1 border-b focus:outline-none ${
-          error ? "border-red-500 focus:border-red-500" : "border-gray-300 focus:border-black"
+          error
+            ? "border-red-500 focus:border-red-500"
+            : "border-gray-300 focus:border-black"
         }`}
       >
         <option value="">
-          {loading ? loadingLabel : partners.length === 0 ? emptyLabel : placeholder}
+          {loading
+            ? loadingLabel
+            : partners.length === 0
+              ? emptyLabel
+              : placeholder}
         </option>
         {partners.map((partner) => (
           <option key={partner._id} value={partner._id}>

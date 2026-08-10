@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
@@ -13,8 +15,11 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  Loader2,
+  MoreVertical,
   Image as ImageIcon,
+  Mail,
+  Calendar,
+  User,
 } from "lucide-react";
 import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
@@ -61,13 +66,13 @@ function ToggleModal({
           <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:cursor-pointer transition"
+              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer"
             >
               {cancelLabel}
             </button>
             <button
               onClick={onConfirm}
-              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 hover:cursor-pointer transition"
+              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 transition hover:cursor-pointer"
             >
               {confirmLabel}
             </button>
@@ -140,13 +145,13 @@ function ApprovalModal({
           <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:cursor-pointer transition"
+              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer"
             >
               {cancelLabel}
             </button>
             <button
               onClick={onConfirm}
-              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 hover:cursor-pointer transition"
+              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 transition hover:cursor-pointer"
             >
               {confirmLabel}
             </button>
@@ -207,6 +212,9 @@ type TailorRow = {
 };
 
 export default function AdminTailorsPage() {
+  const params = useParams();
+  const localeParam = params.locale as string;
+
   const [rows, setRows] = useState<TailorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -241,11 +249,90 @@ export default function AdminTailorsPage() {
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
 
+  // 3-dot menu state
+  const [menuItem, setMenuItem] = useState<TailorRow | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   // pop up image function
   const handleImageClick = (imageUrl: string) => {
     setSelectedImage(imageUrl);
     setImageModalOpen(true);
   };
+
+  // ---------- 3-dot menu ----------
+  const closeMenu = () => {
+    setMenuPosition(null);
+    setMenuItem(null);
+    setMenuAnchor(null);
+  };
+
+  const handleMenuOpen = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    row: TailorRow,
+  ) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuAnchor(e.currentTarget);
+    setMenuPosition({
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right,
+    });
+    setMenuItem(row);
+  };
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        closeMenu();
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuPosition]);
+
+  // Close menu on escape
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeMenu();
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => document.removeEventListener("keydown", handleEscape);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuPosition]);
+
+  // Reposition menu on scroll/resize
+  useEffect(() => {
+    function updateMenuPosition() {
+      if (menuAnchor && menuPosition) {
+        const rect = menuAnchor.getBoundingClientRect();
+        setMenuPosition({
+          top: rect.bottom + 8,
+          right: window.innerWidth - rect.right,
+        });
+      }
+    }
+
+    if (menuPosition) {
+      window.addEventListener("scroll", updateMenuPosition, true);
+      window.addEventListener("resize", updateMenuPosition);
+      return () => {
+        window.removeEventListener("scroll", updateMenuPosition, true);
+        window.removeEventListener("resize", updateMenuPosition);
+      };
+    }
+  }, [menuPosition, menuAnchor]);
 
   // ---------- Data fetching ----------
   const fetchData = async () => {
@@ -519,12 +606,14 @@ export default function AdminTailorsPage() {
     setCurrentPage(1);
   };
 
-  const formatDate = (date: string) =>
-    new Date(date).toLocaleDateString("en-US", {
+  const formatDate = (date: string) => {
+    const d = new Date(date);
+    return d.toLocaleDateString(localeParam === "ar" ? "ar-AE" : "en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
+  };
 
   const getAvatar = (row: TailorRow) => {
     const imageUrl = row.logo || row.profilePic;
@@ -533,14 +622,14 @@ export default function AdminTailorsPage() {
         <img
           src={imageUrl}
           alt={row.name}
-          className="w-9 h-9 rounded-full object-cover hover:cursor-pointer"
+          className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover hover:cursor-pointer shrink-0"
           onClick={() => handleImageClick(imageUrl)}
         />
       );
     }
     return (
-      <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
-        <Users className="w-5 h-5 text-gray-400" />
+      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+        <User className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
       </div>
     );
   };
@@ -548,26 +637,26 @@ export default function AdminTailorsPage() {
   // ---------- Loading / Error ----------
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6 px-3 sm:px-0">
         <div className="animate-pulse">
-          <div className="h-8 w-48 bg-gray-200 rounded" />
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-6">
+          <div className="h-6 sm:h-8 w-32 sm:w-48 bg-gray-200 rounded" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6">
             {[...Array(4)].map((_, i) => (
               <div
                 key={i}
-                className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+                className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100"
               >
-                <div className="h-4 w-24 bg-gray-200 rounded mb-2" />
-                <div className="h-7 w-16 bg-gray-200 rounded" />
+                <div className="h-3 sm:h-4 w-16 sm:w-24 bg-gray-200 rounded mb-2" />
+                <div className="h-5 sm:h-7 w-12 sm:w-16 bg-gray-200 rounded" />
               </div>
             ))}
           </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mt-6 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mt-4 sm:mt-6 overflow-hidden">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="p-4 border-b border-gray-100">
-                <div className="grid grid-cols-7 gap-4">
-                  {[...Array(7)].map((_, j) => (
-                    <div key={j} className="h-4 bg-gray-200 rounded" />
+              <div key={i} className="p-3 sm:p-4 border-b border-gray-100">
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-4">
+                  {[...Array(6)].map((_, j) => (
+                    <div key={j} className="h-3 sm:h-4 bg-gray-200 rounded" />
                   ))}
                 </div>
               </div>
@@ -580,13 +669,13 @@ export default function AdminTailorsPage() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-md">
-          <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-          <p className="font-normal text-xl text-black">
+      <div className="flex items-center justify-center h-full px-3 sm:px-0">
+        <div className="text-center bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-gray-100 max-w-md">
+          <AlertCircle className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 text-gray-400" />
+          <p className="font-normal text-lg sm:text-xl text-black">
             Failed to load tailors
           </p>
-          <p className="text-gray-500 mt-2 text-sm">{error}</p>
+          <p className="text-gray-500 mt-2 text-xs sm:text-sm">{error}</p>
           <button
             onClick={fetchData}
             className="mt-6 px-6 py-2 bg-black text-white rounded-full hover:bg-black/80 transition text-sm hover:cursor-pointer"
@@ -600,7 +689,7 @@ export default function AdminTailorsPage() {
 
   // ---------- Main Render ----------
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 px-3 sm:px-0">
       {/* Modals */}
       <ToggleModal
         isOpen={toggleModalOpen}
@@ -641,47 +730,51 @@ export default function AdminTailorsPage() {
       />
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
             Tailors
           </h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-gray-500 text-xs sm:text-sm mt-1">
             Manage all tailors – pending approvals and active shops.
           </p>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-          <p className="text-xs text-gray-400 uppercase tracking-wider">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
+          <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider">
             Total
           </p>
-          <p className="text-2xl font-light text-black mt-1">{stats.total}</p>
+          <p className="text-xl sm:text-2xl font-light text-black mt-1">
+            {stats.total}
+          </p>
         </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-          <p className="text-xs text-gray-400 uppercase tracking-wider">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
+          <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider">
             Approved
           </p>
-          <p className="text-2xl font-light text-black mt-1">
+          <p className="text-xl sm:text-2xl font-light text-black mt-1">
             {stats.approved}
           </p>
         </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-          <p className="text-xs text-gray-400 uppercase tracking-wider">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
+          <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider">
             Pending
           </p>
-          <p className="text-2xl font-light text-black mt-1">{stats.pending}</p>
+          <p className="text-xl sm:text-2xl font-light text-black mt-1">
+            {stats.pending}
+          </p>
         </div>
         <Link
           href={`/admin/tailors/rejected`}
-          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+          className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100"
         >
-          <p className="text-xs text-gray-400 uppercase tracking-wider">
+          <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider">
             Rejected
           </p>
-          <p className="text-2xl font-light text-black mt-1">
+          <p className="text-xl sm:text-2xl font-light text-black mt-1">
             {stats.rejected}
           </p>
         </Link>
@@ -690,219 +783,248 @@ export default function AdminTailorsPage() {
       {/* Search + Refresh */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
           <input
             type="text"
             placeholder="Search by name, email, or shop name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
+            className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
           />
         </div>
         <button
           onClick={fetchData}
-          className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer"
+          className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0"
         >
-          <RefreshCw className="w-4 h-4" /> Refresh
+          <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+          <span className="hidden xs:inline">Refresh</span>
         </button>
       </div>
 
       {totalItems === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
-          <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-          <p className="text-gray-500">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sm:p-12 text-center">
+          <Users className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 text-gray-300" />
+          <p className="text-gray-500 text-sm sm:text-base">
             {searchTerm ? "No tailors match your search." : "No tailors found."}
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Shop
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Joined
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {paginatedRows.map((row) => {
-                  const isPending = row.type === "pending";
-                  const isRejected = row.type === "rejected";
-                  const busy = actionInProgress === row.id;
+        <>
+          {/* Desktop Table */}
+          <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Email
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Shop
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Joined
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {paginatedRows.map((row) => {
+                    const isPending = row.type === "pending";
+                    const isRejected = row.type === "rejected";
+                    const busy = actionInProgress === row.id;
 
-                  let statusBadge;
-                  if (isPending) {
-                    statusBadge = (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        <Clock className="w-3 h-3 mr-1" />
-                        Pending
-                      </span>
-                    );
-                  } else if (isRejected) {
-                    statusBadge = (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        Rejected
-                      </span>
-                    );
-                  } else {
-                    statusBadge = (
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          row.isActive
-                            ? "bg-black text-white"
-                            : "bg-gray-200 text-black"
-                        }`}
-                      >
-                        {row.isActive ? "Active" : "Inactive"}
-                      </span>
-                    );
-                  }
+                    let statusBadge;
+                    if (isPending) {
+                      statusBadge = (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-yellow-100 text-yellow-800">
+                          <Clock className="w-3 h-3 mr-1" />
+                          Pending
+                        </span>
+                      );
+                    } else if (isRejected) {
+                      statusBadge = (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-red-100 text-red-800">
+                          Rejected
+                        </span>
+                      );
+                    } else {
+                      statusBadge = (
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
+                            row.isActive
+                              ? "bg-white text-black border border-black/30"
+                              : "bg-gray-100 text-gray-500 border border-gray-200"
+                          }`}
+                        >
+                          {row.isActive ? "Active" : "Inactive"}
+                        </span>
+                      );
+                    }
 
-                  let actions;
-                  if (isPending) {
-                    actions = (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() =>
-                            openApprovalModal("approve", row.id, row.name)
-                          }
-                          disabled={busy}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition disabled:opacity-50 hover:cursor-pointer"
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          Approve
-                        </button>
-                        <button
-                          onClick={() =>
-                            openApprovalModal("reject", row.id, row.name)
-                          }
-                          disabled={busy}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition disabled:opacity-50 hover:cursor-pointer"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          Reject
-                        </button>
-                      </div>
-                    );
-                  } else if (isRejected) {
-                    actions = (
+                    const actions = isRejected ? (
                       <span className="text-xs text-gray-400 italic">
                         No actions
                       </span>
-                    );
-                  } else {
-                    actions = (
+                    ) : (
                       <button
-                        onClick={() =>
-                          openToggleModal(
-                            row.id,
-                            row.shopName || "Shop",
-                            row.isActive || false,
-                          )
-                        }
-                        disabled={busy || !row.shopName}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition disabled:opacity-50 hover:cursor-pointer ${
-                          row.isActive
-                            ? "bg-red-600 hover:bg-red-700"
-                            : "bg-green-600 hover:bg-green-700"
-                        } ${!row.shopName ? "opacity-50 cursor-not-allowed" : ""}`}
+                        onClick={(e) => handleMenuOpen(e, row)}
+                        disabled={busy}
+                        className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer disabled:opacity-50"
+                        title="Actions"
                       >
-                        {busy ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            Toggling...
-                          </>
-                        ) : row.isActive ? (
-                          "Deactivate"
-                        ) : (
-                          "Reactivate"
-                        )}
+                        <MoreVertical className="w-5 h-5" />
                       </button>
                     );
-                  }
 
-                  return (
-                    <tr
-                      key={row.id}
-                      className="group hover:bg-gray-50 transition-all duration-200"
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          {getAvatar(row)}
-                          <span className="text-sm font-medium text-black">
-                            {row.name || "—"}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {row.email}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            isPending
-                              ? "bg-yellow-100 text-yellow-800"
-                              : isRejected
-                                ? "bg-red-100 text-red-800"
-                                : "bg-green-100 text-green-800"
-                          }`}
-                        >
-                          {isPending
-                            ? "Pending"
-                            : isRejected
-                              ? "Rejected"
-                              : "Approved"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {isPending ? (
-                          <div>
-                            {row.address && (
-                              <div className="text-xs text-gray-400">
-                                {row.address}
-                              </div>
-                            )}
-                            {!row.address && "—"}
+                    return (
+                      <tr
+                        key={row.id}
+                        className="group hover:bg-gray-50 transition-all duration-200"
+                      >
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            {getAvatar(row)}
+                            <span className="text-xs sm:text-sm font-medium text-black">
+                              {row.name || "—"}
+                            </span>
                           </div>
-                        ) : isRejected ? (
-                          "—"
-                        ) : (
-                          row.shopName || "No shop yet"
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {formatDate(row.createdAt)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {statusBadge}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">{actions}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
+                          {row.email}
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
+                          {isPending ? (
+                            <div>
+                              {row.address && (
+                                <div className="text-xs text-gray-400">
+                                  {row.address}
+                                </div>
+                              )}
+                              {!row.address && "—"}
+                            </div>
+                          ) : isRejected ? (
+                            "—"
+                          ) : (
+                            row.shopName || "No shop yet"
+                          )}
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                          {formatDate(row.createdAt)}
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                          {statusBadge}
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right">
+                          {actions}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-3 sm:space-y-4">
+            {paginatedRows.map((row) => {
+              const isPending = row.type === "pending";
+              const isRejected = row.type === "rejected";
+              const busy = actionInProgress === row.id;
+
+              let statusBadge;
+              if (isPending) {
+                statusBadge = (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-100 text-yellow-800">
+                    <Clock className="w-3 h-3 mr-1" />
+                    Pending
+                  </span>
+                );
+              } else if (isRejected) {
+                statusBadge = (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-800">
+                    Rejected
+                  </span>
+                );
+              } else {
+                statusBadge = (
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                      row.isActive
+                        ? "bg-white text-black border border-black/30"
+                        : "bg-gray-100 text-gray-500 border border-gray-200"
+                    }`}
+                  >
+                    {row.isActive ? "Active" : "Inactive"}
+                  </span>
+                );
+              }
+
+              const actions = isRejected ? null : (
+                <button
+                  onClick={(e) => handleMenuOpen(e, row)}
+                  disabled={busy}
+                  className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer disabled:opacity-50 shrink-0"
+                  title="Actions"
+                >
+                  <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+              );
+
+              return (
+                <div
+                  key={row.id}
+                  className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      {getAvatar(row)}
+                      <div className="min-w-0">
+                        <h3 className="text-xs sm:text-sm font-medium text-black truncate">
+                          {row.name || "—"}
+                        </h3>
+                        <div className="mt-1">{statusBadge}</div>
+                      </div>
+                    </div>
+                    {actions}
+                  </div>
+
+                  <div className="mt-2 sm:mt-3 space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 min-w-0">
+                      <Mail className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                      <span className="truncate">{row.email}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 min-w-0">
+                      <Users className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                      <span className="truncate">
+                        {isPending
+                          ? row.address || "—"
+                          : isRejected
+                            ? "—"
+                            : row.shopName || "No shop yet"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
+                      <Calendar className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                      <span className="text-xs sm:text-sm">
+                        Joined {formatDate(row.createdAt)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
       {totalItems > 0 && (
         <GlobalPagination
@@ -916,6 +1038,86 @@ export default function AdminTailorsPage() {
           totalItems={totalItems}
         />
       )}
+
+      {/* Floating Menu Portal */}
+      {menuPosition &&
+        menuItem &&
+        createPortal(
+          <AnimatePresence>
+            <motion.div
+              ref={menuRef}
+              style={{
+                position: "fixed",
+                top: menuPosition.top,
+                right: menuPosition.right,
+                zIndex: 50,
+              }}
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="w-fit min-w-30 sm:min-w-35 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"
+            >
+              {menuItem.type === "pending" && (
+                <>
+                  <button
+                    onClick={() => {
+                      closeMenu();
+                      openApprovalModal("approve", menuItem.id, menuItem.name);
+                    }}
+                    className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-green-700 hover:bg-green-100 transition-colors text-left hover:cursor-pointer whitespace-nowrap"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    <span>Approve</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      closeMenu();
+                      openApprovalModal("reject", menuItem.id, menuItem.name);
+                    }}
+                    className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-red-600 hover:bg-red-100 transition-colors text-left hover:cursor-pointer whitespace-nowrap"
+                  >
+                    <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    <span>Reject</span>
+                  </button>
+                </>
+              )}
+              {menuItem.type === "approved" && (
+                <button
+                  onClick={() => {
+                    closeMenu();
+                    if (menuItem.shopName) {
+                      openToggleModal(
+                        menuItem.id,
+                        menuItem.shopName || "Shop",
+                        menuItem.isActive || false,
+                      );
+                    }
+                  }}
+                  disabled={!menuItem.shopName}
+                  className={`w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors text-left hover:cursor-pointer whitespace-nowrap ${
+                    menuItem.isActive
+                      ? "text-red-600 hover:bg-red-100"
+                      : "text-green-700 hover:bg-green-100"
+                  } ${!menuItem.shopName ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  {menuItem.isActive ? (
+                    <>
+                      <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                      <span>Deactivate</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                      <span>Reactivate</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </motion.div>
+          </AnimatePresence>,
+          document.body,
+        )}
 
       <ImageModal
         isOpen={imageModalOpen}
