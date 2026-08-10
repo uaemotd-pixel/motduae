@@ -18,6 +18,7 @@ import {
   UserRoundPlus,
 } from "lucide-react";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
+import { DashboardPanelSkeleton } from "@/components/ui/Skeleton";
 
 export default function AdminLayout({
   children,
@@ -53,8 +54,8 @@ export default function AdminLayout({
   // ===================== LOADING STATE =====================
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-black text-white">
-        Loading admin panel...
+      <div className="min-h-screen bg-black p-6 sm:p-8">
+        <DashboardPanelSkeleton />
       </div>
     );
   }

@@ -12,6 +12,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import LocaleSwitcher from "@/components/shared/LocaleSwitcher";
+import { DashboardPanelSkeleton } from "@/components/ui/Skeleton";
 
 // Updated interface matching backend response
 interface DashboardStats {
@@ -50,22 +51,7 @@ export default function AdminDashboardPage() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="space-y-8">
-        <div className="animate-pulse">
-          <div className="h-8 w-48 bg-gray-200 rounded mb-4"></div>
-          <div className="h-4 w-64 bg-gray-100 rounded mb-8"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl shadow-sm p-6">
-                <div className="h-4 w-24 bg-gray-200 rounded mb-4"></div>
-                <div className="h-8 w-32 bg-gray-200 rounded"></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return <DashboardPanelSkeleton kpiCount={4} />;
   }
 
   if (error) {

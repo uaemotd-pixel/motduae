@@ -15,6 +15,7 @@ import {
 import WishlistButton from "../shared/wishlistButton";
 import { Share2 } from "lucide-react";
 import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
+import { HomeSectionSkeleton } from "@/components/ui/Skeleton";
 
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
   new: { bg: "#2D5A3D", text: "#FFFFFF" },
@@ -203,10 +204,8 @@ export function ReadyToWearSection() {
 
   if (loading) {
     return (
-      <section className="bg-(--bg-page) py-12">
-        <div className="text-center [font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em]">
-          {t.readyToWear.loading}
-        </div>
+      <section id="ready-made" className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16">
+        <HomeSectionSkeleton showFilters={false} cardCount={4} />
       </section>
     );
   }

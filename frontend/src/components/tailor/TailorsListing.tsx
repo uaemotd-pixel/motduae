@@ -11,6 +11,7 @@ import {
   getTailorDisplayFields,
   resolveTailorImage,
 } from "@/lib/tailors";
+import { ProductGridSkeleton } from "@/components/ui/Skeleton";
 
 export default function TailorsListing() {
   const t = useTranslations("TailorsListing");
@@ -72,11 +73,10 @@ export default function TailorsListing() {
 
       <div className="px-4 sm:px-8 lg:px-12 py-8 sm:py-12 lg:py-16">
         {loading ? (
-          <div className="flex items-center justify-center py-28">
-            <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-[#7A7A72]">
-              {t("loading")}
-            </p>
-          </div>
+          <ProductGridSkeleton
+            count={6}
+            columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+          />
         ) : error ? (
           <div className="flex flex-col items-center justify-center text-center py-28">
             <h2 className="text-[18px] md:text-[22px] uppercase tracking-widest text-black mb-3">

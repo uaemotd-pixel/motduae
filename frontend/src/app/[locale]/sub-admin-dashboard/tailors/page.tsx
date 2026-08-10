@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
+import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 
 // ---------- Modal for Deactivate/Reactivate ----------
 interface ToggleModalProps {
@@ -483,31 +484,13 @@ export default function AdminTailorsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 w-48 bg-gray-200 rounded" />
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-6">
-            {[...Array(4)].map((_, i) => (
-              <div
-                key={i}
-                className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
-              >
-                <div className="h-4 w-24 bg-gray-200 rounded mb-2" />
-                <div className="h-7 w-16 bg-gray-200 rounded" />
-              </div>
-            ))}
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mt-6 overflow-hidden">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="p-4 border-b border-gray-100">
-                <div className="grid grid-cols-6 gap-4">
-                  {[...Array(6)].map((_, j) => (
-                    <div key={j} className="h-4 bg-gray-200 rounded" />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+        <Skeleton className="h-8 w-48" />
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-2xl" />
+          ))}
         </div>
+        <TableSkeleton rows={5} cols={6} className="rounded-2xl" />
       </div>
     );
   }

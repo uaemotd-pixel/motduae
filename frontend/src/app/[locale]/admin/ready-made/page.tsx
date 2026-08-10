@@ -27,6 +27,7 @@ import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { resolveMediaUrl } from "@/lib/media";
+import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 
 interface ReadyMadeItem {
   _id: string;
@@ -308,37 +309,16 @@ export default function AdminReadyMadePage() {
   if (loading && items.length === 0) {
     return (
       <div className="space-y-4 sm:space-y-6 px-3 sm:px-0">
-        <div className="animate-pulse">
-          <div className="flex justify-between items-center mb-4 sm:mb-6">
-            <div className="h-6 sm:h-8 w-32 sm:w-48 bg-gray-200 rounded"></div>
-            <div className="h-8 sm:h-10 w-24 sm:w-28 bg-gray-200 rounded-lg"></div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
-            {[...Array(3)].map((_, i) => (
-              <div
-                key={i}
-                className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100"
-              >
-                <div className="h-3 sm:h-4 w-16 sm:w-24 bg-gray-200 rounded mb-2"></div>
-                <div className="h-5 sm:h-7 w-12 sm:w-16 bg-gray-200 rounded"></div>
-              </div>
-            ))}
-          </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="p-3 sm:p-4 border-b border-gray-100">
-                <div className="grid grid-cols-6 gap-4">
-                  {[...Array(6)].map((_, j) => (
-                    <div
-                      key={j}
-                      className="h-3 sm:h-4 bg-gray-200 rounded"
-                    ></div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-6 sm:h-8 w-32 sm:w-48" />
+          <Skeleton className="h-8 sm:h-10 w-24 sm:w-28 rounded-lg" />
         </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+          {[...Array(3)].map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-2xl" />
+          ))}
+        </div>
+        <TableSkeleton rows={5} cols={6} className="rounded-2xl" />
       </div>
     );
   }

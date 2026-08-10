@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import TailorPendingState from "@/components/tailor/TailorPendingState";
 import TailorRejectedState from "@/components/tailor/TailorRejectedState";
 import TailorPortalShell from "@/components/tailor/TailorPortalShell";
+import { SectionLoadingSkeleton } from "@/components/ui/Skeleton";
 
 export default function TailorLayout({ children }: { children: React.ReactNode }) {
     const t = useTranslations("TailorPortal");
@@ -32,10 +33,8 @@ export default function TailorLayout({ children }: { children: React.ReactNode }
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-[#FDFAF5] flex items-center justify-center">
-                <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
-                    {t("loading")}
-                </p>
+            <div className="min-h-screen bg-[#FDFAF5]">
+                <SectionLoadingSkeleton variant="dashboard" />
             </div>
         );
     }

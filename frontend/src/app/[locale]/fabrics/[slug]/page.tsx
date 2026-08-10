@@ -10,6 +10,7 @@ import FadeInSection from "@/components/shared/fadeInSection";
 import FabricDetailView from "@/components/fabric/FabricDetailView";
 import { Link } from "@/i18n/navigation";
 import colors from "@/components/shared/colors";
+import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 
 export default function FabricDetailPage() {
   const params = useParams();
@@ -86,11 +87,7 @@ export default function FabricDetailPage() {
   if (loading) {
     return (
       <MainLayout>
-        <div className="min-h-[50vh] flex items-center justify-center">
-          <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em]">
-            {t("loading")}
-          </p>
-        </div>
+        <DetailPageSkeleton />
       </MainLayout>
     );
   }

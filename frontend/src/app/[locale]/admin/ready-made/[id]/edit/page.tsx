@@ -15,6 +15,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import colors from "@/components/shared/colors";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
+import { FormPageSkeleton } from "@/components/ui/Skeleton";
 
 const COLOR_OPTIONS = colors;
 
@@ -316,12 +317,7 @@ export default function EditReadyMadePage() {
   );
 
   if (loading) {
-    return (
-      <div className="max-w-5xl mx-auto py-10 text-center">
-        <div className="w-12 h-12 border-2 border-black/20 border-t-black rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-gray-500 text-sm">Loading product...</p>
-      </div>
-    );
+    return <FormPageSkeleton fields={8} />;
   }
 
   if (!formData) {

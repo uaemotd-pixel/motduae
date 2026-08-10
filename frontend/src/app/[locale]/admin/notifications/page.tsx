@@ -36,6 +36,7 @@ import {
   isNotificationAging,
   type NotificationCategory,
 } from "@/lib/notifications";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 function getApiErrMessage(err: unknown, fallback: string) {
   const msg = (err as ApiError)?.message;
@@ -472,8 +473,20 @@ export default function AdminNotificationsPage() {
       </div>
 
       {loading ? (
-        <div className="p-6 text-gray-500 flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" /> {tn("loading")}
+        <div className="space-y-3" role="status" aria-label="Loading">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 space-y-3"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-2/3" />
+            </div>
+          ))}
         </div>
       ) : error ? (
         <div className="p-6 text-red-600">{error}</div>

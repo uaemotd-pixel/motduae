@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import { TableSkeleton } from "@/components/ui/Skeleton";
 
 interface Pattern {
   _id: string;
@@ -260,13 +261,7 @@ export default function AdminSettingsPatternsPage() {
 
       {/* Loading */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="relative">
-            <div className="w-12 h-12 border-2 border-gray-200 rounded-full" />
-            <div className="absolute inset-0 w-12 h-12 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
-          </div>
-          <p className="text-sm text-gray-500 mt-4">Loading patterns...</p>
-        </div>
+        <TableSkeleton rows={6} cols={3} className="rounded-2xl" />
       ) : filteredPatterns.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center py-20">
           <div className="w-20 h-20 bg-linear-to-br from-gray-50 to-gray-100 rounded-3xl flex items-center justify-center mb-6 shadow-inner">

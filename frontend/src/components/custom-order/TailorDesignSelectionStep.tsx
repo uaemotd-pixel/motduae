@@ -23,6 +23,7 @@ import {
     resolveDesignImage,
 } from "@/lib/tailors";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
+import { CustomOrderStepSkeleton, ProductGridSkeleton } from "@/components/ui/Skeleton";
 
 export default function TailorDesignSelectionStep() {
     const t = useTranslations("CustomOrderTailor");
@@ -170,13 +171,7 @@ export default function TailorDesignSelectionStep() {
     };
 
     if (!isHydrated) {
-        return (
-            <div className="min-h-[40vh] flex items-center justify-center">
-                <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
-                    {t("loading")}
-                </p>
-            </div>
-        );
+        return <CustomOrderStepSkeleton />;
     }
 
     return (
@@ -269,9 +264,11 @@ export default function TailorDesignSelectionStep() {
             </h2>
 
             {loadingDesigns ? (
-                <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-16">
-                    {t("loadingDesigns")}
-                </p>
+                <ProductGridSkeleton
+                    count={6}
+                    columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+                    className="mb-10"
+                />
             ) : designsError ? (
                 <p className="text-center text-red-600 py-16">{designsError}</p>
             ) : designs.length === 0 ? (

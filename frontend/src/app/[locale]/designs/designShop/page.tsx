@@ -7,6 +7,7 @@ import { api, type ApiError } from "@/lib/api/client";
 import { Share2, ChevronDown, ChevronUp } from "lucide-react";
 import MainLayout from "../../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
+import { ProductGridSkeleton } from "@/components/ui/Skeleton";
 
 import {
   getDesignDisplayFields,
@@ -1090,11 +1091,7 @@ export default function DesignShopCatalogPage() {
 
             <div className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
               {loading ? (
-                <div className="flex items-center justify-center py-28">
-                  <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-[#7A7A72]">
-                    {isAr ? "جاري تحميل التصاميم..." : "Loading designs..."}
-                  </p>
-                </div>
+                <ProductGridSkeleton count={8} />
               ) : fetchError ? (
                 <div className="flex flex-col items-center justify-center text-center py-28">
                   <h3 className="text-[18px] md:text-[22px] uppercase tracking-widest text-black mb-3">

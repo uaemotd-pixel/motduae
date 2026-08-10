@@ -9,6 +9,7 @@ import { api } from "@/lib/api/client";
 import FabricPendingState from "@/components/fabric/FabricPendingState";
 import FabricRejectedState from "@/components/fabric/FabricRejectedState";
 import FabricPortalShell from "@/components/fabric/FabricPortalShell";
+import { SectionLoadingSkeleton } from "@/components/ui/Skeleton";
 
 export default function FabricLayout({
   children,
@@ -60,10 +61,8 @@ export default function FabricLayout({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#FDFAF5] flex items-center justify-center">
-        <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
-          {t("loading")}
-        </p>
+      <div className="min-h-screen bg-[#FDFAF5]">
+        <SectionLoadingSkeleton variant="dashboard" />
       </div>
     );
   }
