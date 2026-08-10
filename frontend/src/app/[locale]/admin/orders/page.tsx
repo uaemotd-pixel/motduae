@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { PageHeaderSkeleton } from "@/components/ui/Skeleton";
