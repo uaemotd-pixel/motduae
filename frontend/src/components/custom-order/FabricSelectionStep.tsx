@@ -25,6 +25,7 @@ import {
     getFabricDisplayFields,
 } from "@/lib/fabrics";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
+import { CustomOrderStepSkeleton, ProductGridSkeleton } from "@/components/ui/Skeleton";
 import { resolveMediaUrl } from "@/lib/media";
 
 export default function FabricSelectionStep() {
@@ -162,13 +163,7 @@ export default function FabricSelectionStep() {
     };
 
     if (!isHydrated) {
-        return (
-            <div className="min-h-[40vh] flex items-center justify-center">
-                <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
-                    {t("loading")}
-                </p>
-            </div>
-        );
+        return <CustomOrderStepSkeleton />;
     }
 
     return (
@@ -272,9 +267,11 @@ export default function FabricSelectionStep() {
                     </div>
 
                     {loading ? (
-                        <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-16">
-                            {t("loadingFabrics")}
-                        </p>
+                        <ProductGridSkeleton
+                            count={6}
+                            columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+                            className="mb-10"
+                        />
                     ) : error ? (
                         <p className="text-center text-red-600 py-16">{error}</p>
                     ) : filteredFabrics.length === 0 ? (

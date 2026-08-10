@@ -24,6 +24,7 @@ import {
 import { resolveMediaUrl } from "@/lib/media";
 import { useRouter, useParams } from "next/navigation";
 import { ImageModal } from "@/components/shared/ImageModal";
+import { AccountPanelSkeleton } from "@/components/ui/Skeleton";
 
 interface ProfileTabProps {
   onEditClick?: () => void;
@@ -173,12 +174,7 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
   }, [authUser]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-12 text-gray-500">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
-        <span className="ml-3">Loading…</span>
-      </div>
-    );
+    return <AccountPanelSkeleton />;
   }
 
   if (error) {

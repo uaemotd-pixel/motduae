@@ -18,6 +18,7 @@ import {
   Eye,
   Image as ImageIcon,
 } from "lucide-react";
+import { TableSkeleton } from "@/components/ui/Skeleton";
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
@@ -355,10 +356,7 @@ export default function FabricAddOnsPage() {
 
       {/* Table / List */}
       {loading ? (
-        <div className="bg-white border border-gray-100 rounded-2xl p-12 text-center shadow-sm">
-          <div className="animate-spin w-8 h-8 border-2 border-black border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-gray-500 text-sm">Loading add-ons...</p>
-        </div>
+        <TableSkeleton rows={6} cols={5} className="rounded-2xl" />
       ) : filteredItems.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl py-16 px-4 text-center shadow-sm">
           <Sparkles

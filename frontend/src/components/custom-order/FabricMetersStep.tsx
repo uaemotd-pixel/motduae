@@ -22,6 +22,8 @@ import {
   type FabricUnit,
 } from "@/lib/customOrder";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
+import ImageOptionSelect from "@/components/custom-order/ImageOptionSelect";
+import { CustomOrderStepSkeleton } from "@/components/ui/Skeleton";
 
 export default function FabricMetersStep() {
   const t = useTranslations("CustomOrderMeters");
@@ -176,13 +178,7 @@ export default function FabricMetersStep() {
     (locale === "ar" ? nameAr || name : name) || "—";
 
   if (!isHydrated) {
-    return (
-      <div className="min-h-[40vh] flex items-center justify-center">
-        <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
-          {t("loading")}
-        </p>
-      </div>
-    );
+    return <CustomOrderStepSkeleton />;
   }
 
   return (
@@ -202,41 +198,29 @@ export default function FabricMetersStep() {
             {t("addItemTitle")}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-black mb-2">
-                {t("selectDesign")}
-              </label>
-              <select
-                value={addDesignId}
-                onChange={(e) => setAddDesignId(e.target.value)}
-                className="w-full border border-(--color-border) bg-white px-3 py-2.5 [font-family:var(--font-body)] text-[14px]"
-              >
-                <option value="">{t("selectDesignPlaceholder")}</option>
-                {draft.selectedDesigns.map((design) => (
-                  <option key={design._id} value={design._id}>
-                    {getDisplayName(design.name, design.nameAr)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <ImageOptionSelect
+              label={t("selectDesign")}
+              placeholder={t("selectDesignPlaceholder")}
+              value={addDesignId}
+              onChange={setAddDesignId}
+              options={draft.selectedDesigns.map((design) => ({
+                id: design._id,
+                label: getDisplayName(design.name, design.nameAr),
+                image: design.image,
+              }))}
+            />
             {!usingOwnFabric && (
-              <div>
-                <label className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-black mb-2">
-                  {t("selectFabric")}
-                </label>
-                <select
-                  value={addFabricId}
-                  onChange={(e) => setAddFabricId(e.target.value)}
-                  className="w-full border border-(--color-border) bg-white px-3 py-2.5 [font-family:var(--font-body)] text-[14px]"
-                >
-                  <option value="">{t("selectFabricPlaceholder")}</option>
-                  {draft.selectedFabrics.map((fabric) => (
-                    <option key={fabric._id} value={fabric._id}>
-                      {getDisplayName(fabric.name, fabric.nameAr)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <ImageOptionSelect
+                label={t("selectFabric")}
+                placeholder={t("selectFabricPlaceholder")}
+                value={addFabricId}
+                onChange={setAddFabricId}
+                options={draft.selectedFabrics.map((fabric) => ({
+                  id: fabric._id,
+                  label: getDisplayName(fabric.name, fabric.nameAr),
+                  image: fabric.image,
+                }))}
+              />
             )}
           </div>
           <button

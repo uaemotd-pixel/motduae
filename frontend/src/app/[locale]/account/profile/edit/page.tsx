@@ -18,6 +18,7 @@ import toast from "react-hot-toast";
 import CustomerImageUpload from "@/components/shared/customerImageUpload";
 import { motion, AnimatePresence } from "framer-motion";
 import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
+import { AccountPanelSkeleton } from "@/components/ui/Skeleton";
 
 type Address = {
   _id?: string;
@@ -404,11 +405,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8 sm:p-12">
-        <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin text-gray-500" />
-      </div>
-    );
+    return <AccountPanelSkeleton />;
   }
 
   return (

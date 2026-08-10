@@ -22,6 +22,7 @@ import {
 import { formatCurrency } from "@/lib/format";
 import { formatDesignCategory } from "@/lib/tailors";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
+import { CustomOrderStepSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { resolveMediaUrl } from "@/lib/media";
 
 type DeliveryType = "pickup" | "delivery";
@@ -195,13 +196,7 @@ export default function OrderReviewStep() {
   }, [draft.fabricSource, draft.lineItems, t]);
 
   if (!isHydrated) {
-    return (
-      <div className="min-h-[40vh] flex items-center justify-center">
-        <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
-          {t("loading")}
-        </p>
-      </div>
-    );
+    return <CustomOrderStepSkeleton />;
   }
 
   return (
@@ -351,7 +346,17 @@ export default function OrderReviewStep() {
                 {locale === "ar" ? "إضافات اختيارية" : "Optional Add-Ons"}
               </h3>
               {loadingAddons ? (
-                <p className="text-xs text-gray-400">Loading...</p>
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 border border-(--color-border)">
+                      <Skeleton className="w-12 h-12 shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-3 w-2/3" />
+                        <Skeleton className="h-3 w-1/3" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <>
                   <div className="space-y-3">

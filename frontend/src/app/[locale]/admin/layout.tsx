@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Link } from "@/i18n/navigation";
 import { useNotificationUnreadCount } from "@/hooks/useNotifications";
 import AdminNotificationBell from "@/components/admin/notifications/AdminNotificationBell";
+import { DashboardPanelSkeleton } from "@/components/ui/Skeleton";
 
 import {
   LayoutDashboard,
@@ -86,8 +87,8 @@ export default function AdminLayout({
 
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[var(--dash-charcoal-deep)] text-white">
-        Loading admin panel...
+      <div className="min-h-screen bg-[var(--dash-charcoal-deep)] p-6 sm:p-8">
+        <DashboardPanelSkeleton />
       </div>
     );
   }

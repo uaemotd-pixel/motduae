@@ -13,6 +13,7 @@ import {
   formatDesignBasePrice,
 } from "@/lib/tailors";
 import { Share2 } from "lucide-react";
+import { HomeSectionSkeleton } from "@/components/ui/Skeleton";
 import { usePathname } from "next/navigation";
 import WishlistButton from "../shared/wishlistButton";
 import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
@@ -332,10 +333,11 @@ export function TrendingSection() {
 
   if (loading) {
     return (
-      <section className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 border-(--color-border) mb-12 xs:mb-16 sm:mb-20 md:mb-24">
-        <div className="text-center [font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
-          {isArabic ? "جاري تحميل التصاميم..." : "Loading designs..."}
-        </div>
+      <section
+        id="designs"
+        className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16"
+      >
+        <HomeSectionSkeleton showFilters cardCount={4} />
       </section>
     );
   }

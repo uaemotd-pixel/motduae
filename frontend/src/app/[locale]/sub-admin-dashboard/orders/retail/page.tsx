@@ -14,6 +14,7 @@ import toast from "react-hot-toast";
 import StatusBadge from "@/components/admin/StatusBadge";
 import SubAdminOrdersTabs from "../SubAdminOrdersTabs";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
+import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 
 type RetailOrder = {
   _id: string;
@@ -288,15 +289,11 @@ export default function AdminRetailOrdersPage() {
       <div className="space-y-6">
         <SubAdminOrdersTabs />
         <div className="space-y-4">
-          <div className="animate-pulse">
-            <div className="h-8 w-48 bg-gray-200 rounded mb-2"></div>
-            <div className="h-4 w-96 bg-gray-200 rounded mb-6"></div>
-            <div className="bg-white rounded-xl border p-4 space-y-3">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-12 bg-gray-100 rounded w-full"></div>
-              ))}
-            </div>
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-96 max-w-full" />
           </div>
+          <TableSkeleton rows={5} cols={5} className="rounded-xl" />
         </div>
       </div>
     );

@@ -14,6 +14,7 @@ import {
   validateFabricForm,
 } from "@/lib/createFabricAdmin";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
+import { FormPageSkeleton } from "@/components/ui/Skeleton";
 
 export default function EditFabricPage() {
   const router = useRouter();
@@ -141,9 +142,7 @@ export default function EditFabricPage() {
   };
 
   if (loading) {
-    return (
-      <div className="text-center py-10">{t.adminFabrics.edit.loading}</div>
-    );
+    return <FormPageSkeleton fields={8} />;
   }
 
   if (error && !formData) {

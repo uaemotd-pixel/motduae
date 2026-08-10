@@ -17,6 +17,7 @@ import { api } from "@/lib/api/client";
 import toast from "react-hot-toast";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { AccountPanelSkeleton } from "@/components/ui/Skeleton";
 
 type MeasurementData = {
   totalLength: number | null;
@@ -393,9 +394,7 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sm:p-12 text-center">
-          <p className="text-gray-500">Loading measurements...</p>
-        </div>
+        <AccountPanelSkeleton />
       </div>
     );
   }

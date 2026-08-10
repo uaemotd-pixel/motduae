@@ -10,6 +10,7 @@ import DesignDetailView, {
 import MainLayout from "../../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 import { Link } from "@/i18n/navigation";
+import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 
 export default function DesignDetailPage() {
   const params = useParams();
@@ -54,11 +55,7 @@ export default function DesignDetailPage() {
   if (loading) {
     return (
       <MainLayout>
-        <div className="min-h-[50vh] flex items-center justify-center">
-          <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em]">
-            {t("loading")}
-          </p>
-        </div>
+        <DetailPageSkeleton />
       </MainLayout>
     );
   }

@@ -14,6 +14,7 @@ import {
 } from "@/lib/readyMadeAdmin";
 import toast from "react-hot-toast";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
+import { FormPageSkeleton } from "@/components/ui/Skeleton";
 
 // Predefined tag and color options (same as create form)
 const TAG_OPTIONS = [
@@ -337,12 +338,7 @@ export default function EditReadyMadePage() {
 
   // Loading / error states
   if (loading) {
-    return (
-      <div className="max-w-5xl mx-auto py-10 text-center">
-        <div className="w-12 h-12 border-2 border-black/20 border-t-black rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-gray-500 text-sm">Loading product...</p>
-      </div>
-    );
+    return <FormPageSkeleton fields={8} />;
   }
 
   if (!formData) {

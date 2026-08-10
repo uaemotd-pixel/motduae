@@ -14,7 +14,6 @@ import {
   RefreshCw,
   Search,
   PackageSearch,
-  Loader2,
 } from "lucide-react";
 import LocaleSwitcher from "@/components/shared/LocaleSwitcher";
 import Chart from "chart.js/auto";
@@ -25,6 +24,7 @@ import TimeframePills from "@/components/dashboard/TimeframePills";
 import ActivityFeed from "@/components/dashboard/ActivityFeed";
 import RankList from "@/components/dashboard/RankList";
 import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
+import { TableSkeleton } from "@/components/ui/Skeleton";
 import { DASH_PALETTE, withAlpha } from "@/components/dashboard/palette";
 import {
   chartTooltip,
@@ -650,12 +650,7 @@ export default function AdminDashboardPage() {
           </div>
 
           {pricingLoading && pricingOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="mb-3 h-8 w-8 animate-spin text-[var(--dash-charcoal)]" />
-              <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-widest text-[var(--dash-muted)]">
-                Loading data...
-              </p>
-            </div>
+            <TableSkeleton rows={5} cols={6} className="rounded-xl border-0" />
           ) : filteredPricingOrders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <PackageSearch
