@@ -24,6 +24,7 @@ import { notFound, errorHandler } from "./middleware/errorHandler.js";
 import customerRouter from "./routes/customerRoutes.js";
 import subAdminRouter from "./routes/subAdminRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
+import checkoutRoutes from "./routes/checkoutRoutes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhookRoutes.js";
 import notificationRouter from "./routes/notificationRoutes.js";
 import customerNotificationRouter from "./routes/customerNotificationRoutes.js";
@@ -73,6 +74,7 @@ app.use("/api/orders", orderRoutes);
 // /api/admin/orders/custom/:id/return-accept and /return-reject
 app.use("/api/admin/orders", isAuth, isAdmin, orderRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/checkout", checkoutRoutes);
 app.use("/api/admin", isAuth, isAdmin, adminRouter);
 app.use("/api/admin", isAuth, isAdmin, notificationRouter);
 app.use("/api/customer", customerRouter);

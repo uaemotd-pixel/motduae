@@ -38,7 +38,6 @@ function validateUaePhone(phone: string): boolean {
   return /^\+971\d{9}$/.test(cleaned);
 }
 
-// Customer address type (matches new schema)
 type CustomerAddress = {
   _id?: string;
   fullName: string;
@@ -61,6 +60,24 @@ type CustomerProfile = {
   gender?: string;
   addresses?: CustomerAddress[];
   defaultAddressId?: string;
+};
+
+type PricePreviewItem = {
+  productId: string;
+  size: string;
+  quantity: number;
+  unitPrice: number;
+  name: string;
+  image: string;
+  maxStock: number;
+};
+
+type PricePreviewResponse = {
+  items: PricePreviewItem[];
+  subtotal: number;
+  vat: number;
+  total: number;
+  vatRate: number;
 };
 
 export default function CheckoutPage() {
@@ -87,9 +104,7 @@ function CheckoutPageContent() {
   const t = getTranslation(localeParams);
   const locale = useLocale();
   const initialFillDone = useRef<boolean>(false);
-  const checkoutItemsRef = useRef<CartItem[] | null>(null);
   const fromWishlistAllRef = useRef<boolean>(false);
-  const [vatRate, setVatRate] = useState(0);
 
   const { items, clearCart } = useCart();
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -97,7 +112,51 @@ function CheckoutPageContent() {
   const { unit: measurementUnit } = useMeasurementUnit();
   const fromWishlist = searchParams.get("fromWishlist") === "true";
 
-  // Fetch VAT rate from platform settings
+  // --- State ---
+  const [buyNowProductId, setBuyNowProductId] = useState<string | null>(null);
+  const [buyNowSize, setBuyNowSize] = useState<string>("");
+  const [buyNowQuantity, setBuyNowQuantity] = useState<number>(2);
+  const [buyNowSlug, setBuyNowSlug] = useState<string>("");
+  const [buyNowName, setBuyNowName] = useState<string>("");
+  const [buyNowImage, setBuyNowImage] = useState<string>("");
+  const [buyNowMaxStock, setBuyNowMaxStock] = useState<number>(0);
+  const [isBuyNow, setIsBuyNow] = useState(false);
+  const [buyNowItemsArray, setBuyNowItemsArray] = useState<CartItem[] | null>(
+    null,
+  );
+  const [pricePreview, setPricePreview] = useState<PricePreviewResponse | null>(
+    null,
+  );
+  const [priceLoading, setPriceLoading] = useState(true);
+  const [vatRate, setVatRate] = useState(0);
+
+  const [formData, setFormData] = useState({
+    fullName: "",
+    phone: "",
+    emirate: "",
+    city: "",
+    street: "",
+    building: "",
+    deliveryNotes: "",
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [customerProfile, setCustomerProfile] =
+    useState<CustomerProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [lastOrderId, setLastOrderId] = useState<string | null>(null);
+  const [lastOrderItems, setLastOrderItems] = useState<Array<{ name: string }>>(
+    [],
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<
+    "cod" | "apple_pay" | "card"
+  >("cod");
+
+  // --- Fetch VAT rate ---
   useEffect(() => {
     async function fetchVatRate() {
       try {
@@ -113,119 +172,157 @@ function CheckoutPageContent() {
     fetchVatRate();
   }, []);
 
-  // --- Buy Now state ---
-  const [buyNowState, setBuyNowState] = useState<{
-    isBuyNow: boolean;
-    item: CartItem | null;
-    items: CartItem[] | null;
-  } | null>(null);
-
+  // --- Parse Buy Now params (NO PRICE) ---
   useEffect(() => {
-    const isBuyNow = searchParams.get("buyNow") === "true";
+    const isBuyNowParam = searchParams.get("buyNow") === "true";
     const fromWishlistAll = searchParams.get("fromWishlistAll") === "true";
     fromWishlistAllRef.current = fromWishlistAll;
 
-    let item: CartItem | null = null;
-    let itemsArray: CartItem[] | null = null;
+    setIsBuyNow(isBuyNowParam);
 
-    if (isBuyNow && fromWishlistAll) {
-      if (!checkoutItemsRef.current) {
-        const stored = sessionStorage.getItem("checkoutItems");
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-              checkoutItemsRef.current = parsed;
-            }
-          } catch (error) {
-            console.error("Failed to parse wishlist items:", error);
-            checkoutItemsRef.current = null;
+    if (isBuyNowParam && fromWishlistAll) {
+      const stored = sessionStorage.getItem("checkoutItems");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+            setBuyNowItemsArray(parsed);
+            sessionStorage.removeItem("checkoutItems");
+            return;
           }
+        } catch (error) {
+          console.error("Failed to parse wishlist items:", error);
         }
       }
+    }
 
-      if (checkoutItemsRef.current && checkoutItemsRef.current.length > 0) {
-        itemsArray = checkoutItemsRef.current;
-        item = itemsArray[0];
+    if (isBuyNowParam) {
+      const productId = searchParams.get("productId") || "";
+      const size = searchParams.get("size") || "";
+      const quantity = parseInt(searchParams.get("quantity") || "2");
+      const slug = searchParams.get("slug") || "";
+      const name = searchParams.get("name") || "";
+      const image = searchParams.get("image") || "";
+      const maxStock = parseInt(searchParams.get("maxStock") || "0");
+
+      setBuyNowProductId(productId);
+      setBuyNowSize(size);
+      setBuyNowQuantity(quantity);
+      setBuyNowSlug(slug);
+      setBuyNowName(name);
+      setBuyNowImage(image);
+      setBuyNowMaxStock(maxStock);
+      setBuyNowItemsArray(null);
+    }
+  }, [searchParams]);
+
+  // --- Fetch server prices for display items ---
+  useEffect(() => {
+    async function fetchPrices() {
+      setPriceLoading(true);
+      try {
+        let itemsToPreview: Array<{
+          productId: string;
+          size: string;
+          quantity: number;
+        }> = [];
+
+        if (isBuyNow && buyNowItemsArray && buyNowItemsArray.length > 0) {
+          itemsToPreview = buyNowItemsArray.map((item) => ({
+            productId: item.id,
+            size: item.size || "",
+            quantity: item.quantity || 1,
+          }));
+        } else if (isBuyNow && buyNowProductId) {
+          itemsToPreview = [
+            {
+              productId: buyNowProductId,
+              size: buyNowSize,
+              quantity: buyNowQuantity,
+            },
+          ];
+        } else {
+          itemsToPreview = items.map((item) => ({
+            productId: item.id,
+            size: item.size || "",
+            quantity: item.quantity || 1,
+          }));
+        }
+
+        if (itemsToPreview.length === 0) {
+          setPricePreview(null);
+          setPriceLoading(false);
+          return;
+        }
+
+        const response = await api.post<PricePreviewResponse>(
+          "/api/checkout/preview",
+          {
+            items: itemsToPreview,
+          },
+        );
+
+        setPricePreview(response);
+      } catch (error) {
+        console.error("Failed to fetch price preview:", error);
+        toast.error("Failed to load pricing. Please refresh.", ERROR_TOAST);
+      } finally {
+        setPriceLoading(false);
       }
     }
 
-    if (
-      isBuyNow &&
-      (!fromWishlistAll || !itemsArray || itemsArray.length === 0)
-    ) {
-      item = {
-        id: searchParams.get("productId") || "",
-        slug: searchParams.get("slug") || "",
-        name: searchParams.get("name") || "",
-        image: searchParams.get("image") || "",
-        price: parseFloat(searchParams.get("price") || "0"),
-        size: searchParams.get("size") || "",
-        quantity: parseInt(searchParams.get("quantity") || "2"),
-        maxStock: parseInt(searchParams.get("maxStock") || "0"),
-      };
-      itemsArray = null;
-    }
+    fetchPrices();
+  }, [
+    isBuyNow,
+    buyNowProductId,
+    buyNowSize,
+    buyNowQuantity,
+    buyNowItemsArray,
+    items,
+  ]);
 
-    setBuyNowState({ isBuyNow, item, items: itemsArray });
-  }, [searchParams]);
-
-  useEffect(() => {
-    if (
-      buyNowState?.isBuyNow &&
-      buyNowState.items &&
-      buyNowState.items.length > 0
-    ) {
-      sessionStorage.removeItem("checkoutItems");
-    }
-  }, [buyNowState]);
-
-  const isBuyNow = buyNowState?.isBuyNow ?? false;
-  const buyNowItem = buyNowState?.item ?? null;
-  const buyNowItems = buyNowState?.items ?? null;
-
-  // Determine display items: multiple wishlist items > single buyNow > cart
+  // --- Build display items with server prices ---
   const getDisplayItems = (): CartItem[] => {
-    if (isBuyNow && buyNowItems && buyNowItems.length > 0) {
-      return buyNowItems;
+    if (!pricePreview) return [];
+
+    if (isBuyNow && buyNowItemsArray && buyNowItemsArray.length > 0) {
+      return buyNowItemsArray.map((item, index) => {
+        const previewItem = pricePreview.items[index];
+        return {
+          ...item,
+          price: previewItem?.unitPrice || 0,
+        };
+      });
     }
-    if (isBuyNow && buyNowItem) {
-      return [buyNowItem];
+
+    if (isBuyNow && buyNowProductId) {
+      const previewItem = pricePreview.items[0];
+      return [
+        {
+          id: buyNowProductId,
+          slug: buyNowSlug,
+          name: previewItem?.name || buyNowName,
+          image: previewItem?.image || buyNowImage,
+          price: previewItem?.unitPrice || 0,
+          size: buyNowSize,
+          quantity: buyNowQuantity,
+          maxStock: previewItem?.maxStock || buyNowMaxStock,
+        },
+      ];
     }
-    return items;
+
+    return items.map((item, index) => {
+      const previewItem = pricePreview.items[index];
+      return {
+        ...item,
+        price: previewItem?.unitPrice || 0,
+      };
+    });
   };
 
   const displayItems = getDisplayItems();
 
-  const [formData, setFormData] = useState({
-    fullName: "",
-    phone: "",
-    emirate: "",
-    city: "",
-    street: "",
-    building: "",
-    deliveryNotes: "",
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // --- State for customer profile & loading ---
-  const [customerProfile, setCustomerProfile] =
-    useState<CustomerProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
-
-  // --- success modal state ---
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [lastOrderId, setLastOrderId] = useState<string | null>(null);
-  const [lastOrderItems, setLastOrderItems] = useState<Array<{ name: string }>>(
-    [],
-  );
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<
-    "cod" | "apple_pay" | "card"
-  >("cod");
-
-  // Redirect if not logged in — preserve query params
+  // --- Redirect if not logged in ---
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       const query = searchParams.toString();
@@ -237,7 +334,7 @@ function CheckoutPageContent() {
     }
   }, [isLoading, isAuthenticated, router, locale, searchParams]);
 
-  // --- Fetch customer profile and auto-fill form ---
+  // --- Fetch customer profile ---
   useEffect(() => {
     async function fetchCustomerProfile() {
       if (!isAuthenticated) return;
@@ -292,7 +389,7 @@ function CheckoutPageContent() {
     fetchCustomerProfile();
   }, [isAuthenticated, user]);
 
-  // --- Fallback: if no customer profile and user exists, fill name from auth user ---
+  // --- Fallback fill name ---
   useEffect(() => {
     if (user?.isGuest) return;
     if (
@@ -309,8 +406,8 @@ function CheckoutPageContent() {
     }
   }, [user, customerProfile, profileLoading]);
 
-  // --- Loading while determining Buy Now state or fetching profile ---
-  if (isLoading || buyNowState === null || profileLoading) {
+  // --- Loading states ---
+  if (isLoading || profileLoading || priceLoading) {
     return (
       <MainLayout>
         <FormPageSkeleton fields={8} />
@@ -322,14 +419,13 @@ function CheckoutPageContent() {
     return null;
   }
 
-  // Calculate totals using displayItems
-  const subtotal = displayItems.reduce(
-    (sum, i) => sum + i.price * i.quantity,
-    0,
-  );
-  const vat = subtotal * vatRate;
-  const total = subtotal + vat;
+  // --- Use server totals ---
+  const subtotal = pricePreview?.subtotal || 0;
+  const vat = pricePreview?.vat || 0;
+  const total = pricePreview?.total || 0;
+  const effectiveVatRate = pricePreview?.vatRate ?? vatRate;
 
+  // --- Form handlers ---
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -371,14 +467,13 @@ function CheckoutPageContent() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // --- Build order payload (NO PRICE) ---
   const buildOrderPayload = () => {
     const orderItems = displayItems.map((item) => ({
       productId: item.id,
-      name: item.name,
       size: item.size,
       quantity: item.quantity,
-      price: item.price,
-      measurementUnit,
+      // NO price field
     }));
 
     const isArabic = localeParams === "ar";
@@ -411,8 +506,8 @@ function CheckoutPageContent() {
       return;
     }
 
-    if (fromWishlist && buyNowItem?.id) {
-      removeWishlistItem(buyNowItem.id);
+    if (fromWishlist && displayItems.length > 0) {
+      displayItems.forEach((item) => removeWishlistItem(item.id));
     }
   };
 
@@ -427,7 +522,6 @@ function CheckoutPageContent() {
       throw new Error("Please complete all required delivery fields.");
     }
 
-    // Include shipping so the server can fulfill the order via webhook if the tab closes after pay.
     const payload = buildOrderPayload();
     const response = await api.post<{
       success: boolean;
@@ -437,7 +531,7 @@ function CheckoutPageContent() {
     }>("/api/payments/intent/retail", payload);
 
     if (!response.success || !response.clientSecret) {
-      throw new Error(response.message || "Failed to start Apple Pay");
+      throw new Error(response.message || "Failed to start payment");
     }
 
     return {
@@ -468,7 +562,6 @@ function CheckoutPageContent() {
           paymentIntentId,
         });
       } catch (orderErr) {
-        // Payment already succeeded — recover order from pending checkout / webhook path.
         response = await api.post("/api/payments/reconcile", {
           paymentIntentId,
           paymentMethod: method,
@@ -482,7 +575,6 @@ function CheckoutPageContent() {
         setLastOrderId(response.orderId);
         setLastOrderItems(displayItems.map((item) => ({ name: item.name })));
         setShowSuccessModal(true);
-
         clearCompletedCheckoutItems();
       } else {
         throw new Error(response.message || "Order failed");
@@ -539,7 +631,6 @@ function CheckoutPageContent() {
         setLastOrderId(response.orderId);
         setLastOrderItems(displayItems.map((item) => ({ name: item.name })));
         setShowSuccessModal(true);
-
         clearCompletedCheckoutItems();
       } else {
         throw new Error(response.message || "Order failed");
@@ -570,69 +661,81 @@ function CheckoutPageContent() {
               <div className="w-full md:w-95 lg:w-105 shrink-0">
                 <div className="md:sticky md:top-24">
                   <div className="bg-white border border-(--color-border) rounded-lg p-6 md:p-8">
-                    <ul className="space-y-6">
-                      {displayItems.map((item, index) => (
-                        <li
-                          key={item.id || index}
-                          className="flex items-start gap-4"
-                        >
-                          <div className="w-20 h-20 shrink-0 bg-[#F5F5F0] rounded-md overflow-hidden">
-                            <img
-                              src={resolveMediaUrl(item.image)}
-                              className="w-full h-full object-cover"
-                              alt={item.name}
-                            />
-                          </div>
-                          <div className="w-full">
-                            <h3 className="[font-family:var(--font-display)] text-[18px] text-black">
-                              {item.name}
-                            </h3>
-                            <ul className="mt-2 space-y-1 [font-family:var(--font-ui)] text-[12px] text-(--color-grey-muted)">
-                              <li className="flex flex-wrap gap-4">
-                                {t.checkout.size}{" "}
-                                <span className="ml-auto">{item.size}</span>
-                              </li>
-                              <li className="flex flex-wrap gap-4">
-                                {t.checkout.quantity}{" "}
-                                <span className="ml-auto">{item.quantity}</span>
-                              </li>
-                              <li className="flex flex-wrap gap-4">
-                                {t.checkout.totalPrice}
-                                <span className="ml-auto font-normal text-black">
-                                  AED {item.price * item.quantity}
-                                </span>
-                              </li>
-                            </ul>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+                    {displayItems.length === 0 ? (
+                      <p className="text-center text-(--color-grey-muted) py-8">
+                        No items in checkout.
+                      </p>
+                    ) : (
+                      <>
+                        <ul className="space-y-6">
+                          {displayItems.map((item, index) => (
+                            <li
+                              key={item.id || index}
+                              className="flex items-start gap-4"
+                            >
+                              <div className="w-20 h-20 shrink-0 bg-[#F5F5F0] rounded-md overflow-hidden">
+                                <img
+                                  src={resolveMediaUrl(item.image)}
+                                  className="w-full h-full object-cover"
+                                  alt={item.name}
+                                />
+                              </div>
+                              <div className="w-full">
+                                <h3 className="[font-family:var(--font-display)] text-[18px] text-black">
+                                  {item.name}
+                                </h3>
+                                <ul className="mt-2 space-y-1 [font-family:var(--font-ui)] text-[12px] text-(--color-grey-muted)">
+                                  <li className="flex flex-wrap gap-4">
+                                    {t.checkout.size}{" "}
+                                    <span className="ml-auto">{item.size}</span>
+                                  </li>
+                                  <li className="flex flex-wrap gap-4">
+                                    {t.checkout.quantity}{" "}
+                                    <span className="ml-auto">
+                                      {item.quantity}
+                                    </span>
+                                  </li>
+                                  <li className="flex flex-wrap gap-4">
+                                    {t.checkout.totalPrice}
+                                    <span className="ml-auto font-normal text-black">
+                                      AED{" "}
+                                      {(item.price * item.quantity).toFixed(2)}
+                                    </span>
+                                  </li>
+                                </ul>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
 
-                    <hr className="border-(--color-border) my-6" />
+                        <hr className="border-(--color-border) my-6" />
 
-                    <div>
-                      <ul className="space-y-3 [font-family:var(--font-ui)] text-[13px] text-(--color-grey-muted)">
-                        <li className="flex flex-wrap gap-4">
-                          {t.checkout.subtotal}
-                          <span className="ml-auto text-black">
-                            AED {subtotal.toFixed(2)}
-                          </span>
-                        </li>
-                        <li className="flex flex-wrap gap-4">
-                          {t.checkout.vat} ({(vatRate * 100).toFixed(0)}%)
-                          <span className="ml-auto text-black">
-                            AED {vat.toFixed(2)}
-                          </span>
-                        </li>
-                        <hr className="border-(--color-border) my-2" />
-                        <li className="flex flex-wrap gap-4 text-[16px] font-normal text-black">
-                          {t.checkout.total}
-                          <span className="ml-auto">
-                            AED {total.toFixed(2)}
-                          </span>
-                        </li>
-                      </ul>
-                    </div>
+                        <div>
+                          <ul className="space-y-3 [font-family:var(--font-ui)] text-[13px] text-(--color-grey-muted)">
+                            <li className="flex flex-wrap gap-4">
+                              {t.checkout.subtotal}
+                              <span className="ml-auto text-black">
+                                AED {subtotal.toFixed(2)}
+                              </span>
+                            </li>
+                            <li className="flex flex-wrap gap-4">
+                              {t.checkout.vat} (
+                              {(effectiveVatRate * 100).toFixed(0)}%)
+                              <span className="ml-auto text-black">
+                                AED {vat.toFixed(2)}
+                              </span>
+                            </li>
+                            <hr className="border-(--color-border) my-2" />
+                            <li className="flex flex-wrap gap-4 text-[16px] font-normal text-black">
+                              {t.checkout.total}
+                              <span className="ml-auto">
+                                AED {total.toFixed(2)}
+                              </span>
+                            </li>
+                          </ul>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

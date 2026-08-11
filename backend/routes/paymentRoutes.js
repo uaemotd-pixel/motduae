@@ -1,65 +1,73 @@
-import express from 'express';
-import expressAsyncHandler from 'express-async-handler';
-import mongoose from 'mongoose';
-import { env } from '../config/env.js';
-import { isAuth } from '../middleware/auth.js';
-import { isStripeConfigured, createStripePaymentIntent } from '../services/stripeService.js';
-import { prepareRetailOrder } from '../services/retailOrderService.js';
+import express from "express";
+import expressAsyncHandler from "express-async-handler";
+import mongoose from "mongoose";
+import { env } from "../config/env.js";
+import { isAuth } from "../middleware/auth.js";
+import {
+  isStripeConfigured,
+  createStripePaymentIntent,
+} from "../services/stripeService.js";
+import { prepareRetailOrder } from "../services/retailOrderService.js";
 import {
   getCustomOrderPricing,
   getMultiItemCustomOrderPricing,
   applyAddonsToCustomOrderPricing,
   PricingValidationError,
-} from '../services/pricingService.js';
-import { FABRIC_SOURCES } from '../models/CustomOrder.js';
-import AddOn from '../models/AddOn.js';
-import PendingCheckout from '../models/PendingCheckout.js';
+} from "../services/pricingService.js";
+import { FABRIC_SOURCES } from "../models/CustomOrder.js";
+import AddOn from "../models/AddOn.js";
+import PendingCheckout from "../models/PendingCheckout.js";
 import {
   savePendingCheckout,
   fulfillPaidCheckout,
   findExistingOrderByPaymentIntent,
-} from '../services/pendingCheckoutService.js';
+} from "../services/pendingCheckoutService.js";
 
 const paymentRoutes = express.Router();
 
 function parseFabricMeters(fabricMeters) {
   const meters = Number(fabricMeters);
   if (!fabricMeters || Number.isNaN(meters) || meters <= 0) {
-    throw new PricingValidationError('fabricMeters must be greater than 0');
+    throw new PricingValidationError("fabricMeters must be greater than 0");
   }
   return meters;
 }
 
-function validateFabricOrderInput({ designId, fabricSource, fabricId, fabricMeters }) {
+function validateFabricOrderInput({
+  designId,
+  fabricSource,
+  fabricId,
+  fabricMeters,
+}) {
   if (!designId || !mongoose.Types.ObjectId.isValid(designId)) {
-    throw new PricingValidationError('Valid designId is required');
+    throw new PricingValidationError("Valid designId is required");
   }
 
   if (!fabricSource || !FABRIC_SOURCES.includes(fabricSource)) {
     throw new PricingValidationError(
-      `fabricSource must be one of: ${FABRIC_SOURCES.join(', ')}`,
+      `fabricSource must be one of: ${FABRIC_SOURCES.join(", ")}`,
     );
   }
 
   if (
-    fabricSource === 'storefront' &&
+    fabricSource === "storefront" &&
     (!fabricId || !mongoose.Types.ObjectId.isValid(fabricId))
   ) {
     throw new PricingValidationError(
-      'Valid fabricId is required when fabricSource is storefront',
+      "Valid fabricId is required when fabricSource is storefront",
     );
   }
 
-  if (fabricSource === 'self' && fabricId) {
+  if (fabricSource === "self" && fabricId) {
     throw new PricingValidationError(
-      'fabricId must not be provided when fabricSource is self',
+      "fabricId must not be provided when fabricSource is self",
     );
   }
 
   return {
     designId,
     fabricSource,
-    fabricId: fabricSource === 'storefront' ? fabricId : null,
+    fabricId: fabricSource === "storefront" ? fabricId : null,
     fabricMeters: parseFabricMeters(fabricMeters),
   };
 }
@@ -67,12 +75,12 @@ function validateFabricOrderInput({ designId, fabricSource, fabricId, fabricMete
 function validateMultiItemOrderInput({ fabricSource, items }) {
   if (!fabricSource || !FABRIC_SOURCES.includes(fabricSource)) {
     throw new PricingValidationError(
-      `fabricSource must be one of: ${FABRIC_SOURCES.join(', ')}`,
+      `fabricSource must be one of: ${FABRIC_SOURCES.join(", ")}`,
     );
   }
 
   if (!Array.isArray(items) || items.length === 0) {
-    throw new PricingValidationError('At least one item is required');
+    throw new PricingValidationError("At least one item is required");
   }
 
   return {
@@ -99,7 +107,7 @@ async function getAddonsCost(addonIds = []) {
 }
 
 async function getCustomOrderTotal(body) {
-  const { deliveryType = 'delivery', addonIds = [] } = body;
+  const { deliveryType = "delivery", addonIds = [] } = body;
   const addonsCost = await getAddonsCost(addonIds);
 
   if (isMultiItemPayload(body)) {
@@ -121,14 +129,16 @@ async function getCustomOrderTotal(body) {
 }
 
 function validateRetailShippingAddress(shippingAddress) {
-  if (!shippingAddress || typeof shippingAddress !== 'object') {
-    throw new Error('shippingAddress is required before starting payment');
+  if (!shippingAddress || typeof shippingAddress !== "object") {
+    throw new Error("shippingAddress is required before starting payment");
   }
 
-  const required = ['fullName', 'phone', 'emirate', 'city'];
+  const required = ["fullName", "phone", "emirate", "city"];
   for (const key of required) {
-    if (!String(shippingAddress[key] || '').trim()) {
-      throw new Error(`shippingAddress.${key} is required before starting payment`);
+    if (!String(shippingAddress[key] || "").trim()) {
+      throw new Error(
+        `shippingAddress.${key} is required before starting payment`,
+      );
     }
   }
 
@@ -137,34 +147,35 @@ function validateRetailShippingAddress(shippingAddress) {
     phone: String(shippingAddress.phone).trim(),
     emirate: String(shippingAddress.emirate).trim(),
     city: String(shippingAddress.city).trim(),
-    street: String(shippingAddress.street || '').trim(),
-    building: String(shippingAddress.building || '').trim(),
-    notes: String(shippingAddress.notes || '').trim(),
+    street: String(shippingAddress.street || "").trim(),
+    building: String(shippingAddress.building || "").trim(),
+    notes: String(shippingAddress.notes || "").trim(),
   };
 }
 
 function paymentNotConfigured(res) {
   return res.status(503).json({
     success: false,
-    message: 'Online payments are not configured. Add Stripe keys to enable payments.',
+    message:
+      "Online payments are not configured. Add Stripe keys to enable payments.",
   });
 }
 
 paymentRoutes.get(
-  '/config',
+  "/config",
   expressAsyncHandler(async (_req, res) => {
     res.json({
       success: true,
       configured: isStripeConfigured(),
-      publishableKey: isStripeConfigured() ? env.stripe.publishableKey : '',
-      currency: 'AED',
-      country: 'AE',
+      publishableKey: isStripeConfigured() ? env.stripe.publishableKey : "",
+      currency: "AED",
+      country: "AE",
     });
   }),
 );
 
 paymentRoutes.post(
-  '/intent/retail',
+  "/intent/retail",
   isAuth,
   expressAsyncHandler(async (req, res) => {
     if (!isStripeConfigured()) {
@@ -173,19 +184,35 @@ paymentRoutes.post(
 
     const { orderItems, shippingAddress } = req.body;
 
+    // Reject any client-supplied price fields — compute prices server-side only
+    if (
+      Array.isArray(orderItems) &&
+      orderItems.some(
+        (it) => it && Object.prototype.hasOwnProperty.call(it, "price"),
+      )
+    ) {
+      console.warn(`Price tampering detected for user ${req.user?._id}`);
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Client-supplied price is not allowed",
+        });
+    }
+
     try {
       const normalizedShipping = validateRetailShippingAddress(shippingAddress);
       const prepared = await prepareRetailOrder(orderItems);
       const paymentIntent = await createStripePaymentIntent({
         amountAed: prepared.totalPrice,
         userId: req.user._id,
-        orderType: 'retail',
+        orderType: "retail",
       });
 
       await savePendingCheckout({
         paymentIntentId: paymentIntent.id,
         userId: req.user._id,
-        orderType: 'retail',
+        orderType: "retail",
         amountAed: prepared.totalPrice,
         payload: {
           orderItems,
@@ -198,19 +225,19 @@ paymentRoutes.post(
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
         amount: prepared.totalPrice,
-        currency: 'AED',
+        currency: "AED",
       });
     } catch (error) {
       res.status(400).json({
         success: false,
-        message: error.message || 'Failed to create payment',
+        message: error.message || "Failed to create payment",
       });
     }
   }),
 );
 
 paymentRoutes.post(
-  '/intent/custom',
+  "/intent/custom",
   isAuth,
   expressAsyncHandler(async (req, res) => {
     if (!isStripeConfigured()) {
@@ -222,7 +249,7 @@ paymentRoutes.post(
       const paymentIntent = await createStripePaymentIntent({
         amountAed: total,
         userId: req.user._id,
-        orderType: 'custom',
+        orderType: "custom",
       });
 
       // Persist full checkout snapshot so webhook can create the order if the browser dies.
@@ -235,7 +262,7 @@ paymentRoutes.post(
       await savePendingCheckout({
         paymentIntentId: paymentIntent.id,
         userId: req.user._id,
-        orderType: 'custom',
+        orderType: "custom",
         amountAed: total,
         payload: checkoutPayload,
       });
@@ -245,7 +272,7 @@ paymentRoutes.post(
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
         amount: total,
-        currency: 'AED',
+        currency: "AED",
       });
     } catch (error) {
       if (error instanceof PricingValidationError) {
@@ -257,7 +284,7 @@ paymentRoutes.post(
 
       res.status(400).json({
         success: false,
-        message: error.message || 'Failed to create payment',
+        message: error.message || "Failed to create payment",
       });
     }
   }),
@@ -268,7 +295,7 @@ paymentRoutes.post(
  * or the tab closed. Idempotent — safe to call multiple times.
  */
 paymentRoutes.post(
-  '/reconcile',
+  "/reconcile",
   isAuth,
   expressAsyncHandler(async (req, res) => {
     if (!isStripeConfigured()) {
@@ -279,7 +306,7 @@ paymentRoutes.post(
     if (!paymentIntentId) {
       return res.status(400).json({
         success: false,
-        message: 'paymentIntentId is required',
+        message: "paymentIntentId is required",
       });
     }
 
@@ -292,21 +319,21 @@ paymentRoutes.post(
         return res.status(404).json({
           success: false,
           message:
-            'No checkout found for this payment. Contact support with your payment reference.',
+            "No checkout found for this payment. Contact support with your payment reference.",
         });
       }
 
       if (String(ownerId) !== String(req.user._id) && !req.user.isAdmin) {
         return res.status(403).json({
           success: false,
-          message: 'This payment does not belong to your account',
+          message: "This payment does not belong to your account",
         });
       }
 
       const result = await fulfillPaidCheckout({
         paymentIntentId,
         paymentMethod,
-        fulfilledBy: 'reconcile',
+        fulfilledBy: "reconcile",
       });
 
       res.status(result.created ? 201 : 200).json({
@@ -316,13 +343,13 @@ paymentRoutes.post(
         orderId: result.order._id,
         order: result.order,
         message: result.created
-          ? 'Order created from payment'
-          : 'Order already exists for this payment',
+          ? "Order created from payment"
+          : "Order already exists for this payment",
       });
     } catch (error) {
       res.status(400).json({
         success: false,
-        message: error.message || 'Failed to reconcile payment',
+        message: error.message || "Failed to reconcile payment",
       });
     }
   }),

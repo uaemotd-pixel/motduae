@@ -44,7 +44,7 @@ export default function FabricDetailView({
   locale,
   labels,
 }: FabricDetailViewProps) {
-const { title, description } = getFabricDisplayFields(fabric, locale);
+  const { title, description } = getFabricDisplayFields(fabric, locale);
   const { unit, formatLength } = useMeasurementUnit();
   const router = useRouter();
   const { addItem: addToCart } = useCart();
@@ -98,10 +98,8 @@ const { title, description } = getFabricDisplayFields(fabric, locale);
       slug: fabric.slug,
       name: title,
       image: resolveMediaUrl(fabric.images?.[0]) || "",
-      price: String(fabric.pricePerMeter),
       size: "Per Meter",
       quantity: String(quantity),
-      maxStock: String(fabric.stockInMeters),
     });
     router.push(`/${locale}/checkout?buyNow=true&${checkoutParams.toString()}`);
   };
@@ -365,7 +363,7 @@ const { title, description } = getFabricDisplayFields(fabric, locale);
                     </svg>
                   </button>
                 </div>
-<p className="[font-family:var(--font-ui)] text-2xl text-black font-medium">
+                <p className="[font-family:var(--font-ui)] text-2xl text-black font-medium">
                   {formatPriceWithUnit(fabric.pricePerMeter, unit, locale)}
                 </p>
               </motion.div>
@@ -417,7 +415,7 @@ const { title, description } = getFabricDisplayFields(fabric, locale);
                                 duration: 0.3,
                                 delay: 0.3 + index * 0.05,
                               }}
-className="w-7 h-7 rounded-full border border-[#E4E0D8] shrink-0 shadow-sm"
+                              className="w-7 h-7 rounded-full border border-[#E4E0D8] shrink-0 shadow-sm"
                               style={{
                                 backgroundColor: colorObj?.hex || "#CCCCCC",
                               }}
@@ -456,7 +454,7 @@ className="w-7 h-7 rounded-full border border-[#E4E0D8] shrink-0 shadow-sm"
                       const isActive = v._id === fabric._id;
                       const vTitle =
                         locale === "ar" ? v.nameAr || v.name : v.name;
-const imageSrc =
+                      const imageSrc =
                         resolveMediaUrl(v.images?.[0]) || "/images/fab1.png";
                       return (
                         <Link
@@ -547,7 +545,7 @@ const imageSrc =
                           : "text-red-600"
                       }`}
                     >
-{fabric.stockInMeters > 0
+                      {fabric.stockInMeters > 0
                         ? `In stock (${formatStockDisplay(
                             fabric.stockInMeters,
                             unit,
@@ -585,8 +583,12 @@ const imageSrc =
                       >
                         <span className="text-lg">+</span>
                       </button>
-<span className="text-[10px] text-gray-500 uppercase tracking-wider font-ui shrink-0">
-                        {unit === "wara" ? "Wara" : locale === "ar" ? "متر" : "Meters"}
+                      <span className="text-[10px] text-gray-500 uppercase tracking-wider font-ui shrink-0">
+                        {unit === "wara"
+                          ? "Wara"
+                          : locale === "ar"
+                            ? "متر"
+                            : "Meters"}
                       </span>
                     </div>
                     <button
