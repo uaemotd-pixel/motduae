@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import { api, getApiErrorMessage } from "@/lib/api/client";
+import { useState, FormEvent, useRef, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { api } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
@@ -30,11 +30,29 @@ interface SubAdminForm {
   };
 }
 
+const UAE_EMIRATES = [
+  { value: "Abu Dhabi", en: "Abu Dhabi", ar: "أبو ظبي" },
+  { value: "Dubai", en: "Dubai", ar: "دبي" },
+  { value: "Sharjah", en: "Sharjah", ar: "الشارقة" },
+  { value: "Ajman", en: "Ajman", ar: "عجمان" },
+  { value: "Umm Al Quwain", en: "Umm Al Quwain", ar: "أم القيوين" },
+  { value: "Ras Al Khaimah", en: "Ras Al Khaimah", ar: "رأس الخيمة" },
+  { value: "Fujairah", en: "Fujairah", ar: "الفجيرة" },
+];
+
 export default function CreateSubAdminPage() {
   const router = useRouter();
+  const params = useParams();
+  const locale = (params.locale as string) || "en";
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [openEmirate, setOpenEmirate] = useState(false);
+  const emirateRef = useRef<HTMLDivElement>(null);
+
+  // Separate state for phone digits to allow typing
+  const [phoneDigits, setPhoneDigits] = useState("");
+  const [addressPhoneDigits, setAddressPhoneDigits] = useState("");
 
   const [form, setForm] = useState<SubAdminForm>({
     name: "",
@@ -59,110 +77,123 @@ export default function CreateSubAdminPage() {
     },
   });
 
-  const handleChange = (field: keyof SubAdminForm, value: any) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        emirateRef.current &&
+        !emirateRef.current.contains(event.target as Node)
+      ) {
+        setOpenEmirate(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  const handlePermToggle = (perm: keyof typeof form.perms) => {
-    setForm((prev) => ({
-      ...prev,
-      perms: {
-        ...prev.perms,
-        [perm]: !prev.perms[perm],
-      },
-    }));
+  const SelectTrigger = ({ onClick }: { onClick: () => void }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent text-xs sm:text-[14px] flex items-center justify-between hover:cursor-pointer"
+    >
+      <span className={form.emirate ? "text-black" : "text-gray-400"}>
+        {form.emirate
+          ? UAE_EMIRATES.find((e) => e.value === form.emirate)?.en
+          : "Select emirate"}
+      </span>
+      <span className="text-gray-400">▾</span>
+    </button>
+  );
+
+  const handlePhoneChange = (
+    field: "phone" | "addressPhone",
+    value: string,
+  ) => {
+    const digits = value.replace(/\D/g, "").slice(0, 9);
+
+    if (field === "phone") {
+      setPhoneDigits(digits);
+      // Store with prefix even if partial
+      setForm({ ...form, phone: digits ? `+971${digits}` : "" });
+    } else {
+      setAddressPhoneDigits(digits);
+      setForm({ ...form, addressPhone: digits ? `+971${digits}` : "" });
+    }
+
+    if (fieldErrors[field]) {
+      setFieldErrors({ ...fieldErrors, [field]: "" });
+    }
   };
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
-    if (!form.name.trim()) errors.name = "Full name required";
-    if (!form.email.trim()) errors.email = "Email required";
+
+    if (!form.name.trim()) errors.name = "Full name is required";
+    if (!form.email.trim()) errors.email = "Email is required";
+    if (!form.password.trim()) errors.password = "Password is required";
     if (form.password.length < 6)
       errors.password = "Password must be at least 6 characters";
 
-    if (form.phone) {
-      const phoneDigits = form.phone.replace("+971", "");
-      if (!/^\d{9}$/.test(phoneDigits)) {
-        errors.phone = "Invalid UAE phone – must be 9 digits after +971";
-      }
+    if (!form.phone || form.phone === "") {
+      errors.phone = "Phone number is required";
+    } else if (!/^\+971\d{9}$/.test(form.phone)) {
+      errors.phone = "Phone must be exactly 9 digits";
     }
-    if (form.addressPhone) {
-      const addrDigits = form.addressPhone.replace("+971", "");
-      if (!/^\d{9}$/.test(addrDigits)) {
-        errors.addressPhone = "Invalid UAE phone – must be 9 digits after +971";
-      }
-    }
+
+    if (!form.emirate) errors.emirate = "Emirate is required";
+    if (!form.city.trim()) errors.city = "City is required";
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!validate()) {
-      toast.error("Please fix highlighted fields");
-      return;
-    }
-
-    // Build payload with nested `address` object
-    const payload = {
-      name: form.name,
-      email: form.email,
-      password: form.password,
-      phone: form.phone,
-      address: {
-        name: form.addressName,
-        phone: form.addressPhone,
-        emirate: form.emirate,
-        city: form.city,
-        street: form.street,
-        building: form.building,
-        postalCode: form.postalCode,
-      },
-      perms: form.perms,
-    };
+    if (!validate()) return;
 
     setLoading(true);
+    setFieldErrors({});
+
     try {
-      await api.post("/api/subadmins", payload);
-      toast.success("Sub‑admin created");
-      // Reset form
-      setForm({
-        name: "",
-        email: "",
-        password: "",
-        phone: "",
-        addressName: "",
-        addressPhone: "",
-        emirate: "",
-        city: "",
-        street: "",
-        building: "",
-        postalCode: "",
-        perms: {
-          customers: false,
-          readyMade: false,
-          fabrics: false,
-          tailors: false,
-          orders: false,
-          partners: false,
-          settings: false,
+      const payload = {
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        phone: form.phone,
+        address: {
+          name: form.addressName,
+          phone: form.addressPhone,
+          emirate: form.emirate,
+          city: form.city,
+          street: form.street,
+          building: form.building,
+          postalCode: form.postalCode,
         },
-      });
+        perms: form.perms,
+      };
+
+      await api.post("/api/subadmins", payload);
+      toast.success("Sub-admin created successfully");
+      router.push(`/${locale}/admin/sub-admin`);
     } catch (err) {
-      toast.error(getApiErrorMessage(err, "Creation failed"));
+      const errorMessage =
+        err && typeof err === "object" && "message" in err
+          ? (err as any).message
+          : "Failed to create sub-admin";
+      toast.error(errorMessage as string);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6 p-6">
       <div>
         <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
           Create Sub‑Admin
         </h1>
         <p className="text-gray-500 text-sm mt-1">
-          Add a new sub‑administrator with permissions and address details
+          Add a new sub‑administrator with specific permissions
         </p>
       </div>
 
@@ -176,7 +207,7 @@ export default function CreateSubAdminPage() {
             <input
               type="text"
               value={form.name}
-              onChange={(e) => handleChange("name", e.target.value)}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="John Doe"
               className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
             />
@@ -186,7 +217,7 @@ export default function CreateSubAdminPage() {
             <input
               type="email"
               value={form.email}
-              onChange={(e) => handleChange("email", e.target.value)}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
               placeholder="john@example.com"
               className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
             />
@@ -197,8 +228,8 @@ export default function CreateSubAdminPage() {
               <input
                 type={showPassword ? "text" : "password"}
                 value={form.password}
-                onChange={(e) => handleChange("password", e.target.value)}
-                placeholder="Enter password"
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="••••••••"
                 className="w-full py-1 border-b border-gray-300 focus:border-black outline-none pr-8"
               />
               <button
@@ -215,27 +246,24 @@ export default function CreateSubAdminPage() {
             </div>
           </FormField>
 
-          <FormField label="Phone" error={fieldErrors.phone}>
+          <FormField label="Phone" required error={fieldErrors.phone}>
             <div className="relative">
               <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
                 +971
               </span>
               <input
-                type="text"
-                value={form.phone.replace("+971", "")}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, "");
-                  if (digits.length <= 9) {
-                    handleChange("phone", "+971" + digits);
-                  }
-                }}
+                type="tel"
+                inputMode="numeric"
+                value={phoneDigits}
+                onChange={(e) => handlePhoneChange("phone", e.target.value)}
                 placeholder="50 123 4567"
+                maxLength={9}
                 className="w-full py-1 border-b border-gray-300 focus:border-black outline-none pl-12"
               />
             </div>
           </FormField>
 
-          {/* Address Section */}
+          {/* Address Section – full width */}
           <div className="md:col-span-2">
             <h3 className="text-sm font-medium text-gray-700 mb-3">
               Address Details
@@ -245,71 +273,105 @@ export default function CreateSubAdminPage() {
                 <input
                   type="text"
                   value={form.addressName}
-                  onChange={(e) => handleChange("addressName", e.target.value)}
+                  onChange={(e) =>
+                    setForm({ ...form, addressName: e.target.value })
+                  }
                   placeholder="John Doe"
                   className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
                 />
               </FormField>
-              <FormField label="Phone" error={fieldErrors.addressPhone}>
+
+              <FormField label="Phone">
                 <div className="relative">
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
                     +971
                   </span>
                   <input
-                    type="text"
-                    value={form.addressPhone.replace("+971", "")}
-                    onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, "");
-                      if (digits.length <= 9) {
-                        handleChange("addressPhone", "+971" + digits);
-                      }
-                    }}
+                    type="tel"
+                    inputMode="numeric"
+                    value={addressPhoneDigits}
+                    onChange={(e) =>
+                      handlePhoneChange("addressPhone", e.target.value)
+                    }
                     placeholder="50 123 4567"
+                    maxLength={9}
                     className="w-full py-1 border-b border-gray-300 focus:border-black outline-none pl-12"
                   />
                 </div>
               </FormField>
-              <FormField label="Emirate">
-                <input
-                  type="text"
-                  value={form.emirate}
-                  onChange={(e) => handleChange("emirate", e.target.value)}
-                  placeholder="Dubai"
-                  className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
-                />
+
+              <FormField label="Emirate" required error={fieldErrors.emirate}>
+                <div className="relative" ref={emirateRef}>
+                  <SelectTrigger onClick={() => setOpenEmirate(!openEmirate)} />
+                  {openEmirate && (
+                    <div className="absolute left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1 z-50">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm({ ...form, emirate: "" });
+                          setOpenEmirate(false);
+                        }}
+                        className="w-full px-3 sm:px-4 py-1.5 text-left text-xs sm:text-sm hover:bg-gray-100"
+                      >
+                        Select emirate
+                      </button>
+                      {UAE_EMIRATES.map((emirate) => (
+                        <button
+                          key={emirate.value}
+                          type="button"
+                          onClick={() => {
+                            setForm({ ...form, emirate: emirate.value });
+                            setOpenEmirate(false);
+                          }}
+                          className="w-full px-3 sm:px-4 py-1.5 text-left text-xs sm:text-sm hover:bg-gray-100"
+                        >
+                          {emirate.en} / {emirate.ar}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </FormField>
-              <FormField label="City">
+
+              <FormField label="City" required error={fieldErrors.city}>
                 <input
                   type="text"
                   value={form.city}
-                  onChange={(e) => handleChange("city", e.target.value)}
+                  onChange={(e) => setForm({ ...form, city: e.target.value })}
                   placeholder="Dubai"
                   className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
                 />
               </FormField>
+
               <FormField label="Street">
                 <input
                   type="text"
                   value={form.street}
-                  onChange={(e) => handleChange("street", e.target.value)}
+                  onChange={(e) => setForm({ ...form, street: e.target.value })}
                   placeholder="Sheikh Zayed Road"
                   className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
                 />
               </FormField>
+
               <FormField label="Building">
                 <input
                   type="text"
                   value={form.building}
-                  onChange={(e) => handleChange("building", e.target.value)}
+                  onChange={(e) =>
+                    setForm({ ...form, building: e.target.value })
+                  }
                   placeholder="Burj Khalifa"
                   className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
                 />
               </FormField>
+
               <FormField label="Postal Code">
                 <input
                   type="text"
                   value={form.postalCode}
-                  onChange={(e) => handleChange("postalCode", e.target.value)}
+                  onChange={(e) =>
+                    setForm({ ...form, postalCode: e.target.value })
+                  }
                   placeholder="12345"
                   className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
                 />
@@ -317,34 +379,31 @@ export default function CreateSubAdminPage() {
             </div>
           </div>
 
-          {/* Permissions */}
+          {/* Permissions – full width */}
           <div className="md:col-span-2">
             <label className="block text-xs uppercase tracking-widest text-gray-500 mb-3">
               Permissions
             </label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {Object.entries(form.perms).map(([key, value]) => {
-                const label =
-                  key === "createSubAdmin"
-                    ? "Create Sub‑Admins"
-                    : `Modify ${key.charAt(0).toUpperCase() + key.slice(1)}`;
-                return (
-                  <label
-                    key={key}
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={value}
-                      onChange={() =>
-                        handlePermToggle(key as keyof typeof form.perms)
-                      }
-                      className="accent-black w-4 h-4"
-                    />
-                    <span className="text-sm">{label}</span>
-                  </label>
-                );
-              })}
+              {Object.entries(form.perms).map(([key, value]) => (
+                <label
+                  key={key}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={value}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        perms: { ...form.perms, [key]: e.target.checked },
+                      })
+                    }
+                    className="accent-black w-4 h-4"
+                  />
+                  <span className="text-sm capitalize">{key}</span>
+                </label>
+              ))}
             </div>
           </div>
         </div>

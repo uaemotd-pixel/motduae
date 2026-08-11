@@ -1,5 +1,5 @@
 import express from "express";
-import Fabric, { FABRIC_MATERIALS } from "../models/Fabric.js";
+import Fabric from "../models/Fabric.js";
 import Material from "../models/Material.js";
 
 const fabricRoutes = express.Router();
