@@ -88,7 +88,7 @@ const REQUIRED_FIELDS: FormField[] = [
 
 function validateUaePhone(phone: string): boolean {
   const cleaned = phone.replace(/[^\d+]/g, "");
-  return /^(?:\+?9715|0?5)\d{8}$/.test(cleaned);
+  return /^(?:\+?971|0)\d{9}$/.test(cleaned);
 }
 
 // Normalize a UAE phone number to the canonical "+971xxxxxxx" (9 digits after +971)
@@ -97,10 +97,6 @@ function normalizePhone(raw: string): string {
   // Strip leading UAE country code (971) if present
   if (digits.startsWith("971")) {
     digits = digits.slice(3);
-  }
-  // Strip leading trunk zero (05... -> 5...)
-  if (digits.startsWith("0")) {
-    digits = digits.slice(1);
   }
   // Cap at 9 digits
   digits = digits.slice(0, 9);

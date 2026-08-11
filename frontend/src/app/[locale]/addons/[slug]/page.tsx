@@ -90,10 +90,8 @@ export default function AddonDetailPage() {
       slug: addon.slug,
       name: addon.name,
       image: resolveMediaUrl(addon.thumbnailImage) || "",
-      price: String(addon.price),
       size: "N/A",
       quantity: String(quantity),
-      maxStock: String(addon.stock || 0),
     });
     router.push(`/${locale}/checkout?buyNow=true&${checkoutParams.toString()}`);
   };

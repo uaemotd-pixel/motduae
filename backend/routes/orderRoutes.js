@@ -440,18 +440,21 @@ orderRoutes.post("/custom/preview", async (req, res) => {
         deliveryType,
       });
 
-      Object.assign(pricing, applyAddonsToCustomOrderPricing(pricing, addonsCost));
+      Object.assign(
+        pricing,
+        applyAddonsToCustomOrderPricing(pricing, addonsCost),
+      );
 
       return res.json({
         success: true,
         pricing,
-        addons: dbAddons.map(a => ({
+        addons: dbAddons.map((a) => ({
           addonId: a._id,
           name: a.name,
           nameAr: a.nameAr,
           price: a.price,
-          thumbnailImage: a.thumbnailImage
-        }))
+          thumbnailImage: a.thumbnailImage,
+        })),
       });
     }
 
@@ -461,18 +464,21 @@ orderRoutes.post("/custom/preview", async (req, res) => {
       deliveryType,
     });
 
-    Object.assign(pricing, applyAddonsToCustomOrderPricing(pricing, addonsCost));
+    Object.assign(
+      pricing,
+      applyAddonsToCustomOrderPricing(pricing, addonsCost),
+    );
 
     res.json({
       success: true,
       pricing,
-      addons: dbAddons.map(a => ({
+      addons: dbAddons.map((a) => ({
         addonId: a._id,
         name: a.name,
         nameAr: a.nameAr,
         price: a.price,
-        thumbnailImage: a.thumbnailImage
-      }))
+        thumbnailImage: a.thumbnailImage,
+      })),
     });
   } catch (error) {
     if (error instanceof PricingValidationError) {
@@ -605,7 +611,10 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
 
       const confirmedAt = new Date();
 
-      Object.assign(pricing, applyAddonsToCustomOrderPricing(pricing, addonsCost));
+      Object.assign(
+        pricing,
+        applyAddonsToCustomOrderPricing(pricing, addonsCost),
+      );
 
       const order = await CustomOrder.create({
         userId: req.user._id,
@@ -630,26 +639,30 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
         paymentMethod,
         addPocket,
         addBottomWideFold,
-        addons: dbAddons.map(a => ({
+        addons: dbAddons.map((a) => ({
           addonId: a._id,
           name: a.name,
           nameAr: a.nameAr,
           price: a.price,
-          thumbnailImage: a.thumbnailImage
+          thumbnailImage: a.thumbnailImage,
         })),
         ...paymentDetails,
       });
 
       // Notify admins about custom order placement
       const customerName = req.user?.name || "Customer";
-      const itemNames = (order.items || []).map((it) => {
-        const designName = it?.designSnapshot?.name;
-        const fabricName = it?.fabricSnapshot?.name;
-        const designPart = designName ? `Design: ${designName}` : null;
-        const fabricPart = fabricName ? `Fabric: ${fabricName}` : null;
-        return [designPart, fabricPart].filter(Boolean).join(" • ");
-      }).filter(Boolean);
-      const itemNameText = itemNames.length ? itemNames.join(", ") : "Custom item";
+      const itemNames = (order.items || [])
+        .map((it) => {
+          const designName = it?.designSnapshot?.name;
+          const fabricName = it?.fabricSnapshot?.name;
+          const designPart = designName ? `Design: ${designName}` : null;
+          const fabricPart = fabricName ? `Fabric: ${fabricName}` : null;
+          return [designPart, fabricPart].filter(Boolean).join(" • ");
+        })
+        .filter(Boolean);
+      const itemNameText = itemNames.length
+        ? itemNames.join(", ")
+        : "Custom item";
 
       const message = `${customerName} has placed order for ${itemNameText} for AED ${Number(order.pricing?.total ?? 0).toFixed(2)}`;
 
@@ -694,7 +707,10 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
       deliveryType,
     });
 
-    Object.assign(pricing, applyAddonsToCustomOrderPricing(pricing, addonsCost));
+    Object.assign(
+      pricing,
+      applyAddonsToCustomOrderPricing(pricing, addonsCost),
+    );
 
     const confirmedAt = new Date();
 
@@ -726,12 +742,12 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
       paymentMethod,
       addPocket,
       addBottomWideFold,
-      addons: dbAddons.map(a => ({
+      addons: dbAddons.map((a) => ({
         addonId: a._id,
         name: a.name,
         nameAr: a.nameAr,
         price: a.price,
-        thumbnailImage: a.thumbnailImage
+        thumbnailImage: a.thumbnailImage,
       })),
       ...paymentDetails,
     });
@@ -869,6 +885,24 @@ orderRoutes.post("/retail", isAuth, async (req, res) => {
       paymentIntentId,
     } = req.body;
 
+    // Reject client-supplied prices — server must compute
+    if (
+      Array.isArray(orderItems) &&
+      orderItems.some(
+        (it) => it && Object.prototype.hasOwnProperty.call(it, "price"),
+      )
+    ) {
+      console.warn(
+        `Price tampering / mismatch attempt on /api/orders/retail by user ${req.user?._id}`,
+      );
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Client-supplied price is not allowed",
+        });
+    }
+
     if (!orderItems || orderItems.length === 0) {
       return res.status(400).json({
         success: false,
@@ -986,13 +1020,16 @@ orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
       .sort({ createdAt: -1 })
       .populate({
         path: "orderItems.productId",
-        select: "name nameAr thumbnailImage fabricType fabricTypeAr fabricId designId",
+        select:
+          "name nameAr thumbnailImage fabricType fabricTypeAr fabricId designId",
         populate: [
           { path: "fabricId", select: "name nameAr images slug" },
           { path: "designId", select: "name nameAr images slug" },
         ],
       })
-      .select("_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate");
+      .select(
+        "_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate",
+      );
 
     const formatted = orders.map((order) => ({
       id: order._id,
