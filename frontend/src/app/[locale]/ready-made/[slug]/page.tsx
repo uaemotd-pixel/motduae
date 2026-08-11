@@ -17,11 +17,15 @@ import colors from "@/components/shared/colors";
 import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 
 const getColorHex = (colorName: string): string => {
-  const normalized = String(colorName || "").trim().toLowerCase();
+  const normalized = String(colorName || "")
+    .trim()
+    .toLowerCase();
   if (!normalized) return "#CCCCCC";
 
   // If it's already a hex color, use it directly
-  if (/^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(normalized)) {
+  if (
+    /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(normalized)
+  ) {
     return normalized;
   }
 
@@ -115,10 +119,8 @@ export default function ReadyMadeDetailPage() {
       slug: product.slug,
       name: product.name,
       image: resolveReadyMadeImage(product.images?.[0]),
-      price: String(product.finalSellingPriceAED || 0),
       size: product.metersPerFabric || "",
       quantity: String(quantity),
-      maxStock: String(product.availableFabricStock || 0),
     });
     router.push(`/${locale}/checkout?buyNow=true&${params.toString()}`);
   };
