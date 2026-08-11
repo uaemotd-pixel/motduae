@@ -149,7 +149,15 @@ export default function FamilyMembersForm({
 
   useEffect(() => {
     if (initialData) {
-      const knownRelationships = ["wife", "mother", "aunt", "sister", "daughter", "friend", "other"];
+      const knownRelationships = [
+        "wife",
+        "mother",
+        "aunt",
+        "sister",
+        "daughter",
+        "friend",
+        "other",
+      ];
       const isKnown = knownRelationships.includes(initialData.relationship);
       setForm({
         name: initialData.name || "",
@@ -285,17 +293,30 @@ export default function FamilyMembersForm({
         ? normalizeUAEPhone(form.address.phone)
         : "";
 
-      const relationshipValue = form.relationship === "other" && form.customRelationship.trim()
-        ? form.customRelationship.trim()
-        : form.relationship;
+      const relationshipValue =
+        form.relationship === "other" && form.customRelationship.trim()
+          ? form.customRelationship.trim()
+          : form.relationship;
 
-      const payload = {
+      const addressHasData =
+        form.address.fullName.trim() ||
+        (form.address.phone.trim() && form.address.phone.trim() !== "+971") ||
+        form.address.emirate.trim() ||
+        form.address.city.trim() ||
+        form.address.street.trim() ||
+        form.address.building.trim() ||
+        form.address.postalCode.trim();
+
+      const payload: any = {
         name: form.name.trim(),
         phone: normalizedPhone,
         relationship: relationshipValue,
         email: form.email.trim() || undefined,
         dob: form.dob || undefined,
-        address: {
+      };
+
+      if (addressHasData) {
+        payload.address = {
           fullName: form.address.fullName.trim() || form.name.trim(),
           phone: normalizedAddrPhone || normalizedPhone,
           emirate: form.address.emirate.trim(),
@@ -303,8 +324,8 @@ export default function FamilyMembersForm({
           street: form.address.street.trim(),
           building: form.address.building.trim(),
           postalCode: form.address.postalCode.trim(),
-        },
-      };
+        };
+      }
 
       if (isEdit) {
         await api.put(
