@@ -56,8 +56,8 @@ export default function ContactUsPage() {
       await api.post("/api/users/contact", formData);
       toast.success(
         isAr
-          ? "تم إرسال رسالتك بنجاح! سنتواصل معك قريبًا."
-          : "Your message was sent successfully! We will contact you soon.",
+          ? "لقد استلمنا رسالتك. سنتواصل معك قريبًا إن لزم الأمر."
+          : "We received your message. Our team will get back to you if needed.",
         SUCCESS_TOAST
       );
       setFormData({ name: "", email: "", subject: "", message: "" });
