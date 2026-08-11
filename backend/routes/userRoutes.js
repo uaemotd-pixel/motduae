@@ -13,6 +13,7 @@ import {
   isEmailConfigured,
   sendPasswordResetEmail,
   sendContactMessageEmail,
+  sendWelcomeEmail,
 } from "../services/emailService.js";
 import { createAdminNotificationForNewUser } from "../services/adminNotificationService.js";
 import { clearAuthCookie, setAuthCookie } from "../utils/authCookie.js";
@@ -290,6 +291,11 @@ userRouter.post(
           name: user.name,
         });
         await customer.save();
+        await sendWelcomeEmail({
+          to: user.email,
+          name: user.name,
+          userId: user._id,
+        });
       }
 
       sendUserResponse(res, user);
@@ -344,6 +350,12 @@ userRouter.post(
     });
     await customer.save();
 
+    await sendWelcomeEmail({
+      to: user.email,
+      name: user.name,
+      userId: user._id,
+    });
+
     sendUserResponse(res, user);
   }),
 );
@@ -363,7 +375,7 @@ userRouter.post(
     if (!isEmailConfigured()) {
       res.status(503).send({
         message:
-          "Password reset email is not configured. Set SMTP_USER and SMTP_PASS in backend/.env",
+          "Password reset email is not configured. Set EMAIL_PROVIDER, AWS_REGION, and SES_FROM_EMAIL (or EMAIL_PROVIDER=console for local).",
       });
       return;
     }
@@ -380,7 +392,11 @@ userRouter.post(
       const resetUrl = `${env.frontendUrl}/en/auth/reset-password?token=${rawToken}`;
 
       try {
-        await sendPasswordResetEmail({ to: normalizedEmail, resetUrl });
+        await sendPasswordResetEmail({
+          to: normalizedEmail,
+          resetUrl,
+          userId: user._id,
+        });
       } catch (error) {
         user.resetPasswordToken = undefined;
         user.resetPasswordExpires = undefined;
@@ -613,6 +629,12 @@ userRouter.post(
     });
     await customer.save();
 
+    await sendWelcomeEmail({
+      to: createdUser.email,
+      name: createdUser.name,
+      userId: createdUser._id,
+    });
+
     sendUserResponse(res, createdUser);
   }),
 );
@@ -696,7 +718,7 @@ userRouter.post(
     }
 
     await sendContactMessageEmail({ name, email, subject, message });
-    res.send({ success: true, message: "Message sent successfully" });
+    res.send({ success: true, message: "We received your message" });
   }),
 );
 

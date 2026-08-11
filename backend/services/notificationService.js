@@ -148,7 +148,7 @@ export async function createNotification({
   message = "",
   audience,
   recipientUserId = null,
-  orderType = null,
+  orderType = undefined,
   orderId = null,
   tailorUserId = null,
   createdBy = null,
@@ -169,19 +169,22 @@ export async function createNotification({
   }
 
   try {
-    return await AdminNotification.create({
+    const doc = {
       type,
       title,
       message,
       audience,
       recipientUserId,
-      orderType,
       orderId,
       tailorUserId,
       createdBy,
       dedupeKey,
       read: false,
-    });
+    };
+    if (orderType === "custom" || orderType === "retail") {
+      doc.orderType = orderType;
+    }
+    return await AdminNotification.create(doc);
   } catch (error) {
     if (dedupeKey && error?.code === 11000) {
       return AdminNotification.findOne({ dedupeKey, deletedAt: null });

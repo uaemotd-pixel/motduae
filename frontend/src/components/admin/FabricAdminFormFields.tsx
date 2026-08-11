@@ -240,7 +240,7 @@ export default function FabricAdminFormFields({
         />
       </FormField>
 
-{/* Material + Tag + Color in one row (order: material -> tag -> colors) */}
+      {/* Material + Tag + Color in one row (order: material -> tag -> colors) */}
       <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         {/* Material (ENG / AR) - combined from DB */}
         <FormField
@@ -255,7 +255,9 @@ export default function FabricAdminFormFields({
             trigger={
               <SelectTrigger
                 value={formData.material}
-                placeholder={materialsLoading ? "Loading..." : "Select material"}
+                placeholder={
+                  materialsLoading ? "Loading..." : "Select material"
+                }
                 displayValue={(() => {
                   const opt = materialOptions.find(
                     (o) => o.value === formData.material,
