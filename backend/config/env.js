@@ -61,14 +61,18 @@ export const env = {
   get googleClientId() {
     return process.env.GOOGLE_CLIENT_ID || '';
   },
-  get smtp() {
+  get email() {
+    const provider = (process.env.EMAIL_PROVIDER || 'console').toLowerCase();
     return {
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: process.env.SMTP_SECURE === 'true',
-      user: process.env.SMTP_USER || '',
-      pass: process.env.SMTP_PASS || '',
-      from: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+      provider: provider === 'ses' ? 'ses' : 'console',
+      awsRegion: process.env.AWS_REGION || '',
+      awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+      awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+      fromEmail: process.env.SES_FROM_EMAIL || '',
+      fromName: process.env.SES_FROM_NAME || 'MOTD',
+      replyTo: process.env.SES_REPLY_TO || '',
+      contactInbox: process.env.CONTACT_INBOX || 'uaemotd@gmail.com',
+      configurationSet: process.env.SES_CONFIGURATION_SET || '',
     };
   },
   get stripe() {

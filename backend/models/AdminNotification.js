@@ -18,7 +18,7 @@ const adminNotificationSchema = new mongoose.Schema(
     orderType: {
       type: String,
       enum: ["custom", "retail"],
-      default: null,
+      // omit when not an order notification — null is not a valid enum value
     },
     orderId: {
       type: mongoose.Schema.Types.ObjectId,
