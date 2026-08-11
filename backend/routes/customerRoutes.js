@@ -22,6 +22,69 @@ const calculateAge = (dob) => {
   return years < 0 ? 0 : years;
 };
 
+const hasAddressData = (address) => {
+  if (!address || typeof address !== "object") return false;
+  return ["phone", "emirate", "city", "street", "building", "postalCode"].some(
+    (key) => {
+      const value = address[key];
+      if (typeof value !== "string") return false;
+      const normalized = value.trim();
+      if (key === "phone") {
+        return normalized !== "" && normalized !== "+971";
+      }
+      return normalized !== "";
+    },
+  );
+};
+
+const normalizeAddress = (address, defaultName, defaultPhone) => {
+  if (!address || typeof address !== "object") return undefined;
+
+  const rawPhone = address.phone?.trim() || "";
+  return {
+    fullName: address.fullName?.trim() || defaultName,
+    phone: rawPhone === "+971" ? "" : rawPhone,
+    emirate: address.emirate?.trim() || undefined,
+    city: address.city?.trim() || undefined,
+    street: address.street?.trim() || undefined,
+    building: address.building?.trim() || undefined,
+    postalCode: address.postalCode?.trim() || undefined,
+  };
+};
+
+const isAddressEmptyOrInvalid = (address) => {
+  if (!address || typeof address !== "object") return true;
+
+  const phone = typeof address.phone === "string" ? address.phone.trim() : "";
+  const hasAnyField = [
+    address.emirate,
+    address.city,
+    address.street,
+    address.building,
+    address.postalCode,
+  ].some((value) => typeof value === "string" && value.trim() !== "");
+
+  const hasPhone = phone !== "" && phone !== "+971";
+  const hasEmirate =
+    typeof address.emirate === "string" && address.emirate.trim() !== "";
+
+  if (!hasPhone && !hasAnyField) {
+    return true;
+  }
+
+  return !hasEmirate;
+};
+
+const cleanupSavedUserAddresses = (savedUsers) => {
+  if (!Array.isArray(savedUsers)) return;
+  savedUsers.forEach((member) => {
+    if (!member.address) return;
+    if (isAddressEmptyOrInvalid(member.address)) {
+      member.address = undefined;
+    }
+  });
+};
+
 const customerRouter = express.Router();
 
 customerRouter.post(
@@ -303,28 +366,29 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
       return res.status(404).json({ error: "Customer profile not found" });
     }
 
+    const addressIsProvided = hasAddressData(address);
+    const normalizedAddress = addressIsProvided
+      ? normalizeAddress(address, name.trim(), phone.trim())
+      : undefined;
+
+    if (addressIsProvided && !normalizedAddress?.emirate) {
+      return res.status(400).json({
+        error: "Emirate is required when address details are provided",
+      });
+    }
+
     const newMember = {
       name: name.trim(),
       phone: phone.trim(),
       email: email?.trim() || undefined,
       relationship: relationship || "other",
       dob: dob ? new Date(dob) : undefined,
-      // age will be calculated and stored as well
       age: dob ? calculateAge(new Date(dob)) : null,
-      address: address
-        ? {
-            fullName: address.fullName?.trim() || name.trim(),
-            phone: address.phone?.trim() || phone.trim(),
-            emirate: address.emirate?.trim() || "",
-            city: address.city?.trim() || "",
-            street: address.street?.trim() || "",
-            building: address.building?.trim() || "",
-            postalCode: address.postalCode?.trim() || "",
-          }
-        : undefined,
+      address: addressIsProvided ? normalizedAddress : undefined,
     };
 
     customer.savedUsers.push(newMember);
+    cleanupSavedUserAddresses(customer.savedUsers);
     await customer.save();
 
     const created = customer.savedUsers[customer.savedUsers.length - 1];
@@ -367,17 +431,21 @@ customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
     }
 
     if (address) {
-      member.address = {
-        fullName: address.fullName?.trim() || name.trim(),
-        phone: address.phone?.trim() || phone.trim(),
-        emirate: address.emirate?.trim() || "",
-        city: address.city?.trim() || "",
-        street: address.street?.trim() || "",
-        building: address.building?.trim() || "",
-        postalCode: address.postalCode?.trim() || "",
-      };
+      const addressIsProvided = hasAddressData(address);
+      const normalizedAddress = addressIsProvided
+        ? normalizeAddress(address, name.trim(), phone.trim())
+        : undefined;
+
+      if (addressIsProvided && !normalizedAddress.emirate) {
+        return res.status(400).json({
+          error: "Emirate is required when address details are provided",
+        });
+      }
+
+      member.address = addressIsProvided ? normalizedAddress : undefined;
     }
 
+    cleanupSavedUserAddresses(customer.savedUsers);
     await customer.save();
     res.json(member);
   } catch (err) {
@@ -779,26 +847,26 @@ customerRouter.put(
 );
 
 // GET user measurement unit
-customerRouter.get('/customerSettings', isAuth, async (req, res) => {
+customerRouter.get("/customerSettings", isAuth, async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.user._id);
     const settings = await CustomerSettings.findOne({ userId });
 
     res.json({
-      measurementUnit: settings?.measurementUnit || 'meters',
+      measurementUnit: settings?.measurementUnit || "meters",
     });
   } catch (error) {
-    console.error('❌ Error fetching settings:', error);
-    res.status(500).json({ error: 'Failed to fetch settings' });
+    console.error("❌ Error fetching settings:", error);
+    res.status(500).json({ error: "Failed to fetch settings" });
   }
 });
 
-customerRouter.put('/customerSettings', isAuth, async (req, res) => {
+customerRouter.put("/customerSettings", isAuth, async (req, res) => {
   try {
     const { measurementUnit } = req.body;
 
-    if (!['meters', 'wara'].includes(measurementUnit)) {
-      return res.status(400).json({ error: 'Invalid measurement unit' });
+    if (!["meters", "wara"].includes(measurementUnit)) {
+      return res.status(400).json({ error: "Invalid measurement unit" });
     }
 
     const userId = new mongoose.Types.ObjectId(req.user._id);
@@ -814,8 +882,8 @@ customerRouter.put('/customerSettings', isAuth, async (req, res) => {
       measurementUnit: settings.measurementUnit,
     });
   } catch (error) {
-    console.error('❌ Error updating settings:', error);
-    res.status(500).json({ error: 'Failed to update settings' });
+    console.error("❌ Error updating settings:", error);
+    res.status(500).json({ error: "Failed to update settings" });
   }
 });
 

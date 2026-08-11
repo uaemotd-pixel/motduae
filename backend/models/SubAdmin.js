@@ -9,7 +9,23 @@ const SubAdminSchema = new mongoose.Schema({
   address: {
     name: String,
     phone: String,
-    emirate: String,
+    emirate: {
+      type: String,
+      required: true,
+      trim: true,
+      enum: {
+        values: [
+          "Abu Dhabi",
+          "Dubai",
+          "Sharjah",
+          "Ajman",
+          "Umm Al Quwain",
+          "Ras Al Khaimah",
+          "Fujairah",
+        ],
+        message: "{VALUE} is not an official UAE emirate",
+      },
+    },
     city: String,
     street: String,
     building: String,
