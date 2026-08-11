@@ -23,7 +23,23 @@ const measurementsSchema = new mongoose.Schema(
 const addressSubSchema = new mongoose.Schema({
   fullName: { type: String, required: true, trim: true },
   phone: { type: String, required: true, trim: true },
-  emirate: { type: String, required: true, trim: true },
+  emirate: {
+    type: String,
+    required: true,
+    trim: true,
+    enum: {
+      values: [
+        "Abu Dhabi",
+        "Dubai",
+        "Sharjah",
+        "Ajman",
+        "Umm Al Quwain",
+        "Ras Al-Khaimah",
+        "Fujairah",
+      ],
+      message: "{VALUE} is not an official UAE emirate",
+    },
+  },
   city: { type: String, required: true, trim: true },
   street: { type: String, default: "", trim: true },
   building: { type: String, default: "", trim: true },
@@ -31,6 +47,7 @@ const addressSubSchema = new mongoose.Schema({
   isDefault: { type: Boolean, default: false },
 });
 
+// models/customer.js - change savedUserSubSchema
 const savedUserSubSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   phone: { type: String, required: true, trim: true },
@@ -41,19 +58,35 @@ const savedUserSubSchema = new mongoose.Schema({
     default: "other",
   },
   address: {
-    fullName: { type: String, trim: true },
-    phone: { type: String, trim: true },
-    emirate: { type: String, trim: true },
-    city: { type: String, trim: true },
-    street: { type: String, trim: true },
-    building: { type: String, trim: true },
-    postalCode: { type: String, trim: true },
+    type: {
+      fullName: { type: String, trim: true },
+      phone: { type: String, trim: true },
+      emirate: {
+        type: String,
+        trim: true,
+        enum: {
+          values: [
+            "Abu Dhabi",
+            "Dubai",
+            "Sharjah",
+            "Ajman",
+            "Umm Al Quwain",
+            "Ras Al Khaimah",
+            "Fujairah",
+          ],
+          message: "{VALUE} is not an official UAE emirate",
+        },
+      },
+      city: { type: String, trim: true },
+      street: { type: String, trim: true },
+      building: { type: String, trim: true },
+      postalCode: { type: String, trim: true },
+    },
+    required: false, // ← ADD THIS
+    default: undefined, // ← ADD THIS
   },
-
-  // Family member DOB + stored age
   dob: { type: Date },
   age: { type: Number, default: null },
-
   measurements: measurementsSchema,
   createdAt: { type: Date, default: Date.now },
 });
