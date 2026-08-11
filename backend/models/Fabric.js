@@ -1,17 +1,48 @@
 import mongoose from "mongoose";
 
-const FABRIC_MATERIALS = ["chiffon", "silk velvet", "tana linen cotton"];
-
 const storePickupAddressSchema = new mongoose.Schema(
   {
-    emirate: { type: String, required: true, trim: true },
+    emirate: {
+      type: String,
+      required: true,
+      trim: true,
+      enum: {
+        values: [
+          "abu-dhabi",
+          "dubai",
+          "sharjah",
+          "ajman",
+          "umm-al-quwain",
+          "ras-al-khaimah",
+          "fujairah",
+        ],
+        message: "{VALUE} is not an official UAE emirate",
+      },
+    },
     city: { type: String, required: true, trim: true },
     street: { type: String, default: "", trim: true },
     building: { type: String, default: "", trim: true },
     phone: { type: String, default: "", trim: true },
   },
-  { _id: false },
+  {
+    _id: false,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  },
 );
+
+storePickupAddressSchema.virtual("emirateAr").get(function () {
+  const map = {
+    "Abu Dhabi": "أبو ظبي",
+    Dubai: "دبي",
+    Sharjah: "الشارقة",
+    Ajman: "عجمان",
+    "Umm Al Quwain": "أم القيوين",
+    "Ras Al Khaimah": "رأس الخيمة",
+    Fujairah: "الفجيرة",
+  };
+  return map[this.emirate] || "";
+});
 
 const fabricSchema = new mongoose.Schema(
   {
@@ -35,21 +66,16 @@ const fabricSchema = new mongoose.Schema(
         message: "At least one image is required",
       },
     },
-    // Material – English (string) and Arabic (string)
     material: {
       type: String,
       required: true,
     },
     materialAr: { type: String, trim: true, default: "" },
-    // Tag – English (string) and Arabic (string)
     tag: { type: String, default: "", trim: true },
     tagAr: { type: String, default: "", trim: true },
-    // Colors
     colors: { type: [String], default: [] },
-    // Prices & Stock
     pricePerMeter: { type: Number, required: true, min: 0 },
     stockInMeters: { type: Number, required: true, default: 0, min: 0 },
-    // Store partner (ObjectId)
     listedByStore: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -100,4 +126,3 @@ fabricSchema.pre("save", async function populateFabricShopId(next) {
 const Fabric = mongoose.model("Fabric", fabricSchema);
 
 export default Fabric;
-export { FABRIC_MATERIALS };

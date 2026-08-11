@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
@@ -15,7 +15,7 @@ type PermKey =
   | "tailors"
   | "orders"
   | "partners"
-  | "settings"
+  | "settings";
 
 interface SubAdminForm {
   name: string;
@@ -31,6 +31,16 @@ interface SubAdminForm {
   postalCode: string;
   perms: Record<PermKey, boolean>;
 }
+
+const UAE_EMIRATES = [
+  { value: "Abu Dhabi", en: "Abu Dhabi", ar: "أبو ظبي" },
+  { value: "Dubai", en: "Dubai", ar: "دبي" },
+  { value: "Sharjah", en: "Sharjah", ar: "الشارقة" },
+  { value: "Ajman", en: "Ajman", ar: "عجمان" },
+  { value: "Umm Al Quwain", en: "Umm Al Quwain", ar: "أم القيوين" },
+  { value: "Ras Al Khaimah", en: "Ras Al Khaimah", ar: "رأس الخيمة" },
+  { value: "Fujairah", en: "Fujairah", ar: "الفجيرة" },
+];
 
 const defaultForm: SubAdminForm = {
   name: "",
@@ -74,7 +84,22 @@ export default function EditSubAdminPage() {
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [openEmirate, setOpenEmirate] = useState(false);
+  const emirateRef = useRef<HTMLDivElement>(null);
   const [form, setForm] = useState<SubAdminForm>(defaultForm);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        emirateRef.current &&
+        !emirateRef.current.contains(event.target as Node)
+      ) {
+        setOpenEmirate(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const fetchSubAdmin = async () => {
@@ -104,6 +129,21 @@ export default function EditSubAdminPage() {
     fetchSubAdmin();
   }, [id, router]);
 
+  const SelectTrigger = ({ onClick }: { onClick: () => void }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent text-xs sm:text-[14px] flex items-center justify-between hover:cursor-pointer"
+    >
+      <span className={form.emirate ? "text-black" : "text-gray-400"}>
+        {form.emirate
+          ? UAE_EMIRATES.find((e) => e.value === form.emirate)?.en
+          : "Select emirate"}
+      </span>
+      <span className="text-gray-400">▾</span>
+    </button>
+  );
+
   const handleChange = (field: keyof SubAdminForm, value: any) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -122,6 +162,8 @@ export default function EditSubAdminPage() {
     if (form.password.length > 0 && form.password.length < 6) {
       errors.password = "Password must be at least 6 characters";
     }
+    if (!form.emirate) errors.emirate = "Emirate required";
+    if (!form.city.trim()) errors.city = "City required";
 
     if (form.phone) {
       const phoneDigits = form.phone.replace("+971", "");
@@ -292,16 +334,39 @@ export default function EditSubAdminPage() {
                   />
                 </div>
               </FormField>
-              <FormField label="Emirate">
-                <input
-                  type="text"
-                  value={form.emirate}
-                  onChange={(e) => handleChange("emirate", e.target.value)}
-                  placeholder="Dubai"
-                  className="w-full py-1 border-b border-gray-300 focus:border-black outline-none"
-                />
+              <FormField label="Emirate" required error={fieldErrors.emirate}>
+                <div className="relative" ref={emirateRef}>
+                  <SelectTrigger onClick={() => setOpenEmirate(!openEmirate)} />
+                  {openEmirate && (
+                    <div className="absolute left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1 z-50">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleChange("emirate", "");
+                          setOpenEmirate(false);
+                        }}
+                        className="w-full px-3 sm:px-4 py-1.5 text-left text-xs sm:text-sm hover:bg-gray-100"
+                      >
+                        Select emirate
+                      </button>
+                      {UAE_EMIRATES.map((emirate) => (
+                        <button
+                          key={emirate.value}
+                          type="button"
+                          onClick={() => {
+                            handleChange("emirate", emirate.value);
+                            setOpenEmirate(false);
+                          }}
+                          className="w-full px-3 sm:px-4 py-1.5 text-left text-xs sm:text-sm hover:bg-gray-100"
+                        >
+                          {emirate.en} / {emirate.ar}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </FormField>
-              <FormField label="City">
+              <FormField label="City" required error={fieldErrors.city}>
                 <input
                   type="text"
                   value={form.city}
