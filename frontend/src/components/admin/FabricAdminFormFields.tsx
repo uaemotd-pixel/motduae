@@ -1,3 +1,4 @@
+// components/admin/FabricAdminFormFields.tsx
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -14,6 +15,7 @@ import {
   UAE_EMIRATES,
 } from "@/lib/createFabricAdmin";
 import { api } from "@/lib/api/client";
+import { isValidUaePhone, normalizeUaePhone, extractDigits } from "@/lib/uaePhone";
 
 const COLOR_OPTIONS = colors;
 
@@ -48,13 +50,11 @@ export default function FabricAdminFormFields({
   >([]);
   const [tagsLoading, setTagsLoading] = useState(true);
 
-  // Dropdown states for AnimatedDropdown
   const [openMaterial, setOpenMaterial] = useState(false);
   const [openTag, setOpenTag] = useState(false);
   const [openEmirate, setOpenEmirate] = useState(false);
   const [openColors, setOpenColors] = useState(false);
 
-  // Fetch materials from DB
   useEffect(() => {
     let cancelled = false;
     const fetchMaterials = async () => {
@@ -78,7 +78,6 @@ export default function FabricAdminFormFields({
     };
   }, []);
 
-  // Fetch tags from DB
   useEffect(() => {
     let cancelled = false;
     const fetchTags = async () => {
@@ -138,21 +137,53 @@ export default function FabricAdminFormFields({
     }
   };
 
-  // Material options - from DB only (combined EN / AR)
+  const handlePhoneChange = (field: string, value: string) => {
+    const digits = extractDigits(value);
+    if (digits.length <= 9) {
+      const normalized = normalizeUaePhone(digits);
+      if (field === "pickupAddress.phone") {
+        onPickupChange("phone", normalized);
+      } else {
+        // For variants
+        const parts = field.split(".");
+        const variantIndex = parseInt(parts[1]);
+        const subfield = parts[2];
+        if (subfield === "phone") {
+          const nextVariants = [...(formData.variants || [])];
+          nextVariants[variantIndex] = {
+            ...nextVariants[variantIndex],
+            pickupAddress: {
+              ...nextVariants[variantIndex].pickupAddress,
+              phone: normalized,
+            },
+          };
+          onFieldChange("variants", nextVariants);
+        }
+      }
+    }
+  };
+
+  const getPhoneDisplayValue = (phone: string): string => {
+    if (!phone) return "";
+    const digits = extractDigits(phone);
+    if (digits.startsWith("971")) {
+      return digits.slice(3);
+    }
+    return digits.slice(0, 9);
+  };
+
   const materialOptions = dbMaterials.map((m) => ({
     value: m.name,
     en: m.name,
     ar: m.nameAr || m.name,
   }));
 
-  // Tag options - from DB only (combined EN / AR)
   const tagOptions = dbTags.map((t) => ({
     value: t.name,
     en: t.name,
     ar: t.nameAr || t.name,
   }));
 
-  // Custom trigger for select fields
   const SelectTrigger = ({
     value,
     placeholder,
@@ -178,7 +209,6 @@ export default function FabricAdminFormFields({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-      {/* Name (EN) */}
       <FormField
         label="Name (EN)"
         name="name"
@@ -194,7 +224,6 @@ export default function FabricAdminFormFields({
         />
       </FormField>
 
-      {/* Name (AR) */}
       <FormField
         label="Name (AR)"
         name="nameAr"
@@ -210,7 +239,6 @@ export default function FabricAdminFormFields({
         />
       </FormField>
 
-      {/* Description (EN) */}
       <FormField
         label="Description (EN)"
         name="description"
@@ -225,7 +253,6 @@ export default function FabricAdminFormFields({
         />
       </FormField>
 
-      {/* Description (AR) */}
       <FormField
         label="Description (AR)"
         name="descriptionAr"
@@ -240,9 +267,7 @@ export default function FabricAdminFormFields({
         />
       </FormField>
 
-      {/* Material + Tag + Color in one row (order: material -> tag -> colors) */}
       <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-        {/* Material (ENG / AR) - combined from DB */}
         <FormField
           label="Material (ENG / AR)"
           name="material"
@@ -312,7 +337,6 @@ export default function FabricAdminFormFields({
           </AnimatedDropdown>
         </FormField>
 
-        {/* Tag (ENG / AR) - combined from DB */}
         <FormField label="Tag (ENG / AR)" name="tag" error={fieldErrors.tag}>
           <AnimatedDropdown
             isOpen={openTag}
@@ -375,7 +399,6 @@ export default function FabricAdminFormFields({
           </AnimatedDropdown>
         </FormField>
 
-        {/* Colors */}
         <FormField
           label="Colors"
           name="colors"
@@ -449,7 +472,6 @@ export default function FabricAdminFormFields({
         </FormField>
       </div>
 
-      {/* Price & Stock */}
       <div className="md:col-span-2">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 items-end">
           <FormField
@@ -493,7 +515,6 @@ export default function FabricAdminFormFields({
         </div>
       </div>
 
-      {/* Store Partner */}
       <div className="md:col-span-2">
         <StorePartnerPicker
           value={formData.listedByStore}
@@ -507,7 +528,6 @@ export default function FabricAdminFormFields({
         />
       </div>
 
-      {/* Pickup Address */}
       <div className="md:col-span-2">
         <h3 className="text-sm font-medium text-gray-700 mb-3">
           Store Pickup Address
@@ -610,22 +630,19 @@ export default function FabricAdminFormFields({
               </span>
               <input
                 type="text"
-                value={formData.pickupAddress.phone}
+                value={getPhoneDisplayValue(formData.pickupAddress.phone)}
                 onChange={(e) => {
-                  const val = e.target.value;
-                  if ((val === "" || /^\d*$/.test(val)) && val.length <= 9) {
-                    onPickupChange("phone", val);
-                  }
+                  handlePhoneChange("pickupAddress.phone", e.target.value);
                 }}
                 className="w-full py-1 pl-3 bg-transparent text-xs sm:text-[14px] focus:outline-none hover:cursor-text"
                 placeholder="123456777"
+                maxLength={9}
               />
             </div>
           </FormField>
         </div>
       </div>
 
-      {/* Images */}
       <div className="md:col-span-2">
         <div className="mb-2 flex justify-between items-center">
           <span className="font-label-sm text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
@@ -667,7 +684,6 @@ export default function FabricAdminFormFields({
         ))}
       </div>
 
-      {/* Active Status */}
       <div className="md:col-span-2">
         <FormField label="Active Status" name="isActive">
           <div className="flex items-center gap-2">
@@ -688,7 +704,6 @@ export default function FabricAdminFormFields({
         </FormField>
       </div>
 
-      {/* Variations Section */}
       <div className="md:col-span-2 pt-6 mt-6 border-t border-gray-200 space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
@@ -877,7 +892,6 @@ export default function FabricAdminFormFields({
                       </select>
                     </FormField>
 
-                    {/* VARIANT COLORS */}
                     <div className="md:col-span-2">
                       <FormField
                         label="Colors"
