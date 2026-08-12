@@ -68,7 +68,17 @@ const pickShopFields = (body) => {
   return data;
 };
 
+// Backend - store full format
 const validateShopPayload = (data, { requireCore = false } = {}) => {
+  const normalizePhone = (phone) => {
+    if (!phone) return "";
+    const digits = String(phone).replace(/\D/g, "");
+    if (digits.startsWith("971")) {
+      return `+971${digits.slice(3, 12)}`;
+    }
+    return `+971${digits.slice(0, 9)}`;
+  };
+
   if (requireCore) {
     if (!data.name || !data.nameAr || !data.slug || !data.phone) {
       return "name, nameAr, slug, and phone are required";
@@ -79,12 +89,14 @@ const validateShopPayload = (data, { requireCore = false } = {}) => {
     }
   }
 
-  if (
-    data.phone !== undefined &&
-    data.phone !== "" &&
-    !/^\d{9}$/.test(data.phone)
-  ) {
-    return "phone number must be exactly 9 digits";
+  if (data.phone !== undefined && data.phone !== "") {
+    const normalized = normalizePhone(data.phone);
+    // Validate after normalization - check if we have 9 digits after +971
+    if (!/^\+971\d{9}$/.test(normalized)) {
+      return "phone number must be exactly 9 digits";
+    }
+    // Store full +971 format
+    data.phone = normalized;
   }
 
   if (data.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(data.slug)) {
@@ -93,7 +105,6 @@ const validateShopPayload = (data, { requireCore = false } = {}) => {
 
   return null;
 };
-
 const findOwnShop = (ownerId) => FabricShop.findOne({ ownerId });
 
 // GET /api/fabric/status
@@ -258,10 +269,7 @@ fabricPortalRouter.get(
 
     const fabrics = await Fabric.find({
       listedByStore: req.user._id,
-      $or: [
-        { isVariantOf: null },
-        { isVariantOf: { $exists: false } }
-      ]
+      $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
     }).sort({
       createdAt: -1,
     });
@@ -272,7 +280,7 @@ fabricPortalRouter.get(
         const obj = fabric.toObject();
         obj.variants = variants;
         return obj;
-      })
+      }),
     );
     res.json({ success: true, items: fabricsWithVariants });
   }),
@@ -555,17 +563,23 @@ fabricPortalRouter.put(
           if (existing) {
             if (variant.name) existing.name = variant.name;
             if (variant.nameAr) existing.nameAr = variant.nameAr;
-            if (variant.description !== undefined) existing.description = variant.description;
-            if (variant.descriptionAr !== undefined) existing.descriptionAr = variant.descriptionAr;
+            if (variant.description !== undefined)
+              existing.description = variant.description;
+            if (variant.descriptionAr !== undefined)
+              existing.descriptionAr = variant.descriptionAr;
             if (variant.images) existing.images = variant.images;
             if (variant.material) existing.material = variant.material;
-            if (variant.materialAr !== undefined) existing.materialAr = variant.materialAr;
+            if (variant.materialAr !== undefined)
+              existing.materialAr = variant.materialAr;
             if (variant.colors) existing.colors = variant.colors;
             if (variant.tag !== undefined) existing.tag = variant.tag;
             if (variant.tagAr !== undefined) existing.tagAr = variant.tagAr;
-            if (variant.pricePerMeter !== undefined) existing.pricePerMeter = Number(variant.pricePerMeter);
-            if (variant.stockInMeters !== undefined) existing.stockInMeters = Number(variant.stockInMeters);
-            if (variant.isActive !== undefined) existing.isActive = variant.isActive;
+            if (variant.pricePerMeter !== undefined)
+              existing.pricePerMeter = Number(variant.pricePerMeter);
+            if (variant.stockInMeters !== undefined)
+              existing.stockInMeters = Number(variant.stockInMeters);
+            if (variant.isActive !== undefined)
+              existing.isActive = variant.isActive;
 
             existing.listedByStore = updatedFabric.listedByStore;
             existing.fabricShopId = updatedFabric.fabricShopId;
@@ -647,10 +661,7 @@ fabricPortalRouter.get(
     const shop = await findOwnShop(req.user._id);
     const storeAddonIds = shop
       ? await AddOn.find({
-          $or: [
-            { fabricShopId: shop._id },
-            { ownerName: shop.name }
-          ]
+          $or: [{ fabricShopId: shop._id }, { ownerName: shop.name }],
         }).select("_id")
       : [];
     const storeAddonIdValues = storeAddonIds.map((a) => a._id);
@@ -659,7 +670,7 @@ fabricPortalRouter.get(
       $or: [
         { fabricStoreId: req.user._id },
         { "items.fabricStoreId": req.user._id },
-        { "addons.addonId": { $in: storeAddonIdValues } }
+        { "addons.addonId": { $in: storeAddonIdValues } },
       ],
     };
 
@@ -704,28 +715,27 @@ fabricPortalRouter.get(
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
     if (!shop) {
-      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
       return;
     }
 
     // Find all ready-made products owned by this fabric store
     const storeProducts = await ReadyMadeProduct.find({
-      $or: [
-        { fabricShopId: shop._id },
-        { ownerName: shop.name }
-      ]
+      $or: [{ fabricShopId: shop._id }, { ownerName: shop.name }],
     }).select("_id");
     const storeProductIds = storeProducts.map((p) => p._id);
 
     const orders = await RetailOrder.find({
-      "orderItems.productId": { $in: storeProductIds }
+      "orderItems.productId": { $in: storeProductIds },
     })
       .populate("userId", "name email phone")
       .populate("orderItems.productId", "thumbnailImage images")
       .sort({ createdAt: -1 });
 
     res.json(orders);
-  })
+  }),
 );
 
 // PATCH /api/fabric/orders/:id/status — fabric store updates the fabric handoff milestone
@@ -816,7 +826,7 @@ fabricPortalRouter.post(
     }
     const url = await processReadyMadeImage(req.file);
     res.status(201).send({ success: true, url });
-  })
+  }),
 );
 
 // POST /api/fabric/uploads/addons
@@ -830,7 +840,7 @@ fabricPortalRouter.post(
     }
     const url = await processAddOnImage(req.file);
     res.status(201).send({ success: true, url });
-  })
+  }),
 );
 
 // ==========================================
@@ -843,17 +853,19 @@ fabricPortalRouter.get(
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
     if (!shop) {
-      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
       return;
     }
     const products = await ReadyMadeProduct.find({
       $or: [
         { fabricShopId: shop._id, ownerName: { $ne: "MOTD Admin" } },
-        { ownerName: shop.name }
-      ]
+        { ownerName: shop.name },
+      ],
     }).sort({ createdAt: -1 });
     res.json(products);
-  })
+  }),
 );
 
 // GET /api/fabric/ready-made/:id
@@ -862,16 +874,23 @@ fabricPortalRouter.get(
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
     if (!shop) {
-      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
       return;
     }
-    const product = await ReadyMadeProduct.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    const product = await ReadyMadeProduct.findOne({
+      _id: req.params.id,
+      fabricShopId: shop._id,
+    });
     if (!product) {
-      res.status(404).json({ success: false, message: "Ready-made product not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Ready-made product not found" });
       return;
     }
     res.json(product);
-  })
+  }),
 );
 
 // POST /api/fabric/ready-made
@@ -880,7 +899,9 @@ fabricPortalRouter.post(
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
     if (!shop) {
-      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
       return;
     }
 
@@ -950,7 +971,7 @@ fabricPortalRouter.post(
 
     const createdProduct = await newProduct.save();
     res.status(201).json(createdProduct);
-  })
+  }),
 );
 
 // PUT /api/fabric/ready-made/:id
@@ -959,13 +980,20 @@ fabricPortalRouter.put(
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
     if (!shop) {
-      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
       return;
     }
 
-    const product = await ReadyMadeProduct.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    const product = await ReadyMadeProduct.findOne({
+      _id: req.params.id,
+      fabricShopId: shop._id,
+    });
     if (!product) {
-      res.status(404).json({ success: false, message: "Ready-made product not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Ready-made product not found" });
       return;
     }
 
@@ -985,19 +1013,27 @@ fabricPortalRouter.put(
     product.thumbnailImage = req.body.thumbnailImage ?? product.thumbnailImage;
     product.images = req.body.images ?? product.images;
     product.fabricId = req.body.fabricId ?? product.fabricId;
-    product.tailorShopId = req.body.tailorShopId !== undefined ? req.body.tailorShopId : product.tailorShopId;
-    product.designId = req.body.designId !== undefined ? req.body.designId : product.designId;
+    product.tailorShopId =
+      req.body.tailorShopId !== undefined
+        ? req.body.tailorShopId
+        : product.tailorShopId;
+    product.designId =
+      req.body.designId !== undefined ? req.body.designId : product.designId;
 
     product.fabricType = req.body.fabricType ?? product.fabricType;
     product.fabricTypeAr = req.body.fabricTypeAr ?? product.fabricTypeAr;
     product.tailorName = req.body.tailorName ?? product.tailorName;
     product.tailorNameAr = req.body.tailorNameAr ?? product.tailorNameAr;
 
-    product.metersPerFabric = req.body.metersPerFabric ?? product.metersPerFabric;
+    product.metersPerFabric =
+      req.body.metersPerFabric ?? product.metersPerFabric;
     product.fabricPriceAED = req.body.fabricPriceAED ?? product.fabricPriceAED;
-    product.mukhawarPriceAED = req.body.mukhawarPriceAED ?? product.mukhawarPriceAED;
-    product.finalSellingPriceAED = req.body.finalSellingPriceAED ?? product.finalSellingPriceAED;
-    product.availableFabricStock = req.body.availableFabricStock ?? product.availableFabricStock;
+    product.mukhawarPriceAED =
+      req.body.mukhawarPriceAED ?? product.mukhawarPriceAED;
+    product.finalSellingPriceAED =
+      req.body.finalSellingPriceAED ?? product.finalSellingPriceAED;
+    product.availableFabricStock =
+      req.body.availableFabricStock ?? product.availableFabricStock;
     product.isActive = req.body.isActive ?? product.isActive;
     product.ownerName = req.body.ownerName ?? product.ownerName;
 
@@ -1010,7 +1046,7 @@ fabricPortalRouter.put(
 
     const updatedProduct = await product.save();
     res.json(updatedProduct);
-  })
+  }),
 );
 
 // DELETE /api/fabric/ready-made/:id
@@ -1019,18 +1055,23 @@ fabricPortalRouter.delete(
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
     if (!shop) {
-      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
       return;
     }
 
-    const product = await ReadyMadeProduct.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    const product = await ReadyMadeProduct.findOne({
+      _id: req.params.id,
+      fabricShopId: shop._id,
+    });
     if (product) {
       await product.deleteOne();
       res.json({ message: "Ready-made product deleted" });
     } else {
       res.status(404).json({ message: "Ready-made product not found" });
     }
-  })
+  }),
 );
 
 // ==========================================
@@ -1043,17 +1084,19 @@ fabricPortalRouter.get(
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
     if (!shop) {
-      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
       return;
     }
     const addons = await AddOn.find({
       $or: [
         { fabricShopId: shop._id, ownerName: { $ne: "MOTD Admin" } },
-        { ownerName: shop.name }
-      ]
+        { ownerName: shop.name },
+      ],
     }).sort({ createdAt: -1 });
     res.json(addons);
-  })
+  }),
 );
 
 // GET /api/fabric/addons/:id
@@ -1062,16 +1105,21 @@ fabricPortalRouter.get(
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
     if (!shop) {
-      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
       return;
     }
-    const addon = await AddOn.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    const addon = await AddOn.findOne({
+      _id: req.params.id,
+      fabricShopId: shop._id,
+    });
     if (!addon) {
       res.status(404).json({ success: false, message: "Addon not found" });
       return;
     }
     res.json(addon);
-  })
+  }),
 );
 
 // POST /api/fabric/addons
@@ -1080,7 +1128,9 @@ fabricPortalRouter.post(
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
     if (!shop) {
-      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
       return;
     }
 
@@ -1126,7 +1176,7 @@ fabricPortalRouter.post(
 
     const savedAddon = await addon.save();
     res.status(201).json(savedAddon);
-  })
+  }),
 );
 
 // PUT /api/fabric/addons/:id
@@ -1135,11 +1185,16 @@ fabricPortalRouter.put(
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
     if (!shop) {
-      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
       return;
     }
 
-    const addon = await AddOn.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    const addon = await AddOn.findOne({
+      _id: req.params.id,
+      fabricShopId: shop._id,
+    });
     if (!addon) {
       res.status(404).json({ success: false, message: "Addon not found" });
       return;
@@ -1176,7 +1231,7 @@ fabricPortalRouter.put(
 
     const updatedAddon = await addon.save();
     res.json(updatedAddon);
-  })
+  }),
 );
 
 // DELETE /api/fabric/addons/:id
@@ -1185,18 +1240,23 @@ fabricPortalRouter.delete(
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
     if (!shop) {
-      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
       return;
     }
 
-    const addon = await AddOn.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    const addon = await AddOn.findOne({
+      _id: req.params.id,
+      fabricShopId: shop._id,
+    });
     if (addon) {
       await addon.deleteOne();
       res.json({ message: "Addon deleted successfully" });
     } else {
       res.status(404).json({ message: "Addon not found" });
     }
-  })
+  }),
 );
 
 // PATCH /api/fabric/addons/:id/toggle-active
@@ -1205,11 +1265,16 @@ fabricPortalRouter.patch(
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
     if (!shop) {
-      res.status(404).json({ success: false, message: "Fabric shop not found" });
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
       return;
     }
 
-    const addon = await AddOn.findOne({ _id: req.params.id, fabricShopId: shop._id });
+    const addon = await AddOn.findOne({
+      _id: req.params.id,
+      fabricShopId: shop._id,
+    });
     if (!addon) {
       res.status(404).json({ success: false, message: "Addon not found" });
       return;
@@ -1222,7 +1287,7 @@ fabricPortalRouter.patch(
       message: `Addon ${addon.isActive ? "activated" : "deactivated"} successfully`,
       isActive: addon.isActive,
     });
-  })
+  }),
 );
 
 // ==========================================
@@ -1320,8 +1385,7 @@ fabricPortalRouter.get(
               item.fabricStoreId?.toString?.() ||
               "";
             return (
-              sid === ownerUserId.toString() ||
-              (shopIdStr && sid === shopIdStr)
+              sid === ownerUserId.toString() || (shopIdStr && sid === shopIdStr)
             );
           })
           .reduce((sum, item) => sum + (item.pricing?.fabricCost || 0), 0);
@@ -1338,14 +1402,12 @@ fabricPortalRouter.get(
               item.fabricStoreId?.toString?.() ||
               "";
             return (
-              sid === ownerUserId.toString() ||
-              (shopIdStr && sid === shopIdStr)
+              sid === ownerUserId.toString() || (shopIdStr && sid === shopIdStr)
             );
           })
           .reduce(
             (sum, item) =>
-              sum +
-              (item.pricing?.fabricMeters || item.fabricMeters || 0),
+              sum + (item.pricing?.fabricMeters || item.fabricMeters || 0),
             0,
           );
       }
@@ -1420,11 +1482,14 @@ fabricPortalRouter.get(
 
     const monthlyData = monthStarts.map((d) => ({
       month: d.toLocaleString("en-US", { month: "short" }),
-      revenue: monthlyMap.get(`${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`) || 0,
+      revenue:
+        monthlyMap.get(`${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`) || 0,
     }));
 
     const LOW_STOCK = 10;
-    const activeSkus = storeFabricIds.filter((f) => f.isActive !== false).length;
+    const activeSkus = storeFabricIds.filter(
+      (f) => f.isActive !== false,
+    ).length;
     const lowStock = storeFabricIds.filter(
       (f) => (f.stockInMeters || 0) <= LOW_STOCK && f.isActive !== false,
     ).length;

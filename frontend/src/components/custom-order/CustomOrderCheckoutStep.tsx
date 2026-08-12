@@ -1,3 +1,4 @@
+// app/[locale]/custom-order/checkout/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -23,6 +24,11 @@ import CardPaymentForm from "@/components/payments/CardPaymentForm";
 import SuccessModal from "@/components/shared/SuccessModal";
 import toast from "react-hot-toast";
 import { ERROR_TOAST } from "@/lib/tailorPortalToast";
+import {
+  isValidUaePhone,
+  normalizeUaePhone,
+  extractDigits,
+} from "@/lib/uaePhone";
 
 const EMIRATES = [
   "Abu Dhabi",
@@ -86,23 +92,6 @@ const REQUIRED_FIELDS: FormField[] = [
   "emirate",
 ];
 
-function validateUaePhone(phone: string): boolean {
-  const cleaned = phone.replace(/[^\d+]/g, "");
-  return /^(?:\+?971|0)\d{9}$/.test(cleaned);
-}
-
-// Normalize a UAE phone number to the canonical "+971xxxxxxx" (9 digits after +971)
-function normalizePhone(raw: string): string {
-  let digits = (raw || "").replace(/\D/g, "");
-  // Strip leading UAE country code (971) if present
-  if (digits.startsWith("971")) {
-    digits = digits.slice(3);
-  }
-  // Cap at 9 digits
-  digits = digits.slice(0, 9);
-  return digits ? `+971${digits}` : "";
-}
-
 export default function CustomOrderCheckoutStep() {
   const t = useTranslations("CustomOrderCheckout");
   const router = useRouter();
@@ -147,7 +136,9 @@ export default function CustomOrderCheckoutStep() {
   useEffect(() => {
     const fetchAddons = async () => {
       try {
-        const data = await api.get<{ success: boolean; items: any[] }>("/api/addons");
+        const data = await api.get<{ success: boolean; items: any[] }>(
+          "/api/addons",
+        );
         if (data && data.success) {
           setAddons(data.items || []);
         }
@@ -188,7 +179,6 @@ export default function CustomOrderCheckoutStep() {
     showSuccess,
   ]);
 
-  // Fetch tailor shop by tailor slug from draft
   useEffect(() => {
     async function fetchTailorShop() {
       const firstItem = draft.lineItems[0];
@@ -221,7 +211,6 @@ export default function CustomOrderCheckoutStep() {
     }
   }, [isHydrated, draft.lineItems]);
 
-  // In CustomOrderCheckoutStep - replace useEffect
   useEffect(() => {
     async function fetchCustomerOrMemberAddress() {
       if (!isAuthenticated) return;
@@ -240,28 +229,27 @@ export default function CustomOrderCheckoutStep() {
       try {
         setProfileLoading(true);
 
-        // NOTE: CustomOrderDraft currently only stores a deliveryAddress.
-        // MeasurementsStep selection is NOT persisted into draft, so by design we
-        // can only fetch the authenticated user's default customer address here.
-        console.log("👤 Fetching customer profile for delivery address");
-
         const data = await api.get<CustomerProfile>("/api/customer/profile");
         const defaultAddr =
           data.addresses?.find((a) => a.isDefault) || data.addresses?.[0];
 
-if (defaultAddr) {
+        if (defaultAddr) {
+          const normalizedPhone = normalizeUaePhone(
+            defaultAddr.phone || data.phone || "",
+          );
           updateDeliveryAddress({
             fullName: defaultAddr.fullName || data.name || "",
-            phone: normalizePhone(defaultAddr.phone || data.phone || ""),
+            phone: normalizedPhone,
             emirate: defaultAddr.emirate || "",
             city: defaultAddr.city || "",
             line1: defaultAddr.street || "",
             line2: defaultAddr.building || "",
           });
         } else {
+          const normalizedPhone = normalizeUaePhone(data.phone || "");
           updateDeliveryAddress({
             fullName: data.name || "",
-            phone: normalizePhone(data.phone || ""),
+            phone: normalizedPhone,
           });
         }
       } catch (err: any) {
@@ -336,10 +324,24 @@ if (defaultAddr) {
 
   const address = draft.deliveryAddress;
 
-const handleFieldChange = (field: FormField, value: string) => {
+  const getPhoneDisplayValue = (phone: string): string => {
+    if (!phone) return "";
+    const digits = extractDigits(phone);
+    if (digits.startsWith("971")) {
+      return digits.slice(3);
+    }
+    return digits.slice(0, 9);
+  };
+
+  const handleFieldChange = (field: FormField, value: string) => {
     let processedValue = value;
     if (field === "phone") {
-      processedValue = normalizePhone(value);
+      const digits = extractDigits(value);
+      if (digits.length <= 9) {
+        processedValue = normalizeUaePhone(digits);
+      } else {
+        return;
+      }
     }
     updateDeliveryAddress({ [field]: processedValue });
     if (errors[field]) {
@@ -364,10 +366,11 @@ const handleFieldChange = (field: FormField, value: string) => {
 
     if (!address.phone?.trim() || address.phone === "+971") {
       nextErrors.phone = t("required");
-    } else if (!validateUaePhone(address.phone)) {
-      nextErrors.phone = locale === "ar"
-        ? "رقم الهاتف غير صحيح. يجب أن يكون 9 أرقام بعد +971"
-        : "Invalid phone number. Must be 9 digits after +971";
+    } else if (!isValidUaePhone(address.phone)) {
+      nextErrors.phone =
+        locale === "ar"
+          ? "رقم الهاتف غير صحيح. يجب أن يكون 9 أرقام بعد +971"
+          : "Invalid phone number. Must be 9 digits after +971";
     }
 
     setErrors(nextErrors);
@@ -381,7 +384,7 @@ const handleFieldChange = (field: FormField, value: string) => {
 
     return {
       fullName: submittedName,
-      phone: address.phone!.trim(),
+      phone: normalizeUaePhone(address.phone!.trim()),
       line1: address.line1!.trim(),
       line2: address.line2?.trim() || "",
       city: address.city!.trim(),
@@ -476,7 +479,6 @@ const handleFieldChange = (field: FormField, value: string) => {
           paymentIntentId,
         });
       } catch (orderErr) {
-        // Payment already succeeded — recover via pending checkout / webhook path.
         response = await api.post("/api/payments/reconcile", {
           paymentIntentId,
           paymentMethod: method,
@@ -634,40 +636,51 @@ const handleFieldChange = (field: FormField, value: string) => {
                   ))}
                 </dl>
 
-                 {draft.addonIds && draft.addonIds.length > 0 && (
-                   <div className="pt-4 border-t border-(--color-border) mb-4">
-                     <h3 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
-                       {locale === "ar" ? "الإضافات المختارة" : "Selected Add-Ons"}
-                     </h3>
-                     <ul className="space-y-2">
-                       {addons
-                         .filter((a) => draft.addonIds.includes(a._id))
-                         .map((addon) => {
-                           const name = locale === "ar" ? addon.nameAr || addon.name : addon.name;
-                           return (
-                             <li key={addon._id} className="flex justify-between items-center text-sm text-black">
-                               <span className="[font-family:var(--font-body)] text-xs text-gray-700">{name}</span>
-                               <span className="font-semibold text-xs">{addon.price.toFixed(2)} AED</span>
-                             </li>
-                           );
-                         })}
-                     </ul>
-                   </div>
-                 )}
-
-                  <div className="pt-4 border-t border-(--color-border) flex justify-between items-center gap-4">
-                   <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-black">
-                     {t("total")}
-                   </span>
-                   <span className="[font-family:var(--font-display)] text-[24px] text-black">
-                     {pricing ? formatCurrency(pricing.total, locale) : "—"}
-                   </span>
+                {draft.addonIds && draft.addonIds.length > 0 && (
+                  <div className="pt-4 border-t border-(--color-border) mb-4">
+                    <h3 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
+                      {locale === "ar"
+                        ? "الإضافات المختارة"
+                        : "Selected Add-Ons"}
+                    </h3>
+                    <ul className="space-y-2">
+                      {addons
+                        .filter((a) => draft.addonIds.includes(a._id))
+                        .map((addon) => {
+                          const name =
+                            locale === "ar"
+                              ? addon.nameAr || addon.name
+                              : addon.name;
+                          return (
+                            <li
+                              key={addon._id}
+                              className="flex justify-between items-center text-sm text-black"
+                            >
+                              <span className="[font-family:var(--font-body)] text-xs text-gray-700">
+                                {name}
+                              </span>
+                              <span className="font-semibold text-xs">
+                                {addon.price.toFixed(2)} AED
+                              </span>
+                            </li>
+                          );
+                        })}
+                    </ul>
                   </div>
-                </aside>
-              </div>
+                )}
+
+                <div className="pt-4 border-t border-(--color-border) flex justify-between items-center gap-4">
+                  <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-black">
+                    {t("total")}
+                  </span>
+                  <span className="[font-family:var(--font-display)] text-[24px] text-black">
+                    {pricing ? formatCurrency(pricing.total, locale) : "—"}
+                  </span>
+                </div>
+              </aside>
+            </div>
 
             <section>
-              {/* Delivery Address or Pickup Info */}
               {deliveryType === "delivery" ? (
                 <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
                   <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
@@ -691,11 +704,17 @@ const handleFieldChange = (field: FormField, value: string) => {
                             handleFieldChange("fullName", e.target.value)
                           }
                           className={`w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition ${
-                            user?.isGuest ? (locale === "ar" ? "pl-20" : "pr-20") : ""
+                            user?.isGuest
+                              ? locale === "ar"
+                                ? "pl-20"
+                                : "pr-20"
+                              : ""
                           }`}
                         />
                         {user?.isGuest && (
-                          <span className={`absolute ${locale === "ar" ? "left-4" : "right-4"} text-gray-400 select-none pointer-events-none font-medium text-[15px]`}>
+                          <span
+                            className={`absolute ${locale === "ar" ? "left-4" : "right-4"} text-gray-400 select-none pointer-events-none font-medium text-[15px]`}
+                          >
                             {locale === "ar" ? " - زائر" : " - Guest"}
                           </span>
                         )}
@@ -715,27 +734,24 @@ const handleFieldChange = (field: FormField, value: string) => {
                         {t("phone")}*
                       </label>
                       <div className="relative flex items-center">
-                        <span className={`absolute ${locale === "ar" ? "right-4" : "left-4"} text-gray-500 font-mono text-[15px]`}>
+                        <span
+                          className={`absolute ${locale === "ar" ? "right-4" : "left-4"} text-gray-500 font-mono text-[15px]`}
+                        >
                           +971
                         </span>
                         <input
                           id="checkout-phone"
                           type="tel"
-value={
-                            address.phone
-                              ? normalizePhone(address.phone).replace(
-                                  /^\+971/,
-                                  "",
-                                )
-                              : ""
-                          }
+                          value={getPhoneDisplayValue(address.phone || "")}
                           onChange={(e) =>
                             handleFieldChange("phone", e.target.value)
                           }
                           placeholder="XXXXXXXXX"
                           maxLength={9}
                           className={`w-full border border-(--color-border) bg-white py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition ${
-                            locale === "ar" ? "pr-16 pl-4 text-right" : "pl-16 pr-4 text-left"
+                            locale === "ar"
+                              ? "pr-16 pl-4 text-right"
+                              : "pl-16 pr-4 text-left"
                           }`}
                         />
                       </div>
@@ -883,7 +899,6 @@ value={
                 </div>
               )}
 
-              {/* Payment */}
               <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
                 <h2 className="[font-family:var(--font-display)] text-[22px] mb-4">
                   {t("paymentTitle")}
@@ -946,7 +961,6 @@ value={
                 </div>
               </div>
 
-              {/* Confirm measurements */}
               <label className="flex items-start gap-3 mt-6 mb-6 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -983,7 +997,11 @@ value={
               {paymentMethod === "card" && (
                 <CardPaymentForm
                   amountAed={pricing?.total ?? 0}
-                  cardholderName={user?.isGuest ? `${address.fullName?.trim()} - ${locale === "ar" ? "زائر" : "Guest"}` : (address.fullName || "")}
+                  cardholderName={
+                    user?.isGuest
+                      ? `${address.fullName?.trim()} - ${locale === "ar" ? "زائر" : "Guest"}`
+                      : address.fullName || ""
+                  }
                   disabled={
                     isSubmitting ||
                     loadingPricing ||

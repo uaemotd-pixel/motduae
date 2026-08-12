@@ -1,3 +1,4 @@
+// app/[locale]/admin/sub-admin/create/page.tsx
 "use client";
 
 import { useState, FormEvent, useRef, useEffect } from "react";
@@ -6,6 +7,11 @@ import { api } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
+import {
+  isValidUaePhone,
+  normalizeUaePhone,
+  extractDigits,
+} from "@/lib/uaePhone";
 
 interface SubAdminForm {
   name: string;
@@ -49,10 +55,6 @@ export default function CreateSubAdminPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [openEmirate, setOpenEmirate] = useState(false);
   const emirateRef = useRef<HTMLDivElement>(null);
-
-  // Separate state for phone digits to allow typing
-  const [phoneDigits, setPhoneDigits] = useState("");
-  const [addressPhoneDigits, setAddressPhoneDigits] = useState("");
 
   const [form, setForm] = useState<SubAdminForm>({
     name: "",
@@ -105,23 +107,32 @@ export default function CreateSubAdminPage() {
     </button>
   );
 
+  const getPhoneDisplayValue = (phone: string): string => {
+    if (!phone) return "";
+    const digits = extractDigits(phone);
+    if (digits.startsWith("971")) {
+      return digits.slice(3);
+    }
+    return digits.slice(0, 9);
+  };
+
   const handlePhoneChange = (
     field: "phone" | "addressPhone",
     value: string,
   ) => {
-    const digits = value.replace(/\D/g, "").slice(0, 9);
+    const digits = extractDigits(value);
+    if (digits.length <= 9) {
+      const normalized = normalizeUaePhone(digits);
 
-    if (field === "phone") {
-      setPhoneDigits(digits);
-      // Store with prefix even if partial
-      setForm({ ...form, phone: digits ? `+971${digits}` : "" });
-    } else {
-      setAddressPhoneDigits(digits);
-      setForm({ ...form, addressPhone: digits ? `+971${digits}` : "" });
-    }
+      if (field === "phone") {
+        setForm({ ...form, phone: normalized });
+      } else {
+        setForm({ ...form, addressPhone: normalized });
+      }
 
-    if (fieldErrors[field]) {
-      setFieldErrors({ ...fieldErrors, [field]: "" });
+      if (fieldErrors[field]) {
+        setFieldErrors({ ...fieldErrors, [field]: "" });
+      }
     }
   };
 
@@ -136,8 +147,13 @@ export default function CreateSubAdminPage() {
 
     if (!form.phone || form.phone === "") {
       errors.phone = "Phone number is required";
-    } else if (!/^\+971\d{9}$/.test(form.phone)) {
-      errors.phone = "Phone must be exactly 9 digits";
+    } else if (!isValidUaePhone(form.phone)) {
+      errors.phone = "Invalid UAE phone. Must be +971 followed by 9 digits";
+    }
+
+    if (form.addressPhone && !isValidUaePhone(form.addressPhone)) {
+      errors.addressPhone =
+        "Invalid UAE phone for address. Must be +971 followed by 9 digits";
     }
 
     if (!form.emirate) errors.emirate = "Emirate is required";
@@ -156,18 +172,18 @@ export default function CreateSubAdminPage() {
 
     try {
       const payload = {
-        name: form.name,
-        email: form.email,
+        name: form.name.trim(),
+        email: form.email.trim(),
         password: form.password,
-        phone: form.phone,
+        phone: normalizeUaePhone(form.phone),
         address: {
-          name: form.addressName,
-          phone: form.addressPhone,
+          name: form.addressName.trim(),
+          phone: form.addressPhone ? normalizeUaePhone(form.addressPhone) : "",
           emirate: form.emirate,
-          city: form.city,
-          street: form.street,
-          building: form.building,
-          postalCode: form.postalCode,
+          city: form.city.trim(),
+          street: form.street.trim(),
+          building: form.building.trim(),
+          postalCode: form.postalCode.trim(),
         },
         perms: form.perms,
       };
@@ -202,7 +218,6 @@ export default function CreateSubAdminPage() {
         className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Personal Information */}
           <FormField label="Full Name" required error={fieldErrors.name}>
             <input
               type="text"
@@ -254,7 +269,7 @@ export default function CreateSubAdminPage() {
               <input
                 type="tel"
                 inputMode="numeric"
-                value={phoneDigits}
+                value={getPhoneDisplayValue(form.phone)}
                 onChange={(e) => handlePhoneChange("phone", e.target.value)}
                 placeholder="50 123 4567"
                 maxLength={9}
@@ -263,7 +278,6 @@ export default function CreateSubAdminPage() {
             </div>
           </FormField>
 
-          {/* Address Section – full width */}
           <div className="md:col-span-2">
             <h3 className="text-sm font-medium text-gray-700 mb-3">
               Address Details
@@ -281,7 +295,7 @@ export default function CreateSubAdminPage() {
                 />
               </FormField>
 
-              <FormField label="Phone">
+              <FormField label="Phone" error={fieldErrors.addressPhone}>
                 <div className="relative">
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
                     +971
@@ -289,7 +303,7 @@ export default function CreateSubAdminPage() {
                   <input
                     type="tel"
                     inputMode="numeric"
-                    value={addressPhoneDigits}
+                    value={getPhoneDisplayValue(form.addressPhone)}
                     onChange={(e) =>
                       handlePhoneChange("addressPhone", e.target.value)
                     }
@@ -379,7 +393,6 @@ export default function CreateSubAdminPage() {
             </div>
           </div>
 
-          {/* Permissions – full width */}
           <div className="md:col-span-2">
             <label className="block text-xs uppercase tracking-widest text-gray-500 mb-3">
               Permissions
@@ -408,7 +421,6 @@ export default function CreateSubAdminPage() {
           </div>
         </div>
 
-        {/* Submit */}
         <div className="flex flex-row-reverse gap-3 pt-6 mt-3 border-t border-gray-100">
           <button
             type="submit"

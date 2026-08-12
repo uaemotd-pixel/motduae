@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Save, Loader2, X, ChevronDown, ChevronUp, Ruler } from "lucide-react";
+import { Save, Loader2, X, ChevronDown, ChevronUp } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
 import { motion, AnimatePresence } from "framer-motion";
 import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
+import { isValidUaePhone, normalizeUaePhone, extractDigits } from "@/lib/uaePhone";
 
 type Relationship =
   | "wife"
@@ -23,7 +24,7 @@ type FormData = {
   customRelationship: string;
   phone: string;
   email: string;
-  dob: string; // yyyy-mm-dd
+  dob: string;
   address: {
     fullName: string;
     phone: string;
@@ -50,28 +51,6 @@ type FamilyMemberFormProps = {
   };
 };
 
-const UAE_PHONE_REGEX = /^\+971[0-9]{9}$/;
-
-const validateUAEPhone = (phone: string): boolean => {
-  const cleaned = phone.replace(/\s/g, "");
-  return UAE_PHONE_REGEX.test(cleaned);
-};
-
-const normalizeUAEPhone = (phone: string): string => {
-  const cleaned = phone.replace(/\s/g, "");
-  const digits = cleaned.replace(/\D/g, "");
-
-  if (/^\+971\d{9}$/.test(cleaned)) {
-    const num = cleaned.slice(4);
-    return `+971 ${num.slice(0, 2)} ${num.slice(2, 5)} ${num.slice(5)}`;
-  }
-  if (digits.startsWith("971") && digits.length === 12) {
-    const num = digits.slice(3);
-    return `+971 ${num.slice(0, 2)} ${num.slice(2, 5)} ${num.slice(5)}`;
-  }
-  return `+971 ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5)}`;
-};
-
 const DEFAULT_FORM: FormData = {
   name: "",
   relationship: "other",
@@ -90,7 +69,6 @@ const DEFAULT_FORM: FormData = {
   },
 };
 
-// Add relationship options
 const RELATIONSHIP_OPTIONS = [
   { value: "wife", label: "Wife" },
   { value: "mother", label: "Mother" },
@@ -101,7 +79,6 @@ const RELATIONSHIP_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-// UAE Emirates list
 const UAE_EMIRATES = [
   "Abu Dhabi",
   "Dubai",
@@ -127,7 +104,6 @@ export default function FamilyMembersForm({
   const [relationshipOpen, setRelationshipOpen] = useState(false);
   const relationshipRef = useRef<HTMLDivElement>(null);
 
-  // Add close on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -159,15 +135,18 @@ export default function FamilyMembersForm({
         "other",
       ];
       const isKnown = knownRelationships.includes(initialData.relationship);
+      const normalizedPhone = normalizeUaePhone(initialData.phone || "");
+      const normalizedAddrPhone = normalizeUaePhone(initialData.address?.phone || "");
+      
       setForm({
         name: initialData.name || "",
         relationship: isKnown ? initialData.relationship : "other",
         customRelationship: isKnown ? "" : initialData.relationship || "",
-        phone: initialData.phone || "",
+        phone: normalizedPhone,
         email: initialData.email || "",
         address: {
           fullName: initialData.address?.fullName || "",
-          phone: initialData.address?.phone || "",
+          phone: normalizedAddrPhone,
           emirate: initialData.address?.emirate || "",
           city: initialData.address?.city || "",
           street: initialData.address?.street || "",
@@ -189,22 +168,22 @@ export default function FamilyMembersForm({
     const { name, value } = e.target;
 
     if (name === "phone") {
-      const digits = value.replace(/\D/g, "");
+      const digits = extractDigits(value);
       if (digits.length <= 9) {
-        const full = `+971${digits}`;
-        setForm((prev) => ({ ...prev, phone: full }));
+        const normalized = normalizeUaePhone(digits);
+        setForm((prev) => ({ ...prev, phone: normalized }));
         if (phoneError) setPhoneError("");
       }
       return;
     }
 
     if (name === "address.phone") {
-      const digits = value.replace(/\D/g, "");
+      const digits = extractDigits(value);
       if (digits.length <= 9) {
-        const full = `+971${digits}`;
+        const normalized = normalizeUaePhone(digits);
         setForm((prev) => ({
           ...prev,
-          address: { ...prev.address, phone: full },
+          address: { ...prev.address, phone: normalized },
         }));
         if (addrPhoneError) setAddrPhoneError("");
       }
@@ -239,14 +218,23 @@ export default function FamilyMembersForm({
       return;
     }
 
-    const isValid = validateUAEPhone(phoneValue);
+    const isValid = isValidUaePhone(phoneValue);
     if (!isValid) {
-      setError("Enter valid UAE number (+971 XX XXX XXXX)");
+      setError("Invalid UAE number. Must be +971 followed by 9 digits");
     } else {
       setError("");
-      const normalized = normalizeUAEPhone(phoneValue);
+      const normalized = normalizeUaePhone(phoneValue);
       updateForm(normalized);
     }
+  };
+
+  const getPhoneDisplayValue = (phone: string): string => {
+    if (!phone) return "";
+    const digits = extractDigits(phone);
+    if (digits.startsWith("971")) {
+      return digits.slice(3);
+    }
+    return digits.slice(0, 9);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -269,28 +257,32 @@ export default function FamilyMembersForm({
       return;
     }
 
+    const phoneValidation = isValidUaePhone(form.phone);
     if (!form.phone) {
       toast.error("Phone number is required", ERROR_TOAST);
       return;
     }
-    if (!validateUAEPhone(form.phone)) {
-      toast.error("Enter valid UAE number (+971 XX XXX XXXX)", ERROR_TOAST);
+    if (!phoneValidation) {
+      toast.error("Invalid UAE number. Must be +971 followed by 9 digits", ERROR_TOAST);
       return;
     }
 
-    if (form.address.phone && !validateUAEPhone(form.address.phone)) {
-      toast.error(
-        "Enter valid UAE number for address (+971 XX XXX XXXX)",
-        ERROR_TOAST,
-      );
-      return;
+    if (form.address.phone) {
+      const addrPhoneValid = isValidUaePhone(form.address.phone);
+      if (!addrPhoneValid) {
+        toast.error(
+          "Invalid UAE number for address. Must be +971 followed by 9 digits",
+          ERROR_TOAST,
+        );
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
-      const normalizedPhone = normalizeUAEPhone(form.phone);
+      const normalizedPhone = normalizeUaePhone(form.phone);
       const normalizedAddrPhone = form.address.phone
-        ? normalizeUAEPhone(form.address.phone)
+        ? normalizeUaePhone(form.address.phone)
         : "";
 
       const relationshipValue =
@@ -360,7 +352,7 @@ export default function FamilyMembersForm({
         <input
           type="tel"
           name={name}
-          value={value.replace(/\D/g, "").slice(3) || ""}
+          value={getPhoneDisplayValue(value)}
           onChange={onChange}
           onBlur={onBlur}
           placeholder={placeholder}
@@ -485,7 +477,6 @@ export default function FamilyMembersForm({
                   )}
                 </AnimatePresence>
               </div>
-              {/* Custom relationship input when "Other" is selected */}
               {form.relationship === "other" && (
                 <div className="mt-3">
                   <input

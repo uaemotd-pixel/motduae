@@ -22,6 +22,11 @@ import CardPaymentForm from "@/components/payments/CardPaymentForm";
 import toast from "react-hot-toast";
 import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
+import {
+  isValidUaePhone,
+  normalizeUaePhone,
+  extractDigits,
+} from "@/lib/uaePhone";
 
 const EMIRATES = [
   "Abu Dhabi",
@@ -32,11 +37,6 @@ const EMIRATES = [
   "Fujairah",
   "Umm Al Quwain",
 ];
-
-function validateUaePhone(phone: string): boolean {
-  const cleaned = phone.replace(/[^\d+]/g, "");
-  return /^\+971\d{9}$/.test(cleaned);
-}
 
 type CustomerAddress = {
   _id?: string;
@@ -359,20 +359,23 @@ function CheckoutPageContent() {
         const defaultAddr =
           data.addresses?.find((a) => a.isDefault) || data.addresses?.[0];
         if (defaultAddr) {
+          const normalizedPhone = normalizeUaePhone(defaultAddr.phone || "");
+          const normalizedProfilePhone = normalizeUaePhone(data.phone || "");
           setFormData((prev) => ({
             ...prev,
             fullName: defaultAddr.fullName || data.name || prev.fullName,
-            phone: defaultAddr.phone || data.phone || prev.phone,
+            phone: normalizedPhone || normalizedProfilePhone || prev.phone,
             emirate: defaultAddr.emirate || "",
             city: defaultAddr.city || "",
             street: defaultAddr.street || "",
             building: defaultAddr.building || "",
           }));
         } else {
+          const normalizedPhone = normalizeUaePhone(data.phone || "");
           setFormData((prev) => ({
             ...prev,
             fullName: data.name || prev.fullName,
-            phone: data.phone || prev.phone,
+            phone: normalizedPhone || prev.phone,
           }));
         }
         initialFillDone.current = true;
@@ -441,12 +444,26 @@ function CheckoutPageContent() {
       processedValue = value.replace(/[^a-zA-Z\u0600-\u06FF\s\-']/g, "");
     }
     if (name === "phone") {
-      const digits = value.replace(/\D/g, "").slice(0, 9);
-      processedValue = `+971${digits}`;
+      const digits = extractDigits(value);
+      if (digits.length <= 9) {
+        const normalized = normalizeUaePhone(digits);
+        processedValue = normalized;
+      } else {
+        return;
+      }
     }
     setFormData((prev) => ({ ...prev, [name]: processedValue }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
     if (errorMessage) setErrorMessage(null);
+  };
+
+  const getPhoneDisplayValue = (phone: string): string => {
+    if (!phone) return "";
+    const digits = extractDigits(phone);
+    if (digits.startsWith("971")) {
+      return digits.slice(3);
+    }
+    return digits.slice(0, 9);
   };
 
   const validateForm = () => {
@@ -454,7 +471,7 @@ function CheckoutPageContent() {
     if (!formData.fullName.trim()) newErrors.fullName = "Required";
     if (!formData.phone.trim() || formData.phone === "+971") {
       newErrors.phone = "Required";
-    } else if (!validateUaePhone(formData.phone)) {
+    } else if (!isValidUaePhone(formData.phone)) {
       newErrors.phone =
         localeParams === "ar"
           ? "رقم الهاتف غير صحيح. يجب أن يكون 9 أرقام بعد +971"
@@ -486,7 +503,7 @@ function CheckoutPageContent() {
       orderItems,
       shippingAddress: {
         fullName: submittedName,
-        phone: formData.phone,
+        phone: normalizeUaePhone(formData.phone),
         emirate: formData.emirate,
         city: formData.city,
         street: formData.street,
@@ -793,15 +810,7 @@ function CheckoutPageContent() {
                         <input
                           type="tel"
                           name="phone"
-                          value={
-                            formData.phone
-                              ? formData.phone
-                                  .replace(/\D/g, "")
-                                  .startsWith("971")
-                                ? formData.phone.replace(/\D/g, "").slice(3)
-                                : formData.phone.replace(/\D/g, "").slice(0, 9)
-                              : ""
-                          }
+                          value={getPhoneDisplayValue(formData.phone)}
                           onChange={handleChange}
                           placeholder="XXXXXXXXX"
                           maxLength={9}
