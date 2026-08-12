@@ -123,10 +123,10 @@ const FAQ_ITEMS: FAQItem[] = [
   {
     id: "pa-1",
     sectionId: "section-6",
-    questionEn: "Do you offer Cash on Delivery (COD)?",
-    questionAr: "هل توفرون خدمة الدفع عند الاستلام؟",
-    answerEn: "Yes, Cash on Delivery is currently supported for customers across the UAE. You pay the exact courier invoice amount when your order is delivered to your door.",
-    answerAr: "نعم، الدفع عند الاستلام مدعوم حاليًا للعملاء في جميع أنحاء الإمارات. تدفع قيمة الفاتورة الدقيقة لمندوب التوصيل عند تسليم طلبك إلى باب منزلك."
+    questionEn: "What payment methods do you accept?",
+    questionAr: "ما هي طرق الدفع التي تقبلونها؟",
+    answerEn: "We accept card payments and Apple Pay only. Cash on Delivery is not available.",
+    answerAr: "نقبل الدفع بالبطاقة وApple Pay فقط. الدفع عند الاستلام غير متاح.",
   },
   {
     id: "pa-2",

@@ -164,25 +164,25 @@ export default function LoginPage() {
                             <div className="space-y-4 fade-in">
                                 <button
                                     type="button"
-                                    onClick={handleGuestLogin}
-                                    disabled={isLoading}
+                                    onClick={() => setShowLoginForm(true)}
                                     className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[11px] md:text-[12px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 hover:cursor-pointer rounded-lg"
                                 >
                                     <svg className="w-4 h-4 text-white/80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zm0 0c0 1.657 1.007 3 2.25 3S21 13.657 21 12a9 9 0 10-2.636 6.364M16.5 12V8.25" />
                                     </svg>
-                                    {locale === "ar" ? "المتابعة كضيف" : "Sign in as a Guest"}
+                                    {locale === "ar" ? "تسجيل الدخول بالحساب" : "Sign In to Account"}
                                 </button>
 
                                 <button
                                     type="button"
-                                    onClick={() => setShowLoginForm(true)}
+                                    onClick={handleGuestLogin}
+                                    disabled={isLoading}
                                     className="w-full h-12 md:h-13 border border-black/15 text-black bg-transparent font-label-sm text-[11px] md:text-[12px] uppercase tracking-[0.25em] hover:bg-black/5 transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 hover:cursor-pointer rounded-lg"
                                 >
                                     <svg className="w-4 h-4 text-black/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zm0 0c0 1.657 1.007 3 2.25 3S21 13.657 21 12a9 9 0 10-2.636 6.364M16.5 12V8.25" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                                     </svg>
-                                    {locale === "ar" ? "تسجيل الدخول بالحساب" : "Sign In to Account"}
+                                    {locale === "ar" ? "المتابعة كضيف" : "Sign in as a Guest"}
                                 </button>
 
                                 <div className="relative py-3 flex items-center">

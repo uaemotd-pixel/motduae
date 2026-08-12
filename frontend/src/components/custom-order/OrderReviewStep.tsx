@@ -97,14 +97,17 @@ export default function OrderReviewStep() {
     const fetchSettings = async () => {
       try {
         const data = await api.get<{
-          defaultDeliveryFee: number;
+          defaultDeliveryFee?: number;
+          perParcelDeliveryFee?: number;
           vatRate: number;
         }>("/api/orders/settings");
-        setShippingFee(data.defaultDeliveryFee);
+        setShippingFee(
+          data.perParcelDeliveryFee ?? data.defaultDeliveryFee ?? 30,
+        );
         setVatRate(data.vatRate);
       } catch (error) {
         console.error("Failed to fetch settings:", error);
-        setShippingFee(35);
+        setShippingFee(30);
         setVatRate(0.05);
       }
     };
@@ -498,7 +501,7 @@ export default function OrderReviewStep() {
                     </div>
 
                     <p className="mt-1.5 text-[10px] text-gray-400 font-ui tracking-[0.12em] text-right">
-                      AED {shippingFee ?? 35} delivery fee applies
+                      AED {shippingFee ?? 30} delivery fee applies
                     </p>
                   </div>
 

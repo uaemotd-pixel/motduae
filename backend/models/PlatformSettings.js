@@ -12,11 +12,13 @@ const platformSettingsSchema = new mongoose.Schema(
       unique: true,
       immutable: true,
     },
+    // Per-parcel delivery rate (AED). Alias keeps legacy defaultDeliveryFee callers working.
     defaultDeliveryFee: {
       type: Number,
-      default: 0,
+      default: 30,
       min: 0,
       required: true,
+      alias: 'perParcelDeliveryFee',
     },
     defaultTailoringFee: {
       type: Number,
@@ -62,6 +64,8 @@ const platformSettingsSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { aliases: true },
+    toObject: { aliases: true },
   }
 );
 

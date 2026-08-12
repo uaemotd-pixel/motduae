@@ -3,6 +3,7 @@ import expressAsyncHandler from "express-async-handler";
 import mongoose from "mongoose";
 import Design from "../models/Design.js";
 import TailorShop from "../models/TailorShop.js";
+import PlatformSettings from "../models/PlatformSettings.js";
 import { deleteTailorDesignUpload } from "../utils/uploads.js";
 
 const tailorDesignRouter = express.Router();
@@ -55,6 +56,15 @@ const resolveOwnShop = async (req, res) => {
   return shop;
 };
 
+const slugifyDesignName = (name) =>
+  String(name || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
 const pickDesignFields = (body) => {
   const data = {};
 
@@ -93,7 +103,10 @@ const pickDesignFields = (body) => {
     data[field] = body[field];
   }
 
-  if (data.slug) {
+  // Slug is always derived from the English name (spaces → dashes)
+  if (data.name !== undefined) {
+    data.slug = slugifyDesignName(data.name);
+  } else if (data.slug) {
     data.slug = data.slug.toLowerCase();
   }
 
@@ -125,6 +138,10 @@ const validateDesignPayload = (data, { requireCore = false } = {}) => {
     if (!Array.isArray(data.images) || data.images.length === 0) {
       return "At least one image is required";
     }
+  }
+
+  if (data.name !== undefined && !slugifyDesignName(data.name)) {
+    return "name must include at least one letter or number for the URL";
   }
 
   if (data.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(data.slug)) {
@@ -236,6 +253,16 @@ tailorDesignRouter.post(
     if (!shop) return;
 
     const data = pickDesignFields(req.body);
+
+    if (
+      data.tailoringFee === undefined ||
+      data.tailoringFee === null ||
+      Number.isNaN(data.tailoringFee)
+    ) {
+      const settings = await PlatformSettings.getSettings();
+      data.tailoringFee = Number(settings.defaultTailoringFee || 0);
+    }
+
     const validationError = validateDesignPayload(data, { requireCore: true });
     if (validationError) {
       res.status(400).json({

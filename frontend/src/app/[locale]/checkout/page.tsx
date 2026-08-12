@@ -152,9 +152,9 @@ function CheckoutPageContent() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<
-    "cod" | "apple_pay" | "card"
-  >("cod");
+  const [paymentMethod, setPaymentMethod] = useState<"apple_pay" | "card">(
+    "card",
+  );
 
   // --- Fetch VAT rate ---
   useEffect(() => {
@@ -619,53 +619,6 @@ function CheckoutPageContent() {
     setErrorMessage(message);
   };
 
-  const placeCodOrder = async () => {
-    if (!validateForm()) {
-      toast.error(
-        locale === "ar"
-          ? "يرجى ملء جميع الحقول المطلوبة."
-          : "Please fill in all required fields.",
-        ERROR_TOAST,
-      );
-      return;
-    }
-
-    setIsSubmitting(true);
-    setErrorMessage(null);
-
-    try {
-      const payload = buildOrderPayload();
-      const response = await api.post<{
-        success: boolean;
-        orderId: string;
-        message?: string;
-      }>("/api/orders/retail", {
-        ...payload,
-        paymentMethod: "cod",
-      });
-
-      if (response.success) {
-        setLastOrderId(response.orderId);
-        setLastOrderItems(displayItems.map((item) => ({ name: item.name })));
-        setShowSuccessModal(true);
-        clearCompletedCheckoutItems();
-      } else {
-        throw new Error(response.message || "Order failed");
-      }
-    } catch (err: unknown) {
-      console.error("Order error:", err);
-      const message =
-        (err as ApiError)?.message ||
-        (err instanceof Error
-          ? err.message
-          : "Something went wrong. Please try again.");
-      setErrorMessage(message);
-      toast.error(message, ERROR_TOAST);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <MainLayout>
       <FadeInSection>
@@ -924,24 +877,6 @@ function CheckoutPageContent() {
                       <input
                         type="radio"
                         name="paymentMethod"
-                        value="cod"
-                        checked={paymentMethod === "cod"}
-                        onChange={() => setPaymentMethod("cod")}
-                        className="w-4 h-4 mt-0.5 accent-black shrink-0"
-                      />
-                      <span>
-                        <span className="block [font-family:var(--font-body)] text-[15px] text-black">
-                          {t.checkout.codLabel}
-                        </span>
-                        <span className="block [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mt-0.5">
-                          {t.checkout.codDescription}
-                        </span>
-                      </span>
-                    </label>
-                    <label className="flex items-start gap-3 cursor-pointer select-none">
-                      <input
-                        type="radio"
-                        name="paymentMethod"
                         value="card"
                         checked={paymentMethod === "card"}
                         onChange={() => setPaymentMethod("card")}
@@ -984,19 +919,6 @@ function CheckoutPageContent() {
                 )}
 
                 <div className="mt-6 md:mt-7">
-                  {paymentMethod === "cod" && (
-                    <button
-                      type="button"
-                      onClick={placeCodOrder}
-                      disabled={isSubmitting || displayItems.length === 0}
-                      className="w-full h-12 bg-black text-white [font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.24em] hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isSubmitting
-                        ? t.checkout.processing
-                        : t.checkout.placeOrder}
-                    </button>
-                  )}
-
                   {paymentMethod === "card" && (
                     <CardPaymentForm
                       amountAed={total}
