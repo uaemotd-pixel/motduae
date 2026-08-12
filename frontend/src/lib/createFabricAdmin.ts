@@ -1,3 +1,6 @@
+// lib/createFabricAdmin.ts
+import { isValidUaePhone, normalizeUaePhone, extractDigits } from "./uaePhone";
+
 // UAE Emirates (unchanged)
 export const UAE_EMIRATES = [
   { value: "abu-dhabi", en: "Abu Dhabi", ar: "أبو ظبي" },
@@ -132,7 +135,7 @@ export function fromApiFabric(
           city: typeof source.city === "string" ? source.city : "",
           street: typeof source.street === "string" ? source.street : "",
           building: typeof source.building === "string" ? source.building : "",
-          phone: typeof source.phone === "string" ? source.phone : "",
+          phone: typeof source.phone === "string" ? normalizeUaePhone(source.phone) : "",
         }
       : defaultForm.pickupAddress;
   })();
@@ -193,7 +196,7 @@ export function toFabricApiPayload(
       city: form.pickupAddress.city.trim(),
       street: form.pickupAddress.street?.trim() || "",
       building: form.pickupAddress.building?.trim() || "",
-      phone: form.pickupAddress.phone?.trim() || "",
+      phone: normalizeUaePhone(form.pickupAddress.phone?.trim() || ""),
     },
     variants: form.variants?.map((v) => ({
       _id: v._id,
@@ -284,7 +287,7 @@ export function validateFabricForm(
     errors.stockInMeters = "Please enter a valid stock amount";
   }
 
-  // Pickup address validations
+  // Pickup address validations using uaePhone
   if (!form.pickupAddress.emirate?.trim()) {
     errors["pickupAddress.emirate"] =
       validation.emirate_required || "Emirate is required";
@@ -300,9 +303,15 @@ export function validateFabricForm(
     errors["pickupAddress.building"] = "Building is required";
   }
   if (!form.pickupAddress.phone?.trim()) {
-    errors["pickupAddress.phone"] = "Phone is required";
-  } else if (!/^\d{9}$/.test(form.pickupAddress.phone.trim())) {
-    errors["pickupAddress.phone"] = "Phone number must be exactly 9 digits";
+    errors["pickupAddress.phone"] = "Phone number is required";
+  } else {
+    const normalizedPhone = normalizeUaePhone(form.pickupAddress.phone.trim());
+    if (!isValidUaePhone(normalizedPhone)) {
+      errors["pickupAddress.phone"] = "Invalid UAE phone. Must be +971 followed by 9 digits";
+    } else {
+      // Normalize the phone in form data
+      form.pickupAddress.phone = normalizedPhone;
+    }
   }
 
   // Images validation
@@ -348,6 +357,16 @@ export function validateFabricForm(
       if (!v.images?.some((img) => img.trim())) {
         errors[`${prefix}.images`] =
           "At least one image is required for variant";
+      }
+      
+      // Validate variant pickup address phone
+      if (v.pickupAddress?.phone) {
+        const normalizedVariantPhone = normalizeUaePhone(v.pickupAddress.phone.trim());
+        if (!isValidUaePhone(normalizedVariantPhone)) {
+          errors[`${prefix}.pickupAddress.phone`] = "Invalid UAE phone for variant. Must be +971 followed by 9 digits";
+        } else {
+          v.pickupAddress.phone = normalizedVariantPhone;
+        }
       }
     });
   }

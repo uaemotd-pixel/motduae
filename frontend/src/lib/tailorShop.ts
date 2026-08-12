@@ -1,12 +1,6 @@
+// lib/tailorShop.ts
 import { api, type ApiError } from "@/lib/api/client";
-import {
-  emptyShopPickupAddress,
-  normalizeShopPickupAddress,
-  type ShopPickupAddress,
-} from "@/lib/fabricShop";
-
-export type { ShopPickupAddress };
-export { emptyShopPickupAddress, normalizeShopPickupAddress, SHOP_EMIRATES } from "@/lib/fabricShop";
+import { isValidUaePhone, normalizeUaePhone, extractDigits } from "./uaePhone";
 
 export interface TailorShopProfile {
   _id: string;
@@ -26,6 +20,15 @@ export interface TailorShopProfile {
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface ShopPickupAddress {
+  fullName: string;
+  phone: string;
+  line1: string;
+  line2: string;
+  city: string;
+  emirate: string;
 }
 
 export interface TailorShopFormData {
@@ -60,7 +63,23 @@ export function emptyTailorShopForm(): TailorShopFormData {
   };
 }
 
+export function emptyShopPickupAddress(): ShopPickupAddress {
+  return {
+    fullName: "",
+    phone: "",
+    line1: "",
+    line2: "",
+    city: "",
+    emirate: "",
+  };
+}
+
 export function tailorShopToForm(shop: TailorShopProfile): TailorShopFormData {
+  // Extract only 9 digits from phone
+  const digits = extractDigits(shop.phone ?? "");
+  // If starts with 971, remove it
+  const phone = digits.startsWith("971") ? digits.slice(3) : digits.slice(0, 9);
+
   return {
     name: shop.name ?? "",
     nameAr: shop.nameAr ?? "",
@@ -71,8 +90,8 @@ export function tailorShopToForm(shop: TailorShopProfile): TailorShopFormData {
     coverImage: shop.coverImage ?? "",
     location: shop.location ?? "",
     city: shop.city ?? "",
-    phone: shop.phone ?? "",
-    pickupAddress: normalizeShopPickupAddress(shop.pickupAddress),
+    phone: phone,
+    pickupAddress: shop.pickupAddress ?? emptyShopPickupAddress(),
   };
 }
 
@@ -87,21 +106,31 @@ export function slugifyShopName(name: string): string {
 }
 
 export function normalizePhoneNumber(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
+  if (!value) return "";
 
-  const digits = trimmed.replace(/\D/g, "");
+  // Extract digits only
+  const digits = extractDigits(value);
   if (!digits) return "";
 
-  if (digits.length === 9) return `+971${digits}`;
-  if (digits.length === 12 && digits.startsWith("971")) return `+${digits}`;
+  // If starts with 971, remove it and return 9 digits
+  if (digits.startsWith("971")) {
+    return digits.slice(3, 12);
+  }
 
-  return trimmed.startsWith("+") ? trimmed : trimmed;
+  // Return first 9 digits
+  return digits.slice(0, 9);
 }
 
 export function toTailorShopPayload(
   form: TailorShopFormData,
 ): TailorShopFormData {
+  // Normalize phone to exactly 9 digits
+  const phoneDigits = extractDigits(form.phone);
+  // If starts with 971, remove it
+  const normalizedPhone = phoneDigits.startsWith("971")
+    ? phoneDigits.slice(3, 12)
+    : phoneDigits.slice(0, 9);
+
   return {
     name: form.name.trim(),
     nameAr: form.nameAr.trim(),
@@ -112,8 +141,8 @@ export function toTailorShopPayload(
     coverImage: form.coverImage.trim(),
     location: form.location.trim(),
     city: form.city.trim(),
-    phone: normalizePhoneNumber(form.phone),
-    pickupAddress: normalizeShopPickupAddress(form.pickupAddress),
+    phone: normalizedPhone,
+    pickupAddress: form.pickupAddress,
   };
 }
 

@@ -18,6 +18,7 @@ import toast from "react-hot-toast";
 import CustomerImageUpload from "@/components/shared/customerImageUpload";
 import { motion, AnimatePresence } from "framer-motion";
 import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
+import { isValidUaePhone, normalizeUaePhone, extractDigits } from "@/lib/uaePhone";
 import { AccountPanelSkeleton } from "@/components/ui/Skeleton";
 
 type Address = {
@@ -72,7 +73,8 @@ const FormField = ({
       htmlFor={name}
       className="block text-[10px] sm:text-xs uppercase tracking-widest text-gray-500"
     >
-      {label} {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
+      {label}{" "}
+      {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
     </label>
     {children}
     {error && (
@@ -81,18 +83,14 @@ const FormField = ({
   </div>
 );
 
-const UAE_PHONE_REGEX = /^\+971[0-9]{9}$/;
-
 const validatePhone = (phone: string): string | null => {
   if (!phone || phone === "+971") return "Phone number is required";
-  const cleaned = phone.replace(/\s/g, "");
-  if (!UAE_PHONE_REGEX.test(cleaned)) {
+  if (!isValidUaePhone(phone)) {
     return "Invalid phone number. Must be 9 digits after +971";
   }
   return null;
 };
 
-// Gender options
 const GENDER_OPTIONS = [
   { value: "prefer-not", label: "Prefer not to say" },
   { value: "male", label: "Male" },
@@ -100,7 +98,6 @@ const GENDER_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-// UAE Emirates list
 const UAE_EMIRATES = [
   "Abu Dhabi",
   "Dubai",
@@ -117,22 +114,11 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
   const [todayStr, setTodayStr] = useState("");
-
-  useEffect(() => {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    setTodayStr(`${yyyy}-${mm}-${dd}`);
-  }, []);
-
   const [genderOpen, setGenderOpen] = useState(false);
   const genderRef = useRef<HTMLDivElement>(null);
   const [emirateOpen, setEmirateOpen] = useState(false);
   const emirateRef = useRef<HTMLDivElement>(null);
-
 
   const [form, setForm] = useState<FormData>({
     name: "",
@@ -151,7 +137,14 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     },
   });
 
-  // Close dropdowns on click outside
+  useEffect(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    setTodayStr(`${yyyy}-${mm}-${dd}`);
+  }, []);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (genderRef.current && !genderRef.current.contains(e.target as Node)) {
@@ -178,15 +171,19 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
           data.addresses?.find((a: Address) => a.isDefault) ||
           data.addresses?.[0] ||
           {};
+        
+        const normalizedPhone = normalizeUaePhone(data.phone || "");
+        const normalizedAddrPhone = normalizeUaePhone(defaultAddr.phone || "");
+        
         setForm({
           name: data.name || "",
-          phone: data.phone || "",
+          phone: normalizedPhone,
           gender: data.gender || "prefer-not",
           dob: data.dob ? data.dob.split("T")[0] : "",
           profilePic: data.profilePic || "",
           address: {
             fullName: defaultAddr.fullName || data.name || "",
-            phone: defaultAddr.phone || data.phone || "",
+            phone: normalizedAddrPhone,
             emirate: defaultAddr.emirate || "",
             city: defaultAddr.city || "",
             street: defaultAddr.street || "",
@@ -222,12 +219,10 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     loadProfile();
   }, [authUser]);
 
-  // Validation function for text-only fields (English & Arabic)
   const validateTextOnly = (value: string): boolean => {
     return /^[a-zA-Z\u0600-\u06FF\s\-']+$/.test(value.trim());
   };
 
-  // Handle text-only input
   const handleTextOnlyInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     const filtered = value.replace(/[^a-zA-Z\u0600-\u06FF\s\-']/g, "");
@@ -247,7 +242,6 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     }
   };
 
-  // Handle numbers-only input
   const handleNumberOnlyInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     const filtered = value.replace(/\D/g, "");
@@ -265,7 +259,6 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     }
   };
 
-  // Handle general change with validation
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
@@ -284,10 +277,39 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     }
   };
 
+  const handlePhoneChange = (field: "phone" | "address.phone", value: string) => {
+    const digits = extractDigits(value);
+    if (digits.length <= 9) {
+      const normalized = normalizeUaePhone(digits);
+      if (field === "phone") {
+        setForm((prev) => ({ ...prev, phone: normalized }));
+        if (fieldErrors.phone) {
+          setFieldErrors((prev) => ({ ...prev, phone: "" }));
+        }
+      } else {
+        setForm((prev) => ({
+          ...prev,
+          address: { ...prev.address, phone: normalized },
+        }));
+        if (fieldErrors["address.phone"]) {
+          setFieldErrors((prev) => ({ ...prev, "address.phone": "" }));
+        }
+      }
+    }
+  };
+
+  const getPhoneDisplayValue = (phone: string): string => {
+    if (!phone) return "";
+    const digits = extractDigits(phone);
+    if (digits.startsWith("971")) {
+      return digits.slice(3);
+    }
+    return digits.slice(0, 9);
+  };
+
   const validate = (): { isValid: boolean; firstError?: string } => {
     const errors: Record<string, string> = {};
 
-    // Validate name
     if (!form.name.trim()) {
       errors.name = "Full name is required";
     } else if (!validateTextOnly(form.name)) {
@@ -295,46 +317,33 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
         "Name can only contain letters, spaces, hyphens, and apostrophes";
     }
 
-    // Validate phone - must be +971 followed by 9 digits
-    if (!form.phone) {
-      errors.phone = "Phone number is required";
-    } else {
-      const phoneError = validatePhone(form.phone);
-      if (phoneError) errors.phone = phoneError;
-    }
+    const phoneError = validatePhone(form.phone);
+    if (phoneError) errors.phone = phoneError;
 
-    // Validate address full name
     if (!form.address.fullName.trim()) {
-
       errors["address.fullName"] = "Full name for address is required";
     } else if (!validateTextOnly(form.address.fullName)) {
       errors["address.fullName"] =
         "Name can only contain letters, spaces, hyphens, and apostrophes";
     }
 
-    // Validate address phone
-    if (!form.address.phone) {
-      errors["address.phone"] = "Phone number for address is required";
-    } else {
-      const addrPhoneError = validatePhone(form.address.phone);
-      if (addrPhoneError) errors["address.phone"] = addrPhoneError;
-    }
+    const addrPhoneError = validatePhone(form.address.phone);
+    if (addrPhoneError) errors["address.phone"] = addrPhoneError;
 
-    // Validate emirate
     if (!form.address.emirate.trim()) {
       errors["address.emirate"] = "Emirate is required";
-    } else if (!/^[a-zA-Z\u0600-\u06FF\s]+$/.test(form.address.emirate.trim())) {
+    } else if (
+      !/^[a-zA-Z\u0600-\u06FF\s]+$/.test(form.address.emirate.trim())
+    ) {
       errors["address.emirate"] = "Emirate can only contain letters and spaces";
     }
 
-    // Validate city
     if (!form.address.city.trim()) {
       errors["address.city"] = "City is required";
     } else if (!/^[a-zA-Z\u0600-\u06FF\s]+$/.test(form.address.city.trim())) {
       errors["address.city"] = "City can only contain letters and spaces";
     }
 
-    // Validate building
     if (
       form.address.building.trim() &&
       !/^[a-zA-Z0-9\u0600-\u06FF\s\-]+$/.test(form.address.building.trim())
@@ -343,7 +352,6 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
         "Building can only contain letters, numbers, spaces, and hyphens";
     }
 
-    // Validate DOB
     if (!form.dob) {
       errors.dob = "Date of Birth is required";
     } else {
@@ -376,13 +384,13 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     try {
       const payload = {
         name: form.name.trim(),
-        phone: form.phone, // Already has +971
+        phone: normalizeUaePhone(form.phone),
         gender: form.gender,
         dob: form.dob ? new Date(form.dob) : undefined,
         profilePic: form.profilePic.trim() || null,
         address: {
           fullName: form.address.fullName.trim(),
-          phone: form.address.phone, // Already has +971
+          phone: normalizeUaePhone(form.address.phone),
           emirate: form.address.emirate.trim(),
           city: form.address.city.trim(),
           street: form.address.street.trim() || "",
@@ -424,7 +432,6 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
-          {/* Personal Info */}
           <div className="space-y-3 sm:space-y-4">
             <h3 className="text-sm sm:text-base font-medium flex items-center gap-2">
               <User className="w-4 h-4 sm:w-5 sm:h-5" /> Personal Information
@@ -459,17 +466,8 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                   <input
                     type="tel"
                     name="phone"
-                    value={form.phone ? (form.phone.replace(/\D/g, "").startsWith("971") ? form.phone.replace(/\D/g, "").slice(3) : form.phone.replace(/\D/g, "").slice(0, 9)) : ""}
-                    onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, "");
-                      if (digits.length <= 9) {
-                        const full = `+971${digits}`;
-                        setForm((prev) => ({ ...prev, phone: full }));
-                        if (fieldErrors.phone) {
-                          setFieldErrors((prev) => ({ ...prev, phone: "" }));
-                        }
-                      }
-                    }}
+                    value={getPhoneDisplayValue(form.phone)}
+                    onChange={(e) => handlePhoneChange("phone", e.target.value)}
                     placeholder="XXXXXXXXX"
                     maxLength={9}
                     className="w-full py-1 sm:py-1.5 pl-10 sm:pl-12 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent font-mono"
@@ -480,7 +478,6 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                 </p>
               </FormField>
 
-              {/* Gender Dropdown */}
               <FormField label="Gender" name="gender" required>
                 <div className="relative" ref={genderRef}>
                   <button
@@ -588,7 +585,6 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
             </div>
           </div>
 
-          {/* Address */}
           <div className="space-y-3 sm:space-y-4">
             <h3 className="text-sm sm:text-base font-medium flex items-center gap-2">
               <MapPin className="w-4 h-4 sm:w-5 sm:h-5" /> Default Address
@@ -623,23 +619,8 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                   <input
                     type="tel"
                     name="address.phone"
-                    value={form.address.phone ? (form.address.phone.replace(/\D/g, "").startsWith("971") ? form.address.phone.replace(/\D/g, "").slice(3) : form.address.phone.replace(/\D/g, "").slice(0, 9)) : ""}
-                    onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, "");
-                      if (digits.length <= 9) {
-                        const full = `+971${digits}`;
-                        setForm((prev) => ({
-                          ...prev,
-                          address: { ...prev.address, phone: full },
-                        }));
-                        if (fieldErrors["address.phone"]) {
-                          setFieldErrors((prev) => ({
-                            ...prev,
-                            "address.phone": "",
-                          }));
-                        }
-                      }
-                    }}
+                    value={getPhoneDisplayValue(form.address.phone)}
+                    onChange={(e) => handlePhoneChange("address.phone", e.target.value)}
                     placeholder="XXXXXXXXX"
                     maxLength={9}
                     className="w-full py-1 sm:py-1.5 pl-10 sm:pl-12 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent font-mono"
@@ -650,7 +631,6 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                 </p>
               </FormField>
 
-              {/* Emirate Dropdown */}
               <FormField
                 label="Emirate"
                 name="address.emirate"

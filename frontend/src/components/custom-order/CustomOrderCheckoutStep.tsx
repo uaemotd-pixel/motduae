@@ -1,3 +1,4 @@
+// app/[locale]/custom-order/checkout/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -23,6 +24,11 @@ import CardPaymentForm from "@/components/payments/CardPaymentForm";
 import SuccessModal from "@/components/shared/SuccessModal";
 import toast from "react-hot-toast";
 import { ERROR_TOAST } from "@/lib/tailorPortalToast";
+import {
+  isValidUaePhone,
+  normalizeUaePhone,
+  extractDigits,
+} from "@/lib/uaePhone";
 
 const EMIRATES = [
   "Abu Dhabi",
@@ -58,6 +64,24 @@ type CustomerProfile = {
   defaultAddressId?: string;
 };
 
+type TailorShop = {
+  _id: string;
+  name: string;
+  nameAr: string;
+  slug: string;
+  description?: string;
+  descriptionAr?: string;
+  logo?: string;
+  coverImage?: string;
+  location?: string;
+  city?: string;
+  phone?: string;
+  rating?: number;
+  reviewCount?: number;
+  ownerId?: string;
+  isActive?: boolean;
+};
+
 type FormField = keyof CustomOrderDeliveryAddress;
 
 const REQUIRED_FIELDS: FormField[] = [
@@ -67,23 +91,6 @@ const REQUIRED_FIELDS: FormField[] = [
   "city",
   "emirate",
 ];
-
-function validateUaePhone(phone: string): boolean {
-  const cleaned = phone.replace(/[^\d+]/g, "");
-  return /^(?:\+?971|0)\d{9}$/.test(cleaned);
-}
-
-// Normalize a UAE phone number to the canonical "+971xxxxxxx" (9 digits after +971)
-function normalizePhone(raw: string): string {
-  let digits = (raw || "").replace(/\D/g, "");
-  // Strip leading UAE country code (971) if present
-  if (digits.startsWith("971")) {
-    digits = digits.slice(3);
-  }
-  // Cap at 9 digits
-  digits = digits.slice(0, 9);
-  return digits ? `+971${digits}` : "";
-}
 
 export default function CustomOrderCheckoutStep() {
   const t = useTranslations("CustomOrderCheckout");
@@ -117,17 +124,21 @@ export default function CustomOrderCheckoutStep() {
     Array<{ name: string }>
   >([]);
   const [measurementsConfirmed, setMeasurementsConfirmed] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"apple_pay" | "card">(
-    "card",
-  );
+  const [paymentMethod, setPaymentMethod] = useState<
+    "cod" | "apple_pay" | "card"
+  >("cod");
 
   const [profileLoading, setProfileLoading] = useState(true);
+  const [tailorShop, setTailorShop] = useState<TailorShop | null>(null);
+  const [shopLoading, setShopLoading] = useState(true);
 
   const [addons, setAddons] = useState<any[]>([]);
   useEffect(() => {
     const fetchAddons = async () => {
       try {
-        const data = await api.get<{ success: boolean; items: any[] }>("/api/addons");
+        const data = await api.get<{ success: boolean; items: any[] }>(
+          "/api/addons",
+        );
         if (data && data.success) {
           setAddons(data.items || []);
         }
@@ -168,8 +179,38 @@ export default function CustomOrderCheckoutStep() {
     showSuccess,
   ]);
 
+  useEffect(() => {
+    async function fetchTailorShop() {
+      const firstItem = draft.lineItems[0];
+      if (!firstItem?.tailor?.slug) {
+        setShopLoading(false);
+        return;
+      }
 
-  // In CustomOrderCheckoutStep - replace useEffect
+      try {
+        setShopLoading(true);
+        const data = await api.get<{
+          success: boolean;
+          item: TailorShop;
+        }>(`/api/tailors/${firstItem.tailor.slug}`);
+
+        if (data.success && data.item) {
+          setTailorShop(data.item);
+        }
+      } catch (err: any) {
+        if (err.status !== 404) {
+          console.error("Failed to fetch tailor shop:", err);
+        }
+      } finally {
+        setShopLoading(false);
+      }
+    }
+
+    if (isHydrated && draft.lineItems.length > 0) {
+      fetchTailorShop();
+    }
+  }, [isHydrated, draft.lineItems]);
+
   useEffect(() => {
     async function fetchCustomerOrMemberAddress() {
       if (!isAuthenticated) return;
@@ -188,28 +229,27 @@ export default function CustomOrderCheckoutStep() {
       try {
         setProfileLoading(true);
 
-        // NOTE: CustomOrderDraft currently only stores a deliveryAddress.
-        // MeasurementsStep selection is NOT persisted into draft, so by design we
-        // can only fetch the authenticated user's default customer address here.
-        console.log("👤 Fetching customer profile for delivery address");
-
         const data = await api.get<CustomerProfile>("/api/customer/profile");
         const defaultAddr =
           data.addresses?.find((a) => a.isDefault) || data.addresses?.[0];
 
-if (defaultAddr) {
+        if (defaultAddr) {
+          const normalizedPhone = normalizeUaePhone(
+            defaultAddr.phone || data.phone || "",
+          );
           updateDeliveryAddress({
             fullName: defaultAddr.fullName || data.name || "",
-            phone: normalizePhone(defaultAddr.phone || data.phone || ""),
+            phone: normalizedPhone,
             emirate: defaultAddr.emirate || "",
             city: defaultAddr.city || "",
             line1: defaultAddr.street || "",
             line2: defaultAddr.building || "",
           });
         } else {
+          const normalizedPhone = normalizeUaePhone(data.phone || "");
           updateDeliveryAddress({
             fullName: data.name || "",
-            phone: normalizePhone(data.phone || ""),
+            phone: normalizedPhone,
           });
         }
       } catch (err: any) {
@@ -265,12 +305,43 @@ if (defaultAddr) {
   const getDisplayName = (name?: string, nameAr?: string) =>
     locale === "ar" ? nameAr || name : name;
 
+  const getShopDisplayName = () => {
+    if (!tailorShop) return "Store";
+    return locale === "ar"
+      ? tailorShop.nameAr || tailorShop.name
+      : tailorShop.name;
+  };
+
+  const getShopLocation = () => {
+    if (!tailorShop) return "";
+    return tailorShop.location || "";
+  };
+
+  const getShopCity = () => {
+    if (!tailorShop) return "";
+    return tailorShop.city || "";
+  };
+
   const address = draft.deliveryAddress;
 
-const handleFieldChange = (field: FormField, value: string) => {
+  const getPhoneDisplayValue = (phone: string): string => {
+    if (!phone) return "";
+    const digits = extractDigits(phone);
+    if (digits.startsWith("971")) {
+      return digits.slice(3);
+    }
+    return digits.slice(0, 9);
+  };
+
+  const handleFieldChange = (field: FormField, value: string) => {
     let processedValue = value;
     if (field === "phone") {
-      processedValue = normalizePhone(value);
+      const digits = extractDigits(value);
+      if (digits.length <= 9) {
+        processedValue = normalizeUaePhone(digits);
+      } else {
+        return;
+      }
     }
     updateDeliveryAddress({ [field]: processedValue });
     if (errors[field]) {
@@ -280,6 +351,10 @@ const handleFieldChange = (field: FormField, value: string) => {
   };
 
   const validateForm = (): CustomOrderDeliveryAddress | null => {
+    if (deliveryType === "pickup") {
+      return null;
+    }
+
     const nextErrors: Partial<Record<FormField, string>> = {};
 
     for (const field of REQUIRED_FIELDS) {
@@ -291,10 +366,11 @@ const handleFieldChange = (field: FormField, value: string) => {
 
     if (!address.phone?.trim() || address.phone === "+971") {
       nextErrors.phone = t("required");
-    } else if (!validateUaePhone(address.phone)) {
-      nextErrors.phone = locale === "ar"
-        ? "رقم الهاتف غير صحيح. يجب أن يكون 9 أرقام بعد +971"
-        : "Invalid phone number. Must be 9 digits after +971";
+    } else if (!isValidUaePhone(address.phone)) {
+      nextErrors.phone =
+        locale === "ar"
+          ? "رقم الهاتف غير صحيح. يجب أن يكون 9 أرقام بعد +971"
+          : "Invalid phone number. Must be 9 digits after +971";
     }
 
     setErrors(nextErrors);
@@ -308,7 +384,7 @@ const handleFieldChange = (field: FormField, value: string) => {
 
     return {
       fullName: submittedName,
-      phone: address.phone!.trim(),
+      phone: normalizeUaePhone(address.phone!.trim()),
       line1: address.line1!.trim(),
       line2: address.line2?.trim() || "",
       city: address.city!.trim(),
@@ -317,15 +393,20 @@ const handleFieldChange = (field: FormField, value: string) => {
   };
 
   const buildOrderPayload = () => {
-    const deliveryAddress = validateForm();
-    if (!deliveryAddress) {
-      throw new Error(t("required"));
+    let deliveryAddress: CustomOrderDeliveryAddress | undefined = undefined;
+
+    if (deliveryType === "delivery") {
+      const validated = validateForm();
+      if (!validated) {
+        throw new Error(t("required"));
+      }
+      deliveryAddress = validated;
     }
 
     const payload = buildCustomOrderCreatePayload(
       draft,
-      deliveryAddress,
-      paymentMethod,
+      deliveryAddress || (undefined as any),
+      paymentMethod === "cod" ? undefined : paymentMethod,
     );
     if (!payload) {
       throw new Error(t("incompleteDraft"));
@@ -335,8 +416,8 @@ const handleFieldChange = (field: FormField, value: string) => {
       ...payload,
       addPocket,
       addBottomWideFold,
-      deliveryType: "delivery" as const,
-      deliveryAddress,
+      deliveryType,
+      deliveryAddress: deliveryType === "delivery" ? deliveryAddress : null,
       addonIds: draft.addonIds || [],
     };
   };
@@ -398,7 +479,6 @@ const handleFieldChange = (field: FormField, value: string) => {
           paymentIntentId,
         });
       } catch (orderErr) {
-        // Payment already succeeded — recover via pending checkout / webhook path.
         response = await api.post("/api/payments/reconcile", {
           paymentIntentId,
           paymentMethod: method,
@@ -442,11 +522,59 @@ const handleFieldChange = (field: FormField, value: string) => {
     setSubmitError(message);
   };
 
+  const placeCodOrder = async () => {
+    if (!measurementsConfirmed) {
+      const msg = t("confirmMeasurementsLabel");
+      setSubmitError(msg);
+      toast.error(msg, ERROR_TOAST);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const orderPayload = buildOrderPayload();
+      const response = await api.post<{
+        success: boolean;
+        orderId: string;
+        message?: string;
+      }>("/api/orders/custom", {
+        ...orderPayload,
+        paymentMethod: "cod",
+      });
+
+      if (!response?.success || !response.orderId) {
+        throw new Error(response.message || t("submitError"));
+      }
+
+      const orderItemNames = draft.lineItems.map((item) => ({
+        name:
+          getDisplayName(item.design.name, item.design.nameAr) ||
+          t("unknownDesign"),
+      }));
+
+      setOrderId(response.orderId);
+      setSuccessOrderItems(orderItemNames);
+      resetOrder();
+      setShowSuccess(true);
+    } catch (err: unknown) {
+      const message =
+        (err as ApiError)?.message ||
+        (err instanceof Error ? err.message : t("submitError"));
+      setSubmitError(message);
+      toast.error(message, ERROR_TOAST);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (
     !isHydrated ||
     isLoading ||
     !isAuthenticated ||
-    profileLoading
+    profileLoading ||
+    shopLoading
   ) {
     return <FormPageSkeleton fields={8} />;
   }
@@ -508,41 +636,53 @@ const handleFieldChange = (field: FormField, value: string) => {
                   ))}
                 </dl>
 
-                 {draft.addonIds && draft.addonIds.length > 0 && (
-                   <div className="pt-4 border-t border-(--color-border) mb-4">
-                     <h3 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
-                       {locale === "ar" ? "الإضافات المختارة" : "Selected Add-Ons"}
-                     </h3>
-                     <ul className="space-y-2">
-                       {addons
-                         .filter((a) => draft.addonIds.includes(a._id))
-                         .map((addon) => {
-                           const name = locale === "ar" ? addon.nameAr || addon.name : addon.name;
-                           return (
-                             <li key={addon._id} className="flex justify-between items-center text-sm text-black">
-                               <span className="[font-family:var(--font-body)] text-xs text-gray-700">{name}</span>
-                               <span className="font-semibold text-xs">{addon.price.toFixed(2)} AED</span>
-                             </li>
-                           );
-                         })}
-                     </ul>
-                   </div>
-                 )}
-
-                  <div className="pt-4 border-t border-(--color-border) flex justify-between items-center gap-4">
-                   <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-black">
-                     {t("total")}
-                   </span>
-                   <span className="[font-family:var(--font-display)] text-[24px] text-black">
-                     {pricing ? formatCurrency(pricing.total, locale) : "—"}
-                   </span>
+                {draft.addonIds && draft.addonIds.length > 0 && (
+                  <div className="pt-4 border-t border-(--color-border) mb-4">
+                    <h3 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
+                      {locale === "ar"
+                        ? "الإضافات المختارة"
+                        : "Selected Add-Ons"}
+                    </h3>
+                    <ul className="space-y-2">
+                      {addons
+                        .filter((a) => draft.addonIds.includes(a._id))
+                        .map((addon) => {
+                          const name =
+                            locale === "ar"
+                              ? addon.nameAr || addon.name
+                              : addon.name;
+                          return (
+                            <li
+                              key={addon._id}
+                              className="flex justify-between items-center text-sm text-black"
+                            >
+                              <span className="[font-family:var(--font-body)] text-xs text-gray-700">
+                                {name}
+                              </span>
+                              <span className="font-semibold text-xs">
+                                {addon.price.toFixed(2)} AED
+                              </span>
+                            </li>
+                          );
+                        })}
+                    </ul>
                   </div>
-                </aside>
-              </div>
+                )}
+
+                <div className="pt-4 border-t border-(--color-border) flex justify-between items-center gap-4">
+                  <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.2em] text-black">
+                    {t("total")}
+                  </span>
+                  <span className="[font-family:var(--font-display)] text-[24px] text-black">
+                    {pricing ? formatCurrency(pricing.total, locale) : "—"}
+                  </span>
+                </div>
+              </aside>
+            </div>
 
             <section>
-              {/* Delivery Address */}
-              <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
+              {deliveryType === "delivery" ? (
+                <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
                   <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
                     {t("deliveryTitle")}
                   </h2>
@@ -564,11 +704,17 @@ const handleFieldChange = (field: FormField, value: string) => {
                             handleFieldChange("fullName", e.target.value)
                           }
                           className={`w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition ${
-                            user?.isGuest ? (locale === "ar" ? "pl-20" : "pr-20") : ""
+                            user?.isGuest
+                              ? locale === "ar"
+                                ? "pl-20"
+                                : "pr-20"
+                              : ""
                           }`}
                         />
                         {user?.isGuest && (
-                          <span className={`absolute ${locale === "ar" ? "left-4" : "right-4"} text-gray-400 select-none pointer-events-none font-medium text-[15px]`}>
+                          <span
+                            className={`absolute ${locale === "ar" ? "left-4" : "right-4"} text-gray-400 select-none pointer-events-none font-medium text-[15px]`}
+                          >
                             {locale === "ar" ? " - زائر" : " - Guest"}
                           </span>
                         )}
@@ -588,27 +734,24 @@ const handleFieldChange = (field: FormField, value: string) => {
                         {t("phone")}*
                       </label>
                       <div className="relative flex items-center">
-                        <span className={`absolute ${locale === "ar" ? "right-4" : "left-4"} text-gray-500 font-mono text-[15px]`}>
+                        <span
+                          className={`absolute ${locale === "ar" ? "right-4" : "left-4"} text-gray-500 font-mono text-[15px]`}
+                        >
                           +971
                         </span>
                         <input
                           id="checkout-phone"
                           type="tel"
-value={
-                            address.phone
-                              ? normalizePhone(address.phone).replace(
-                                  /^\+971/,
-                                  "",
-                                )
-                              : ""
-                          }
+                          value={getPhoneDisplayValue(address.phone || "")}
                           onChange={(e) =>
                             handleFieldChange("phone", e.target.value)
                           }
                           placeholder="XXXXXXXXX"
                           maxLength={9}
                           className={`w-full border border-(--color-border) bg-white py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition ${
-                            locale === "ar" ? "pr-16 pl-4 text-right" : "pl-16 pr-4 text-left"
+                            locale === "ar"
+                              ? "pr-16 pl-4 text-right"
+                              : "pl-16 pr-4 text-left"
                           }`}
                         />
                       </div>
@@ -719,13 +862,66 @@ value={
                     </p>
                   )}
                 </div>
+              ) : (
+                <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
+                  <h2 className="[font-family:var(--font-display)] text-[22px] mb-4">
+                    {locale === "ar"
+                      ? "معلومات الاستلام"
+                      : "Pickup Information"}
+                  </h2>
+                  <div className="[font-family:var(--font-body)] text-[14px] text-(--color-grey-muted) space-y-2">
+                    <p>
+                      {locale === "ar"
+                        ? "يمكنك استلام طلبك من المتجر في:"
+                        : "You selected pickup. Collect your order from our store at:"}
+                    </p>
+                    <div className="mt-3 space-y-1">
+                      <p className="font-semibold text-black">
+                        {getShopDisplayName()}
+                      </p>
+                      {getShopLocation() && <p>{getShopLocation()}</p>}
+                      {getShopCity() && <p>{getShopCity()}</p>}
+                      {tailorShop?.phone && (
+                        <p className="mt-2 text-sm">
+                          <span className="text-(--color-grey-muted)">
+                            {locale === "ar" ? "هاتف: " : "Phone: "}
+                          </span>
+                          {tailorShop.phone}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-4 text-[12px] text-gray-400">
+                    {locale === "ar"
+                      ? "لا توجد رسوم توصيل."
+                      : "No delivery fee applies."}
+                  </p>
+                </div>
+              )}
 
-              {/* Payment */}
               <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
                 <h2 className="[font-family:var(--font-display)] text-[22px] mb-4">
                   {t("paymentTitle")}
                 </h2>
                 <div className="space-y-3">
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="cod"
+                      checked={paymentMethod === "cod"}
+                      onChange={() => setPaymentMethod("cod")}
+                      className="w-4 h-4 mt-0.5 accent-black shrink-0"
+                    />
+                    <span>
+                      <span className="block [font-family:var(--font-body)] text-[15px] text-black">
+                        {t("codLabel")}
+                      </span>
+                      <span className="block [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mt-0.5">
+                        {t("codDescription")}
+                      </span>
+                    </span>
+                  </label>
                   <label className="flex items-start gap-3 cursor-pointer select-none">
                     <input
                       type="radio"
@@ -765,7 +961,6 @@ value={
                 </div>
               </div>
 
-              {/* Confirm measurements */}
               <label className="flex items-start gap-3 mt-6 mb-6 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -783,10 +978,30 @@ value={
                 <p className="text-red-600 text-sm mb-4">{submitError}</p>
               )}
 
+              {paymentMethod === "cod" && (
+                <button
+                  type="button"
+                  onClick={placeCodOrder}
+                  disabled={
+                    isSubmitting ||
+                    loadingPricing ||
+                    !pricing ||
+                    !measurementsConfirmed
+                  }
+                  className="w-full h-12 bg-black text-white [font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.24em] hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? t("processing") : t("placeOrder")}
+                </button>
+              )}
+
               {paymentMethod === "card" && (
                 <CardPaymentForm
                   amountAed={pricing?.total ?? 0}
-                  cardholderName={user?.isGuest ? `${address.fullName?.trim()} - ${locale === "ar" ? "زائر" : "Guest"}` : (address.fullName || "")}
+                  cardholderName={
+                    user?.isGuest
+                      ? `${address.fullName?.trim()} - ${locale === "ar" ? "زائر" : "Guest"}`
+                      : address.fullName || ""
+                  }
                   disabled={
                     isSubmitting ||
                     loadingPricing ||

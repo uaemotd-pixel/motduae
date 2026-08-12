@@ -1,3 +1,4 @@
+// app/[locale]/tailor/shop/page.tsx
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
@@ -9,11 +10,9 @@ import ImageUpload from "@/components/admin/ImageUpload";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import {
   SLUG_PATTERN,
-  SHOP_EMIRATES,
   createTailorShop,
   emptyTailorShopForm,
   fetchOwnTailorShop,
-  normalizePhoneNumber,
   slugifyShopName,
   tailorShopToForm,
   updateTailorShop,
@@ -21,6 +20,12 @@ import {
   type TailorShopProfile,
   type ShopPickupAddress,
 } from "@/lib/tailorShop";
+import { SHOP_EMIRATES } from "@/lib/fabricShop";
+import {
+  isValidUaePhone,
+  normalizeUaePhone,
+  extractDigits,
+} from "@/lib/uaePhone";
 
 const INPUT_CLASS =
   "w-full border border-(--color-border) bg-white px-4 py-3 text-[14px] [font-family:var(--font-body)] text-black focus:border-black focus:outline-none";
@@ -29,6 +34,15 @@ const TEXTAREA_CLASS = `${INPUT_CLASS} min-h-[120px] resize-y`;
 type FieldKey =
   | keyof Omit<TailorShopFormData, "pickupAddress">
   | `pickupAddress.${keyof ShopPickupAddress}`;
+
+type PickupAddressFields = {
+  fullName?: string;
+  phone?: string;
+  emirate?: string;
+  city?: string;
+  line1?: string;
+  line2?: string;
+};
 
 const TOAST_BASE = {
   position: "top-right" as const,
@@ -94,7 +108,8 @@ export default function TailorShopForm() {
 
         if (existingShop) {
           setShop(existingShop);
-          setFormData(tailorShopToForm(existingShop));
+          const form = tailorShopToForm(existingShop);
+          setFormData(form);
           setSlugTouched(true);
         } else {
           setShop(null);
@@ -121,15 +136,22 @@ export default function TailorShopForm() {
     };
   }, [t]);
 
-  const handleChange = (
-    field: keyof Omit<TailorShopFormData, "pickupAddress">,
-    value: string,
-  ) => {
+  const handleChange = (field: FieldKey, value: string) => {
+    let val = value;
+    if (field === "phone") {
+      // Extract digits and remove 971 prefix if present
+      let digits = extractDigits(value);
+      // If starts with 971, remove it
+      if (digits.startsWith("971")) {
+        digits = digits.slice(3);
+      }
+      val = digits.slice(0, 9);
+    }
     setFormData((prev) => {
-      const next = { ...prev, [field]: value };
+      const next = { ...prev, [field]: val };
 
       if (field === "name" && isCreateMode && !slugTouched) {
-        next.slug = slugifyShopName(value);
+        next.slug = slugifyShopName(val);
       }
 
       return next;
@@ -144,7 +166,10 @@ export default function TailorShopForm() {
     }
   };
 
-  const handlePickupChange = (field: keyof ShopPickupAddress, value: string) => {
+  const handlePickupChange = (
+    field: keyof ShopPickupAddress,
+    value: string,
+  ) => {
     let nextValue = value;
     if (field === "phone") {
       nextValue = value.replace(/\D/g, "").slice(0, 9);
@@ -166,7 +191,7 @@ export default function TailorShopForm() {
 
   const validate = (): boolean => {
     const errors: Partial<Record<FieldKey, string>> = {};
-    const payload = formData;
+    const payload: TailorShopFormData = formData;
 
     if (!payload.name.trim()) errors.name = t("validation.nameRequired");
     if (!payload.nameAr.trim()) errors.nameAr = t("validation.nameArRequired");
@@ -175,29 +200,37 @@ export default function TailorShopForm() {
     } else if (!SLUG_PATTERN.test(payload.slug.trim().toLowerCase())) {
       errors.slug = t("validation.slugInvalid");
     }
-    const normalizedPhone = normalizePhoneNumber(payload.phone);
 
-    if (!normalizedPhone) {
+    // Validate phone: must have 9 digits
+    const phoneDigits = extractDigits(payload.phone);
+    if (!phoneDigits) {
       errors.phone = t("validation.phoneRequired");
-    } else if (!/^\+971\d{9}$/.test(normalizedPhone)) {
+    } else if (phoneDigits.length !== 9) {
       errors.phone = t("validation.phoneInvalid");
+    } else {
+      const fullNumber = `+971${phoneDigits}`;
+      if (!isValidUaePhone(fullNumber)) {
+        errors.phone = t("validation.phoneInvalid");
+      }
     }
 
-    if (!payload.pickupAddress.fullName.trim()) {
+    const pickupAddress = payload.pickupAddress as unknown as ShopPickupAddress;
+
+    if (!(pickupAddress as any)?.fullName?.trim?.()) {
       errors["pickupAddress.fullName"] = t("validation.pickupFullNameRequired");
     }
-    if (!payload.pickupAddress.phone.trim()) {
+    if (!(pickupAddress as any)?.phone?.trim?.()) {
       errors["pickupAddress.phone"] = t("validation.pickupPhoneRequired");
-    } else if (!/^\d{9}$/.test(payload.pickupAddress.phone.trim())) {
+    } else if (!/^\d{9}$/.test((pickupAddress as any)?.phone?.trim?.())) {
       errors["pickupAddress.phone"] = t("validation.pickupPhoneInvalid");
     }
-    if (!payload.pickupAddress.line1.trim()) {
+    if (!(pickupAddress as any)?.line1?.trim?.()) {
       errors["pickupAddress.line1"] = t("validation.pickupLine1Required");
     }
-    if (!payload.pickupAddress.city.trim()) {
+    if (!(pickupAddress as any)?.city?.trim?.()) {
       errors["pickupAddress.city"] = t("validation.pickupCityRequired");
     }
-    if (!payload.pickupAddress.emirate.trim()) {
+    if (!(pickupAddress as any)?.emirate?.trim?.()) {
       errors["pickupAddress.emirate"] = t("validation.pickupEmirateRequired");
     }
 
@@ -222,7 +255,8 @@ export default function TailorShopForm() {
     try {
       const savedShop = await updateTailorShop(nextForm);
       setShop(savedShop);
-      setFormData(tailorShopToForm(savedShop));
+      const form = tailorShopToForm(savedShop);
+      setFormData(form);
       toast.success(
         url.trim() ? t("imageSaved") : t("imageRemoved"),
         SUCCESS_TOAST,
@@ -249,7 +283,8 @@ export default function TailorShopForm() {
         : await updateTailorShop(formData);
 
       setShop(savedShop);
-      setFormData(tailorShopToForm(savedShop));
+      const form = tailorShopToForm(savedShop);
+      setFormData(form);
       setSlugTouched(true);
       toast.success(
         isCreateMode ? t("successCreated") : t("successUpdated"),
@@ -515,16 +550,25 @@ export default function TailorShopForm() {
                 id="phone"
                 type="tel"
                 inputMode="numeric"
-                value={formData.phone.replace(/^\+971/, "").replace(/\D/g, "")}
+                value={formData.phone || ""}
                 onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
-                  handleChange("phone", digits);
+                  // Normalize: extract digits and remove 971 prefix
+                  let digits = extractDigits(e.target.value);
+                  if (digits.startsWith("971")) {
+                    digits = digits.slice(3);
+                  }
+                  if (digits.length <= 9) {
+                    handleChange("phone", digits);
+                  }
                 }}
                 placeholder="50 123 4567"
                 maxLength={9}
                 className={`${INPUT_CLASS} pl-16 font-mono`}
               />
             </div>
+            <p className="text-[10px] text-gray-400 mt-1">
+              Enter 9 digits after +971
+            </p>
           </FormField>
         </section>
 
@@ -546,7 +590,7 @@ export default function TailorShopForm() {
               <input
                 id="pickupFullName"
                 type="text"
-                value={formData.pickupAddress.fullName}
+                value={formData.pickupAddress.fullName || ""}
                 onChange={(e) => handlePickupChange("fullName", e.target.value)}
                 placeholder={t("placeholders.pickupFullName")}
                 className={INPUT_CLASS}
@@ -569,7 +613,9 @@ export default function TailorShopForm() {
                   inputMode="numeric"
                   value={formData.pickupAddress.phone}
                   onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
+                    const digits = e.target.value
+                      .replace(/\D/g, "")
+                      .slice(0, 9);
                     handlePickupChange("phone", digits);
                   }}
                   placeholder="50 123 4567"

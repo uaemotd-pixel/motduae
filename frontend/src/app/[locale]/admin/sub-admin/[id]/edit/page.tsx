@@ -1,3 +1,4 @@
+// app/[locale]/admin/sub-admin/[id]/edit/page.tsx
 "use client";
 
 import { useEffect, useState, FormEvent, useRef } from "react";
@@ -7,6 +8,7 @@ import FormField from "@/components/admin/FormField";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
+import { isValidUaePhone, normalizeUaePhone, extractDigits } from "@/lib/uaePhone";
 
 type PermKey =
   | "customers"
@@ -109,9 +111,9 @@ export default function EditSubAdminPage() {
           name: data.name || "",
           email: data.email || "",
           password: "",
-          phone: data.phone || "",
+          phone: normalizeUaePhone(data.phone || ""),
           addressName: data.address?.name || "",
-          addressPhone: data.address?.phone || "",
+          addressPhone: normalizeUaePhone(data.address?.phone || ""),
           emirate: data.address?.emirate || "",
           city: data.address?.city || "",
           street: data.address?.street || "",
@@ -155,6 +157,27 @@ export default function EditSubAdminPage() {
     }));
   };
 
+  const getPhoneDisplayValue = (phone: string): string => {
+    if (!phone) return "";
+    const digits = extractDigits(phone);
+    if (digits.startsWith("971")) {
+      return digits.slice(3);
+    }
+    return digits.slice(0, 9);
+  };
+
+  const handlePhoneChange = (field: "phone" | "addressPhone", value: string) => {
+    const digits = extractDigits(value);
+    if (digits.length <= 9) {
+      const normalized = normalizeUaePhone(digits);
+      handleChange(field, normalized);
+      
+      if (fieldErrors[field]) {
+        setFieldErrors({ ...fieldErrors, [field]: "" });
+      }
+    }
+  };
+
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
     if (!form.name.trim()) errors.name = "Full name required";
@@ -166,15 +189,13 @@ export default function EditSubAdminPage() {
     if (!form.city.trim()) errors.city = "City required";
 
     if (form.phone) {
-      const phoneDigits = form.phone.replace("+971", "");
-      if (!/^\d{9}$/.test(phoneDigits)) {
-        errors.phone = "Invalid UAE phone – must be 9 digits after +971";
+      if (!isValidUaePhone(form.phone)) {
+        errors.phone = "Invalid UAE phone. Must be +971 followed by 9 digits";
       }
     }
     if (form.addressPhone) {
-      const addrDigits = form.addressPhone.replace("+971", "");
-      if (!/^\d{9}$/.test(addrDigits)) {
-        errors.addressPhone = "Invalid UAE phone – must be 9 digits after +971";
+      if (!isValidUaePhone(form.addressPhone)) {
+        errors.addressPhone = "Invalid UAE phone for address. Must be +971 followed by 9 digits";
       }
     }
     setFieldErrors(errors);
@@ -186,17 +207,17 @@ export default function EditSubAdminPage() {
     if (!validate()) return;
 
     const payload: any = {
-      name: form.name,
-      email: form.email,
-      phone: form.phone,
+      name: form.name.trim(),
+      email: form.email.trim(),
+      phone: normalizeUaePhone(form.phone),
       address: {
-        name: form.addressName,
-        phone: form.addressPhone,
+        name: form.addressName.trim(),
+        phone: form.addressPhone ? normalizeUaePhone(form.addressPhone) : "",
         emirate: form.emirate,
-        city: form.city,
-        street: form.street,
-        building: form.building,
-        postalCode: form.postalCode,
+        city: form.city.trim(),
+        street: form.street.trim(),
+        building: form.building.trim(),
+        postalCode: form.postalCode.trim(),
       },
       perms: form.perms,
     };
@@ -233,7 +254,6 @@ export default function EditSubAdminPage() {
         className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Personal Information */}
           <FormField label="Full Name" required error={fieldErrors.name}>
             <input
               type="text"
@@ -286,21 +306,17 @@ export default function EditSubAdminPage() {
                 +971
               </span>
               <input
-                type="text"
-                value={form.phone.replace("+971", "")}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, "");
-                  if (digits.length <= 9) {
-                    handleChange("phone", "+971" + digits);
-                  }
-                }}
+                type="tel"
+                inputMode="numeric"
+                value={getPhoneDisplayValue(form.phone)}
+                onChange={(e) => handlePhoneChange("phone", e.target.value)}
                 placeholder="50 123 4567"
+                maxLength={9}
                 className="w-full py-1 border-b border-gray-300 focus:border-black outline-none pl-12"
               />
             </div>
           </FormField>
 
-          {/* Address Section – full width */}
           <div className="md:col-span-2">
             <h3 className="text-sm font-medium text-gray-700 mb-3">
               Address Details
@@ -321,15 +337,12 @@ export default function EditSubAdminPage() {
                     +971
                   </span>
                   <input
-                    type="text"
-                    value={form.addressPhone.replace("+971", "")}
-                    onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, "");
-                      if (digits.length <= 9) {
-                        handleChange("addressPhone", "+971" + digits);
-                      }
-                    }}
+                    type="tel"
+                    inputMode="numeric"
+                    value={getPhoneDisplayValue(form.addressPhone)}
+                    onChange={(e) => handlePhoneChange("addressPhone", e.target.value)}
                     placeholder="50 123 4567"
+                    maxLength={9}
                     className="w-full py-1 border-b border-gray-300 focus:border-black outline-none pl-12"
                   />
                 </div>
@@ -405,7 +418,6 @@ export default function EditSubAdminPage() {
             </div>
           </div>
 
-          {/* Permissions – full width */}
           <div className="md:col-span-2">
             <label className="block text-xs uppercase tracking-widest text-gray-500 mb-3">
               Permissions
@@ -429,7 +441,6 @@ export default function EditSubAdminPage() {
           </div>
         </div>
 
-        {/* Submit */}
         <div className="flex flex-row-reverse gap-3 pt-6 mt-3 border-t border-gray-100">
           <button
             type="submit"
