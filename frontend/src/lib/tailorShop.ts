@@ -14,6 +14,7 @@ export interface TailorShopProfile {
   location: string;
   city: string;
   phone: string;
+  pickupAddress?: ShopPickupAddress;
   rating?: number;
   reviewCount?: number;
   isActive?: boolean;
@@ -32,6 +33,7 @@ export interface TailorShopFormData {
   location: string;
   city: string;
   phone: string;
+  pickupAddress: ShopPickupAddress;
 }
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -48,6 +50,7 @@ export function emptyTailorShopForm(): TailorShopFormData {
     location: "",
     city: "",
     phone: "",
+    pickupAddress: emptyShopPickupAddress(),
   };
 }
 

@@ -9,7 +9,7 @@ import { Link, useRouter } from "@/i18n/navigation";
 import FormField from "@/components/admin/FormField";
 import FabricImageUpload from "@/components/admin/FabricImageUpload";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
-import { fetchOwnFabricShop } from "@/lib/fabricShop";
+import { fetchOwnFabricShop, shopPickupToFabricStorePickup } from "@/lib/fabricShop";
 import { api } from "@/lib/api/client";
 import { UAE_EMIRATES, type PickupAddress } from "@/lib/createFabricAdmin";
 import {
@@ -231,6 +231,12 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
 
         if (shop) {
           setShopName(shop.name);
+          if (!isEditMode) {
+            setFormData((prev) => ({
+              ...prev,
+              storePickupAddress: shopPickupToFabricStorePickup(shop),
+            }));
+          }
         } else {
           setShopMissing(true);
           setLoading(false);

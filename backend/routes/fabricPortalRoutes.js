@@ -18,6 +18,11 @@ import {
   uploadSingleAddOnImageMiddleware,
   processAddOnImage,
 } from "../middleware/uploadAddOnImages.js";
+import {
+  emptyShopPickupAddress,
+  isCompleteShopPickupAddress,
+  normalizeShopPickupAddress,
+} from "../utils/shopPickupAddress.js";
 
 const fabricPortalRouter = express.Router();
 
@@ -46,6 +51,16 @@ const formatShop = (shop) => ({
   location: shop.location,
   city: shop.city,
   phone: shop.phone,
+  pickupAddress: shop.pickupAddress
+    ? {
+        fullName: shop.pickupAddress.fullName || "",
+        phone: shop.pickupAddress.phone || "",
+        line1: shop.pickupAddress.line1 || "",
+        line2: shop.pickupAddress.line2 || "",
+        city: shop.pickupAddress.city || "",
+        emirate: shop.pickupAddress.emirate || "",
+      }
+    : emptyShopPickupAddress(),
   rating: shop.rating,
   reviewCount: shop.reviewCount,
   ownerId: shop.ownerId,
@@ -64,6 +79,9 @@ const pickShopFields = (body) => {
   }
   if (data.slug) {
     data.slug = data.slug.toLowerCase();
+  }
+  if (body.pickupAddress !== undefined) {
+    data.pickupAddress = body.pickupAddress;
   }
   return data;
 };
@@ -103,6 +121,24 @@ const validateShopPayload = (data, { requireCore = false } = {}) => {
     return "slug must be lowercase letters, numbers, and hyphens only";
   }
 
+  if (data.pickupAddress !== undefined) {
+    const normalized = normalizeShopPickupAddress(data.pickupAddress);
+    if (!normalized) {
+      return "pickupAddress requires fullName, phone, line1, city, and emirate";
+    }
+    if (!/^\d{9}$/.test(normalized.phone)) {
+      return "pickup phone number must be exactly 9 digits";
+    }
+    data.pickupAddress = normalized;
+  }
+
+  return null;
+};
+
+const requirePickupAddress = (address) => {
+  if (!isCompleteShopPickupAddress(address)) {
+    return "pickupAddress with fullName, phone, line1, city, and emirate is required before the shop can fulfill orders";
+  }
   return null;
 };
 const findOwnShop = (ownerId) => FabricShop.findOne({ ownerId });
@@ -159,6 +195,12 @@ fabricPortalRouter.post(
       return;
     }
 
+    const pickupError = requirePickupAddress(data.pickupAddress);
+    if (pickupError) {
+      res.status(400).json({ success: false, message: pickupError });
+      return;
+    }
+
     const slugTaken = await FabricShop.findOne({ slug: data.slug });
     if (slugTaken) {
       res
@@ -205,7 +247,18 @@ fabricPortalRouter.put(
       }
     }
 
+    const nextPickupAddress =
+      data.pickupAddress !== undefined ? data.pickupAddress : shop.pickupAddress;
+    const pickupError = requirePickupAddress(nextPickupAddress);
+    if (pickupError) {
+      res.status(400).json({ success: false, message: pickupError });
+      return;
+    }
+
     Object.assign(shop, data);
+    if (data.pickupAddress) {
+      shop.pickupAddress = data.pickupAddress;
+    }
     const updatedShop = await shop.save();
     res.json({ success: true, item: formatShop(updatedShop) });
   }),
@@ -365,6 +418,7 @@ fabricPortalRouter.post(
       return;
     }
 
+    const shopPickup = shop.pickupAddress || {};
     const fabric = await Fabric.create({
       name,
       nameAr,
@@ -382,11 +436,22 @@ fabricPortalRouter.post(
       listedByStore: req.user._id,
       fabricShopId: shop._id,
       storePickupAddress: {
-        emirate: storePickupAddress?.emirate || shop.city || "Dubai",
-        city: storePickupAddress?.city || shop.city || "Dubai",
-        street: storePickupAddress?.street || shop.location || "",
-        building: storePickupAddress?.building || "",
-        phone: storePickupAddress?.phone || shop.phone || "",
+        emirate:
+          storePickupAddress?.emirate ||
+          shopPickup.emirate ||
+          shop.city ||
+          "Dubai",
+        city:
+          storePickupAddress?.city || shopPickup.city || shop.city || "Dubai",
+        street:
+          storePickupAddress?.street ||
+          shopPickup.line1 ||
+          shop.location ||
+          "",
+        building:
+          storePickupAddress?.building || shopPickup.line2 || "",
+        phone:
+          storePickupAddress?.phone || shopPickup.phone || shop.phone || "",
       },
       isActive: isActive !== undefined ? isActive : true,
     });
