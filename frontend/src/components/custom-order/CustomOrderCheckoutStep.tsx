@@ -406,7 +406,7 @@ export default function CustomOrderCheckoutStep() {
     const payload = buildCustomOrderCreatePayload(
       draft,
       deliveryAddress || (undefined as any),
-      paymentMethod,
+      paymentMethod === "cod" ? undefined : paymentMethod,
     );
     if (!payload) {
       throw new Error(t("incompleteDraft"));
