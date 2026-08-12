@@ -9,6 +9,7 @@ import ImageUpload from "@/components/admin/ImageUpload";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import {
   SLUG_PATTERN,
+  SHOP_EMIRATES,
   createTailorShop,
   emptyTailorShopForm,
   fetchOwnTailorShop,
@@ -18,13 +19,16 @@ import {
   updateTailorShop,
   type TailorShopFormData,
   type TailorShopProfile,
+  type ShopPickupAddress,
 } from "@/lib/tailorShop";
 
 const INPUT_CLASS =
   "w-full border border-(--color-border) bg-white px-4 py-3 text-[14px] [font-family:var(--font-body)] text-black focus:border-black focus:outline-none";
 const TEXTAREA_CLASS = `${INPUT_CLASS} min-h-[120px] resize-y`;
 
-type FieldKey = keyof TailorShopFormData;
+type FieldKey =
+  | keyof Omit<TailorShopFormData, "pickupAddress">
+  | `pickupAddress.${keyof ShopPickupAddress}`;
 
 const TOAST_BASE = {
   position: "top-right" as const,
@@ -117,7 +121,10 @@ export default function TailorShopForm() {
     };
   }, [t]);
 
-  const handleChange = (field: FieldKey, value: string) => {
+  const handleChange = (
+    field: keyof Omit<TailorShopFormData, "pickupAddress">,
+    value: string,
+  ) => {
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
 
@@ -134,6 +141,26 @@ export default function TailorShopForm() {
 
     if (fieldErrors[field]) {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+    }
+  };
+
+  const handlePickupChange = (field: keyof ShopPickupAddress, value: string) => {
+    let nextValue = value;
+    if (field === "phone") {
+      nextValue = value.replace(/\D/g, "").slice(0, 9);
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      pickupAddress: {
+        ...prev.pickupAddress,
+        [field]: nextValue,
+      },
+    }));
+
+    const key = `pickupAddress.${field}` as FieldKey;
+    if (fieldErrors[key]) {
+      setFieldErrors((prev) => ({ ...prev, [key]: undefined }));
     }
   };
 
@@ -154,6 +181,24 @@ export default function TailorShopForm() {
       errors.phone = t("validation.phoneRequired");
     } else if (!/^\+971\d{9}$/.test(normalizedPhone)) {
       errors.phone = t("validation.phoneInvalid");
+    }
+
+    if (!payload.pickupAddress.fullName.trim()) {
+      errors["pickupAddress.fullName"] = t("validation.pickupFullNameRequired");
+    }
+    if (!payload.pickupAddress.phone.trim()) {
+      errors["pickupAddress.phone"] = t("validation.pickupPhoneRequired");
+    } else if (!/^\d{9}$/.test(payload.pickupAddress.phone.trim())) {
+      errors["pickupAddress.phone"] = t("validation.pickupPhoneInvalid");
+    }
+    if (!payload.pickupAddress.line1.trim()) {
+      errors["pickupAddress.line1"] = t("validation.pickupLine1Required");
+    }
+    if (!payload.pickupAddress.city.trim()) {
+      errors["pickupAddress.city"] = t("validation.pickupCityRequired");
+    }
+    if (!payload.pickupAddress.emirate.trim()) {
+      errors["pickupAddress.emirate"] = t("validation.pickupEmirateRequired");
     }
 
     setFieldErrors(errors);
@@ -481,6 +526,127 @@ export default function TailorShopForm() {
               />
             </div>
           </FormField>
+        </section>
+
+        <section className="space-y-5">
+          <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
+            {t("sections.pickupAddress")}
+          </h2>
+          <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted)">
+            {t("hints.pickupAddress")}
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <FormField
+              label={t("fields.pickupFullName")}
+              name="pickupFullName"
+              required
+              error={fieldErrors["pickupAddress.fullName"]}
+            >
+              <input
+                id="pickupFullName"
+                type="text"
+                value={formData.pickupAddress.fullName}
+                onChange={(e) => handlePickupChange("fullName", e.target.value)}
+                placeholder={t("placeholders.pickupFullName")}
+                className={INPUT_CLASS}
+              />
+            </FormField>
+
+            <FormField
+              label={t("fields.pickupPhone")}
+              name="pickupPhone"
+              required
+              error={fieldErrors["pickupAddress.phone"]}
+            >
+              <div className="relative flex items-center">
+                <span className="absolute left-4 text-gray-500 font-mono text-[14px] select-none">
+                  +971
+                </span>
+                <input
+                  id="pickupPhone"
+                  type="tel"
+                  inputMode="numeric"
+                  value={formData.pickupAddress.phone}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
+                    handlePickupChange("phone", digits);
+                  }}
+                  placeholder="50 123 4567"
+                  maxLength={9}
+                  className={`${INPUT_CLASS} pl-16 font-mono`}
+                />
+              </div>
+            </FormField>
+
+            <FormField
+              label={t("fields.pickupEmirate")}
+              name="pickupEmirate"
+              required
+              error={fieldErrors["pickupAddress.emirate"]}
+            >
+              <select
+                id="pickupEmirate"
+                value={formData.pickupAddress.emirate}
+                onChange={(e) => handlePickupChange("emirate", e.target.value)}
+                className={INPUT_CLASS}
+              >
+                <option value="">{t("placeholders.selectEmirate")}</option>
+                {SHOP_EMIRATES.map((emirate) => (
+                  <option key={emirate} value={emirate}>
+                    {emirate}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <FormField
+              label={t("fields.pickupCity")}
+              name="pickupCity"
+              required
+              error={fieldErrors["pickupAddress.city"]}
+            >
+              <input
+                id="pickupCity"
+                type="text"
+                value={formData.pickupAddress.city}
+                onChange={(e) => handlePickupChange("city", e.target.value)}
+                placeholder={t("placeholders.pickupCity")}
+                className={INPUT_CLASS}
+              />
+            </FormField>
+
+            <FormField
+              label={t("fields.pickupLine1")}
+              name="pickupLine1"
+              required
+              error={fieldErrors["pickupAddress.line1"]}
+            >
+              <input
+                id="pickupLine1"
+                type="text"
+                value={formData.pickupAddress.line1}
+                onChange={(e) => handlePickupChange("line1", e.target.value)}
+                placeholder={t("placeholders.pickupLine1")}
+                className={INPUT_CLASS}
+              />
+            </FormField>
+
+            <FormField
+              label={t("fields.pickupLine2")}
+              name="pickupLine2"
+              error={fieldErrors["pickupAddress.line2"]}
+            >
+              <input
+                id="pickupLine2"
+                type="text"
+                value={formData.pickupAddress.line2}
+                onChange={(e) => handlePickupChange("line2", e.target.value)}
+                placeholder={t("placeholders.pickupLine2")}
+                className={INPUT_CLASS}
+              />
+            </FormField>
+          </div>
         </section>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2">

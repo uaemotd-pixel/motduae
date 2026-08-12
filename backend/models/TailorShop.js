@@ -1,5 +1,17 @@
 import mongoose from 'mongoose';
 
+const shopPickupAddressSchema = new mongoose.Schema(
+  {
+    fullName: { type: String, default: '', trim: true },
+    phone: { type: String, default: '', trim: true },
+    line1: { type: String, default: '', trim: true },
+    line2: { type: String, default: '', trim: true },
+    city: { type: String, default: '', trim: true },
+    emirate: { type: String, default: '', trim: true },
+  },
+  { _id: false },
+);
+
 const tailorShopSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -12,6 +24,10 @@ const tailorShopSchema = new mongoose.Schema(
     location: { type: String, default: '', trim: true },
     city: { type: String, default: '', trim: true },
     phone: { type: String, default: '', trim: true },
+    pickupAddress: {
+      type: shopPickupAddressSchema,
+      default: () => ({}),
+    },
     rating: {
       type: Number,
       default: 0,

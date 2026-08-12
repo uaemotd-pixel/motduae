@@ -10,7 +10,7 @@ const RETAIL_ORDER_STATUSES = [
   "cancelled",
 ];
 
-const PAYMENT_METHODS = ["cod", "apple_pay", "card"];
+const PAYMENT_METHODS = ["apple_pay", "card"];
 
 const orderItemSchema = new mongoose.Schema(
   {
@@ -74,7 +74,7 @@ const retailOrderSchema = new mongoose.Schema(
     paymentMethod: {
       type: String,
       enum: PAYMENT_METHODS,
-      default: "cod",
+      default: "card",
       required: true,
     },
     itemsPrice: { type: Number, required: true, min: 0 },

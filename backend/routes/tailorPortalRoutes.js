@@ -12,6 +12,11 @@ import {
   processTailorShopImage,
 } from "../middleware/uploadReadyMadeImage.js";
 import { deleteTailorShopUpload } from "../utils/uploads.js";
+import {
+  emptyShopPickupAddress,
+  isCompleteShopPickupAddress,
+  normalizeShopPickupAddress,
+} from "../utils/shopPickupAddress.js";
 
 const tailorPortalRouter = express.Router();
 
@@ -40,6 +45,16 @@ const formatShop = (shop) => ({
   location: shop.location,
   city: shop.city,
   phone: shop.phone,
+  pickupAddress: shop.pickupAddress
+    ? {
+        fullName: shop.pickupAddress.fullName || "",
+        phone: shop.pickupAddress.phone || "",
+        line1: shop.pickupAddress.line1 || "",
+        line2: shop.pickupAddress.line2 || "",
+        city: shop.pickupAddress.city || "",
+        emirate: shop.pickupAddress.emirate || "",
+      }
+    : emptyShopPickupAddress(),
   rating: shop.rating,
   reviewCount: shop.reviewCount,
   ownerId: shop.ownerId,
@@ -81,6 +96,10 @@ const pickShopFields = (body) => {
     data.phone = normalizePhoneNumber(data.phone);
   }
 
+  if (body.pickupAddress !== undefined) {
+    data.pickupAddress = body.pickupAddress;
+  }
+
   return data;
 };
 
@@ -110,6 +129,24 @@ const validateShopPayload = (data, { requireCore = false } = {}) => {
     return "slug must be lowercase letters, numbers, and hyphens only";
   }
 
+  if (data.pickupAddress !== undefined) {
+    const normalized = normalizeShopPickupAddress(data.pickupAddress);
+    if (!normalized) {
+      return "pickupAddress requires fullName, phone, line1, city, and emirate";
+    }
+    if (!/^\d{9}$/.test(normalized.phone)) {
+      return "pickup phone number must be exactly 9 digits";
+    }
+    data.pickupAddress = normalized;
+  }
+
+  return null;
+};
+
+const requirePickupAddress = (address) => {
+  if (!isCompleteShopPickupAddress(address)) {
+    return "pickupAddress with fullName, phone, line1, city, and emirate is required before the shop can fulfill orders";
+  }
   return null;
 };
 
@@ -210,6 +247,15 @@ tailorPortalRouter.post(
       return;
     }
 
+    const pickupError = requirePickupAddress(data.pickupAddress);
+    if (pickupError) {
+      res.status(400).json({
+        success: false,
+        message: pickupError,
+      });
+      return;
+    }
+
     const slugTaken = await TailorShop.findOne({ slug: data.slug });
     if (slugTaken) {
       res.status(409).json({
@@ -273,10 +319,24 @@ tailorPortalRouter.put(
       }
     }
 
+    const nextPickupAddress =
+      data.pickupAddress !== undefined ? data.pickupAddress : shop.pickupAddress;
+    const pickupError = requirePickupAddress(nextPickupAddress);
+    if (pickupError) {
+      res.status(400).json({
+        success: false,
+        message: pickupError,
+      });
+      return;
+    }
+
     const previousLogo = shop.logo;
     const previousCover = shop.coverImage;
 
     Object.assign(shop, data);
+    if (data.pickupAddress) {
+      shop.pickupAddress = data.pickupAddress;
+    }
     const updatedShop = await shop.save();
 
     if (
