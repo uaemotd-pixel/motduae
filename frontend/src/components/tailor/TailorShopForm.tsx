@@ -10,7 +10,6 @@ import ImageUpload from "@/components/admin/ImageUpload";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import {
   SLUG_PATTERN,
-  SHOP_EMIRATES,
   createTailorShop,
   emptyTailorShopForm,
   fetchOwnTailorShop,
@@ -21,6 +20,7 @@ import {
   type TailorShopProfile,
   type ShopPickupAddress,
 } from "@/lib/tailorShop";
+import { SHOP_EMIRATES } from "@/lib/fabricShop";
 import {
   isValidUaePhone,
   normalizeUaePhone,
@@ -34,6 +34,15 @@ const TEXTAREA_CLASS = `${INPUT_CLASS} min-h-[120px] resize-y`;
 type FieldKey =
   | keyof Omit<TailorShopFormData, "pickupAddress">
   | `pickupAddress.${keyof ShopPickupAddress}`;
+
+type PickupAddressFields = {
+  fullName?: string;
+  phone?: string;
+  emirate?: string;
+  city?: string;
+  line1?: string;
+  line2?: string;
+};
 
 const TOAST_BASE = {
   position: "top-right" as const,
@@ -157,7 +166,10 @@ export default function TailorShopForm() {
     }
   };
 
-  const handlePickupChange = (field: keyof ShopPickupAddress, value: string) => {
+  const handlePickupChange = (
+    field: keyof ShopPickupAddress,
+    value: string,
+  ) => {
     let nextValue = value;
     if (field === "phone") {
       nextValue = value.replace(/\D/g, "").slice(0, 9);
@@ -179,7 +191,7 @@ export default function TailorShopForm() {
 
   const validate = (): boolean => {
     const errors: Partial<Record<FieldKey, string>> = {};
-    const payload = formData;
+    const payload: TailorShopFormData = formData;
 
     if (!payload.name.trim()) errors.name = t("validation.nameRequired");
     if (!payload.nameAr.trim()) errors.nameAr = t("validation.nameArRequired");
@@ -202,21 +214,23 @@ export default function TailorShopForm() {
       }
     }
 
-    if (!payload.pickupAddress.fullName.trim()) {
+    const pickupAddress = payload.pickupAddress as unknown as ShopPickupAddress;
+
+    if (!(pickupAddress as any)?.fullName?.trim?.()) {
       errors["pickupAddress.fullName"] = t("validation.pickupFullNameRequired");
     }
-    if (!payload.pickupAddress.phone.trim()) {
+    if (!(pickupAddress as any)?.phone?.trim?.()) {
       errors["pickupAddress.phone"] = t("validation.pickupPhoneRequired");
-    } else if (!/^\d{9}$/.test(payload.pickupAddress.phone.trim())) {
+    } else if (!/^\d{9}$/.test((pickupAddress as any)?.phone?.trim?.())) {
       errors["pickupAddress.phone"] = t("validation.pickupPhoneInvalid");
     }
-    if (!payload.pickupAddress.line1.trim()) {
+    if (!(pickupAddress as any)?.line1?.trim?.()) {
       errors["pickupAddress.line1"] = t("validation.pickupLine1Required");
     }
-    if (!payload.pickupAddress.city.trim()) {
+    if (!(pickupAddress as any)?.city?.trim?.()) {
       errors["pickupAddress.city"] = t("validation.pickupCityRequired");
     }
-    if (!payload.pickupAddress.emirate.trim()) {
+    if (!(pickupAddress as any)?.emirate?.trim?.()) {
       errors["pickupAddress.emirate"] = t("validation.pickupEmirateRequired");
     }
 
@@ -576,7 +590,7 @@ export default function TailorShopForm() {
               <input
                 id="pickupFullName"
                 type="text"
-                value={formData.pickupAddress.fullName}
+                value={formData.pickupAddress.fullName || ""}
                 onChange={(e) => handlePickupChange("fullName", e.target.value)}
                 placeholder={t("placeholders.pickupFullName")}
                 className={INPUT_CLASS}
@@ -599,7 +613,9 @@ export default function TailorShopForm() {
                   inputMode="numeric"
                   value={formData.pickupAddress.phone}
                   onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
+                    const digits = e.target.value
+                      .replace(/\D/g, "")
+                      .slice(0, 9);
                     handlePickupChange("phone", digits);
                   }}
                   placeholder="50 123 4567"

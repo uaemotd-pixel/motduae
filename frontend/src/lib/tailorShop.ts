@@ -22,6 +22,15 @@ export interface TailorShopProfile {
   updatedAt?: string;
 }
 
+export interface ShopPickupAddress {
+  fullName: string;
+  phone: string;
+  line1: string;
+  line2: string;
+  city: string;
+  emirate: string;
+}
+
 export interface TailorShopFormData {
   name: string;
   nameAr: string;
@@ -54,6 +63,17 @@ export function emptyTailorShopForm(): TailorShopFormData {
   };
 }
 
+export function emptyShopPickupAddress(): ShopPickupAddress {
+  return {
+    fullName: "",
+    phone: "",
+    line1: "",
+    line2: "",
+    city: "",
+    emirate: "",
+  };
+}
+
 export function tailorShopToForm(shop: TailorShopProfile): TailorShopFormData {
   // Extract only 9 digits from phone
   const digits = extractDigits(shop.phone ?? "");
@@ -71,6 +91,7 @@ export function tailorShopToForm(shop: TailorShopProfile): TailorShopFormData {
     location: shop.location ?? "",
     city: shop.city ?? "",
     phone: phone,
+    pickupAddress: shop.pickupAddress ?? emptyShopPickupAddress(),
   };
 }
 
@@ -121,6 +142,7 @@ export function toTailorShopPayload(
     location: form.location.trim(),
     city: form.city.trim(),
     phone: normalizedPhone,
+    pickupAddress: form.pickupAddress,
   };
 }
 
