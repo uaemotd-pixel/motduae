@@ -58,24 +58,6 @@ type CustomerProfile = {
   defaultAddressId?: string;
 };
 
-type TailorShop = {
-  _id: string;
-  name: string;
-  nameAr: string;
-  slug: string;
-  description?: string;
-  descriptionAr?: string;
-  logo?: string;
-  coverImage?: string;
-  location?: string;
-  city?: string;
-  phone?: string;
-  rating?: number;
-  reviewCount?: number;
-  ownerId?: string;
-  isActive?: boolean;
-};
-
 type FormField = keyof CustomOrderDeliveryAddress;
 
 const REQUIRED_FIELDS: FormField[] = [
@@ -135,13 +117,11 @@ export default function CustomOrderCheckoutStep() {
     Array<{ name: string }>
   >([]);
   const [measurementsConfirmed, setMeasurementsConfirmed] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<
-    "cod" | "apple_pay" | "card"
-  >("cod");
+  const [paymentMethod, setPaymentMethod] = useState<"apple_pay" | "card">(
+    "card",
+  );
 
   const [profileLoading, setProfileLoading] = useState(true);
-  const [tailorShop, setTailorShop] = useState<TailorShop | null>(null);
-  const [shopLoading, setShopLoading] = useState(true);
 
   const [addons, setAddons] = useState<any[]>([]);
   useEffect(() => {
@@ -188,38 +168,6 @@ export default function CustomOrderCheckoutStep() {
     showSuccess,
   ]);
 
-  // Fetch tailor shop by tailor slug from draft
-  useEffect(() => {
-    async function fetchTailorShop() {
-      const firstItem = draft.lineItems[0];
-      if (!firstItem?.tailor?.slug) {
-        setShopLoading(false);
-        return;
-      }
-
-      try {
-        setShopLoading(true);
-        const data = await api.get<{
-          success: boolean;
-          item: TailorShop;
-        }>(`/api/tailors/${firstItem.tailor.slug}`);
-
-        if (data.success && data.item) {
-          setTailorShop(data.item);
-        }
-      } catch (err: any) {
-        if (err.status !== 404) {
-          console.error("Failed to fetch tailor shop:", err);
-        }
-      } finally {
-        setShopLoading(false);
-      }
-    }
-
-    if (isHydrated && draft.lineItems.length > 0) {
-      fetchTailorShop();
-    }
-  }, [isHydrated, draft.lineItems]);
 
   // In CustomOrderCheckoutStep - replace useEffect
   useEffect(() => {
@@ -317,23 +265,6 @@ if (defaultAddr) {
   const getDisplayName = (name?: string, nameAr?: string) =>
     locale === "ar" ? nameAr || name : name;
 
-  const getShopDisplayName = () => {
-    if (!tailorShop) return "Store";
-    return locale === "ar"
-      ? tailorShop.nameAr || tailorShop.name
-      : tailorShop.name;
-  };
-
-  const getShopLocation = () => {
-    if (!tailorShop) return "";
-    return tailorShop.location || "";
-  };
-
-  const getShopCity = () => {
-    if (!tailorShop) return "";
-    return tailorShop.city || "";
-  };
-
   const address = draft.deliveryAddress;
 
 const handleFieldChange = (field: FormField, value: string) => {
@@ -349,10 +280,6 @@ const handleFieldChange = (field: FormField, value: string) => {
   };
 
   const validateForm = (): CustomOrderDeliveryAddress | null => {
-    if (deliveryType === "pickup") {
-      return null;
-    }
-
     const nextErrors: Partial<Record<FormField, string>> = {};
 
     for (const field of REQUIRED_FIELDS) {
@@ -390,19 +317,14 @@ const handleFieldChange = (field: FormField, value: string) => {
   };
 
   const buildOrderPayload = () => {
-    let deliveryAddress: CustomOrderDeliveryAddress | undefined = undefined;
-
-    if (deliveryType === "delivery") {
-      const validated = validateForm();
-      if (!validated) {
-        throw new Error(t("required"));
-      }
-      deliveryAddress = validated;
+    const deliveryAddress = validateForm();
+    if (!deliveryAddress) {
+      throw new Error(t("required"));
     }
 
     const payload = buildCustomOrderCreatePayload(
       draft,
-      deliveryAddress || (undefined as any),
+      deliveryAddress,
       paymentMethod,
     );
     if (!payload) {
@@ -413,8 +335,8 @@ const handleFieldChange = (field: FormField, value: string) => {
       ...payload,
       addPocket,
       addBottomWideFold,
-      deliveryType,
-      deliveryAddress: deliveryType === "delivery" ? deliveryAddress : null,
+      deliveryType: "delivery" as const,
+      deliveryAddress,
       addonIds: draft.addonIds || [],
     };
   };
@@ -520,59 +442,11 @@ const handleFieldChange = (field: FormField, value: string) => {
     setSubmitError(message);
   };
 
-  const placeCodOrder = async () => {
-    if (!measurementsConfirmed) {
-      const msg = t("confirmMeasurementsLabel");
-      setSubmitError(msg);
-      toast.error(msg, ERROR_TOAST);
-      return;
-    }
-
-    setIsSubmitting(true);
-    setSubmitError(null);
-
-    try {
-      const orderPayload = buildOrderPayload();
-      const response = await api.post<{
-        success: boolean;
-        orderId: string;
-        message?: string;
-      }>("/api/orders/custom", {
-        ...orderPayload,
-        paymentMethod: "cod",
-      });
-
-      if (!response?.success || !response.orderId) {
-        throw new Error(response.message || t("submitError"));
-      }
-
-      const orderItemNames = draft.lineItems.map((item) => ({
-        name:
-          getDisplayName(item.design.name, item.design.nameAr) ||
-          t("unknownDesign"),
-      }));
-
-      setOrderId(response.orderId);
-      setSuccessOrderItems(orderItemNames);
-      resetOrder();
-      setShowSuccess(true);
-    } catch (err: unknown) {
-      const message =
-        (err as ApiError)?.message ||
-        (err instanceof Error ? err.message : t("submitError"));
-      setSubmitError(message);
-      toast.error(message, ERROR_TOAST);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   if (
     !isHydrated ||
     isLoading ||
     !isAuthenticated ||
-    profileLoading ||
-    shopLoading
+    profileLoading
   ) {
     return <FormPageSkeleton fields={8} />;
   }
@@ -667,9 +541,8 @@ const handleFieldChange = (field: FormField, value: string) => {
               </div>
 
             <section>
-              {/* Delivery Address or Pickup Info */}
-              {deliveryType === "delivery" ? (
-                <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
+              {/* Delivery Address */}
+              <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
                   <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
                     {t("deliveryTitle")}
                   </h2>
@@ -846,42 +719,6 @@ value={
                     </p>
                   )}
                 </div>
-              ) : (
-                <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
-                  <h2 className="[font-family:var(--font-display)] text-[22px] mb-4">
-                    {locale === "ar"
-                      ? "معلومات الاستلام"
-                      : "Pickup Information"}
-                  </h2>
-                  <div className="[font-family:var(--font-body)] text-[14px] text-(--color-grey-muted) space-y-2">
-                    <p>
-                      {locale === "ar"
-                        ? "يمكنك استلام طلبك من المتجر في:"
-                        : "You selected pickup. Collect your order from our store at:"}
-                    </p>
-                    <div className="mt-3 space-y-1">
-                      <p className="font-semibold text-black">
-                        {getShopDisplayName()}
-                      </p>
-                      {getShopLocation() && <p>{getShopLocation()}</p>}
-                      {getShopCity() && <p>{getShopCity()}</p>}
-                      {tailorShop?.phone && (
-                        <p className="mt-2 text-sm">
-                          <span className="text-(--color-grey-muted)">
-                            {locale === "ar" ? "هاتف: " : "Phone: "}
-                          </span>
-                          {tailorShop.phone}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <p className="mt-4 text-[12px] text-gray-400">
-                    {locale === "ar"
-                      ? "لا توجد رسوم توصيل."
-                      : "No delivery fee applies."}
-                  </p>
-                </div>
-              )}
 
               {/* Payment */}
               <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
@@ -889,24 +726,6 @@ value={
                   {t("paymentTitle")}
                 </h2>
                 <div className="space-y-3">
-                  <label className="flex items-start gap-3 cursor-pointer select-none">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="cod"
-                      checked={paymentMethod === "cod"}
-                      onChange={() => setPaymentMethod("cod")}
-                      className="w-4 h-4 mt-0.5 accent-black shrink-0"
-                    />
-                    <span>
-                      <span className="block [font-family:var(--font-body)] text-[15px] text-black">
-                        {t("codLabel")}
-                      </span>
-                      <span className="block [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mt-0.5">
-                        {t("codDescription")}
-                      </span>
-                    </span>
-                  </label>
                   <label className="flex items-start gap-3 cursor-pointer select-none">
                     <input
                       type="radio"
@@ -962,22 +781,6 @@ value={
 
               {submitError && (
                 <p className="text-red-600 text-sm mb-4">{submitError}</p>
-              )}
-
-              {paymentMethod === "cod" && (
-                <button
-                  type="button"
-                  onClick={placeCodOrder}
-                  disabled={
-                    isSubmitting ||
-                    loadingPricing ||
-                    !pricing ||
-                    !measurementsConfirmed
-                  }
-                  className="w-full h-12 bg-black text-white [font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.24em] hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSubmitting ? t("processing") : t("placeOrder")}
-                </button>
               )}
 
               {paymentMethod === "card" && (

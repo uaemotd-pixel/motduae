@@ -325,13 +325,20 @@ async function getAddonsCost(addonIds = []) {
 
 export async function getCustomOrderTotalFromBody(body) {
   const { deliveryType = "delivery", addonIds = [] } = body;
+
+  if (deliveryType === "pickup") {
+    throw new PricingValidationError(
+      "Pickup is not supported; delivery is required",
+    );
+  }
+
   const addonsCost = await getAddonsCost(addonIds);
 
   if (isMultiItemPayload(body)) {
     const orderInput = validateMultiItemOrderInput(body);
     const { pricing } = await getMultiItemCustomOrderPricing({
       ...orderInput,
-      deliveryType,
+      deliveryType: "delivery",
     });
     return applyAddonsToCustomOrderPricing(pricing, addonsCost).total;
   }
@@ -339,7 +346,7 @@ export async function getCustomOrderTotalFromBody(body) {
   const orderInput = validateFabricOrderInput(body);
   const pricing = await getCustomOrderPricing({
     ...orderInput,
-    deliveryType,
+    deliveryType: "delivery",
   });
   return applyAddonsToCustomOrderPricing(pricing, addonsCost).total;
 }
@@ -376,7 +383,16 @@ export async function createPaidCustomOrder({
     addonIds = [],
   } = payload;
 
-  const orderTotal = await getCustomOrderTotalFromBody(payload);
+  if (deliveryType === "pickup") {
+    throw new PricingValidationError(
+      "Pickup is not supported; delivery is required",
+    );
+  }
+
+  const orderTotal = await getCustomOrderTotalFromBody({
+    ...payload,
+    deliveryType: "delivery",
+  });
   await verifyStripePaymentIntent({
     paymentIntentId,
     userId,
@@ -390,10 +406,7 @@ export async function createPaidCustomOrder({
     stripePaymentIntentId: paymentIntentId,
   };
 
-  const deliveryAddr =
-    deliveryType === "delivery"
-      ? normalizeDeliveryAddress(customerDeliveryAddress)
-      : null;
+  const deliveryAddr = normalizeDeliveryAddress(customerDeliveryAddress);
 
   const normalizedPickupAddress = pickupAddress
     ? normalizePickupAddress(pickupAddress)
@@ -420,17 +433,14 @@ export async function createPaidCustomOrder({
   try {
     if (isMultiItemPayload(payload)) {
       const orderInput = validateMultiItemOrderInput({ fabricSource, items });
-      const { pricing, orderItems, legacyFields, firstFabric } =
-        await buildMultiItemOrderData(orderInput, deliveryType);
+      const { pricing, orderItems, legacyFields } =
+        await buildMultiItemOrderData(orderInput, "delivery");
 
-      let resolvedPickupAddress = normalizedPickupAddress;
-      if (
-        orderInput.fabricSource === "storefront" &&
-        firstFabric &&
-        !resolvedPickupAddress
-      ) {
-        resolvedPickupAddress = buildPickupAddressFromFabric(firstFabric);
-      }
+      // Self fabric: customer address is the Shipa fabric pickup origin
+      const selfPickupAddress =
+        orderInput.fabricSource === "self"
+          ? normalizedPickupAddress || deliveryAddr
+          : null;
 
       Object.assign(
         pricing,
@@ -443,10 +453,8 @@ export async function createPaidCustomOrder({
         ...legacyFields,
         items: orderItems,
         measurements: measurements || {},
-        deliveryType,
-        customerDeliveryAddress:
-          deliveryType === "delivery" ? deliveryAddr : null,
-        pickupAddress: deliveryType === "pickup" ? resolvedPickupAddress : null,
+        customerDeliveryAddress: deliveryAddr,
+        pickupAddress: selfPickupAddress,
         status: "confirmed",
         statusHistory: [
           {
@@ -476,28 +484,28 @@ export async function createPaidCustomOrder({
       );
 
       let fabric = null;
-      let resolvedPickupAddress = normalizedPickupAddress;
 
       if (orderInput.fabricSource === "storefront") {
         fabric = await deductFabricStock(
           orderInput.fabricId,
           orderInput.fabricMeters,
         );
-
-        if (!resolvedPickupAddress) {
-          resolvedPickupAddress = buildPickupAddressFromFabric(fabric);
-        }
       }
 
       const pricing = await getCustomOrderPricing({
         ...orderInput,
-        deliveryType,
+        deliveryType: "delivery",
       });
 
       Object.assign(
         pricing,
         applyAddonsToCustomOrderPricing(pricing, addonsCost),
       );
+
+      const selfPickupAddress =
+        orderInput.fabricSource === "self"
+          ? normalizedPickupAddress || deliveryAddr
+          : null;
 
       order = await CustomOrder.create({
         userId,
@@ -510,10 +518,8 @@ export async function createPaidCustomOrder({
         designId: design._id,
         designSnapshot: buildDesignSnapshot(design),
         measurements: measurements || {},
-        deliveryType,
-        customerDeliveryAddress:
-          deliveryType === "delivery" ? deliveryAddr : null,
-        pickupAddress: deliveryType === "pickup" ? resolvedPickupAddress : null,
+        customerDeliveryAddress: deliveryAddr,
+        pickupAddress: selfPickupAddress,
         status: "confirmed",
         statusHistory: [
           {

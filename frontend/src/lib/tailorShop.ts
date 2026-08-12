@@ -1,4 +1,12 @@
 import { api, type ApiError } from "@/lib/api/client";
+import {
+  emptyShopPickupAddress,
+  normalizeShopPickupAddress,
+  type ShopPickupAddress,
+} from "@/lib/fabricShop";
+
+export type { ShopPickupAddress };
+export { emptyShopPickupAddress, normalizeShopPickupAddress, SHOP_EMIRATES } from "@/lib/fabricShop";
 
 export interface TailorShopProfile {
   _id: string;
@@ -12,6 +20,7 @@ export interface TailorShopProfile {
   location: string;
   city: string;
   phone: string;
+  pickupAddress?: ShopPickupAddress;
   rating?: number;
   reviewCount?: number;
   isActive?: boolean;
@@ -30,6 +39,7 @@ export interface TailorShopFormData {
   location: string;
   city: string;
   phone: string;
+  pickupAddress: ShopPickupAddress;
 }
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -46,6 +56,7 @@ export function emptyTailorShopForm(): TailorShopFormData {
     location: "",
     city: "",
     phone: "",
+    pickupAddress: emptyShopPickupAddress(),
   };
 }
 
@@ -61,6 +72,7 @@ export function tailorShopToForm(shop: TailorShopProfile): TailorShopFormData {
     location: shop.location ?? "",
     city: shop.city ?? "",
     phone: shop.phone ?? "",
+    pickupAddress: normalizeShopPickupAddress(shop.pickupAddress),
   };
 }
 
@@ -101,6 +113,7 @@ export function toTailorShopPayload(
     location: form.location.trim(),
     city: form.city.trim(),
     phone: normalizePhoneNumber(form.phone),
+    pickupAddress: normalizeShopPickupAddress(form.pickupAddress),
   };
 }
 
