@@ -2142,7 +2142,7 @@ adminRouter.get(
     // Safety check: If for some reason seed wasn't run, initialize a default configuration block
     if (!settings) {
       settings = await PlatformSettings.create({
-        defaultDeliveryFee: 45,
+        defaultDeliveryFee: 30,
         defaultTailoringFee: 150,
         platformFee: 0,
 
@@ -2150,7 +2150,14 @@ adminRouter.get(
       });
     }
 
-    res.send(settings);
+    const payload = settings.toObject({ aliases: true });
+    res.send({
+      ...payload,
+      perParcelDeliveryFee:
+        payload.perParcelDeliveryFee ?? payload.defaultDeliveryFee ?? 30,
+      defaultDeliveryFee:
+        payload.defaultDeliveryFee ?? payload.perParcelDeliveryFee ?? 30,
+    });
   }),
 );
 
@@ -2161,6 +2168,7 @@ adminRouter.put(
   expressAsyncHandler(async (req, res) => {
     const {
       defaultDeliveryFee,
+      perParcelDeliveryFee,
       defaultTailoringFee,
       platformFee,
       vatRate,
@@ -2169,14 +2177,19 @@ adminRouter.put(
       returnAllowedDays,
     } = req.body;
 
+    const resolvedDeliveryFee =
+      perParcelDeliveryFee !== undefined
+        ? perParcelDeliveryFee
+        : defaultDeliveryFee;
+
     // 1. Structural Number Validations
     if (
-      defaultDeliveryFee !== undefined &&
-      (typeof defaultDeliveryFee !== "number" || defaultDeliveryFee < 0)
+      resolvedDeliveryFee !== undefined &&
+      (typeof resolvedDeliveryFee !== "number" || resolvedDeliveryFee < 0)
     ) {
       res.status(400).send({
         message:
-          "Delivery fee must be a valid number greater than or equal to 0",
+          "Per-parcel delivery fee must be a valid number greater than or equal to 0",
       });
       return;
     }
@@ -2245,8 +2258,9 @@ adminRouter.put(
     }
 
     // 3. Re-assign changed attributes smoothly
-    if (defaultDeliveryFee !== undefined)
-      settings.defaultDeliveryFee = defaultDeliveryFee;
+    if (resolvedDeliveryFee !== undefined) {
+      settings.defaultDeliveryFee = resolvedDeliveryFee;
+    }
     if (defaultTailoringFee !== undefined)
       settings.defaultTailoringFee = defaultTailoringFee;
     if (platformFee !== undefined) settings.platformFee = platformFee;
@@ -2258,10 +2272,21 @@ adminRouter.put(
     if (currency !== undefined) settings.currency = currency; // Fixed AED standard in MVP layout
 
     const updatedSettings = await settings.save();
+    const settingsPayload = updatedSettings.toObject({ aliases: true });
     res.send({
       message:
         "Global platform configuration variables locked and synchronized successfully",
-      settings: updatedSettings,
+      settings: {
+        ...settingsPayload,
+        perParcelDeliveryFee:
+          settingsPayload.perParcelDeliveryFee ??
+          settingsPayload.defaultDeliveryFee ??
+          30,
+        defaultDeliveryFee:
+          settingsPayload.defaultDeliveryFee ??
+          settingsPayload.perParcelDeliveryFee ??
+          30,
+      },
     });
   }),
 );

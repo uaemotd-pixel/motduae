@@ -46,8 +46,8 @@ const translations = {
   en: {
     title: "Platform Settings",
     subtitle:
-      "Manage global pricing defaults, delivery fees, tailoring fees, VAT rate, and currency defaults.",
-    deliveryFee: "Default Delivery Fee (AED)",
+      "Manage global pricing defaults, per-parcel delivery fees, tailoring fees, VAT rate, and currency defaults.",
+    deliveryFee: "Per-parcel delivery fee (AED)",
     tailoringFee: "Default Tailoring Fee (AED)",
     platformFee: "Platform Fee (AED)",
     vatRate: "VAT Rate (%)",
@@ -62,7 +62,7 @@ const translations = {
     loading: "Loading settings...",
     validation: {
       deliveryFeeMin:
-        "Delivery fee must be a valid number greater than or equal to 0.",
+        "Per-parcel delivery fee must be a valid number greater than or equal to 0.",
       tailoringFeeMin:
         "Tailoring fee must be a valid number greater than or equal to 0.",
       platformFeeMin:
@@ -77,8 +77,8 @@ const translations = {
   ar: {
     title: "إعدادات المنصة",
     subtitle:
-      "إدارة قيم التسعير الافتراضية العالمية، رسوم التوصيل، رسوم الخياطة، ضريبة القيمة المضافة، والعملة الافتراضية.",
-    deliveryFee: "رسوم التوصيل الافتراضية (درهم)",
+      "إدارة قيم التسعير الافتراضية العالمية، رسوم التوصيل لكل طرد، رسوم الخياطة، ضريبة القيمة المضافة، والعملة الافتراضية.",
+    deliveryFee: "رسوم التوصيل لكل طرد (درهم)",
     tailoringFee: "رسوم الخياطة الافتراضية (درهم)",
     platformFee: "رسوم المنصة (درهم)",
     vatRate: "نسبة ضريبة القيمة المضافة (%)",
@@ -92,7 +92,8 @@ const translations = {
     errorMessage: "فشل في تحديث إعدادات المنصة.",
     loading: "جاري تحميل الإعدادات...",
     validation: {
-      deliveryFeeMin: "يجب أن تكون رسوم التوصيل قيمة صحيحة أكبر من أو تساوي 0.",
+      deliveryFeeMin:
+        "يجب أن تكون رسوم التوصيل لكل طرد قيمة صحيحة أكبر من أو تساوي 0.",
       tailoringFeeMin:
         "يجب أن تكون رسوم الخياطة قيمة صحيحة أكبر من أو تساوي 0.",
       platformFeeMin: "يجب أن تكون رسوم المنصة قيمة صحيحة أكبر من أو تساوي 0.",
@@ -129,7 +130,8 @@ export default function AdminSettingsGeneralPage() {
       try {
         setLoading(true);
         const data = await api.get<{
-          defaultDeliveryFee: number;
+          defaultDeliveryFee?: number;
+          perParcelDeliveryFee?: number;
           defaultTailoringFee: number;
           platformFee: number;
           vatRate: number;
@@ -138,7 +140,9 @@ export default function AdminSettingsGeneralPage() {
           currency: string;
         }>("/api/admin/settings");
 
-        setDeliveryFee(data.defaultDeliveryFee.toString());
+        const parcelFee =
+          data.perParcelDeliveryFee ?? data.defaultDeliveryFee ?? 30;
+        setDeliveryFee(parcelFee.toString());
         setTailoringFee(data.defaultTailoringFee.toString());
         setPlatformFee(data.platformFee.toString());
         setVatRatePercent((data.vatRate * 100).toString());
@@ -217,6 +221,7 @@ export default function AdminSettingsGeneralPage() {
     setSubmitting(true);
     try {
       const payload = {
+        perParcelDeliveryFee: parseFloat(deliveryFee),
         defaultDeliveryFee: parseFloat(deliveryFee),
         defaultTailoringFee: parseFloat(tailoringFee),
         platformFee: parseFloat(platformFee),
@@ -229,7 +234,8 @@ export default function AdminSettingsGeneralPage() {
       const response = await api.put<{
         message: string;
         settings: {
-          defaultDeliveryFee: number;
+          defaultDeliveryFee?: number;
+          perParcelDeliveryFee?: number;
           defaultTailoringFee: number;
           platformFee: number;
           vatRate: number;
@@ -239,20 +245,19 @@ export default function AdminSettingsGeneralPage() {
         };
       }>("/api/admin/settings", payload);
 
+      const saved = response.settings;
+      const parcelFee =
+        saved.perParcelDeliveryFee ?? saved.defaultDeliveryFee ?? 30;
+      setDeliveryFee(parcelFee.toString());
+      setTailoringFee(saved.defaultTailoringFee.toString());
+      setPlatformFee(saved.platformFee.toString());
+      setVatRatePercent((saved.vatRate * 100).toString());
+      setReturnDeductionPercent(
+        (saved.returnDeductionPercent ?? 0).toString(),
+      );
+      setReturnAllowedDays((saved.returnAllowedDays ?? 0).toString());
+      setCurrency(saved.currency || "AED");
       toast.success(t.successMessage, SUCCESS_TOAST);
-
-      // Update with exact response numbers from the server just in case
-      if (response && response.settings) {
-        setDeliveryFee(response.settings.defaultDeliveryFee.toString());
-        setTailoringFee(response.settings.defaultTailoringFee.toString());
-        setPlatformFee(response.settings.platformFee.toString());
-        setVatRatePercent((response.settings.vatRate * 100).toString());
-        setReturnDeductionPercent(
-          response.settings.returnDeductionPercent.toString(),
-        );
-        setReturnAllowedDays(response.settings.returnAllowedDays.toString());
-        setCurrency(response.settings.currency || "AED");
-      }
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, t.errorMessage), ERROR_TOAST);
     } finally {

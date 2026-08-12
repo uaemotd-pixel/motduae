@@ -553,7 +553,8 @@
         "identity": "Store identity",
         "about": "About your store",
         "media": "Images",
-        "contact": "Location & contact"
+        "contact": "Location & contact",
+        "pickupAddress": "Courier pickup address"
       },
       "fields": {
         "name": "Store name (English)",
@@ -565,7 +566,13 @@
         "coverImage": "Cover image",
         "city": "City",
         "location": "Address / area",
-        "phone": "Phone"
+        "phone": "Phone",
+        "pickupFullName": "Contact name",
+        "pickupPhone": "Pickup phone",
+        "pickupLine1": "Address line 1",
+        "pickupLine2": "Address line 2",
+        "pickupCity": "Pickup city",
+        "pickupEmirate": "Emirate"
       },
       "placeholders": {
         "name": "e.g. Hanayan Fabrics",
@@ -575,12 +582,19 @@
         "descriptionAr": "عرّف العملاء بتشكيلة الأقمشة لديكم...",
         "city": "Dubai",
         "location": "Al Fahidi Historical District",
-        "phone": "501234567"
+        "phone": "501234567",
+        "pickupFullName": "Store contact name",
+        "pickupPhone": "501234567",
+        "pickupLine1": "Street, building, unit",
+        "pickupLine2": "Landmark (optional)",
+        "pickupCity": "Dubai",
+        "selectEmirate": "Select emirate"
       },
       "hints": {
         "slug": "Lowercase letters, numbers, and hyphens only. Used in your public URL.",
         "logoUpload": "Square store mark. Used when no cover image is set.",
-        "coverUpload": "Wide hero photo — shown on the homepage and your public profile."
+        "coverUpload": "Wide hero photo — shown on the homepage and your public profile.",
+        "pickupAddress": "Required for courier pickups. Couriers use this address when collecting parcels from your store."
       },
       "upload": {
         "chooseFile": "Choose image",
@@ -594,7 +608,13 @@
         "slugRequired": "URL slug is required.",
         "slugInvalid": "Slug must use lowercase letters, numbers, and hyphens only.",
         "phoneRequired": "Phone number is required.",
-        "phoneInvalid": "Phone number must be exactly 9 digits."
+        "phoneInvalid": "Phone number must be exactly 9 digits.",
+        "pickupFullNameRequired": "Pickup contact name is required.",
+        "pickupPhoneRequired": "Pickup phone is required.",
+        "pickupPhoneInvalid": "Pickup phone must be exactly 9 digits.",
+        "pickupLine1Required": "Pickup address line 1 is required.",
+        "pickupCityRequired": "Pickup city is required.",
+        "pickupEmirateRequired": "Pickup emirate is required."
       },
       "errors": {
         "loadFailed": "Failed to load store profile.",
@@ -807,7 +827,8 @@
         "identity": "Shop identity",
         "about": "About your shop",
         "media": "Images",
-        "contact": "Location & contact"
+        "contact": "Location & contact",
+        "pickupAddress": "Courier pickup address"
       },
       "fields": {
         "name": "Shop name (English)",
@@ -819,7 +840,13 @@
         "coverImage": "Cover image",
         "city": "City",
         "location": "Address / area",
-        "phone": "Phone"
+        "phone": "Phone",
+        "pickupFullName": "Contact name",
+        "pickupPhone": "Pickup phone",
+        "pickupLine1": "Address line 1",
+        "pickupLine2": "Address line 2",
+        "pickupCity": "Pickup city",
+        "pickupEmirate": "Emirate"
       },
       "placeholders": {
         "name": "e.g. Ayesha Al Riaz Atelier",
@@ -831,12 +858,19 @@
         "coverImage": "/images/tailor-1.png",
         "city": "Dubai",
         "location": "Al Fahidi Historical District",
-        "phone": "+971 4 353 2100"
+        "phone": "+971 4 353 2100",
+        "pickupFullName": "Shop contact name",
+        "pickupPhone": "501234567",
+        "pickupLine1": "Street, building, unit",
+        "pickupLine2": "Landmark (optional)",
+        "pickupCity": "Dubai",
+        "selectEmirate": "Select emirate"
       },
       "hints": {
         "slug": "Lowercase letters, numbers, and hyphens only. Used in your public URL.",
         "logoUpload": "Square shop mark. Used when no cover image is set.",
-        "coverUpload": "Wide hero photo — shown on the homepage, tailor listing, and your public profile."
+        "coverUpload": "Wide hero photo — shown on the homepage, tailor listing, and your public profile.",
+        "pickupAddress": "Required for courier pickups. Couriers use this address when collecting parcels from your shop."
       },
       "upload": {
         "chooseFile": "Choose image",
@@ -850,7 +884,13 @@
         "slugRequired": "URL slug is required.",
         "slugInvalid": "Slug must use lowercase letters, numbers, and hyphens only.",
         "phoneRequired": "Phone number is required.",
-        "phoneInvalid": "Phone number must be exactly 9 digits."
+        "phoneInvalid": "Phone number must be exactly 9 digits.",
+        "pickupFullNameRequired": "Pickup contact name is required.",
+        "pickupPhoneRequired": "Pickup phone is required.",
+        "pickupPhoneInvalid": "Pickup phone must be exactly 9 digits.",
+        "pickupLine1Required": "Pickup address line 1 is required.",
+        "pickupCityRequired": "Pickup city is required.",
+        "pickupEmirateRequired": "Pickup emirate is required."
       },
       "errors": {
         "loadFailed": "Could not load your shop profile.",

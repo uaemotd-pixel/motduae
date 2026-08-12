@@ -20,7 +20,7 @@ const CUSTOM_STATUSES = [
   "refund_processed",
 ];
 
-const PAYMENT_METHODS = ["cod", "apple_pay", "card"];
+const PAYMENT_METHODS = ["apple_pay", "card"];
 
 const deliveryAddressSchema = new mongoose.Schema(
   {
@@ -253,7 +253,7 @@ const customOrderSchema = new mongoose.Schema(
     paymentMethod: {
       type: String,
       enum: PAYMENT_METHODS,
-      default: "cod",
+      default: "card",
       required: true,
     },
     isPaid: { type: Boolean, default: false, required: true },

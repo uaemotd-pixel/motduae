@@ -30,9 +30,17 @@ export function applyAddonsToCustomOrderPricing(pricing, addonsCost = 0) {
   };
 }
 
+export function getPerParcelDeliveryFee(settings) {
+  const fee =
+    settings?.perParcelDeliveryFee ?? settings?.defaultDeliveryFee ?? 30;
+  return typeof fee === 'number' && fee >= 0 ? fee : 30;
+}
+
 export function resolveDeliveryFee(defaultDeliveryFee, deliveryType = 'delivery') {
   if (deliveryType === 'pickup') {
-    return 0;
+    throw new PricingValidationError(
+      'Pickup is not supported; delivery is required',
+    );
   }
 
   return defaultDeliveryFee;
@@ -271,7 +279,10 @@ export function buildCustomOrderPricing({
     fabricMeters,
     fabricSource,
     fabricPricePerMeter: fabric?.pricePerMeter ?? 0,
-    deliveryFee: resolveDeliveryFee(settings.defaultDeliveryFee, deliveryType),
+    deliveryFee: resolveDeliveryFee(
+      getPerParcelDeliveryFee(settings),
+      deliveryType,
+    ),
     vatRate: settings.vatRate,
     currency: settings.currency,
   });
@@ -425,7 +436,7 @@ export async function getMultiItemCustomOrderPricing({
   return {
     pricing: aggregateCustomOrderPricing(itemPricings, {
       deliveryFee: resolveDeliveryFee(
-        settings.defaultDeliveryFee,
+        getPerParcelDeliveryFee(settings),
         deliveryType,
       ),
       vatRate: settings.vatRate,

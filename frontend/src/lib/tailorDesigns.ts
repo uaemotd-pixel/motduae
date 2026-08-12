@@ -47,7 +47,21 @@ export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const DEFAULT_TAILORING_FEE = 150;
 
-export function emptyTailorDesignForm(): TailorDesignFormData {
+export async function fetchDefaultTailoringFee(): Promise<number> {
+  try {
+    const data = await api.get<{ defaultTailoringFee?: number }>(
+      "/api/orders/settings",
+    );
+    const fee = Number(data?.defaultTailoringFee);
+    return Number.isFinite(fee) && fee >= 0 ? fee : DEFAULT_TAILORING_FEE;
+  } catch {
+    return DEFAULT_TAILORING_FEE;
+  }
+}
+
+export function emptyTailorDesignForm(
+  defaultTailoringFee: number = DEFAULT_TAILORING_FEE,
+): TailorDesignFormData {
   return {
     name: "",
     nameAr: "",
@@ -58,7 +72,7 @@ export function emptyTailorDesignForm(): TailorDesignFormData {
     category: "",
     basePrice: 0,
     priceType: "fixed",
-    tailoringFee: DEFAULT_TAILORING_FEE,
+    tailoringFee: defaultTailoringFee,
     estimatedMeters: 3.5,
     estimatedDays: 7,
     isActive: true,
@@ -98,10 +112,11 @@ export function designToForm(
 export function toTailorDesignPayload(
   form: TailorDesignFormData,
 ): Record<string, unknown> {
+  const name = form.name.trim();
   return {
-    name: form.name.trim(),
+    name,
     nameAr: form.nameAr.trim(),
-    slug: form.slug.trim().toLowerCase(),
+    slug: slugifyDesignName(name),
     description: form.description.trim(),
     descriptionAr: form.descriptionAr.trim(),
     images: form.images.map((image) => image.trim()).filter(Boolean),

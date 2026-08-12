@@ -10,10 +10,10 @@ import NumericInput from "@/components/tailor/NumericInput";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import { ERROR_TOAST, SUCCESS_TOAST } from "@/lib/tailorPortalToast";
 import {
-  SLUG_PATTERN,
   createTailorDesign,
   designToForm,
   emptyTailorDesignForm,
+  fetchDefaultTailoringFee,
   fetchTailorDesign,
   fetchDesignCategories,
   isShopMissingError,
@@ -49,7 +49,6 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
   const [formData, setFormData] = useState<TailorDesignFormData>(
     emptyTailorDesignForm(),
   );
-  const [slugTouched, setSlugTouched] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState<
     DesignCategoryOption[]
   >([]);
@@ -71,18 +70,32 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
   };
 
   useEffect(() => {
-    // Fetch design categories from the admin categories API
+    // Fetch design categories + default tailoring fee from platform settings
     let cancelled = false;
     const load = async () => {
       try {
-        const cats = await fetchDesignCategories();
+        const [cats, defaultTailoringFee] = await Promise.all([
+          fetchDesignCategories(),
+          isEditMode
+            ? Promise.resolve(null)
+            : fetchDefaultTailoringFee(),
+        ]);
         if (cancelled) return;
         setCategoryOptions(cats);
-        setFormData((prev) =>
-          prev.category === "" && cats.length > 0
-            ? { ...prev, category: cats[0].name }
-            : prev,
-        );
+        setFormData((prev) => {
+          let next = prev;
+          if (prev.category === "" && cats.length > 0) {
+            next = { ...next, category: cats[0].name };
+          }
+          if (
+            !isEditMode &&
+            defaultTailoringFee !== null &&
+            Number.isFinite(defaultTailoringFee)
+          ) {
+            next = { ...next, tailoringFee: defaultTailoringFee };
+          }
+          return next;
+        });
       } catch {
         // silently fail
       } finally {
@@ -93,7 +106,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isEditMode]);
 
   useEffect(() => {
     if (formData.images.length > previousImageCountRef.current) {
@@ -120,7 +133,6 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
         const design = await fetchTailorDesign(designId);
         if (cancelled) return;
         setFormData(designToForm(design));
-        setSlugTouched(true);
       } catch (err: unknown) {
         if (!cancelled) {
           const message = getApiErrorMessage(err, t("errors.loadFailed"));
@@ -146,19 +158,12 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     setFormData((prev) => {
       const next = { ...prev, [field]: value } as TailorDesignFormData;
 
-      if (
-        field === "name" &&
-        !isEditMode &&
-        !slugTouched &&
-        typeof value === "string"
-      ) {
+      if (field === "name" && typeof value === "string") {
         next.slug = slugifyDesignName(value);
       }
 
       return next;
     });
-
-    if (field === "slug") setSlugTouched(true);
 
     if (fieldErrors[field as string]) {
       setFieldErrors((prev) => ({ ...prev, [field as string]: undefined }));
@@ -192,11 +197,6 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
 
     if (!formData.name.trim()) errors.name = t("validation.nameRequired");
     if (!formData.nameAr.trim()) errors.nameAr = t("validation.nameArRequired");
-    if (!formData.slug.trim()) {
-      errors.slug = t("validation.slugRequired");
-    } else if (!SLUG_PATTERN.test(formData.slug.trim().toLowerCase())) {
-      errors.slug = t("validation.slugInvalid");
-    }
     if (!formData.images.some((image) => image.trim())) {
       errors.images = t("validation.imagesRequired");
     }
@@ -359,51 +359,37 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
             </FormField>
           </div>
 
-          {/* Slug + Category in one row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <FormField
-              label={t("fields.slug")}
-              name="slug"
-              required
-              hint={t("hints.slug")}
-              error={fieldErrors.slug}
+          <FormField
+            label={t("fields.category")}
+            name="category"
+            required
+            error={fieldErrors.category}
+          >
+            <select
+              id="category"
+              value={formData.category}
+              onChange={(e) => handleChange("category", e.target.value)}
+              className={INPUT_CLASS}
+              disabled={categoriesLoading}
             >
-              <input
-                id="slug"
-                type="text"
-                value={formData.slug}
-                onChange={(e) => handleChange("slug", e.target.value)}
-                className={INPUT_CLASS}
-              />
-            </FormField>
-
-            <FormField label={t("fields.category")} name="category" required>
-              <select
-                id="category"
-                value={formData.category}
-                onChange={(e) => handleChange("category", e.target.value)}
-                className={INPUT_CLASS}
-                disabled={categoriesLoading}
-              >
-                {categoriesLoading ? (
-                  <option value="">Loading...</option>
-                ) : categoryOptions.length === 0 ? (
-                  <option value="">No categories available</option>
-                ) : (
-                  <>
-                    <option value="" disabled className="text-gray-400">
-                      Select a category
+              {categoriesLoading ? (
+                <option value="">Loading...</option>
+              ) : categoryOptions.length === 0 ? (
+                <option value="">No categories available</option>
+              ) : (
+                <>
+                  <option value="" disabled className="text-gray-400">
+                    Select a category
+                  </option>
+                  {categoryOptions.map((cat) => (
+                    <option key={cat._id} value={cat.name}>
+                      {cat.nameAr ? `${cat.name} (${cat.nameAr})` : cat.name}
                     </option>
-                    {categoryOptions.map((cat) => (
-                      <option key={cat._id} value={cat.name}>
-                        {cat.nameAr ? `${cat.name} (${cat.nameAr})` : cat.name}
-                      </option>
-                    ))}
-                  </>
-                )}
-              </select>
-            </FormField>
-          </div>
+                  ))}
+                </>
+              )}
+            </select>
+          </FormField>
         </section>
 
         <section className="space-y-5">

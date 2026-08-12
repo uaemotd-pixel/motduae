@@ -17,8 +17,6 @@ import AddOn from "../models/AddOn.js";
 import {
   notifyCustomOrderPlacedAdmin,
   notifyCustomOrderPlacedCustomer,
-  notifyRetailOrderPlacedAdmin,
-  notifyRetailOrderPlacedCustomer,
   notifyCustomReturnRequested,
   notifyCustomReturnReceivedByCustomer,
   notifyCustomReturnApproved,
@@ -38,7 +36,6 @@ import {
 import PlatformSettings from "../models/PlatformSettings.js";
 import {
   prepareRetailOrder,
-  deductRetailProductStock,
 } from "../services/retailOrderService.js";
 import { isStripeConfigured } from "../services/stripeService.js";
 import {
@@ -426,6 +423,13 @@ orderRoutes.post("/custom/preview", async (req, res) => {
   try {
     const { deliveryType = "delivery", addonIds = [] } = req.body;
 
+    if (deliveryType === "pickup") {
+      return res.status(400).json({
+        success: false,
+        message: "Pickup is not supported; delivery is required",
+      });
+    }
+
     let dbAddons = [];
     let addonsCost = 0;
     if (addonIds && addonIds.length > 0) {
@@ -437,7 +441,7 @@ orderRoutes.post("/custom/preview", async (req, res) => {
       const orderInput = validateMultiItemOrderInput(req.body);
       const { pricing } = await getMultiItemCustomOrderPricing({
         ...orderInput,
-        deliveryType,
+        deliveryType: "delivery",
       });
 
       Object.assign(
@@ -461,7 +465,7 @@ orderRoutes.post("/custom/preview", async (req, res) => {
     const orderInput = validateFabricOrderInput(req.body);
     const pricing = await getCustomOrderPricing({
       ...orderInput,
-      deliveryType,
+      deliveryType: "delivery",
     });
 
     Object.assign(
@@ -499,21 +503,17 @@ orderRoutes.post("/custom/preview", async (req, res) => {
 orderRoutes.post("/custom", isAuth, async (req, res) => {
   try {
     const {
-      designId,
-      fabricSource,
-      fabricId,
-      fabricMeters,
-      items,
-      measurements,
-      customerDeliveryAddress,
-      pickupAddress,
-      paymentMethod = "cod",
+      paymentMethod = "card",
       deliveryType = "delivery",
-      addPocket = false,
-      addBottomWideFold = false,
       paymentIntentId,
-      addonIds = [],
     } = req.body;
+
+    if (deliveryType === "pickup") {
+      return res.status(400).json({
+        success: false,
+        message: "Pickup is not supported; delivery is required",
+      });
+    }
 
     if (!PAYMENT_METHODS.includes(paymentMethod)) {
       return res.status(400).json({
@@ -522,246 +522,57 @@ orderRoutes.post("/custom", isAuth, async (req, res) => {
       });
     }
 
-    // Online payments: shared idempotent path (client + webhook + reconcile)
-    if (isStripePaymentMethod(paymentMethod)) {
-      if (!isStripeConfigured()) {
-        return res.status(503).json({
-          success: false,
-          message: "Online payments are not configured",
-        });
-      }
-
-      if (!paymentIntentId) {
-        return res.status(400).json({
-          success: false,
-          message: "paymentIntentId is required for online payments",
-        });
-      }
-
-      const {
-        paymentIntentId: _pi,
-        paymentMethod: _pm,
-        ...customPayload
-      } = req.body;
-
-      // Refresh snapshot in case address/measurements changed after PI create
-      const amountAed = await getCustomOrderTotalFromBody(customPayload);
-      await savePendingCheckout({
-        paymentIntentId,
-        userId: req.user._id,
-        orderType: "custom",
-        amountAed,
-        payload: customPayload,
-      });
-
-      const { order, created } = await fulfillPaidCheckout({
-        paymentIntentId,
-        paymentMethod,
-        fulfilledBy: "client",
-      });
-
-      return res.status(created ? 201 : 200).json({
-        success: true,
-        message: created
-          ? "Custom order created successfully"
-          : "Order already exists for this payment",
-        orderId: order._id,
-        order,
+    if (!isStripePaymentMethod(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: "Only card and Apple Pay are accepted",
       });
     }
 
-    // COD path below
-    let paymentDetails = {
-      isPaid: false,
-      paidAt: null,
-      stripePaymentIntentId: null,
-    };
-
-    // Build conditional address based on deliveryType
-    const deliveryAddr =
-      deliveryType === "delivery"
-        ? normalizeDeliveryAddress(customerDeliveryAddress)
-        : null;
-
-    // Normalize pickup address if provided
-    const normalizedPickupAddress = pickupAddress
-      ? normalizePickupAddress(pickupAddress)
-      : null;
-
-    let dbAddons = [];
-    let addonsCost = 0;
-    if (addonIds && addonIds.length > 0) {
-      dbAddons = await AddOn.find({ _id: { $in: addonIds }, isActive: true });
-      addonsCost = dbAddons.reduce((sum, item) => sum + item.price, 0);
-    }
-
-    if (isMultiItemPayload(req.body)) {
-      const orderInput = validateMultiItemOrderInput({ fabricSource, items });
-      const { pricing, orderItems, legacyFields, firstFabric } =
-        await buildMultiItemOrderData(orderInput, deliveryType);
-
-      let resolvedPickupAddress = normalizedPickupAddress;
-      if (
-        orderInput.fabricSource === "storefront" &&
-        firstFabric &&
-        !resolvedPickupAddress
-      ) {
-        resolvedPickupAddress = buildPickupAddressFromFabric(firstFabric);
-      }
-
-      const confirmedAt = new Date();
-
-      Object.assign(
-        pricing,
-        applyAddonsToCustomOrderPricing(pricing, addonsCost),
-      );
-
-      const order = await CustomOrder.create({
-        userId: req.user._id,
-        fabricSource: orderInput.fabricSource,
-        ...legacyFields,
-        items: orderItems,
-        measurements: measurements || {},
-        deliveryType,
-        customerDeliveryAddress:
-          deliveryType === "delivery" ? deliveryAddr : null,
-        pickupAddress: deliveryType === "pickup" ? resolvedPickupAddress : null,
-        status: "confirmed",
-        statusHistory: [
-          {
-            status: "confirmed",
-            note: "Order confirmed",
-            changedAt: confirmedAt,
-            changedBy: req.user._id,
-          },
-        ],
-        pricing,
-        paymentMethod,
-        addPocket,
-        addBottomWideFold,
-        addons: dbAddons.map((a) => ({
-          addonId: a._id,
-          name: a.name,
-          nameAr: a.nameAr,
-          price: a.price,
-          thumbnailImage: a.thumbnailImage,
-        })),
-        ...paymentDetails,
-      });
-
-      // Notify admins about custom order placement
-      const customerName = req.user?.name || "Customer";
-      const itemNames = (order.items || [])
-        .map((it) => {
-          const designName = it?.designSnapshot?.name;
-          const fabricName = it?.fabricSnapshot?.name;
-          const designPart = designName ? `Design: ${designName}` : null;
-          const fabricPart = fabricName ? `Fabric: ${fabricName}` : null;
-          return [designPart, fabricPart].filter(Boolean).join(" • ");
-        })
-        .filter(Boolean);
-      const itemNameText = itemNames.length
-        ? itemNames.join(", ")
-        : "Custom item";
-
-      const message = `${customerName} has placed order for ${itemNameText} for AED ${Number(order.pricing?.total ?? 0).toFixed(2)}`;
-
-      await notifyCustomOrderPlacedAdmin(order, req.user._id, message);
-      await notifyCustomOrderPlacedCustomer(order, req.user._id);
-
-      return res.status(201).json({
-        success: true,
-        message: "Custom order created successfully",
-        orderId: order._id,
-        order,
+    if (!isStripeConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: "Online payments are not configured",
       });
     }
 
-    const orderInput = validateFabricOrderInput({
-      designId,
-      fabricSource,
-      fabricId,
-      fabricMeters,
-    });
-
-    const { design, shop } = await loadDesignWithApprovedShop(
-      orderInput.designId,
-    );
-
-    let fabric = null;
-    let resolvedPickupAddress = normalizedPickupAddress;
-
-    if (orderInput.fabricSource === "storefront") {
-      fabric = await deductFabricStock(
-        orderInput.fabricId,
-        orderInput.fabricMeters,
-      );
-
-      if (!resolvedPickupAddress) {
-        resolvedPickupAddress = buildPickupAddressFromFabric(fabric);
-      }
+    if (!paymentIntentId) {
+      return res.status(400).json({
+        success: false,
+        message: "paymentIntentId is required for online payments",
+      });
     }
 
-    const pricing = await getCustomOrderPricing({
-      ...orderInput,
-      deliveryType,
-    });
+    const {
+      paymentIntentId: _pi,
+      paymentMethod: _pm,
+      ...customPayload
+    } = req.body;
 
-    Object.assign(
-      pricing,
-      applyAddonsToCustomOrderPricing(pricing, addonsCost),
-    );
+    // Force delivery-only on stored checkout payload
+    customPayload.deliveryType = "delivery";
 
-    const confirmedAt = new Date();
-
-    const order = await CustomOrder.create({
+    // Refresh snapshot in case address/measurements changed after PI create
+    const amountAed = await getCustomOrderTotalFromBody(customPayload);
+    await savePendingCheckout({
+      paymentIntentId,
       userId: req.user._id,
-      fabricSource: orderInput.fabricSource,
-      fabricId: fabric?._id ?? null,
-      fabricStoreId: fabric?.listedByStore ?? null,
-      fabricSnapshot: fabric ? buildFabricSnapshot(fabric) : null,
-      fabricMeters: orderInput.fabricMeters,
-      tailorShopId: shop._id,
-      designId: design._id,
-      designSnapshot: buildDesignSnapshot(design),
-      measurements: measurements || {},
-      deliveryType,
-      customerDeliveryAddress:
-        deliveryType === "delivery" ? deliveryAddr : null,
-      pickupAddress: deliveryType === "pickup" ? resolvedPickupAddress : null,
-      status: "confirmed",
-      statusHistory: [
-        {
-          status: "confirmed",
-          note: "Order confirmed",
-          changedAt: confirmedAt,
-          changedBy: req.user._id,
-        },
-      ],
-      pricing,
-      paymentMethod,
-      addPocket,
-      addBottomWideFold,
-      addons: dbAddons.map((a) => ({
-        addonId: a._id,
-        name: a.name,
-        nameAr: a.nameAr,
-        price: a.price,
-        thumbnailImage: a.thumbnailImage,
-      })),
-      ...paymentDetails,
+      orderType: "custom",
+      amountAed,
+      payload: customPayload,
     });
 
-    const customerName = req.user?.name || "Customer";
-    const designName = order.designSnapshot?.name || "Custom item";
-    const message = `${customerName} has placed order for ${designName} for AED ${Number(order.pricing?.total ?? 0).toFixed(2)}`;
+    const { order, created } = await fulfillPaidCheckout({
+      paymentIntentId,
+      paymentMethod,
+      fulfilledBy: "client",
+    });
 
-    await notifyCustomOrderPlacedAdmin(order, req.user._id, message);
-    await notifyCustomOrderPlacedCustomer(order, req.user._id);
-
-    res.status(201).json({
+    return res.status(created ? 201 : 200).json({
       success: true,
-      message: "Custom order created successfully",
+      message: created
+        ? "Custom order created successfully"
+        : "Order already exists for this payment",
       orderId: order._id,
       order,
     });
@@ -881,7 +692,7 @@ orderRoutes.post("/retail", isAuth, async (req, res) => {
     const {
       orderItems,
       shippingAddress,
-      paymentMethod = "cod",
+      paymentMethod = "card",
       paymentIntentId,
     } = req.body;
 
@@ -924,82 +735,47 @@ orderRoutes.post("/retail", isAuth, async (req, res) => {
       });
     }
 
-    if (isStripePaymentMethod(paymentMethod)) {
-      if (!isStripeConfigured()) {
-        return res.status(503).json({
-          success: false,
-          message: "Online payments are not configured",
-        });
-      }
-
-      if (!paymentIntentId) {
-        return res.status(400).json({
-          success: false,
-          message: "paymentIntentId is required for online payments",
-        });
-      }
-
-      const prepared = await prepareRetailOrder(orderItems);
-      await savePendingCheckout({
-        paymentIntentId,
-        userId: req.user._id,
-        orderType: "retail",
-        amountAed: prepared.totalPrice,
-        payload: { orderItems, shippingAddress },
-      });
-
-      const { order, created } = await fulfillPaidCheckout({
-        paymentIntentId,
-        paymentMethod,
-        fulfilledBy: "client",
-      });
-
-      return res.status(created ? 201 : 200).json({
-        success: true,
-        message: created
-          ? "Order created successfully"
-          : "Order already exists for this payment",
-        orderId: order._id,
-        order,
+    if (!isStripePaymentMethod(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: "Only card and Apple Pay are accepted",
       });
     }
 
-    // COD path
+    if (!isStripeConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: "Online payments are not configured",
+      });
+    }
+
+    if (!paymentIntentId) {
+      return res.status(400).json({
+        success: false,
+        message: "paymentIntentId is required for online payments",
+      });
+    }
+
     const prepared = await prepareRetailOrder(orderItems);
-
-    await deductRetailProductStock(orderItems);
-
-    const order = await RetailOrder.create({
+    await savePendingCheckout({
+      paymentIntentId,
       userId: req.user._id,
-      orderItems: prepared.finalOrderItems,
-      shippingAddress,
-      paymentMethod,
-      itemsPrice: prepared.itemsPrice,
-      shippingPrice: prepared.shippingPrice,
-      vatRate: prepared.vatRate,
-      vatAmount: prepared.vatAmount,
-      totalPrice: prepared.totalPrice,
-      status: "pending",
-      isPaid: false,
-      paidAt: null,
-      stripePaymentIntentId: null,
+      orderType: "retail",
+      amountAed: prepared.totalPrice,
+      payload: { orderItems, shippingAddress },
     });
 
-    const customerName = req.user?.name || "Customer";
-    const itemNames = (prepared.finalOrderItems || [])
-      .map((i) => i?.name)
-      .filter(Boolean);
+    const { order, created } = await fulfillPaidCheckout({
+      paymentIntentId,
+      paymentMethod,
+      fulfilledBy: "client",
+    });
 
-    const message = `${customerName} has placed order for ${itemNames.join(", ")} for AED ${Number(
-      prepared.totalPrice,
-    ).toFixed(2)}`;
-
-    await notifyRetailOrderPlacedAdmin(order, req.user._id, message);
-    await notifyRetailOrderPlacedCustomer(order, req.user._id);
-
-    res.status(201).json({
+    return res.status(created ? 201 : 200).json({
       success: true,
-      message: "Order created successfully",
+      message: created
+        ? "Order created successfully"
+        : "Order already exists for this payment",
       orderId: order._id,
       order,
     });
@@ -1157,7 +933,7 @@ orderRoutes.get(
     // Safety check: If for some reason seed wasn't run, initialize a default configuration block
     if (!settings) {
       settings = await PlatformSettings.create({
-        defaultDeliveryFee: 45,
+        defaultDeliveryFee: 30,
         defaultTailoringFee: 150,
         platformFee: 0,
         vatRate: 0.05,
@@ -1165,7 +941,14 @@ orderRoutes.get(
       });
     }
 
-    res.send(settings);
+    const payload = settings.toObject({ aliases: true });
+    res.send({
+      ...payload,
+      perParcelDeliveryFee:
+        payload.perParcelDeliveryFee ?? payload.defaultDeliveryFee ?? 30,
+      defaultDeliveryFee:
+        payload.defaultDeliveryFee ?? payload.perParcelDeliveryFee ?? 30,
+    });
   }),
 );
 
