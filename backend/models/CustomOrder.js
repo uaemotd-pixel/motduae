@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { shipmentSchema } from "./schemas/shipmentSchemas.js";
 
 const ORDER_TYPE = "custom";
 
@@ -98,6 +99,32 @@ const pricingSchema = new mongoose.Schema(
     fabricCost: { type: Number, required: true, min: 0 },
     tailoringFee: { type: Number, required: true, min: 0 },
     deliveryFee: { type: Number, required: true, min: 0 },
+    parcelCount: { type: Number, default: 0, min: 0 },
+    perParcelFee: { type: Number, default: null, min: 0 },
+    deliveryBreakdown: {
+      type: [
+        new mongoose.Schema(
+          {
+            key: { type: String, required: true, trim: true },
+            type: { type: String, required: true, trim: true },
+            label: { type: String, default: "", trim: true },
+            fee: { type: Number, required: true, min: 0 },
+            from: {
+              kind: { type: String, default: "", trim: true },
+              id: { type: String, default: null },
+              label: { type: String, default: "", trim: true },
+            },
+            to: {
+              kind: { type: String, default: "", trim: true },
+              id: { type: String, default: null },
+              label: { type: String, default: "", trim: true },
+            },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
     subtotal: { type: Number, required: true, min: 0 },
     vatRate: { type: Number, default: 0.05, min: 0, max: 1 },
     vatAmount: { type: Number, required: true, min: 0 },
@@ -246,6 +273,10 @@ const customOrderSchema = new mongoose.Schema(
       type: [statusHistoryEntrySchema],
       default: [],
     },
+    shipments: {
+      type: [shipmentSchema],
+      default: [],
+    },
     pricing: {
       type: pricingSchema,
       required: true,
@@ -295,6 +326,8 @@ const customOrderSchema = new mongoose.Schema(
 customOrderSchema.index({ userId: 1, createdAt: -1 });
 customOrderSchema.index({ status: 1, createdAt: -1 });
 customOrderSchema.index({ tailorShopId: 1, status: 1 });
+customOrderSchema.index({ "shipments.awb": 1 });
+customOrderSchema.index({ "shipments.shipaOrderId": 1 });
 customOrderSchema.index(
   { stripePaymentIntentId: 1 },
   {

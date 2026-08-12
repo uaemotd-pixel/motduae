@@ -68,6 +68,11 @@ router.post("/preview", async (req, res) => {
     return res.json({
       items: enriched,
       subtotal: prepared.itemsPrice,
+      shipping: prepared.shippingPrice,
+      shippingPrice: prepared.shippingPrice,
+      parcelCount: prepared.parcelCount ?? 0,
+      perParcelFee: prepared.perParcelFee ?? null,
+      deliveryBreakdown: prepared.deliveryBreakdown ?? [],
       vat: prepared.vatAmount,
       total: prepared.totalPrice,
       vatRate,

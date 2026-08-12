@@ -135,6 +135,15 @@ export interface CustomOrderPreviewPayload {
   items: CustomOrderPreviewItemPayload[];
 }
 
+export interface CustomOrderDeliveryBreakdownLine {
+  key: string;
+  type: string;
+  label: string;
+  fee: number;
+  from?: { kind?: string; id?: string | null; label?: string };
+  to?: { kind?: string; id?: string | null; label?: string };
+}
+
 export interface CustomOrderPricingBreakdown {
   designBase: number;
   fabricMeters: number;
@@ -142,6 +151,9 @@ export interface CustomOrderPricingBreakdown {
   fabricCost: number;
   tailoringFee: number;
   deliveryFee: number;
+  parcelCount?: number;
+  perParcelFee?: number;
+  deliveryBreakdown?: CustomOrderDeliveryBreakdownLine[];
   subtotal: number;
   vatRate: number;
   vatAmount: number;

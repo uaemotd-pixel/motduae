@@ -82,4 +82,13 @@ export const env = {
       webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
     };
   },
+  get shipa() {
+    const mode = (process.env.SHIPA_MODE || 'stub').toLowerCase();
+    return {
+      mode: mode === 'live' ? 'live' : 'stub',
+      apiKey: process.env.SHIPA_API_KEY || '',
+      baseUrl: (process.env.SHIPA_BASE_URL || '').replace(/\/$/, ''),
+      webhookSecret: process.env.SHIPA_WEBHOOK_SECRET || '',
+    };
+  },
 };

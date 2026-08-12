@@ -1,6 +1,9 @@
 import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
 import AddOn from "../models/AddOn.js";
 import Fabric from "../models/Fabric.js";
+import PlatformSettings from "../models/PlatformSettings.js";
+import { planRetailOrderParcels } from "./parcelPlanService.js";
+import { getPerParcelDeliveryFee } from "./pricingService.js";
 
 // Conversion constant: 1 wara (also spelled "wara") = 0.9144 meters
 const WARA_TO_METERS = 0.9144;
@@ -106,12 +109,19 @@ export async function prepareRetailOrder(orderItems) {
     itemsPrice += (finalPrice || 0) * pricedQuantity;
   }
 
-  const shippingPrice = 0;
-  const vatRate = 0.05;
-  const vatAmount = Number((itemsPrice * vatRate).toFixed(2));
-  const totalPrice = Number(
-    (itemsPrice + shippingPrice + vatAmount).toFixed(2),
-  );
+  const settings = await PlatformSettings.getSettings();
+  const parcelPlan = await planRetailOrderParcels({
+    items: orderItems,
+    perParcelFee: getPerParcelDeliveryFee(settings),
+  });
+
+  const shippingPrice = parcelPlan.deliveryFee;
+  const vatRate =
+    typeof settings.vatRate === "number" ? settings.vatRate : 0.05;
+  // VAT on items + shipping (align with custom-order taxable base)
+  const taxableSubtotal = Number((itemsPrice + shippingPrice).toFixed(2));
+  const vatAmount = Number((taxableSubtotal * vatRate).toFixed(2));
+  const totalPrice = Number((taxableSubtotal + vatAmount).toFixed(2));
 
   return {
     finalOrderItems,
@@ -120,6 +130,10 @@ export async function prepareRetailOrder(orderItems) {
     vatRate,
     vatAmount,
     totalPrice,
+    parcelCount: parcelPlan.parcelCount,
+    perParcelFee: parcelPlan.perParcelFee,
+    deliveryBreakdown: parcelPlan.breakdown,
+    parcelPlan,
   };
 }
 
