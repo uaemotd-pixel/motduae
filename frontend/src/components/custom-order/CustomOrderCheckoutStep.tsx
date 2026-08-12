@@ -406,7 +406,7 @@ export default function CustomOrderCheckoutStep() {
     const payload = buildCustomOrderCreatePayload(
       draft,
       deliveryAddress || (undefined as any),
-      paymentMethod,
+      paymentMethod === "cod" ? undefined : paymentMethod,
     );
     if (!payload) {
       throw new Error(t("incompleteDraft"));
@@ -666,6 +666,33 @@ export default function CustomOrderCheckoutStep() {
                           );
                         })}
                     </ul>
+                  </div>
+                )}
+
+                {pricing && (pricing.deliveryBreakdown?.length ?? 0) > 0 && (
+                  <div className="pt-4 border-t border-(--color-border) mb-4 space-y-2">
+                    <h3 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-2">
+                      {locale === "ar" ? "التوصيل" : "Delivery"}
+                    </h3>
+                    {pricing.deliveryBreakdown!.map((line) => (
+                      <div
+                        key={line.key}
+                        className="flex justify-between gap-4 text-xs text-gray-700"
+                      >
+                        <span>{line.label}</span>
+                        <span className="shrink-0 font-semibold text-black">
+                          {formatCurrency(line.fee, locale)}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between gap-4 text-xs pt-1 border-t border-(--color-border)/50">
+                      <span className="text-(--color-grey-muted)">
+                        {locale === "ar" ? "إجمالي التوصيل" : "Delivery total"}
+                      </span>
+                      <span className="font-semibold text-black shrink-0">
+                        {formatCurrency(pricing.deliveryFee, locale)}
+                      </span>
+                    </div>
                   </div>
                 )}
 

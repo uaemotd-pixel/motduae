@@ -1,4 +1,8 @@
 import mongoose from "mongoose";
+import {
+  shipmentSchema,
+  buildStatusHistoryEntrySchema,
+} from "./schemas/shipmentSchemas.js";
 
 const ORDER_TYPE = "retail";
 
@@ -43,6 +47,26 @@ const shippingAddressSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const deliveryBreakdownEntrySchema = new mongoose.Schema(
+  {
+    key: { type: String, required: true, trim: true },
+    type: { type: String, required: true, trim: true },
+    label: { type: String, default: "", trim: true },
+    fee: { type: Number, required: true, min: 0 },
+    from: {
+      kind: { type: String, default: "", trim: true },
+      id: { type: String, default: null },
+      label: { type: String, default: "", trim: true },
+    },
+    to: {
+      kind: { type: String, default: "", trim: true },
+      id: { type: String, default: null },
+      label: { type: String, default: "", trim: true },
+    },
+  },
+  { _id: false },
+);
+
 const retailOrderSchema = new mongoose.Schema(
   {
     orderType: {
@@ -79,6 +103,12 @@ const retailOrderSchema = new mongoose.Schema(
     },
     itemsPrice: { type: Number, required: true, min: 0 },
     shippingPrice: { type: Number, default: 0, min: 0, required: true },
+    parcelCount: { type: Number, default: 0, min: 0 },
+    perParcelFee: { type: Number, default: null, min: 0 },
+    deliveryBreakdown: {
+      type: [deliveryBreakdownEntrySchema],
+      default: [],
+    },
     vatRate: { type: Number, default: 0.05, min: 0, max: 1, required: true },
     vatAmount: { type: Number, required: true, min: 0 },
     totalPrice: { type: Number, required: true, min: 0 },
@@ -88,6 +118,14 @@ const retailOrderSchema = new mongoose.Schema(
       enum: RETAIL_ORDER_STATUSES,
       default: "pending",
       required: true,
+    },
+    statusHistory: {
+      type: [buildStatusHistoryEntrySchema(RETAIL_ORDER_STATUSES)],
+      default: [],
+    },
+    shipments: {
+      type: [shipmentSchema],
+      default: [],
     },
     isPaid: { type: Boolean, default: false, required: true },
     isDelivered: { type: Boolean, default: false, required: true },
@@ -102,6 +140,8 @@ const retailOrderSchema = new mongoose.Schema(
 
 retailOrderSchema.index({ userId: 1, createdAt: -1 });
 retailOrderSchema.index({ status: 1, createdAt: -1 });
+retailOrderSchema.index({ "shipments.awb": 1 });
+retailOrderSchema.index({ "shipments.shipaOrderId": 1 });
 retailOrderSchema.index(
   { stripePaymentIntentId: 1 },
   {

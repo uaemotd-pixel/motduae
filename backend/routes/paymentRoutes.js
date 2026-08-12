@@ -115,6 +115,7 @@ async function getCustomOrderTotal(body) {
     const { pricing } = await getMultiItemCustomOrderPricing({
       ...orderInput,
       deliveryType,
+      addonIds,
     });
     return applyAddonsToCustomOrderPricing(pricing, addonsCost).total;
   }
@@ -123,6 +124,7 @@ async function getCustomOrderTotal(body) {
   const pricing = await getCustomOrderPricing({
     ...orderInput,
     deliveryType,
+    addonIds,
   });
 
   return applyAddonsToCustomOrderPricing(pricing, addonsCost).total;

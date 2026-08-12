@@ -211,6 +211,8 @@
       "fabricDetail": "{meters} m × {pricePerMeter}",
       "tailoringFee": "Tailoring fee",
       "deliveryFee": "Delivery fee",
+      "deliveryTotal": "Delivery total",
+      "perParcelNote": "{count} parcels × {fee} each",
       "subtotal": "Subtotal",
       "vat": "VAT ({rate}%)",
       "total": "Total"

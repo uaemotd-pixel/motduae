@@ -335,10 +335,11 @@ async function deductFabricStock(fabricId, meters) {
   return updatedFabric;
 }
 
-async function buildMultiItemOrderData(orderInput, deliveryType = "delivery") {
+async function buildMultiItemOrderData(orderInput, deliveryType = "delivery", addonIds = []) {
   const { pricing, itemPricings } = await getMultiItemCustomOrderPricing({
     ...orderInput,
     deliveryType,
+    addonIds,
   });
   const fabricDeductions = new Map();
 
@@ -442,6 +443,7 @@ orderRoutes.post("/custom/preview", async (req, res) => {
       const { pricing } = await getMultiItemCustomOrderPricing({
         ...orderInput,
         deliveryType: "delivery",
+        addonIds,
       });
 
       Object.assign(
@@ -466,6 +468,7 @@ orderRoutes.post("/custom/preview", async (req, res) => {
     const pricing = await getCustomOrderPricing({
       ...orderInput,
       deliveryType: "delivery",
+      addonIds,
     });
 
     Object.assign(

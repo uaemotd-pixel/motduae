@@ -239,10 +239,11 @@ async function deductFabricStock(fabricId, meters) {
   return updatedFabric;
 }
 
-async function buildMultiItemOrderData(orderInput, deliveryType = "delivery") {
+async function buildMultiItemOrderData(orderInput, deliveryType = "delivery", addonIds = []) {
   const { pricing, itemPricings } = await getMultiItemCustomOrderPricing({
     ...orderInput,
     deliveryType,
+    addonIds,
   });
   const fabricDeductions = new Map();
 
@@ -339,6 +340,7 @@ export async function getCustomOrderTotalFromBody(body) {
     const { pricing } = await getMultiItemCustomOrderPricing({
       ...orderInput,
       deliveryType: "delivery",
+      addonIds,
     });
     return applyAddonsToCustomOrderPricing(pricing, addonsCost).total;
   }
@@ -347,6 +349,7 @@ export async function getCustomOrderTotalFromBody(body) {
   const pricing = await getCustomOrderPricing({
     ...orderInput,
     deliveryType: "delivery",
+    addonIds,
   });
   return applyAddonsToCustomOrderPricing(pricing, addonsCost).total;
 }
@@ -434,7 +437,7 @@ export async function createPaidCustomOrder({
     if (isMultiItemPayload(payload)) {
       const orderInput = validateMultiItemOrderInput({ fabricSource, items });
       const { pricing, orderItems, legacyFields } =
-        await buildMultiItemOrderData(orderInput, "delivery");
+        await buildMultiItemOrderData(orderInput, "delivery", addonIds);
 
       // Self fabric: customer address is the Shipa fabric pickup origin
       const selfPickupAddress =
@@ -495,6 +498,7 @@ export async function createPaidCustomOrder({
       const pricing = await getCustomOrderPricing({
         ...orderInput,
         deliveryType: "delivery",
+        addonIds,
       });
 
       Object.assign(

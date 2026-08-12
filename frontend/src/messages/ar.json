@@ -257,6 +257,8 @@
       "fabricDetail": "{meters} م × {pricePerMeter}",
       "tailoringFee": "رسوم الخياطة",
       "deliveryFee": "رسوم التوصيل",
+      "deliveryTotal": "إجمالي التوصيل",
+      "perParcelNote": "{count} طرود × {fee} لكل طرد",
       "subtotal": "المجموع الفرعي",
       "vat": "ضريبة القيمة المضافة ({rate}%)",
       "total": "الإجمالي"
