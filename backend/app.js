@@ -26,6 +26,7 @@ import subAdminRouter from "./routes/subAdminRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import checkoutRoutes from "./routes/checkoutRoutes.js";
 import stripeWebhookRoutes from "./routes/stripeWebhookRoutes.js";
+import shipaWebhookRoutes from "./routes/shipaWebhookRoutes.js";
 import notificationRouter from "./routes/notificationRoutes.js";
 import customerNotificationRouter from "./routes/customerNotificationRoutes.js";
 import filterRoutes from "./routes/filterRoutes.js";
@@ -46,8 +47,9 @@ app.use(
 );
 app.use(cookieParser());
 
-// Stripe webhooks require the raw body for signature verification — mount BEFORE json parser.
+// Stripe / Shipa webhooks require the raw body for signature verification — mount BEFORE json parser.
 app.use("/api/payments/webhook", stripeWebhookRoutes);
+app.use("/api/webhooks/shipa", shipaWebhookRoutes);
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));

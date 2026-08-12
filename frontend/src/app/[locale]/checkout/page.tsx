@@ -75,6 +75,16 @@ type PricePreviewItem = {
 type PricePreviewResponse = {
   items: PricePreviewItem[];
   subtotal: number;
+  shipping?: number;
+  shippingPrice?: number;
+  parcelCount?: number;
+  perParcelFee?: number;
+  deliveryBreakdown?: Array<{
+    key: string;
+    type: string;
+    label: string;
+    fee: number;
+  }>;
   vat: number;
   total: number;
   vatRate: number;
@@ -424,6 +434,9 @@ function CheckoutPageContent() {
 
   // --- Use server totals ---
   const subtotal = pricePreview?.subtotal || 0;
+  const shipping =
+    pricePreview?.shipping ?? pricePreview?.shippingPrice ?? 0;
+  const deliveryBreakdown = pricePreview?.deliveryBreakdown ?? [];
   const vat = pricePreview?.vat || 0;
   const total = pricePreview?.total || 0;
   const effectiveVatRate = pricePreview?.vatRate ?? vatRate;
@@ -688,6 +701,26 @@ function CheckoutPageContent() {
                                 AED {subtotal.toFixed(2)}
                               </span>
                             </li>
+                            {deliveryBreakdown.length > 0
+                              ? deliveryBreakdown.map((line) => (
+                                  <li
+                                    key={line.key}
+                                    className="flex flex-wrap gap-4"
+                                  >
+                                    {line.label}
+                                    <span className="ml-auto text-black">
+                                      AED {Number(line.fee).toFixed(2)}
+                                    </span>
+                                  </li>
+                                ))
+                              : (
+                                  <li className="flex flex-wrap gap-4">
+                                    {t.checkout.shipping}
+                                    <span className="ml-auto text-black">
+                                      AED {shipping.toFixed(2)}
+                                    </span>
+                                  </li>
+                                )}
                             <li className="flex flex-wrap gap-4">
                               {t.checkout.vat} (
                               {(effectiveVatRate * 100).toFixed(0)}%)

@@ -488,20 +488,60 @@ export default function OrderReviewStep() {
                     </div>
                   )}
 
-                  {/* Delivery Method (Static, only Delivery option exists) */}
-                  <div className="py-3 border-t border-(--color-border) first:border-t-0">
+                  {/* Shipping line breakdown (per-parcel) */}
+                  <div className="py-3 border-t border-(--color-border) first:border-t-0 space-y-2">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
                       <span className="text-(--color-grey-muted) [font-family:var(--font-body)] text-[14px]">
                         Delivery Method
                       </span>
-
                       <span className="text-black [font-family:var(--font-body)] text-[14px] font-semibold">
                         Delivery
                       </span>
                     </div>
 
-                    <p className="mt-1.5 text-[10px] text-gray-400 font-ui tracking-[0.12em] text-right">
-                      AED {shippingFee ?? 30} delivery fee applies
+                    {(pricing.deliveryBreakdown?.length ?? 0) > 0 ? (
+                      <ul className="space-y-1.5 pt-1">
+                        {pricing.deliveryBreakdown!.map((line) => (
+                          <li
+                            key={line.key}
+                            className="flex justify-between gap-4 text-[13px]"
+                          >
+                            <span className="text-(--color-grey-muted)">
+                              {line.label}
+                            </span>
+                            <span className="text-black shrink-0">
+                              {formatCurrency(line.fee, locale)}
+                            </span>
+                          </li>
+                        ))}
+                        <li className="flex justify-between gap-4 pt-1 border-t border-(--color-border)/60 text-[13px]">
+                          <span className="text-(--color-grey-muted)">
+                            {t("lines.deliveryTotal")}
+                          </span>
+                          <span className="text-black shrink-0">
+                            {formatCurrency(pricing.deliveryFee, locale)}
+                          </span>
+                        </li>
+                      </ul>
+                    ) : (
+                      <div className="flex justify-between gap-4 text-[13px]">
+                        <span className="text-(--color-grey-muted)">
+                          {t("lines.deliveryFee")}
+                        </span>
+                        <span className="text-black shrink-0">
+                          {formatCurrency(pricing.deliveryFee, locale)}
+                        </span>
+                      </div>
+                    )}
+
+                    <p className="mt-1 text-[10px] text-gray-400 font-ui tracking-[0.12em] text-right">
+                      {t("lines.perParcelNote", {
+                        count: pricing.parcelCount ?? 1,
+                        fee: formatCurrency(
+                          pricing.perParcelFee ?? shippingFee ?? 30,
+                          locale,
+                        ),
+                      })}
                     </p>
                   </div>
 
