@@ -14,11 +14,21 @@ export interface TailorShopProfile {
   location: string;
   city: string;
   phone: string;
+  pickupAddress?: ShopPickupAddress;
   rating?: number;
   reviewCount?: number;
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface ShopPickupAddress {
+  fullName: string;
+  phone: string;
+  line1: string;
+  line2: string;
+  city: string;
+  emirate: string;
 }
 
 export interface TailorShopFormData {
@@ -32,6 +42,7 @@ export interface TailorShopFormData {
   location: string;
   city: string;
   phone: string;
+  pickupAddress: ShopPickupAddress;
 }
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -48,6 +59,18 @@ export function emptyTailorShopForm(): TailorShopFormData {
     location: "",
     city: "",
     phone: "",
+    pickupAddress: emptyShopPickupAddress(),
+  };
+}
+
+export function emptyShopPickupAddress(): ShopPickupAddress {
+  return {
+    fullName: "",
+    phone: "",
+    line1: "",
+    line2: "",
+    city: "",
+    emirate: "",
   };
 }
 
@@ -68,6 +91,7 @@ export function tailorShopToForm(shop: TailorShopProfile): TailorShopFormData {
     location: shop.location ?? "",
     city: shop.city ?? "",
     phone: phone,
+    pickupAddress: shop.pickupAddress ?? emptyShopPickupAddress(),
   };
 }
 
@@ -118,6 +142,7 @@ export function toTailorShopPayload(
     location: form.location.trim(),
     city: form.city.trim(),
     phone: normalizedPhone,
+    pickupAddress: form.pickupAddress,
   };
 }
 
