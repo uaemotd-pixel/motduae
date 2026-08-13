@@ -37,13 +37,16 @@ export default function FabricRegisterForm() {
 
         try {
             await registerFabricStore(name, email, password);
-            setSubmitted(true);
+            const locale =
+                typeof window !== "undefined"
+                    ? window.location.pathname.split("/")[1] || "en"
+                    : "en";
+            window.location.replace(`/${locale}/auth/verify-email`);
         } catch (err: unknown) {
             const message =
                 (err as ApiError)?.message ||
                 (err instanceof Error ? err.message : "Registration failed");
             setError(message);
-        } finally {
             setIsLoading(false);
         }
     };

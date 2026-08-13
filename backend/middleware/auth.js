@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import User from "../models/User.js";
 import { extractAuthToken } from "../utils/authCookie.js";
+import { isEmailVerified } from "../services/emailVerification/isEmailVerified.js";
 
 export const generateToken = (user, isGuest = false) => {
   return jwt.sign(
@@ -11,6 +12,7 @@ export const generateToken = (user, isGuest = false) => {
       email: user.email,
       role: user.role,
       isAdmin: user.isAdmin,
+      emailVerified: isEmailVerified(user),
       isGuest,
     },
     env.jwtSecret,
@@ -28,7 +30,7 @@ export const isAuth = async (req, res, next) => {
   try {
     const decode = jwt.verify(token, env.jwtSecret);
     const user = await User.findById(decode._id).select(
-      "name email role isAdmin isActive approvalStatus",
+      "name email role isAdmin isActive approvalStatus emailVerified",
     );
 
     if (!user) {
@@ -52,6 +54,7 @@ export const isAuth = async (req, res, next) => {
       role: user.role,
       isAdmin: user.isAdmin,
       approvalStatus: user.approvalStatus,
+      emailVerified: isEmailVerified(user),
       isGuest: Boolean(decode.isGuest),
     };
     next();

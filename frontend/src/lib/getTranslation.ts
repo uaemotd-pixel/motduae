@@ -24,10 +24,14 @@ import adminDashboardAr from "@/messages/adminDashboard.ar.json";
 import adminFabricsEn from "@/messages/adminFabrics.en.json";
 import adminFabricsAr from "@/messages/adminFabrics.ar.json";
 
+import verifyEmailEn from "@/messages/verifyEmail.en.json";
+import verifyEmailAr from "@/messages/verifyEmail.ar.json";
+
 const translations = {
     en: {
         login: loginEn.login,
         signup: signupEn.signup,
+        verifyEmail: verifyEmailEn.verifyEmail,
         readyToWear: en.ReadyToWear,
         readyMade: readyMadeEn.readyMadeInfoCard,
         checkout: checkoutEn.checkout,
@@ -42,6 +46,7 @@ const translations = {
     ar: {
         login: loginAr.login,
         signup: signupAr.signup,
+        verifyEmail: verifyEmailAr.verifyEmail,
         readyToWear: ar.ReadyToWear,
         readyMade: readyMadeAr.readyMadeInfoCard,
         checkout: checkoutAr.checkout,

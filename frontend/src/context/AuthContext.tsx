@@ -23,6 +23,7 @@ interface ApiUserResponse {
     isActive?: boolean;
     authProvider?: string;
     hasPassword?: boolean;
+    emailVerified?: boolean;
     perms?: Record<string, boolean>;
     isGuest?: boolean;
 }
@@ -38,6 +39,8 @@ export interface User {
     isActive?: boolean;
     authProvider?: string;
     hasPassword?: boolean;
+    /** false = must verify; missing/true = treated as verified */
+    emailVerified?: boolean;
     perms?: Record<string, boolean>;
     isGuest?: boolean;
 }
@@ -48,6 +51,10 @@ export type GoogleAuthMode = "login" | "register";
 export interface GoogleAuthOptions {
     mode?: GoogleAuthMode;
     role?: GoogleAuthRole;
+}
+
+export function needsEmailVerification(user: User | null | undefined): boolean {
+    return user?.emailVerified === false;
 }
 
 function mapApiUser(data: ApiUserResponse): User {
@@ -62,6 +69,7 @@ function mapApiUser(data: ApiUserResponse): User {
         isActive: data.isActive,
         authProvider: data.authProvider,
         hasPassword: data.hasPassword,
+        emailVerified: data.emailVerified !== false,
         perms: data.perms || {},
         isGuest: data.isGuest,
     };
@@ -72,11 +80,12 @@ interface AuthContextType {
     isLoading: boolean;
     login: (email: string, password: string, isGuest?: boolean) => Promise<User>;
     loginWithGoogle: (credential: string, options?: GoogleAuthOptions) => Promise<User>;
-    register: (username: string, email: string, password: string, phone: string) => Promise<void>;
+    register: (username: string, email: string, password: string, phone: string) => Promise<User>;
     registerTailor: (name: string, email: string, password: string) => Promise<User>;
     registerFabricStore: (name: string, email: string, password: string) => Promise<User>;
     forgotPassword: (email: string) => Promise<string>;
     logout: () => Promise<void>;
+    applyUserResponse: (response: ApiUserResponse) => User;
     isAuthenticated: boolean;
 }
 
@@ -145,7 +154,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             phone,
         });
 
-        persistSession(response);
+        return persistSession(response);
     };
 
     const registerTailor = async (name: string, email: string, password: string) => {
@@ -194,6 +203,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         registerFabricStore,
         forgotPassword,
         logout,
+        applyUserResponse: persistSession,
         isAuthenticated: !!user,
     };
 

@@ -63,3 +63,35 @@ export async function sendWelcomeEmail({ to, name, userId, storeUrl }) {
     },
   );
 }
+
+export async function sendOtpEmail({
+  to,
+  name,
+  otp,
+  userId,
+  purpose,
+}) {
+  return send(
+    EMAIL_EVENTS.AUTH_OTP,
+    {
+      to,
+      name,
+      otp,
+      userId,
+      purpose,
+    },
+    {
+      to,
+      userId,
+      dedupeKey: buildDedupeKey(EMAIL_EVENTS.AUTH_OTP, [
+        userId || to,
+        Date.now(),
+      ]),
+    },
+  );
+}
+
+/** @deprecated use sendOtpEmail */
+export async function sendEmailOtpEmail(args) {
+  return sendOtpEmail(args);
+}
