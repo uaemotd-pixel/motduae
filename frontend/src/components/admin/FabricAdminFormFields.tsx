@@ -9,13 +9,20 @@ import FabricImageUpload from "@/components/admin/FabricImageUpload";
 import StorePartnerPicker from "@/components/admin/StorePartnerPicker";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 import colors from "@/components/shared/colors";
-import {
-  FabricFormData,
-  PickupAddress,
-  UAE_EMIRATES,
-} from "@/lib/createFabricAdmin";
+import { FabricFormData, PickupAddress } from "@/lib/createFabricAdmin";
 import { api } from "@/lib/api/client";
-import { isValidUaePhone, normalizeUaePhone, extractDigits } from "@/lib/uaePhone";
+import {
+  isValidUaePhone,
+  normalizeUaePhone,
+  extractDigits,
+} from "@/lib/uaePhone";
+import {
+  UAE_EMIRATES,
+  isValidEmirate,
+  normalizeEmirate,
+  getEmirateEn,
+  getEmirateAr,
+} from "@/lib/uaeAddress";
 
 const COLOR_OPTIONS = colors;
 
@@ -547,9 +554,9 @@ export default function FabricAdminFormFields({
                   value={formData.pickupAddress.emirate}
                   placeholder="Select emirate"
                   displayValue={
-                    UAE_EMIRATES.find(
-                      (e) => e.value === formData.pickupAddress.emirate,
-                    )?.en || ""
+                    formData.pickupAddress.emirate
+                      ? `${getEmirateEn(formData.pickupAddress.emirate)} / ${getEmirateAr(formData.pickupAddress.emirate)}`
+                      : ""
                   }
                   onClick={() => setOpenEmirate(!openEmirate)}
                 />

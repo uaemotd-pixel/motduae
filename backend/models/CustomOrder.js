@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { shipmentSchema } from "./schemas/shipmentSchemas.js";
+import { UAE_EMIRATES } from "../utils/uaeAddress.js";
 
 const ORDER_TYPE = "custom";
 
@@ -30,10 +31,29 @@ const deliveryAddressSchema = new mongoose.Schema(
     line1: { type: String, required: true, trim: true },
     line2: { type: String, default: "", trim: true },
     city: { type: String, required: true, trim: true },
-    emirate: { type: String, required: true, trim: true },
+    emirate: {
+      type: String,
+      required: true,
+      trim: true,
+      enum: {
+        values: UAE_EMIRATES.map((e) => e.value),
+        message: "{VALUE} is not an official UAE emirate",
+      },
+    },
+    postalCode: { type: String, default: "", trim: true },
   },
   { _id: false },
 );
+
+deliveryAddressSchema.virtual("emirateAr").get(function () {
+  const found = UAE_EMIRATES.find((e) => e.value === this.emirate);
+  return found?.ar || "";
+});
+
+deliveryAddressSchema.virtual("emirateEn").get(function () {
+  const found = UAE_EMIRATES.find((e) => e.value === this.emirate);
+  return found?.en || "";
+});
 
 const pickupAddressSchema = new mongoose.Schema(
   {
@@ -42,10 +62,29 @@ const pickupAddressSchema = new mongoose.Schema(
     line1: { type: String, required: true, trim: true },
     line2: { type: String, default: "", trim: true },
     city: { type: String, required: true, trim: true },
-    emirate: { type: String, required: true, trim: true },
+    emirate: {
+      type: String,
+      required: true,
+      trim: true,
+      enum: {
+        values: UAE_EMIRATES.map((e) => e.value),
+        message: "{VALUE} is not an official UAE emirate",
+      },
+    },
+    postalCode: { type: String, default: "", trim: true },
   },
   { _id: false },
 );
+
+pickupAddressSchema.virtual("emirateAr").get(function () {
+  const found = UAE_EMIRATES.find((e) => e.value === this.emirate);
+  return found?.ar || "";
+});
+
+pickupAddressSchema.virtual("emirateEn").get(function () {
+  const found = UAE_EMIRATES.find((e) => e.value === this.emirate);
+  return found?.en || "";
+});
 
 const fabricSnapshotSchema = new mongoose.Schema(
   {
@@ -309,7 +348,7 @@ const customOrderSchema = new mongoose.Schema(
         nameAr: { type: String, required: true },
         price: { type: Number, required: true, min: 0 },
         thumbnailImage: { type: String, required: true },
-      }
+      },
     ],
 
     // Return request details

@@ -18,8 +18,19 @@ import toast from "react-hot-toast";
 import CustomerImageUpload from "@/components/shared/customerImageUpload";
 import { motion, AnimatePresence } from "framer-motion";
 import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
-import { isValidUaePhone, normalizeUaePhone, extractDigits } from "@/lib/uaePhone";
+import {
+  isValidUaePhone,
+  normalizeUaePhone,
+  extractDigits,
+} from "@/lib/uaePhone";
 import { AccountPanelSkeleton } from "@/components/ui/Skeleton";
+import {
+  UAE_EMIRATES,
+  getEmirateEn,
+  getEmirateAr,
+  validateAddress,
+  normalizeAddress,
+} from "@/lib/uaeAddress";
 
 type Address = {
   _id?: string;
@@ -98,15 +109,15 @@ const GENDER_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-const UAE_EMIRATES = [
-  "Abu Dhabi",
-  "Dubai",
-  "Sharjah",
-  "Ajman",
-  "Umm Al Quwain",
-  "Ras Al Khaimah",
-  "Fujairah",
-];
+// const UAE_EMIRATES = [
+//   "Abu Dhabi",
+//   "Dubai",
+//   "Sharjah",
+//   "Ajman",
+//   "Umm Al Quwain",
+//   "Ras Al Khaimah",
+//   "Fujairah",
+// ];
 
 export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
   const { user: authUser } = useAuth();
@@ -171,10 +182,10 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
           data.addresses?.find((a: Address) => a.isDefault) ||
           data.addresses?.[0] ||
           {};
-        
+
         const normalizedPhone = normalizeUaePhone(data.phone || "");
         const normalizedAddrPhone = normalizeUaePhone(defaultAddr.phone || "");
-        
+
         setForm({
           name: data.name || "",
           phone: normalizedPhone,
@@ -277,7 +288,10 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     }
   };
 
-  const handlePhoneChange = (field: "phone" | "address.phone", value: string) => {
+  const handlePhoneChange = (
+    field: "phone" | "address.phone",
+    value: string,
+  ) => {
     const digits = extractDigits(value);
     if (digits.length <= 9) {
       const normalized = normalizeUaePhone(digits);
@@ -310,57 +324,21 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
   const validate = (): { isValid: boolean; firstError?: string } => {
     const errors: Record<string, string> = {};
 
-    if (!form.name.trim()) {
-      errors.name = "Full name is required";
-    } else if (!validateTextOnly(form.name)) {
-      errors.name =
-        "Name can only contain letters, spaces, hyphens, and apostrophes";
-    }
+    if (!form.name.trim()) errors.name = "Full name required";
 
     const phoneError = validatePhone(form.phone);
     if (phoneError) errors.phone = phoneError;
 
-    if (!form.address.fullName.trim()) {
-      errors["address.fullName"] = "Full name for address is required";
-    } else if (!validateTextOnly(form.address.fullName)) {
-      errors["address.fullName"] =
-        "Name can only contain letters, spaces, hyphens, and apostrophes";
-    }
-
-    const addrPhoneError = validatePhone(form.address.phone);
-    if (addrPhoneError) errors["address.phone"] = addrPhoneError;
-
-    if (!form.address.emirate.trim()) {
-      errors["address.emirate"] = "Emirate is required";
-    } else if (
-      !/^[a-zA-Z\u0600-\u06FF\s]+$/.test(form.address.emirate.trim())
-    ) {
-      errors["address.emirate"] = "Emirate can only contain letters and spaces";
-    }
-
-    if (!form.address.city.trim()) {
-      errors["address.city"] = "City is required";
-    } else if (!/^[a-zA-Z\u0600-\u06FF\s]+$/.test(form.address.city.trim())) {
-      errors["address.city"] = "City can only contain letters and spaces";
-    }
-
-    if (
-      form.address.building.trim() &&
-      !/^[a-zA-Z0-9\u0600-\u06FF\s\-]+$/.test(form.address.building.trim())
-    ) {
-      errors["address.building"] =
-        "Building can only contain letters, numbers, spaces, and hyphens";
-    }
+    const addressValidation = validateAddress(form.address);
+    Object.assign(errors, addressValidation.errors);
 
     if (!form.dob) {
-      errors.dob = "Date of Birth is required";
+      errors.dob = "Date of Birth required";
     } else {
       const dobDate = new Date(form.dob);
       const today = new Date();
       today.setHours(23, 59, 59, 999);
-      if (dobDate > today) {
-        errors.dob = "Date of birth cannot be in the future";
-      }
+      if (dobDate > today) errors.dob = "Date of birth cannot be in future";
     }
 
     setFieldErrors(errors);
@@ -372,31 +350,26 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     e.preventDefault();
     const { isValid, firstError } = validate();
     if (!isValid) {
-      if (firstError) {
-        toast.error(firstError, ERROR_TOAST);
-      } else {
-        toast.error("Please fill in all required fields.", ERROR_TOAST);
-      }
+      toast.error(
+        firstError || "Please fill in all required fields.",
+        ERROR_TOAST,
+      );
       return;
     }
     setSubmitting(true);
 
     try {
+      const normalizedAddress = normalizeAddress(form.address);
       const payload = {
         name: form.name.trim(),
-        phone: normalizeUaePhone(form.phone),
+        phone: form.phone,
         gender: form.gender,
         dob: form.dob ? new Date(form.dob) : undefined,
         profilePic: form.profilePic.trim() || null,
         address: {
-          fullName: form.address.fullName.trim(),
-          phone: normalizeUaePhone(form.address.phone),
-          emirate: form.address.emirate.trim(),
-          city: form.address.city.trim(),
-          street: form.address.street.trim() || "",
-          building: form.address.building.trim() || "",
-          postalCode: form.address.postalCode.trim() || "",
+          ...normalizedAddress,
           isDefault: true,
+          fullName: normalizedAddress.fullName || form.name.trim(),
         },
       };
 
@@ -620,7 +593,9 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                     type="tel"
                     name="address.phone"
                     value={getPhoneDisplayValue(form.address.phone)}
-                    onChange={(e) => handlePhoneChange("address.phone", e.target.value)}
+                    onChange={(e) =>
+                      handlePhoneChange("address.phone", e.target.value)
+                    }
                     placeholder="XXXXXXXXX"
                     maxLength={9}
                     className="w-full py-1 sm:py-1.5 pl-10 sm:pl-12 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent font-mono"
@@ -648,58 +623,47 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                         form.address.emirate ? "text-black" : "text-gray-400"
                       }
                     >
-                      {form.address.emirate || "Select Emirate"}
+                      {form.address.emirate
+                        ? `${getEmirateEn(form.address.emirate)} / ${getEmirateAr(form.address.emirate)}`
+                        : "Select Emirate"}
                     </span>
                     {emirateOpen ? (
-                      <ChevronUp className="w-4 h-4 text-gray-400" />
+                      <ChevronUp className="w-4 h-4" />
                     ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                      <ChevronDown className="w-4 h-4" />
                     )}
                   </button>
-
                   <AnimatePresence>
                     {emirateOpen && (
                       <motion.ul
                         initial={{ opacity: 0, y: -10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                        transition={{ duration: 0.15, ease: "easeOut" }}
                         className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50 py-1"
-                        style={{ overscrollBehavior: "contain" }}
-                        onWheel={(e) => e.stopPropagation()}
-                        onTouchMove={(e) => e.stopPropagation()}
                       >
                         {UAE_EMIRATES.map((emirate) => (
-                          <motion.li
-                            key={emirate}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.05 }}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setForm((prev) => ({
+                          <li
+                            key={emirate.value}
+                            onClick={() => {
+                              setForm((prev) => ({
+                                ...prev,
+                                address: {
+                                  ...prev.address,
+                                  emirate: emirate.value, // ← direct assignment
+                                },
+                              }));
+                              setEmirateOpen(false);
+                              if (fieldErrors["address.emirate"]) {
+                                setFieldErrors((prev) => ({
                                   ...prev,
-                                  address: { ...prev.address, emirate },
+                                  "address.emirate": "",
                                 }));
-                                setEmirateOpen(false);
-                                if (fieldErrors["address.emirate"]) {
-                                  setFieldErrors((prev) => ({
-                                    ...prev,
-                                    "address.emirate": "",
-                                  }));
-                                }
-                              }}
-                              className={`w-full text-left px-4 py-2.5 text-sm sm:text-base hover:bg-gray-50 transition hover:cursor-pointer ${
-                                form.address.emirate === emirate
-                                  ? "text-black font-medium bg-gray-50"
-                                  : "text-gray-700"
-                              }`}
-                            >
-                              {emirate}
-                            </button>
-                          </motion.li>
+                              }
+                            }}
+                            className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-sm text-black"
+                          >
+                            {emirate.en} / {emirate.ar}
+                          </li>
                         ))}
                       </motion.ul>
                     )}

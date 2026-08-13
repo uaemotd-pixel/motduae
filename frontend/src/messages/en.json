@@ -181,6 +181,8 @@
     "orderIdLabel": "Order ID",
     "itemsInOrder": "Items in this order:",
     "okButton": "OK",
+    "postalCode": "Postal code",
+    "optional": "optional",
     "unknownDesign": "Custom design"
   },
   "CustomOrderReview": {

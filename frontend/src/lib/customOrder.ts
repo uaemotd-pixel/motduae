@@ -111,6 +111,7 @@ export interface CustomOrderDeliveryAddress {
   line2: string;
   city: string;
   emirate: string;
+  postalCode?: string;
 }
 
 export interface CustomOrderDraft {

@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import { UAE_EMIRATES } from "../utils/uaeAddress.js";
 
 const SubAdminSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -14,15 +15,7 @@ const SubAdminSchema = new mongoose.Schema({
       required: true,
       trim: true,
       enum: {
-        values: [
-          "Abu Dhabi",
-          "Dubai",
-          "Sharjah",
-          "Ajman",
-          "Umm Al Quwain",
-          "Ras Al Khaimah",
-          "Fujairah",
-        ],
+        values: UAE_EMIRATES.map((e) => e.value),
         message: "{VALUE} is not an official UAE emirate",
       },
     },

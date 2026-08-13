@@ -1,4 +1,10 @@
 import mongoose from "mongoose";
+import {
+  UAE_EMIRATES,
+  isValidEmirate,
+  normalizeAddress,
+  normalizeEmirate,
+} from "../utils/uaeAddress.js";
 
 const storePickupAddressSchema = new mongoose.Schema(
   {
@@ -7,15 +13,7 @@ const storePickupAddressSchema = new mongoose.Schema(
       required: true,
       trim: true,
       enum: {
-        values: [
-          "abu-dhabi",
-          "dubai",
-          "sharjah",
-          "ajman",
-          "umm-al-quwain",
-          "ras-al-khaimah",
-          "fujairah",
-        ],
+        values: UAE_EMIRATES.map((e) => e.value),
         message: "{VALUE} is not an official UAE emirate",
       },
     },
@@ -32,16 +30,13 @@ const storePickupAddressSchema = new mongoose.Schema(
 );
 
 storePickupAddressSchema.virtual("emirateAr").get(function () {
-  const map = {
-    "Abu Dhabi": "أبو ظبي",
-    Dubai: "دبي",
-    Sharjah: "الشارقة",
-    Ajman: "عجمان",
-    "Umm Al Quwain": "أم القيوين",
-    "Ras Al Khaimah": "رأس الخيمة",
-    Fujairah: "الفجيرة",
-  };
-  return map[this.emirate] || "";
+  const found = UAE_EMIRATES.find((e) => e.value === this.emirate);
+  return found?.ar || "";
+});
+
+storePickupAddressSchema.virtual("emirateEn").get(function () {
+  const found = UAE_EMIRATES.find((e) => e.value === this.emirate);
+  return found?.en || "";
 });
 
 const fabricSchema = new mongoose.Schema(
