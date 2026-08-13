@@ -43,6 +43,7 @@ import {
   savePendingCheckout,
 } from "../services/pendingCheckoutService.js";
 import { getCustomOrderTotalFromBody } from "../services/customPaidOrderService.js";
+import { hasActiveCustomerShipments } from "../services/shipmentService.js";
 
 const orderRoutes = express.Router();
 
@@ -53,6 +54,12 @@ const isStripePaymentMethod = (method) =>
 
 const isApprovedTailorOwner = (owner) =>
   owner?.role === "tailor" && owner?.approvalStatus === "approved";
+
+const isSameUserId = (left, right) =>
+  Boolean(left) && Boolean(right) && String(left) === String(right);
+
+const canAccessOrder = (order, user) =>
+  Boolean(user?.isAdmin) || isSameUserId(order?.userId, user?._id);
 
 function parseFabricMeters(fabricMeters) {
   const meters = Number(fabricMeters);
@@ -670,7 +677,7 @@ orderRoutes.get("/custom/:id", isAuth, async (req, res) => {
       });
     }
 
-    if (order.userId.toString() !== req.user._id && !req.user.isAdmin) {
+    if (!canAccessOrder(order, req.user)) {
       return res.status(403).json({
         success: false,
         message: "You are not allowed to view this order",
@@ -906,7 +913,7 @@ orderRoutes.get("/retail/:id", isAuth, async (req, res) => {
     }
 
     // check the order ownership
-    if (order.userId.toString() !== req.user._id && !req.user.isAdmin) {
+    if (!canAccessOrder(order, req.user)) {
       return res.status(403).json({
         success: false,
         message: "You are not allowed to view this order",
@@ -980,7 +987,7 @@ orderRoutes.post("/custom/:id/return-request", isAuth, async (req, res) => {
         .json({ success: false, message: "Order not found" });
     }
 
-    if (order.userId.toString() !== req.user._id && !req.user.isAdmin) {
+    if (!canAccessOrder(order, req.user)) {
       return res.status(403).json({
         success: false,
         message: "You are not allowed to modify this order",
@@ -1192,7 +1199,7 @@ orderRoutes.post("/custom/:id/mark-received", isAuth, async (req, res) => {
         .json({ success: false, message: "Order not found" });
     }
 
-    if (order.userId.toString() !== req.user._id && !req.user.isAdmin) {
+    if (!canAccessOrder(order, req.user)) {
       return res.status(403).json({
         success: false,
         message: "You are not allowed to modify this order",
@@ -1204,6 +1211,14 @@ orderRoutes.post("/custom/:id/mark-received", isAuth, async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `Order cannot be marked received while status is ${order.status}`,
+      });
+    }
+
+    if (hasActiveCustomerShipments(order)) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Delivery is tracked by Shipa. This order will be marked delivered when all customer parcels are confirmed.",
       });
     }
 

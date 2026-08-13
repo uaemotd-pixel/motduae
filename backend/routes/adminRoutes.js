@@ -36,6 +36,7 @@ import {
   notifyCustomStatusChange,
   notifyRetailStatusChange,
 } from "../services/notificationService.js";
+import { createReadyCustomShipments } from "../services/shipmentService.js";
 
 const adminRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -1625,7 +1626,16 @@ adminRouter.patch(
         order.statusHistory.push(historyBlock);
       }
 
-      const updatedOrder = await order.save();
+      let updatedOrder = await order.save();
+
+      if (status === "ready") {
+        const shipmentResult = await createReadyCustomShipments(
+          updatedOrder,
+          null,
+          { changedBy: req.user?._id },
+        );
+        updatedOrder = shipmentResult?.order || updatedOrder;
+      }
 
       if (status) {
         await notifyCustomStatusChange(updatedOrder, status, req.user?._id);

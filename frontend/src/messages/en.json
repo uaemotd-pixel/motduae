@@ -138,7 +138,7 @@
   },
   "CustomOrderCheckout": {
     "title": "Checkout",
-    "description": "Enter your UAE delivery address and confirm your custom order. Payment is cash on delivery only.",
+    "description": "Enter your UAE delivery address and confirm your custom order. Pay by card or Apple Pay.",
     "loading": "Loading...",
     "incompleteDraft": "Your order is incomplete. Please finish the configurator steps first.",
     "loadingPricing": "Calculating total...",

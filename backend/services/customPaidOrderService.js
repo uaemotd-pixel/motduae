@@ -15,6 +15,7 @@ import {
   notifyCustomOrderPlacedCustomer,
 } from "./notificationService.js";
 import { verifyStripePaymentIntent } from "./stripeService.js";
+import { createConfirmedCustomShipments } from "./shipmentService.js";
 
 const isApprovedTailorOwner = (owner) =>
   owner?.role === "tailor" && owner?.approvalStatus === "approved";
@@ -359,6 +360,14 @@ export async function findCustomOrderByPaymentIntent(paymentIntentId) {
   return CustomOrder.findOne({ stripePaymentIntentId: paymentIntentId });
 }
 
+async function attachInboundShipments(order, userId) {
+  if (!order?._id) return order;
+  const result = await createConfirmedCustomShipments(order, {
+    changedBy: userId || null,
+  });
+  return result?.order || order;
+}
+
 export async function createPaidCustomOrder({
   userId,
   userName = "Customer",
@@ -368,7 +377,8 @@ export async function createPaidCustomOrder({
 }) {
   const existing = await findCustomOrderByPaymentIntent(paymentIntentId);
   if (existing) {
-    return { order: existing, created: false };
+    const withShipments = await attachInboundShipments(existing, userId);
+    return { order: withShipments, created: false };
   }
 
   const {
@@ -544,7 +554,10 @@ export async function createPaidCustomOrder({
   } catch (error) {
     if (error?.code === 11000) {
       const raced = await findCustomOrderByPaymentIntent(paymentIntentId);
-      if (raced) return { order: raced, created: false };
+      if (raced) {
+        const withShipments = await attachInboundShipments(raced, userId);
+        return { order: withShipments, created: false };
+      }
     }
     throw error;
   }
@@ -569,5 +582,6 @@ export async function createPaidCustomOrder({
   await notifyCustomOrderPlacedAdmin(order, userId, message);
   await notifyCustomOrderPlacedCustomer(order, userId);
 
-  return { order, created: true };
+  const withShipments = await attachInboundShipments(order, userId);
+  return { order: withShipments, created: true };
 }
