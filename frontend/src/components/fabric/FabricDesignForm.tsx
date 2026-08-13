@@ -9,9 +9,13 @@ import { Link, useRouter } from "@/i18n/navigation";
 import FormField from "@/components/admin/FormField";
 import FabricImageUpload from "@/components/admin/FabricImageUpload";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
-import { fetchOwnFabricShop, shopPickupToFabricStorePickup } from "@/lib/fabricShop";
+import {
+  fetchOwnFabricShop,
+  shopPickupToFabricStorePickup,
+} from "@/lib/fabricShop";
 import { api } from "@/lib/api/client";
-import { UAE_EMIRATES, type PickupAddress } from "@/lib/createFabricAdmin";
+import { UAE_EMIRATES } from "@/lib/uaeAddress";
+import { type PickupAddress } from "@/lib/createFabricAdmin";
 import {
   SLUG_PATTERN,
   createFabricItem,
