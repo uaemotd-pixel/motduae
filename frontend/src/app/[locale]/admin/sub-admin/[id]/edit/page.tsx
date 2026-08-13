@@ -8,7 +8,18 @@ import FormField from "@/components/admin/FormField";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
-import { isValidUaePhone, normalizeUaePhone, extractDigits } from "@/lib/uaePhone";
+import {
+  isValidUaePhone,
+  normalizeUaePhone,
+  extractDigits,
+} from "@/lib/uaePhone";
+import {
+  UAE_EMIRATES,
+  isValidEmirate,
+  normalizeEmirate,
+  getEmirateEn,
+  getEmirateAr,
+} from "@/lib/uaeAddress";
 
 type PermKey =
   | "customers"
@@ -33,16 +44,6 @@ interface SubAdminForm {
   postalCode: string;
   perms: Record<PermKey, boolean>;
 }
-
-const UAE_EMIRATES = [
-  { value: "Abu Dhabi", en: "Abu Dhabi", ar: "أبو ظبي" },
-  { value: "Dubai", en: "Dubai", ar: "دبي" },
-  { value: "Sharjah", en: "Sharjah", ar: "الشارقة" },
-  { value: "Ajman", en: "Ajman", ar: "عجمان" },
-  { value: "Umm Al Quwain", en: "Umm Al Quwain", ar: "أم القيوين" },
-  { value: "Ras Al Khaimah", en: "Ras Al Khaimah", ar: "رأس الخيمة" },
-  { value: "Fujairah", en: "Fujairah", ar: "الفجيرة" },
-];
 
 const defaultForm: SubAdminForm = {
   name: "",
@@ -114,7 +115,7 @@ export default function EditSubAdminPage() {
           phone: normalizeUaePhone(data.phone || ""),
           addressName: data.address?.name || "",
           addressPhone: normalizeUaePhone(data.address?.phone || ""),
-          emirate: data.address?.emirate || "",
+          emirate: normalizeEmirate(data.address?.emirate || ""),
           city: data.address?.city || "",
           street: data.address?.street || "",
           building: data.address?.building || "",
@@ -139,7 +140,7 @@ export default function EditSubAdminPage() {
     >
       <span className={form.emirate ? "text-black" : "text-gray-400"}>
         {form.emirate
-          ? UAE_EMIRATES.find((e) => e.value === form.emirate)?.en
+          ? `${getEmirateEn(form.emirate)} / ${getEmirateAr(form.emirate)}`
           : "Select emirate"}
       </span>
       <span className="text-gray-400">▾</span>
@@ -166,12 +167,15 @@ export default function EditSubAdminPage() {
     return digits.slice(0, 9);
   };
 
-  const handlePhoneChange = (field: "phone" | "addressPhone", value: string) => {
+  const handlePhoneChange = (
+    field: "phone" | "addressPhone",
+    value: string,
+  ) => {
     const digits = extractDigits(value);
     if (digits.length <= 9) {
       const normalized = normalizeUaePhone(digits);
       handleChange(field, normalized);
-      
+
       if (fieldErrors[field]) {
         setFieldErrors({ ...fieldErrors, [field]: "" });
       }
@@ -195,7 +199,8 @@ export default function EditSubAdminPage() {
     }
     if (form.addressPhone) {
       if (!isValidUaePhone(form.addressPhone)) {
-        errors.addressPhone = "Invalid UAE phone for address. Must be +971 followed by 9 digits";
+        errors.addressPhone =
+          "Invalid UAE phone for address. Must be +971 followed by 9 digits";
       }
     }
     setFieldErrors(errors);
@@ -340,7 +345,9 @@ export default function EditSubAdminPage() {
                     type="tel"
                     inputMode="numeric"
                     value={getPhoneDisplayValue(form.addressPhone)}
-                    onChange={(e) => handlePhoneChange("addressPhone", e.target.value)}
+                    onChange={(e) =>
+                      handlePhoneChange("addressPhone", e.target.value)
+                    }
                     placeholder="50 123 4567"
                     maxLength={9}
                     className="w-full py-1 border-b border-gray-300 focus:border-black outline-none pl-12"

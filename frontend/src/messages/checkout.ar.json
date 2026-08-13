@@ -21,6 +21,7 @@
     "city": "المدينة",
     "streetBuilding": "الشارع",
     "building": "شقة / فيلا",
+    "postalCode": "الرمز البريدي",
     "deliveryNotes": "ملاحظات التوصيل",
     "optional": "اختياري",
     "paymentMethod": "طريقة الدفع",

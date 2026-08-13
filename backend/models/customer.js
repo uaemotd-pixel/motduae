@@ -1,5 +1,6 @@
 // models/customer.js
 import mongoose from "mongoose";
+import { UAE_EMIRATES } from "../utils/uaeAddress.js";
 
 const measurementsSchema = new mongoose.Schema(
   {
@@ -28,15 +29,7 @@ const addressSubSchema = new mongoose.Schema({
     required: true,
     trim: true,
     enum: {
-      values: [
-        "Abu Dhabi",
-        "Dubai",
-        "Sharjah",
-        "Ajman",
-        "Umm Al Quwain",
-        "Ras Al-Khaimah",
-        "Fujairah",
-      ],
+      values: UAE_EMIRATES.map((e) => e.value),
       message: "{VALUE} is not an official UAE emirate",
     },
   },
@@ -65,15 +58,7 @@ const savedUserSubSchema = new mongoose.Schema({
         type: String,
         trim: true,
         enum: {
-          values: [
-            "Abu Dhabi",
-            "Dubai",
-            "Sharjah",
-            "Ajman",
-            "Umm Al Quwain",
-            "Ras Al Khaimah",
-            "Fujairah",
-          ],
+          values: UAE_EMIRATES.map((e) => e.value),
           message: "{VALUE} is not an official UAE emirate",
         },
       },

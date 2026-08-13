@@ -227,6 +227,8 @@
     "orderIdLabel": "رقم الطلب",
     "itemsInOrder": "المنتجات في هذا الطلب:",
     "okButton": "حسناً",
+    "postalCode": "الرمز البريدي",
+    "optional": "اختياري",
     "unknownDesign": "تصميم مخصص"
   },
   "CustomOrderReview": {
@@ -597,7 +599,7 @@
       "ready-made": "ملابس جاهزة",
       "addons": "الإضافات",
       "orders": "الطلبات",
-      "notifications" : "إشعارات"
+      "notifications": "إشعارات"
     },
     "pending": {
       "eyebrow": "بوابة الأقمشة",

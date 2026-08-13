@@ -12,6 +12,13 @@ import {
   normalizeUaePhone,
   extractDigits,
 } from "@/lib/uaePhone";
+import {
+  UAE_EMIRATES,
+  isValidEmirate,
+  normalizeEmirate,
+  getEmirateEn,
+  getEmirateAr,
+} from "@/lib/uaeAddress";
 
 interface SubAdminForm {
   name: string;
@@ -35,16 +42,6 @@ interface SubAdminForm {
     settings: boolean;
   };
 }
-
-const UAE_EMIRATES = [
-  { value: "Abu Dhabi", en: "Abu Dhabi", ar: "أبو ظبي" },
-  { value: "Dubai", en: "Dubai", ar: "دبي" },
-  { value: "Sharjah", en: "Sharjah", ar: "الشارقة" },
-  { value: "Ajman", en: "Ajman", ar: "عجمان" },
-  { value: "Umm Al Quwain", en: "Umm Al Quwain", ar: "أم القيوين" },
-  { value: "Ras Al Khaimah", en: "Ras Al Khaimah", ar: "رأس الخيمة" },
-  { value: "Fujairah", en: "Fujairah", ar: "الفجيرة" },
-];
 
 export default function CreateSubAdminPage() {
   const router = useRouter();
@@ -100,7 +97,7 @@ export default function CreateSubAdminPage() {
     >
       <span className={form.emirate ? "text-black" : "text-gray-400"}>
         {form.emirate
-          ? UAE_EMIRATES.find((e) => e.value === form.emirate)?.en
+          ? `${getEmirateEn(form.emirate)} / ${getEmirateAr(form.emirate)}`
           : "Select emirate"}
       </span>
       <span className="text-gray-400">▾</span>
@@ -156,7 +153,12 @@ export default function CreateSubAdminPage() {
         "Invalid UAE phone for address. Must be +971 followed by 9 digits";
     }
 
-    if (!form.emirate) errors.emirate = "Emirate is required";
+    // Validate emirate using uaeAddress
+    if (!form.emirate) {
+      errors.emirate = "Emirate is required";
+    } else if (!isValidEmirate(form.emirate)) {
+      errors.emirate = "Valid UAE emirate required";
+    }
     if (!form.city.trim()) errors.city = "City is required";
 
     setFieldErrors(errors);
@@ -171,6 +173,8 @@ export default function CreateSubAdminPage() {
     setFieldErrors({});
 
     try {
+      const normalizedEmirate = normalizeEmirate(form.emirate);
+
       const payload = {
         name: form.name.trim(),
         email: form.email.trim(),
@@ -179,7 +183,7 @@ export default function CreateSubAdminPage() {
         address: {
           name: form.addressName.trim(),
           phone: form.addressPhone ? normalizeUaePhone(form.addressPhone) : "",
-          emirate: form.emirate,
+          emirate: normalizedEmirate,
           city: form.city.trim(),
           street: form.street.trim(),
           building: form.building.trim(),

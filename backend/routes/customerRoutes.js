@@ -9,6 +9,12 @@ import {
 } from "../middleware/uploadCustomerImage.js";
 import expressAsyncHandler from "express-async-handler";
 import CustomerSettings from "../models/CustomerSettings.js";
+import {
+  isValidEmirate,
+  normalizeEmirate,
+  validateAddress,
+  normalizeAddress
+} from "../utils/uaeAddress.js";
 
 const calculateAge = (dob) => {
   if (!dob || Number.isNaN(new Date(dob).getTime())) return null;
@@ -24,66 +30,57 @@ const calculateAge = (dob) => {
 
 const hasAddressData = (address) => {
   if (!address || typeof address !== "object") return false;
-  return ["phone", "emirate", "city", "street", "building", "postalCode"].some(
-    (key) => {
-      const value = address[key];
-      if (typeof value !== "string") return false;
-      const normalized = value.trim();
-      if (key === "phone") {
-        return normalized !== "" && normalized !== "+971";
-      }
-      return normalized !== "";
-    },
-  );
+  const normalized = normalizeAddress(address);
+  return !!(normalized.phone || normalized.emirate || normalized.city);
 };
 
-const normalizeAddress = (address, defaultName, defaultPhone) => {
-  if (!address || typeof address !== "object") return undefined;
+// const normalizeAddress = (address, defaultName, defaultPhone) => {
+//   if (!address || typeof address !== "object") return undefined;
 
-  const rawPhone = address.phone?.trim() || "";
-  return {
-    fullName: address.fullName?.trim() || defaultName,
-    phone: rawPhone === "+971" ? "" : rawPhone,
-    emirate: address.emirate?.trim() || undefined,
-    city: address.city?.trim() || undefined,
-    street: address.street?.trim() || undefined,
-    building: address.building?.trim() || undefined,
-    postalCode: address.postalCode?.trim() || undefined,
-  };
-};
+//   const rawPhone = address.phone?.trim() || "";
+//   return {
+//     fullName: address.fullName?.trim() || defaultName,
+//     phone: rawPhone === "+971" ? "" : rawPhone,
+//     emirate: address.emirate?.trim() || undefined,
+//     city: address.city?.trim() || undefined,
+//     street: address.street?.trim() || undefined,
+//     building: address.building?.trim() || undefined,
+//     postalCode: address.postalCode?.trim() || undefined,
+//   };
+// };
 
-const isAddressEmptyOrInvalid = (address) => {
-  if (!address || typeof address !== "object") return true;
+// const isAddressEmptyOrInvalid = (address) => {
+//   if (!address || typeof address !== "object") return true;
 
-  const phone = typeof address.phone === "string" ? address.phone.trim() : "";
-  const hasAnyField = [
-    address.emirate,
-    address.city,
-    address.street,
-    address.building,
-    address.postalCode,
-  ].some((value) => typeof value === "string" && value.trim() !== "");
+//   const phone = typeof address.phone === "string" ? address.phone.trim() : "";
+//   const hasAnyField = [
+//     address.emirate,
+//     address.city,
+//     address.street,
+//     address.building,
+//     address.postalCode,
+//   ].some((value) => typeof value === "string" && value.trim() !== "");
 
-  const hasPhone = phone !== "" && phone !== "+971";
-  const hasEmirate =
-    typeof address.emirate === "string" && address.emirate.trim() !== "";
+//   const hasPhone = phone !== "" && phone !== "+971";
+//   const hasEmirate =
+//     typeof address.emirate === "string" && address.emirate.trim() !== "";
 
-  if (!hasPhone && !hasAnyField) {
-    return true;
-  }
+//   if (!hasPhone && !hasAnyField) {
+//     return true;
+//   }
 
-  return !hasEmirate;
-};
+//   return !hasEmirate;
+// };
 
-const cleanupSavedUserAddresses = (savedUsers) => {
-  if (!Array.isArray(savedUsers)) return;
-  savedUsers.forEach((member) => {
-    if (!member.address) return;
-    if (isAddressEmptyOrInvalid(member.address)) {
-      member.address = undefined;
-    }
-  });
-};
+// const cleanupSavedUserAddresses = (savedUsers) => {
+//   if (!Array.isArray(savedUsers)) return;
+//   savedUsers.forEach((member) => {
+//     if (!member.address) return;
+//     if (isAddressEmptyOrInvalid(member.address)) {
+//       member.address = undefined;
+//     }
+//   });
+// };
 
 const customerRouter = express.Router();
 
@@ -194,7 +191,6 @@ customerRouter.get("/profile", isAuth, async (req, res) => {
     }
 
     const userId = new mongoose.Types.ObjectId(req.user._id);
-    console.log("🔍 Searching for customer with userId:", userId);
     const customer = await Customer.findOne({ userId });
     if (customer) {
       return res.json(customer);
@@ -368,7 +364,7 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
 
     const addressIsProvided = hasAddressData(address);
     const normalizedAddress = addressIsProvided
-      ? normalizeAddress(address, name.trim(), phone.trim())
+      ? normalizeAddress(address)
       : undefined;
 
     if (addressIsProvided && !normalizedAddress?.emirate) {
@@ -388,7 +384,7 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
     };
 
     customer.savedUsers.push(newMember);
-    cleanupSavedUserAddresses(customer.savedUsers);
+    // cleanupSavedUserAddresses(customer.savedUsers);
     await customer.save();
 
     const created = customer.savedUsers[customer.savedUsers.length - 1];
@@ -433,10 +429,10 @@ customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
     if (address) {
       const addressIsProvided = hasAddressData(address);
       const normalizedAddress = addressIsProvided
-        ? normalizeAddress(address, name.trim(), phone.trim())
+        ? normalizeAddress(address)
         : undefined;
 
-      if (addressIsProvided && !normalizedAddress.emirate) {
+      if (addressIsProvided && !isValidEmirate(normalizedAddress.emirate)) {
         return res.status(400).json({
           error: "Emirate is required when address details are provided",
         });
@@ -445,7 +441,7 @@ customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
       member.address = addressIsProvided ? normalizedAddress : undefined;
     }
 
-    cleanupSavedUserAddresses(customer.savedUsers);
+    // cleanupSavedUserAddresses(customer.savedUsers);
     await customer.save();
     res.json(member);
   } catch (err) {
