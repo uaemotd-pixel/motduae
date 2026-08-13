@@ -1,0 +1,29 @@
+{
+  "verifyEmail": {
+    "title": "تحقق من بريدك",
+    "subtitle": "سنرسل رمزًا من 6 أرقام إلى",
+    "partnerSubtitle": "تحقق حتى نتمكن من التواصل معك بشأن طلبك.",
+    "sendOtp": "إرسال الرمز",
+    "sending": "جارٍ الإرسال",
+    "verify": "تحقق",
+    "verifying": "جارٍ التحقق",
+    "verified": "تم التحقق",
+    "notVerified": "لم يتم التحقق",
+    "resendIn": "إعادة الإرسال خلال",
+    "resend": "إعادة إرسال الرمز",
+    "skip": "تخطّي الآن",
+    "spamHint": "لم يصلك؟ تحقق من البريد غير الهام.",
+    "justAMoment": "لحظة من فضلك",
+    "tryAgain": "حاول مرة أخرى",
+    "continue": "متابعة",
+    "checkoutTitle": "تحقق من البريد لإتمام الطلب",
+    "accountTitle": "تحقق من بريدك",
+    "bannerTitle": "تحقق من بريدك",
+    "bannerBody": "أكد بريدك حتى نتمكن من التواصل معك بشأن الطلبات.",
+    "bannerCta": "تحقق",
+    "profileVerify": "تحقق",
+    "gateCheckoutMessage": "تحقق من بريدك لإتمام هذا الطلب.",
+    "verifyNow": "تحقق الآن",
+    "redirecting": "جارٍ إعادة التوجيه"
+  }
+}

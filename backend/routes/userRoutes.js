@@ -14,9 +14,23 @@ import {
   sendPasswordResetEmail,
   sendContactMessageEmail,
   sendWelcomeEmail,
+  sendOtpEmail,
 } from "../services/emailService.js";
 import { createAdminNotificationForNewUser } from "../services/adminNotificationService.js";
 import { clearAuthCookie, setAuthCookie } from "../utils/authCookie.js";
+import { isEmailVerified } from "../services/emailVerification/isEmailVerified.js";
+import {
+  EmailVerificationError,
+  issueOtp,
+  verifyOtpAtomic,
+  getVerificationStatus,
+  maskEmail,
+} from "../services/emailVerification/emailVerificationService.js";
+import { markPartnerSubmittedAfterEmailVerify } from "../services/emailVerification/partnerSubmission.js";
+import {
+  RESEND_COOLDOWN_MS,
+  OTP_PURPOSES,
+} from "../services/emailVerification/otpPolicy.js";
 
 const userRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -58,7 +72,20 @@ const sendUserResponse = (res, user, { isGuest = false } = {}) => {
     isActive: user.isActive,
     authProvider: user.authProvider,
     hasPassword: Boolean(user.password),
+    emailVerified: isEmailVerified(user),
   });
+};
+
+const sendEmailVerificationError = (res, error) => {
+  if (error instanceof EmailVerificationError) {
+    res.status(error.status).send({
+      code: error.code,
+      message: error.message,
+      ...error.extra,
+    });
+    return true;
+  }
+  return false;
 };
 
 const hashResetToken = (token) =>
@@ -88,7 +115,7 @@ userRouter.get(
   isAuth,
   expressAsyncHandler(async (req, res) => {
     const user = await User.findById(req.user._id).select(
-      "-resetPasswordToken",
+      "-resetPasswordToken -emailVerificationOTPHash",
     );
     if (!user) {
       res.status(404).send({ message: "User not found" });
@@ -120,6 +147,7 @@ userRouter.get(
       isActive: user.isActive,
       authProvider: user.authProvider,
       hasPassword: Boolean(user.password),
+      emailVerified: isEmailVerified(user),
       perms,
       isGuest,
     });
@@ -184,6 +212,7 @@ userRouter.post(
       isActive: user.isActive,
       authProvider: user.authProvider,
       hasPassword: Boolean(user.password),
+      emailVerified: isEmailVerified(user),
       perms,
       isGuest,
     });
@@ -276,6 +305,7 @@ userRouter.post(
         googleId,
         authProvider: "google",
         role: registerRole,
+        emailVerified: true,
       };
 
       if (PARTNER_ROLES.has(registerRole)) {
@@ -296,6 +326,8 @@ userRouter.post(
           name: user.name,
           userId: user._id,
         });
+      } else if (PARTNER_ROLES.has(registerRole)) {
+        await markPartnerSubmittedAfterEmailVerify(user);
       }
 
       sendUserResponse(res, user);
@@ -341,6 +373,7 @@ userRouter.post(
       googleId,
       authProvider: "google",
       role: "customer",
+      emailVerified: true,
     });
     await user.save();
 
@@ -476,23 +509,10 @@ userRouter.post(
       role: "tailor",
       approvalStatus: "pending",
       authProvider: "local",
+      emailVerified: false,
     });
 
     const createdUser = await user.save();
-
-    // Create admin dashboard notification for new tailor signup
-    // Admin UI expects: tailor/cust/fabric-store specific display message.
-    await createAdminNotificationForNewUser({
-      type: `user_${createdUser.role}_registered`,
-      title: "User registration",
-      message: `${createdUser.name} is registered as ${createdUser.role.replace(
-        "_",
-        " ",
-      )}.`,
-      createdBy: createdUser._id,
-      tailorUserId: createdUser._id,
-    });
-
 
     sendUserResponse(res, createdUser);
   }),
@@ -528,21 +548,10 @@ userRouter.post(
       role: "fabric_store",
       approvalStatus: "pending",
       authProvider: "local",
+      emailVerified: false,
     });
 
     const createdUser = await user.save();
-
-    // Create admin dashboard notification for new fabric_store signup
-    await createAdminNotificationForNewUser({
-      type: `user_${createdUser.role}_registered`,
-      title: "User registration",
-      message: `${createdUser.name} is registered as ${createdUser.role.replace(
-        "_",
-        " ",
-      )}.`,
-      createdBy: createdUser._id,
-      tailorUserId: null,
-    });
 
     sendUserResponse(res, createdUser);
 
@@ -605,12 +614,12 @@ userRouter.post(
       role: "customer",
       phone: fullPhone, // Store as +971501234567
       authProvider: "local",
+      emailVerified: false,
     });
 
     const createdUser = await user.save();
 
-    // Create admin dashboard notification for new user signup
-    // Supports all partner/user roles (customer, tailor, fabric_store).
+    // Customer signup still notifies admin immediately (not partner submit gate)
     await createAdminNotificationForNewUser({
       type: `user_${createdUser.role}_registered`,
       title: "New user registered",
@@ -619,7 +628,7 @@ userRouter.post(
         " ",
       )}.`,
       createdBy: createdUser._id,
-      tailorUserId: createdUser.role === "tailor" ? createdUser._id : null,
+      tailorUserId: null,
     });
 
     const customer = new Customer({
@@ -629,13 +638,91 @@ userRouter.post(
     });
     await customer.save();
 
-    await sendWelcomeEmail({
-      to: createdUser.email,
-      name: createdUser.name,
-      userId: createdUser._id,
+    sendUserResponse(res, createdUser);
+  }),
+);
+
+userRouter.get(
+  "/email/verification-status",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      res.status(404).send({ message: "User not found" });
+      return;
+    }
+
+    const status = getVerificationStatus(user);
+    res.json({
+      ...status,
+      maskedEmail: maskEmail(user.email),
+    });
+  }),
+);
+
+userRouter.post(
+  "/email/send-otp",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      res.status(404).send({ message: "User not found" });
+      return;
+    }
+
+    let issued;
+    try {
+      issued = issueOtp(user);
+    } catch (error) {
+      if (sendEmailVerificationError(res, error)) return;
+      throw error;
+    }
+
+    await user.save({ validateBeforeSave: false });
+
+    await sendOtpEmail({
+      to: user.email,
+      name: user.name,
+      otp: issued.code,
+      userId: user._id,
+      purpose: OTP_PURPOSES.VERIFY_EMAIL_ADDRESS,
     });
 
-    sendUserResponse(res, createdUser);
+    res.json({
+      ok: true,
+      expiresAt: issued.expiresAt,
+      resendAvailableInSec: Math.ceil(RESEND_COOLDOWN_MS / 1000),
+      maskedEmail: maskEmail(user.email),
+    });
+  }),
+);
+
+userRouter.post(
+  "/email/verify-otp",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    const { code } = req.body || {};
+
+    let user;
+    try {
+      const result = await verifyOtpAtomic(User, req.user._id, code);
+      user = result.user;
+    } catch (error) {
+      if (sendEmailVerificationError(res, error)) return;
+      throw error;
+    }
+
+    if (user.role === "customer") {
+      await sendWelcomeEmail({
+        to: user.email,
+        name: user.name,
+        userId: user._id,
+      });
+    } else if (PARTNER_ROLES.has(user.role)) {
+      await markPartnerSubmittedAfterEmailVerify(user);
+    }
+
+    sendUserResponse(res, user);
   }),
 );
 
