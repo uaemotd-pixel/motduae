@@ -388,6 +388,16 @@ async function applyOrderStatusAggregation(order, orderKind, changedBy = null) {
   return { changed: true, status: next };
 }
 
+export const CONFIRMED_CUSTOM_SHIPMENT_TYPES = Object.freeze([
+  PARCEL_TYPES.FABRIC_TO_TAILOR,
+  PARCEL_TYPES.CUSTOMER_FABRIC_TO_TAILOR,
+  PARCEL_TYPES.ADDON_TO_CUSTOMER,
+]);
+
+export const READY_CUSTOM_SHIPMENT_TYPES = Object.freeze([
+  PARCEL_TYPES.TAILOR_TO_CUSTOMER,
+]);
+
 /**
  * Create Shipa parcels for an order.
  * Only creates missing Shipa orders for shipments matching `typesFilter`
@@ -395,7 +405,7 @@ async function applyOrderStatusAggregation(order, orderKind, changedBy = null) {
  *
  * @param {object} orderDoc - CustomOrder or RetailOrder mongoose doc (or lean+id)
  * @param {string[]|string|null} typesFilter
- * @param {{ client?: object, tailorShopId?: string }} [options]
+ * @param {{ client?: object, tailorShopId?: string, changedBy?: object }} [options]
  */
 export async function createShipmentsForOrder(
   orderDoc,
@@ -532,6 +542,17 @@ export async function createShipmentsForOrder(
       order,
       order.status,
       `Shipa parcels created: ${noteParts.join("; ")}`,
+      options.changedBy || null,
+    );
+  }
+
+  if (errors.length > 0) {
+    appendStatusHistory(
+      order,
+      order.status,
+      `Shipa parcel create failed: ${errors
+        .map((e) => `${e.parcelKey || "unknown"}: ${e.error}`)
+        .join("; ")}`,
       options.changedBy || null,
     );
   }
@@ -715,14 +736,72 @@ export async function applyShipaWebhook(payload = {}) {
 
 /**
  * Whether the order has active customer-bound Shipa parcels (webhook owns delivered).
+ * Planned/created parcels count — once a Shipa customer leg exists, mark-received is disabled.
  */
 export function hasActiveCustomerShipments(order) {
   return (order?.shipments || []).some(
     (s) =>
       isCustomerBound(s.type) &&
+      !["cancelled", "delivered"].includes(s.status),
+  );
+}
+
+/**
+ * Whether inbound fabric legs exist in Shipa but are not yet delivered (portal override / lag).
+ */
+export function hasActiveFabricShipments(order) {
+  return (order?.shipments || []).some(
+    (s) =>
+      isFabricLeg(s.type) &&
       s.awb &&
       !["cancelled", "delivered"].includes(s.status),
   );
+}
+
+/**
+ * Best-effort Shipa create — never throws to the caller (paid/status flows must not roll back).
+ */
+export async function safeCreateShipmentsForOrder(
+  orderDoc,
+  typesFilter = null,
+  options = {},
+) {
+  try {
+    return await createShipmentsForOrder(orderDoc, typesFilter, options);
+  } catch (error) {
+    console.error("createShipmentsForOrder failed:", error);
+    return {
+      order: orderDoc,
+      orderKind: detectOrderKind(orderDoc),
+      created: [],
+      skipped: [],
+      errors: [{ error: error.message || String(error) }],
+    };
+  }
+}
+
+/** Leg-1 + addon parcels on custom order confirmed. */
+export async function createConfirmedCustomShipments(order, options = {}) {
+  return safeCreateShipmentsForOrder(
+    order,
+    CONFIRMED_CUSTOM_SHIPMENT_TYPES,
+    options,
+  );
+}
+
+/**
+ * Leg-2 tailor → customer parcels when that tailor (or admin) sets ready.
+ * Pass `tailorShopId` to create only that tailor's parcels; omit to create all.
+ */
+export async function createReadyCustomShipments(
+  order,
+  tailorShopId = null,
+  options = {},
+) {
+  return safeCreateShipmentsForOrder(order, READY_CUSTOM_SHIPMENT_TYPES, {
+    ...options,
+    tailorShopId: tailorShopId || undefined,
+  });
 }
 
 export {

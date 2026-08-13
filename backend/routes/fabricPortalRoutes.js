@@ -23,6 +23,7 @@ import {
   isCompleteShopPickupAddress,
   normalizeShopPickupAddress,
 } from "../utils/shopPickupAddress.js";
+import { hasActiveFabricShipments } from "../services/shipmentService.js";
 
 const fabricPortalRouter = express.Router();
 
@@ -860,12 +861,25 @@ fabricPortalRouter.patch(
       return;
     }
 
-    // Update status + append to statusHistory (timeline source of truth)
+    // Manual fabric_delivered remains as override if Shipa inbound tracking lags.
+    // When Shipa parcels exist and later deliver, webhook remains source of truth for those AWBs.
+    const shipaLagOverride = hasActiveFabricShipments(order);
+    const historyNote = shipaLagOverride
+      ? [
+          typeof note === "string" ? note.trim() : "",
+          "Manual fabric delivered override (Shipa inbound parcels still in progress)",
+        ]
+          .filter(Boolean)
+          .join(" — ")
+      : typeof note === "string"
+        ? note
+        : "";
+
     order.status = status;
     order.statusHistory = order.statusHistory || [];
     order.statusHistory.push({
       status,
-      note: typeof note === "string" ? note : "",
+      note: historyNote,
       changedAt: new Date(),
       changedBy: req.user._id,
     });
