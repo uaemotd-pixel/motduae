@@ -13,6 +13,8 @@ function safePayloadSnapshot(payload = {}) {
     resetToken,
     token,
     password,
+    otp,
+    code,
     ...rest
   } = payload;
   return rest;

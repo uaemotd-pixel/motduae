@@ -1,6 +1,10 @@
 export const EMAIL_EVENTS = {
   AUTH_WELCOME: "auth.welcome",
   AUTH_PASSWORD_RESET: "auth.password_reset",
+  /** Shared OTP email for any verify purpose (purpose string in payload). */
+  AUTH_OTP: "auth.otp",
+  /** @deprecated use AUTH_OTP — kept so old EmailLog queries still match if needed */
+  AUTH_EMAIL_OTP: "auth.otp",
   OPS_CONTACT: "ops.contact",
 };
 

@@ -1,0 +1,29 @@
+{
+  "verifyEmail": {
+    "title": "Verify your email",
+    "subtitle": "We'll send a 6-digit code to",
+    "partnerSubtitle": "Verify so we can reach you about your application.",
+    "sendOtp": "Send OTP",
+    "sending": "Sending",
+    "verify": "Verify",
+    "verifying": "Verifying",
+    "verified": "Verified",
+    "notVerified": "Not verified",
+    "resendIn": "Resend code in",
+    "resend": "Resend code",
+    "skip": "Skip for now",
+    "spamHint": "Didn't get it? Check spam.",
+    "justAMoment": "Just a moment",
+    "tryAgain": "Try again",
+    "continue": "Continue",
+    "checkoutTitle": "Verify email to continue checkout",
+    "accountTitle": "Verify your email",
+    "bannerTitle": "Verify your email",
+    "bannerBody": "Confirm your email so we can reach you about orders.",
+    "bannerCta": "Verify",
+    "profileVerify": "Verify",
+    "gateCheckoutMessage": "Verify your email to place this order.",
+    "verifyNow": "Verify now",
+    "redirecting": "Redirecting"
+  }
+}

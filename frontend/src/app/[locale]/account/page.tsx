@@ -1,10 +1,11 @@
 "use client";
 
 import { Suspense, useState, useEffect, useCallback } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useRouter, useSearchParams, usePathname, useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "@/i18n/navigation";
-import { useAuth } from "../../../context/AuthContext";
+import { useAuth, needsEmailVerification } from "../../../context/AuthContext";
+import { getTranslation } from "@/lib/getTranslation";
 import {
   User,
   ShoppingBag,
@@ -180,7 +181,12 @@ function AccountPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const params = useParams();
+  const locale = (params.locale as string) || "en";
+  const tVerify = getTranslation(locale).verifyEmail;
   const tabFromUrl = searchParams.get("tab");
+  const showEmailVerifyBanner =
+    needsEmailVerification(user) && !user?.isGuest;
 
   const [activeTab, setActiveTab] = useState<AccountTab>(
     isAccountTab(tabFromUrl) ? tabFromUrl : "profile",
@@ -354,6 +360,30 @@ function AccountPageContent() {
               Manage your profile, orders, notifications &amp; settings
             </p>
           </div>
+
+          {showEmailVerifyBanner ? (
+            <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 rounded-2xl border border-gray-200 bg-white px-4 py-3.5 sm:px-5 sm:py-4 shadow-sm">
+              <div className="min-w-0">
+                <p className="font-['TT_Norms_Pro'] text-sm sm:text-base font-medium text-gray-900">
+                  {tVerify.bannerTitle}
+                </p>
+                <p className="mt-0.5 font-['TT_Norms_Pro'] text-xs sm:text-sm text-gray-500">
+                  {tVerify.bannerBody}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.assign(
+                    `/${locale}/auth/verify-email?mode=account&next=${encodeURIComponent("/account?tab=profile")}`,
+                  );
+                }}
+                className="shrink-0 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium bg-black text-white hover:bg-gray-800 transition cursor-pointer w-full sm:w-auto"
+              >
+                {tVerify.bannerCta}
+              </button>
+            </div>
+          ) : null}
 
           <div className="relative">
             <AnimatePresence mode="wait">
