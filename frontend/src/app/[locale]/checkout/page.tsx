@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCart } from "@/context/CartContext";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, needsEmailVerification } from "@/context/AuthContext";
 import { useParams } from "next/navigation";
 import MainLayout from "../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
@@ -21,6 +21,11 @@ import { useWishlist } from "@/context/WishlistContext";
 import { resolveMediaUrl } from "@/lib/media";
 import ApplePayCheckout from "@/components/payments/ApplePayCheckout";
 import CardPaymentForm from "@/components/payments/CardPaymentForm";
+import EmailVerifyRequiredNotice from "@/components/auth/EmailVerifyRequiredNotice";
+import {
+  buildVerifyEmailHref,
+  isEmailVerificationGateError,
+} from "@/lib/auth/emailVerification";
 import toast from "react-hot-toast";
 import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
@@ -120,6 +125,7 @@ function CheckoutPageContent() {
   const { clearWishlist, removeItem: removeWishlistItem } = useWishlist();
   const { unit: measurementUnit } = useMeasurementUnit();
   const fromWishlist = searchParams.get("fromWishlist") === "true";
+  const tVerify = getTranslation(locale).verifyEmail;
 
   // --- State ---
   const [buyNowProductId, setBuyNowProductId] = useState<string | null>(null);
@@ -165,6 +171,55 @@ function CheckoutPageContent() {
   const [paymentMethod, setPaymentMethod] = useState<"apple_pay" | "card">(
     "card",
   );
+  const [emailVerifyEmphasize, setEmailVerifyEmphasize] = useState(false);
+  const emailVerifyNoticeRef = useRef<HTMLDivElement>(null);
+
+  // Guests skip OTP (shared account); matches account banner + BE middleware
+  const needsEmailVerify =
+    needsEmailVerification(user) && !user?.isGuest;
+
+  const checkoutReturnPath = (() => {
+    const search = searchParams.toString();
+    return search ? `/checkout?${search}` : "/checkout";
+  })();
+
+  const verifyEmailHref = buildVerifyEmailHref({
+    locale,
+    mode: "checkout",
+    next: checkoutReturnPath,
+  });
+
+  const persistWishlistItemsForReturn = () => {
+    if (
+      searchParams.get("fromWishlistAll") === "true" &&
+      buyNowItemsArray &&
+      buyNowItemsArray.length > 0
+    ) {
+      try {
+        sessionStorage.setItem(
+          "checkoutItems",
+          JSON.stringify(buyNowItemsArray),
+        );
+      } catch {
+        /* ignore quota / private mode */
+      }
+    }
+  };
+
+  /** Block gated actions; keep user on checkout and highlight the notice. */
+  const requireEmailVerified = () => {
+    if (!needsEmailVerify) return true;
+    setEmailVerifyEmphasize(true);
+    emailVerifyNoticeRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+    return false;
+  };
+
+  useEffect(() => {
+    if (!needsEmailVerify) setEmailVerifyEmphasize(false);
+  }, [needsEmailVerify]);
 
   // --- Fetch VAT rate ---
   useEffect(() => {
@@ -558,7 +613,12 @@ function CheckoutPageContent() {
     }
   };
 
-  const createRetailPaymentIntent = async () => {
+  const createRetailPaymentIntent = async (): Promise<{
+    clientSecret: string;
+    paymentIntentId: string;
+  } | null> => {
+    if (!requireEmailVerified()) return null;
+
     if (!validateForm()) {
       toast.error(
         locale === "ar"
@@ -569,28 +629,38 @@ function CheckoutPageContent() {
       throw new Error("Please complete all required delivery fields.");
     }
 
-    const payload = buildOrderPayload();
-    const response = await api.post<{
-      success: boolean;
-      clientSecret: string;
-      paymentIntentId: string;
-      message?: string;
-    }>("/api/payments/intent/retail", payload);
+    try {
+      const payload = buildOrderPayload();
+      const response = await api.post<{
+        success: boolean;
+        clientSecret: string;
+        paymentIntentId: string;
+        message?: string;
+      }>("/api/payments/intent/retail", payload);
 
-    if (!response.success || !response.clientSecret) {
-      throw new Error(response.message || "Failed to start payment");
+      if (!response.success || !response.clientSecret) {
+        throw new Error(response.message || "Failed to start payment");
+      }
+
+      return {
+        clientSecret: response.clientSecret,
+        paymentIntentId: response.paymentIntentId,
+      };
+    } catch (err: unknown) {
+      if (isEmailVerificationGateError(err)) {
+        requireEmailVerified();
+        return null;
+      }
+      throw err;
     }
-
-    return {
-      clientSecret: response.clientSecret,
-      paymentIntentId: response.paymentIntentId,
-    };
   };
 
   const completeRetailOrder = async (
     paymentIntentId: string,
     method: "apple_pay" | "card" = "apple_pay",
   ) => {
+    if (!requireEmailVerified()) return;
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -609,6 +679,10 @@ function CheckoutPageContent() {
           paymentIntentId,
         });
       } catch (orderErr) {
+        if (isEmailVerificationGateError(orderErr)) {
+          requireEmailVerified();
+          return;
+        }
         response = await api.post("/api/payments/reconcile", {
           paymentIntentId,
           paymentMethod: method,
@@ -627,6 +701,10 @@ function CheckoutPageContent() {
         throw new Error(response.message || "Order failed");
       }
     } catch (err: unknown) {
+      if (isEmailVerificationGateError(err)) {
+        requireEmailVerified();
+        return;
+      }
       console.error("Order error:", err);
       const message =
         (err as ApiError)?.message ||
@@ -646,6 +724,10 @@ function CheckoutPageContent() {
   };
 
   const handlePaymentError = (message: string) => {
+    if (/verify your email/i.test(message)) {
+      requireEmailVerified();
+      return;
+    }
     setErrorMessage(message);
   };
 
@@ -762,6 +844,17 @@ function CheckoutPageContent() {
 
               {/* RIGHT COLUMN – DELIVERY & PAYMENT */}
               <div className="flex-1">
+                {needsEmailVerify ? (
+                  <EmailVerifyRequiredNotice
+                    ref={emailVerifyNoticeRef}
+                    className="mb-4 md:mb-5"
+                    message={tVerify.gateCheckoutMessage}
+                    ctaLabel={tVerify.verifyNow}
+                    href={verifyEmailHref}
+                    emphasize={emailVerifyEmphasize}
+                    onBeforeNavigate={persistWishlistItemsForReturn}
+                  />
+                ) : null}
                 <div className="border border-(--color-border) rounded-lg p-6 md:p-8">
                   <h2 className="font-headline-lg text-[20px] sm:text-[24px] md:text-[28px] lg:text-[32px] uppercase mb-8 tracking-[-0.01em] text-black">
                     {t.checkout.deliveryDetails}

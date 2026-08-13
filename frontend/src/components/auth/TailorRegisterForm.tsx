@@ -47,14 +47,17 @@ export default function TailorRegisterForm() {
 
         try {
             await registerTailor(name, email, password);
-            setSubmitted(true);
+            const locale =
+                typeof window !== "undefined"
+                    ? window.location.pathname.split("/")[1] || "en"
+                    : "en";
+            window.location.replace(`/${locale}/auth/verify-email`);
         } catch (err: unknown) {
             const message =
                 err && typeof err === "object" && "message" in err
                     ? String((err as { message: string }).message)
                     : "Registration failed";
             setError(message);
-        } finally {
             setIsLoading(false);
         }
     };

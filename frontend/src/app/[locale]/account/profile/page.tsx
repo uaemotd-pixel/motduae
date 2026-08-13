@@ -2,8 +2,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, needsEmailVerification } from "@/context/AuthContext";
 import { api } from "@/lib/api/client";
+import { getTranslation } from "@/lib/getTranslation";
 import {
   User,
   Mail,
@@ -22,9 +23,12 @@ import {
   Maximize2,
 } from "lucide-react";
 import { resolveMediaUrl } from "@/lib/media";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { AccountPanelSkeleton } from "@/components/ui/Skeleton";
+
+const ACCOUNT_VERIFY_HREF = (locale: string) =>
+  `/${locale}/auth/verify-email?mode=account&next=${encodeURIComponent("/account?tab=profile")}`;
 
 interface ProfileTabProps {
   onEditClick?: () => void;
@@ -100,9 +104,10 @@ const cmToInches = (cm: number | null | undefined): string => {
 
 export default function ProfileTab({ onEditClick }: ProfileTabProps) {
   const { user: authUser } = useAuth();
-  const router = useRouter();
   const params = useParams();
-  const locale = params.locale as string;
+  const locale = (params.locale as string) || "en";
+  const t = getTranslation(locale).verifyEmail;
+  const showVerify = needsEmailVerification(authUser) && !authUser?.isGuest;
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [measurements, setMeasurements] = useState<Measurements | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -324,12 +329,25 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
                   </span>
                 )}
               </div>
-              <p className="text-gray-500 text-xs sm:text-sm flex items-center gap-1.5 mt-0.5">
-                <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                <span className="truncate">
-                  {authUser?.email || "No email"}
+              <div className="text-gray-500 text-xs sm:text-sm flex items-center gap-2 mt-0.5 min-w-0 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 min-w-0">
+                  <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                  <span className="truncate">
+                    {authUser?.email || "No email"}
+                  </span>
                 </span>
-              </p>
+                {showVerify ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.location.assign(ACCOUNT_VERIFY_HREF(locale));
+                    }}
+                    className="shrink-0 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition cursor-pointer"
+                  >
+                    {t.profileVerify}
+                  </button>
+                ) : null}
+              </div>
               {profile.phone && (
                 <p className="text-gray-500 text-xs sm:text-sm flex items-center gap-1.5 mt-0.5">
                   <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />

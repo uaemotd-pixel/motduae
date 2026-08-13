@@ -1,11 +1,13 @@
 import { welcomeTemplate } from "./welcome.js";
 import { passwordResetTemplate } from "./passwordReset.js";
 import { contactTemplate } from "./contact.js";
+import { otpTemplate } from "./emailOtp.js";
 import { EMAIL_EVENTS } from "../emailEvents.js";
 
 const registry = {
   [EMAIL_EVENTS.AUTH_WELCOME]: welcomeTemplate,
   [EMAIL_EVENTS.AUTH_PASSWORD_RESET]: passwordResetTemplate,
+  [EMAIL_EVENTS.AUTH_OTP]: otpTemplate,
   [EMAIL_EVENTS.OPS_CONTACT]: contactTemplate,
 };
 

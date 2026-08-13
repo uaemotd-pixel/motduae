@@ -6,16 +6,11 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { navigateAfterLogin } from "@/lib/auth/postLoginRedirect";
 import LoginForm from "../../../../components/auth/loginForm";
+import { AuthSplitSkeleton } from "@/components/ui/Skeleton";
 
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center bg-[#FFFDF9]">
-          <div className="w-8 h-8 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-        </div>
-      }
-    >
+    <Suspense fallback={<AuthSplitSkeleton variant="form" />}>
       <LoginPageContent />
     </Suspense>
   );

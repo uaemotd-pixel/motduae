@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { Link, useRouter } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, needsEmailVerification } from "@/context/AuthContext";
 import { useCustomOrder } from "@/context/CustomOrderContext";
 import {
   buildCustomOrderCreatePayload,
@@ -24,6 +24,12 @@ import ApplePayCheckout from "@/components/payments/ApplePayCheckout";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
 import CardPaymentForm from "@/components/payments/CardPaymentForm";
 import SuccessModal from "@/components/shared/SuccessModal";
+import EmailVerifyRequiredNotice from "@/components/auth/EmailVerifyRequiredNotice";
+import {
+  buildVerifyEmailHref,
+  isEmailVerificationGateError,
+} from "@/lib/auth/emailVerification";
+import { getTranslation } from "@/lib/getTranslation";
 import toast from "react-hot-toast";
 import { ERROR_TOAST } from "@/lib/tailorPortalToast";
 import {
@@ -98,6 +104,7 @@ export default function CustomOrderCheckoutStep() {
   const locale = params.locale === "ar" ? "ar" : "en";
 
   const { user, isLoading, isAuthenticated } = useAuth();
+  const tVerify = getTranslation(locale).verifyEmail;
   const {
     draft,
     isHydrated,
@@ -126,6 +133,31 @@ export default function CustomOrderCheckoutStep() {
   const [paymentMethod, setPaymentMethod] = useState<"apple_pay" | "card">(
     "card",
   );
+  const [emailVerifyEmphasize, setEmailVerifyEmphasize] = useState(false);
+  const emailVerifyNoticeRef = useRef<HTMLDivElement>(null);
+
+  const needsEmailVerify =
+    needsEmailVerification(user) && !user?.isGuest;
+
+  const verifyEmailHref = buildVerifyEmailHref({
+    locale,
+    mode: "checkout",
+    next: "/custom-order/checkout",
+  });
+
+  const requireEmailVerified = () => {
+    if (!needsEmailVerify) return true;
+    setEmailVerifyEmphasize(true);
+    emailVerifyNoticeRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+    return false;
+  };
+
+  useEffect(() => {
+    if (!needsEmailVerify) setEmailVerifyEmphasize(false);
+  }, [needsEmailVerify]);
 
   const [profileLoading, setProfileLoading] = useState(true);
   const [tailorShop, setTailorShop] = useState<TailorShop | null>(null);
@@ -434,7 +466,12 @@ export default function CustomOrderCheckoutStep() {
     };
   };
 
-  const createCustomPaymentIntent = async () => {
+  const createCustomPaymentIntent = async (): Promise<{
+    clientSecret: string;
+    paymentIntentId: string;
+  } | null> => {
+    if (!requireEmailVerified()) return null;
+
     if (!previewPayload) {
       toast.error(t("incompleteDraft"), ERROR_TOAST);
       throw new Error(t("incompleteDraft"));
@@ -462,8 +499,13 @@ export default function CustomOrderCheckoutStep() {
         clientSecret: response.clientSecret,
         paymentIntentId: response.paymentIntentId,
       };
-    } catch (err: any) {
-      const message = err.message || t("submitError");
+    } catch (err: unknown) {
+      if (isEmailVerificationGateError(err)) {
+        requireEmailVerified();
+        return null;
+      }
+      const message =
+        err instanceof Error ? err.message : t("submitError");
       toast.error(message, ERROR_TOAST);
       throw err;
     }
@@ -473,6 +515,8 @@ export default function CustomOrderCheckoutStep() {
     paymentIntentId: string,
     method: "apple_pay" | "card" = "apple_pay",
   ) => {
+    if (!requireEmailVerified()) return;
+
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -491,6 +535,11 @@ export default function CustomOrderCheckoutStep() {
           paymentIntentId,
         });
       } catch (orderErr) {
+        if (isEmailVerificationGateError(orderErr)) {
+          requireEmailVerified();
+          return;
+        }
+        // Payment already succeeded — recover via pending checkout / webhook path.
         response = await api.post("/api/payments/reconcile", {
           paymentIntentId,
           paymentMethod: method,
@@ -515,6 +564,10 @@ export default function CustomOrderCheckoutStep() {
       resetOrder();
       setShowSuccess(true);
     } catch (err: unknown) {
+      if (isEmailVerificationGateError(err)) {
+        requireEmailVerified();
+        return;
+      }
       const message =
         (err as ApiError)?.message ||
         (err instanceof Error ? err.message : t("submitError"));
@@ -531,6 +584,10 @@ export default function CustomOrderCheckoutStep() {
   };
 
   const handlePaymentError = (message: string) => {
+    if (/verify your email/i.test(message)) {
+      requireEmailVerified();
+      return;
+    }
     setSubmitError(message);
   };
 
@@ -561,6 +618,17 @@ export default function CustomOrderCheckoutStep() {
               {t("description")}
             </p>
           </div>
+
+          {needsEmailVerify ? (
+            <EmailVerifyRequiredNotice
+              ref={emailVerifyNoticeRef}
+              className="mb-8"
+              message={tVerify.gateCheckoutMessage}
+              ctaLabel={tVerify.verifyNow}
+              href={verifyEmailHref}
+              emphasize={emailVerifyEmphasize}
+            />
+          ) : null}
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-8">
             <div className="space-y-6">

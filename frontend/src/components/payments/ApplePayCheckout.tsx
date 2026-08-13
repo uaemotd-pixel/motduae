@@ -28,7 +28,7 @@ type ApplePayCheckoutProps = {
   createIntent: () => Promise<{
     clientSecret: string;
     paymentIntentId: string;
-  }>;
+  } | null>;
   onPaid: (paymentIntentId: string) => Promise<void>;
   onError?: (message: string) => void;
 };
@@ -150,6 +150,11 @@ function ApplePayButtonInner({
 
       try {
         const intent = await createIntentRef.current();
+        if (!intent?.clientSecret) {
+          event.complete("fail");
+          setStatus("ready");
+          return;
+        }
         const { error, paymentIntent } = await stripe!.confirmCardPayment(
           intent.clientSecret,
           {

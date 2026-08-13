@@ -4,7 +4,7 @@
 import { motion, useScroll, useSpring } from "framer-motion";
 import { usePathname } from "next/navigation";
 
-const EXCLUDED_AUTH_SEGMENTS = ["/auth/login", "/auth/register"];
+const EXCLUDED_AUTH_SEGMENTS = ["/auth/login", "/auth/register", "/auth/verify-email"];
 
 function isExcludedAuthPath(pathname: string | null): boolean {
     if (!pathname) return false;
