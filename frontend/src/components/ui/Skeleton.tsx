@@ -217,6 +217,59 @@ export function FormPageSkeleton({ fields = 6 }: { fields?: number }) {
   );
 }
 
+/** Matches login / register / verify-email split shell (`#FFFDF9`). */
+export function AuthSplitSkeleton({
+  variant = "form",
+}: {
+  variant?: "form" | "otp";
+}) {
+  return (
+    <div
+      className="min-h-screen w-full flex flex-col md:flex-row bg-[#FFFDF9]"
+      role="status"
+      aria-label="Loading"
+    >
+      <div className="hidden md:block md:w-[55%] h-screen bg-[#E8E4DC]">
+        <Skeleton className="h-full w-full rounded-none opacity-40" />
+      </div>
+      <div className="w-full md:w-[45%] flex flex-col justify-center items-center py-10 px-5 sm:px-8 md:px-12 lg:px-16 xl:px-20">
+        <div className="w-full max-w-100 mx-auto space-y-8">
+          <div className="md:hidden flex justify-center">
+            <Skeleton className="h-8 w-28" />
+          </div>
+          <div className="space-y-3">
+            <Skeleton className="h-3 w-32" />
+            <Skeleton className="h-10 w-56 max-w-full" />
+            <Skeleton className="h-4 w-full max-w-sm" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          {variant === "otp" ? (
+            <div className="space-y-6">
+              <div className="flex gap-2 sm:gap-3 justify-between">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 sm:h-14 w-10 sm:w-12" />
+                ))}
+              </div>
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-3 w-36 mx-auto" />
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-11 w-full" />
+                </div>
+              ))}
+              <Skeleton className="h-12 w-full mt-2" />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TableSkeleton({
   rows = 6,
   cols = 4,

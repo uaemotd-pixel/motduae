@@ -13,6 +13,7 @@ import Design from "../models/Design.js";
 import Fabric from "../models/Fabric.js";
 import TailorShop from "../models/TailorShop.js";
 import { isAuth } from "../middleware/auth.js";
+import { requireEmailVerified } from "../middleware/requireEmailVerified.js";
 import AddOn from "../models/AddOn.js";
 import {
   notifyCustomOrderPlacedAdmin,
@@ -521,7 +522,7 @@ orderRoutes.post("/custom/preview", async (req, res) => {
   }
 });
 
-orderRoutes.post("/custom", isAuth, async (req, res) => {
+orderRoutes.post("/custom", isAuth, requireEmailVerified, async (req, res) => {
   try {
     const {
       paymentMethod = "card",
@@ -708,7 +709,7 @@ orderRoutes.get("/custom/:id", isAuth, async (req, res) => {
   }
 });
 
-orderRoutes.post("/retail", isAuth, async (req, res) => {
+orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
   try {
     const {
       orderItems,

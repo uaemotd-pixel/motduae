@@ -27,6 +27,11 @@ const userSchema = new mongoose.Schema(
     },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
+    emailVerified: { type: Boolean },
+    emailVerificationOTPHash: { type: String },
+    emailVerificationOTPExpires: { type: Date },
+    emailVerificationOTPSentAt: { type: Date },
+    emailVerificationAttemptCount: { type: Number, default: 0 },
     phone: {
       type: String,
       trim: true,

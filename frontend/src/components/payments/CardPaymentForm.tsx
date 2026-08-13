@@ -29,7 +29,7 @@ type CardPaymentFormProps = {
   createIntent: () => Promise<{
     clientSecret: string;
     paymentIntentId: string;
-  }>;
+  } | null>;
   onPaid: (paymentIntentId: string) => Promise<void>;
   onError?: (message: string) => void;
 };
@@ -89,6 +89,10 @@ function CardFormInner({
 
     try {
       const intent = await createIntentRef.current();
+      if (!intent?.clientSecret) {
+        setProcessing(false);
+        return;
+      }
 
       const { error, paymentIntent } = await stripe.confirmCardPayment(
         intent.clientSecret,

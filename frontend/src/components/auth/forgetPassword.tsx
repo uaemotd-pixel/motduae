@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
+import { AuthSplitSkeleton } from "@/components/ui/Skeleton";
 
 function ForgotPasswordForm() {
     const searchParams = useSearchParams();
@@ -276,13 +277,7 @@ function ForgotPasswordForm() {
 
 export default function ForgotPassword() {
     return (
-        <Suspense
-            fallback={
-                <div className="min-h-screen flex items-center justify-center bg-[#FFFDF9]">
-                    <div className="w-8 h-8 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                </div>
-            }
-        >
+        <Suspense fallback={<AuthSplitSkeleton variant="form" />}>
             <ForgotPasswordForm />
         </Suspense>
     );

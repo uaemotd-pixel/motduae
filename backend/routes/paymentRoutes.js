@@ -3,6 +3,7 @@ import expressAsyncHandler from "express-async-handler";
 import mongoose from "mongoose";
 import { env } from "../config/env.js";
 import { isAuth } from "../middleware/auth.js";
+import { requireEmailVerified } from "../middleware/requireEmailVerified.js";
 import {
   isStripeConfigured,
   createStripePaymentIntent,
@@ -179,6 +180,7 @@ paymentRoutes.get(
 paymentRoutes.post(
   "/intent/retail",
   isAuth,
+  requireEmailVerified,
   expressAsyncHandler(async (req, res) => {
     if (!isStripeConfigured()) {
       return paymentNotConfigured(res);
@@ -241,6 +243,7 @@ paymentRoutes.post(
 paymentRoutes.post(
   "/intent/custom",
   isAuth,
+  requireEmailVerified,
   expressAsyncHandler(async (req, res) => {
     if (!isStripeConfigured()) {
       return paymentNotConfigured(res);
