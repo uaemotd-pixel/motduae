@@ -1,4 +1,6 @@
 // app/[locale]/checkout/page.tsx
+// COMPLETE UPDATED FILE
+
 "use client";
 
 import { useEffect, useRef, useState, Suspense } from "react";
@@ -27,16 +29,13 @@ import {
   normalizeUaePhone,
   extractDigits,
 } from "@/lib/uaePhone";
-
-const EMIRATES = [
-  "Abu Dhabi",
-  "Dubai",
-  "Sharjah",
-  "Ajman",
-  "Ras Al Khaimah",
-  "Fujairah",
-  "Umm Al Quwain",
-];
+import {
+  UAE_EMIRATES,
+  isValidEmirate,
+  normalizeEmirate,
+  getEmirateEn,
+  getEmirateAr,
+} from "@/lib/uaeAddress";
 
 type CustomerAddress = {
   _id?: string;
@@ -147,6 +146,7 @@ function CheckoutPageContent() {
     city: "",
     street: "",
     building: "",
+    postalCode: "",
     deliveryNotes: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -357,6 +357,7 @@ function CheckoutPageContent() {
           city: "",
           street: "",
           building: "",
+          postalCode: "",
         }));
         initialFillDone.current = true;
         setProfileLoading(false);
@@ -379,6 +380,7 @@ function CheckoutPageContent() {
             city: defaultAddr.city || "",
             street: defaultAddr.street || "",
             building: defaultAddr.building || "",
+            postalCode: defaultAddr.postalCode || "",
           }));
         } else {
           const normalizedPhone = normalizeUaePhone(data.phone || "");
@@ -434,8 +436,7 @@ function CheckoutPageContent() {
 
   // --- Use server totals ---
   const subtotal = pricePreview?.subtotal || 0;
-  const shipping =
-    pricePreview?.shipping ?? pricePreview?.shippingPrice ?? 0;
+  const shipping = pricePreview?.shipping ?? pricePreview?.shippingPrice ?? 0;
   const deliveryBreakdown = pricePreview?.deliveryBreakdown ?? [];
   const vat = pricePreview?.vat || 0;
   const total = pricePreview?.total || 0;
@@ -455,6 +456,9 @@ function CheckoutPageContent() {
     }
     if (name === "city") {
       processedValue = value.replace(/[^a-zA-Z\u0600-\u06FF\s\-']/g, "");
+    }
+    if (name === "emirate") {
+      processedValue = normalizeEmirate(value);
     }
     if (name === "phone") {
       const digits = extractDigits(value);
@@ -479,20 +483,33 @@ function CheckoutPageContent() {
     return digits.slice(0, 9);
   };
 
-  const validateForm = () => {
+  const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!formData.fullName.trim()) newErrors.fullName = "Required";
-    if (!formData.phone.trim() || formData.phone === "+971") {
-      newErrors.phone = "Required";
+
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = "Full name is required";
+    }
+    if (!formData.phone.trim()) {
+      newErrors.phone = "Phone number is required";
     } else if (!isValidUaePhone(formData.phone)) {
       newErrors.phone =
-        localeParams === "ar"
-          ? "رقم الهاتف غير صحيح. يجب أن يكون 9 أرقام بعد +971"
-          : "Invalid phone number. Must be 9 digits after +971";
+        "Invalid UAE phone number. Must be +971 followed by 9 digits";
     }
-    if (!formData.emirate) newErrors.emirate = "Required";
-    if (!formData.city.trim()) newErrors.city = "Required";
-    if (!formData.street.trim()) newErrors.street = "Required";
+    if (!formData.emirate) {
+      newErrors.emirate = "Emirate is required";
+    } else if (!isValidEmirate(formData.emirate)) {
+      newErrors.emirate = "Valid UAE emirate required";
+    }
+    if (!formData.city.trim()) {
+      newErrors.city = "City is required";
+    }
+    if (!formData.street.trim()) {
+      newErrors.street = "Street is required";
+    }
+    if (!formData.building.trim()) {
+      newErrors.building = "Building is required";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -503,7 +520,6 @@ function CheckoutPageContent() {
       productId: item.id,
       size: item.size,
       quantity: item.quantity,
-      // NO price field
     }));
 
     const isArabic = localeParams === "ar";
@@ -521,7 +537,8 @@ function CheckoutPageContent() {
         city: formData.city,
         street: formData.street,
         building: formData.building,
-        notes: formData.deliveryNotes,
+        postalCode: formData.postalCode?.trim() || "",
+        notes: formData.deliveryNotes?.trim() || "",
       },
     };
   };
@@ -701,26 +718,26 @@ function CheckoutPageContent() {
                                 AED {subtotal.toFixed(2)}
                               </span>
                             </li>
-                            {deliveryBreakdown.length > 0
-                              ? deliveryBreakdown.map((line) => (
-                                  <li
-                                    key={line.key}
-                                    className="flex flex-wrap gap-4"
-                                  >
-                                    {line.label}
-                                    <span className="ml-auto text-black">
-                                      AED {Number(line.fee).toFixed(2)}
-                                    </span>
-                                  </li>
-                                ))
-                              : (
-                                  <li className="flex flex-wrap gap-4">
-                                    {t.checkout.shipping}
-                                    <span className="ml-auto text-black">
-                                      AED {shipping.toFixed(2)}
-                                    </span>
-                                  </li>
-                                )}
+                            {deliveryBreakdown.length > 0 ? (
+                              deliveryBreakdown.map((line) => (
+                                <li
+                                  key={line.key}
+                                  className="flex flex-wrap gap-4"
+                                >
+                                  {line.label}
+                                  <span className="ml-auto text-black">
+                                    AED {Number(line.fee).toFixed(2)}
+                                  </span>
+                                </li>
+                              ))
+                            ) : (
+                              <li className="flex flex-wrap gap-4">
+                                {t.checkout.shipping}
+                                <span className="ml-auto text-black">
+                                  AED {shipping.toFixed(2)}
+                                </span>
+                              </li>
+                            )}
                             <li className="flex flex-wrap gap-4">
                               {t.checkout.vat} (
                               {(effectiveVatRate * 100).toFixed(0)}%)
@@ -824,9 +841,9 @@ function CheckoutPageContent() {
                         className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                       >
                         <option value="">{t.checkout.selectEmirate}</option>
-                        {EMIRATES.map((em) => (
-                          <option key={em} value={em}>
-                            {em}
+                        {UAE_EMIRATES.map((emirate) => (
+                          <option key={emirate.value} value={emirate.value}>
+                            {emirate.en} / {emirate.ar}
                           </option>
                         ))}
                       </select>
@@ -855,7 +872,7 @@ function CheckoutPageContent() {
                     </div>
                     <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
-                        {t.checkout.streetBuilding} *
+                        {t.checkout.streetBuilding}*
                       </label>
                       <input
                         type="text"
@@ -872,7 +889,7 @@ function CheckoutPageContent() {
                     </div>
                     <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
-                        {t.checkout.building}
+                        {t.checkout.building}*
                       </label>
                       <input
                         type="text"
@@ -880,6 +897,27 @@ function CheckoutPageContent() {
                         value={formData.building}
                         onChange={handleChange}
                         className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                      />
+                      {errors.building && (
+                        <p className="text-red-500 text-[11px] mt-1">
+                          {errors.building}
+                        </p>
+                      )}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
+                        Postal Code{" "}
+                        <span className="normal-case">
+                          ({t.checkout.optional})
+                        </span>
+                      </label>
+                      <input
+                        type="text"
+                        name="postalCode"
+                        value={formData.postalCode}
+                        onChange={handleChange}
+                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                        placeholder="12345"
                       />
                     </div>
                     <div className="sm:col-span-2">

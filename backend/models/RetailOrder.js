@@ -3,6 +3,7 @@ import {
   shipmentSchema,
   buildStatusHistoryEntrySchema,
 } from "./schemas/shipmentSchemas.js";
+import { UAE_EMIRATES } from "../utils/uaeAddress.js";
 
 const ORDER_TYPE = "retail";
 
@@ -38,14 +39,33 @@ const shippingAddressSchema = new mongoose.Schema(
   {
     fullName: { type: String, required: true, trim: true },
     phone: { type: String, required: true, trim: true },
-    emirate: { type: String, required: true, trim: true },
+    emirate: {
+      type: String,
+      required: true,
+      trim: true,
+      enum: {
+        values: UAE_EMIRATES.map((e) => e.value),
+        message: "{VALUE} is not an official UAE emirate",
+      },
+    },
     city: { type: String, required: true, trim: true },
     street: { type: String, default: "", trim: true },
     building: { type: String, default: "", trim: true },
+    postalCode: { type: String, default: "", trim: true },
     notes: { type: String, default: "", trim: true },
   },
   { _id: false },
 );
+
+shippingAddressSchema.virtual("emirateAr").get(function () {
+  const found = UAE_EMIRATES.find((e) => e.value === this.emirate);
+  return found?.ar || "";
+});
+
+shippingAddressSchema.virtual("emirateEn").get(function () {
+  const found = UAE_EMIRATES.find((e) => e.value === this.emirate);
+  return found?.en || "";
+});
 
 const deliveryBreakdownEntrySchema = new mongoose.Schema(
   {

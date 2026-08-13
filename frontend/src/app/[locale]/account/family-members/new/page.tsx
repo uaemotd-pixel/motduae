@@ -7,7 +7,18 @@ import { api } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
 import { motion, AnimatePresence } from "framer-motion";
 import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
-import { isValidUaePhone, normalizeUaePhone, extractDigits } from "@/lib/uaePhone";
+import {
+  isValidUaePhone,
+  normalizeUaePhone,
+  extractDigits,
+} from "@/lib/uaePhone";
+import {
+  UAE_EMIRATES,
+  isValidEmirate,
+  normalizeEmirate,
+  getEmirateEn,
+  getEmirateAr,
+} from "@/lib/uaeAddress";
 
 type Relationship =
   | "wife"
@@ -79,16 +90,6 @@ const RELATIONSHIP_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-const UAE_EMIRATES = [
-  "Abu Dhabi",
-  "Dubai",
-  "Sharjah",
-  "Ajman",
-  "Umm Al Quwain",
-  "Ras Al Khaimah",
-  "Fujairah",
-];
-
 export default function FamilyMembersForm({
   onCancel,
   onSuccess,
@@ -136,8 +137,10 @@ export default function FamilyMembersForm({
       ];
       const isKnown = knownRelationships.includes(initialData.relationship);
       const normalizedPhone = normalizeUaePhone(initialData.phone || "");
-      const normalizedAddrPhone = normalizeUaePhone(initialData.address?.phone || "");
-      
+      const normalizedAddrPhone = normalizeUaePhone(
+        initialData.address?.phone || "",
+      );
+
       setForm({
         name: initialData.name || "",
         relationship: isKnown ? initialData.relationship : "other",
@@ -263,7 +266,10 @@ export default function FamilyMembersForm({
       return;
     }
     if (!phoneValidation) {
-      toast.error("Invalid UAE number. Must be +971 followed by 9 digits", ERROR_TOAST);
+      toast.error(
+        "Invalid UAE number. Must be +971 followed by 9 digits",
+        ERROR_TOAST,
+      );
       return;
     }
 
@@ -276,6 +282,11 @@ export default function FamilyMembersForm({
         );
         return;
       }
+    }
+
+    if (form.address.emirate && !isValidEmirate(form.address.emirate)) {
+      toast.error("Valid UAE emirate required", ERROR_TOAST);
+      return;
     }
 
     setSubmitting(true);
@@ -557,7 +568,9 @@ export default function FamilyMembersForm({
                       form.address.emirate ? "text-black" : "text-black/40"
                     }
                   >
-                    {form.address.emirate || "Select Emirate"}
+                    {form.address.emirate
+                      ? `${getEmirateEn(form.address.emirate)} / ${getEmirateAr(form.address.emirate)}`
+                      : "Select Emirate"}
                   </span>
                   {emirateOpen ? (
                     <ChevronUp className="w-4 h-4 text-black/40" />
@@ -580,7 +593,7 @@ export default function FamilyMembersForm({
                     >
                       {UAE_EMIRATES.map((emirate) => (
                         <motion.li
-                          key={emirate}
+                          key={emirate.value}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: 0.05 }}
@@ -590,17 +603,20 @@ export default function FamilyMembersForm({
                             onClick={() => {
                               setForm((prev) => ({
                                 ...prev,
-                                address: { ...prev.address, emirate },
+                                address: {
+                                  ...prev.address,
+                                  emirate: emirate.value,
+                                },
                               }));
                               setEmirateOpen(false);
                             }}
                             className={`w-full text-left px-4 py-2.5 text-[15px] md:text-[16px] hover:bg-gray-50 transition hover:cursor-pointer ${
-                              form.address.emirate === emirate
+                              form.address.emirate === emirate.value
                                 ? "text-black font-medium bg-gray-50"
                                 : "text-gray-700"
                             }`}
                           >
-                            {emirate}
+                            {emirate.en} / {emirate.ar}
                           </button>
                         </motion.li>
                       ))}

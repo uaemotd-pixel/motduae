@@ -1,4 +1,6 @@
 // app/[locale]/custom-order/checkout/page.tsx
+// COMPLETE UPDATED FILE
+
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -29,16 +31,13 @@ import {
   normalizeUaePhone,
   extractDigits,
 } from "@/lib/uaePhone";
-
-const EMIRATES = [
-  "Abu Dhabi",
-  "Dubai",
-  "Sharjah",
-  "Ajman",
-  "Ras Al Khaimah",
-  "Fujairah",
-  "Umm Al Quwain",
-];
+import {
+  UAE_EMIRATES,
+  isValidEmirate,
+  normalizeEmirate,
+  getEmirateEn,
+  getEmirateAr,
+} from "@/lib/uaeAddress";
 
 type CustomerAddress = {
   _id?: string;
@@ -222,6 +221,7 @@ export default function CustomOrderCheckoutStep() {
           city: "",
           line1: "",
           line2: "",
+          postalCode: "",
         });
         setProfileLoading(false);
         return;
@@ -244,6 +244,7 @@ export default function CustomOrderCheckoutStep() {
             city: defaultAddr.city || "",
             line1: defaultAddr.street || "",
             line2: defaultAddr.building || "",
+            postalCode: defaultAddr.postalCode || "",
           });
         } else {
           const normalizedPhone = normalizeUaePhone(data.phone || "");
@@ -343,6 +344,9 @@ export default function CustomOrderCheckoutStep() {
         return;
       }
     }
+    if (field === "emirate") {
+      processedValue = normalizeEmirate(value);
+    }
     updateDeliveryAddress({ [field]: processedValue });
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -362,6 +366,13 @@ export default function CustomOrderCheckoutStep() {
       if (!value) {
         nextErrors[field] = t("required");
       }
+    }
+
+    if (!address.emirate?.trim()) {
+      nextErrors.emirate = t("required");
+    } else if (!isValidEmirate(address.emirate)) {
+      nextErrors.emirate =
+        locale === "ar" ? "الإمارة غير صالحة" : "Valid UAE emirate required";
     }
 
     if (!address.phone?.trim() || address.phone === "+971") {
@@ -388,7 +399,8 @@ export default function CustomOrderCheckoutStep() {
       line1: address.line1!.trim(),
       line2: address.line2?.trim() || "",
       city: address.city!.trim(),
-      emirate: address.emirate!.trim(),
+      emirate: normalizeEmirate(address.emirate!.trim()),
+      postalCode: address.postalCode?.trim() || "",
     };
   };
 
@@ -758,9 +770,9 @@ export default function CustomOrderCheckoutStep() {
                         className="w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition"
                       >
                         <option value="">{t("selectEmirate")}</option>
-                        {EMIRATES.map((emirate) => (
-                          <option key={emirate} value={emirate}>
-                            {emirate}
+                        {UAE_EMIRATES.map((emirate) => (
+                          <option key={emirate.value} value={emirate.value}>
+                            {emirate.en} / {emirate.ar}
                           </option>
                         ))}
                       </select>
@@ -831,6 +843,28 @@ export default function CustomOrderCheckoutStep() {
                         onChange={(e) =>
                           handleFieldChange("line2", e.target.value)
                         }
+                        className="w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label
+                        htmlFor="checkout-postalCode"
+                        className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
+                      >
+                        {t("postalCode")}
+                        <span className="normal-case font-normal text-(--color-grey-muted) ml-1">
+                          ({t("optional")})
+                        </span>
+                      </label>
+                      <input
+                        id="checkout-postalCode"
+                        type="text"
+                        value={address.postalCode || ""}
+                        onChange={(e) =>
+                          handleFieldChange("postalCode", e.target.value)
+                        }
+                        placeholder="12345"
                         className="w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition"
                       />
                     </div>

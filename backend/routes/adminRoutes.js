@@ -36,8 +36,7 @@ import {
   notifyCustomStatusChange,
   notifyRetailStatusChange,
 } from "../services/notificationService.js";
-import { createReadyCustomShipments } from "../services/shipmentService.js";
-
+import { normalizeEmirate, UAE_EMIRATES, isValidEmirate } from "../utils/uaeAddress.js";
 const adminRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
 
@@ -706,6 +705,11 @@ adminRouter.get(
         }).populate("listedByStore", "name email");
         const obj = fabric.toObject();
         obj.variants = variants;
+        if (obj.storePickupAddress?.emirate) {
+          obj.storePickupAddress.emirate = normalizeEmirate(
+            obj.storePickupAddress.emirate,
+          );
+        }
         return obj;
       }),
     );
@@ -731,6 +735,14 @@ adminRouter.get(
     const variants = await Fabric.find({ isVariantOf: fabric._id });
     const item = fabric.toObject();
     item.variants = variants;
+    // Add emirateAr to response
+    if (item.storePickupAddress?.emirate) {
+      const found = UAE_EMIRATES.find(
+        (e) => e.value === item.storePickupAddress.emirate,
+      );
+      item.storePickupAddress.emirateAr = found?.ar || "";
+      item.storePickupAddress.emirateEn = found?.en || "";
+    }
     res.send(item);
   }),
 );
@@ -763,6 +775,16 @@ adminRouter.post(
     if (!partnerCheck.ok) {
       res.status(400).send({ message: partnerCheck.message });
       return;
+    }
+
+    // validate Emirate
+    if (storePickupAddress?.emirate) {
+      const normalizedEmirate = normalizeEmirate(storePickupAddress.emirate);
+      if (!normalizedEmirate || !isValidEmirate(normalizedEmirate)) {
+        res.status(400).send({ message: "Invalid UAE emirate" });
+        return;
+      }
+      storePickupAddress.emirate = normalizedEmirate;
     }
 
     const newFabric = new Fabric({
@@ -851,6 +873,25 @@ adminRouter.put(
 
     if (!fabric) {
       return res.status(404).send({ message: "Fabric not found" });
+    }
+
+    // Update pickup address with validation
+    if (req.body.storePickupAddress) {
+      const addr = req.body.storePickupAddress;
+      if (addr.emirate) {
+        const normalizedEmirate = normalizeEmirate(addr.emirate);
+        if (!normalizedEmirate || !isValidEmirate(normalizedEmirate)) {
+          return res.status(400).send({ message: "Invalid UAE emirate" });
+        }
+        fabric.storePickupAddress.emirate = normalizedEmirate;
+      }
+      if (addr.city) fabric.storePickupAddress.city = addr.city;
+      if (addr.street !== undefined)
+        fabric.storePickupAddress.street = addr.street;
+      if (addr.building !== undefined)
+        fabric.storePickupAddress.building = addr.building;
+      if (addr.phone !== undefined)
+        fabric.storePickupAddress.phone = addr.phone;
     }
 
     // Handle listedByStore (ObjectId or "MOTD")

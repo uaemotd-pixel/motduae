@@ -1,9 +1,14 @@
-// routes/subadmin.js — combined route + controller (ES modules)
+// routes/subadmin.js — UPDATE with uaeAddress imports
 import express from "express";
 import bcrypt from "bcryptjs";
 import SubAdmin from "../models/SubAdmin.js";
 import User from "../models/User.js";
 import mongoose from "mongoose";
+import {
+  normalizeEmirate,
+  isValidEmirate,
+  UAE_EMIRATES,
+} from "../utils/uaeAddress.js";
 
 const subAdminRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -28,6 +33,34 @@ subAdminRouter.post("/", async (req, res) => {
       return res.status(400).json({ error: "Password min 6 chars" });
     }
 
+    // Validate and normalize emirate
+    let normalizedAddress = {};
+    if (address?.emirate) {
+      const normalizedEmirate = normalizeEmirate(address.emirate);
+      if (!isValidEmirate(normalizedEmirate)) {
+        return res.status(400).json({ error: "Invalid UAE emirate" });
+      }
+      normalizedAddress = {
+        name: address?.name || "",
+        phone: address?.phone || "",
+        emirate: normalizedEmirate,
+        city: address?.city || "",
+        street: address?.street || "",
+        building: address?.building || "",
+        postalCode: address?.postalCode || "",
+      };
+    } else {
+      normalizedAddress = {
+        name: address?.name || "",
+        phone: address?.phone || "",
+        emirate: "",
+        city: address?.city || "",
+        street: address?.street || "",
+        building: address?.building || "",
+        postalCode: address?.postalCode || "",
+      };
+    }
+
     // Check email in both collections
     if (await SubAdmin.findOne({ email })) {
       return res.status(409).json({ error: "SubAdmin email already exists" });
@@ -43,15 +76,7 @@ subAdminRouter.post("/", async (req, res) => {
       email,
       password,
       phone,
-      address: {
-        name: address?.name || "",
-        phone: address?.phone || "",
-        emirate: address?.emirate || "",
-        city: address?.city || "",
-        street: address?.street || "",
-        building: address?.building || "",
-        postalCode: address?.postalCode || "",
-      },
+      address: normalizedAddress,
       perms: perms || {},
     });
 
@@ -137,20 +162,52 @@ subAdminRouter.put("/:id", async (req, res) => {
 
     const oldEmail = subAdmin.email;
 
-    // 2. Update SubAdmin
-    const updatedSubAdmin = await SubAdmin.findByIdAndUpdate(
-      id,
-      {
-        name,
-        email,
-        phone,
-        address: address || {},
-        perms: perms || {},
-      },
-      { new: true, runValidators: true },
-    );
+    // 2. Validate and normalize emirate for update
+    let normalizedAddress = {};
+    if (address?.emirate) {
+      const normalizedEmirate = normalizeEmirate(address.emirate);
+      if (!isValidEmirate(normalizedEmirate)) {
+        return res.status(400).json({ error: "Invalid UAE emirate" });
+      }
+      normalizedAddress = {
+        name: address?.name || "",
+        phone: address?.phone || "",
+        emirate: normalizedEmirate,
+        city: address?.city || "",
+        street: address?.street || "",
+        building: address?.building || "",
+        postalCode: address?.postalCode || "",
+      };
+    } else if (address) {
+      normalizedAddress = {
+        name: address?.name || "",
+        phone: address?.phone || "",
+        emirate: "",
+        city: address?.city || "",
+        street: address?.street || "",
+        building: address?.building || "",
+        postalCode: address?.postalCode || "",
+      };
+    }
 
-    // 3. Update User (if email changed, find by old email)
+    // 3. Update SubAdmin
+    const updateData = {
+      name,
+      email,
+      phone,
+      perms: perms || {},
+    };
+
+    if (address) {
+      updateData.address = normalizedAddress;
+    }
+
+    const updatedSubAdmin = await SubAdmin.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    });
+
+    // 4. Update User (if email changed, find by old email)
     const userUpdate = { name, email };
     if (password && password.length >= 6) {
       userUpdate.password = await bcrypt.hash(password, 10);
@@ -184,7 +241,6 @@ subAdminRouter.delete("/:id", async (req, res) => {
     // 3. Delete associated User (if exists)
     const userDeleted = await User.findOneAndDelete({ email });
     if (!userDeleted) {
-      // Not critical; maybe user already removed; just log.
       console.warn(`User with email ${email} not found, but SubAdmin deleted.`);
     }
 

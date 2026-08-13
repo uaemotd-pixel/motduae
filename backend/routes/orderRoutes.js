@@ -24,9 +24,7 @@ import {
   notifyCustomRefundProcessed,
   notifyCustomStatusChange,
 } from "../services/notificationService.js";
-
 import AdminNotification from "../models/AdminNotification.js";
-
 import {
   getCustomOrderPricing,
   getMultiItemCustomOrderPricing,
@@ -34,9 +32,7 @@ import {
   PricingValidationError,
 } from "../services/pricingService.js";
 import PlatformSettings from "../models/PlatformSettings.js";
-import {
-  prepareRetailOrder,
-} from "../services/retailOrderService.js";
+import { prepareRetailOrder } from "../services/retailOrderService.js";
 import { isStripeConfigured } from "../services/stripeService.js";
 import {
   fulfillPaidCheckout,
@@ -44,6 +40,11 @@ import {
 } from "../services/pendingCheckoutService.js";
 import { getCustomOrderTotalFromBody } from "../services/customPaidOrderService.js";
 import { hasActiveCustomerShipments } from "../services/shipmentService.js";
+import {
+  normalizeEmirate,
+  isValidEmirate,
+  UAE_EMIRATES,
+} from "../utils/uaeAddress.js";
 
 const orderRoutes = express.Router();
 
@@ -162,7 +163,7 @@ function normalizeDeliveryAddress(address) {
     throw new PricingValidationError("customerDeliveryAddress is required");
   }
 
-  const { fullName, phone, line1, line2, city, emirate } = address;
+  const { fullName, phone, line1, line2, city, emirate, postalCode } = address;
 
   if (
     !fullName?.trim() ||
@@ -176,6 +177,11 @@ function normalizeDeliveryAddress(address) {
     );
   }
 
+  const normalizedEmirate = normalizeEmirate(emirate);
+  if (!isValidEmirate(normalizedEmirate)) {
+    throw new PricingValidationError("Invalid UAE emirate");
+  }
+
   return {
     fullName: fullName.trim(),
     phone: phone.trim(),
@@ -183,6 +189,7 @@ function normalizeDeliveryAddress(address) {
     line2: line2?.trim() || "",
     city: city.trim(),
     emirate: emirate.trim(),
+    postalCode: postalCode?.trim() || "",
   };
 }
 
@@ -342,7 +349,11 @@ async function deductFabricStock(fabricId, meters) {
   return updatedFabric;
 }
 
-async function buildMultiItemOrderData(orderInput, deliveryType = "delivery", addonIds = []) {
+async function buildMultiItemOrderData(
+  orderInput,
+  deliveryType = "delivery",
+  addonIds = [],
+) {
   const { pricing, itemPricings } = await getMultiItemCustomOrderPricing({
     ...orderInput,
     deliveryType,
@@ -716,12 +727,10 @@ orderRoutes.post("/retail", isAuth, async (req, res) => {
       console.warn(
         `Price tampering / mismatch attempt on /api/orders/retail by user ${req.user?._id}`,
       );
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Client-supplied price is not allowed",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Client-supplied price is not allowed",
+      });
     }
 
     if (!orderItems || orderItems.length === 0) {
