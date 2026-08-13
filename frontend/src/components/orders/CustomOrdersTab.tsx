@@ -13,6 +13,7 @@ import {
   getOrderHeadline,
   getOrderItemsSummary,
   getTailorDisplayName,
+  hasActiveCustomerShipments,
   shortenOrderId,
   type CustomOrderDetail,
   type CustomOrderLineItemSummary,
@@ -1320,7 +1321,8 @@ export default function CustomOrdersTab({
                           </h4>
                           {isOutForDelivery &&
                             !receivedState.submitting[order.id] &&
-                            detail.status === "out_for_delivery" && (
+                            detail.status === "out_for_delivery" &&
+                            !hasActiveCustomerShipments(detail.shipments) && (
                               <button
                                 type="button"
                                 onClick={() => markReceived(order.id)}

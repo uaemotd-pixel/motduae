@@ -17,6 +17,7 @@ import {
   isCompleteShopPickupAddress,
   normalizeShopPickupAddress,
 } from "../utils/shopPickupAddress.js";
+import { createReadyCustomShipments } from "../services/shipmentService.js";
 
 const tailorPortalRouter = express.Router();
 
@@ -435,9 +436,19 @@ tailorPortalRouter.patch(
       await order.save();
     }
 
+    let responseOrder = order;
+    if (status === "ready") {
+      const shipmentResult = await createReadyCustomShipments(
+        order,
+        shop._id,
+        { changedBy: req.user._id },
+      );
+      responseOrder = shipmentResult?.order || order;
+    }
+
     res.json({
       success: true,
-      order,
+      order: responseOrder,
     });
   }),
 );

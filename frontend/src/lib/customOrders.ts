@@ -88,6 +88,15 @@ export interface CustomOrderStatusHistoryEntry {
   changedAt: string;
 }
 
+export interface CustomOrderShipmentSummary {
+  parcelKey?: string;
+  type: string;
+  status: string;
+  awb?: string | null;
+  trackingUrl?: string;
+  label?: string;
+}
+
 export interface CustomOrderDetail {
   _id: string;
   createdAt: string;
@@ -109,6 +118,7 @@ export interface CustomOrderDetail {
     price: number;
     thumbnailImage: string;
   }>;
+  shipments?: CustomOrderShipmentSummary[];
 }
 
 // lib/customOrders.ts
@@ -239,4 +249,23 @@ export function getOrderHeadline(
 
   const designName = getDesignDisplayName(order.design, locale);
   return designName || labels.singleFallback;
+}
+
+const CUSTOMER_BOUND_SHIPMENT_TYPES = new Set([
+  "tailor_to_customer",
+  "addon_to_customer",
+  "retail_to_customer",
+]);
+
+/** True when Shipa customer parcels exist and webhook owns `delivered`. */
+export function hasActiveCustomerShipments(
+  shipments?: CustomOrderShipmentSummary[] | null,
+): boolean {
+  if (!Array.isArray(shipments) || shipments.length === 0) return false;
+  return shipments.some(
+    (shipment) =>
+      CUSTOMER_BOUND_SHIPMENT_TYPES.has(shipment.type) &&
+      shipment.status !== "cancelled" &&
+      shipment.status !== "delivered",
+  );
 }
