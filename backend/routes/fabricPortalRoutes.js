@@ -1046,7 +1046,19 @@ fabricPortalRouter.post(
       availableFabricStock,
       isActive: isActive !== undefined ? isActive : true,
       ownerName: req.body.ownerName || shop.name,
+      pickupAddress:
+        normalizeShopPickupAddress(req.body.pickupAddress) ||
+        normalizeShopPickupAddress(shop.pickupAddress),
     });
+
+    if (!newProduct.pickupAddress?.line1) {
+      res.status(400).json({
+        success: false,
+        message:
+          "Pickup address requires fullName, phone, line1, city, and emirate",
+      });
+      return;
+    }
 
     const createdProduct = await newProduct.save();
     res.status(201).json(createdProduct);
@@ -1103,6 +1115,19 @@ fabricPortalRouter.put(
     product.fabricTypeAr = req.body.fabricTypeAr ?? product.fabricTypeAr;
     product.tailorName = req.body.tailorName ?? product.tailorName;
     product.tailorNameAr = req.body.tailorNameAr ?? product.tailorNameAr;
+
+    if (req.body.pickupAddress !== undefined) {
+      const normalized = normalizeShopPickupAddress(req.body.pickupAddress);
+      if (!normalized) {
+        res.status(400).json({
+          success: false,
+          message:
+            "Pickup address requires fullName, phone, line1, city, and emirate",
+        });
+        return;
+      }
+      product.pickupAddress = normalized;
+    }
 
     product.metersPerFabric =
       req.body.metersPerFabric ?? product.metersPerFabric;
@@ -1251,7 +1276,19 @@ fabricPortalRouter.post(
       isActive: isActive !== undefined ? isActive : true,
       fabricShopId: shop._id,
       ownerName: req.body.ownerName || shop.name,
+      pickupAddress:
+        normalizeShopPickupAddress(req.body.pickupAddress) ||
+        normalizeShopPickupAddress(shop.pickupAddress),
     });
+
+    if (!addon.pickupAddress?.line1) {
+      res.status(400).json({
+        success: false,
+        message:
+          "Pickup address requires fullName, phone, line1, city, and emirate",
+      });
+      return;
+    }
 
     const savedAddon = await addon.save();
     res.status(201).json(savedAddon);
@@ -1307,6 +1344,19 @@ fabricPortalRouter.put(
     addon.tagAr = tagAr ?? addon.tagAr;
     addon.isActive = isActive !== undefined ? isActive : addon.isActive;
     addon.ownerName = req.body.ownerName ?? addon.ownerName;
+
+    if (req.body.pickupAddress !== undefined) {
+      const normalized = normalizeShopPickupAddress(req.body.pickupAddress);
+      if (!normalized) {
+        res.status(400).json({
+          success: false,
+          message:
+            "Pickup address requires fullName, phone, line1, city, and emirate",
+        });
+        return;
+      }
+      addon.pickupAddress = normalized;
+    }
 
     const updatedAddon = await addon.save();
     res.json(updatedAddon);

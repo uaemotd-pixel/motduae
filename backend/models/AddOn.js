@@ -74,6 +74,20 @@ const addOnSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    pickupAddress: {
+      type: new mongoose.Schema(
+        {
+          fullName: { type: String, default: "", trim: true },
+          phone: { type: String, default: "", trim: true },
+          line1: { type: String, default: "", trim: true },
+          line2: { type: String, default: "", trim: true },
+          city: { type: String, default: "", trim: true },
+          emirate: { type: String, default: "", trim: true },
+        },
+        { _id: false },
+      ),
+      default: () => ({}),
+    },
   },
   {
     timestamps: true,

@@ -95,3 +95,15 @@ export function resolveFabricShopPickupAddress(shop, fabric = null) {
 export function resolveTailorShopPickupAddress(shop) {
   return normalizeShopPickupAddress(shop?.pickupAddress);
 }
+
+/**
+ * Listing origin (ready-made or add-on): product pickupAddress wins
+ * (MOTD warehouse). Fall back to the linked fabric shop when missing.
+ */
+export function resolveReadyMadePickupAddress(product, shop = null) {
+  const fromProduct = normalizeShopPickupAddress(product?.pickupAddress);
+  if (fromProduct) return fromProduct;
+  return resolveFabricShopPickupAddress(shop);
+}
+
+export const resolveAddonPickupAddress = resolveReadyMadePickupAddress;

@@ -8,9 +8,11 @@ import ImageUpload from "@/components/admin/ImageUpload";
 import { getTranslation } from "@/lib/getTranslation";
 import {
   defaultReadyMadeForm,
+  pickupAddressErrors,
   toApiPayload,
   type ReadyMadeFormData,
 } from "@/lib/readyMadeAdmin";
+import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddressFields";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import colors from "@/components/shared/colors";
@@ -167,14 +169,16 @@ export default function NewReadyMadePage() {
     const errors: Record<string, string> = {};
 
     if (!formData.name.trim()) errors.name = "Name required";
-    if (!formData.fabricShopId) errors.fabricShopId = "Fabric store required";
-    if (!formData.fabricId) errors.fabricId = "Fabric required";
+    if (formData.fabricShopId && !formData.fabricId) {
+      errors.fabricId = "Fabric required when a store is selected";
+    }
 
     const hasImage = formData.images.some((img) => img.trim() !== "");
     if (!hasImage) errors.images = "At least one image is required";
 
-    if (formData.metersPerFabric <= 0)
+    if (formData.fabricId && formData.metersPerFabric <= 0)
       errors.metersPerFabric = "Meters must be greater than 0";
+    Object.assign(errors, pickupAddressErrors(formData.pickupAddress));
     if (formData.fabricPriceAED < 0)
       errors.fabricPriceAED = "Price cannot be negative";
     if (formData.mukhawarPriceAED < 0)
@@ -382,12 +386,19 @@ export default function NewReadyMadePage() {
             </FormField>
           </div>
 
-          {/* FABRIC STORE */}
+          <ReadyMadePickupAddressFields
+            value={formData.pickupAddress}
+            onChange={(pickupAddress) =>
+              handleChange("pickupAddress", pickupAddress)
+            }
+            fieldErrors={fieldErrors}
+          />
+
+          {/* FABRIC STORE (optional — MOTD-owned listings need none) */}
           <FormField
             label="Fabric Store"
             name="fabricShopId"
             error={fieldErrors.fabricShopId}
-            required
           >
             <AnimatedDropdown
               isOpen={fabricShopOpen}
@@ -439,7 +450,6 @@ export default function NewReadyMadePage() {
             label="Fabric"
             name="fabricId"
             error={fieldErrors.fabricId}
-            required
           >
             <AnimatedDropdown
               isOpen={fabricOpen}

@@ -95,17 +95,33 @@ const readyMadeProductSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // Ref relations
+    // Optional catalog link — MOTD-owned returns may have no fabric store
     fabricShopId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "FabricShop",
-      required: true,
+      default: null,
     },
 
     fabricId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Fabric",
-      required: true,
+      default: null,
+    },
+
+    // Shipa origin for this listing (admin-decided warehouse / MOTD pickup)
+    pickupAddress: {
+      type: new mongoose.Schema(
+        {
+          fullName: { type: String, default: "", trim: true },
+          phone: { type: String, default: "", trim: true },
+          line1: { type: String, default: "", trim: true },
+          line2: { type: String, default: "", trim: true },
+          city: { type: String, default: "", trim: true },
+          emirate: { type: String, default: "", trim: true },
+        },
+        { _id: false },
+      ),
+      default: () => ({}),
     },
 
     tailorShopId: {
