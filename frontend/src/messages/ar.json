@@ -1473,6 +1473,7 @@
         "delivered": "تم الاستلام",
         "return_requested": "تم طلب الإرجاع",
         "return_approved": "تمت الموافقة على الإرجاع",
+        "return_rejected": "تم رفض الإرجاع",
         "refund_processed": "تمت معالجة الاسترداد"
       }
     },
@@ -1508,6 +1509,7 @@
         "delivered": { "title": "Delivered" },
         "return_requested": { "title": "Return Requested" },
         "return_approved": { "title": "Return Approved" },
+        "return_rejected": { "title": "تم رفض الإرجاع" },
         "refund_processed": { "title": "Refund Processed" }
       }
     }
