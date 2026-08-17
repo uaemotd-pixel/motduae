@@ -33,7 +33,7 @@ const shipmentPartySchema = new mongoose.Schema(
   {
     kind: {
       type: String,
-      enum: ["fabric_shop", "tailor_shop", "customer", ""],
+      enum: ["fabric_shop", "tailor_shop", "customer", "motd", ""],
       default: "",
       trim: true,
     },

@@ -1,3 +1,8 @@
+import {
+  emptyShopPickupAddress,
+  type ShopPickupAddress,
+} from "@/lib/fabricShop";
+
 export interface ReadyMadeFormData {
   name: string;
   nameAr: string;
@@ -25,6 +30,8 @@ export interface ReadyMadeFormData {
   fabricId: string;
   tailorShopId: string;
   designId: string;
+
+  pickupAddress: ShopPickupAddress;
 
   metersPerFabric: number;
 
@@ -75,6 +82,47 @@ export function resolveSlug(
   return `ready-made-${Date.now()}`;
 }
 
+export function pickupAddressErrors(
+  address?: ShopPickupAddress | null,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const pickup = address || emptyShopPickupAddress();
+
+  if (!pickup.fullName.trim()) {
+    errors["pickupAddress.fullName"] = "Pickup contact name required";
+  }
+  if (!pickup.phone.trim()) {
+    errors["pickupAddress.phone"] = "Pickup phone required";
+  } else if (!/^\d{9}$/.test(pickup.phone.trim())) {
+    errors["pickupAddress.phone"] = "Pickup phone must be 9 digits";
+  }
+  if (!pickup.line1.trim()) {
+    errors["pickupAddress.line1"] = "Pickup street required";
+  }
+  if (!pickup.city.trim()) {
+    errors["pickupAddress.city"] = "Pickup city required";
+  }
+  if (!pickup.emirate.trim()) {
+    errors["pickupAddress.emirate"] = "Pickup emirate required";
+  }
+
+  return errors;
+}
+
+function pickupFromApi(product: Record<string, unknown>): ShopPickupAddress {
+  const raw = product.pickupAddress;
+  if (!raw || typeof raw !== "object") return emptyShopPickupAddress();
+  const address = raw as Record<string, unknown>;
+  return {
+    fullName: typeof address.fullName === "string" ? address.fullName : "",
+    phone: typeof address.phone === "string" ? address.phone : "",
+    line1: typeof address.line1 === "string" ? address.line1 : "",
+    line2: typeof address.line2 === "string" ? address.line2 : "",
+    city: typeof address.city === "string" ? address.city : "",
+    emirate: typeof address.emirate === "string" ? address.emirate : "",
+  };
+}
+
 export function defaultReadyMadeForm(): ReadyMadeFormData {
   return {
     name: "",
@@ -91,7 +139,7 @@ export function defaultReadyMadeForm(): ReadyMadeFormData {
     colors: [],
 
     thumbnailImage: "",
-    images: [""], // start with one empty image field
+    images: [""],
 
     fabricType: "",
     fabricTypeAr: "",
@@ -103,6 +151,8 @@ export function defaultReadyMadeForm(): ReadyMadeFormData {
     fabricId: "",
     tailorShopId: "",
     designId: "",
+
+    pickupAddress: emptyShopPickupAddress(),
 
     metersPerFabric: 0,
 
@@ -126,7 +176,7 @@ export function fromApiProduct(
   if (Array.isArray(product.images) && product.images.length) {
     images = product.images as string[];
   } else {
-    images = [""]; // ensure at least one slot
+    images = [""];
   }
 
   return {
@@ -162,30 +212,40 @@ export function fromApiProduct(
     fabricShopId:
       typeof product.fabricShopId === "string"
         ? product.fabricShopId
-        : product.fabricShopId && typeof product.fabricShopId === "object" && "_id" in product.fabricShopId
-        ? (product.fabricShopId as { _id: string })._id
-        : "",
+        : product.fabricShopId &&
+            typeof product.fabricShopId === "object" &&
+            "_id" in product.fabricShopId
+          ? (product.fabricShopId as { _id: string })._id
+          : "",
 
     fabricId:
       typeof product.fabricId === "string"
         ? product.fabricId
-        : product.fabricId && typeof product.fabricId === "object" && "_id" in product.fabricId
-        ? (product.fabricId as { _id: string })._id
-        : "",
+        : product.fabricId &&
+            typeof product.fabricId === "object" &&
+            "_id" in product.fabricId
+          ? (product.fabricId as { _id: string })._id
+          : "",
 
     tailorShopId:
       typeof product.tailorShopId === "string"
         ? product.tailorShopId
-        : product.tailorShopId && typeof product.tailorShopId === "object" && "_id" in product.tailorShopId
-        ? (product.tailorShopId as { _id: string })._id
-        : "",
+        : product.tailorShopId &&
+            typeof product.tailorShopId === "object" &&
+            "_id" in product.tailorShopId
+          ? (product.tailorShopId as { _id: string })._id
+          : "",
 
     designId:
       typeof product.designId === "string"
         ? product.designId
-        : product.designId && typeof product.designId === "object" && "_id" in product.designId
-        ? (product.designId as { _id: string })._id
-        : "",
+        : product.designId &&
+            typeof product.designId === "object" &&
+            "_id" in product.designId
+          ? (product.designId as { _id: string })._id
+          : "",
+
+    pickupAddress: pickupFromApi(product),
 
     metersPerFabric:
       typeof product.metersPerFabric === "number" ? product.metersPerFabric : 0,
@@ -240,10 +300,12 @@ export function toApiPayload(form: ReadyMadeFormData): Record<string, unknown> {
     tailorName: form.tailorName,
     tailorNameAr: form.tailorNameAr,
 
-    fabricShopId: form.fabricShopId,
-    fabricId: form.fabricId,
+    fabricShopId: form.fabricShopId || null,
+    fabricId: form.fabricId || null,
     tailorShopId: form.tailorShopId || null,
     designId: form.designId || null,
+
+    pickupAddress: form.pickupAddress,
 
     metersPerFabric: form.metersPerFabric,
 

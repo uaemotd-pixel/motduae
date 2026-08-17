@@ -37,8 +37,21 @@ import {
   notifyRetailStatusChange,
 } from "../services/notificationService.js";
 import { normalizeEmirate, UAE_EMIRATES, isValidEmirate } from "../utils/uaeAddress.js";
+import { createReadyCustomShipments } from "../services/shipmentService.js";
+import { normalizeShopPickupAddress } from "../utils/shopPickupAddress.js";
+
 const adminRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
+
+function optionalObjectId(value) {
+  if (value === undefined) return undefined;
+  const str = String(value || "").trim();
+  return mongoose.Types.ObjectId.isValid(str) && str.length === 24 ? str : null;
+}
+
+function parseReadyMadePickup(address) {
+  return normalizeShopPickupAddress(address);
+}
 
 function partnerPublicFields(user) {
   return {
@@ -246,6 +259,15 @@ adminRouter.post(
         .replace(/^-+|-+$/g, "");
     }
 
+    const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);
+    if (!pickupAddress) {
+      res.status(400).send({
+        message:
+          "Pickup address requires fullName, phone, line1, city, and emirate",
+      });
+      return;
+    }
+
     const newProduct = new ReadyMadeProduct({
       name,
       nameAr,
@@ -258,8 +280,8 @@ adminRouter.post(
       colors,
       thumbnailImage,
       images,
-      fabricShopId,
-      fabricId,
+      fabricShopId: optionalObjectId(fabricShopId) ?? null,
+      fabricId: optionalObjectId(fabricId) ?? null,
       tailorShopId: tailorShopId || undefined,
       designId: designId || undefined,
       fabricType: fabricType || "",
@@ -275,6 +297,7 @@ adminRouter.post(
       maxAge: maxAge !== undefined ? maxAge : 0,
       isActive: isActive !== undefined ? isActive : true,
       ownerName: req.body.ownerName || "MOTD Admin",
+      pickupAddress,
     });
 
     const createdProduct = await newProduct.save();
@@ -317,14 +340,30 @@ adminRouter.put(
     product.images = req.body.images ?? product.images;
 
     // --- Fabric & Tailor relation fields ---
-    product.fabricShopId = req.body.fabricShopId ?? product.fabricShopId;
-    product.fabricId = req.body.fabricId ?? product.fabricId;
+    if (req.body.fabricShopId !== undefined) {
+      product.fabricShopId = optionalObjectId(req.body.fabricShopId);
+    }
+    if (req.body.fabricId !== undefined) {
+      product.fabricId = optionalObjectId(req.body.fabricId);
+    }
     product.tailorShopId =
       req.body.tailorShopId !== undefined
         ? req.body.tailorShopId
         : product.tailorShopId;
     product.designId =
       req.body.designId !== undefined ? req.body.designId : product.designId;
+
+    if (req.body.pickupAddress !== undefined) {
+      const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);
+      if (!pickupAddress) {
+        res.status(400).send({
+          message:
+            "Pickup address requires fullName, phone, line1, city, and emirate",
+        });
+        return;
+      }
+      product.pickupAddress = pickupAddress;
+    }
 
     // Fallbacks
     product.fabricType = req.body.fabricType ?? product.fabricType;
@@ -2572,6 +2611,15 @@ adminRouter.post(
           .replace(/\s+/g, "-")
           .replace(/[^a-z0-9-]/g, "");
 
+    const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);
+    if (!pickupAddress) {
+      res.status(400).send({
+        message:
+          "Pickup address requires fullName, phone, line1, city, and emirate",
+      });
+      return;
+    }
+
     const addon = new AddOn({
       name,
       nameAr,
@@ -2586,6 +2634,7 @@ adminRouter.post(
       tagAr,
       isActive: isActive !== undefined ? isActive : true,
       ownerName: req.body.ownerName || "MOTD Admin",
+      pickupAddress,
     });
 
     const savedAddon = await addon.save();
@@ -2633,6 +2682,18 @@ adminRouter.put(
     addon.tagAr = tagAr ?? addon.tagAr;
     addon.isActive = isActive !== undefined ? isActive : addon.isActive;
     addon.ownerName = req.body.ownerName ?? addon.ownerName;
+
+    if (req.body.pickupAddress !== undefined) {
+      const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);
+      if (!pickupAddress) {
+        res.status(400).send({
+          message:
+            "Pickup address requires fullName, phone, line1, city, and emirate",
+        });
+        return;
+      }
+      addon.pickupAddress = pickupAddress;
+    }
 
     const updatedAddon = await addon.save();
     res.send(updatedAddon);
