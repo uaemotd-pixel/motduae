@@ -38,7 +38,7 @@ export default function FabricRejectedState() {
             {t("goHome")}
           </Link>
           <a
-            href="mailto:uaemotd@gmail.com"
+            href="mailto:care@motd.ae"
             className="inline-block px-8 py-3 border border-black text-black text-[10px] tracking-[0.22em] uppercase hover:bg-black hover:text-white transition [font-family:var(--font-ui)]"
           >
             {t("contactCta")}
