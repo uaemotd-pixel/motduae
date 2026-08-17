@@ -8,9 +8,12 @@ import ImageUpload from "@/components/admin/ImageUpload";
 import { getTranslation } from "@/lib/getTranslation";
 import {
   defaultReadyMadeForm,
+  pickupAddressErrors,
   toApiPayload,
   type ReadyMadeFormData,
 } from "@/lib/readyMadeAdmin";
+import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddressFields";
+import { normalizeShopPickupAddress } from "@/lib/fabricShop";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import colors from "@/components/shared/colors";
@@ -66,7 +69,13 @@ export default function NewReadyMadePage() {
           ]);
 
         const shopId = shopRes.item?._id || "";
-        setFormData((prev) => ({ ...prev, fabricShopId: shopId }));
+        setFormData((prev) => ({
+          ...prev,
+          fabricShopId: shopId,
+          pickupAddress: prev.pickupAddress.line1
+            ? prev.pickupAddress
+            : normalizeShopPickupAddress(shopRes.item?.pickupAddress),
+        }));
 
         setAllFabrics(fabricsRes.items || fabricsRes || []);
         setTailorShops(tailorsRes.items || []);
@@ -183,6 +192,8 @@ export default function NewReadyMadePage() {
       errors.finalSellingPriceAED = "Price cannot be negative";
     if (formData.availableFabricStock < 0)
       errors.availableFabricStock = "Stock cannot be negative";
+
+    Object.assign(errors, pickupAddressErrors(formData.pickupAddress));
 
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -330,6 +341,14 @@ export default function NewReadyMadePage() {
               className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-xs sm:text-sm hover:cursor-text"
             />
           </FormField>
+
+          <ReadyMadePickupAddressFields
+            value={formData.pickupAddress}
+            onChange={(pickupAddress) =>
+              handleChange("pickupAddress", pickupAddress)
+            }
+            fieldErrors={fieldErrors}
+          />
 
           {/* FABRIC */}
           <FormField

@@ -8,14 +8,25 @@ import {
   notifyRetailOrderPlacedCustomer,
 } from "./notificationService.js";
 import { verifyStripePaymentIntent } from "./stripeService.js";
+import { createConfirmedRetailShipments } from "./shipmentService.js";
 
 export async function findRetailOrderByPaymentIntent(paymentIntentId) {
   if (!paymentIntentId) return null;
   return RetailOrder.findOne({ stripePaymentIntentId: paymentIntentId });
 }
 
+async function attachRetailShipments(order, userId) {
+  if (!order?._id) return order;
+  const result = await createConfirmedRetailShipments(order, {
+    changedBy: userId || null,
+  });
+  return result?.order || order;
+}
+
 /**
  * Create a paid retail order (idempotent by paymentIntentId).
+ * On confirmed: seed statusHistory and create one retail_to_customer Shipa
+ * parcel per FabricShop (best-effort; never rolls back the paid order).
  */
 export async function createPaidRetailOrder({
   userId,
@@ -27,7 +38,8 @@ export async function createPaidRetailOrder({
 }) {
   const existing = await findRetailOrderByPaymentIntent(paymentIntentId);
   if (existing) {
-    return { order: existing, created: false };
+    const withShipments = await attachRetailShipments(existing, userId);
+    return { order: withShipments, created: false };
   }
 
   if (!orderItems?.length) {
@@ -49,6 +61,7 @@ export async function createPaidRetailOrder({
 
   await deductRetailProductStock(orderItems);
 
+  const confirmedAt = new Date();
   let order;
   try {
     order = await RetailOrder.create({
@@ -65,15 +78,26 @@ export async function createPaidRetailOrder({
       vatAmount: prepared.vatAmount,
       totalPrice: prepared.totalPrice,
       status: "confirmed",
+      statusHistory: [
+        {
+          status: "confirmed",
+          note: "Order confirmed",
+          changedAt: confirmedAt,
+          changedBy: userId,
+        },
+      ],
       isPaid: true,
-      paidAt: new Date(),
+      paidAt: confirmedAt,
       stripePaymentIntentId: paymentIntentId,
     });
   } catch (error) {
     // Concurrent webhook + client create — unique index wins
     if (error?.code === 11000) {
       const raced = await findRetailOrderByPaymentIntent(paymentIntentId);
-      if (raced) return { order: raced, created: false };
+      if (raced) {
+        const withShipments = await attachRetailShipments(raced, userId);
+        return { order: withShipments, created: false };
+      }
     }
     throw error;
   }
@@ -88,5 +112,6 @@ export async function createPaidRetailOrder({
   await notifyRetailOrderPlacedAdmin(order, userId, message);
   await notifyRetailOrderPlacedCustomer(order, userId);
 
-  return { order, created: true };
+  const withShipments = await attachRetailShipments(order, userId);
+  return { order: withShipments, created: true };
 }

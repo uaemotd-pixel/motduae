@@ -83,6 +83,14 @@ const deliveryBreakdownEntrySchema = new mongoose.Schema(
       id: { type: String, default: null },
       label: { type: String, default: "", trim: true },
     },
+    pickupAddress: {
+      fullName: { type: String, default: "", trim: true },
+      phone: { type: String, default: "", trim: true },
+      line1: { type: String, default: "", trim: true },
+      line2: { type: String, default: "", trim: true },
+      city: { type: String, default: "", trim: true },
+      emirate: { type: String, default: "", trim: true },
+    },
   },
   { _id: false },
 );

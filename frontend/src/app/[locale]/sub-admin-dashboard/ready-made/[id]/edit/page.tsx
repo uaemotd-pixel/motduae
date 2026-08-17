@@ -9,9 +9,11 @@ import { getTranslation } from "@/lib/getTranslation";
 import {
   defaultReadyMadeForm,
   fromApiProduct,
+  pickupAddressErrors,
   toApiPayload,
   type ReadyMadeFormData,
 } from "@/lib/readyMadeAdmin";
+import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddressFields";
 import toast from "react-hot-toast";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
@@ -278,14 +280,16 @@ export default function EditReadyMadePage() {
     const errors: Record<string, string> = {};
 
     if (!formData.name.trim()) errors.name = "Name required";
-    if (!formData.fabricShopId) errors.fabricShopId = "Fabric store required";
-    if (!formData.fabricId) errors.fabricId = "Fabric required";
+    if (formData.fabricShopId && !formData.fabricId) {
+      errors.fabricId = "Fabric required when a store is selected";
+    }
 
     const hasImage = formData.images.some((img) => img.trim() !== "");
     if (!hasImage) errors.images = "At least one image is required";
 
-    if (formData.metersPerFabric <= 0)
+    if (formData.fabricId && formData.metersPerFabric <= 0)
       errors.metersPerFabric = "Meters must be greater than 0";
+    Object.assign(errors, pickupAddressErrors(formData.pickupAddress));
     if (formData.fabricPriceAED < 0)
       errors.fabricPriceAED = "Price cannot be negative";
     if (formData.mukhawarPriceAED < 0)
@@ -450,7 +454,15 @@ export default function EditReadyMadePage() {
             </FormField>
 
             {/* FABRIC STORE */}
-            <FormField label="Fabric Store" name="fabricShopId" error={fieldErrors.fabricShopId} required>
+            <ReadyMadePickupAddressFields
+              value={formData.pickupAddress}
+              onChange={(pickupAddress) =>
+                handleChange("pickupAddress", pickupAddress)
+              }
+              fieldErrors={fieldErrors}
+            />
+
+            <FormField label="Fabric Store" name="fabricShopId" error={fieldErrors.fabricShopId}>
               <select
                 value={formData.fabricShopId}
                 onChange={(e) => {
@@ -470,7 +482,7 @@ export default function EditReadyMadePage() {
             </FormField>
 
             {/* FABRIC */}
-            <FormField label="Fabric" name="fabricId" error={fieldErrors.fabricId} required>
+            <FormField label="Fabric" name="fabricId" error={fieldErrors.fabricId}>
               <select
                 value={formData.fabricId}
                 onChange={(e) => handleChange("fabricId", e.target.value)}

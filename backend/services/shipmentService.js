@@ -185,6 +185,7 @@ export function ensurePlannedShipments(order, orderKind = detectOrderKind(order)
       addonIds: linked.addonIds,
       fabricShopId: linked.fabricShopId,
       tailorShopId: linked.tailorShopId,
+      pickupAddress: entry.pickupAddress || null,
       status: "planned",
       events: [],
     };
@@ -228,6 +229,10 @@ async function resolvePartyAddress(party, order, orderKind) {
       const address = shopAddressFromDoc(shop);
       if (addressIsComplete(address) || address.line1) return address;
     }
+    return emptyAddress();
+  }
+
+  if (kind === "motd") {
     return emptyAddress();
   }
 
@@ -398,6 +403,10 @@ export const READY_CUSTOM_SHIPMENT_TYPES = Object.freeze([
   PARCEL_TYPES.TAILOR_TO_CUSTOMER,
 ]);
 
+export const CONFIRMED_RETAIL_SHIPMENT_TYPES = Object.freeze([
+  PARCEL_TYPES.RETAIL_TO_CUSTOMER,
+]);
+
 /**
  * Create Shipa parcels for an order.
  * Only creates missing Shipa orders for shipments matching `typesFilter`
@@ -465,11 +474,11 @@ export async function createShipmentsForOrder(
       continue;
     }
 
-    const pickupAddress = await resolvePartyAddress(
-      shipment.from,
-      order,
-      orderKind,
-    );
+    const plannedPickup = normalizeAddress(shipment.pickupAddress);
+    const pickupAddress =
+      plannedPickup.line1
+        ? plannedPickup
+        : await resolvePartyAddress(shipment.from, order, orderKind);
     const dropoffAddress = await resolvePartyAddress(
       shipment.to,
       order,
@@ -480,7 +489,7 @@ export async function createShipmentsForOrder(
       errors.push({
         parcelKey: shipment.parcelKey,
         error:
-          "Missing pickup or dropoff address — ensure shop pickupAddress / customer delivery address is set",
+          "Missing pickup or dropoff address — set the ready-made pickup address (or shop pickupAddress) and customer delivery address",
       });
       continue;
     }
@@ -785,6 +794,15 @@ export async function createConfirmedCustomShipments(order, options = {}) {
   return safeCreateShipmentsForOrder(
     order,
     CONFIRMED_CUSTOM_SHIPMENT_TYPES,
+    options,
+  );
+}
+
+/** One retail_to_customer parcel per FabricShop on retail order confirmed. */
+export async function createConfirmedRetailShipments(order, options = {}) {
+  return safeCreateShipmentsForOrder(
+    order,
+    CONFIRMED_RETAIL_SHIPMENT_TYPES,
     options,
   );
 }
