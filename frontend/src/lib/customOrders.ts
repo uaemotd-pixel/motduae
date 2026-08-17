@@ -15,6 +15,7 @@ export const CUSTOM_ORDER_STATUSES = [
   // Returns & refunds flow
   "return_requested", // Return requested
   "return_approved", // Return approved
+  "return_rejected", // Return rejected
   "refund_processed", // Refund processed
 ] as const;
 

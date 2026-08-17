@@ -1260,6 +1260,7 @@
         "delivered": "Delivered",
         "return_requested": "Return requested",
         "return_approved": "Return approved",
+        "return_rejected": "Return Rejected",
         "refund_processed": "Refund processed"
       }
     },
@@ -1314,6 +1315,9 @@
         },
         "return_approved": {
           "title": "Return Approved"
+        },
+        "return_rejected": {
+          "title": "Return Rejected"
         },
         "refund_processed": {
           "title": "Refund Processed"
