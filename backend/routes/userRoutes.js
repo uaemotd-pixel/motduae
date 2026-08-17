@@ -31,6 +31,12 @@ import {
   RESEND_COOLDOWN_MS,
   OTP_PURPOSES,
 } from "../services/emailVerification/otpPolicy.js";
+import {
+  loginLimiter,
+  forgotPasswordLimiter,
+  resetPasswordLimiter,
+  contactLimiter,
+} from "../middleware/rateLimiter.js";
 
 const userRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -164,6 +170,7 @@ userRouter.post(
 
 userRouter.post(
   "/signin",
+  loginLimiter,
   expressAsyncHandler(async (req, res) => {
     const { email, password, isGuest = false } = req.body;
     if (!email || !password) {
@@ -221,6 +228,7 @@ userRouter.post(
 
 userRouter.post(
   "/auth/google",
+  loginLimiter,
   expressAsyncHandler(async (req, res) => {
     const { credential, mode = "login", role: requestedRole } = req.body;
 
@@ -395,6 +403,7 @@ userRouter.post(
 
 userRouter.post(
   "/forgot-password",
+  forgotPasswordLimiter,
   expressAsyncHandler(async (req, res) => {
     const { email } = req.body;
     const genericMessage =
@@ -448,6 +457,7 @@ userRouter.post(
 
 userRouter.post(
   "/reset-password",
+  resetPasswordLimiter,
   expressAsyncHandler(async (req, res) => {
     const { token, password } = req.body;
 
@@ -793,6 +803,7 @@ userRouter.put(
 
 userRouter.post(
   "/contact",
+  contactLimiter,
   expressAsyncHandler(async (req, res) => {
     const { name, email, subject, message } = req.body;
     if (
