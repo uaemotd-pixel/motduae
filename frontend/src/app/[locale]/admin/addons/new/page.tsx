@@ -7,6 +7,12 @@ import FormField from "@/components/admin/FormField";
 import ImageUpload from "@/components/admin/ImageUpload";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
+import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddressFields";
+import { pickupAddressErrors } from "@/lib/readyMadeAdmin";
+import {
+  emptyShopPickupAddress,
+  type ShopPickupAddress,
+} from "@/lib/fabricShop";
 
 interface AddOnFormData {
   name: string;
@@ -20,6 +26,7 @@ interface AddOnFormData {
   tagAr: string;
   thumbnailImage: string;
   images: string[];
+  pickupAddress: ShopPickupAddress;
 }
 
 export default function AdminNewAddOnPage() {
@@ -45,7 +52,9 @@ export default function AdminNewAddOnPage() {
     tagAr: "",
     thumbnailImage: "",
     images: [""],
+    pickupAddress: emptyShopPickupAddress(),
   });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Fetch tags from DB
   useEffect(() => {
@@ -111,6 +120,14 @@ export default function AdminNewAddOnPage() {
       toast.error("Price and Stock must be 0 or greater");
       return;
     }
+
+    const pickupErrors = pickupAddressErrors(formData.pickupAddress);
+    if (Object.keys(pickupErrors).length > 0) {
+      setFieldErrors(pickupErrors);
+      toast.error("Please fill in the pickup address");
+      return;
+    }
+    setFieldErrors({});
 
     try {
       setSubmitting(true);
@@ -298,6 +315,17 @@ export default function AdminNewAddOnPage() {
               ))}
             </select>
           </FormField>
+        </div>
+
+        {/* Pickup address */}
+        <div className="border-t border-gray-100 pt-6">
+          <ReadyMadePickupAddressFields
+            value={formData.pickupAddress}
+            onChange={(pickupAddress) =>
+              setFormData((prev) => ({ ...prev, pickupAddress }))
+            }
+            fieldErrors={fieldErrors}
+          />
         </div>
 
         {/* Thumbnail Image */}

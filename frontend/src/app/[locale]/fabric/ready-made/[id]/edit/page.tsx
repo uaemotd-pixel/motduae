@@ -8,9 +8,11 @@ import ImageUpload from "@/components/admin/ImageUpload";
 import { getTranslation } from "@/lib/getTranslation";
 import {
   fromApiProduct,
+  pickupAddressErrors,
   toApiPayload,
   type ReadyMadeFormData,
 } from "@/lib/readyMadeAdmin";
+import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddressFields";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
@@ -218,6 +220,8 @@ export default function EditReadyMadePage() {
     if (formData.availableFabricStock < 0)
       errors.availableFabricStock = "Stock cannot be negative";
 
+    Object.assign(errors, pickupAddressErrors(formData.pickupAddress));
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -369,6 +373,14 @@ export default function EditReadyMadePage() {
               className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-xs sm:text-sm hover:cursor-text"
             />
           </FormField>
+
+          <ReadyMadePickupAddressFields
+            value={formData.pickupAddress}
+            onChange={(pickupAddress) =>
+              handleChange("pickupAddress", pickupAddress)
+            }
+            fieldErrors={fieldErrors}
+          />
 
           {/* FABRIC */}
           <FormField
