@@ -24,6 +24,17 @@
     "profileVerify": "Verify",
     "gateCheckoutMessage": "Verify your email to place this order.",
     "verifyNow": "Verify now",
-    "redirecting": "Redirecting"
+    "redirecting": "Redirecting",
+    "changeTitle": "Confirm your new email",
+    "changeSubtitle": "We'll send a 6-digit code to",
+    "cancel": "Cancel",
+    "changeEmail": "Change",
+    "changeEmailHeading": "Change email",
+    "changeEmailHint": "We'll send a code to the new address. Your current email stays until you verify.",
+    "newEmail": "New email",
+    "currentPassword": "Current password",
+    "continueChange": "Continue",
+    "pendingChangeBody": "An email change is in progress. We'll send the code to",
+    "pendingChangeResume": "Resume"
   }
 }

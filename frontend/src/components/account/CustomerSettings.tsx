@@ -8,7 +8,13 @@ import {
   isPasswordValid,
 } from "@/lib/auth/passwordValidation";
 import PasswordChecklist from "@/components/auth/PasswordChecklist";
-import { Eye, EyeOff, Save, Ruler, Lock, Check } from "lucide-react";
+import { Eye, EyeOff, Save, Ruler, Lock, Check, Mail, Edit } from "lucide-react";
+import PartnerChangeEmailCard from "@/components/auth/PartnerChangeEmailCard";
+import EmailChangePendingBanner from "@/components/auth/EmailChangePendingBanner";
+import { canChangeAccountEmail } from "@/lib/auth/emailVerification";
+import { useAuth } from "@/context/AuthContext";
+import { useParams } from "next/navigation";
+import { getTranslation } from "@/lib/getTranslation";
 
 type CustomerSettingsProps = {
   hasPassword?: boolean;
@@ -19,6 +25,12 @@ type MeasurementUnit = "meters" | "wara";
 export default function CustomerSettings({
   hasPassword = true,
 }: CustomerSettingsProps) {
+  const { user } = useAuth();
+  const params = useParams();
+  const locale = (params.locale as string) || "en";
+  const tVerify = getTranslation(locale).verifyEmail;
+  const canChangeEmail = canChangeAccountEmail(user);
+  const [showChangeEmail, setShowChangeEmail] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -103,6 +115,19 @@ export default function CustomerSettings({
     }
   };
 
+  if (showChangeEmail && canChangeEmail) {
+    return (
+      <div className="mx-auto px-4 sm:px-6">
+        <PartnerChangeEmailCard
+          locale={locale}
+          nextPath="/account?tab=settings"
+          currentEmail={user?.email}
+          onCancel={() => setShowChangeEmail(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto space-y-8 px-4 sm:px-6">
       <div>
@@ -179,6 +204,39 @@ export default function CustomerSettings({
             </div>
           </div>
         </div>
+
+        {/* Change email */}
+        {canChangeEmail ? (
+          <div className="p-4 sm:p-6 space-y-4">
+            <EmailChangePendingBanner
+              locale={locale}
+              nextPath="/account?tab=settings"
+              variant="account"
+            />
+            <div className="flex items-start sm:items-center gap-3">
+              <Mail
+                className="w-5 h-5 text-gray-400 shrink-0 mt-0.5 sm:mt-0"
+                strokeWidth={1.5}
+              />
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-medium text-black">
+                  {tVerify.changeEmailHeading}
+                </h3>
+                <p className="text-sm text-gray-500 truncate">
+                  {user?.email}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChangeEmail(true)}
+                aria-label={tVerify.changeEmailHeading}
+                className="shrink-0 p-1 rounded border border-black text-black bg-transparent hover:bg-black hover:text-white transition cursor-pointer"
+              >
+                <Edit className="w-3.5 h-3.5" strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {/* Password Section */}
         <div className="p-4 sm:p-6">
