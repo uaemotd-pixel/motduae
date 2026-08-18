@@ -43,8 +43,8 @@ export default function SupportPage() {
                                 <p className="text-[13px] text-[#8A8A80] mb-4">
                                     {isAr ? "راسلنا في أي وقت وسنقوم بالرد خلال 24 ساعة." : "Reach out anytime. We respond within 24 hours."}
                                 </p>
-                                <a href="mailto:uaemotd@gmail.com" className="text-sm font-medium text-black underline block hover:opacity-75">
-                                    uaemotd@gmail.com
+                                <a href="mailto:care@motd.ae" className="text-sm font-medium text-black underline block hover:opacity-75">
+                                    care@motd.ae
                                 </a>
                             </div>
 
