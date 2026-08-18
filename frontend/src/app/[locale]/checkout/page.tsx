@@ -143,7 +143,8 @@ function CheckoutPageContent() {
     null,
   );
   const [priceLoading, setPriceLoading] = useState(true);
-  const [vatRate, setVatRate] = useState(0);
+  const [vatRate, setVatRate] = useState<number | null>(null);
+  const [vatError, setVatError] = useState(false);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -225,13 +226,17 @@ function CheckoutPageContent() {
   useEffect(() => {
     async function fetchVatRate() {
       try {
-        const data = await api.get("/api/orders/settings");
+        const data = await api.get<{ vatRate: number }>("/api/orders/settings");
         if (data?.vatRate !== undefined && data?.vatRate !== null) {
           const rate = data.vatRate > 1 ? data.vatRate / 100 : data.vatRate;
           setVatRate(rate);
+          setVatError(false);
+        } else {
+          throw new Error("Invalid VAT settings data");
         }
       } catch (error) {
         console.error("Failed to fetch VAT rate:", error);
+        setVatError(true);
       }
     }
     fetchVatRate();
@@ -822,7 +827,7 @@ function CheckoutPageContent() {
                             )}
                             <li className="flex flex-wrap gap-4">
                               {t.checkout.vat} (
-                              {(effectiveVatRate * 100).toFixed(0)}%)
+                              {((effectiveVatRate ?? 0) * 100).toFixed(0)}%)
                               <span className="ml-auto text-black">
                                 AED {vat.toFixed(2)}
                               </span>
@@ -1082,6 +1087,19 @@ function CheckoutPageContent() {
                   </div>
                 )}
 
+                {vatError && (
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-sans flex flex-col gap-2 shadow-[0_2px_8px_rgba(239,68,68,0.04)]">
+                    <p className="font-semibold text-red-800 text-xs uppercase tracking-wider">
+                      {locale === "ar" ? "خطأ في حساب السعر" : "Pricing Error"}
+                    </p>
+                    <p className="text-xs leading-normal">
+                      {locale === "ar"
+                        ? "تعذر تحميل إعدادات ضريبة القيمة المضافة من الخادم. يرجى محاولة إعادة تحميل الصفحة للمتابعة."
+                        : "Unable to retrieve VAT settings. Please refresh the page to proceed."}
+                    </p>
+                  </div>
+                )}
+
                 <div className="mt-6 md:mt-7">
                   {paymentMethod === "card" && (
                     <CardPaymentForm
@@ -1091,7 +1109,7 @@ function CheckoutPageContent() {
                           ? `${formData.fullName.trim()} - ${localeParams === "ar" ? "زائر" : "Guest"}`
                           : formData.fullName
                       }
-                      disabled={isSubmitting || displayItems.length === 0}
+                      disabled={isSubmitting || displayItems.length === 0 || vatError || vatRate === null}
                       payLabel={t.checkout.payButton}
                       processingLabel={t.checkout.processing}
                       loadingLabel={t.checkout.loadingCard}
@@ -1106,7 +1124,7 @@ function CheckoutPageContent() {
                     <ApplePayCheckout
                       amountAed={total}
                       orderLabel={t.checkout.applePayOrderLabel}
-                      disabled={isSubmitting || displayItems.length === 0}
+                      disabled={isSubmitting || displayItems.length === 0 || vatError || vatRate === null}
                       processingLabel={t.checkout.processing}
                       loadingLabel={t.checkout.loadingApplePay}
                       unavailableLabel={t.checkout.applePayUnavailable}
