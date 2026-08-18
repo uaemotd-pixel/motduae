@@ -6,6 +6,10 @@ export const SHIPMENT_TYPES = Object.freeze([
   "addon_to_customer",
   "tailor_to_customer",
   "retail_to_customer",
+  "tailor_to_motd",
+  "addon_to_motd",
+  "retail_to_motd",
+  "motd_to_customer",
 ]);
 
 export const SHIPMENT_STATUSES = Object.freeze([
@@ -24,10 +28,30 @@ export const FABRIC_LEG_TYPES = Object.freeze([
 ]);
 
 export const CUSTOMER_BOUND_TYPES = Object.freeze([
+  "motd_to_customer",
   "tailor_to_customer",
   "addon_to_customer",
   "retail_to_customer",
 ]);
+
+export const MOTD_INBOUND_TYPES = Object.freeze([
+  "tailor_to_motd",
+  "addon_to_motd",
+  "retail_to_motd",
+]);
+
+export const MOTD_FULFILLMENT_TYPES = Object.freeze([
+  ...MOTD_INBOUND_TYPES,
+  "motd_to_customer",
+]);
+
+export function isBillableShipmentType(type) {
+  return !MOTD_INBOUND_TYPES.includes(type);
+}
+
+export function requiresMotdFulfillmentAddress(type) {
+  return MOTD_FULFILLMENT_TYPES.includes(type);
+}
 
 const shipmentPartySchema = new mongoose.Schema(
   {
@@ -76,6 +100,7 @@ const shipmentSchema = new mongoose.Schema(
     },
     label: { type: String, default: "", trim: true },
     fee: { type: Number, default: 0, min: 0 },
+    billable: { type: Boolean, default: true },
     from: { type: shipmentPartySchema, default: () => ({}) },
     to: { type: shipmentPartySchema, default: () => ({}) },
     pickupAddress: { type: shipmentAddressSchema, default: null },
