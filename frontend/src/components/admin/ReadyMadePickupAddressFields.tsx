@@ -11,12 +11,16 @@ type Props = {
   value: ShopPickupAddress;
   onChange: (next: ShopPickupAddress) => void;
   fieldErrors?: Record<string, string>;
+  title?: string;
+  description?: string;
 };
 
 export default function ReadyMadePickupAddressFields({
   value,
   onChange,
   fieldErrors = {},
+  title = "Pickup address",
+  description = "Shipa collects this listing from this address. For MOTD returns, use the warehouse the admin decides.",
 }: Props) {
   const handleChange = (field: keyof ShopPickupAddress, raw: string) => {
     let nextValue = raw;
@@ -32,12 +36,9 @@ export default function ReadyMadePickupAddressFields({
     <section className="space-y-4">
       <div>
         <h2 className="text-[10px] uppercase tracking-[0.24em] text-black">
-          Pickup address
+          {title}
         </h2>
-        <p className="text-[12px] text-gray-500 mt-1">
-          Shipa collects this listing from this address. For MOTD returns, use
-          the warehouse the admin decides.
-        </p>
+        <p className="text-[12px] text-gray-500 mt-1">{description}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -96,6 +96,7 @@ export interface CustomOrderShipmentSummary {
   awb?: string | null;
   trackingUrl?: string;
   label?: string;
+  billable?: boolean;
 }
 
 export interface CustomOrderDetail {
@@ -253,6 +254,7 @@ export function getOrderHeadline(
 }
 
 const CUSTOMER_BOUND_SHIPMENT_TYPES = new Set([
+  "motd_to_customer",
   "tailor_to_customer",
   "addon_to_customer",
   "retail_to_customer",
