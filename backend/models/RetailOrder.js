@@ -92,6 +92,9 @@ const deliveryBreakdownEntrySchema = new mongoose.Schema(
       emirate: { type: String, default: "", trim: true },
     },
     billable: { type: Boolean, default: true },
+    fabricShopId: { type: String, default: null, trim: true },
+    tailorShopId: { type: String, default: null, trim: true },
+    addonIds: { type: [String], default: [] },
   },
   { _id: false },
 );

@@ -25,8 +25,9 @@ async function attachRetailShipments(order, userId) {
 
 /**
  * Create a paid retail order (idempotent by paymentIntentId).
- * On confirmed: seed statusHistory and create one retail_to_customer Shipa
- * parcel per FabricShop (best-effort; never rolls back the paid order).
+ * On confirmed: seed statusHistory and create hidden retail_to_motd Shipa
+ * parcels per shop (skipped when the origin is already MOTD). Last mile
+ * is created later via admin pack.
  */
 export async function createPaidRetailOrder({
   userId,
