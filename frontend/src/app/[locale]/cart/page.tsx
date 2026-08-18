@@ -23,7 +23,8 @@ export default function CartPage() {
   const params = useParams();
   const router = useRouter();
   const locale = params.locale as string;
-  const [vatRate, setVatRate] = useState(0);
+  const [vatRate, setVatRate] = useState<number | null>(null);
+  const [vatError, setVatError] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
 
@@ -31,13 +32,17 @@ export default function CartPage() {
   useEffect(() => {
     async function fetchVatRate() {
       try {
-        const data = await api.get("/api/orders/settings");
+        const data = await api.get<{ vatRate: number }>("/api/orders/settings");
         if (data?.vatRate !== undefined && data?.vatRate !== null) {
           const rate = data.vatRate > 1 ? data.vatRate / 100 : data.vatRate;
           setVatRate(rate);
+          setVatError(false);
+        } else {
+          throw new Error("Invalid VAT settings data");
         }
       } catch (error) {
         console.error("Failed to fetch VAT rate:", error);
+        setVatError(true);
       }
     }
     fetchVatRate();
@@ -48,7 +53,7 @@ export default function CartPage() {
     (sum, item) => sum + item.price * item.quantity,
     0,
   );
-  const vat = subtotal * vatRate;
+  const vat = subtotal * (vatRate || 0);
   const total = subtotal + vat;
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -249,20 +254,41 @@ export default function CartPage() {
                     </div>
                     <div className="flex justify-between [font-family:var(--font-ui)] text-[13px] xs:text-[14px]">
                       <span className="text-(--color-grey-muted)">
-                        VAT ({(vatRate * 100).toFixed(0)}%)
+                        VAT ({((vatRate ?? 0) * 100).toFixed(0)}%)
                       </span>
                       <span className="text-black">AED {vat.toFixed(2)}</span>
                     </div>
                   </div>
+                  {vatError && (
+                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-sans flex flex-col gap-2 shadow-[0_2px_8px_rgba(239,68,68,0.04)]">
+                      <p className="font-semibold text-red-800 text-xs uppercase tracking-wider">
+                        {locale === "ar" ? "خطأ في حساب السعر" : "Pricing Error"}
+                      </p>
+                      <p className="text-xs leading-normal">
+                        {locale === "ar"
+                          ? "تعذر تحميل إعدادات ضريبة القيمة المضافة من الخادم. يرجى محاولة إعادة تحميل الصفحة للمتابعة."
+                          : "Unable to retrieve VAT settings. Please refresh the page to proceed."}
+                      </p>
+                    </div>
+                  )}
                   <div className="flex justify-between [font-family:var(--font-ui)] text-[16px] xs:text-[18px] font-normal mb-8">
                     <span>Total</span>
                     <span>AED {total.toFixed(2)}</span>
                   </div>
-                  <Link href="/checkout">
-                    <button className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] mt-6 md:mt-7 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer">
+                  {vatError ? (
+                    <button
+                      disabled
+                      className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] opacity-40 cursor-not-allowed mt-6 md:mt-7"
+                    >
                       Proceed to Checkout
                     </button>
-                  </Link>
+                  ) : (
+                    <Link href="/checkout">
+                      <button className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] mt-6 md:mt-7 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer">
+                        Proceed to Checkout
+                      </button>
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>
