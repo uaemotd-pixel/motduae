@@ -1691,11 +1691,21 @@ adminRouter.patch(
 
     if (order) {
       if (status) {
+        const previousStatus = order.status;
         order.status = status;
+
+        if (status === "delivered") {
+          order.returnItems = [];
+        }
 
         const historyBlock = {
           status,
-          note: typeof note === "string" ? note.trim() : "",
+          note:
+            typeof note === "string" && note.trim()
+              ? note.trim()
+              : previousStatus && previousStatus !== status
+                ? `Status changed from ${previousStatus} to ${status}`
+                : "",
           changedAt: new Date(),
           changedBy: req.user?._id,
         };
