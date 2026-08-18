@@ -362,6 +362,10 @@ const customOrderSchema = new mongoose.Schema(
     ],
 
     // Return request details
+    returnItems: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
     returnCondition: { type: String, default: "", trim: true },
     returnReason: { type: String, default: "", trim: true },
     returnComment: { type: String, default: "", trim: true },
