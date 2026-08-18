@@ -4,6 +4,18 @@ const SINGLETON_KEY = 'platform';
 
 const CURRENCY = 'AED';
 
+const fulfillmentAddressSchema = new mongoose.Schema(
+  {
+    fullName: { type: String, default: '', trim: true },
+    phone: { type: String, default: '', trim: true },
+    line1: { type: String, default: '', trim: true },
+    line2: { type: String, default: '', trim: true },
+    city: { type: String, default: '', trim: true },
+    emirate: { type: String, default: '', trim: true },
+  },
+  { _id: false },
+);
+
 const platformSettingsSchema = new mongoose.Schema(
   {
     key: {
@@ -60,6 +72,12 @@ const platformSettingsSchema = new mongoose.Schema(
       default: CURRENCY,
       enum: [CURRENCY],
       required: true,
+    },
+
+    // Canonical MOTD warehouse for packing hops and last-mile pickup.
+    fulfillmentAddress: {
+      type: fulfillmentAddressSchema,
+      default: () => ({}),
     },
   },
   {

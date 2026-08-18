@@ -6,6 +6,7 @@ import TailorShop from '../models/TailorShop.js';
 import AddOn from '../models/AddOn.js';
 import ReadyMadeProduct from '../models/ReadyMadeProduct.js';
 import { normalizeShopPickupAddress } from '../utils/shopPickupAddress.js';
+import { isBillableShipmentType } from '../models/schemas/shipmentSchemas.js';
 
 export const PARCEL_TYPES = Object.freeze({
   FABRIC_TO_TAILOR: 'fabric_to_tailor',
@@ -13,6 +14,10 @@ export const PARCEL_TYPES = Object.freeze({
   ADDON_TO_CUSTOMER: 'addon_to_customer',
   TAILOR_TO_CUSTOMER: 'tailor_to_customer',
   RETAIL_TO_CUSTOMER: 'retail_to_customer',
+  TAILOR_TO_MOTD: 'tailor_to_motd',
+  ADDON_TO_MOTD: 'addon_to_motd',
+  RETAIL_TO_MOTD: 'retail_to_motd',
+  MOTD_TO_CUSTOMER: 'motd_to_customer',
 });
 
 const PARTY_KINDS = Object.freeze({
@@ -47,6 +52,10 @@ const DEFAULT_LABELS = {
   [PARCEL_TYPES.ADDON_TO_CUSTOMER]: 'Add-on → You',
   [PARCEL_TYPES.TAILOR_TO_CUSTOMER]: 'Tailor → You',
   [PARCEL_TYPES.RETAIL_TO_CUSTOMER]: 'Shop → You',
+  [PARCEL_TYPES.TAILOR_TO_MOTD]: 'Tailor → MOTD',
+  [PARCEL_TYPES.ADDON_TO_MOTD]: 'Add-on → MOTD',
+  [PARCEL_TYPES.RETAIL_TO_MOTD]: 'Shop → MOTD',
+  [PARCEL_TYPES.MOTD_TO_CUSTOMER]: 'Delivery to you',
 };
 
 function addressOriginId(address) {
@@ -58,50 +67,64 @@ function addressOriginId(address) {
 
 /**
  * Build a normalized parcel plan from unique route keys.
- * Fee = parcels.length × perParcelFee.
+ * Fee = billable parcel count × perParcelFee (packing hops are AED 0).
  */
 export function buildParcelPlan(parcelMap, perParcelFee) {
   const fee = typeof perParcelFee === 'number' && perParcelFee >= 0 ? perParcelFee : 30;
-  const parcels = Array.from(parcelMap.values()).map((entry) => ({
-    key: entry.key,
-    type: entry.type,
-    from: entry.from,
-    to: entry.to,
-    label: entry.label,
-    fee: roundMoney(fee),
-    fabricShopId: entry.fabricShopId ?? null,
-    tailorShopId: entry.tailorShopId ?? null,
-    addonIds: entry.addonIds ?? [],
-    itemIndexes: entry.itemIndexes ?? [],
-    pickupAddress: entry.pickupAddress ?? null,
-  }));
+  const parcels = Array.from(parcelMap.values()).map((entry) => {
+    const billable =
+      typeof entry.billable === 'boolean'
+        ? entry.billable
+        : isBillableShipmentType(entry.type);
+    return {
+      key: entry.key,
+      type: entry.type,
+      from: entry.from,
+      to: entry.to,
+      label: entry.label,
+      billable,
+      fee: billable ? roundMoney(fee) : 0,
+      fabricShopId: entry.fabricShopId ?? null,
+      tailorShopId: entry.tailorShopId ?? null,
+      addonIds: entry.addonIds ?? [],
+      itemIndexes: entry.itemIndexes ?? [],
+      pickupAddress: entry.pickupAddress ?? null,
+    };
+  });
 
-  const deliveryFee = roundMoney(parcels.length * fee);
+  const billableCount = parcels.filter((parcel) => parcel.billable).length;
+  const deliveryFee = roundMoney(billableCount * fee);
 
   return {
     parcels,
     deliveryFee,
-    parcelCount: parcels.length,
+    parcelCount: billableCount,
     perParcelFee: roundMoney(fee),
-    breakdown: parcels.map(({ key, type, label, fee: lineFee, from, to, pickupAddress }) => ({
-      key,
-      type,
-      label,
-      fee: lineFee,
-      from,
-      to,
-      pickupAddress: pickupAddress || null,
-    })),
+    breakdown: parcels.map(
+      ({ key, type, label, fee: lineFee, billable, from, to, pickupAddress }) => ({
+        key,
+        type,
+        label,
+        fee: lineFee,
+        billable,
+        from,
+        to,
+        pickupAddress: pickupAddress || null,
+      }),
+    ),
   };
 }
 
-function upsertParcel(map, { type, from, to, fabricShopId, tailorShopId, addonId, itemIndex, label, pickupAddress }) {
+function upsertParcel(map, { type, from, to, fabricShopId, tailorShopId, addonId, itemIndex, label, pickupAddress, billable }) {
   const key = parcelKey(type, from.id, to.id);
   const existing = map.get(key);
   if (existing) {
     if (addonId) existing.addonIds.push(idStr(addonId));
     if (typeof itemIndex === 'number') existing.itemIndexes.push(itemIndex);
     if (!existing.pickupAddress && pickupAddress) existing.pickupAddress = pickupAddress;
+    if (typeof billable === 'boolean' && existing.billable == null) {
+      existing.billable = billable;
+    }
     return;
   }
 
@@ -116,6 +139,7 @@ function upsertParcel(map, { type, from, to, fabricShopId, tailorShopId, addonId
     addonIds: addonId ? [idStr(addonId)] : [],
     itemIndexes: typeof itemIndex === 'number' ? [itemIndex] : [],
     pickupAddress: pickupAddress || null,
+    billable: typeof billable === 'boolean' ? billable : undefined,
   });
 }
 

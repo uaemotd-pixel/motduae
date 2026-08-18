@@ -38,7 +38,10 @@ import {
 } from "../services/notificationService.js";
 import { normalizeEmirate, UAE_EMIRATES, isValidEmirate } from "../utils/uaeAddress.js";
 import { createReadyCustomShipments } from "../services/shipmentService.js";
-import { normalizeShopPickupAddress } from "../utils/shopPickupAddress.js";
+import {
+  isEmptyShopPickupAddress,
+  normalizeShopPickupAddress,
+} from "../utils/shopPickupAddress.js";
 
 const adminRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -2265,6 +2268,7 @@ adminRouter.put(
       currency,
       returnDeductionPercent,
       returnAllowedDays,
+      fulfillmentAddress,
     } = req.body;
 
     const resolvedDeliveryFee =
@@ -2338,6 +2342,30 @@ adminRouter.put(
       return;
     }
 
+    let normalizedFulfillmentAddress;
+    if (fulfillmentAddress !== undefined) {
+      if (isEmptyShopPickupAddress(fulfillmentAddress)) {
+        normalizedFulfillmentAddress = {
+          fullName: "",
+          phone: "",
+          line1: "",
+          line2: "",
+          city: "",
+          emirate: "",
+        };
+      } else {
+        normalizedFulfillmentAddress =
+          normalizeShopPickupAddress(fulfillmentAddress);
+        if (!normalizedFulfillmentAddress) {
+          res.status(400).send({
+            message:
+              "fulfillmentAddress requires fullName, phone, line1, city, and emirate",
+          });
+          return;
+        }
+      }
+    }
+
     // 2. Fetch the current singleton record
     let settings = await PlatformSettings.findOne({});
     if (!settings) {
@@ -2360,6 +2388,9 @@ adminRouter.put(
     if (returnAllowedDays !== undefined)
       settings.returnAllowedDays = returnAllowedDays;
     if (currency !== undefined) settings.currency = currency; // Fixed AED standard in MVP layout
+    if (normalizedFulfillmentAddress !== undefined) {
+      settings.fulfillmentAddress = normalizedFulfillmentAddress;
+    }
 
     const updatedSettings = await settings.save();
     const settingsPayload = updatedSettings.toObject({ aliases: true });

@@ -27,6 +27,14 @@ export function isCompleteShopPickupAddress(address) {
   );
 }
 
+export function isEmptyShopPickupAddress(address) {
+  if (!address || typeof address !== "object") return true;
+
+  return ["fullName", "phone", "line1", "line2", "city", "emirate"].every(
+    (key) => !String(address[key] || "").trim(),
+  );
+}
+
 export function normalizeShopPickupAddress(address) {
   if (!address || typeof address !== "object") {
     return null;

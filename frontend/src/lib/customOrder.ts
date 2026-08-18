@@ -141,6 +141,7 @@ export interface CustomOrderDeliveryBreakdownLine {
   type: string;
   label: string;
   fee: number;
+  billable?: boolean;
   from?: { kind?: string; id?: string | null; label?: string };
   to?: { kind?: string; id?: string | null; label?: string };
 }

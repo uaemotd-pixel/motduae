@@ -4,8 +4,15 @@ import { useEffect, useState, FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
+import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddressFields";
 import toast from "react-hot-toast";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
+import {
+  emptyShopPickupAddress,
+  toUaeLocalPhoneDigits,
+  type ShopPickupAddress,
+} from "@/lib/fabricShop";
+import { pickupAddressErrors } from "@/lib/readyMadeAdmin";
 
 const TOAST_BASE = {
   position: "top-right" as const,
@@ -60,6 +67,9 @@ const translations = {
     successMessage: "Changes Saved Successfully.",
     errorMessage: "Failed to update Changes.",
     loading: "Loading settings...",
+    fulfillmentTitle: "MOTD fulfillment address",
+    fulfillmentHelp:
+      "Canonical warehouse for packing hops and last-mile pickup. Required before Shipa can create MOTD parcels.",
     validation: {
       deliveryFeeMin:
         "Per-parcel delivery fee must be a valid number greater than or equal to 0.",
@@ -91,6 +101,9 @@ const translations = {
     successMessage: "تم حفظ وتحديث إعدادات المنصة العالمية بنجاح.",
     errorMessage: "فشل في تحديث إعدادات المنصة.",
     loading: "جاري تحميل الإعدادات...",
+    fulfillmentTitle: "عنوان استيفاء MOTD",
+    fulfillmentHelp:
+      "عنوان المستودع المعتمد لرحلات التعبئة واستلام الميل الأخير. مطلوب قبل إنشاء طرود MOTD عبر شيبا.",
     validation: {
       deliveryFeeMin:
         "يجب أن تكون رسوم التوصيل لكل طرد قيمة صحيحة أكبر من أو تساوي 0.",
@@ -103,6 +116,43 @@ const translations = {
         "يجب أن يكون عدد أيام الإرجاع مسموحًا قيمة صحيحة أكبر من أو تساوي 0.",
     },
   },
+};
+
+function fulfillmentFromApi(
+  address?: ShopPickupAddress | null,
+): ShopPickupAddress {
+  if (!address || typeof address !== "object") return emptyShopPickupAddress();
+  return {
+    fullName: address.fullName || "",
+    phone: toUaeLocalPhoneDigits(address.phone),
+    line1: address.line1 || "",
+    line2: address.line2 || "",
+    city: address.city || "",
+    emirate: address.emirate || "",
+  };
+}
+
+function isFulfillmentEmpty(address: ShopPickupAddress): boolean {
+  return (
+    !address.fullName.trim() &&
+    !address.phone.trim() &&
+    !address.line1.trim() &&
+    !address.line2.trim() &&
+    !address.city.trim() &&
+    !address.emirate.trim()
+  );
+}
+
+type PlatformSettingsPayload = {
+  defaultDeliveryFee?: number;
+  perParcelDeliveryFee?: number;
+  defaultTailoringFee: number;
+  platformFee: number;
+  vatRate: number;
+  returnDeductionPercent: number;
+  returnAllowedDays: number;
+  currency: string;
+  fulfillmentAddress?: ShopPickupAddress;
 };
 
 export default function AdminSettingsGeneralPage() {
@@ -124,21 +174,16 @@ export default function AdminSettingsGeneralPage() {
     useState<string>("0");
   const [returnAllowedDays, setReturnAllowedDays] = useState<string>("0");
   const [currency, setCurrency] = useState<string>("AED");
+  const [fulfillmentAddress, setFulfillmentAddress] =
+    useState<ShopPickupAddress>(emptyShopPickupAddress());
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
         setLoading(true);
-        const data = await api.get<{
-          defaultDeliveryFee?: number;
-          perParcelDeliveryFee?: number;
-          defaultTailoringFee: number;
-          platformFee: number;
-          vatRate: number;
-          returnDeductionPercent: number;
-          returnAllowedDays: number;
-          currency: string;
-        }>("/api/admin/settings");
+        const data = await api.get<PlatformSettingsPayload>(
+          "/api/admin/settings",
+        );
 
         const parcelFee =
           data.perParcelDeliveryFee ?? data.defaultDeliveryFee ?? 30;
@@ -151,6 +196,7 @@ export default function AdminSettingsGeneralPage() {
         );
         setReturnAllowedDays((data.returnAllowedDays ?? 0).toString());
         setCurrency(data.currency || "AED");
+        setFulfillmentAddress(fulfillmentFromApi(data.fulfillmentAddress));
       } catch (err: unknown) {
         toast.error(getApiErrorMessage(err, t.errorMessage), ERROR_TOAST);
       } finally {
@@ -209,6 +255,10 @@ export default function AdminSettingsGeneralPage() {
       errors.returnAllowedDays = t.validation.returnAllowedDaysMin;
     }
 
+    if (!isFulfillmentEmpty(fulfillmentAddress)) {
+      Object.assign(errors, pickupAddressErrors(fulfillmentAddress));
+    }
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -229,20 +279,12 @@ export default function AdminSettingsGeneralPage() {
         returnDeductionPercent: parseFloat(returnDeductionPercent),
         returnAllowedDays: parseFloat(returnAllowedDays),
         currency,
+        fulfillmentAddress,
       };
 
       const response = await api.put<{
         message: string;
-        settings: {
-          defaultDeliveryFee?: number;
-          perParcelDeliveryFee?: number;
-          defaultTailoringFee: number;
-          platformFee: number;
-          vatRate: number;
-          returnDeductionPercent: number;
-          returnAllowedDays: number;
-          currency: string;
-        };
+        settings: PlatformSettingsPayload;
       }>("/api/admin/settings", payload);
 
       const saved = response.settings;
@@ -257,6 +299,7 @@ export default function AdminSettingsGeneralPage() {
       );
       setReturnAllowedDays((saved.returnAllowedDays ?? 0).toString());
       setCurrency(saved.currency || "AED");
+      setFulfillmentAddress(fulfillmentFromApi(saved.fulfillmentAddress));
       toast.success(t.successMessage, SUCCESS_TOAST);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, t.errorMessage), ERROR_TOAST);
@@ -395,6 +438,28 @@ export default function AdminSettingsGeneralPage() {
               />
             </FormField>
           </div>
+        </div>
+
+        <div className="pt-6 mt-6 border-t border-gray-100">
+          <ReadyMadePickupAddressFields
+            value={fulfillmentAddress}
+            onChange={(next) => {
+              setFulfillmentAddress(next);
+              setFieldErrors((prev) => {
+                const nextErrors = { ...prev };
+                delete nextErrors["pickupAddress.fullName"];
+                delete nextErrors["pickupAddress.phone"];
+                delete nextErrors["pickupAddress.line1"];
+                delete nextErrors["pickupAddress.line2"];
+                delete nextErrors["pickupAddress.city"];
+                delete nextErrors["pickupAddress.emirate"];
+                return nextErrors;
+              });
+            }}
+            fieldErrors={fieldErrors}
+            title={t.fulfillmentTitle}
+            description={t.fulfillmentHelp}
+          />
         </div>
 
         <div className="flex gap-3 pt-6 mt-6 border-t border-gray-100">
