@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useAuth, needsEmailVerification } from "@/context/AuthContext";
 import {
@@ -11,12 +11,17 @@ import VerifyEmailOtp, {
   type VerifyEmailMode,
 } from "@/components/auth/VerifyEmailOtp";
 import { AuthSplitSkeleton } from "@/components/ui/Skeleton";
+import {
+  cancelEmailChangeRequest,
+  fetchVerificationStatus,
+} from "@/lib/auth/emailVerification";
 
 const ACCOUNT_DEFAULT_NEXT = "/account?tab=profile";
 
 function resolveMode(raw: string | null): VerifyEmailMode {
   if (raw === "checkout") return "checkout";
   if (raw === "account") return "account";
+  if (raw === "email-change") return "email-change";
   return "signup";
 }
 
@@ -52,11 +57,14 @@ function VerifyEmailPageContent() {
   const locale = (params.locale as string) || "en";
   const nextParam = searchParams.get("next") || searchParams.get("redirect");
   const mode = resolveMode(searchParams.get("mode"));
+  const isEmailChange = mode === "email-change";
   const redirected = useRef(false);
   /** Once OTP UI is shown, keep it mounted through Verified → redirect (don't flash skeleton). */
   const heldVerifyUi = useRef(false);
+  const [changeReady, setChangeReady] = useState(false);
+  const [changeMasked, setChangeMasked] = useState("");
 
-  if (user && needsEmailVerification(user)) {
+  if (user && needsEmailVerification(user) && !isEmailChange) {
     heldVerifyUi.current = true;
   }
 
@@ -66,6 +74,10 @@ function VerifyEmailPageContent() {
     if (!user) {
       redirected.current = true;
       window.location.replace(`/${locale}/auth/login`);
+      return;
+    }
+
+    if (isEmailChange) {
       return;
     }
 
@@ -82,7 +94,60 @@ function VerifyEmailPageContent() {
       }
       navigateAfterLogin(user, nextParam, locale);
     }
-  }, [user, isLoading, locale, nextParam, mode]);
+  }, [user, isLoading, locale, nextParam, mode, isEmailChange]);
+
+  useEffect(() => {
+    if (!isEmailChange || isLoading || !user || redirected.current) return;
+
+    let cancelled = false;
+    fetchVerificationStatus()
+      .then((status) => {
+        if (cancelled || redirected.current) return;
+        if (!status.pendingEmail) {
+          redirected.current = true;
+          goToNextOrDefault(locale, nextParam, ACCOUNT_DEFAULT_NEXT);
+          return;
+        }
+        setChangeMasked(status.pendingEmail);
+        setChangeReady(true);
+      })
+      .catch(() => {
+        if (cancelled || redirected.current) return;
+        redirected.current = true;
+        goToNextOrDefault(locale, nextParam, ACCOUNT_DEFAULT_NEXT);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEmailChange, isLoading, user, locale, nextParam]);
+
+  const leaveChangeFlow = (cancelledChange: boolean) => {
+    const finish = () => {
+      if (nextParam) {
+        goToNextOrDefault(locale, nextParam, ACCOUNT_DEFAULT_NEXT);
+        return;
+      }
+      if (user?.role === "tailor") {
+        goToNextOrDefault(locale, "/tailor", "/tailor");
+        return;
+      }
+      if (user?.role === "fabric_store") {
+        goToNextOrDefault(locale, "/fabric", "/fabric");
+        return;
+      }
+      goToAccount(locale, nextParam);
+    };
+
+    if (!cancelledChange) {
+      finish();
+      return;
+    }
+
+    void cancelEmailChangeRequest()
+      .catch(() => {})
+      .finally(finish);
+  };
 
   if (isLoading) {
     return <AuthSplitSkeleton variant="otp" />;
@@ -90,6 +155,23 @@ function VerifyEmailPageContent() {
 
   if (!user) {
     return <AuthSplitSkeleton variant="form" />;
+  }
+
+  if (isEmailChange) {
+    if (!changeReady) {
+      return <AuthSplitSkeleton variant="otp" />;
+    }
+
+    return (
+      <VerifyEmailOtp
+        locale={locale}
+        mode="email-change"
+        pendingMaskedEmail={changeMasked}
+        nextPath={nextParam || ACCOUNT_DEFAULT_NEXT}
+        onSkip={() => leaveChangeFlow(true)}
+        onVerified={() => leaveChangeFlow(false)}
+      />
+    );
   }
 
   if (heldVerifyUi.current || needsEmailVerification(user)) {

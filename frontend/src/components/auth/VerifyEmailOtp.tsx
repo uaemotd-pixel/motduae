@@ -19,12 +19,16 @@ import {
   maskEmail,
   sendEmailOtpRequest,
   verifyEmailOtpRequest,
+  resendEmailChangeOtp,
+  verifyEmailChangeOtp,
+  fetchVerificationStatus,
+  type VerifyEmailMode,
 } from "@/lib/auth/emailVerification";
 import { getApiErrorMessage } from "@/lib/api/client";
 import logoBlack from "../../../public/PNG/Black/MOTD_Wordmark_Black.png";
 import * as images from "../../../public/images/ImageIndex";
 
-export type VerifyEmailMode = "signup" | "checkout" | "account";
+export type { VerifyEmailMode };
 
 type Phase = "idle" | "sent" | "verifying" | "verified" | "failed";
 
@@ -35,6 +39,7 @@ type Props = {
   locale: string;
   mode?: VerifyEmailMode;
   nextPath?: string | null;
+  pendingMaskedEmail?: string | null;
   onVerified?: () => void;
   onSkip?: () => void;
 };
@@ -43,6 +48,7 @@ export default function VerifyEmailOtp({
   locale,
   mode = "signup",
   nextPath,
+  pendingMaskedEmail,
   onVerified,
   onSkip,
 }: Props) {
@@ -50,6 +56,7 @@ export default function VerifyEmailOtp({
   const { user, applyUserResponse } = useAuth();
   const isPartner =
     user?.role === "tailor" || user?.role === "fabric_store";
+  const isEmailChange = mode === "email-change";
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(""));
@@ -57,14 +64,37 @@ export default function VerifyEmailOtp({
   const [isSending, setIsSending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [masked, setMasked] = useState(
-    user?.email ? maskEmail(user.email) : "",
+    pendingMaskedEmail || (user?.email ? maskEmail(user.email) : ""),
   );
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const verifyingRef = useRef(false);
 
   useEffect(() => {
+    if (pendingMaskedEmail) setMasked(pendingMaskedEmail);
+  }, [pendingMaskedEmail]);
+
+  useEffect(() => {
+    if (isEmailChange) return;
     if (user?.email) setMasked(maskEmail(user.email));
-  }, [user?.email]);
+  }, [user?.email, isEmailChange]);
+
+  useEffect(() => {
+    if (!isEmailChange) return;
+    let cancelled = false;
+    fetchVerificationStatus()
+      .then((status) => {
+        if (cancelled) return;
+        if (status.pendingEmail) setMasked(status.pendingEmail);
+        if (status.otpSent) {
+          setPhase("sent");
+          setCooldown(status.resendAvailableInSec || 0);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isEmailChange]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -89,7 +119,9 @@ export default function VerifyEmailOtp({
     setError("");
     setIsSending(true);
     try {
-      const res = await sendEmailOtpRequest();
+      const res = isEmailChange
+        ? await resendEmailChangeOtp()
+        : await sendEmailOtpRequest();
       if (res.maskedEmail) setMasked(res.maskedEmail);
       setCooldown(res.resendAvailableInSec || 60);
       setPhase("sent");
@@ -109,7 +141,9 @@ export default function VerifyEmailOtp({
     setPhase("verifying");
 
     try {
-      const response = await verifyEmailOtpRequest(code);
+      const response = isEmailChange
+        ? await verifyEmailChangeOtp(code)
+        : await verifyEmailOtpRequest(code);
       applyUserResponse(response as Parameters<typeof applyUserResponse>[0]);
       setPhase("verified");
       window.setTimeout(() => finishSuccess(), 900);
@@ -184,7 +218,9 @@ export default function VerifyEmailOtp({
             ? t.checkoutTitle
             : mode === "account"
               ? t.accountTitle
-              : t.title;
+              : mode === "email-change"
+                ? t.changeTitle
+                : t.title;
 
   const showDigits =
     phase === "sent" ||
@@ -244,7 +280,11 @@ export default function VerifyEmailOtp({
               {phase !== "verified" && phase !== "failed" && (
                 <>
                   <p className="font-body-md text-[14px] sm:text-[15px] text-black/50 leading-relaxed">
-                    {isPartner ? t.partnerSubtitle : t.subtitle}
+                    {isEmailChange
+                      ? t.changeSubtitle
+                      : isPartner
+                        ? t.partnerSubtitle
+                        : t.subtitle}
                   </p>
                   {masked ? (
                     <p className="mt-2 font-body-md text-[14px] text-black/70">
@@ -407,7 +447,21 @@ export default function VerifyEmailOtp({
               </form>
             )}
 
-            {(mode === "signup" ||
+            {isEmailChange &&
+            phase !== "verifying" &&
+            phase !== "verified" ? (
+              <button
+                type="button"
+                onClick={onSkip}
+                disabled={busy}
+                className="mt-8 w-full text-center font-label-sm text-[11px] text-black/40 uppercase tracking-[0.2em] hover:text-black/70"
+              >
+                {t.cancel}
+              </button>
+            ) : null}
+
+            {!isEmailChange &&
+            (mode === "signup" ||
               mode === "checkout" ||
               mode === "account") &&
             phase !== "verifying" &&

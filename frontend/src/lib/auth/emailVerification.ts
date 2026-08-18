@@ -1,6 +1,6 @@
 import { api, type ApiError } from "@/lib/api/client";
 
-export type VerifyEmailMode = "signup" | "checkout" | "account";
+export type VerifyEmailMode = "signup" | "checkout" | "account" | "email-change";
 
 /** Build absolute-path OTP URL; caller supplies `next` (path + query, no locale). */
 export function buildVerifyEmailHref(opts: {
@@ -17,6 +17,13 @@ export type SendOtpResponse = {
   expiresAt: string;
   resendAvailableInSec: number;
   maskedEmail?: string;
+  pendingEmail?: string;
+};
+
+export type StartEmailChangeResponse = {
+  ok: boolean;
+  pendingEmail?: string;
+  maskedEmail?: string;
 };
 
 export type VerificationStatusResponse = {
@@ -24,6 +31,7 @@ export type VerificationStatusResponse = {
   otpSent: boolean;
   resendAvailableInSec: number;
   maskedEmail: string;
+  pendingEmail?: string | null;
 };
 
 export function maskEmail(email: string): string {
@@ -58,6 +66,15 @@ export function isEmailVerificationGateError(error: unknown): boolean {
   return false;
 }
 
+export function canChangeAccountEmail(user: {
+  authProvider?: string;
+  hasPassword?: boolean;
+  isGuest?: boolean;
+} | null | undefined): boolean {
+  if (!user || user.isGuest) return false;
+  return user.authProvider === "local" && user.hasPassword === true;
+}
+
 export async function sendEmailOtpRequest() {
   return api.post<SendOtpResponse>("/api/users/email/send-otp");
 }
@@ -70,4 +87,26 @@ export async function fetchVerificationStatus() {
   return api.get<VerificationStatusResponse>(
     "/api/users/email/verification-status",
   );
+}
+
+export async function startEmailChangeRequest(payload: {
+  newEmail: string;
+  password: string;
+}) {
+  return api.post<StartEmailChangeResponse>(
+    "/api/users/email/change",
+    payload,
+  );
+}
+
+export async function resendEmailChangeOtp() {
+  return api.post<SendOtpResponse>("/api/users/email/change/resend");
+}
+
+export async function verifyEmailChangeOtp(code: string) {
+  return api.post("/api/users/email/change/verify", { code });
+}
+
+export async function cancelEmailChangeRequest() {
+  return api.post<{ ok: boolean }>("/api/users/email/change/cancel");
 }

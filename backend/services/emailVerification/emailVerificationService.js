@@ -4,8 +4,10 @@ import {
   OTP_TTL_MS,
   RESEND_COOLDOWN_MS,
   MAX_VERIFY_ATTEMPTS,
+  EMAIL_VERIFICATION_PURPOSES,
 } from "./otpPolicy.js";
 import { isEmailVerified } from "./isEmailVerified.js";
+import { isPendingEmailActive } from "./emailOccupancy.js";
 
 export class EmailVerificationError extends Error {
   constructor(code, message, status = 400, extra = {}) {
@@ -17,11 +19,11 @@ export class EmailVerificationError extends Error {
   }
 }
 
-function hashOtp(code) {
+export function hashOtp(code) {
   return crypto.createHash("sha256").update(String(code)).digest("hex");
 }
 
-function generateOtpCode() {
+export function generateOtpCode() {
   const max = 10 ** OTP_LENGTH;
   const num = crypto.randomInt(0, max);
   return String(num).padStart(OTP_LENGTH, "0");
@@ -37,7 +39,7 @@ function timingSafeEqualHash(a, b) {
 }
 
 /** Attempts filter: treat missing count as 0. */
-function attemptsBelowMaxFilter() {
+export function attemptsBelowMaxFilter() {
   return {
     $expr: {
       $lt: [
@@ -60,11 +62,16 @@ export function hasActiveOtp(user) {
   return Boolean(user?.emailVerificationOTPHash);
 }
 
+export function hasPendingEmailChange(user) {
+  return isPendingEmailActive(user);
+}
+
 export function clearOtpFields(user) {
   user.emailVerificationOTPHash = undefined;
   user.emailVerificationOTPExpires = undefined;
   user.emailVerificationOTPSentAt = undefined;
   user.emailVerificationAttemptCount = 0;
+  user.emailVerificationPurpose = undefined;
 }
 
 export function assertCanSend(user) {
@@ -101,6 +108,7 @@ export function issueOtp(user) {
   user.emailVerificationOTPExpires = expiresAt;
   user.emailVerificationOTPSentAt = sentAt;
   user.emailVerificationAttemptCount = 0;
+  user.emailVerificationPurpose = EMAIL_VERIFICATION_PURPOSES.VERIFY_EMAIL;
 
   return { code, expiresAt, sentAt };
 }
@@ -199,6 +207,7 @@ export async function verifyOtpAtomic(UserModel, userId, rawCode) {
       {
         _id: userId,
         emailVerified: false,
+        emailVerificationPurpose: { $ne: EMAIL_VERIFICATION_PURPOSES.CHANGE_EMAIL },
         emailVerificationOTPHash: { $exists: true, $nin: [null, ""] },
         emailVerificationOTPExpires: { $gt: now },
         ...attemptsBelowMaxFilter(),
@@ -228,6 +237,7 @@ export async function verifyOtpAtomic(UserModel, userId, rawCode) {
     {
       _id: userId,
       emailVerified: false,
+      emailVerificationPurpose: { $ne: EMAIL_VERIFICATION_PURPOSES.CHANGE_EMAIL },
       emailVerificationOTPHash: incomingHash,
       emailVerificationOTPExpires: { $gt: now },
       ...attemptsBelowMaxFilter(),
@@ -241,6 +251,7 @@ export async function verifyOtpAtomic(UserModel, userId, rawCode) {
         emailVerificationOTPHash: "",
         emailVerificationOTPExpires: "",
         emailVerificationOTPSentAt: "",
+        emailVerificationPurpose: "",
       },
     },
     { new: true },
@@ -255,6 +266,7 @@ export async function verifyOtpAtomic(UserModel, userId, rawCode) {
     {
       _id: userId,
       emailVerified: false,
+      emailVerificationPurpose: { $ne: EMAIL_VERIFICATION_PURPOSES.CHANGE_EMAIL },
       emailVerificationOTPHash: {
         $exists: true,
         $nin: [null, ""],
@@ -363,10 +375,13 @@ export function verifyOtp(user, rawCode) {
 
 export function getVerificationStatus(user) {
   const verified = isEmailVerified(user);
+  const changePending = hasPendingEmailChange(user);
   return {
     emailVerified: verified,
     otpSent: hasActiveOtp(user),
-    resendAvailableInSec: verified ? 0 : getResendAvailableInSec(user),
+    resendAvailableInSec:
+      changePending || !verified ? getResendAvailableInSec(user) : 0,
+    pendingEmail: user?.pendingEmail || null,
   };
 }
 

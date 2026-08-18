@@ -25,8 +25,21 @@ import {
   verifyOtpAtomic,
   getVerificationStatus,
   maskEmail,
+  hasPendingEmailChange,
 } from "../services/emailVerification/emailVerificationService.js";
 import { markPartnerSubmittedAfterEmailVerify } from "../services/emailVerification/partnerSubmission.js";
+import {
+  startEmailChange,
+  issueChangeOtp,
+  verifyChangeOtpAtomic,
+  cancelEmailChange,
+  isDuplicatePendingEmailError,
+} from "../services/emailVerification/emailChangeService.js";
+import {
+  ensureFreshEmailChange,
+  findEmailOccupant,
+  persistReleasedEmailChange,
+} from "../services/emailVerification/emailOccupancy.js";
 import {
   RESEND_COOLDOWN_MS,
   OTP_PURPOSES,
@@ -94,6 +107,13 @@ const sendEmailVerificationError = (res, error) => {
   return false;
 };
 
+const rejectIfEmailTaken = async (res, email) => {
+  const occupant = await findEmailOccupant(User, email);
+  if (!occupant) return false;
+  res.status(400).send({ message: "User already exists" });
+  return true;
+};
+
 const hashResetToken = (token) =>
   crypto.createHash("sha256").update(token).digest("hex");
 
@@ -111,7 +131,9 @@ userRouter.get(
   isAuth,
   isAdmin,
   expressAsyncHandler(async (_req, res) => {
-    const users = await User.find({}).select("-password -resetPasswordToken");
+    const users = await User.find({}).select(
+      "-password -resetPasswordToken -emailVerificationOTPHash -pendingEmail -pendingEmailExpiresAt -emailVerificationPurpose",
+    );
     res.send(users);
   }),
 );
@@ -121,7 +143,7 @@ userRouter.get(
   isAuth,
   expressAsyncHandler(async (req, res) => {
     const user = await User.findById(req.user._id).select(
-      "-resetPasswordToken -emailVerificationOTPHash",
+      "-resetPasswordToken -emailVerificationOTPHash -pendingEmail -pendingEmailExpiresAt -emailVerificationPurpose",
     );
     if (!user) {
       res.status(404).send({ message: "User not found" });
@@ -307,6 +329,10 @@ userRouter.post(
         return;
       }
 
+      if (await rejectIfEmailTaken(res, email)) {
+        return;
+      }
+
       const userFields = {
         name,
         email,
@@ -372,6 +398,10 @@ userRouter.post(
       res.status(404).send({
         message: "No account found. Please register first.",
       });
+      return;
+    }
+
+    if (await rejectIfEmailTaken(res, email)) {
       return;
     }
 
@@ -506,9 +536,7 @@ userRouter.post(
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const existingUser = await User.findOne({ email: normalizedEmail });
-    if (existingUser) {
-      res.status(400).send({ message: "User already exists" });
+    if (await rejectIfEmailTaken(res, normalizedEmail)) {
       return;
     }
 
@@ -545,9 +573,7 @@ userRouter.post(
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const existingUser = await User.findOne({ email: normalizedEmail });
-    if (existingUser) {
-      res.status(400).send({ message: "User already exists" });
+    if (await rejectIfEmailTaken(res, normalizedEmail)) {
       return;
     }
 
@@ -611,9 +637,7 @@ userRouter.post(
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const existingUser = await User.findOne({ email: normalizedEmail });
-    if (existingUser) {
-      res.status(400).send({ message: "User already exists" });
+    if (await rejectIfEmailTaken(res, normalizedEmail)) {
       return;
     }
 
@@ -662,10 +686,14 @@ userRouter.get(
       return;
     }
 
+    await ensureFreshEmailChange(User, user);
+
     const status = getVerificationStatus(user);
+    const { pendingEmail, ...rest } = status;
     res.json({
-      ...status,
+      ...rest,
       maskedEmail: maskEmail(user.email),
+      pendingEmail: pendingEmail ? maskEmail(pendingEmail) : null,
     });
   }),
 );
@@ -677,6 +705,16 @@ userRouter.post(
     const user = await User.findById(req.user._id);
     if (!user) {
       res.status(404).send({ message: "User not found" });
+      return;
+    }
+
+    await ensureFreshEmailChange(User, user);
+
+    if (hasPendingEmailChange(user)) {
+      res.status(409).send({
+        code: "EMAIL_CHANGE_PENDING",
+        message: "Finish or cancel your email change first",
+      });
       return;
     }
 
@@ -713,6 +751,16 @@ userRouter.post(
   expressAsyncHandler(async (req, res) => {
     const { code } = req.body || {};
 
+    const current = await User.findById(req.user._id).select("pendingEmail pendingEmailExpiresAt");
+    await ensureFreshEmailChange(User, current);
+    if (hasPendingEmailChange(current)) {
+      res.status(409).send({
+        code: "EMAIL_CHANGE_PENDING",
+        message: "Finish or cancel your email change first",
+      });
+      return;
+    }
+
     let user;
     try {
       const result = await verifyOtpAtomic(User, req.user._id, code);
@@ -736,6 +784,121 @@ userRouter.post(
   }),
 );
 
+userRouter.post(
+  "/email/change",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      res.status(404).send({ message: "User not found" });
+      return;
+    }
+
+    await ensureFreshEmailChange(User, user);
+
+    const { newEmail, password } = req.body || {};
+
+    try {
+      await startEmailChange(User, user, newEmail, password, {
+        isGuest: req.user?.isGuest,
+      });
+      await user.save({ validateBeforeSave: false });
+    } catch (error) {
+      if (sendEmailVerificationError(res, error)) return;
+      if (isDuplicatePendingEmailError(error)) {
+        res.status(409).send({
+          code: "EMAIL_TAKEN",
+          message: "This email is already in use",
+        });
+        return;
+      }
+      throw error;
+    }
+
+    res.json({
+      ok: true,
+      pendingEmail: maskEmail(user.pendingEmail),
+      maskedEmail: maskEmail(user.pendingEmail),
+    });
+  }),
+);
+
+userRouter.post(
+  "/email/change/resend",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      res.status(404).send({ message: "User not found" });
+      return;
+    }
+
+    await ensureFreshEmailChange(User, user);
+
+    let issued;
+    try {
+      issued = issueChangeOtp(user);
+    } catch (error) {
+      if (sendEmailVerificationError(res, error)) return;
+      throw error;
+    }
+
+    await user.save({ validateBeforeSave: false });
+
+    await sendOtpEmail({
+      to: user.pendingEmail,
+      name: user.name,
+      otp: issued.code,
+      userId: user._id,
+      purpose: OTP_PURPOSES.CHANGE_EMAIL,
+    });
+
+    res.json({
+      ok: true,
+      expiresAt: issued.expiresAt,
+      resendAvailableInSec: Math.ceil(RESEND_COOLDOWN_MS / 1000),
+      maskedEmail: maskEmail(user.pendingEmail),
+      pendingEmail: maskEmail(user.pendingEmail),
+    });
+  }),
+);
+
+userRouter.post(
+  "/email/change/verify",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    const { code } = req.body || {};
+
+    let user;
+    try {
+      const result = await verifyChangeOtpAtomic(User, req.user._id, code);
+      user = result.user;
+    } catch (error) {
+      if (sendEmailVerificationError(res, error)) return;
+      throw error;
+    }
+
+    sendUserResponse(res, user);
+  }),
+);
+
+userRouter.post(
+  "/email/change/cancel",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      res.status(404).send({ message: "User not found" });
+      return;
+    }
+
+    cancelEmailChange(user);
+    await persistReleasedEmailChange(User, user._id);
+
+    res.json({ ok: true });
+  }),
+);
+
 userRouter.put(
   "/profile",
   isAuth,
@@ -748,9 +911,6 @@ userRouter.put(
 
     if (req.body.name) {
       user.name = req.body.name.trim();
-    }
-    if (req.body.email) {
-      user.email = req.body.email.toLowerCase().trim();
     }
 
     const updatedUser = await user.save();

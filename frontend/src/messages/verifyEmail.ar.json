@@ -24,6 +24,17 @@
     "profileVerify": "تحقق",
     "gateCheckoutMessage": "تحقق من بريدك لإتمام هذا الطلب.",
     "verifyNow": "تحقق الآن",
-    "redirecting": "جارٍ إعادة التوجيه"
+    "redirecting": "جارٍ إعادة التوجيه",
+    "changeTitle": "أكد بريدك الجديد",
+    "changeSubtitle": "سنرسل رمزًا من 6 أرقام إلى",
+    "cancel": "إلغاء",
+    "changeEmail": "تغيير",
+    "changeEmailHeading": "تغيير البريد",
+    "changeEmailHint": "سنرسل رمزًا إلى العنوان الجديد. يبقى بريدك الحالي حتى تتحقق.",
+    "newEmail": "البريد الجديد",
+    "currentPassword": "كلمة المرور الحالية",
+    "continueChange": "متابعة",
+    "pendingChangeBody": "تغيير البريد جارٍ. سنرسل الرمز إلى",
+    "pendingChangeResume": "استئناف"
   }
 }
