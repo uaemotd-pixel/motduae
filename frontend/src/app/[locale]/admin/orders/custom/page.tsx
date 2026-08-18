@@ -11,11 +11,12 @@ import AdminOrdersTabs from "@/components/admin/AdminOrdersTabs";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import {
   formatOrderDate,
-  getNextCustomOrderStatus,
-  getPreviousCustomOrderStatus,
+  getAdminAssignableStatuses,
+  getAdminTimelineNeighbors,
   isCustomOrderStatus,
   CUSTOM_ORDER_STATUSES,
   type CustomOrderStatus,
+  type CustomOrderStatusHistoryEntry,
 } from "@/lib/customOrders";
 import type { Locale } from "@/i18n/routing";
 import { ImageModal } from "@/components/shared/ImageModal";
@@ -74,7 +75,9 @@ interface Order {
   fabricSnapshot?: { name: string } | null;
   fabricId?: FabricPopulated | string | null;
   status: string;
+  statusHistory?: CustomOrderStatusHistoryEntry[];
   createdAt: string;
+  returnItems?: unknown[];
   pricing: {
     total: number;
     currency: string;
@@ -212,12 +215,31 @@ export default function AdminCustomOrdersPage() {
     order: Order,
     newStatus: CustomOrderStatus,
   ) => {
+    if (order.status === newStatus) return;
+
     setUpdatingOrderId(order._id);
     try {
-      await api.patch(`/api/admin/orders/custom/${order._id}/status`, {
-        status: newStatus,
-        note: note[order._id] || "",
-      });
+      if (newStatus === "return_approved") {
+        await api.post(
+          `/api/admin/orders/custom/${order._id}/return-approve`,
+          {},
+        );
+      } else if (newStatus === "return_rejected") {
+        await api.post(
+          `/api/admin/orders/custom/${order._id}/return-reject`,
+          {},
+        );
+      } else if (newStatus === "refund_processed") {
+        await api.post(
+          `/api/admin/orders/custom/${order._id}/refund-process`,
+          {},
+        );
+      } else {
+        await api.patch(`/api/admin/orders/custom/${order._id}/status`, {
+          status: newStatus,
+          note: note[order._id] || "",
+        });
+      }
 
       toast.success(t("updateSuccess"), SUCCESS_TOAST);
       await fetchOrders();
@@ -495,8 +517,6 @@ export default function AdminCustomOrdersPage() {
         <div className="space-y-4">
           {paginatedOrders.map((order) => {
             const isUpdating = updatingOrderId === order._id;
-            const nextStatus = getNextCustomOrderStatus(order.status);
-            const previousStatus = getPreviousCustomOrderStatus(order.status);
             const isGuest =
               order.userId &&
               typeof order.userId === "object" &&
@@ -524,6 +544,28 @@ export default function AdminCustomOrdersPage() {
             const orderFabricImage = getFabricImage(order.fabricId);
             const orderDesignImage = getDesignImage(order.designId);
             const orderTailorLogo = getTailorLogo(order.tailorShopId);
+            const timelineStatus = isCustomOrderStatus(order.status)
+              ? order.status
+              : "pending";
+            const hasReturnItems =
+              (order.returnItems?.length || 0) > 0 ||
+              [
+                "return_requested",
+                "return_approved",
+                "return_rejected",
+                "refund_processed",
+              ].includes(timelineStatus);
+            const { previous: previousStatus, next: nextStatus } =
+              getAdminTimelineNeighbors(
+                timelineStatus,
+                order.statusHistory || [],
+                hasReturnItems,
+              );
+            const assignableStatuses = getAdminAssignableStatuses(
+              timelineStatus,
+              order.statusHistory || [],
+              hasReturnItems,
+            );
 
             return (
               <div
@@ -783,15 +825,32 @@ export default function AdminCustomOrdersPage() {
                       disabled={isUpdating}
                     />
 
+                    <select
+                      aria-label={t("setStatus")}
+                      value={timelineStatus}
+                      disabled={isUpdating}
+                      onChange={(e) =>
+                        handleStatusChange(
+                          order,
+                          e.target.value as CustomOrderStatus,
+                        )
+                      }
+                      className="border border-gray-200 rounded-lg px-3 py-2 text-xs text-black bg-white focus:outline-none focus:border-black hover:cursor-pointer disabled:opacity-50 min-w-40"
+                    >
+                      {assignableStatuses.map((status) => (
+                        <option key={status} value={status}>
+                          {statusLabel(status)}
+                        </option>
+                      ))}
+                    </select>
+
                     {previousStatus && (
                       <button
                         type="button"
                         onClick={() =>
                           handleStatusChange(order, previousStatus)
                         }
-                        disabled={
-                          isUpdating || order.status === "return_requested"
-                        }
+                        disabled={isUpdating}
                         className="border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-35 hover:bg-gray-100 disabled:opacity-50 hover:cursor-pointer transition"
                       >
                         {isUpdating ? (
@@ -804,15 +863,11 @@ export default function AdminCustomOrdersPage() {
                       </button>
                     )}
 
-                    {nextStatus && (
+                    {nextStatus && nextStatus !== "refund_processed" && (
                       <button
                         type="button"
                         onClick={() => handleStatusChange(order, nextStatus)}
-                        disabled={
-                          isUpdating ||
-                          order.status === "delivered" ||
-                          ["return_requested"].includes(nextStatus)
-                        }
+                        disabled={isUpdating}
                         className="bg-black text-white px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-35 disabled:opacity-50 hover:cursor-pointer transition font-medium"
                       >
                         {isUpdating ? (
@@ -821,6 +876,56 @@ export default function AdminCustomOrdersPage() {
                           t("advanceTo", {
                             status: statusLabel(nextStatus),
                           })
+                        )}
+                      </button>
+                    )}
+
+                    {timelineStatus === "return_requested" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleStatusChange(order, "return_approved")
+                          }
+                          disabled={isUpdating}
+                          className="bg-green-600 text-white px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-35 disabled:opacity-50 hover:bg-green-700 hover:cursor-pointer transition font-medium"
+                        >
+                          {isUpdating ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                          ) : (
+                            t("approveReturn")
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleStatusChange(order, "return_rejected")
+                          }
+                          disabled={isUpdating}
+                          className="bg-red-600 text-white px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-35 disabled:opacity-50 hover:bg-red-700 hover:cursor-pointer transition font-medium"
+                        >
+                          {isUpdating ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                          ) : (
+                            t("rejectReturn")
+                          )}
+                        </button>
+                      </>
+                    )}
+
+                    {timelineStatus === "return_approved" && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleStatusChange(order, "refund_processed")
+                        }
+                        disabled={isUpdating}
+                        className="bg-green-600 text-white px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 min-w-35 disabled:opacity-50 hover:bg-green-700 hover:cursor-pointer transition font-medium"
+                      >
+                        {isUpdating ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                        ) : (
+                          t("processRefund")
                         )}
                       </button>
                     )}

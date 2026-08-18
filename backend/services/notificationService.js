@@ -310,7 +310,7 @@ export async function notifyCustomReturnApproved(order, createdBy) {
 
 export async function notifyCustomReturnRejected(order, createdBy) {
   return createNotification({
-    type: "custom_return_rejected",
+    type: "return_rejected",
     title: "Return request rejected",
     message: `Your return request for order ${order._id} has been rejected.`,
     audience: "customer",
@@ -318,7 +318,7 @@ export async function notifyCustomReturnRejected(order, createdBy) {
     orderType: "custom",
     orderId: order._id,
     createdBy,
-    dedupeKey: `customer:custom_return_rejected:${order._id}`,
+    dedupeKey: `customer:return_rejected:${order._id}`,
   });
 }
 

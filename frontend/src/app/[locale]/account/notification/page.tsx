@@ -388,6 +388,12 @@ export default function CustomerNotificationPage() {
                                 []) as CustomOrderStatusHistoryEntry[]
                             }
                             locale={locale}
+                            hasReturnItems={[
+                              "return_requested",
+                              "return_approved",
+                              "return_rejected",
+                              "refund_processed",
+                            ].includes(n.status as CustomOrderStatus)}
                           />
                         </div>
                       )}

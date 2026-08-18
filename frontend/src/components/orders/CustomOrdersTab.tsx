@@ -1365,6 +1365,15 @@ export default function CustomOrdersTab({
                           currentStatus={detail.status}
                           statusHistory={detail.statusHistory || []}
                           locale={locale}
+                          hasReturnItems={
+                            (detail.returnItems?.length || 0) > 0 ||
+                            [
+                              "return_requested",
+                              "return_approved",
+                              "return_rejected",
+                              "refund_processed",
+                            ].includes(detail.status)
+                          }
                         />
                       </>
                     )}

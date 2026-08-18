@@ -1041,6 +1041,12 @@ orderRoutes.post("/custom/:id/return-request", isAuth, async (req, res) => {
     order.returnComment =
       typeof returnComment === "string" ? returnComment : "";
     order.returnPickupAddress = normalizedReturnPickupAddress;
+    order.returnItems =
+      Array.isArray(order.items) && order.items.length > 0
+        ? order.items.map((item) => ({
+            orderItemId: item._id,
+          }))
+        : [{ orderId: order._id }];
 
     order.status = "return_requested";
     order.statusHistory = [
@@ -1160,6 +1166,13 @@ orderRoutes.post("/custom/:id/refund-process", isAuth, async (req, res) => {
       });
     }
 
+    if (!Array.isArray(order.returnItems) || order.returnItems.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Refund cannot be processed without return items",
+      });
+    }
+
     // Process actual refund logic here (payment gateway integration)
     // ...
 
@@ -1233,6 +1246,7 @@ orderRoutes.post("/custom/:id/mark-received", isAuth, async (req, res) => {
     }
 
     order.status = "delivered";
+    order.returnItems = [];
     order.statusHistory = [
       ...(order.statusHistory || []),
       {
