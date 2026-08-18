@@ -962,6 +962,7 @@ orderRoutes.get(
     }
 
     const payload = settings.toObject({ aliases: true });
+    delete payload.fulfillmentAddress;
     res.send({
       ...payload,
       perParcelDeliveryFee:

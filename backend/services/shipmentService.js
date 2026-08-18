@@ -3,13 +3,17 @@ import CustomOrder from "../models/CustomOrder.js";
 import RetailOrder from "../models/RetailOrder.js";
 import FabricShop from "../models/FabricShop.js";
 import TailorShop from "../models/TailorShop.js";
+import PlatformSettings from "../models/PlatformSettings.js";
 import {
   CUSTOMER_BOUND_TYPES,
   FABRIC_LEG_TYPES,
   SHIPMENT_STATUSES,
+  isBillableShipmentType,
+  requiresMotdFulfillmentAddress,
 } from "../models/schemas/shipmentSchemas.js";
 import { PARCEL_TYPES } from "./parcelPlanService.js";
 import { getShipaClient } from "./shipa/shipaClient.js";
+import { normalizeShopPickupAddress } from "../utils/shopPickupAddress.js";
 import {
   notifyCustomStatusChange,
   notifyRetailStatusChange,
@@ -186,6 +190,10 @@ export function ensurePlannedShipments(order, orderKind = detectOrderKind(order)
       fabricShopId: linked.fabricShopId,
       tailorShopId: linked.tailorShopId,
       pickupAddress: entry.pickupAddress || null,
+      billable:
+        typeof entry.billable === "boolean"
+          ? entry.billable
+          : isBillableShipmentType(entry.type),
       status: "planned",
       events: [],
     };
@@ -194,7 +202,12 @@ export function ensurePlannedShipments(order, orderKind = detectOrderKind(order)
   return order;
 }
 
-async function resolvePartyAddress(party, order, orderKind) {
+async function resolveMotdFulfillmentAddress() {
+  const settings = await PlatformSettings.getSettings();
+  return normalizeShopPickupAddress(settings?.fulfillmentAddress);
+}
+
+async function resolvePartyAddress(party, order, orderKind, motdAddress = null) {
   const kind = party?.kind;
 
   if (kind === "customer") {
@@ -233,7 +246,9 @@ async function resolvePartyAddress(party, order, orderKind) {
   }
 
   if (kind === "motd") {
-    return emptyAddress();
+    if (motdAddress) return normalizeAddress(motdAddress);
+    const fulfillment = await resolveMotdFulfillmentAddress();
+    return fulfillment ? normalizeAddress(fulfillment) : emptyAddress();
   }
 
   return emptyAddress();
@@ -448,6 +463,15 @@ export async function createShipmentsForOrder(
   const skipped = [];
   const errors = [];
 
+  const needsMotdAddress = order.shipments.some(
+    (shipment) =>
+      requiresMotdFulfillmentAddress(shipment.type) &&
+      (!filter || filter.has(shipment.type)),
+  );
+  const motdAddress = needsMotdAddress
+    ? await resolveMotdFulfillmentAddress()
+    : null;
+
   for (const shipment of order.shipments) {
     if (filter && !filter.has(shipment.type)) {
       skipped.push({ parcelKey: shipment.parcelKey, reason: "type_filtered" });
@@ -474,15 +498,30 @@ export async function createShipmentsForOrder(
       continue;
     }
 
+    if (requiresMotdFulfillmentAddress(shipment.type) && !motdAddress) {
+      errors.push({
+        parcelKey: shipment.parcelKey,
+        error:
+          "MOTD fulfillment address is incomplete — set it in Admin → Settings before creating this parcel",
+      });
+      continue;
+    }
+
     const plannedPickup = normalizeAddress(shipment.pickupAddress);
     const pickupAddress =
       plannedPickup.line1
         ? plannedPickup
-        : await resolvePartyAddress(shipment.from, order, orderKind);
+        : await resolvePartyAddress(
+            shipment.from,
+            order,
+            orderKind,
+            motdAddress,
+          );
     const dropoffAddress = await resolvePartyAddress(
       shipment.to,
       order,
       orderKind,
+      motdAddress,
     );
 
     if (!pickupAddress.line1 || !dropoffAddress.line1) {
