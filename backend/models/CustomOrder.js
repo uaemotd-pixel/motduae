@@ -166,6 +166,7 @@ const pricingSchema = new mongoose.Schema(
               city: { type: String, default: "", trim: true },
               emirate: { type: String, default: "", trim: true },
             },
+            billable: { type: Boolean, default: true },
           },
           { _id: false },
         ),
@@ -336,6 +337,7 @@ const customOrderSchema = new mongoose.Schema(
     },
     isPaid: { type: Boolean, default: false, required: true },
     paidAt: { type: Date, default: null },
+    packedAt: { type: Date, default: null },
     stripePaymentIntentId: { type: String, default: null, trim: true },
     assignedDeliveryId: {
       type: mongoose.Schema.Types.ObjectId,

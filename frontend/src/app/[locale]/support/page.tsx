@@ -43,8 +43,8 @@ export default function SupportPage() {
                                 <p className="text-[13px] text-[#8A8A80] mb-4">
                                     {isAr ? "راسلنا في أي وقت وسنقوم بالرد خلال 24 ساعة." : "Reach out anytime. We respond within 24 hours."}
                                 </p>
-                                <a href="mailto:support@motd.ae" className="text-sm font-medium text-black underline block hover:opacity-75">
-                                    support@motd.ae
+                                <a href="mailto:care@motd.ae" className="text-sm font-medium text-black underline block hover:opacity-75">
+                                    care@motd.ae
                                 </a>
                             </div>
 
@@ -58,8 +58,8 @@ export default function SupportPage() {
                                 <p className="text-[13px] text-[#8A8A80] mb-4">
                                     {isAr ? "متاح من الاثنين إلى السبت، 9 صباحًا - 6 مساءً." : "Available Mon-Sat, 9 AM to 6 PM."}
                                 </p>
-                                <a href="tel:+97140000000" className="text-sm font-medium text-black underline block hover:opacity-75">
-                                    +971 4 000 0000
+                                <a href="tel:+971569722533" className="text-sm font-medium text-black underline block hover:opacity-75">
+                                    +971 56 972 5233
                                 </a>
                             </div>
 

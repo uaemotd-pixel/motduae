@@ -60,6 +60,7 @@ export default function OrderReviewStep() {
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [shippingFee, setShippingFee] = useState<number | null>(null);
   const [vatRate, setVatRate] = useState<number | null>(null);
+  const [settingsError, setSettingsError] = useState(false);
 
   const [addons, setAddons] = useState<any[]>([]);
   const [loadingAddons, setLoadingAddons] = useState(false);
@@ -105,10 +106,10 @@ export default function OrderReviewStep() {
           data.perParcelDeliveryFee ?? data.defaultDeliveryFee ?? 30,
         );
         setVatRate(data.vatRate);
+        setSettingsError(false);
       } catch (error) {
         console.error("Failed to fetch settings:", error);
-        setShippingFee(30);
-        setVatRate(0.05);
+        setSettingsError(true);
       }
     };
     fetchSettings();
@@ -158,7 +159,7 @@ export default function OrderReviewStep() {
     fetchPreview();
   }, [isHydrated, previewPayload, deliveryType, t, shippingFee, vatRate, draft.addonIds]);
 
-  const canContinue = isReviewStepComplete(draft, pricing !== null);
+  const canContinue = isReviewStepComplete(draft, pricing !== null) && !settingsError && vatRate !== null;
 
   const getDisplayName = (name?: string, nameAr?: string) =>
     locale === "ar" ? nameAr || name : name;
@@ -424,6 +425,19 @@ export default function OrderReviewStep() {
           <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
             {t("pricingTitle")}
           </h2>
+
+          {settingsError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-sans flex flex-col gap-2 shadow-[0_2px_8px_rgba(239,68,68,0.04)]">
+              <p className="font-semibold text-red-800 text-xs uppercase tracking-wider">
+                {locale === "ar" ? "خطأ في الاتصال بالخادم" : "Server Connection Error"}
+              </p>
+              <p className="text-xs leading-normal">
+                {locale === "ar"
+                  ? "تعذر تحميل إعدادات ضريبة القيمة المضافة والشحن. يرجى محاولة إعادة تحميل الصفحة للمتابعة."
+                  : "Unable to retrieve VAT and shipping configurations. Please refresh the page to proceed."}
+              </p>
+            </div>
+          )}
 
           {pricingError ? (
             <p className="text-red-600 py-8">{pricingError}</p>

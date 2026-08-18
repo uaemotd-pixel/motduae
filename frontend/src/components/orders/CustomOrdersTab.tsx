@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { resolveDesignImage } from "@/lib/tailors";
 import { resolveFabricImage } from "@/lib/fabrics";
 import { resolveReadyMadeImage } from "@/lib/readyMade";
+import { resolveMediaUrl } from "@/lib/media";
 import { useMemo } from "react";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -676,13 +677,7 @@ export default function CustomOrdersTab({
                               <h4 className="text-sm font-semibold text-black leading-tight line-clamp-2">
                                 {designName}
                               </h4>
-                              {tailorName && (
-                                <p className="text-[10px] uppercase tracking-widest text-black/40 font-ui flex items-center gap-1.5 mt-1">
-                                  <span className="w-1.5 h-1.5 bg-black/20 rounded-full inline-block" />
-                                  {locale === "ar" ? "الخياط: " : "Tailor: "}{" "}
-                                  <span className="font-semibold text-black/60">{tailorName}</span>
-                                </p>
-                              )}
+
                             </div>
                           </div>
                         );
@@ -743,15 +738,7 @@ export default function CustomOrdersTab({
                               <h4 className="text-sm font-semibold text-black leading-tight line-clamp-2">
                                 {fabricName}
                               </h4>
-                              <span className={`inline-block text-[8px] uppercase tracking-wider font-semibold font-ui px-2 py-0.5 rounded border ${
-                                isSelf
-                                  ? "bg-amber-50 text-amber-800 border-amber-200"
-                                  : "bg-green-50 text-green-800 border-green-200"
-                              }`}>
-                                {isSelf
-                                  ? (locale === "ar" ? "قماش خاص" : "Customer's Own Fabric")
-                                  : (locale === "ar" ? "قماش من المتجر" : "Storefront Fabric")}
-                              </span>
+
                             </div>
                           </div>
                         );
@@ -768,22 +755,49 @@ export default function CustomOrdersTab({
                       <span>{locale === "ar" ? "الإضافات" : "SELECTED ADD-ONS"}</span>
                     </div>
                     <div className="border border-black/5 rounded-xl p-5 bg-[#FAF9F6]/60 w-full shadow-[inset_0_1px_3px_rgba(0,0,0,0.01)]">
-                      <ul className="divide-y divide-black/5">
+                      <ul className="divide-y divide-black/5 font-sans">
                         {order.addons.map((addon: any, idx: number) => {
                           const name =
                             locale === "ar"
                               ? addon.nameAr || addon.name
                               : addon.name;
+                          const addOnImage = addon.thumbnailImage;
                           return (
                             <li
                               key={idx}
-                              className="flex justify-between items-center text-xs py-2.5 first:pt-0 last:pb-0"
+                              className="flex justify-between items-center text-xs py-2.5 first:pt-0 last:pb-0 gap-4"
                             >
-                              <span className="font-medium text-black/70 flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 bg-black rounded-full" />
-                                {name}
-                              </span>
-                              <span className="font-bold text-black">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-[#F0EBE3] overflow-hidden rounded-lg border border-black/5 shrink-0 flex items-center justify-center relative">
+                                  {addOnImage ? (
+                                    <>
+                                      <img
+                                        src={resolveMediaUrl(addOnImage)}
+                                        alt={name}
+                                        className="w-full h-full object-cover"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleImageClick(
+                                            resolveMediaUrl(addOnImage),
+                                            name,
+                                          )
+                                        }
+                                        className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
+                                      >
+                                        <Maximize2 className="w-3.5 h-3.5 text-white" />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
+                                      <Package size={16} />
+                                    </div>
+                                  )}
+                                </div>
+                                <span className="font-medium text-black/70">{name}</span>
+                              </div>
+                              <span className="font-bold text-black shrink-0">
                                 {formatCurrency(addon.price, locale)}
                               </span>
                             </li>
