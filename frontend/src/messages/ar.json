@@ -1256,6 +1256,10 @@
       "notePlaceholder": "ملاحظة (اختياري)",
       "advanceTo": "الانتقال إلى {status}",
       "revertTo": "الرجوع إلى {status}",
+      "setStatus": "تعيين الحالة",
+      "approveReturn": "الموافقة على الإرجاع",
+      "rejectReturn": "رفض الإرجاع",
+      "processRefund": "معالجة الاسترداد",
       "pipelineComplete": "تم التسليم — اكتمل سير العمل",
       "tabs": {
         "retail": "طلبات التجزئة",

@@ -1043,6 +1043,10 @@
       "notePlaceholder": "Note (optional)",
       "advanceTo": "Advance to {status}",
       "revertTo": "Revert to {status}",
+      "setStatus": "Set status",
+      "approveReturn": "Approve return",
+      "rejectReturn": "Reject return",
+      "processRefund": "Process refund",
       "pipelineComplete": "Delivered — workflow complete",
       "tabs": {
         "retail": "Retail orders",

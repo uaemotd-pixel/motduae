@@ -105,6 +105,7 @@ export interface CustomOrderDetail {
   status: CustomOrderStatus;
   fabricSource: "storefront" | "self";
   fabricMeters?: number;
+  returnItems?: unknown[];
   statusHistory: CustomOrderStatusHistoryEntry[];
   designSnapshot?: CustomOrderDesignSummary & { basePrice?: number };
   items?: CustomOrderLineItemSummary[];
@@ -152,6 +153,11 @@ export type RetailOrderListItem = {
   }>;
 };
 
+export const CUSTOM_ORDER_BASE_STATUSES = CUSTOM_ORDER_STATUSES.slice(
+  0,
+  8,
+) as CustomOrderStatus[];
+
 export function getCustomOrderStatusIndex(status: CustomOrderStatus): number {
   return CUSTOM_ORDER_STATUSES.indexOf(status);
 }
@@ -162,22 +168,113 @@ export function isCustomOrderStatus(
   return CUSTOM_ORDER_STATUSES.includes(status as CustomOrderStatus);
 }
 
+export function getCustomOrderTimelineStatuses(
+  currentStatus: CustomOrderStatus,
+  _statusHistory: CustomOrderStatusHistoryEntry[] = [],
+  _hasReturnItems = false,
+): CustomOrderStatus[] {
+  const baseStatuses = CUSTOM_ORDER_BASE_STATUSES;
+
+  if (currentStatus === "return_rejected") {
+    return [...baseStatuses, "return_requested", "return_rejected"];
+  }
+
+  if (
+    currentStatus === "return_approved" ||
+    currentStatus === "refund_processed"
+  ) {
+    return [
+      ...baseStatuses,
+      "return_requested",
+      "return_approved",
+      "refund_processed",
+    ];
+  }
+
+  if (currentStatus === "return_requested") {
+    return [...baseStatuses, "return_requested"];
+  }
+
+  return baseStatuses;
+}
+
+export function getAdminTimelineNeighbors(
+  currentStatus: CustomOrderStatus,
+  statusHistory: CustomOrderStatusHistoryEntry[] = [],
+  hasReturnItems = false,
+): { previous: CustomOrderStatus | null; next: CustomOrderStatus | null } {
+  const displayed = getCustomOrderTimelineStatuses(
+    currentStatus,
+    statusHistory,
+    hasReturnItems,
+  );
+  const index = displayed.indexOf(currentStatus);
+
+  return {
+    previous: index > 0 ? displayed[index - 1] : null,
+    next:
+      index >= 0 && index < displayed.length - 1 ? displayed[index + 1] : null,
+  };
+}
+
+export function getAdminAssignableStatuses(
+  currentStatus: CustomOrderStatus,
+  statusHistory: CustomOrderStatusHistoryEntry[] = [],
+  hasReturnItems = false,
+): CustomOrderStatus[] {
+  const displayed = getCustomOrderTimelineStatuses(
+    currentStatus,
+    statusHistory,
+    hasReturnItems,
+  );
+
+  if (currentStatus === "return_requested") {
+    return [...displayed, "return_approved", "return_rejected"];
+  }
+
+  return displayed;
+}
+
 export function getNextCustomOrderStatus(
   status: string,
 ): CustomOrderStatus | null {
   if (!isCustomOrderStatus(status)) return null;
-  const index = getCustomOrderStatusIndex(status);
-  if (index < 0 || index >= CUSTOM_ORDER_STATUSES.length - 1) return null;
-  return CUSTOM_ORDER_STATUSES[index + 1];
+
+  if (
+    status === "delivered" ||
+    status === "return_requested" ||
+    status === "return_rejected" ||
+    status === "refund_processed"
+  ) {
+    return null;
+  }
+
+  if (status === "return_approved") {
+    return "refund_processed";
+  }
+
+  const index = CUSTOM_ORDER_BASE_STATUSES.indexOf(status);
+  if (index < 0 || index >= CUSTOM_ORDER_BASE_STATUSES.length - 1) {
+    return null;
+  }
+
+  return CUSTOM_ORDER_BASE_STATUSES[index + 1];
 }
 
 export function getPreviousCustomOrderStatus(
   status: string,
 ): CustomOrderStatus | null {
   if (!isCustomOrderStatus(status)) return null;
-  const index = getCustomOrderStatusIndex(status);
+
+  if (status === "return_requested") return "delivered";
+  if (status === "return_approved" || status === "return_rejected") {
+    return "return_requested";
+  }
+  if (status === "refund_processed") return "return_approved";
+
+  const index = CUSTOM_ORDER_BASE_STATUSES.indexOf(status);
   if (index <= 0) return null;
-  return CUSTOM_ORDER_STATUSES[index - 1];
+  return CUSTOM_ORDER_BASE_STATUSES[index - 1];
 }
 
 export function getHistoryEntryForStatus(
