@@ -196,6 +196,7 @@ export async function fulfillPaidCheckout({
         shippingAddress: pending.payload.shippingAddress,
         paymentIntentId,
         paymentMethod: resolvedMethod,
+        locale: pending.payload.locale,
       });
     } else if (pending.orderType === "custom") {
       result = await createPaidCustomOrder({

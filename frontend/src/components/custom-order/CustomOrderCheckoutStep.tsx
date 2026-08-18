@@ -463,6 +463,7 @@ export default function CustomOrderCheckoutStep() {
       deliveryType,
       deliveryAddress: deliveryType === "delivery" ? deliveryAddress : null,
       addonIds: draft.addonIds || [],
+      locale,
     };
   };
 

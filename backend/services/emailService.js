@@ -95,3 +95,33 @@ export async function sendOtpEmail({
 export async function sendEmailOtpEmail(args) {
   return sendOtpEmail(args);
 }
+
+export async function sendOrderConfirmationEmail({ order, user }) {
+  const to = user.email;
+  const dedupeKey = buildDedupeKey(EMAIL_EVENTS.ORDER_CONFIRMED, [order._id.toString()]);
+
+  return sendCritical(
+    EMAIL_EVENTS.ORDER_CONFIRMED,
+    { order, user },
+    {
+      to,
+      userId: order.userId || null,
+      dedupeKey,
+    },
+  );
+}
+
+export async function sendOrderStatusUpdateEmail({ order, status, user }) {
+  const to = user.email;
+  const dedupeKey = buildDedupeKey(EMAIL_EVENTS.ORDER_STATUS_UPDATED, [order._id.toString(), status]);
+
+  return send(
+    EMAIL_EVENTS.ORDER_STATUS_UPDATED,
+    { order, status, user },
+    {
+      to,
+      userId: order.userId || null,
+      dedupeKey,
+    },
+  );
+}

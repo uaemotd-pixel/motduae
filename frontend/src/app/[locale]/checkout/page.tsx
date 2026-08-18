@@ -585,6 +585,7 @@ function CheckoutPageContent() {
 
     return {
       orderItems,
+      locale: localeParams,
       shippingAddress: {
         fullName: submittedName,
         phone: normalizeUaePhone(formData.phone),

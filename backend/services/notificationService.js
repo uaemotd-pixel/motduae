@@ -1,6 +1,8 @@
 import AdminNotification from "../models/AdminNotification.js";
 import CustomOrder from "../models/CustomOrder.js";
 import RetailOrder from "../models/RetailOrder.js";
+import User from "../models/User.js";
+import { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail } from "./emailService.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -227,6 +229,17 @@ export async function notifyCustomOrderPlacedAdmin(order, createdBy, message) {
 }
 
 export async function notifyCustomOrderPlacedCustomer(order, createdBy) {
+  try {
+    const user = await User.findById(order.userId).select("email name");
+    if (user && user.email) {
+      sendOrderConfirmationEmail({ order, user }).catch((err) => {
+        console.error("Failed to send custom order confirmation email:", err);
+      });
+    }
+  } catch (err) {
+    console.error("Error finding user for custom order confirmation email:", err);
+  }
+
   return createNotification({
     type: "custom_order_received",
     title: "Order Received",
@@ -254,6 +267,17 @@ export async function notifyRetailOrderPlacedAdmin(order, createdBy, message) {
 }
 
 export async function notifyRetailOrderPlacedCustomer(order, createdBy) {
+  try {
+    const user = await User.findById(order.userId).select("email name");
+    if (user && user.email) {
+      sendOrderConfirmationEmail({ order, user }).catch((err) => {
+        console.error("Failed to send retail order confirmation email:", err);
+      });
+    }
+  } catch (err) {
+    console.error("Error finding user for retail order confirmation email:", err);
+  }
+
   return createNotification({
     type: "retail_order_received",
     title: "Order Received",
@@ -364,6 +388,17 @@ export async function notifyReviewPrompt(order, orderType, createdBy) {
 }
 
 export async function notifyCustomStatusChange(order, status, createdBy) {
+  try {
+    const user = await User.findById(order.userId).select("email name");
+    if (user && user.email) {
+      sendOrderStatusUpdateEmail({ order, status, user }).catch((err) => {
+        console.error("Failed to send custom order status email:", err);
+      });
+    }
+  } catch (err) {
+    console.error("Error finding user for custom status email:", err);
+  }
+
   const config = CUSTOMER_STATUS_TYPES[status];
   if (!config) return null;
 
@@ -387,6 +422,17 @@ export async function notifyCustomStatusChange(order, status, createdBy) {
 }
 
 export async function notifyRetailStatusChange(order, status, createdBy) {
+  try {
+    const user = await User.findById(order.userId).select("email name");
+    if (user && user.email) {
+      sendOrderStatusUpdateEmail({ order, status, user }).catch((err) => {
+        console.error("Failed to send retail order status email:", err);
+      });
+    }
+  } catch (err) {
+    console.error("Error finding user for retail status email:", err);
+  }
+
   const config = RETAIL_CUSTOMER_STATUS_TYPES[status];
   if (!config) return null;
 

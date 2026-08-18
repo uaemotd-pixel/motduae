@@ -44,6 +44,7 @@ export function renderLayout({
   title,
   bodyHtml,
   year = new Date().getFullYear(),
+  locale = "en",
 }) {
   const safeTitle = escapeHtml(title);
   const safeEyebrow = escapeHtml(eyebrow);
@@ -52,7 +53,7 @@ export function renderLayout({
 
   return `
 <!DOCTYPE html>
-<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<html lang="${locale}" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -103,11 +104,11 @@ export function renderLayout({
     }
   </style>
 </head>
-<body style="margin:0;padding:0;width:100%;background-color:${pageBg};-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+<body style="margin:0;padding:0;width:100%;background-color:${pageBg};-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;" dir="${locale === "ar" ? "rtl" : "ltr"}">
   <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">
     ${safeTitle} — MOTD
   </div>
-  <table role="presentation" class="em-root" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:${pageBg};margin:0;padding:0;width:100%;border-collapse:collapse;">
+  <table role="presentation" class="em-root" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:${pageBg};margin:0;padding:0;width:100%;border-collapse:collapse;" dir="${locale === "ar" ? "rtl" : "ltr"}">
     <tr>
       <td align="center" class="em-outer" style="padding:40px 16px;">
         <!--[if mso]>
@@ -125,7 +126,7 @@ export function renderLayout({
             </td>
           </tr>
           <tr>
-            <td class="em-body" style="padding:36px 32px;font-family:${fontBody};color:${nearBlack};word-break:break-word;overflow-wrap:anywhere;">
+            <td class="em-body" style="padding:36px 32px;font-family:${fontBody};color:${nearBlack};word-break:break-word;overflow-wrap:anywhere;text-align:${locale === "ar" ? "right" : "left"};">
               ${bodyHtml}
             </td>
           </tr>

@@ -469,6 +469,7 @@ export async function createPaidCustomOrder({
         customerDeliveryAddress: deliveryAddr,
         pickupAddress: selfPickupAddress,
         status: "confirmed",
+        locale: payload.locale || "en",
         statusHistory: [
           {
             status: "confirmed",
@@ -535,6 +536,7 @@ export async function createPaidCustomOrder({
         customerDeliveryAddress: deliveryAddr,
         pickupAddress: selfPickupAddress,
         status: "confirmed",
+        locale: payload.locale || "en",
         statusHistory: [
           {
             status: "confirmed",

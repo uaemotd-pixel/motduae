@@ -310,6 +310,7 @@ const customOrderSchema = new mongoose.Schema(
       type: pickupAddressSchema,
       required: false,
     },
+    locale: { type: String, default: "en", enum: ["en", "ar"] },
     status: {
       type: String,
       enum: CUSTOM_STATUSES,

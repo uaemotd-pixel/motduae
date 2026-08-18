@@ -35,6 +35,7 @@ export async function createPaidRetailOrder({
   shippingAddress,
   paymentIntentId,
   paymentMethod,
+  locale,
 }) {
   const existing = await findRetailOrderByPaymentIntent(paymentIntentId);
   if (existing) {
@@ -89,6 +90,7 @@ export async function createPaidRetailOrder({
       isPaid: true,
       paidAt: confirmedAt,
       stripePaymentIntentId: paymentIntentId,
+      locale: locale || "en",
     });
   } catch (error) {
     // Concurrent webhook + client create — unique index wins
