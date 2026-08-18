@@ -27,6 +27,8 @@ const PARTY_KINDS = Object.freeze({
   MOTD: 'motd',
 });
 
+const MOTD_PARTY_ID = 'motd';
+
 const roundMoney = (amount) => Number(Number(amount).toFixed(2));
 
 function idStr(value) {
@@ -40,6 +42,10 @@ function party(kind, id = null, label = '') {
     id: idStr(id),
     label: label || '',
   };
+}
+
+function motdParty(id = MOTD_PARTY_ID, label = 'MOTD') {
+  return party(PARTY_KINDS.MOTD, id, label);
 }
 
 function parcelKey(type, fromId, toId) {
@@ -65,9 +71,37 @@ function addressOriginId(address) {
   return `addr_${crypto.createHash('sha1').update(key).digest('hex').slice(0, 12)}`;
 }
 
+function customerSafeOriginName(name, fallback = '') {
+  const trimmed = String(name || '').trim();
+  if (!trimmed || /^motd$/i.test(trimmed)) return fallback;
+  return trimmed;
+}
+
+function originAlreadyAtMotd(origin) {
+  return Boolean(origin?.alreadyAtMotd || origin?.partyKind === PARTY_KINDS.MOTD);
+}
+
+function toBreakdownLine(parcel) {
+  return {
+    key: parcel.key,
+    type: parcel.type,
+    label: parcel.label,
+    fee: parcel.fee,
+    billable: parcel.billable,
+    from: parcel.from,
+    to: parcel.to,
+    pickupAddress: parcel.pickupAddress || null,
+    fabricShopId: parcel.fabricShopId ?? null,
+    tailorShopId: parcel.tailorShopId ?? null,
+    addonIds: parcel.addonIds ?? [],
+  };
+}
+
 /**
  * Build a normalized parcel plan from unique route keys.
  * Fee = billable parcel count × perParcelFee (packing hops are AED 0).
+ * `parcels` is the full graph (including hidden *_to_motd hops).
+ * `breakdown` is billed legs only so checkout never shows MOTD packing hops.
  */
 export function buildParcelPlan(parcelMap, perParcelFee) {
   const fee = typeof perParcelFee === 'number' && perParcelFee >= 0 ? perParcelFee : 30;
@@ -92,7 +126,10 @@ export function buildParcelPlan(parcelMap, perParcelFee) {
     };
   });
 
-  const billableCount = parcels.filter((parcel) => parcel.billable).length;
+  applyLastMileCustomerLabels(parcels);
+
+  const billedParcels = parcels.filter((parcel) => parcel.billable);
+  const billableCount = billedParcels.length;
   const deliveryFee = roundMoney(billableCount * fee);
 
   return {
@@ -100,22 +137,37 @@ export function buildParcelPlan(parcelMap, perParcelFee) {
     deliveryFee,
     parcelCount: billableCount,
     perParcelFee: roundMoney(fee),
-    breakdown: parcels.map(
-      ({ key, type, label, fee: lineFee, billable, from, to, pickupAddress }) => ({
-        key,
-        type,
-        label,
-        fee: lineFee,
-        billable,
-        from,
-        to,
-        pickupAddress: pickupAddress || null,
-      }),
-    ),
+    breakdown: billedParcels.map(toBreakdownLine),
   };
 }
 
-function upsertParcel(map, { type, from, to, fabricShopId, tailorShopId, addonId, itemIndex, label, pickupAddress, billable }) {
+function applyLastMileCustomerLabels(parcels) {
+  const lastMiles = parcels.filter(
+    (parcel) => parcel.type === PARCEL_TYPES.MOTD_TO_CUSTOMER,
+  );
+  const multiple = lastMiles.length > 1;
+
+  for (const parcel of lastMiles) {
+    const originName = customerSafeOriginName(parcel.from?.label);
+    parcel.label =
+      multiple && originName
+        ? `Delivery to you (${originName})`
+        : DEFAULT_LABELS[PARCEL_TYPES.MOTD_TO_CUSTOMER];
+  }
+}
+
+function upsertParcel(map, {
+  type,
+  from,
+  to,
+  fabricShopId,
+  tailorShopId,
+  addonId,
+  itemIndex,
+  label,
+  pickupAddress,
+  billable,
+}) {
   const key = parcelKey(type, from.id, to.id);
   const existing = map.get(key);
   if (existing) {
@@ -139,7 +191,55 @@ function upsertParcel(map, { type, from, to, fabricShopId, tailorShopId, addonId
     addonIds: addonId ? [idStr(addonId)] : [],
     itemIndexes: typeof itemIndex === 'number' ? [itemIndex] : [],
     pickupAddress: pickupAddress || null,
-    billable: typeof billable === 'boolean' ? billable : undefined,
+    billable: typeof billable === 'boolean' ? billable : isBillableShipmentType(type),
+  });
+}
+
+/**
+ * Hidden packing hop (unless origin is already MOTD) + billed last mile per origin.
+ * Last-mile `from.id` is the billed origin so multiple MOTD → customer AWBs stay distinct.
+ */
+function upsertMotdInboundAndLastMile(map, {
+  inboundType,
+  alreadyAtMotd = false,
+  originParty,
+  originId,
+  originName,
+  customerParty,
+  fabricShopId,
+  tailorShopId,
+  addonId,
+  itemIndex,
+  pickupAddress,
+}) {
+  const safeName = customerSafeOriginName(originName, originParty?.label || '');
+
+  if (inboundType && !alreadyAtMotd) {
+    upsertParcel(map, {
+      type: inboundType,
+      from: originParty,
+      to: motdParty(),
+      fabricShopId,
+      tailorShopId,
+      addonId,
+      itemIndex,
+      label: `${originName || originParty?.label || 'Shop'} → MOTD`,
+      pickupAddress,
+      billable: false,
+    });
+  }
+
+  upsertParcel(map, {
+    type: PARCEL_TYPES.MOTD_TO_CUSTOMER,
+    from: motdParty(originId, safeName),
+    to: customerParty,
+    fabricShopId,
+    tailorShopId,
+    addonId,
+    itemIndex,
+    label: DEFAULT_LABELS[PARCEL_TYPES.MOTD_TO_CUSTOMER],
+    pickupAddress: alreadyAtMotd ? pickupAddress : null,
+    billable: true,
   });
 }
 
@@ -182,6 +282,9 @@ async function resolveFabricShopById(fabricShopId) {
 /**
  * Plan parcels for a custom order draft / create payload.
  *
+ * Billed: fabric inbounds + one last mile per tailor and per addon origin.
+ * Hidden: tailor → MOTD and addon → MOTD (skipped when the listing is already at MOTD).
+ *
  * @param {object} params
  * @param {'storefront'|'self'} params.fabricSource
  * @param {Array<{ designId: string, fabricId?: string|null, fabricMeters?: number }>} params.items
@@ -201,6 +304,7 @@ export async function planCustomOrderParcels({
 
   const parcelMap = new Map();
   const tailorCache = new Map();
+  const customerParty = party(PARTY_KINDS.CUSTOMER, null, 'Customer');
 
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
@@ -221,7 +325,6 @@ export async function planCustomOrderParcels({
     }
 
     const tailorParty = party(PARTY_KINDS.TAILOR_SHOP, tailorMeta.id, tailorMeta.name);
-    const customerParty = party(PARTY_KINDS.CUSTOMER, null, 'Customer');
 
     if (fabricSource === 'self') {
       upsertParcel(parcelMap, {
@@ -231,6 +334,7 @@ export async function planCustomOrderParcels({
         tailorShopId: tailorMeta.id,
         itemIndex: index,
         label: `Your fabric → ${tailorMeta.name}`,
+        billable: true,
       });
     } else if (fabricSource === 'storefront' && item.fabricId) {
       const fabric = await Fabric.findById(item.fabricId).select(
@@ -248,18 +352,19 @@ export async function planCustomOrderParcels({
           tailorShopId: tailorMeta.id,
           itemIndex: index,
           label: `${fabricShop.name} → ${tailorMeta.name}`,
+          billable: true,
         });
       }
     }
 
-    // Leg-2: one parcel per unique tailor → customer
-    upsertParcel(parcelMap, {
-      type: PARCEL_TYPES.TAILOR_TO_CUSTOMER,
-      from: tailorParty,
-      to: customerParty,
+    upsertMotdInboundAndLastMile(parcelMap, {
+      inboundType: PARCEL_TYPES.TAILOR_TO_MOTD,
+      originParty: tailorParty,
+      originId: tailorShopId,
+      originName: tailorMeta.name,
+      customerParty,
       tailorShopId: tailorMeta.id,
       itemIndex: index,
-      label: `${tailorMeta.name} → You`,
     });
   }
 
@@ -267,18 +372,20 @@ export async function planCustomOrderParcels({
     const addons = await AddOn.find({ _id: { $in: addonIds }, isActive: true }).select(
       'fabricShopId name ownerName pickupAddress',
     );
-    const customerParty = party(PARTY_KINDS.CUSTOMER, null, 'Customer');
 
     for (const addon of addons) {
       const origin = await resolveAddonOrigin(addon);
+      const alreadyAtMotd = originAlreadyAtMotd(origin);
 
-      upsertParcel(parcelMap, {
-        type: PARCEL_TYPES.ADDON_TO_CUSTOMER,
-        from: party(origin.partyKind, origin.shopId, origin.shopName),
-        to: customerParty,
+      upsertMotdInboundAndLastMile(parcelMap, {
+        inboundType: PARCEL_TYPES.ADDON_TO_MOTD,
+        alreadyAtMotd,
+        originParty: party(origin.partyKind, origin.shopId, origin.shopName),
+        originId: origin.shopId,
+        originName: origin.shopName,
+        customerParty,
         fabricShopId: origin.fabricShopId,
         addonId: addon._id,
-        label: origin.label,
         pickupAddress: origin.pickupAddress,
       });
     }
@@ -297,10 +404,13 @@ async function resolveAddonOrigin(addon) {
     return {
       fabricShopId: addon.fabricShopId || null,
       shopId: addressOriginId(productPickup),
-      shopName: addon.ownerName || addon.name || 'MOTD',
+      shopName: customerSafeOriginName(
+        addon.ownerName || addon.name,
+        addon.name || 'Add-on',
+      ),
       partyKind: PARTY_KINDS.MOTD,
+      alreadyAtMotd: true,
       pickupAddress: productPickup,
-      label: 'MOTD (add-on) → You',
     };
   }
 
@@ -312,8 +422,8 @@ async function resolveAddonOrigin(addon) {
     shopId: shop.id,
     shopName: shop.name,
     partyKind: PARTY_KINDS.FABRIC_SHOP,
+    alreadyAtMotd: false,
     pickupAddress: null,
-    label: `${shop.name} (add-on) → You`,
   };
 }
 
@@ -331,10 +441,13 @@ async function resolveRetailLineShop(productId) {
       return {
         fabricShopId: product.fabricShopId || null,
         shopId: addressOriginId(productPickup),
-        shopName: product.ownerName || product.name || 'MOTD',
+        shopName: customerSafeOriginName(
+          product.ownerName || product.name,
+          product.name || 'Shop',
+        ),
         partyKind: PARTY_KINDS.MOTD,
+        alreadyAtMotd: true,
         pickupAddress: productPickup,
-        label: 'MOTD → You',
       };
     }
 
@@ -346,8 +459,8 @@ async function resolveRetailLineShop(productId) {
       shopId: shop.id,
       shopName: shop.name,
       partyKind: PARTY_KINDS.FABRIC_SHOP,
+      alreadyAtMotd: false,
       pickupAddress: null,
-      label: `${shop.name} → You`,
     };
   }
 
@@ -372,8 +485,8 @@ async function resolveRetailLineShop(productId) {
       shopId: fabricShop?.id || `fabric:${product._id}`,
       shopName,
       partyKind: PARTY_KINDS.FABRIC_SHOP,
+      alreadyAtMotd: false,
       pickupAddress: null,
-      label: `${shopName} → You`,
     };
   }
 
@@ -381,8 +494,8 @@ async function resolveRetailLineShop(productId) {
 }
 
 /**
- * Plan retail parcels: one retail_to_customer per unique pickup origin.
- * MOTD-owned ready-made items group by product pickup address.
+ * Plan retail parcels: hidden shop → MOTD (skipped when already at MOTD)
+ * plus one billed MOTD → customer last mile per unique pickup origin.
  *
  * @param {object} params
  * @param {Array<{ productId: string }>} params.items
@@ -401,17 +514,21 @@ export async function planRetailOrderParcels({ items, perParcelFee }) {
     const origin = await resolveRetailLineShop(line.productId);
     if (!origin) continue;
 
-    upsertParcel(parcelMap, {
-      type: PARCEL_TYPES.RETAIL_TO_CUSTOMER,
-      from: party(
+    const alreadyAtMotd = originAlreadyAtMotd(origin);
+
+    upsertMotdInboundAndLastMile(parcelMap, {
+      inboundType: PARCEL_TYPES.RETAIL_TO_MOTD,
+      alreadyAtMotd,
+      originParty: party(
         origin.partyKind || PARTY_KINDS.FABRIC_SHOP,
         origin.shopId,
         origin.shopName,
       ),
-      to: customerParty,
+      originId: origin.shopId,
+      originName: origin.shopName,
+      customerParty,
       fabricShopId: origin.fabricShopId,
       itemIndex: index,
-      label: origin.label || `${origin.shopName} → You`,
       pickupAddress: origin.pickupAddress || null,
     });
   }

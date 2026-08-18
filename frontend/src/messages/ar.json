@@ -1261,6 +1261,11 @@
       "rejectReturn": "رفض الإرجاع",
       "processRefund": "معالجة الاسترداد",
       "pipelineComplete": "تم التسليم — اكتمل سير العمل",
+      "pack": "تعبئة الطلب",
+      "packing": "جاري التعبئة…",
+      "packed": "تم التعبئة",
+      "packSuccess": "تم تعبئة الطلب في MOTD",
+      "packFailed": "فشل تعبئة الطلب",
       "tabs": {
         "retail": "طلبات التجزئة",
         "custom": "طلبات مخصصة",

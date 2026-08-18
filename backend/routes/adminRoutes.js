@@ -37,7 +37,11 @@ import {
   notifyRetailStatusChange,
 } from "../services/notificationService.js";
 import { normalizeEmirate, UAE_EMIRATES, isValidEmirate } from "../utils/uaeAddress.js";
-import { createReadyCustomShipments } from "../services/shipmentService.js";
+import {
+  createReadyCustomShipments,
+  getPackReadiness,
+  packOrder,
+} from "../services/shipmentService.js";
 import {
   isEmptyShopPickupAddress,
   normalizeShopPickupAddress,
@@ -54,6 +58,13 @@ function optionalObjectId(value) {
 
 function parseReadyMadePickup(address) {
   return normalizeShopPickupAddress(address);
+}
+
+function attachPackReadiness(order, kind) {
+  const packReadiness = getPackReadiness(order, kind);
+  const payload =
+    order && typeof order.toObject === "function" ? order.toObject() : order;
+  return { ...payload, packReadiness };
 }
 
 function partnerPublicFields(user) {
@@ -1610,7 +1621,7 @@ adminRouter.get(
     ]);
 
     res.send({
-      items: orders,
+      items: orders.map((order) => attachPackReadiness(order, "retail")),
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum),
@@ -1672,7 +1683,7 @@ adminRouter.get(
       .populate("items.fabricId", "images")
       .sort({ createdAt: -1 });
 
-    res.send(orders);
+    res.send(orders.map((order) => attachPackReadiness(order, "custom")));
   }),
 );
 
@@ -1740,6 +1751,61 @@ adminRouter.patch(
       });
     } else {
       res.status(404).send({ message: "Custom tailoring order not found" });
+    }
+  }),
+);
+
+// POST /api/admin/orders/:kind/:id/pack
+// Create billed MOTD → customer last miles once every *_to_motd inbound is delivered.
+adminRouter.post(
+  "/orders/:kind/:id/pack",
+  expressAsyncHandler(async (req, res) => {
+    const kind = String(req.params.kind || "").trim().toLowerCase();
+    if (kind !== "custom" && kind !== "retail") {
+      res.status(400).send({
+        message: "kind must be custom or retail",
+      });
+      return;
+    }
+
+    const Model = kind === "custom" ? CustomOrder : RetailOrder;
+    const order = await Model.findById(req.params.id);
+    if (!order) {
+      res.status(404).send({
+        message:
+          kind === "custom"
+            ? "Custom tailoring order not found"
+            : "Retail order not found",
+      });
+      return;
+    }
+
+    try {
+      const result = await packOrder(order, { changedBy: req.user?._id });
+      const createdCount = Array.isArray(result.created)
+        ? result.created.length
+        : 0;
+      res.send({
+        message:
+          createdCount > 0
+            ? "Order packed at MOTD"
+            : result.packReadiness?.alreadyPacked
+              ? "Order packed"
+              : "Order packed at MOTD",
+        order: attachPackReadiness(result.order, kind),
+        created: result.created,
+        skipped: result.skipped,
+        errors: result.errors,
+        packedAt: result.packedAt,
+        packReadiness: result.packReadiness,
+      });
+    } catch (error) {
+      const status = error.statusCode || 500;
+      res.status(status).send({
+        message: error.message || "Failed to pack order",
+        packReadiness: error.packReadiness || undefined,
+        errors: error.details?.errors,
+      });
     }
   }),
 );

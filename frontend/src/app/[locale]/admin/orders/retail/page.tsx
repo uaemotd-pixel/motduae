@@ -13,6 +13,9 @@ import {
 import toast from "react-hot-toast";
 import StatusBadge from "@/components/admin/StatusBadge";
 import AdminOrdersTabs from "@/components/admin/AdminOrdersTabs";
+import AdminPackOrderButton, {
+  type PackReadiness,
+} from "@/components/admin/AdminPackOrderButton";
 import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
@@ -41,6 +44,8 @@ type RetailOrder = {
   currency: string;
   status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
   createdAt: string;
+  packedAt?: string | null;
+  packReadiness?: PackReadiness;
 };
 
 interface ApiResponse {
@@ -151,6 +156,11 @@ const translations = {
     revertTo: "Revert to {status}",
     advanceTo: "Advance to {status}",
     cancelOrder: "Cancel Order",
+    pack: "Pack order",
+    packing: "Packing…",
+    packed: "Packed",
+    packSuccess: "Order packed at MOTD",
+    packFailed: "Failed to pack order",
   },
   ar: {
     title: "الطلبات الجاهزة",
@@ -185,6 +195,11 @@ const translations = {
     revertTo: "إرجاع إلى {status}",
     advanceTo: "ترقية إلى {status}",
     cancelOrder: "إلغاء الطلب",
+    pack: "تعبئة الطلب",
+    packing: "جاري التعبئة…",
+    packed: "تم التعبئة",
+    packSuccess: "تم تعبئة الطلب في MOTD",
+    packFailed: "فشل تعبئة الطلب",
   },
 };
 
@@ -656,6 +671,25 @@ export default function AdminRetailOrdersPage() {
                         )}
                       </button>
                     )}
+
+                    <AdminPackOrderButton
+                      kind="retail"
+                      orderId={order._id}
+                      status={order.status}
+                      packedAt={order.packedAt}
+                      packReadiness={order.packReadiness}
+                      disabled={isUpdating}
+                      copy={{
+                        pack: t.pack,
+                        packing: t.packing,
+                        packed: t.packed,
+                        success: t.packSuccess,
+                        error: t.packFailed,
+                      }}
+                      onPacked={() => {
+                        void fetchOrders(currentPage);
+                      }}
+                    />
                   </div>
                 </div>
               </div>
