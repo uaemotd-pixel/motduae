@@ -32,6 +32,12 @@ const userSchema = new mongoose.Schema(
     emailVerificationOTPExpires: { type: Date },
     emailVerificationOTPSentAt: { type: Date },
     emailVerificationAttemptCount: { type: Number, default: 0 },
+    pendingEmail: { type: String, lowercase: true, trim: true, default: undefined },
+    pendingEmailExpiresAt: { type: Date, default: undefined },
+    emailVerificationPurpose: {
+      type: String,
+      enum: ["verify_email", "change_email"],
+    },
     phone: {
       type: String,
       trim: true,
@@ -76,6 +82,7 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ role: 1, approvalStatus: 1 });
+userSchema.index({ pendingEmail: 1 }, { unique: true, sparse: true });
 
 userSchema.pre("validate", function requireCustomerPhone(next) {
   if (

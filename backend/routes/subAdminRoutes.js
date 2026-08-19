@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import SubAdmin from "../models/SubAdmin.js";
 import User from "../models/User.js";
 import mongoose from "mongoose";
+import { findEmailOccupant } from "../services/emailVerification/emailOccupancy.js";
 import {
   normalizeEmirate,
   isValidEmirate,
@@ -66,7 +67,7 @@ subAdminRouter.post("/", async (req, res) => {
       return res.status(409).json({ error: "SubAdmin email already exists" });
     }
 
-    if (await User.findOne({ email })) {
+    if (await findEmailOccupant(User, email)) {
       return res.status(409).json({ error: "User email already exists" });
     }
 

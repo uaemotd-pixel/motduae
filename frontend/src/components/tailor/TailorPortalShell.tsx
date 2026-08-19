@@ -4,9 +4,16 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 import { Link, useRouter } from "@/i18n/navigation";
-import { useAuth } from "@/context/AuthContext";
-import { LayoutDashboard, LogOut, Menu, Scissors, Store, X, ShoppingBag, DollarSign } from "lucide-react";
+import { useAuth, needsEmailVerification } from "@/context/AuthContext";
+import { LayoutDashboard, LogOut, Menu, Scissors, Store, X, ShoppingBag, DollarSign, Edit } from "lucide-react";
 import logoBlack from "../../../public/PNG/Black/MOTD_Wordmark_Black.png";
+import {
+  buildVerifyEmailHref,
+  canChangeAccountEmail,
+} from "@/lib/auth/emailVerification";
+import PartnerChangeEmailCard from "@/components/auth/PartnerChangeEmailCard";
+import EmailChangePendingBanner from "@/components/auth/EmailChangePendingBanner";
+import { getTranslation } from "@/lib/getTranslation";
 
 type TailorPortalShellProps = {
     children: React.ReactNode;
@@ -18,11 +25,16 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
     const router = useRouter();
     const pathname = usePathname();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [showChangeEmail, setShowChangeEmail] = useState(false);
 
     const locale = pathname.split("/")[1] || "en";
+    const tVerify = getTranslation(locale).verifyEmail;
+    const canChangeEmail = canChangeAccountEmail(user);
+    const showVerify = needsEmailVerification(user) && !user?.isGuest;
 
     useEffect(() => {
         setIsSidebarOpen(false);
+        setShowChangeEmail(false);
     }, [pathname]);
 
     useEffect(() => {
@@ -69,6 +81,46 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
                         {user.name}
                     </p>
                 )}
+                {user?.email ? (
+                    <div className="mt-1 flex items-center gap-1.5 min-w-0 flex-wrap">
+                        <p
+                            className="[font-family:var(--font-body)] text-[11px] text-(--color-grey-muted) truncate min-w-0"
+                            title={user.email}
+                        >
+                            {user.email}
+                        </p>
+                        {showVerify ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    window.location.assign(
+                                        buildVerifyEmailHref({
+                                            locale,
+                                            mode: "account",
+                                            next: "/tailor",
+                                        }),
+                                    );
+                                }}
+                                className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-600 text-white hover:bg-red-700 transition cursor-pointer"
+                            >
+                                {tVerify.profileVerify}
+                            </button>
+                        ) : null}
+                        {canChangeEmail ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowChangeEmail((open) => !open);
+                                    setIsSidebarOpen(false);
+                                }}
+                                aria-label={tVerify.changeEmailHeading}
+                                className="shrink-0 p-0.5 rounded border border-black text-black bg-transparent hover:bg-black hover:text-white transition cursor-pointer"
+                            >
+                                <Edit className="w-3 h-3" strokeWidth={2} />
+                            </button>
+                        ) : null}
+                    </div>
+                ) : null}
             </div>
 
             <nav className="flex-1 space-y-1">
@@ -148,7 +200,27 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
                     <Menu className="w-5 h-5" />
                 </button>
 
-                {children}
+                {showChangeEmail && canChangeEmail ? (
+                    <PartnerChangeEmailCard
+                        locale={locale}
+                        nextPath="/tailor"
+                        currentEmail={user?.email}
+                        onCancel={() => setShowChangeEmail(false)}
+                    />
+                ) : (
+                    <>
+                        {canChangeEmail ? (
+                            <div className="mb-6">
+                                <EmailChangePendingBanner
+                                    locale={locale}
+                                    nextPath="/tailor"
+                                    variant="portal"
+                                />
+                            </div>
+                        ) : null}
+                        {children}
+                    </>
+                )}
             </main>
         </div>
     );
