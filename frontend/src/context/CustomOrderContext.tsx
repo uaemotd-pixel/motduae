@@ -38,13 +38,12 @@ import { useAuth } from "@/context/AuthContext";
 type CustomOrderContextType = {
   draft: CustomOrderDraft;
   isHydrated: boolean;
-  deliveryType: "pickup" | "delivery";
+  deliveryType: "delivery";
   useOwnFabric: boolean;
   addPocket: boolean;
   addBottomWideFold: boolean;
   setFabricSource: (source: FabricSource) => void;
   setUseOwnFabric: (value: boolean) => void;
-  setDeliveryType: (type: "pickup" | "delivery") => void;
   setAddPocket: (val: boolean) => void;
   setAddBottomWideFold: (val: boolean) => void;
   toggleFabric: (fabric: CustomOrderFabricSelection) => void;
@@ -76,9 +75,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     createEmptyCustomOrderDraft,
   );
   const [isHydrated, setIsHydrated] = useState(false);
-  const [deliveryType, setDeliveryType] = useState<"pickup" | "delivery">(
-    "delivery",
-  );
+  const [deliveryType, setDeliveryType] = useState<"delivery">("delivery");
   const [addPocket, setAddPocket] = useState<boolean>(false);
   const [addBottomWideFold, setAddBottomWideFold] = useState<boolean>(false);
 
@@ -396,11 +393,6 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     sessionStorage.setItem("customOrderAddBottomFold", String(val));
   }, []);
 
-  const setDeliveryTypeAction = useCallback((type: "pickup" | "delivery") => {
-    setDeliveryType("delivery");
-    sessionStorage.setItem(CUSTOM_ORDER_DELIVERY_TYPE_KEY, "delivery");
-  }, []);
-
   const value = useMemo<CustomOrderContextType>(
     () => ({
       draft,
@@ -411,7 +403,6 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       addBottomWideFold,
       setFabricSource,
       setUseOwnFabric: setUseOwnFabricFlag,
-      setDeliveryType: setDeliveryTypeAction,
       setAddPocket: setAddPocketAction,
       setAddBottomWideFold: setAddBottomWideFoldAction,
       toggleFabric,
@@ -456,7 +447,6 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       getPreviewPayload,
       syncAutoLineItems,
       updateLineItemUnit,
-      setDeliveryTypeAction,
       setAddPocketAction,
       setAddBottomWideFoldAction,
       toggleAddon,

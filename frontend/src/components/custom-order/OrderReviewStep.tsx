@@ -25,8 +25,6 @@ import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHe
 import { CustomOrderStepSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { resolveMediaUrl } from "@/lib/media";
 
-type DeliveryType = "pickup" | "delivery";
-
 function hasAnyMeasurements(measurements: CustomOrderMeasurements): boolean {
   return CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS.some(
     (field) => measurements[field] !== null,
@@ -43,8 +41,6 @@ export default function OrderReviewStep() {
   const {
     draft,
     isHydrated,
-    deliveryType,
-    setDeliveryType,
     toggleAddon,
     addPocket,
     addBottomWideFold,
@@ -115,7 +111,7 @@ export default function OrderReviewStep() {
     fetchSettings();
   }, []);
 
-  // Recalculate pricing when delivery type changes
+  // Recalculate pricing when the draft or add-ons change
   useEffect(() => {
     if (!isHydrated) return;
     if (!previewPayload) {
@@ -132,7 +128,7 @@ export default function OrderReviewStep() {
 
         const payload = {
           ...previewPayload,
-          deliveryType,
+          deliveryType: "delivery" as const,
           addonIds: draft.addonIds || [],
         };
 
@@ -157,7 +153,7 @@ export default function OrderReviewStep() {
     };
 
     fetchPreview();
-  }, [isHydrated, previewPayload, deliveryType, t, shippingFee, vatRate, draft.addonIds]);
+  }, [isHydrated, previewPayload, t, shippingFee, vatRate, draft.addonIds]);
 
   const canContinue = isReviewStepComplete(draft, pricing !== null) && !settingsError && vatRate !== null;
 

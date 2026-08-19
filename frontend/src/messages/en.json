@@ -157,8 +157,6 @@
     "line2": "Apartment / Villa (optional)",
     "required": "Required",
     "paymentTitle": "Payment",
-    "codLabel": "Cash on Delivery (COD)",
-    "codDescription": "Pay when your order is delivered.",
     "applePayDescription": "Pay securely with Apple Pay on supported devices.",
     "cardLabel": "Credit / Debit Card",
     "cardDescription": "Pay securely with Visa, Mastercard or any card.",

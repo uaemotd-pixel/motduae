@@ -346,7 +346,15 @@ export default function AdminRetailOrdersPage() {
 
       setOrders((prevOrders) =>
         prevOrders.map((o) =>
-          o._id === orderId ? { ...o, status: finalStatus } : o,
+          o._id === orderId
+            ? {
+                ...o,
+                status: finalStatus,
+                ...(updatedOrder?.statusHistory
+                  ? { statusHistory: updatedOrder.statusHistory }
+                  : {}),
+              }
+            : o,
         ),
       );
 
