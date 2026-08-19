@@ -204,8 +204,6 @@
     "line2": "الشقة / الفيلا (اختياري)",
     "required": "مطلوب",
     "paymentTitle": "الدفع",
-    "codLabel": "الدفع عند الاستلام (COD)",
-    "codDescription": "ادفع عند استلام طلبك.",
     "applePayDescription": "ادفع بأمان عبر Apple Pay على الأجهزة المدعومة.",
     "cardLabel": "بطاقة ائتمان / خصم",
     "cardDescription": "ادفع بأمان باستخدام Visa أو Mastercard أو أي بطاقة.",
