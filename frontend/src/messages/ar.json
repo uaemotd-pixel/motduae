@@ -1505,6 +1505,7 @@
     },
     "timeline": {
       "ariaLabel": "خط زمني لتقدّم الطلب المخصص",
+      "ariaLabelRetail": "خط زمني لتقدّم الطلب الجاهز",
       "pending": "معلّق",
       "inProgress": "قيد التنفيذ",
       "statuses": {
@@ -1521,6 +1522,17 @@
         "return_rejected": { "title": "تم رفض الإرجاع" },
         "refund_processed": { "title": "Refund Processed" }
       }
+    },
+    "shipments": {
+      "title": "الشحنات",
+      "empty": "لا توجد شحنات بعد.",
+      "awb": "رقم البوليصة",
+      "track": "تتبع الشحنة"
+    },
+    "logistics": {
+      "title": "اللوجستيات",
+      "show": "عرض اللوجستيات",
+      "hide": "إخفاء اللوجستيات"
     }
   },
   "Footer": {

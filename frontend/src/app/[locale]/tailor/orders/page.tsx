@@ -17,9 +17,11 @@ import {
   User,
   Ruler,
   Sliders,
+  Package,
 } from "lucide-react";
 import StatusBadge from "@/components/admin/StatusBadge";
 import CustomOrderMeasurementsPanel from "@/components/custom-order/CustomOrderMeasurementsPanel";
+import ShipmentList from "@/components/orders/ShipmentList";
 import {
   formatOrderDate,
   getNextCustomOrderStatus,
@@ -27,6 +29,7 @@ import {
   isCustomOrderStatus,
   CUSTOM_ORDER_STATUSES,
   type CustomOrderStatus,
+  type CustomOrderShipmentSummary,
 } from "@/lib/customOrders";
 import type { Locale } from "@/i18n/routing";
 
@@ -61,6 +64,7 @@ interface Order {
   measurements?: Measurements;
   status: string;
   createdAt: string;
+  shipments?: CustomOrderShipmentSummary[];
   pricing: {
     total: number;
     currency: string;
@@ -129,6 +133,9 @@ export default function TailorOrdersPage() {
     {},
   );
   const [expandedOptions, setExpandedOptions] = useState<
+    Record<string, boolean>
+  >({});
+  const [expandedShipments, setExpandedShipments] = useState<
     Record<string, boolean>
   >({});
   const [note, setNote] = useState<Record<string, string>>({});
@@ -254,6 +261,13 @@ export default function TailorOrdersPage() {
 
   const toggleExpandOptions = (orderId: string) => {
     setExpandedOptions((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
+
+  const toggleExpandShipments = (orderId: string) => {
+    setExpandedShipments((prev) => ({
       ...prev,
       [orderId]: !prev[orderId],
     }));
@@ -427,6 +441,7 @@ export default function TailorOrdersPage() {
               (locale === "ar" ? "قماش خاص" : "Self Fabric");
             const isExpanded = !!expandedOrders[order._id];
             const isOptionsExpanded = !!expandedOptions[order._id];
+            const isShipmentsExpanded = !!expandedShipments[order._id];
             const isOutForDeliveryStatus = isOutForDelivery(order.status);
             const isDeliveredStatus = isDelivered(order.status);
             const isCompletedStatus = isCompleted(order.status);
@@ -576,6 +591,26 @@ export default function TailorOrdersPage() {
                         <ChevronDown className="w-3 h-3" />
                       )}
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleExpandShipments(order._id)}
+                      className="inline-flex items-center gap-1.5 text-xs text-black/60 hover:text-black font-medium transition py-1 hover:cursor-pointer"
+                    >
+                      <Package className="w-3.5 h-3.5" />
+                      {locale === "ar"
+                        ? isShipmentsExpanded
+                          ? "إخفاء الشحنات"
+                          : "عرض الشحنات"
+                        : isShipmentsExpanded
+                          ? "Hide Shipments"
+                          : "Show Shipments"}
+                      {isShipmentsExpanded ? (
+                        <ChevronUp className="w-3 h-3" />
+                      ) : (
+                        <ChevronDown className="w-3 h-3" />
+                      )}
+                    </button>
                   </div>
 
                   {isExpanded && order.measurements && (
@@ -624,6 +659,17 @@ export default function TailorOrdersPage() {
                           </span>
                         )}
                       </div>
+                    </div>
+                  )}
+
+                  {isShipmentsExpanded && (
+                    <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                      <ShipmentList
+                        shipments={order.shipments}
+                        locale={locale}
+                        visibility="internal"
+                        compact
+                      />
                     </div>
                   )}
                 </div>
