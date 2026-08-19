@@ -20,7 +20,7 @@ import {
   type CustomOrderListItem,
   type RetailOrderListItem,
 } from "@/lib/customOrders";
-import OrderTimeline from "@/components/orders/OrderTimeline";
+import OrderProgressPanel from "@/components/orders/OrderProgressPanel";
 import { ChevronDown, ChevronUp, Maximize2, Package, Scissors, Sparkles, CheckCircle2, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { resolveDesignImage } from "@/lib/tailors";
@@ -95,6 +95,7 @@ export default function CustomOrdersTab({
 }: CustomOrdersTabProps) {
   const t = useTranslations("OrdersPage.custom");
   const tRetail = useTranslations("OrdersPage.retail");
+  const tLogistics = useTranslations("OrdersPage.logistics");
   const tReview = useTranslations("CustomOrderReview");
 
   const [customOrders, setCustomOrders] = useState<CustomOrderListItem[]>([]);
@@ -110,6 +111,16 @@ export default function CustomOrdersTab({
   const [retailFabricDesignOpenIds, setRetailFabricDesignOpenIds] = useState<
     Record<string, boolean>
   >({});
+  const [retailProgressOpenIds, setRetailProgressOpenIds] = useState<
+    Record<string, boolean>
+  >({});
+
+  const handleToggleRetailProgress = (orderId: string) => {
+    setRetailProgressOpenIds((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
 
   const handleTogglePriceDetails = (orderId: string) => {
     setPriceDetailsOpenIds((prev) => ({
@@ -1361,10 +1372,13 @@ export default function CustomOrdersTab({
                             {receivedState.error[order.id]}
                           </p>
                         )}
-                        <OrderTimeline
+                        <OrderProgressPanel
+                          variant="custom"
                           currentStatus={detail.status}
                           statusHistory={detail.statusHistory || []}
+                          shipments={detail.shipments}
                           locale={locale}
+                          visibility="customer"
                           hasReturnItems={
                             (detail.returnItems?.length || 0) > 0 ||
                             [
@@ -1800,6 +1814,46 @@ export default function CustomOrdersTab({
                   </div>
                 </div>
               )}
+
+              <div className="mt-4 border-t border-gray-100 pt-4 w-full">
+                <button
+                  type="button"
+                  onClick={() => handleToggleRetailProgress(order.id)}
+                  className="text-[10px] uppercase tracking-[0.18em] text-gray-500 hover:text-black transition font-ui"
+                  aria-expanded={!!retailProgressOpenIds[order.id]}
+                >
+                  {retailProgressOpenIds[order.id]
+                    ? tLogistics("hide")
+                    : tLogistics("show")}
+                </button>
+
+                <AnimatePresence>
+                  {retailProgressOpenIds[order.id] && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-4 bg-[#FDFAF5] border border-gray-200 rounded-xl p-4 sm:p-6">
+                        <h4 className="font-display text-lg mb-4">
+                          {tLogistics("title")}
+                        </h4>
+                        <OrderProgressPanel
+                          variant="retail"
+                          currentStatus={order.status}
+                          statusHistory={order.statusHistory || []}
+                          shipments={order.shipments}
+                          locale={locale}
+                          visibility="customer"
+                          compact
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </article>
           );
         }
