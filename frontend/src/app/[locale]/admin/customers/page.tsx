@@ -12,12 +12,13 @@ import {
   User,
   Trash2,
   Power,
-  MoreHorizontal,
   Eye,
   VenusAndMars,
   Mail,
   Phone,
   Calendar,
+  Maximize2,
+  MoreVertical,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ImageModal } from "@/components/shared/ImageModal";
@@ -376,14 +377,21 @@ export default function AdminCustomersPage() {
   const getAvatar = (customer: Customer) => {
     if (customer.profilePic) {
       return (
-        <img
-          src={customer.profilePic}
-          alt={customer.name}
-          className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover hover:cursor-pointer"
+        <div
+          className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full overflow-hidden group cursor-pointer shrink-0"
           onClick={() =>
             handleImageClick(customer?.profilePic || "IMAGE NOT FOUND")
           }
-        />
+        >
+          <img
+            src={customer.profilePic}
+            alt={customer.name}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <Maximize2 className="w-4 h-4 text-white" />
+          </div>
+        </div>
       );
     }
 
@@ -632,7 +640,7 @@ export default function AdminCustomersPage() {
             className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0"
           >
             <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="hidden xs:inline">Refresh</span>
+            <span>Refresh</span>
           </button>
         </div>
       </div>
@@ -679,7 +687,7 @@ export default function AdminCustomersPage() {
                   {items.map((customer) => (
                     <tr
                       key={customer._id}
-                      className="group hover:bg-gray-50 transition-all duration-200"
+                      className="hover:bg-gray-50 transition-all duration-200"
                     >
                       <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
@@ -707,7 +715,7 @@ export default function AdminCustomersPage() {
                           className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
                           title="Actions"
                         >
-                          <MoreHorizontal className="w-5 h-5" />
+                          <MoreVertical className="w-5 h-5" />
                         </button>
                       </td>
                     </tr>
@@ -739,7 +747,7 @@ export default function AdminCustomersPage() {
                     className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer shrink-0"
                     title="Actions"
                   >
-                    <MoreHorizontal className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
 
@@ -768,16 +776,18 @@ export default function AdminCustomersPage() {
       )}
 
       {/* Pagination */}
-      <GlobalPagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={handlePageChange}
-        showItemsPerPage={true}
-        itemsPerPage={limit}
-        onItemsPerPageChange={handleLimitChange}
-        itemsPerPageOptions={[5, 10, 20, 50, 100]}
-        totalItems={stats?.totalCustomers}
-      />
+      {totalPages > 0 && (stats?.totalCustomers ?? 0) > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={stats?.totalCustomers ?? 0}
+        />
+      )}
 
       <ImageModal
         isOpen={imageModalOpen}

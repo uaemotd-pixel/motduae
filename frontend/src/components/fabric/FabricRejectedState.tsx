@@ -16,7 +16,7 @@ export default function FabricRejectedState() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFAF5] flex items-center justify-center px-4 py-16">
+    <div className="min-h-screen bg-white flex items-center justify-center px-4 py-16">
       <div className="max-w-lg w-full text-center border border-(--color-border) bg-white p-8 sm:p-10">
         <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-4">
           {t("eyebrow")}

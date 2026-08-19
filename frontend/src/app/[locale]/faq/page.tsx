@@ -84,7 +84,7 @@ export default function FAQPage() {
     return (
         <MainLayout>
             <FadeInSection>
-                <div className="bg-[#FFFDF9] min-h-screen py-16 sm:py-24">
+                <div className="bg-white min-h-screen py-16 sm:py-24">
                     <div className="max-w-3xl mx-auto px-4 sm:px-6">
                         {/* Header */}
                         <div className="text-center mb-12">

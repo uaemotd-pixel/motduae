@@ -12,7 +12,7 @@ export default function PrivacyPage() {
     return (
         <MainLayout>
             <FadeInSection>
-                <div className="bg-[#FFFDF9] min-h-screen py-16 sm:py-24">
+                <div className="bg-white min-h-screen py-16 sm:py-24">
                     <div className="max-w-3xl mx-auto px-4 sm:px-6">
                         {/* Header */}
                         <div className="border-b border-[#E8E8E4] pb-10 mb-12">
