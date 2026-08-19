@@ -21,6 +21,7 @@ import {
 } from "../middleware/uploadFabricImages.js";
 import Customer from "../models/customer.js";
 import { createAdminNotificationForNewUser } from "../services/adminNotificationService.js";
+import { findEmailOccupant } from "../services/emailVerification/emailOccupancy.js";
 import AddOn from "../models/AddOn.js";
 import Category from "../models/Category.js";
 import Material from "../models/Material.js";
@@ -559,8 +560,8 @@ adminRouter.post(
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const existingUser = await User.findOne({ email: normalizedEmail });
-    if (existingUser) {
+    const occupant = await findEmailOccupant(User, normalizedEmail);
+    if (occupant) {
       res.status(400).send({ message: "User already exists" });
       return;
     }

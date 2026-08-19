@@ -5,6 +5,9 @@ import { useState, useEffect } from "react";
 import { useAuth, needsEmailVerification } from "@/context/AuthContext";
 import { api } from "@/lib/api/client";
 import { getTranslation } from "@/lib/getTranslation";
+import { canChangeAccountEmail } from "@/lib/auth/emailVerification";
+import PartnerChangeEmailCard from "@/components/auth/PartnerChangeEmailCard";
+import EmailChangePendingBanner from "@/components/auth/EmailChangePendingBanner";
 import {
   User,
   Mail,
@@ -108,6 +111,8 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
   const locale = (params.locale as string) || "en";
   const t = getTranslation(locale).verifyEmail;
   const showVerify = needsEmailVerification(authUser) && !authUser?.isGuest;
+  const canChangeEmail = canChangeAccountEmail(authUser);
+  const [showChangeEmail, setShowChangeEmail] = useState(false);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [measurements, setMeasurements] = useState<Measurements | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -198,6 +203,17 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
     );
   }
 
+  if (showChangeEmail && canChangeEmail) {
+    return (
+      <PartnerChangeEmailCard
+        locale={locale}
+        nextPath="/account?tab=profile"
+        currentEmail={authUser?.email}
+        onCancel={() => setShowChangeEmail(false)}
+      />
+    );
+  }
+
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "—";
     try {
@@ -283,6 +299,14 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
     : null;
 
   return (
+    <div className="space-y-4">
+      {canChangeEmail ? (
+        <EmailChangePendingBanner
+          locale={locale}
+          nextPath="/account?tab=profile"
+          variant="account"
+        />
+      ) : null}
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
       <div className="p-4 sm:p-6 md:p-8">
         {/* Header */}
@@ -342,9 +366,19 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
                     onClick={() => {
                       window.location.assign(ACCOUNT_VERIFY_HREF(locale));
                     }}
-                    className="shrink-0 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition cursor-pointer"
+                    className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-600 text-white hover:bg-red-700 transition cursor-pointer"
                   >
                     {t.profileVerify}
+                  </button>
+                ) : null}
+                {canChangeEmail ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowChangeEmail((open) => !open)}
+                    aria-label={t.changeEmailHeading}
+                    className="shrink-0 p-0.5 rounded border border-black text-black bg-transparent hover:bg-black hover:text-white transition cursor-pointer"
+                  >
+                    <Edit className="w-3 h-3" strokeWidth={2} />
                   </button>
                 ) : null}
               </div>
@@ -494,6 +528,7 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
           setSelectedImage("");
         }}
       />
+    </div>
     </div>
   );
 }
