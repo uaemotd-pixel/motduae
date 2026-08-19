@@ -61,7 +61,7 @@ export default function FabricLayout({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#FDFAF5]">
+      <div className="min-h-screen bg-white">
         <SectionLoadingSkeleton variant="dashboard" />
       </div>
     );

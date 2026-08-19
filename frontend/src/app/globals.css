@@ -38,7 +38,7 @@
   --color-border-subtle: #f2f2f0;
 
   /* Backgrounds */
-  --bg-page: var(--color-off-white);
+  --bg-page: var(--color-white);
   --bg-surface: var(--color-white);
   --bg-inverse: var(--color-black);
 
@@ -57,7 +57,7 @@
   --radius: 0px;
 
   /* Dashboard surfaces (admin / fabric / tailor portals) — brand palette */
-  --dash-bg: var(--color-off-white);
+  --dash-bg: var(--color-white);
   --dash-surface: var(--color-white);
   --dash-ink: var(--color-black);
   --dash-muted: var(--color-grey-muted);

@@ -30,6 +30,7 @@ import {
   Tag,
   Store,
   MapPin,
+  Maximize2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
@@ -97,6 +98,13 @@ export default function AdminFabricsPage() {
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
 
+  // Filter Badges
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "available" | "sold"
+  >("all");
+  const availableCount = items.filter((i) => i.isActive).length;
+  const soldCount = items.filter((i) => !i.isActive).length;
+
   // pop up image function
   const handleImageClick = (imageUrl: string) => {
     setSelectedImage(imageUrl);
@@ -156,12 +164,13 @@ export default function AdminFabricsPage() {
   }, [menuPosition, menuAnchor]);
 
   const fetchItems = useCallback(
-    async (page = 1, limitOverride?: number) => {
+    async (page = 1, limitOverride?: number, statusOverride?: string) => {
       try {
         setLoading(true);
         const l = limitOverride || limit;
+        const status = statusOverride || statusFilter;
         const res = await api.get<ApiResponse>(
-          `/api/admin/fabrics?page=${page}&limit=${l}&search=${encodeURIComponent(searchTerm)}`,
+          `/api/admin/fabrics?page=${page}&limit=${l}&search=${encodeURIComponent(searchTerm)}&status=${status}`,
         );
 
         setItems(res.items || []);
@@ -178,7 +187,7 @@ export default function AdminFabricsPage() {
         setLoading(false);
       }
     },
-    [searchTerm, limit, t.adminFabrics.list.load_error_title],
+    [searchTerm, limit, t.adminFabrics.list.load_error_title, statusFilter],
   );
 
   // Initial load
@@ -187,7 +196,7 @@ export default function AdminFabricsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced search - FIX: remove fetchItems and loading from deps
+  // Debounced search
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -200,7 +209,7 @@ export default function AdminFabricsPage() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchTerm]); // Only searchTerm triggers
+  }, [searchTerm]);
 
   const openDeleteModal = (item: FabricItem) => {
     setMenuPosition(null);
@@ -283,12 +292,19 @@ export default function AdminFabricsPage() {
   const getItemImage = (item: FabricItem) => {
     if (item.images && item.images.length > 0) {
       return (
-        <img
-          src={item.images[0]}
-          alt={item.name}
-          className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg object-cover hover:cursor-pointer"
+        <div
+          className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-lg overflow-hidden group cursor-pointer shrink-0"
           onClick={() => handleImageClick(item.images?.[0])}
-        />
+        >
+          <img
+            src={item.images[0]}
+            alt={item.name}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <Maximize2 className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+          </div>
+        </div>
       );
     }
     return (
@@ -453,26 +469,74 @@ export default function AdminFabricsPage() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-        <div className="relative flex-1 max-w-full sm:max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder={t.adminFabrics.list.search_placeholder}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
-          />
+      {/* Tabs & Search */}
+      <div className="flex flex-col gap-3">
+        <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
+          <button
+            onClick={() => {
+              setStatusFilter("all");
+              setCurrentPage(1);
+              fetchItems(1, limit, "all");
+            }}
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
+              statusFilter === "all"
+                ? "border-b-2 border-black text-black"
+                : "text-gray-500 hover:text-black"
+            }`}
+          >
+            All ({totalItems})
+          </button>
+          <button
+            onClick={() => {
+              setStatusFilter("available");
+              setCurrentPage(1);
+              fetchItems(1, limit, "available");
+            }}
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
+              statusFilter === "available"
+                ? "border-b-2 border-black text-black"
+                : "text-gray-500 hover:text-black"
+            }`}
+          >
+            Available ({availableCount})
+          </button>
+          <button
+            onClick={() => {
+              setStatusFilter("sold");
+              setCurrentPage(1);
+              fetchItems(1, limit, "sold");
+            }}
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
+              statusFilter === "sold"
+                ? "border-b-2 border-black text-black"
+                : "text-gray-500 hover:text-black"
+            }`}
+          >
+            Sold ({soldCount})
+          </button>
         </div>
-        <button
-          onClick={() => fetchItems(currentPage)}
-          className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white shrink-0 hover:cursor-pointer"
-        >
-          <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
-          <span className="hidden xs:inline">
-            {t.adminFabrics.list.refresh}
-          </span>
-        </button>
+
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          <div className="relative flex-1 max-w-full sm:max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder={t.adminFabrics.list.search_placeholder}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
+            />
+          </div>
+          <button
+            onClick={() => fetchItems(currentPage)}
+            className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white shrink-0 hover:cursor-pointer"
+          >
+            <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden xs:inline">
+              {t.adminFabrics.list.refresh}
+            </span>
+          </button>
+        </div>
       </div>
 
       {items.length === 0 ? (
@@ -622,16 +686,23 @@ export default function AdminFabricsPage() {
                                             <div className="flex items-center gap-2">
                                               {v.images &&
                                               v.images.length > 0 ? (
-                                                <img
-                                                  src={v.images[0]}
-                                                  alt={v.name}
-                                                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-cover cursor-pointer"
+                                                <div
+                                                  className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg overflow-hidden group cursor-pointer shrink-0"
                                                   onClick={() =>
                                                     handleImageClick(
                                                       v.images[0],
                                                     )
                                                   }
-                                                />
+                                                >
+                                                  <img
+                                                    src={v.images[0]}
+                                                    alt={v.name}
+                                                    className="w-full h-full object-cover"
+                                                  />
+                                                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                    <Maximize2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
+                                                  </div>
+                                                </div>
                                               ) : (
                                                 <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
                                                   <ImageIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-400" />
@@ -761,14 +832,21 @@ export default function AdminFabricsPage() {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 min-w-0">
                                 {v.images && v.images.length > 0 ? (
-                                  <img
-                                    src={v.images[0]}
-                                    alt={v.name}
-                                    className="w-7 h-7 rounded-lg object-cover cursor-pointer"
+                                  <div
+                                    className="relative w-7 h-7 rounded-lg overflow-hidden group cursor-pointer shrink-0"
                                     onClick={() =>
                                       handleImageClick(v.images[0])
                                     }
-                                  />
+                                  >
+                                    <img
+                                      src={v.images[0]}
+                                      alt={v.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                      <Maximize2 className="w-2.5 h-2.5 text-white" />
+                                    </div>
+                                  </div>
                                 ) : (
                                   <div className="w-7 h-7 rounded-lg bg-gray-200 flex items-center justify-center shrink-0">
                                     <ImageIcon className="w-3 h-3 text-gray-400" />
@@ -810,16 +888,18 @@ export default function AdminFabricsPage() {
       )}
 
       {/* Pagination */}
-      <GlobalPagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={handlePageChange}
-        showItemsPerPage={true}
-        itemsPerPage={limit}
-        onItemsPerPageChange={handleLimitChange}
-        itemsPerPageOptions={[5, 10, 20, 50, 100]}
-        totalItems={totalItems}
-      />
+      {totalPages > 0 && totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
+      )}
 
       <ImageModal
         isOpen={imageModalOpen}

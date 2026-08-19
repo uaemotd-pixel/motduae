@@ -225,7 +225,7 @@ export default function MOTDGuidePage() {
 
   return (
     <MainLayout>
-      <div className="bg-[#FFFDF9] min-h-screen">
+      <div className="bg-white min-h-screen">
         {/* 1. Page Header */}
         <section className="relative overflow-hidden py-16 sm:py-24 bg-white text-black text-center border-b border-[#E8E8E4]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(0,0,0,0.02),transparent_60%)]"></div>

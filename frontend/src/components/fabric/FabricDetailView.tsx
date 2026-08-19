@@ -229,7 +229,7 @@ export default function FabricDetailView({
   };
 
   return (
-    <div ref={containerRef} className="bg-[#FDFAF5] min-h-screen pt-20 pb-12">
+    <div ref={containerRef} className="bg-white min-h-screen pt-20 pb-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: -10 }}
