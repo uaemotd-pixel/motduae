@@ -15,7 +15,7 @@ export default function GlobalError({ error, reset }: Props) {
 
   return (
     <html lang="en">
-      <body className="bg-[#FFFDF9] text-black">
+      <body className="bg-white text-black">
         <main className="grid min-h-screen place-items-center px-4 py-16 sm:px-6">
           <div className="w-full max-w-xl text-center">
             <p className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.28em] text-[#8A8A80]">

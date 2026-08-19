@@ -76,7 +76,7 @@ export default function ContactUsPage() {
   return (
     <MainLayout>
       <FadeInSection>
-        <div className="bg-[#FFFDF9] min-h-screen py-16 sm:py-24">
+        <div className="bg-white min-h-screen py-16 sm:py-24">
           <div className="max-w-5xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-16">
               <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.28em] text-[#8A8A80] mb-3 block">
@@ -110,10 +110,10 @@ export default function ContactUsPage() {
                         {isAr ? "البريد الإلكتروني" : "EMAIL ADDRESS"}
                       </span>
                       <a
-                        href="mailto:uaemotd@gmail.com"
+                        href="mailto:care@motd.ae"
                         className="text-sm sm:text-base font-medium text-black hover:opacity-70 transition-opacity decoration-1"
                       >
-                        uaemotd@gmail.com
+                        care@motd.ae
                       </a>
                     </div>
                   </div>

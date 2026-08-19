@@ -13,7 +13,7 @@ export default function BrandLoader() {
   if (!mounted) return null;
 
   return (
-    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-[#FFFDF9] px-6">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-white px-6">
       <div className="flex flex-col items-center text-center">
         <div className="relative w-24 sm:w-28 md:w-32 lg:w-36 xl:w-40">
           <img

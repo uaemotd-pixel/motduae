@@ -21,7 +21,16 @@ import {
   type RetailOrderListItem,
 } from "@/lib/customOrders";
 import OrderProgressPanel from "@/components/orders/OrderProgressPanel";
-import { ChevronDown, ChevronUp, Maximize2, Package, Scissors, Sparkles, CheckCircle2, Info } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Maximize2,
+  Package,
+  Scissors,
+  Sparkles,
+  CheckCircle2,
+  Info,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { resolveDesignImage } from "@/lib/tailors";
 import { resolveFabricImage } from "@/lib/fabrics";
@@ -30,6 +39,18 @@ import { resolveMediaUrl } from "@/lib/media";
 import { useMemo } from "react";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  extractDigits,
+  isValidUaePhone,
+  normalizeUaePhone,
+} from "@/lib/uaePhone";
+import {
+  UAE_EMIRATES,
+  getEmirateAr,
+  getEmirateEn,
+  isValidEmirate,
+  normalizeEmirate,
+} from "@/lib/uaeAddress";
 
 type ReturnDraft = {
   condition: string;
@@ -66,6 +87,15 @@ const CONDITION_OPTIONS = [
   { value: "Bad", label: "Bad" },
   { value: "Perfect", label: "Perfect" },
 ];
+
+function getPhoneDisplayValue(phone: string): string {
+  if (!phone) return "";
+  const digits = extractDigits(phone);
+  if (digits.startsWith("971")) {
+    return digits.slice(3);
+  }
+  return digits.slice(0, 9);
+}
 
 type CustomOrdersTabProps = {
   locale: Locale;
@@ -364,9 +394,11 @@ export default function CustomOrdersTab({
               line1: defaultAddr?.street || "",
               line2: defaultAddr?.building || "",
               city: defaultAddr?.city || "",
-              state: defaultAddr?.emirate || "",
+              state: normalizeEmirate(defaultAddr?.emirate || ""),
               postalCode: defaultAddr?.postalCode || "",
-              phone: defaultAddr?.phone || customerProfile?.phone || "",
+              phone: normalizeUaePhone(
+                defaultAddr?.phone || customerProfile?.phone || "",
+              ),
             },
           },
         },
@@ -402,17 +434,16 @@ export default function CustomOrdersTab({
       const draft = returnState.draft[orderId];
       if (!draft) throw new Error("Missing return details");
 
+      const normalizedPhone = normalizeUaePhone(draft.pickupAddress.phone);
+      const normalizedEmirate = normalizeEmirate(draft.pickupAddress.state);
       const fields: [any, string][] = [
         [draft.condition, "Condition is required"],
         [draft.reason.trim(), "Reason is required"],
         [draft.pickupAddress.fullName, "Full name is required"],
-        [
-          draft.pickupAddress.phone?.replace(/\D/g, "").length >= 12,
-          "Valid phone number required",
-        ],
+        [isValidUaePhone(normalizedPhone), "Valid phone number required"],
         [draft.pickupAddress.line1, "Address line 1 required"],
         [draft.pickupAddress.city, "City required"],
-        [draft.pickupAddress.state, "State required"],
+        [isValidEmirate(normalizedEmirate), "Valid UAE emirate required"],
         [draft.pickupAddress.postalCode, "Postal code required"],
       ];
 
@@ -431,9 +462,9 @@ export default function CustomOrdersTab({
             line1: draft.pickupAddress.line1,
             line2: draft.pickupAddress.line2,
             city: draft.pickupAddress.city,
-            emirate: draft.pickupAddress.state,
+            emirate: normalizedEmirate,
             postalCode: draft.pickupAddress.postalCode,
-            phone: draft.pickupAddress.phone,
+            phone: normalizedPhone,
           },
         },
       );
@@ -664,16 +695,17 @@ export default function CustomOrdersTab({
                                   <img
                                     src={resolveDesignImage(dImage)}
                                     alt="Design"
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                    className="w-full h-full object-cover"
                                   />
                                   <button
+                                    type="button"
                                     onClick={() =>
                                       handleImageClick(
                                         resolveDesignImage(dImage),
                                         designName,
                                       )
                                     }
-                                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
+                                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
                                   >
                                     <Maximize2 className="w-4 h-4 text-white" />
                                   </button>
@@ -688,7 +720,6 @@ export default function CustomOrdersTab({
                               <h4 className="text-sm font-semibold text-black leading-tight line-clamp-2">
                                 {designName}
                               </h4>
-
                             </div>
                           </div>
                         );
@@ -725,16 +756,17 @@ export default function CustomOrdersTab({
                                   <img
                                     src={resolveFabricImage(fImage)}
                                     alt="Fabric"
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                    className="w-full h-full object-cover"
                                   />
                                   <button
+                                    type="button"
                                     onClick={() =>
                                       handleImageClick(
                                         resolveFabricImage(fImage),
                                         fabricName,
                                       )
                                     }
-                                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
+                                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
                                   >
                                     <Maximize2 className="w-4 h-4 text-white" />
                                   </button>
@@ -749,7 +781,6 @@ export default function CustomOrdersTab({
                               <h4 className="text-sm font-semibold text-black leading-tight line-clamp-2">
                                 {fabricName}
                               </h4>
-
                             </div>
                           </div>
                         );
@@ -763,7 +794,9 @@ export default function CustomOrdersTab({
                   <div className="space-y-4 pb-8 border-b border-black/5">
                     <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-ui font-bold text-black/50">
                       <CheckCircle2 className="w-3.5 h-3.5 text-black/30" />
-                      <span>{locale === "ar" ? "الإضافات" : "SELECTED ADD-ONS"}</span>
+                      <span>
+                        {locale === "ar" ? "الإضافات" : "SELECTED ADD-ONS"}
+                      </span>
                     </div>
                     <div className="border border-black/5 rounded-xl p-5 bg-[#FAF9F6]/60 w-full shadow-[inset_0_1px_3px_rgba(0,0,0,0.01)]">
                       <ul className="divide-y divide-black/5 font-sans">
@@ -806,7 +839,9 @@ export default function CustomOrdersTab({
                                     </div>
                                   )}
                                 </div>
-                                <span className="font-medium text-black/70">{name}</span>
+                                <span className="font-medium text-black/70">
+                                  {name}
+                                </span>
                               </div>
                               <span className="font-bold text-black shrink-0">
                                 {formatCurrency(addon.price, locale)}
@@ -851,7 +886,9 @@ export default function CustomOrdersTab({
                             ? "عرض تفاصيل السعر"
                             : "View Price Details"}
                       </span>
-                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${priceDetailsOpenIds[order.id] ? "rotate-180" : ""}`} />
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform duration-300 ${priceDetailsOpenIds[order.id] ? "rotate-180" : ""}`}
+                      />
                     </button>
                   </div>
                 </div>
@@ -1165,22 +1202,35 @@ export default function CustomOrdersTab({
                                 </div>
                                 <div>
                                   <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
-                                    Phone Number (format: 971XXXXXXXXX){" "}
+                                    Phone Number{" "}
                                     <span className="text-red-500">*</span>
                                   </label>
-                                  <input
-                                    value={
-                                      returnState.draft[order.id]?.pickupAddress
-                                        .phone ?? ""
-                                    }
-                                    onChange={(e) =>
-                                      updateAddress(order.id, {
-                                        phone: e.target.value,
-                                      })
-                                    }
-                                    className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
-                                    placeholder="971501234567"
-                                  />
+                                  <div className="relative flex items-center">
+                                    <span className="absolute left-3 text-gray-500 font-mono text-sm">
+                                      +971
+                                    </span>
+                                    <input
+                                      type="tel"
+                                      inputMode="numeric"
+                                      autoComplete="tel-national"
+                                      maxLength={9}
+                                      value={getPhoneDisplayValue(
+                                        returnState.draft[order.id]
+                                          ?.pickupAddress.phone ?? "",
+                                      )}
+                                      onChange={(e) => {
+                                        const digits = extractDigits(
+                                          e.target.value,
+                                        );
+                                        if (digits.length > 9) return;
+                                        updateAddress(order.id, {
+                                          phone: normalizeUaePhone(digits),
+                                        });
+                                      }}
+                                      className="w-full border border-gray-200 rounded-xl p-2 pl-14 text-sm text-black focus:outline-none focus:border-black transition bg-white"
+                                      placeholder="XXXXXXXXX"
+                                    />
+                                  </div>
                                 </div>
                                 <div>
                                   <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
@@ -1239,22 +1289,36 @@ export default function CustomOrdersTab({
                                 </div>
                                 <div>
                                   <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
-                                    State{" "}
+                                    Emirate{" "}
                                     <span className="text-red-500">*</span>
                                   </label>
-                                  <input
+                                  <select
                                     value={
                                       returnState.draft[order.id]?.pickupAddress
                                         .state ?? ""
                                     }
                                     onChange={(e) =>
                                       updateAddress(order.id, {
-                                        state: e.target.value,
+                                        state: normalizeEmirate(e.target.value),
                                       })
                                     }
                                     className="w-full border border-gray-200 rounded-xl p-2 text-sm text-black focus:outline-none focus:border-black transition bg-white"
-                                    placeholder="Dubai"
-                                  />
+                                  >
+                                    <option value="">
+                                      {locale === "ar"
+                                        ? "اختر الإمارة"
+                                        : "Select Emirate"}
+                                    </option>
+                                    {UAE_EMIRATES.map((emirate) => (
+                                      <option
+                                        key={emirate.value}
+                                        value={emirate.value}
+                                      >
+                                        {getEmirateEn(emirate.value)} /{" "}
+                                        {getEmirateAr(emirate.value)}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
                                 <div>
                                   <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
@@ -1463,16 +1527,17 @@ export default function CustomOrdersTab({
                                     <img
                                       src={resolveReadyMadeImage(item.image)}
                                       alt={item.name}
-                                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                      className="w-full h-full object-cover"
                                     />
                                     <button
+                                      type="button"
                                       onClick={() =>
                                         handleImageClick(
                                           resolveReadyMadeImage(item.image),
                                           item.name,
                                         )
                                       }
-                                      className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
+                                      className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
                                     >
                                       <Maximize2 className="w-4 h-4 text-white" />
                                     </button>
@@ -1505,13 +1570,13 @@ export default function CustomOrdersTab({
                     const hasAnyFabric = order.items.some(
                       (item) =>
                         item &&
-                        (item.fabricName || item.fabricImage || item.size === "Per Meter")
+                        (item.fabricName ||
+                          item.fabricImage ||
+                          item.size === "Per Meter"),
                     );
                     const hasAnyDesign = order.items.some(
                       (item) =>
-                        item &&
-                        item.designName &&
-                        item.size !== "Per Meter"
+                        item && item.designName && item.size !== "Per Meter",
                     );
                     const showToggle = hasAnyFabric || hasAnyDesign;
 
@@ -1535,7 +1600,9 @@ export default function CustomOrdersTab({
                           </span>
                           <ChevronDown
                             className={`w-3.5 h-3.5 transition-transform duration-300 ${
-                              retailFabricDesignOpenIds[order.id] ? "rotate-180" : ""
+                              retailFabricDesignOpenIds[order.id]
+                                ? "rotate-180"
+                                : ""
                             }`}
                           />
                         </button>
@@ -1551,13 +1618,13 @@ export default function CustomOrdersTab({
                   const hasAnyFabric = order.items.some(
                     (item) =>
                       item &&
-                      (item.fabricName || item.fabricImage || item.size === "Per Meter")
+                      (item.fabricName ||
+                        item.fabricImage ||
+                        item.size === "Per Meter"),
                   );
                   const hasAnyDesign = order.items.some(
                     (item) =>
-                      item &&
-                      item.designName &&
-                      item.size !== "Per Meter"
+                      item && item.designName && item.size !== "Per Meter",
                   );
 
                   if (!hasAnyFabric && !hasAnyDesign) return null;
@@ -1569,7 +1636,9 @@ export default function CustomOrdersTab({
                         <div className="space-y-4">
                           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-ui font-bold text-black/50">
                             <Scissors className="w-3.5 h-3.5 text-black/30" />
-                            <span>{locale === "ar" ? "التصاميم" : "DESIGNS"}</span>
+                            <span>
+                              {locale === "ar" ? "التصاميم" : "DESIGNS"}
+                            </span>
                           </div>
                           <div className="space-y-4">
                             {order.items.map((item, idx) => {
@@ -1594,18 +1663,23 @@ export default function CustomOrdersTab({
                                     {item.designImage ? (
                                       <>
                                         <img
-                                          src={resolveDesignImage(item.designImage)}
+                                          src={resolveDesignImage(
+                                            item.designImage,
+                                          )}
                                           alt="Design"
-                                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                          className="w-full h-full object-cover"
                                         />
                                         <button
+                                          type="button"
                                           onClick={() =>
                                             handleImageClick(
-                                              resolveDesignImage(item.designImage),
+                                              resolveDesignImage(
+                                                item.designImage,
+                                              ),
                                               designName,
                                             )
                                           }
-                                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
+                                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
                                         >
                                           <Maximize2 className="w-4 h-4 text-white" />
                                         </button>
@@ -1638,7 +1712,9 @@ export default function CustomOrdersTab({
                         <div className="space-y-4">
                           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-ui font-bold text-black/50">
                             <Sparkles className="w-3.5 h-3.5 text-black/30" />
-                            <span>{locale === "ar" ? "الأقمشة" : "FABRICS"}</span>
+                            <span>
+                              {locale === "ar" ? "الأقمشة" : "FABRICS"}
+                            </span>
                           </div>
                           <div className="space-y-4">
                             {order.items.map((item, idx) => {
@@ -1675,9 +1751,10 @@ export default function CustomOrdersTab({
                                             fabricImageDisplay,
                                           )}
                                           alt="Fabric"
-                                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                          className="w-full h-full object-cover"
                                         />
                                         <button
+                                          type="button"
                                           onClick={() =>
                                             handleImageClick(
                                               resolveFabricImage(
@@ -1686,7 +1763,7 @@ export default function CustomOrdersTab({
                                               fabricNameDisplay,
                                             )
                                           }
-                                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
+                                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer rounded-lg"
                                         >
                                           <Maximize2 className="w-4 h-4 text-white" />
                                         </button>

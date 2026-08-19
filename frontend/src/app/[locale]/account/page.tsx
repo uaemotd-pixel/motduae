@@ -347,7 +347,7 @@ function AccountPageContent() {
       </AnimatePresence>
 
       <main
-        className={`min-h-screen bg-linear-to-b from-gray-50 to-gray-100 text-black transition-all duration-300 ${
+        className={`min-h-screen bg-white text-black transition-all duration-300 ${
           sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
         }`}
       >

@@ -98,7 +98,7 @@ export default function LoginPage() {
 
     if (!showLoginForm && isCheckoutRedirect) {
         return (
-            <main className="min-h-screen w-full flex flex-col md:flex-row bg-[#FFFDF9]">
+            <main className="min-h-screen w-full flex flex-col md:flex-row bg-white">
                 {/* Left Side - Image Section */}
                 <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden">
                     <img
@@ -127,7 +127,7 @@ export default function LoginPage() {
                 </section>
 
                 {/* Right Side - Form */}
-                <section className="w-full md:w-[45%] h-auto bg-[#FFFDF9] flex flex-col items-center justify-center py-10 px-5 sm:px-8 md:px-12 lg:px-16 xl:px-20">
+                <section className="w-full md:w-[45%] h-auto bg-white flex flex-col items-center justify-center py-10 px-5 sm:px-8 md:px-12 lg:px-16 xl:px-20">
                     <div className="w-full max-w-100 mx-auto">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -239,7 +239,7 @@ export default function LoginPage() {
     }
 
     return (
-        <main className="min-h-screen w-full flex flex-col md:flex-row bg-[#FFFDF9]">
+        <main className="min-h-screen w-full flex flex-col md:flex-row bg-white">
             {/* Left Side - Image Section */}
             <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden">
                 <img
@@ -268,7 +268,7 @@ export default function LoginPage() {
             </section>
 
             {/* Right Side - Form */}
-            <section className="w-full md:w-[45%] h-auto bg-[#FFFDF9] flex flex-col items-center justify-center py-10 px-5 sm:px-8 md:px-12 lg:px-16 xl:px-20">
+            <section className="w-full md:w-[45%] h-auto bg-white flex flex-col items-center justify-center py-10 px-5 sm:px-8 md:px-12 lg:px-16 xl:px-20">
                 <div className="w-full max-w-100 mx-auto">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}

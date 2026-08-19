@@ -52,7 +52,7 @@ export default function TailorsListing() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#FDFAF5]">
+    <div className="min-h-screen bg-white">
       <div className="py-12 sm:py-16 lg:py-24 border-b border-[#E4E0D8] px-4 sm:px-8 lg:px-12">
         <div className="w-full text-left">
           <div className="mb-4 xs:mb-6">
