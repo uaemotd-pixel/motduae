@@ -156,6 +156,7 @@ function CheckoutPageContent() {
     postalCode: "",
     deliveryNotes: "",
   });
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [customerProfile, setCustomerProfile] =
@@ -176,8 +177,7 @@ function CheckoutPageContent() {
   const emailVerifyNoticeRef = useRef<HTMLDivElement>(null);
 
   // Guests skip OTP (shared account); matches account banner + BE middleware
-  const needsEmailVerify =
-    needsEmailVerification(user) && !user?.isGuest;
+  const needsEmailVerify = needsEmailVerification(user) && !user?.isGuest;
 
   const checkoutReturnPath = (() => {
     const search = searchParams.toString();
@@ -427,15 +427,16 @@ function CheckoutPageContent() {
         setProfileLoading(true);
         const data = await api.get<CustomerProfile>("/api/customer/profile");
         setCustomerProfile(data);
-        const defaultAddr =
-          data.addresses?.find((a) => a.isDefault) || data.addresses?.[0];
-        if (defaultAddr) {
-          const normalizedPhone = normalizeUaePhone(defaultAddr.phone || "");
-          const normalizedProfilePhone = normalizeUaePhone(data.phone || "");
+
+        const addresses = data.addresses || [];
+        if (addresses.length > 0) {
+          const defaultAddr =
+            addresses.find((a) => a.isDefault) || addresses[0];
+          setSelectedAddressId(defaultAddr._id || "");
           setFormData((prev) => ({
             ...prev,
-            fullName: defaultAddr.fullName || data.name || prev.fullName,
-            phone: normalizedPhone || normalizedProfilePhone || prev.phone,
+            fullName: defaultAddr.fullName || data.name || "",
+            phone: normalizeUaePhone(defaultAddr.phone || ""),
             emirate: defaultAddr.emirate || "",
             city: defaultAddr.city || "",
             street: defaultAddr.street || "",
@@ -446,8 +447,8 @@ function CheckoutPageContent() {
           const normalizedPhone = normalizeUaePhone(data.phone || "");
           setFormData((prev) => ({
             ...prev,
-            fullName: data.name || prev.fullName,
-            phone: normalizedPhone || prev.phone,
+            fullName: data.name || "",
+            phone: normalizedPhone || "",
           }));
         }
         initialFillDone.current = true;
@@ -463,6 +464,29 @@ function CheckoutPageContent() {
     }
     fetchCustomerProfile();
   }, [isAuthenticated, user]);
+
+  // --- Address selection handler ---
+  const handleAddressSelect = (addressId: string) => {
+    if (!customerProfile?.addresses) return;
+    const address = customerProfile.addresses.find((a) => a._id === addressId);
+    if (!address) return;
+
+    setSelectedAddressId(addressId);
+    setFormData({
+      fullName: address.fullName || "",
+      phone: normalizeUaePhone(address.phone || ""),
+      emirate: address.emirate || "",
+      city: address.city || "",
+      street: address.street || "",
+      building: address.building || "",
+      postalCode: address.postalCode || "",
+      deliveryNotes: formData.deliveryNotes,
+    });
+
+    // Clear errors when address changes
+    setErrors({});
+    if (errorMessage) setErrorMessage(null);
+  };
 
   // --- Fallback fill name ---
   useEffect(() => {
@@ -509,6 +533,11 @@ function CheckoutPageContent() {
     >,
   ) => {
     const { name, value } = e.target;
+
+    if (name === "deliveryNotes") {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+      return;
+    }
 
     let processedValue = value;
     if (name === "fullName") {
@@ -860,11 +889,44 @@ function CheckoutPageContent() {
                     onBeforeNavigate={persistWishlistItemsForReturn}
                   />
                 ) : null}
+
+                {/* DELIVERY DETAILS */}
                 <div className="border border-(--color-border) rounded-lg p-6 md:p-8">
                   <h2 className="font-headline-lg text-[20px] sm:text-[24px] md:text-[28px] lg:text-[32px] uppercase mb-8 tracking-[-0.01em] text-black">
                     {t.checkout.deliveryDetails}
                   </h2>
 
+                  {/* Address Dropdown */}
+                  {customerProfile?.addresses &&
+                    customerProfile.addresses.length > 0 && (
+                      <div className="mb-6 p-3 bg-gray-50/80 rounded-lg border border-gray-200/60">
+                        <label className="font-label-sm text-[11px] md:text-[12px] text-black/50 uppercase tracking-[0.2em] block mb-2">
+                          Select Address
+                        </label>
+                        <select
+                          value={selectedAddressId}
+                          onChange={(e) => handleAddressSelect(e.target.value)}
+                          className="w-full h-11 md:h-12 bg-white border border-gray-200/80 rounded-md px-3 text-[15px] md:text-[16px] font-body-md transition-all focus:border-black/40 focus:outline-none focus:ring-0 text-black"
+                        >
+                          {customerProfile.addresses.map((addr, index) => (
+                            <option
+                              key={addr._id || index}
+                              value={addr._id || ""}
+                            >
+                              {addr.fullName} - {addr.city}{" "}
+                              {addr.isDefault ? "(Default)" : ""}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[11px] text-gray-400 mt-1.5">
+                          {locale === "ar"
+                            ? "اختر عنوانك للشحن"
+                            : "Select your shipping address"}
+                        </p>
+                      </div>
+                    )}
+
+                  {/* Read-only Address Fields */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
@@ -875,14 +937,8 @@ function CheckoutPageContent() {
                           type="text"
                           name="fullName"
                           value={formData.fullName}
-                          onChange={handleChange}
-                          className={`w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black ${
-                            user?.isGuest
-                              ? localeParams === "ar"
-                                ? "pl-20"
-                                : "pr-20"
-                              : ""
-                          }`}
+                          readOnly
+                          className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
                         />
                         {user?.isGuest && (
                           <span
@@ -892,11 +948,6 @@ function CheckoutPageContent() {
                           </span>
                         )}
                       </div>
-                      {errors.fullName && (
-                        <p className="text-red-500 text-[11px] mt-1">
-                          {errors.fullName}
-                        </p>
-                      )}
                     </div>
                     <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
@@ -912,44 +963,26 @@ function CheckoutPageContent() {
                           type="tel"
                           name="phone"
                           value={getPhoneDisplayValue(formData.phone)}
-                          onChange={handleChange}
-                          placeholder="XXXXXXXXX"
-                          maxLength={9}
-                          className={`w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-mono rounded-none transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black ${
+                          readOnly
+                          className={`w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-mono rounded-none transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0 ${
                             localeParams === "ar"
                               ? "pr-11 pl-0 text-right"
                               : "pl-11 pr-0 text-left"
                           }`}
                         />
                       </div>
-                      {errors.phone && (
-                        <p className="text-red-500 text-[11px] mt-1">
-                          {errors.phone}
-                        </p>
-                      )}
                     </div>
                     <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
                         {t.checkout.emirate}*
                       </label>
-                      <select
+                      <input
+                        type="text"
                         name="emirate"
                         value={formData.emirate}
-                        onChange={handleChange}
-                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-                      >
-                        <option value="">{t.checkout.selectEmirate}</option>
-                        {UAE_EMIRATES.map((emirate) => (
-                          <option key={emirate.value} value={emirate.value}>
-                            {emirate.en} / {emirate.ar}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.emirate && (
-                        <p className="text-red-500 text-[11px] mt-1">
-                          {errors.emirate}
-                        </p>
-                      )}
+                        readOnly
+                        className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
+                      />
                     </div>
                     <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
@@ -959,14 +992,9 @@ function CheckoutPageContent() {
                         type="text"
                         name="city"
                         value={formData.city}
-                        onChange={handleChange}
-                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                        readOnly
+                        className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
                       />
-                      {errors.city && (
-                        <p className="text-red-500 text-[11px] mt-1">
-                          {errors.city}
-                        </p>
-                      )}
                     </div>
                     <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
@@ -976,14 +1004,9 @@ function CheckoutPageContent() {
                         type="text"
                         name="street"
                         value={formData.street}
-                        onChange={handleChange}
-                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                        readOnly
+                        className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
                       />
-                      {errors.street && (
-                        <p className="text-red-500 text-[11px] mt-1">
-                          {errors.street}
-                        </p>
-                      )}
                     </div>
                     <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
@@ -993,14 +1016,9 @@ function CheckoutPageContent() {
                         type="text"
                         name="building"
                         value={formData.building}
-                        onChange={handleChange}
-                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                        readOnly
+                        className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
                       />
-                      {errors.building && (
-                        <p className="text-red-500 text-[11px] mt-1">
-                          {errors.building}
-                        </p>
-                      )}
                     </div>
                     <div className="sm:col-span-2">
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
@@ -1013,8 +1031,8 @@ function CheckoutPageContent() {
                         type="text"
                         name="postalCode"
                         value={formData.postalCode}
-                        onChange={handleChange}
-                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                        readOnly
+                        className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
                         placeholder="12345"
                       />
                     </div>
@@ -1027,10 +1045,15 @@ function CheckoutPageContent() {
                       </label>
                       <textarea
                         name="deliveryNotes"
-                        rows={5}
+                        rows={3}
                         value={formData.deliveryNotes}
                         onChange={handleChange}
-                        className="w-full border border-(--color-border) p-3 text-[14px] focus:outline-none focus:border-black"
+                        className="w-full border border-(--color-border) p-3 text-[14px] focus:outline-none focus:border-black bg-white"
+                        placeholder={
+                          locale === "ar"
+                            ? "ملاحظات التوصيل (اختياري)"
+                            : "Delivery notes (optional)"
+                        }
                       />
                     </div>
                   </div>
@@ -1109,7 +1132,12 @@ function CheckoutPageContent() {
                           ? `${formData.fullName.trim()} - ${localeParams === "ar" ? "زائر" : "Guest"}`
                           : formData.fullName
                       }
-                      disabled={isSubmitting || displayItems.length === 0 || vatError || vatRate === null}
+                      disabled={
+                        isSubmitting ||
+                        displayItems.length === 0 ||
+                        vatError ||
+                        vatRate === null
+                      }
                       payLabel={t.checkout.payButton}
                       processingLabel={t.checkout.processing}
                       loadingLabel={t.checkout.loadingCard}
@@ -1124,7 +1152,12 @@ function CheckoutPageContent() {
                     <ApplePayCheckout
                       amountAed={total}
                       orderLabel={t.checkout.applePayOrderLabel}
-                      disabled={isSubmitting || displayItems.length === 0 || vatError || vatRate === null}
+                      disabled={
+                        isSubmitting ||
+                        displayItems.length === 0 ||
+                        vatError ||
+                        vatRate === null
+                      }
                       processingLabel={t.checkout.processing}
                       loadingLabel={t.checkout.loadingApplePay}
                       unavailableLabel={t.checkout.applePayUnavailable}

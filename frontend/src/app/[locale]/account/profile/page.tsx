@@ -24,11 +24,15 @@ import {
   Ruler,
   UserPen,
   Maximize2,
+  ChevronDown,
+  ChevronUp,
+  Minus,
 } from "lucide-react";
 import { resolveMediaUrl } from "@/lib/media";
 import { useParams } from "next/navigation";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { AccountPanelSkeleton } from "@/components/ui/Skeleton";
+import { motion, AnimatePresence } from "framer-motion";
 
 const ACCOUNT_VERIFY_HREF = (locale: string) =>
   `/${locale}/auth/verify-email?mode=account&next=${encodeURIComponent("/account?tab=profile")}`;
@@ -119,6 +123,10 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
+  const [expandedAddresses, setExpandedAddresses] = useState<Set<number>>(
+    new Set(),
+  );
+
   const isComplete = profile ? isProfileComplete(profile) : false;
 
   const handleImageClick = (imageUrl: string) => {
@@ -183,6 +191,18 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
     fetchProfile();
   }, [authUser]);
 
+  const toggleAddress = (index: number) => {
+    setExpandedAddresses((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  };
+
   if (isLoading) {
     return <AccountPanelSkeleton />;
   }
@@ -239,6 +259,9 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
 
   const defaultAddress =
     profile.addresses?.find((a) => a.isDefault) || profile.addresses?.[0];
+
+  const additionalAddresses =
+    profile.addresses?.filter((_, index) => index !== 0) || [];
 
   const DisplayField = ({
     label,
@@ -307,228 +330,342 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
           variant="account"
         />
       ) : null}
-    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-      <div className="p-4 sm:p-6 md:p-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
-          <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto">
-            {/* Avatar with click to enlarge */}
-            <div className="relative group shrink-0">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 rounded-full bg-linear-to-br from-gray-200 to-gray-300 flex items-center justify-center overflow-hidden border-2 border-gray-200 shadow-md">
-                {profilePicUrl ? (
-                  <img
-                    src={profilePicUrl}
-                    alt={profile.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-medium text-gray-500">
-                    {profile.name?.charAt(0).toUpperCase() || "U"}
-                  </span>
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="p-4 sm:p-6 md:p-8">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
+            <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto">
+              {/* Avatar with click to enlarge */}
+              <div className="relative group shrink-0">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 rounded-full bg-linear-to-br from-gray-200 to-gray-300 flex items-center justify-center overflow-hidden border-2 border-gray-200 shadow-md">
+                  {profilePicUrl ? (
+                    <img
+                      src={profilePicUrl}
+                      alt={profile.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-medium text-gray-500">
+                      {profile.name?.charAt(0).toUpperCase() || "U"}
+                    </span>
+                  )}
+                </div>
+                {profilePicUrl && (
+                  <button
+                    onClick={() => handleImageClick(profilePicUrl)}
+                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 rounded-full transition-opacity duration-300 hover:cursor-pointer"
+                  >
+                    <Maximize2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </button>
                 )}
               </div>
-              {profilePicUrl && (
-                <button
-                  onClick={() => handleImageClick(profilePicUrl)}
-                  className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 rounded-full transition-opacity duration-300 hover:cursor-pointer"
-                >
-                  <Maximize2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                </button>
-              )}
+
+              {/* Name + Badge + Email/Phone */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg md:text-xl lg:text-2xl font-semibold text-gray-900 truncate">
+                    {profile.name}
+                  </h3>
+                  {isComplete ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-green-100 text-green-800 shrink-0">
+                      Complete
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-yellow-100 text-yellow-800 shrink-0">
+                      Incomplete
+                    </span>
+                  )}
+                </div>
+                <div className="text-gray-500 text-xs sm:text-sm flex items-center gap-2 mt-0.5 min-w-0 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 min-w-0">
+                    <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    <span className="truncate">
+                      {authUser?.email || "No email"}
+                    </span>
+                  </span>
+                  {showVerify ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.assign(ACCOUNT_VERIFY_HREF(locale));
+                      }}
+                      className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-600 text-white hover:bg-red-700 transition cursor-pointer"
+                    >
+                      {t.profileVerify}
+                    </button>
+                  ) : null}
+                  {canChangeEmail ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowChangeEmail((open) => !open)}
+                      aria-label={t.changeEmailHeading}
+                      className="shrink-0 p-0.5 rounded border border-black text-black bg-transparent hover:bg-black hover:text-white transition cursor-pointer"
+                    >
+                      <Edit className="w-3 h-3" strokeWidth={2} />
+                    </button>
+                  ) : null}
+                </div>
+                {profile.phone && (
+                  <p className="text-gray-500 text-xs sm:text-sm flex items-center gap-1.5 mt-0.5">
+                    <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                    <span>{formatUAEPhone(profile.phone)}</span>
+                  </p>
+                )}
+              </div>
             </div>
 
-            {/* Name + Badge + Email/Phone */}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-base sm:text-lg md:text-xl lg:text-2xl font-semibold text-gray-900 truncate">
-                  {profile.name}
-                </h3>
-                {isComplete ? (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-green-100 text-green-800 shrink-0">
-                    Complete
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-yellow-100 text-yellow-800 shrink-0">
-                    Incomplete
-                  </span>
-                )}
-              </div>
-              <div className="text-gray-500 text-xs sm:text-sm flex items-center gap-2 mt-0.5 min-w-0 flex-wrap">
-                <span className="inline-flex items-center gap-1.5 min-w-0">
-                  <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                  <span className="truncate">
-                    {authUser?.email || "No email"}
-                  </span>
-                </span>
-                {showVerify ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.location.assign(ACCOUNT_VERIFY_HREF(locale));
-                    }}
-                    className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-600 text-white hover:bg-red-700 transition cursor-pointer"
-                  >
-                    {t.profileVerify}
-                  </button>
-                ) : null}
-                {canChangeEmail ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowChangeEmail((open) => !open)}
-                    aria-label={t.changeEmailHeading}
-                    className="shrink-0 p-0.5 rounded border border-black text-black bg-transparent hover:bg-black hover:text-white transition cursor-pointer"
-                  >
-                    <Edit className="w-3 h-3" strokeWidth={2} />
-                  </button>
-                ) : null}
-              </div>
-              {profile.phone && (
-                <p className="text-gray-500 text-xs sm:text-sm flex items-center gap-1.5 mt-0.5">
-                  <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                  <span>{formatUAEPhone(profile.phone)}</span>
-                </p>
-              )}
-            </div>
+            {/* Edit button */}
+            <button
+              onClick={onEditClick}
+              className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-black text-white hover:bg-gray-800 transition flex items-center gap-2 whitespace-nowrap w-full sm:w-auto justify-center hover:cursor-pointer"
+            >
+              <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              {isComplete ? "Edit Profile" : "Complete Profile"}
+            </button>
           </div>
 
-          {/* Edit button */}
-          <button
-            onClick={onEditClick}
-            className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-black text-white hover:bg-gray-800 transition flex items-center gap-2 whitespace-nowrap w-full sm:w-auto justify-center hover:cursor-pointer"
-          >
-            <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            {isComplete ? "Edit Profile" : "Complete Profile"}
-          </button>
-        </div>
+          <hr className="my-4 sm:my-6 border-gray-200" />
 
-        <hr className="my-4 sm:my-6 border-gray-200" />
+          {/* Personal Info */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <DisplayField
+              label="Full Name"
+              value={profile.name}
+              icon={<User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+            />
+            <DisplayField
+              label="Phone"
+              value={formatUAEPhone(profile.phone)}
+              icon={<Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+            />
+            <DisplayField
+              label="Gender"
+              value={genderDisplay(profile.gender)}
+              icon={<Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+            />
+            <DisplayField
+              label="Date of Birth"
+              value={dobDisplay}
+              icon={<Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+            />
+          </div>
 
-        {/* Personal Info */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-          <DisplayField
-            label="Full Name"
-            value={profile.name}
-            icon={<User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-          />
-          <DisplayField
-            label="Phone"
-            value={formatUAEPhone(profile.phone)}
-            icon={<Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-          />
-          <DisplayField
-            label="Gender"
-            value={genderDisplay(profile.gender)}
-            icon={<Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-          />
-          <DisplayField
-            label="Date of Birth"
-            value={dobDisplay}
-            icon={<Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-          />
-        </div>
-
-        {/* Address */}
-        <div className="mt-6 sm:mt-8">
-          <h4 className="text-sm sm:text-md font-medium text-gray-700 flex items-center gap-2 mb-4 uppercase">
-            <MapPin className="w-4 h-4" />
-            Default Address
-          </h4>
-          {defaultAddress ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              <DisplayField
-                label="Full Name"
-                value={defaultAddress.fullName}
-                icon={<User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-              />
-              <DisplayField
-                label="Phone"
-                value={formatUAEPhone(defaultAddress.phone)}
-                icon={<Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-              />
-              <DisplayField
-                label="Emirate"
-                value={defaultAddress.emirate}
-                icon={<MapPinned className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-              />
-              <DisplayField
-                label="City"
-                value={defaultAddress.city}
-                icon={<Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-              />
-              <DisplayField
-                label="Street"
-                value={defaultAddress.street}
-                icon={<Road className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-              />
-              <DisplayField
-                label="Building"
-                value={defaultAddress.building}
-                icon={<House className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-              />
-              <DisplayField
-                label="Postal Code"
-                value={defaultAddress.postalCode}
-                icon={<Mailbox className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-              />
-            </div>
-          ) : (
-            <p className="text-gray-400 text-sm">No address added yet.</p>
-          )}
-        </div>
-
-        {/* Measurements Section */}
-        <div className="mt-6 sm:mt-8">
-          <h4 className="text-sm sm:text-md font-medium text-gray-700 flex items-center gap-2 mb-4 uppercase">
-            <UserPen className="w-4 h-4" />
-            Body Measurements
-          </h4>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {measurementFields.map((field) => {
-              const value = measurements?.[field.key as keyof Measurements];
-              let displayValue: string = "—";
-
-              if (value !== null && value !== undefined) {
-                const numeric =
-                  typeof value === "string" ? parseFloat(value) : value;
-                if (!Number.isNaN(numeric as number)) {
-                  displayValue = `${cmToInches(numeric as number)} in`;
-                }
-              }
-
-              return (
+          {/* Default Address */}
+          <div className="mt-6 sm:mt-8">
+            <h4 className="text-sm sm:text-md font-medium text-gray-700 flex items-center gap-2 mb-4 uppercase">
+              <MapPin className="w-4 h-4" />
+              Default Address
+            </h4>
+            {defaultAddress ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <DisplayField
-                  key={field.key}
-                  label={field.label}
-                  value={displayValue}
-                  icon={<Ruler className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                  label="Full Name"
+                  value={defaultAddress.fullName}
+                  icon={<User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                 />
-              );
-            })}
-            {measurements?.notes && (
-              <div className="sm:col-span-2 lg:col-span-3">
                 <DisplayField
-                  label="Notes"
-                  value={measurements.notes}
-                  icon={<MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                  label="Phone"
+                  value={formatUAEPhone(defaultAddress.phone)}
+                  icon={<Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                />
+                <DisplayField
+                  label="Emirate"
+                  value={defaultAddress.emirate}
+                  icon={<MapPinned className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                />
+                <DisplayField
+                  label="City"
+                  value={defaultAddress.city}
+                  icon={<Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                />
+                <DisplayField
+                  label="Street"
+                  value={defaultAddress.street}
+                  icon={<Road className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                />
+                <DisplayField
+                  label="Building"
+                  value={defaultAddress.building}
+                  icon={<House className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                />
+                <DisplayField
+                  label="Postal Code"
+                  value={defaultAddress.postalCode}
+                  icon={<Mailbox className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                 />
               </div>
+            ) : (
+              <p className="text-gray-400 text-sm">No address added yet.</p>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Image Modal */}
-      <ImageModal
-        isOpen={imageModalOpen}
-        imageUrl={selectedImage}
-        alt="Profile Picture"
-        onClose={() => {
-          setImageModalOpen(false);
-          setSelectedImage("");
-        }}
-      />
-    </div>
+          {/* Additional Addresses */}
+          {additionalAddresses.length > 0 && (
+            <div className="mt-6 sm:mt-8">
+              <h4 className="text-sm sm:text-md font-medium text-gray-700 flex items-center gap-2 mb-4 uppercase">
+                <MapPin className="w-4 h-4" />
+                Additional Addresses ({additionalAddresses.length})
+              </h4>
+
+              <div className="space-y-3">
+                {additionalAddresses.map((address, index) => {
+                  const actualIndex = index + 1;
+                  const isExpanded = expandedAddresses.has(actualIndex);
+
+                  return (
+                    <div
+                      key={actualIndex}
+                      className="border border-gray-200 rounded-lg overflow-hidden"
+                    >
+                      <button
+                        onClick={() => toggleAddress(actualIndex)}
+                        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <MapPin className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm font-medium text-gray-700">
+                            {address.fullName || `Address ${actualIndex}`}
+                          </span>
+                          {address.city && (
+                            <span className="text-xs text-gray-500">
+                              {address.city}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isExpanded ? (
+                            <Minus className="w-4 h-4 text-gray-500" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-gray-500" />
+                          )}
+                        </div>
+                      </button>
+
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="p-4 pt-0 border-t border-gray-100">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-4">
+                                <DisplayField
+                                  label="Full Name"
+                                  value={address.fullName}
+                                  icon={
+                                    <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  }
+                                />
+                                <DisplayField
+                                  label="Phone"
+                                  value={formatUAEPhone(address.phone)}
+                                  icon={
+                                    <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  }
+                                />
+                                <DisplayField
+                                  label="Emirate"
+                                  value={address.emirate}
+                                  icon={
+                                    <MapPinned className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  }
+                                />
+                                <DisplayField
+                                  label="City"
+                                  value={address.city}
+                                  icon={
+                                    <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  }
+                                />
+                                <DisplayField
+                                  label="Street"
+                                  value={address.street}
+                                  icon={
+                                    <Road className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  }
+                                />
+                                <DisplayField
+                                  label="Building"
+                                  value={address.building}
+                                  icon={
+                                    <House className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  }
+                                />
+                                <DisplayField
+                                  label="Postal Code"
+                                  value={address.postalCode}
+                                  icon={
+                                    <Mailbox className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Measurements Section */}
+          <div className="mt-6 sm:mt-8">
+            <h4 className="text-sm sm:text-md font-medium text-gray-700 flex items-center gap-2 mb-4 uppercase">
+              <UserPen className="w-4 h-4" />
+              Body Measurements
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {measurementFields.map((field) => {
+                const value = measurements?.[field.key as keyof Measurements];
+                let displayValue: string = "—";
+
+                if (value !== null && value !== undefined) {
+                  const numeric =
+                    typeof value === "string" ? parseFloat(value) : value;
+                  if (!Number.isNaN(numeric as number)) {
+                    displayValue = `${cmToInches(numeric as number)} in`;
+                  }
+                }
+
+                return (
+                  <DisplayField
+                    key={field.key}
+                    label={field.label}
+                    value={displayValue}
+                    icon={<Ruler className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                  />
+                );
+              })}
+              {measurements?.notes && (
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <DisplayField
+                    label="Notes"
+                    value={measurements.notes}
+                    icon={<MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Image Modal */}
+        <ImageModal
+          isOpen={imageModalOpen}
+          imageUrl={selectedImage}
+          alt="Profile Picture"
+          onClose={() => {
+            setImageModalOpen(false);
+            setSelectedImage("");
+          }}
+        />
+      </div>
     </div>
   );
 }

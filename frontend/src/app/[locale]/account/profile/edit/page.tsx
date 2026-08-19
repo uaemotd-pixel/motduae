@@ -13,6 +13,8 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import CustomerImageUpload from "@/components/shared/customerImageUpload";
@@ -34,7 +36,6 @@ import {
 
 type Address = {
   _id?: string;
-  label?: "home" | "work" | "other";
   fullName: string;
   phone: string;
   emirate: string;
@@ -51,15 +52,7 @@ type FormData = {
   gender: string;
   dob: string;
   profilePic: string;
-  address: {
-    fullName: string;
-    phone: string;
-    emirate: string;
-    city: string;
-    street: string;
-    building: string;
-    postalCode: string;
-  };
+  addresses: Address[];
 };
 
 interface EditProfileFormProps {
@@ -95,10 +88,9 @@ const FormField = ({
 );
 
 const validatePhone = (phone: string): string | null => {
-  if (!phone || phone === "+971") return "Phone number is required";
-  if (!isValidUaePhone(phone)) {
-    return "Invalid phone number. Must be 9 digits after +971";
-  }
+  if (!phone || phone === "+971") return "Phone number required";
+  if (!isValidUaePhone(phone))
+    return "Invalid phone. Must be 9 digits after +971";
   return null;
 };
 
@@ -109,16 +101,6 @@ const GENDER_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-// const UAE_EMIRATES = [
-//   "Abu Dhabi",
-//   "Dubai",
-//   "Sharjah",
-//   "Ajman",
-//   "Umm Al Quwain",
-//   "Ras Al Khaimah",
-//   "Fujairah",
-// ];
-
 export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
   const { user: authUser } = useAuth();
   const router = useRouter();
@@ -128,8 +110,8 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
   const [todayStr, setTodayStr] = useState("");
   const [genderOpen, setGenderOpen] = useState(false);
   const genderRef = useRef<HTMLDivElement>(null);
-  const [emirateOpen, setEmirateOpen] = useState(false);
-  const emirateRef = useRef<HTMLDivElement>(null);
+  const [emirateOpen, setEmirateOpen] = useState<Record<number, boolean>>({});
+  const emirateRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const [form, setForm] = useState<FormData>({
     name: "",
@@ -137,15 +119,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     gender: "prefer-not",
     dob: "",
     profilePic: "",
-    address: {
-      fullName: "",
-      phone: "",
-      emirate: "",
-      city: "",
-      street: "",
-      building: "",
-      postalCode: "",
-    },
+    addresses: [],
   });
 
   useEffect(() => {
@@ -161,16 +135,19 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
       if (genderRef.current && !genderRef.current.contains(e.target as Node)) {
         setGenderOpen(false);
       }
-      if (
-        emirateRef.current &&
-        !emirateRef.current.contains(e.target as Node)
-      ) {
-        setEmirateOpen(false);
-      }
+      Object.keys(emirateOpen).forEach((key) => {
+        const index = parseInt(key);
+        if (
+          emirateRefs.current[index] &&
+          !emirateRefs.current[index]?.contains(e.target as Node)
+        ) {
+          setEmirateOpen((prev) => ({ ...prev, [index]: false }));
+        }
+      });
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [emirateOpen]);
 
   useEffect(() => {
     async function loadProfile() {
@@ -178,29 +155,49 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
       try {
         setLoading(true);
         const data = await api.get("/api/customer/profile");
-        const defaultAddr =
-          data.addresses?.find((a: Address) => a.isDefault) ||
-          data.addresses?.[0] ||
-          {};
 
-        const normalizedPhone = normalizeUaePhone(data.phone || "");
-        const normalizedAddrPhone = normalizeUaePhone(defaultAddr.phone || "");
+        let addresses = data.addresses || [];
+
+        if (addresses.length === 0) {
+          addresses = [
+            {
+              fullName: data.name || "",
+              phone: normalizeUaePhone(data.phone || ""),
+              emirate: "",
+              city: "",
+              street: "",
+              building: "",
+              postalCode: "",
+              isDefault: true,
+            },
+          ];
+        } else {
+          // Only prefilled first address with name/phone
+          addresses = addresses.map((addr: Address, index: number) => {
+            if (index === 0) {
+              return {
+                ...addr,
+                fullName: addr.fullName || data.name || "",
+                phone: addr.phone
+                  ? normalizeUaePhone(addr.phone)
+                  : normalizeUaePhone(data.phone || ""),
+              };
+            }
+            return {
+              ...addr,
+              fullName: addr.fullName || "",
+              phone: addr.phone ? normalizeUaePhone(addr.phone) : "",
+            };
+          });
+        }
 
         setForm({
           name: data.name || "",
-          phone: normalizedPhone,
+          phone: normalizeUaePhone(data.phone || ""),
           gender: data.gender || "prefer-not",
           dob: data.dob ? data.dob.split("T")[0] : "",
           profilePic: data.profilePic || "",
-          address: {
-            fullName: defaultAddr.fullName || data.name || "",
-            phone: normalizedAddrPhone,
-            emirate: defaultAddr.emirate || "",
-            city: defaultAddr.city || "",
-            street: defaultAddr.street || "",
-            building: defaultAddr.building || "",
-            postalCode: defaultAddr.postalCode || "",
-          },
+          addresses: addresses,
         });
       } catch (err: any) {
         if (err.status === 404) {
@@ -210,15 +207,18 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
             gender: "prefer-not",
             dob: "",
             profilePic: "",
-            address: {
-              fullName: authUser.name || "",
-              phone: "",
-              emirate: "",
-              city: "",
-              street: "",
-              building: "",
-              postalCode: "",
-            },
+            addresses: [
+              {
+                fullName: authUser.name || "",
+                phone: "",
+                emirate: "",
+                city: "",
+                street: "",
+                building: "",
+                postalCode: "",
+                isDefault: true,
+              },
+            ],
           });
         } else {
           toast.error(err.message || "Failed to load profile");
@@ -230,27 +230,24 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     loadProfile();
   }, [authUser]);
 
-  const validateTextOnly = (value: string): boolean => {
-    return /^[a-zA-Z\u0600-\u06FF\s\-']+$/.test(value.trim());
-  };
-
   const handleTextOnlyInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     const filtered = value.replace(/[^a-zA-Z\u0600-\u06FF\s\-']/g, "");
 
     if (name.startsWith("address.")) {
-      const field = name.split(".")[1];
-      setForm((prev) => ({
-        ...prev,
-        address: { ...prev.address, [field]: filtered },
-      }));
+      const parts = name.split(".");
+      const index = parseInt(parts[1]);
+      const field = parts[2];
+      setForm((prev) => {
+        const newAddresses = [...prev.addresses];
+        newAddresses[index] = { ...newAddresses[index], [field]: filtered };
+        return { ...prev, addresses: newAddresses };
+      });
     } else {
       setForm((prev) => ({ ...prev, [name]: filtered }));
     }
 
-    if (fieldErrors[name]) {
-      setFieldErrors((prev) => ({ ...prev, [name]: "" }));
-    }
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   const handleNumberOnlyInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -258,16 +255,17 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     const filtered = value.replace(/\D/g, "");
 
     if (name.startsWith("address.")) {
-      const field = name.split(".")[1];
-      setForm((prev) => ({
-        ...prev,
-        address: { ...prev.address, [field]: filtered },
-      }));
+      const parts = name.split(".");
+      const index = parseInt(parts[1]);
+      const field = parts[2];
+      setForm((prev) => {
+        const newAddresses = [...prev.addresses];
+        newAddresses[index] = { ...newAddresses[index], [field]: filtered };
+        return { ...prev, addresses: newAddresses };
+      });
     }
 
-    if (fieldErrors[name]) {
-      setFieldErrors((prev) => ({ ...prev, [name]: "" }));
-    }
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   const handleChange = (
@@ -275,39 +273,37 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
   ) => {
     const { name, value } = e.target;
     if (name.startsWith("address.")) {
-      const field = name.split(".")[1];
-      setForm((prev) => ({
-        ...prev,
-        address: { ...prev.address, [field]: value },
-      }));
+      const parts = name.split(".");
+      const index = parseInt(parts[1]);
+      const field = parts[2];
+      setForm((prev) => {
+        const newAddresses = [...prev.addresses];
+        newAddresses[index] = { ...newAddresses[index], [field]: value };
+        return { ...prev, addresses: newAddresses };
+      });
     } else {
       setForm((prev) => ({ ...prev, [name]: value }));
     }
-    if (fieldErrors[name]) {
-      setFieldErrors((prev) => ({ ...prev, [name]: "" }));
-    }
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  const handlePhoneChange = (
-    field: "phone" | "address.phone",
-    value: string,
-  ) => {
+  const handlePhoneChange = (field: string, value: string, index?: number) => {
     const digits = extractDigits(value);
     if (digits.length <= 9) {
       const normalized = normalizeUaePhone(digits);
       if (field === "phone") {
         setForm((prev) => ({ ...prev, phone: normalized }));
-        if (fieldErrors.phone) {
+        if (fieldErrors.phone)
           setFieldErrors((prev) => ({ ...prev, phone: "" }));
-        }
-      } else {
-        setForm((prev) => ({
-          ...prev,
-          address: { ...prev.address, phone: normalized },
-        }));
-        if (fieldErrors["address.phone"]) {
-          setFieldErrors((prev) => ({ ...prev, "address.phone": "" }));
-        }
+      } else if (field === "address.phone" && index !== undefined) {
+        setForm((prev) => {
+          const newAddresses = [...prev.addresses];
+          newAddresses[index] = { ...newAddresses[index], phone: normalized };
+          return { ...prev, addresses: newAddresses };
+        });
+        const errorKey = `address.${index}.phone`;
+        if (fieldErrors[errorKey])
+          setFieldErrors((prev) => ({ ...prev, [errorKey]: "" }));
       }
     }
   };
@@ -315,22 +311,64 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
   const getPhoneDisplayValue = (phone: string): string => {
     if (!phone) return "";
     const digits = extractDigits(phone);
-    if (digits.startsWith("971")) {
-      return digits.slice(3);
-    }
+    if (digits.startsWith("971")) return digits.slice(3);
     return digits.slice(0, 9);
+  };
+
+  const addAddress = () => {
+    setForm((prev) => ({
+      ...prev,
+      addresses: [
+        ...prev.addresses,
+        {
+          fullName: "",
+          phone: "",
+          emirate: "",
+          city: "",
+          street: "",
+          building: "",
+          postalCode: "",
+          isDefault: false,
+        },
+      ],
+    }));
+    setTimeout(() => {
+      const newAddressElement = document.getElementById(
+        `address-${form.addresses.length}`,
+      );
+      if (newAddressElement) {
+        newAddressElement.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+    }, 100);
+  };
+
+  const removeAddress = (index: number) => {
+    if (index === 0) {
+      toast.error("Cannot remove primary address");
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      addresses: prev.addresses.filter((_, i) => i !== index),
+    }));
   };
 
   const validate = (): { isValid: boolean; firstError?: string } => {
     const errors: Record<string, string> = {};
 
     if (!form.name.trim()) errors.name = "Full name required";
-
     const phoneError = validatePhone(form.phone);
     if (phoneError) errors.phone = phoneError;
 
-    const addressValidation = validateAddress(form.address);
-    Object.assign(errors, addressValidation.errors);
+    form.addresses.forEach((address, index) => {
+      const addressValidation = validateAddress(address);
+      Object.entries(addressValidation.errors).forEach(([key, error]) => {
+        if (error) errors[`address.${index}.${key}`] = error;
+      });
+    });
 
     if (!form.dob) {
       errors.dob = "Date of Birth required";
@@ -350,31 +388,30 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     e.preventDefault();
     const { isValid, firstError } = validate();
     if (!isValid) {
-      toast.error(
-        firstError || "Please fill in all required fields.",
-        ERROR_TOAST,
-      );
+      toast.error(firstError || "Fill all required fields.", ERROR_TOAST);
       return;
     }
     setSubmitting(true);
 
     try {
-      const normalizedAddress = normalizeAddress(form.address);
+      const normalizedAddresses = form.addresses.map((address, index) => ({
+        ...normalizeAddress(address),
+        isDefault: index === 0,
+        fullName: address.fullName || form.name.trim(),
+        phone: address.phone || form.phone,
+      }));
+
       const payload = {
         name: form.name.trim(),
         phone: form.phone,
         gender: form.gender,
         dob: form.dob ? new Date(form.dob) : undefined,
         profilePic: form.profilePic.trim() || null,
-        address: {
-          ...normalizedAddress,
-          isDefault: true,
-          fullName: normalizedAddress.fullName || form.name.trim(),
-        },
+        addresses: normalizedAddresses,
       };
 
       await api.put("/api/customer/profile", payload);
-      toast.success("Profile updated successfully!", SUCCESS_TOAST);
+      toast.success("Profile updated!", SUCCESS_TOAST);
       setTimeout(() => {
         if (onCancel) onCancel();
       }, 1500);
@@ -385,9 +422,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     }
   };
 
-  if (loading) {
-    return <AccountPanelSkeleton />;
-  }
+  if (loading) return <AccountPanelSkeleton />;
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
@@ -482,9 +517,6 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                         exit={{ opacity: 0, y: -10, scale: 0.95 }}
                         transition={{ duration: 0.15, ease: "easeOut" }}
                         className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50 py-1"
-                        style={{ overscrollBehavior: "contain" }}
-                        onWheel={(e) => e.stopPropagation()}
-                        onTouchMove={(e) => e.stopPropagation()}
                       >
                         {GENDER_OPTIONS.map((option) => (
                           <motion.li
@@ -559,166 +591,243 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
           </div>
 
           <div className="space-y-3 sm:space-y-4">
-            <h3 className="text-sm sm:text-base font-medium flex items-center gap-2">
-              <MapPin className="w-4 h-4 sm:w-5 sm:h-5" /> Default Address
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-              <FormField
-                label="Full Name (for address)"
-                name="address.fullName"
-                required
-                error={fieldErrors["address.fullName"]}
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm sm:text-base font-medium flex items-center gap-2">
+                <MapPin className="w-4 h-4 sm:w-5 sm:h-5" /> Addresses
+              </h3>
+              <button
+                type="button"
+                onClick={addAddress}
+                className="flex items-center gap-1 text-sm text-black hover:text-gray-600 transition hover:cursor-pointer"
               >
-                <input
-                  type="text"
-                  name="address.fullName"
-                  value={form.address.fullName}
-                  onChange={handleTextOnlyInput}
-                  placeholder="John Doe"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
+                <Plus className="w-4 h-4" />
+                Add Address
+              </button>
+            </div>
 
-              <FormField
-                label="Phone (for address)"
-                name="address.phone"
-                required
-                error={fieldErrors["address.phone"]}
-              >
-                <div className="relative">
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-sm sm:text-base">
-                    +971
-                  </span>
-                  <input
-                    type="tel"
-                    name="address.phone"
-                    value={getPhoneDisplayValue(form.address.phone)}
-                    onChange={(e) =>
-                      handlePhoneChange("address.phone", e.target.value)
-                    }
-                    placeholder="XXXXXXXXX"
-                    maxLength={9}
-                    className="w-full py-1 sm:py-1.5 pl-10 sm:pl-12 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent font-mono"
-                  />
-                </div>
-                <p className="text-[8px] sm:text-[10px] text-gray-400 mt-1">
-                  Enter 9 digits after +971
-                </p>
-              </FormField>
-
-              <FormField
-                label="Emirate"
-                name="address.emirate"
-                required
-                error={fieldErrors["address.emirate"]}
-              >
-                <div className="relative" ref={emirateRef}>
-                  <button
-                    type="button"
-                    onClick={() => setEmirateOpen(!emirateOpen)}
-                    className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent flex items-center justify-between hover:cursor-pointer"
-                  >
-                    <span
-                      className={
-                        form.address.emirate ? "text-black" : "text-gray-400"
-                      }
-                    >
-                      {form.address.emirate
-                        ? `${getEmirateEn(form.address.emirate)} / ${getEmirateAr(form.address.emirate)}`
-                        : "Select Emirate"}
-                    </span>
-                    {emirateOpen ? (
-                      <ChevronUp className="w-4 h-4" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4" />
-                    )}
-                  </button>
-                  <AnimatePresence>
-                    {emirateOpen && (
-                      <motion.ul
-                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                        className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50 py-1"
+            <div className="space-y-6">
+              {form.addresses.map((address, index) => (
+                <div
+                  key={index}
+                  id={`address-${index}`}
+                  className={`border rounded-lg p-4 relative ${
+                    index === 0
+                      ? "border-black bg-gray-50/30"
+                      : "border-gray-200"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium">
+                        {index === 0
+                          ? "Primary Address"
+                          : `Address ${index + 1}`}
+                        {index === 0 && (
+                          <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                            Default
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    {index > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => removeAddress(index)}
+                        className="text-red-500 hover:text-red-700 transition hover:cursor-pointer"
                       >
-                        {UAE_EMIRATES.map((emirate) => (
-                          <li
-                            key={emirate.value}
-                            onClick={() => {
-                              setForm((prev) => ({
-                                ...prev,
-                                address: {
-                                  ...prev.address,
-                                  emirate: emirate.value, // ← direct assignment
-                                },
-                              }));
-                              setEmirateOpen(false);
-                              if (fieldErrors["address.emirate"]) {
-                                setFieldErrors((prev) => ({
-                                  ...prev,
-                                  "address.emirate": "",
-                                }));
-                              }
-                            }}
-                            className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-sm text-black"
-                          >
-                            {emirate.en} / {emirate.ar}
-                          </li>
-                        ))}
-                      </motion.ul>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     )}
-                  </AnimatePresence>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                    <FormField
+                      label="Full Name"
+                      name={`address.${index}.fullName`}
+                      required
+                      error={fieldErrors[`address.${index}.fullName`]}
+                    >
+                      <input
+                        type="text"
+                        name={`address.${index}.fullName`}
+                        value={address.fullName}
+                        onChange={handleTextOnlyInput}
+                        placeholder="John Doe"
+                        className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Phone"
+                      name={`address.${index}.phone`}
+                      required
+                      error={fieldErrors[`address.${index}.phone`]}
+                    >
+                      <div className="relative">
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-sm sm:text-base">
+                          +971
+                        </span>
+                        <input
+                          type="tel"
+                          name={`address.${index}.phone`}
+                          value={getPhoneDisplayValue(address.phone)}
+                          onChange={(e) =>
+                            handlePhoneChange(
+                              "address.phone",
+                              e.target.value,
+                              index,
+                            )
+                          }
+                          placeholder="XXXXXXXXX"
+                          maxLength={9}
+                          className="w-full py-1 sm:py-1.5 pl-10 sm:pl-12 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent font-mono"
+                        />
+                      </div>
+                      <p className="text-[8px] sm:text-[10px] text-gray-400 mt-1">
+                        Enter 9 digits after +971
+                      </p>
+                    </FormField>
+
+                    <FormField
+                      label="Emirate"
+                      name={`address.${index}.emirate`}
+                      required
+                      error={fieldErrors[`address.${index}.emirate`]}
+                    >
+                      <div
+                        className="relative"
+                        ref={(el) => {
+                          emirateRefs.current[index] = el;
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEmirateOpen((prev) => ({
+                              ...prev,
+                              [index]: !prev[index],
+                            }))
+                          }
+                          className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent flex items-center justify-between hover:cursor-pointer"
+                        >
+                          <span
+                            className={
+                              address.emirate ? "text-black" : "text-gray-400"
+                            }
+                          >
+                            {address.emirate
+                              ? `${getEmirateEn(address.emirate)} / ${getEmirateAr(address.emirate)}`
+                              : "Select Emirate"}
+                          </span>
+                          {emirateOpen[index] ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          )}
+                        </button>
+                        <AnimatePresence>
+                          {emirateOpen[index] && (
+                            <motion.ul
+                              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                              className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50 py-1"
+                            >
+                              {UAE_EMIRATES.map((emirate) => (
+                                <li
+                                  key={emirate.value}
+                                  onClick={() => {
+                                    setForm((prev) => {
+                                      const newAddresses = [...prev.addresses];
+                                      newAddresses[index] = {
+                                        ...newAddresses[index],
+                                        emirate: emirate.value,
+                                      };
+                                      return {
+                                        ...prev,
+                                        addresses: newAddresses,
+                                      };
+                                    });
+                                    setEmirateOpen((prev) => ({
+                                      ...prev,
+                                      [index]: false,
+                                    }));
+                                    const errorKey = `address.${index}.emirate`;
+                                    if (fieldErrors[errorKey]) {
+                                      setFieldErrors((prev) => ({
+                                        ...prev,
+                                        [errorKey]: "",
+                                      }));
+                                    }
+                                  }}
+                                  className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-sm text-black"
+                                >
+                                  {emirate.en} / {emirate.ar}
+                                </li>
+                              ))}
+                            </motion.ul>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </FormField>
+
+                    <FormField
+                      label="City"
+                      name={`address.${index}.city`}
+                      required
+                      error={fieldErrors[`address.${index}.city`]}
+                    >
+                      <input
+                        type="text"
+                        name={`address.${index}.city`}
+                        value={address.city}
+                        onChange={handleTextOnlyInput}
+                        placeholder="Dubai"
+                        className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
+                      />
+                    </FormField>
+
+                    <FormField label="Street" name={`address.${index}.street`}>
+                      <input
+                        type="text"
+                        name={`address.${index}.street`}
+                        value={address.street}
+                        onChange={handleChange}
+                        placeholder="Sheikh Zayed Road"
+                        className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Building"
+                      name={`address.${index}.building`}
+                    >
+                      <input
+                        type="text"
+                        name={`address.${index}.building`}
+                        value={address.building}
+                        onChange={handleChange}
+                        placeholder="Burj Khalifa"
+                        className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
+                      />
+                    </FormField>
+
+                    <FormField
+                      label="Postal Code"
+                      name={`address.${index}.postalCode`}
+                    >
+                      <input
+                        type="text"
+                        name={`address.${index}.postalCode`}
+                        value={address.postalCode}
+                        onChange={handleNumberOnlyInput}
+                        placeholder="12345"
+                        className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
+                      />
+                    </FormField>
+                  </div>
                 </div>
-              </FormField>
-
-              <FormField
-                label="City"
-                name="address.city"
-                required
-                error={fieldErrors["address.city"]}
-              >
-                <input
-                  type="text"
-                  name="address.city"
-                  value={form.address.city}
-                  onChange={handleTextOnlyInput}
-                  placeholder="Dubai"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField label="Street" name="address.street">
-                <input
-                  type="text"
-                  name="address.street"
-                  value={form.address.street}
-                  onChange={handleChange}
-                  placeholder="Sheikh Zayed Road"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField label="Building" name="address.building">
-                <input
-                  type="text"
-                  name="address.building"
-                  value={form.address.building}
-                  onChange={handleChange}
-                  placeholder="Burj Khalifa"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
-
-              <FormField label="Postal Code" name="address.postalCode">
-                <input
-                  type="text"
-                  name="address.postalCode"
-                  value={form.address.postalCode}
-                  onChange={handleNumberOnlyInput}
-                  placeholder="12345"
-                  className="w-full py-1 sm:py-1.5 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent"
-                />
-              </FormField>
+              ))}
             </div>
           </div>
 
