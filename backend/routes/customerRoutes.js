@@ -13,7 +13,7 @@ import {
   isValidEmirate,
   normalizeEmirate,
   validateAddress,
-  normalizeAddress
+  normalizeAddress,
 } from "../utils/uaeAddress.js";
 
 const calculateAge = (dob) => {
@@ -33,54 +33,6 @@ const hasAddressData = (address) => {
   const normalized = normalizeAddress(address);
   return !!(normalized.phone || normalized.emirate || normalized.city);
 };
-
-// const normalizeAddress = (address, defaultName, defaultPhone) => {
-//   if (!address || typeof address !== "object") return undefined;
-
-//   const rawPhone = address.phone?.trim() || "";
-//   return {
-//     fullName: address.fullName?.trim() || defaultName,
-//     phone: rawPhone === "+971" ? "" : rawPhone,
-//     emirate: address.emirate?.trim() || undefined,
-//     city: address.city?.trim() || undefined,
-//     street: address.street?.trim() || undefined,
-//     building: address.building?.trim() || undefined,
-//     postalCode: address.postalCode?.trim() || undefined,
-//   };
-// };
-
-// const isAddressEmptyOrInvalid = (address) => {
-//   if (!address || typeof address !== "object") return true;
-
-//   const phone = typeof address.phone === "string" ? address.phone.trim() : "";
-//   const hasAnyField = [
-//     address.emirate,
-//     address.city,
-//     address.street,
-//     address.building,
-//     address.postalCode,
-//   ].some((value) => typeof value === "string" && value.trim() !== "");
-
-//   const hasPhone = phone !== "" && phone !== "+971";
-//   const hasEmirate =
-//     typeof address.emirate === "string" && address.emirate.trim() !== "";
-
-//   if (!hasPhone && !hasAnyField) {
-//     return true;
-//   }
-
-//   return !hasEmirate;
-// };
-
-// const cleanupSavedUserAddresses = (savedUsers) => {
-//   if (!Array.isArray(savedUsers)) return;
-//   savedUsers.forEach((member) => {
-//     if (!member.address) return;
-//     if (isAddressEmptyOrInvalid(member.address)) {
-//       member.address = undefined;
-//     }
-//   });
-// };
 
 const customerRouter = express.Router();
 
@@ -221,10 +173,10 @@ customerRouter.get("/profile", isAuth, async (req, res) => {
   }
 });
 
-// routes/customer.js – add PUT /profile route
+// routes/customer.js - PUT /profile route only
 customerRouter.put("/profile", isAuth, async (req, res) => {
   const userId = req.user._id;
-  const { name, phone, gender, dob, profilePic, address } = req.body;
+  const { name, phone, gender, dob, profilePic, addresses } = req.body;
 
   try {
     if (req.user?.isGuest === true) {
@@ -234,19 +186,29 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
         email: req.user.email,
         role: req.user.role,
         phone: undefined,
-        addresses: address
-          ? [{ ...address, _id: new mongoose.Types.ObjectId() }]
-          : [],
+        addresses: addresses || [],
       });
     }
 
     let customer = await Customer.findOne({ userId });
 
     if (!customer) {
-      const addrArray = address ? [{ ...address, isDefault: true }] : [];
-      if (addrArray.length > 0 && !addrArray.some((a) => a.isDefault)) {
-        addrArray[0].isDefault = true;
+      const addrArray = addresses && Array.isArray(addresses) ? addresses : [];
+
+      if (addrArray.length === 0) {
+        addrArray.push({
+          fullName: name?.trim() || req.user.name,
+          phone: phone?.trim() || undefined,
+          emirate: "",
+          city: "",
+          street: "",
+          building: "",
+          postalCode: "",
+          isDefault: true,
+        });
       }
+
+      if (!addrArray[0].isDefault) addrArray[0].isDefault = true;
 
       customer = new Customer({
         userId: new mongoose.Types.ObjectId(userId),
@@ -258,12 +220,12 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
         addresses: addrArray,
       });
 
-      if (customer.addresses.length > 0) {
-        customer.defaultAddressId = customer.addresses[0]._id;
-      }
+      const defaultAddr =
+        customer.addresses.find((a) => a.isDefault) || customer.addresses[0];
+      if (defaultAddr) customer.defaultAddressId = defaultAddr._id;
+
       await customer.save();
 
-      // Update User if customer created
       if (name || phone) {
         await User.findByIdAndUpdate(userId, {
           name: name?.trim() || req.user.name,
@@ -282,43 +244,56 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
     if (profilePic !== undefined)
       customer.profilePic = profilePic?.trim() || undefined;
 
-    // Update address
-    if (address) {
-      const defaultAddr =
-        customer.addresses.find((a) => a.isDefault) || customer.addresses[0];
-      if (defaultAddr) {
-        if (address.label) defaultAddr.label = address.label;
-        if (address.fullName) defaultAddr.fullName = address.fullName;
-        if (address.phone) defaultAddr.phone = address.phone;
-        if (address.country) defaultAddr.country = address.country;
-        if (address.state) defaultAddr.state = address.state;
-        if (address.city) defaultAddr.city = address.city;
-        if (address.area) defaultAddr.area = address.area;
-        if (address.street) defaultAddr.street = address.street;
-        if (address.building) defaultAddr.building = address.building;
-        if (address.unit) defaultAddr.unit = address.unit;
-        if (address.postalCode) defaultAddr.postalCode = address.postalCode;
-      } else {
-        customer.addresses.push({
-          ...address,
-          isDefault: true,
-          fullName: address.fullName || customer.name,
-          phone: address.phone || customer.phone,
-        });
-        if (!customer.defaultAddressId) {
-          customer.defaultAddressId = customer.addresses[0]._id;
+    // Update addresses - preserve first address as default
+    if (addresses && Array.isArray(addresses) && addresses.length > 0) {
+      const newAddresses = [];
+
+      addresses.forEach((addr, index) => {
+        const isDefault = index === 0;
+        if (addr._id) {
+          const existingAddr = customer.addresses.id(addr._id);
+          if (existingAddr) {
+            Object.assign(existingAddr, {
+              fullName: addr.fullName || customer.name,
+              phone: addr.phone || customer.phone,
+              emirate: addr.emirate,
+              city: addr.city,
+              street: addr.street || "",
+              building: addr.building || "",
+              postalCode: addr.postalCode || "",
+              isDefault: isDefault,
+            });
+            newAddresses.push(existingAddr);
+            return;
+          }
         }
+        newAddresses.push({
+          fullName: addr.fullName || customer.name,
+          phone: addr.phone || customer.phone,
+          emirate: addr.emirate,
+          city: addr.city,
+          street: addr.street || "",
+          building: addr.building || "",
+          postalCode: addr.postalCode || "",
+          isDefault: isDefault,
+        });
+      });
+
+      customer.addresses = newAddresses;
+
+      // Ensure first address is always default
+      if (customer.addresses.length > 0) {
+        customer.addresses[0].isDefault = true;
+        customer.defaultAddressId = customer.addresses[0]._id;
       }
     }
 
     await customer.save();
 
-    // ✅ Update User collection - FIXED
     if (name !== undefined || phone !== undefined) {
       const updateData = {};
       if (name !== undefined) updateData.name = name.trim();
       if (phone !== undefined) updateData.phone = phone?.trim() || undefined;
-
       await User.findByIdAndUpdate(userId, updateData);
     }
 
