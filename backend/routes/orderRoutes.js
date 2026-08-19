@@ -33,6 +33,7 @@ import {
   PricingValidationError,
 } from "../services/pricingService.js";
 import PlatformSettings from "../models/PlatformSettings.js";
+import { isBillableShipmentType } from "../models/schemas/shipmentSchemas.js";
 import { prepareRetailOrder } from "../services/retailOrderService.js";
 import { isStripeConfigured } from "../services/stripeService.js";
 import {
@@ -809,6 +810,34 @@ orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
   }
 });
 
+function formatCustomerShipments(shipments = []) {
+  return shipments
+    .filter((shipment) => {
+      const billable =
+        typeof shipment.billable === "boolean"
+          ? shipment.billable
+          : isBillableShipmentType(shipment.type);
+      return billable;
+    })
+    .map((shipment) => ({
+      parcelKey: shipment.parcelKey,
+      type: shipment.type,
+      label: shipment.label,
+      status: shipment.status,
+      awb: shipment.awb,
+      trackingUrl: shipment.trackingUrl,
+      billable: true,
+    }));
+}
+
+function formatStatusHistory(statusHistory = []) {
+  return statusHistory.map((entry) => ({
+    status: entry.status,
+    note: entry.note,
+    changedAt: entry.changedAt,
+  }));
+}
+
 // This route is for getting only my orders means the logged-in user orders
 orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
   try {
@@ -824,7 +853,7 @@ orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
         ],
       })
       .select(
-        "_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate",
+        "_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments",
       );
 
     const formatted = orders.map((order) => ({
@@ -890,6 +919,8 @@ orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
             designSlug,
           };
         }) || [],
+      statusHistory: formatStatusHistory(order.statusHistory),
+      shipments: formatCustomerShipments(order.shipments),
     }));
 
     res.json({ success: true, orders: formatted });

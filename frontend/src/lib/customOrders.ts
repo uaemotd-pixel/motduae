@@ -135,6 +135,8 @@ export type RetailOrderListItem = {
   shippingPrice?: number;
   vatAmount?: number;
   vatRate?: number;
+  statusHistory?: CustomOrderStatusHistoryEntry[];
+  shipments?: CustomOrderShipmentSummary[];
   items: Array<{
     name: string;
     nameAr?: string;

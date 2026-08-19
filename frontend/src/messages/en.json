@@ -1292,6 +1292,7 @@
     },
     "timeline": {
       "ariaLabel": "Custom order progress timeline",
+      "ariaLabelRetail": "Ready-made order progress timeline",
       "pending": "Pending",
       "inProgress": "In progress",
       "statuses": {
@@ -1332,6 +1333,17 @@
           "title": "Refund Processed"
         }
       }
+    },
+    "shipments": {
+      "title": "Shipments",
+      "empty": "No shipments yet.",
+      "awb": "AWB",
+      "track": "Track shipment"
+    },
+    "logistics": {
+      "title": "Logistics",
+      "show": "View logistics",
+      "hide": "Hide logistics"
     }
   },
 
