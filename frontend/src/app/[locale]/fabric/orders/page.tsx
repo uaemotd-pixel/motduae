@@ -16,12 +16,15 @@ import {
   Mail,
   User,
   Ruler,
+  Package,
 } from "lucide-react";
 import StatusBadge from "@/components/admin/StatusBadge";
+import ShipmentList from "@/components/orders/ShipmentList";
 import {
   formatOrderDate,
   isCustomOrderStatus,
   CUSTOM_ORDER_STATUSES,
+  type CustomOrderShipmentSummary,
 } from "@/lib/customOrders";
 import type { Locale } from "@/i18n/routing";
 
@@ -50,6 +53,7 @@ interface Order {
   measurements?: Measurements;
   status: string;
   createdAt: string;
+  shipments?: CustomOrderShipmentSummary[];
   fabricMeters: number;
   pricing: {
     total: number;
@@ -105,6 +109,9 @@ export default function FabricOrdersPage() {
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>(
     {},
   );
+  const [expandedShipments, setExpandedShipments] = useState<
+    Record<string, boolean>
+  >({});
 
   // Filters State
   const [filterCustomer, setFilterCustomer] = useState<string>("");
@@ -144,6 +151,13 @@ export default function FabricOrdersPage() {
 
   const toggleExpand = (orderId: string) => {
     setExpandedOrders((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
+
+  const toggleExpandShipments = (orderId: string) => {
+    setExpandedShipments((prev) => ({
       ...prev,
       [orderId]: !prev[orderId],
     }));
@@ -399,6 +413,7 @@ export default function FabricOrdersPage() {
               order.fabricSnapshot?.name ||
               (locale === "ar" ? "قماش خاص" : "Self Fabric");
             const isExpanded = !!expandedOrders[order._id];
+            const isShipmentsExpanded = !!expandedShipments[order._id];
 
             if (activeTab === "retail") {
               const retailOrder = order as any;
@@ -484,6 +499,39 @@ export default function FabricOrdersPage() {
                         )}
                       </p>
                     </div>
+                  </div>
+
+                  <div className="px-5 pb-5 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpandShipments(retailOrder._id)}
+                      className="inline-flex items-center gap-1.5 text-xs text-black/60 hover:text-black font-medium transition py-3 hover:cursor-pointer [font-family:var(--font-ui)]"
+                    >
+                      <Package className="w-3.5 h-3.5" />
+                      {locale === "ar"
+                        ? isShipmentsExpanded
+                          ? "إخفاء الشحنات"
+                          : "عرض الشحنات"
+                        : isShipmentsExpanded
+                          ? "Hide Shipments"
+                          : "Show Shipments"}
+                      {isShipmentsExpanded ? (
+                        <ChevronUp className="w-3 h-3" />
+                      ) : (
+                        <ChevronDown className="w-3 h-3" />
+                      )}
+                    </button>
+
+                    {isShipmentsExpanded && (
+                      <div className="pb-2">
+                        <ShipmentList
+                          shipments={retailOrder.shipments}
+                          locale={locale}
+                          visibility="internal"
+                          compact
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Footer bar showing Order ID */}
@@ -625,19 +673,41 @@ export default function FabricOrdersPage() {
 
                 {/* Fabric meters & details block */}
                 <div className="px-5 pb-5">
-                  <button
-                    type="button"
-                    onClick={() => toggleExpand(order._id)}
-                    className="inline-flex items-center gap-1.5 text-xs text-black/60 hover:text-black font-medium transition py-1 hover:cursor-pointer [font-family:var(--font-ui)]"
-                  >
-                    <Ruler className="w-3.5 h-3.5" />
-                    {isExpanded ? t("hideMeasurements") : t("showMeasurements")}
-                    {isExpanded ? (
-                      <ChevronUp className="w-3 h-3" />
-                    ) : (
-                      <ChevronDown className="w-3 h-3" />
-                    )}
-                  </button>
+                  <div className="flex flex-wrap gap-4">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(order._id)}
+                      className="inline-flex items-center gap-1.5 text-xs text-black/60 hover:text-black font-medium transition py-1 hover:cursor-pointer [font-family:var(--font-ui)]"
+                    >
+                      <Ruler className="w-3.5 h-3.5" />
+                      {isExpanded ? t("hideMeasurements") : t("showMeasurements")}
+                      {isExpanded ? (
+                        <ChevronUp className="w-3 h-3" />
+                      ) : (
+                        <ChevronDown className="w-3 h-3" />
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleExpandShipments(order._id)}
+                      className="inline-flex items-center gap-1.5 text-xs text-black/60 hover:text-black font-medium transition py-1 hover:cursor-pointer [font-family:var(--font-ui)]"
+                    >
+                      <Package className="w-3.5 h-3.5" />
+                      {locale === "ar"
+                        ? isShipmentsExpanded
+                          ? "إخفاء الشحنات"
+                          : "عرض الشحنات"
+                        : isShipmentsExpanded
+                          ? "Hide Shipments"
+                          : "Show Shipments"}
+                      {isShipmentsExpanded ? (
+                        <ChevronUp className="w-3 h-3" />
+                      ) : (
+                        <ChevronDown className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
 
                   {isExpanded && (
                     <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50 grid grid-cols-1 sm:grid-cols-3 gap-4 [font-family:var(--font-body)]">
@@ -676,6 +746,17 @@ export default function FabricOrdersPage() {
                           )}
                         </p>
                       </div>
+                    </div>
+                  )}
+
+                  {isShipmentsExpanded && (
+                    <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                      <ShipmentList
+                        shipments={order.shipments}
+                        locale={locale}
+                        visibility="internal"
+                        compact
+                      />
                     </div>
                   )}
                 </div>

@@ -1646,7 +1646,26 @@ adminRouter.patch(
     const order = await RetailOrder.findById(req.params.id);
 
     if (order) {
-      order.status = status || order.status;
+      if (status) {
+        const previousStatus = order.status;
+        order.status = status;
+
+        const historyBlock = {
+          status,
+          note:
+            previousStatus && previousStatus !== status
+              ? `Status changed from ${previousStatus} to ${status}`
+              : "",
+          changedAt: new Date(),
+          changedBy: req.user?._id,
+        };
+
+        if (!order.statusHistory) {
+          order.statusHistory = [];
+        }
+        order.statusHistory.push(historyBlock);
+      }
+
       const updatedOrder = await order.save();
 
       if (status) {
