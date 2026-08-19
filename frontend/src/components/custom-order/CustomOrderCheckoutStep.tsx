@@ -115,8 +115,12 @@ export default function CustomOrderCheckoutStep() {
   const [emailVerifyEmphasize, setEmailVerifyEmphasize] = useState(false);
   const emailVerifyNoticeRef = useRef<HTMLDivElement>(null);
 
-  const needsEmailVerify =
-    needsEmailVerification(user) && !user?.isGuest;
+  const [customerProfile, setCustomerProfile] =
+    useState<CustomerProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("");
+
+  const needsEmailVerify = needsEmailVerification(user) && !user?.isGuest;
 
   const verifyEmailHref = buildVerifyEmailHref({
     locale,
@@ -139,7 +143,6 @@ export default function CustomOrderCheckoutStep() {
   }, [needsEmailVerify]);
 
   const [profileLoading, setProfileLoading] = useState(true);
-
   const [addons, setAddons] = useState<any[]>([]);
   useEffect(() => {
     const fetchAddons = async () => {
@@ -207,10 +210,13 @@ export default function CustomOrderCheckoutStep() {
         setProfileLoading(true);
 
         const data = await api.get<CustomerProfile>("/api/customer/profile");
-        const defaultAddr =
-          data.addresses?.find((a) => a.isDefault) || data.addresses?.[0];
+        setCustomerProfile(data);
 
-        if (defaultAddr) {
+        const addresses = data.addresses || [];
+        if (addresses.length > 0) {
+          const defaultAddr =
+            addresses.find((a) => a.isDefault) || addresses[0];
+          setSelectedAddressId(defaultAddr._id || "");
           const normalizedPhone = normalizeUaePhone(
             defaultAddr.phone || data.phone || "",
           );
@@ -241,6 +247,28 @@ export default function CustomOrderCheckoutStep() {
 
     fetchCustomerOrMemberAddress();
   }, [isAuthenticated, updateDeliveryAddress, user]);
+
+  // --- Address selection handler ---
+  const handleAddressSelect = (addressId: string) => {
+    if (!customerProfile?.addresses) return;
+    const address = customerProfile.addresses.find((a) => a._id === addressId);
+    if (!address) return;
+
+    setSelectedAddressId(addressId);
+    const normalizedPhone = normalizeUaePhone(address.phone || "");
+    updateDeliveryAddress({
+      fullName: address.fullName || "",
+      phone: normalizedPhone,
+      emirate: address.emirate || "",
+      city: address.city || "",
+      line1: address.street || "",
+      line2: address.building || "",
+      postalCode: address.postalCode || "",
+    });
+
+    setErrors({});
+    if (submitError) setSubmitError(null);
+  };
 
   useEffect(() => {
     if (!isHydrated || !previewPayload) return;
@@ -423,8 +451,7 @@ export default function CustomOrderCheckoutStep() {
         requireEmailVerified();
         return null;
       }
-      const message =
-        err instanceof Error ? err.message : t("submitError");
+      const message = err instanceof Error ? err.message : t("submitError");
       toast.error(message, ERROR_TOAST);
       throw err;
     }
@@ -458,7 +485,6 @@ export default function CustomOrderCheckoutStep() {
           requireEmailVerified();
           return;
         }
-        // Payment already succeeded — recover via pending checkout / webhook path.
         response = await api.post("/api/payments/reconcile", {
           paymentIntentId,
           paymentMethod: method,
@@ -510,12 +536,7 @@ export default function CustomOrderCheckoutStep() {
     setSubmitError(message);
   };
 
-  if (
-    !isHydrated ||
-    isLoading ||
-    !isAuthenticated ||
-    profileLoading
-  ) {
+  if (!isHydrated || isLoading || !isAuthenticated || profileLoading) {
     return <FormPageSkeleton fields={8} />;
   }
 
@@ -660,138 +681,147 @@ export default function CustomOrderCheckoutStep() {
 
             <section>
               <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
-                  <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
-                    {t("deliveryTitle")}
-                  </h2>
+                <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
+                  {t("deliveryTitle")}
+                </h2>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                      <label
-                        htmlFor="checkout-fullName"
-                        className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
-                      >
-                        {t("fullName")}*
-                      </label>
-                      <div className="relative flex items-center">
-                        <input
-                          id="checkout-fullName"
-                          type="text"
-                          value={address.fullName || ""}
-                          onChange={(e) =>
-                            handleFieldChange("fullName", e.target.value)
-                          }
-                          className={`w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition ${
-                            user?.isGuest
-                              ? locale === "ar"
-                                ? "pl-20"
-                                : "pr-20"
-                              : ""
-                          }`}
-                        />
-                        {user?.isGuest && (
-                          <span
-                            className={`absolute ${locale === "ar" ? "left-4" : "right-4"} text-gray-400 select-none pointer-events-none font-medium text-[15px]`}
-                          >
-                            {locale === "ar" ? " - زائر" : " - Guest"}
-                          </span>
-                        )}
-                      </div>
-                      {errors.fullName && (
-                        <p className="text-red-600 text-[12px] mt-1">
-                          {errors.fullName}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="checkout-phone"
-                        className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
-                      >
-                        {t("phone")}*
-                      </label>
-                      <div className="relative flex items-center">
-                        <span
-                          className={`absolute ${locale === "ar" ? "right-4" : "left-4"} text-gray-500 font-mono text-[15px]`}
-                        >
-                          +971
-                        </span>
-                        <input
-                          id="checkout-phone"
-                          type="tel"
-                          value={getPhoneDisplayValue(address.phone || "")}
-                          onChange={(e) =>
-                            handleFieldChange("phone", e.target.value)
-                          }
-                          placeholder="XXXXXXXXX"
-                          maxLength={9}
-                          className={`w-full border border-(--color-border) bg-white py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition ${
-                            locale === "ar"
-                              ? "pr-16 pl-4 text-right"
-                              : "pl-16 pr-4 text-left"
-                          }`}
-                        />
-                      </div>
-                      {errors.phone && (
-                        <p className="text-red-600 text-[12px] mt-1">
-                          {errors.phone}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="checkout-emirate"
-                        className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
-                      >
-                        {t("emirate")}*
+                {/* Address Dropdown */}
+                {customerProfile?.addresses &&
+                  customerProfile.addresses.length > 0 && (
+                    <div className="mb-6 p-3 bg-gray-50/80 rounded-lg border border-gray-200/60">
+                      <label className="font-label-sm text-[11px] md:text-[12px] text-black/50 uppercase tracking-[0.2em] block mb-2">
+                        Select Address
                       </label>
                       <select
-                        id="checkout-emirate"
-                        value={address.emirate || ""}
-                        onChange={(e) =>
-                          handleFieldChange("emirate", e.target.value)
-                        }
-                        className="w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition"
+                        value={selectedAddressId}
+                        onChange={(e) => handleAddressSelect(e.target.value)}
+                        className="w-full h-11 md:h-12 bg-white border border-gray-200/80 rounded-md px-3 text-[15px] md:text-[16px] font-body-md transition-all focus:border-black/40 focus:outline-none focus:ring-0 text-black"
                       >
-                        <option value="">{t("selectEmirate")}</option>
-                        {UAE_EMIRATES.map((emirate) => (
-                          <option key={emirate.value} value={emirate.value}>
-                            {emirate.en} / {emirate.ar}
+                        {customerProfile.addresses.map((addr, index) => (
+                          <option
+                            key={addr._id || index}
+                            value={addr._id || ""}
+                          >
+                            {addr.fullName} - {addr.city}{" "}
+                            {addr.isDefault ? "(Default)" : ""}
                           </option>
                         ))}
                       </select>
-                      {errors.emirate && (
-                        <p className="text-red-600 text-[12px] mt-1">
-                          {errors.emirate}
-                        </p>
-                      )}
+                      <p className="text-[11px] text-gray-400 mt-1.5">
+                        {locale === "ar"
+                          ? "اختر عنوانك للشحن"
+                          : "Select your shipping address"}
+                      </p>
                     </div>
+                  )}
 
-                    <div>
-                      <label
-                        htmlFor="checkout-city"
-                        className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
-                      >
-                        {t("city")}*
-                      </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <label
+                      htmlFor="checkout-fullName"
+                      className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
+                    >
+                      {t("fullName")}*
+                    </label>
+                    <div className="relative flex items-center">
                       <input
-                        id="checkout-city"
+                        id="checkout-fullName"
                         type="text"
-                        value={address.city || ""}
-                        onChange={(e) =>
-                          handleFieldChange("city", e.target.value)
-                        }
-                        className="w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition"
+                        value={address.fullName || ""}
+                        readOnly
+                        className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
                       />
-                      {errors.city && (
-                        <p className="text-red-600 text-[12px] mt-1">
-                          {errors.city}
-                        </p>
+                      {user?.isGuest && (
+                        <span
+                          className={`absolute ${locale === "ar" ? "left-4" : "right-4"} text-gray-400 select-none pointer-events-none font-medium text-[15px]`}
+                        >
+                          {locale === "ar" ? " - زائر" : " - Guest"}
+                        </span>
                       )}
                     </div>
+                    {errors.fullName && (
+                      <p className="text-red-600 text-[12px] mt-1">
+                        {errors.fullName}
+                      </p>
+                    )}
+                  </div>
 
-                    <div className="sm:col-span-2">
+                  <div>
+                    <label
+                      htmlFor="checkout-phone"
+                      className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
+                    >
+                      {t("phone")}*
+                    </label>
+                    <div className="relative flex items-center">
+                      <span
+                        className={`absolute ${locale === "ar" ? "right-4" : "left-4"} text-gray-500 font-mono text-[15px]`}
+                      >
+                        +971
+                      </span>
+                      <input
+                        id="checkout-phone"
+                        type="tel"
+                        value={getPhoneDisplayValue(address.phone || "")}
+                        readOnly
+                        className={`w-full border border-(--color-border) bg-gray-50 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0 ${
+                          locale === "ar"
+                            ? "pr-16 pl-4 text-right"
+                            : "pl-16 pr-4 text-left"
+                        }`}
+                      />
+                    </div>
+                    {errors.phone && (
+                      <p className="text-red-600 text-[12px] mt-1">
+                        {errors.phone}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="checkout-emirate"
+                      className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
+                    >
+                      {t("emirate")}*
+                    </label>
+                    <input
+                      id="checkout-emirate"
+                      type="text"
+                      value={address.emirate || ""}
+                      readOnly
+                      className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
+                    />
+                    {errors.emirate && (
+                      <p className="text-red-600 text-[12px] mt-1">
+                        {errors.emirate}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="checkout-city"
+                      className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
+                    >
+                      {t("city")}*
+                    </label>
+                    <input
+                      id="checkout-city"
+                      type="text"
+                      value={address.city || ""}
+                      readOnly
+                      className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
+                    />
+                    {errors.city && (
+                      <p className="text-red-600 text-[12px] mt-1">
+                        {errors.city}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
                       <label
                         htmlFor="checkout-line1"
                         className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
@@ -802,10 +832,8 @@ export default function CustomOrderCheckoutStep() {
                         id="checkout-line1"
                         type="text"
                         value={address.line1 || ""}
-                        onChange={(e) =>
-                          handleFieldChange("line1", e.target.value)
-                        }
-                        className="w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition"
+                        readOnly
+                        className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
                       />
                       {errors.line1 && (
                         <p className="text-red-600 text-[12px] mt-1">
@@ -814,7 +842,7 @@ export default function CustomOrderCheckoutStep() {
                       )}
                     </div>
 
-                    <div className="sm:col-span-2">
+                    <div>
                       <label
                         htmlFor="checkout-line2"
                         className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
@@ -825,36 +853,31 @@ export default function CustomOrderCheckoutStep() {
                         id="checkout-line2"
                         type="text"
                         value={address.line2 || ""}
-                        onChange={(e) =>
-                          handleFieldChange("line2", e.target.value)
-                        }
-                        className="w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label
-                        htmlFor="checkout-postalCode"
-                        className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
-                      >
-                        {t("postalCode")}
-                        <span className="normal-case font-normal text-(--color-grey-muted) ml-1">
-                          ({t("optional")})
-                        </span>
-                      </label>
-                      <input
-                        id="checkout-postalCode"
-                        type="text"
-                        value={address.postalCode || ""}
-                        onChange={(e) =>
-                          handleFieldChange("postalCode", e.target.value)
-                        }
-                        placeholder="12345"
-                        className="w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition"
+                        readOnly
+                        className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
                       />
                     </div>
                   </div>
-
+                  <div className="sm:col-span-2">
+                    <label
+                      htmlFor="checkout-postalCode"
+                      className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
+                    >
+                      {t("postalCode")}
+                      <span className="normal-case font-normal text-(--color-grey-muted) ml-1">
+                        ({t("optional")})
+                      </span>
+                    </label>
+                    <input
+                      id="checkout-postalCode"
+                      type="text"
+                      value={address.postalCode || ""}
+                      readOnly
+                      placeholder="12345"
+                      className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
+                    />
+                  </div>
+                </div>
                   {usingOwnFabric && (
                     <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mt-6">
                       {t("ownFabricPickupNote")}
