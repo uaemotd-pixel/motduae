@@ -41,7 +41,7 @@ function ForgotPasswordForm() {
     };
 
     return (
-        <main className="min-h-screen w-full bg-[#FFFDF9] relative">
+        <main className="min-h-screen w-full bg-white relative">
 
             {/* Desktop Logo (top-left only) */}
             <div className="hidden md:block absolute p-7.5 z-10 fade-in">

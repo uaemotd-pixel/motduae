@@ -7,7 +7,7 @@ export default async function LocaleNotFound() {
 
   return (
     <main
-      className="grid min-h-[70vh] place-items-center bg-[#FFFDF9] px-4 py-16 sm:px-6"
+      className="grid min-h-[70vh] place-items-center bg-white px-4 py-16 sm:px-6"
       dir={isAr ? "rtl" : "ltr"}
     >
       <div className="w-full max-w-xl text-center">

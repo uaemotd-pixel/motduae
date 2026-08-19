@@ -277,7 +277,7 @@ export function TailorsSection() {
       className="relative overflow-hidden my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16"
       aria-label={t("ariaLabel")}
     >
-      <div className="absolute inset-0 bg-linear-to-br from-[#f0ebe3] via-(--bg-page) to-(--bg-page)" />
+      <div className="absolute inset-0 bg-white" />
       <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-[#d4af37]/40 to-transparent" />
 
       <div className="relative px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80)">

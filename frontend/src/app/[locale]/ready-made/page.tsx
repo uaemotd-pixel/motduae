@@ -1087,7 +1087,7 @@ let filteredProducts = products.filter((item) => {
   return (
     <MainLayout>
       <FadeInSection>
-        <div className="min-h-screen bg-[#FDFAF5]">
+        <div className="min-h-screen bg-white">
           {/* Hero Section */}
           <div className="py-12 sm:py-16 lg:py-24 border-b border-[#E4E0D8] px-4 sm:px-8 lg:px-12">
             <div className="w-full text-left">
@@ -1112,7 +1112,7 @@ let filteredProducts = products.filter((item) => {
           </div>
 
           {/* Filter Bar */}
-          <div className="sticky top-16 z-30 bg-[#FDFAF5] border-b border-[#E4E0D8] px-4 sm:px-8 lg:px-12">
+          <div className="sticky top-16 z-30 bg-white border-b border-[#E4E0D8] px-4 sm:px-8 lg:px-12">
             <div className="py-4">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4">
@@ -1292,7 +1292,7 @@ let filteredProducts = products.filter((item) => {
 
           {/* Mobile Filters Drawer */}
           {mobileFiltersOpen && (
-            <div className="lg:hidden border-b border-[#E4E0D8] bg-[#FDFAF5] px-4 sm:px-8 lg:px-12 py-8 overflow-hidden">
+            <div className="lg:hidden border-b border-[#E4E0D8] bg-white px-4 sm:px-8 lg:px-12 py-8 overflow-hidden">
               {sidebarContent}
             </div>
           )}

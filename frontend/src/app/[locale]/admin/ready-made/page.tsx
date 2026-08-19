@@ -20,13 +20,13 @@ import {
   DollarSign,
   Box,
   Tag,
+  Maximize2,
   User as UserIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
-import { resolveMediaUrl } from "@/lib/media";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 
 interface ReadyMadeItem {
@@ -258,14 +258,21 @@ export default function AdminReadyMadePage() {
   const getItemImage = (item: ReadyMadeItem) => {
     if (item.images && item.images.length > 0) {
       return (
-        <img
-          src={item.images[0]}
-          alt={item.name}
-          className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg object-cover hover:cursor-pointer"
+        <div
+          className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-lg overflow-hidden group cursor-pointer shrink-0"
           onClick={() =>
             handleImageClick(item.images?.[0] || "IMAGE NOT FOUND")
           }
-        />
+        >
+          <img
+            src={item.images[0]}
+            alt={item.name}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-200">
+            <Maximize2 className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+          </div>
+        </div>
       );
     }
     return (
@@ -516,7 +523,7 @@ export default function AdminReadyMadePage() {
             className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white shrink-0 hover:cursor-pointer"
           >
             <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="hidden xs:inline">Refresh</span>
+            <span>Refresh</span>
           </button>
         </div>
       </div>
@@ -577,7 +584,7 @@ export default function AdminReadyMadePage() {
                     return (
                       <tr
                         key={item._id}
-                        className="group hover:bg-gray-50 transition-all duration-200"
+                        className="hover:bg-gray-50 transition-all duration-200"
                       >
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
@@ -676,16 +683,18 @@ export default function AdminReadyMadePage() {
       )}
 
       {/* Pagination */}
-      <GlobalPagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={handlePageChange}
-        showItemsPerPage={true}
-        itemsPerPage={limit}
-        onItemsPerPageChange={handleLimitChange}
-        itemsPerPageOptions={[5, 10, 20, 50, 100]}
-        totalItems={stats?.total}
-      />
+      {totalPages > 0 && (stats?.total ?? 0) > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={stats?.total}
+        />
+      )}
 
       <ImageModal
         isOpen={imageModalOpen}

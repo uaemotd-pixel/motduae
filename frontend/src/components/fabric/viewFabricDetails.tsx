@@ -106,7 +106,7 @@ const ViewFabricDetails = ({ product }: FabricDetailsProps) => {
   return (
     <div
       ref={containerRef}
-      className="min-h-screen bg-[#FFFDF9] antialiased selection:bg-black/10"
+      className="min-h-screen bg-white antialiased selection:bg-black/10"
     >
       {/* Main content with outer spacing */}
       <div className="pt-20 pb-8 sm:pb-10 lg:pb-12">
@@ -186,7 +186,7 @@ const ViewFabricDetails = ({ product }: FabricDetailsProps) => {
           </div>
 
           {/* Right: Scrollable details (spacing from right edge) */}
-          <div className="w-[45%] bg-[#FFFDF9] pr-8 xl:pr-12 pl-12 py-16">
+          <div className="w-[45%] bg-white pr-8 xl:pr-12 pl-12 py-16">
             <motion.div
               ref={detailsRef}
               initial={{ opacity: 0, y: 40 }}
@@ -595,7 +595,7 @@ const ViewFabricDetails = ({ product }: FabricDetailsProps) => {
             initial={{ y: 100 }}
             animate={{ y: 0 }}
             exit={{ y: 100 }}
-            className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-[#FFFDF9] border-t border-[#E8E8E4] px-4 sm:px-6 py-4 flex items-center justify-between"
+            className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-white border-t border-[#E8E8E4] px-4 sm:px-6 py-4 flex items-center justify-between"
           >
             <div>
               <p className="text-sm font-medium text-black truncate max-w-45">

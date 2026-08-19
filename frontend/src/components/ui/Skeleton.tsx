@@ -225,7 +225,7 @@ export function AuthSplitSkeleton({
 }) {
   return (
     <div
-      className="min-h-screen w-full flex flex-col md:flex-row bg-[#FFFDF9]"
+      className="min-h-screen w-full flex flex-col md:flex-row bg-white"
       role="status"
       aria-label="Loading"
     >
@@ -288,7 +288,7 @@ export function TableSkeleton({
       role="status"
       aria-label="Loading"
     >
-      <div className="grid gap-3 p-4 border-b border-[#E4E0D8] bg-[#FDFAF5]"
+      <div className="grid gap-3 p-4 border-b border-[#E4E0D8] bg-white"
         style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
       >
         {Array.from({ length: cols }).map((_, i) => (
