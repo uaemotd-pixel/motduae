@@ -13,6 +13,7 @@ import {
   emptyShopPickupAddress,
   type ShopPickupAddress,
 } from "@/lib/fabricShop";
+import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 
 interface AddOnFormData {
   name: string;
@@ -39,6 +40,7 @@ export default function AdminNewAddOnPage() {
     { name: string; nameAr: string; _id: string }[]
   >([]);
   const [tagsLoading, setTagsLoading] = useState(true);
+  const [tagOpen, setTagOpen] = useState(false);
 
   const [formData, setFormData] = useState<AddOnFormData>({
     name: "",
@@ -153,13 +155,10 @@ export default function AdminNewAddOnPage() {
   };
 
   // Tag options - from DB only
-  const tagOptionsEn = dbTags.map((t) => ({
+  const allTags = dbTags.map((t) => ({
     value: t.name,
-    label: t.name,
-  }));
-  const tagOptionsAr = dbTags.map((t) => ({
-    value: t.nameAr || t.name,
-    label: t.nameAr || t.name,
+    en: t.name,
+    ar: t.nameAr || t.name,
   }));
 
   return (
@@ -285,35 +284,69 @@ export default function AdminNewAddOnPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Display Tag (English)">
-            <select
-              value={formData.tag}
-              onChange={(e) => handleTextChange("tag", e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-black focus:outline-none focus:border-black bg-white transition hover:cursor-pointer"
+          <FormField label="Display Tag (ENG / AR)">
+            <AnimatedDropdown
+              isOpen={tagOpen}
+              onClose={() => setTagOpen(false)}
+              trigger={(() => {
+                const selected = allTags.find((t) => t.value === formData.tag);
+                const hasValue = !!formData.tag;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => setTagOpen(!tagOpen)}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-left bg-white text-xs sm:text-sm flex items-center justify-between hover:cursor-pointer focus:outline-none focus:border-black transition"
+                  >
+                    {hasValue ? (
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="text-black truncate">
+                          {selected?.en || formData.tag}
+                        </span>
+                        <span className="text-gray-500 shrink-0">/</span>
+                        <span className="text-black truncate">
+                          {selected?.ar || formData.tagAr}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">
+                        {tagsLoading ? "Loading tags..." : "Select tag (optional)"}
+                      </span>
+                    )}
+                    <span className="text-gray-400 ml-2">▾</span>
+                  </button>
+                );
+              })()}
+              dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+              position="bottom-left"
             >
-              <option value="">Select tag (optional)</option>
-              {tagOptionsEn.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
+              <button
+                type="button"
+                onClick={() => {
+                  handleTextChange("tag", "");
+                  handleTextChange("tagAr", "");
+                  setTagOpen(false);
+                }}
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer text-gray-400"
+              >
+                Select tag (optional)
+              </button>
+              {allTags.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    handleTextChange("tag", opt.value);
+                    handleTextChange("tagAr", opt.ar);
+                    setTagOpen(false);
+                  }}
+                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer flex items-center gap-2"
+                >
+                  <span className="truncate">{opt.en}</span>
+                  <span className="text-gray-500 shrink-0">/</span>
+                  <span className="truncate">{opt.ar}</span>
+                </button>
               ))}
-            </select>
-          </FormField>
-
-          <FormField label="Display Tag (Arabic)">
-            <select
-              value={formData.tagAr}
-              onChange={(e) => handleTextChange("tagAr", e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-black focus:outline-none focus:border-black bg-white transition text-right hover:cursor-pointer"
-              dir="rtl"
-            >
-              <option value="">اختر الوسم (اختياري)</option>
-              {tagOptionsAr.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            </AnimatedDropdown>
           </FormField>
         </div>
 

@@ -94,10 +94,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     number | null
   >(null);
   const [isMaterialDropdownOpen, setIsMaterialDropdownOpen] = useState(false);
-  const [isMaterialArDropdownOpen, setIsMaterialArDropdownOpen] =
-    useState(false);
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
-  const [isTagArDropdownOpen, setIsTagArDropdownOpen] = useState(false);
   const [isEmirateDropdownOpen, setIsEmirateDropdownOpen] = useState(false);
   const [dbMaterials, setDbMaterials] = useState<
     { name: string; nameAr: string; _id: string }[]
@@ -109,9 +106,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
   const [tagsLoading, setTagsLoading] = useState(true);
   const colorDropdownRef = useRef<HTMLDivElement>(null);
   const materialDropdownRef = useRef<HTMLDivElement>(null);
-  const materialArDropdownRef = useRef<HTMLDivElement>(null);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
-  const tagArDropdownRef = useRef<HTMLDivElement>(null);
   const emirateDropdownRef = useRef<HTMLDivElement>(null);
   const formActionsRef = useRef<HTMLDivElement>(null);
   const previousImageCountRef = useRef(formData.images.length);
@@ -192,22 +187,10 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         setIsMaterialDropdownOpen(false);
       }
       if (
-        materialArDropdownRef.current &&
-        !materialArDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsMaterialArDropdownOpen(false);
-      }
-      if (
         tagDropdownRef.current &&
         !tagDropdownRef.current.contains(event.target as Node)
       ) {
         setIsTagDropdownOpen(false);
-      }
-      if (
-        tagArDropdownRef.current &&
-        !tagArDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsTagArDropdownOpen(false);
       }
       if (
         emirateDropdownRef.current &&
@@ -558,23 +541,17 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
   }
 
   // Material options - from DB only
-  const materialOptionsEn = dbMaterials.map((m) => ({
+  const allMaterials = dbMaterials.map((m) => ({
     value: m.name,
-    label: m.name,
-  }));
-  const materialOptionsAr = dbMaterials.map((m) => ({
-    value: m.nameAr || m.name,
-    label: m.nameAr || m.name,
+    en: m.name,
+    ar: m.nameAr || m.name,
   }));
 
   // Tag options - from DB only
-  const tagOptionsEn = dbTags.map((t) => ({
+  const allTags = dbTags.map((t) => ({
     value: t.name,
-    label: t.name,
-  }));
-  const tagOptionsAr = dbTags.map((t) => ({
-    value: t.nameAr || t.name,
-    label: t.nameAr || t.name,
+    en: t.name,
+    ar: t.nameAr || t.name,
   }));
 
   const selectedColors = formData.colors || [];
@@ -662,13 +639,13 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
             />
           </FormField>
 
-          {/* Row for Material (EN), Material (AR), Colors */}
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* MATERIAL (EN) - from DB */}
+          {/* Row for Material (EN / AR), Colors */}
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* MATERIAL (EN / AR) - from DB */}
             <FormField
-              label="MATERIAL (EN)"
+              label="MATERIAL (EN / AR)"
               name="material"
-              error={fieldErrors.material}
+              error={fieldErrors.material || fieldErrors.materialAr}
               required
             >
               <div className="relative" ref={materialDropdownRef}>
@@ -677,15 +654,21 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                   onClick={() => setIsMaterialDropdownOpen((prev) => !prev)}
                   className={`${INPUT_CLASS} cursor-pointer text-left flex items-center justify-between gap-2 hover:cursor-pointer`}
                 >
-                  <span className="truncate text-xs sm:text-sm">
+                  <span className="truncate text-xs sm:text-sm flex items-center gap-2 min-w-0">
                     {formData.material ? (
-                      materialOptionsEn.find(
-                        (m) => m.value === formData.material,
-                      )?.label
+                      <>
+                        <span className="truncate">
+                          {allMaterials.find((m) => m.value === formData.material)?.en || formData.material}
+                        </span>
+                        <span className="text-black/40 shrink-0">/</span>
+                        <span className="truncate">
+                          {allMaterials.find((m) => m.value === formData.material)?.ar || formData.materialAr}
+                        </span>
+                      </>
                     ) : materialsLoading ? (
                       <span className="text-black/60">Loading...</span>
                     ) : (
-                      <span className="text-black/60">Select material</span>
+                      <span className="text-black/60">Select material (EN / AR)</span>
                     )}
                   </span>
                   <ChevronDown
@@ -706,7 +689,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                         <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
                           Loading materials...
                         </div>
-                      ) : materialOptionsEn.length === 0 ? (
+                      ) : allMaterials.length === 0 ? (
                         <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
                           No materials found
                         </div>
@@ -716,104 +699,27 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                             type="button"
                             onClick={() => {
                               handleChange("material", "");
+                              handleChange("materialAr", "");
                               setIsMaterialDropdownOpen(false);
                             }}
                             className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${!formData.material ? "bg-neutral-100 font-medium" : ""}`}
                           >
-                            Select material
+                            Select material (EN / AR)
                           </button>
-                          {materialOptionsEn.map((opt) => (
+                          {allMaterials.map((opt) => (
                             <button
                               key={opt.value}
                               type="button"
                               onClick={() => {
                                 handleChange("material", opt.value);
+                                handleChange("materialAr", opt.ar);
                                 setIsMaterialDropdownOpen(false);
                               }}
-                              className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${formData.material === opt.value ? "bg-neutral-100 font-medium" : ""}`}
+                              className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer flex items-center gap-2 ${formData.material === opt.value ? "bg-neutral-100 font-medium" : ""}`}
                             >
-                              {opt.label}
-                            </button>
-                          ))}
-                        </>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </FormField>
-
-            {/* MATERIAL (AR) - from DB */}
-            <FormField
-              label="MATERIAL (AR)"
-              name="materialAr"
-              error={fieldErrors.materialAr}
-              required
-            >
-              <div className="relative" ref={materialArDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsMaterialArDropdownOpen((prev) => !prev)}
-                  className={`${INPUT_CLASS} cursor-pointer text-right flex items-center justify-between gap-2 hover:cursor-pointer`}
-                  dir="rtl"
-                >
-                  <span className="truncate text-xs sm:text-sm">
-                    {formData.materialAr ? (
-                      materialOptionsAr.find(
-                        (m) => m.value === formData.materialAr,
-                      )?.label
-                    ) : materialsLoading ? (
-                      <span className="text-black/60">جاري التحميل...</span>
-                    ) : (
-                      <span className="text-black/60">اختر النوع</span>
-                    )}
-                  </span>
-                  <ChevronDown
-                    size={14}
-                    className={`shrink-0 text-black/40 transition-transform duration-200 ${isMaterialArDropdownOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
-                <AnimatePresence>
-                  {isMaterialArDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                      className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden max-h-60 overflow-y-auto"
-                      dir="rtl"
-                    >
-                      {materialsLoading ? (
-                        <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm text-gray-500">
-                          جاري التحميل...
-                        </div>
-                      ) : materialOptionsAr.length === 0 ? (
-                        <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm text-gray-500">
-                          لا توجد مواد
-                        </div>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleChange("materialAr", "");
-                              setIsMaterialArDropdownOpen(false);
-                            }}
-                            className={`w-full text-right px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${!formData.materialAr ? "bg-neutral-100 font-medium" : ""}`}
-                          >
-                            اختر النوع
-                          </button>
-                          {materialOptionsAr.map((opt) => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => {
-                                handleChange("materialAr", opt.value);
-                                setIsMaterialArDropdownOpen(false);
-                              }}
-                              className={`w-full text-right px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${formData.materialAr === opt.value ? "bg-neutral-100 font-medium" : ""}`}
-                            >
-                              {opt.label}
+                              <span className="truncate">{opt.en}</span>
+                              <span className="text-black/40 shrink-0">/</span>
+                              <span className="truncate">{opt.ar}</span>
                             </button>
                           ))}
                         </>
@@ -849,7 +755,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                           <span
                             key={c.value}
                             className="inline-flex items-center justify-center"
-                            title={c.en}
+                            title={`${c.en} / ${c.ar}`}
                           >
                             <span
                               className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border border-gray-200 shrink-0"
@@ -893,8 +799,10 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                                   className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full border border-gray-200 shrink-0"
                                   style={{ backgroundColor: opt.hex }}
                                 />
-                                <span className="text-[8px] sm:text-[10px] lg:text-xs truncate hover:cursor-pointer">
-                                  {locale === "ar" ? opt.ar : opt.en}
+                                <span className="inline-flex items-center gap-1 text-[8px] sm:text-[10px] lg:text-xs min-w-0 hover:cursor-pointer">
+                                  <span className="truncate">{opt.en}</span>
+                                  <span className="text-gray-400 shrink-0">/</span>
+                                  <span className="truncate">{opt.ar}</span>
                                 </span>
                               </span>
                             </label>
@@ -908,17 +816,25 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
             </FormField>
           </div>
 
-          {/* TAG (EN) - from DB */}
-          <FormField label="TAG (EN)" name="tag" error={fieldErrors.tag}>
+          {/* TAG (EN / AR) - from DB */}
+          <FormField label="TAG (EN / AR)" name="tag" error={fieldErrors.tag}>
             <div className="relative" ref={tagDropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsTagDropdownOpen((prev) => !prev)}
                 className={`${INPUT_CLASS} cursor-pointer text-left flex items-center justify-between gap-2 hover:cursor-pointer`}
               >
-                <span className="truncate text-xs sm:text-sm">
+                <span className="truncate text-xs sm:text-sm flex items-center gap-2 min-w-0">
                   {formData.tag ? (
-                    tagOptionsEn.find((m) => m.value === formData.tag)?.label
+                    <>
+                      <span className="truncate">
+                        {allTags.find((t) => t.value === formData.tag)?.en || formData.tag}
+                      </span>
+                      <span className="text-black/40 shrink-0">/</span>
+                      <span className="truncate">
+                        {allTags.find((t) => t.value === formData.tag)?.ar || formData.tagAr}
+                      </span>
+                    </>
                   ) : tagsLoading ? (
                     <span className="text-black/60">Loading...</span>
                   ) : (
@@ -943,7 +859,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                       <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
                         Loading tags...
                       </div>
-                    ) : tagOptionsEn.length === 0 ? (
+                    ) : allTags.length === 0 ? (
                       <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
                         No tags found
                       </div>
@@ -953,97 +869,27 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                           type="button"
                           onClick={() => {
                             handleChange("tag", "");
+                            handleChange("tagAr", "");
                             setIsTagDropdownOpen(false);
                           }}
                           className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${!formData.tag ? "bg-neutral-100 font-medium" : ""}`}
                         >
                           Select tag (optional)
                         </button>
-                        {tagOptionsEn.map((opt) => (
+                        {allTags.map((opt) => (
                           <button
                             key={opt.value}
                             type="button"
                             onClick={() => {
                               handleChange("tag", opt.value);
+                              handleChange("tagAr", opt.ar);
                               setIsTagDropdownOpen(false);
                             }}
-                            className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${formData.tag === opt.value ? "bg-neutral-100 font-medium" : ""}`}
+                            className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer flex items-center gap-2 ${formData.tag === opt.value ? "bg-neutral-100 font-medium" : ""}`}
                           >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </FormField>
-
-          {/* TAG (AR) - from DB */}
-          <FormField label="TAG (AR)" name="tagAr" error={fieldErrors.tagAr}>
-            <div className="relative" ref={tagArDropdownRef}>
-              <button
-                type="button"
-                onClick={() => setIsTagArDropdownOpen((prev) => !prev)}
-                className={`${INPUT_CLASS} cursor-pointer text-right flex items-center justify-between gap-2 hover:cursor-pointer`}
-                dir="rtl"
-              >
-                <span className="truncate text-xs sm:text-sm">
-                  {formData.tagAr ? (
-                    tagOptionsAr.find((m) => m.value === formData.tagAr)?.label
-                  ) : tagsLoading ? (
-                    <span className="text-black/60">جاري التحميل...</span>
-                  ) : (
-                    <span className="text-black/60">اختر الوسم (اختياري)</span>
-                  )}
-                </span>
-                <ChevronDown
-                  size={14}
-                  className={`shrink-0 text-black/40 transition-transform duration-200 ${isTagArDropdownOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-              <AnimatePresence>
-                {isTagArDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden max-h-60 overflow-y-auto"
-                    dir="rtl"
-                  >
-                    {tagsLoading ? (
-                      <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm text-gray-500">
-                        جاري التحميل...
-                      </div>
-                    ) : tagOptionsAr.length === 0 ? (
-                      <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-right text-xs sm:text-sm text-gray-500">
-                        لا توجد وسوم
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleChange("tagAr", "");
-                            setIsTagArDropdownOpen(false);
-                          }}
-                          className={`w-full text-right px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${!formData.tagAr ? "bg-neutral-100 font-medium" : ""}`}
-                        >
-                          اختر الوسم (اختياري)
-                        </button>
-                        {tagOptionsAr.map((opt) => (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => {
-                              handleChange("tagAr", opt.value);
-                              setIsTagArDropdownOpen(false);
-                            }}
-                            className={`w-full text-right px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${formData.tagAr === opt.value ? "bg-neutral-100 font-medium" : ""}`}
-                          >
-                            {opt.label}
+                            <span className="truncate">{opt.en}</span>
+                            <span className="text-black/40 shrink-0">/</span>
+                            <span className="truncate">{opt.ar}</span>
                           </button>
                         ))}
                       </>

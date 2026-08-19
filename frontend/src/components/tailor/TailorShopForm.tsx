@@ -20,7 +20,7 @@ import {
   type TailorShopProfile,
   type ShopPickupAddress,
 } from "@/lib/tailorShop";
-import { SHOP_EMIRATES } from "@/lib/fabricShop";
+import { UAE_EMIRATES, getEmirateEn, getEmirateAr } from "@/lib/uaeAddress";
 import {
   isValidUaePhone,
   normalizeUaePhone,
@@ -92,6 +92,7 @@ export default function TailorShopForm() {
   );
   const [shop, setShop] = useState<TailorShopProfile | null>(null);
   const [slugTouched, setSlugTouched] = useState(false);
+  const [emirateOpen, setEmirateOpen] = useState(false);
 
   const isCreateMode = shop === null;
 
@@ -631,19 +632,55 @@ export default function TailorShopForm() {
               required
               error={fieldErrors["pickupAddress.emirate"]}
             >
-              <select
-                id="pickupEmirate"
-                value={formData.pickupAddress.emirate}
-                onChange={(e) => handlePickupChange("emirate", e.target.value)}
-                className={INPUT_CLASS}
-              >
-                <option value="">{t("placeholders.selectEmirate")}</option>
-                {SHOP_EMIRATES.map((emirate) => (
-                  <option key={emirate} value={emirate}>
-                    {emirate}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setEmirateOpen((prev) => !prev)}
+                  className={`${INPUT_CLASS} flex items-center justify-between hover:cursor-pointer`}
+                >
+                  <span
+                    className={
+                      formData.pickupAddress.emirate
+                        ? "text-black"
+                        : "text-gray-400"
+                    }
+                  >
+                    {formData.pickupAddress.emirate
+                      ? `${getEmirateEn(formData.pickupAddress.emirate)} / ${getEmirateAr(formData.pickupAddress.emirate)}`
+                      : t("placeholders.selectEmirate")}
+                  </span>
+                  <span className="text-gray-400">▾</span>
+                </button>
+                {emirateOpen && (
+                  <div className="absolute left-0 right-0 z-50 mt-1 bg-white border border-(--color-border) shadow-lg max-h-60 overflow-y-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handlePickupChange("emirate", "");
+                        setEmirateOpen(false);
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-[13px] hover:bg-gray-50 hover:cursor-pointer text-gray-400 [font-family:var(--font-body)]"
+                    >
+                      {t("placeholders.selectEmirate")}
+                    </button>
+                    {UAE_EMIRATES.map((emirate) => (
+                      <button
+                        key={emirate.value}
+                        type="button"
+                        onClick={() => {
+                          handlePickupChange("emirate", emirate.value);
+                          setEmirateOpen(false);
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-[13px] hover:bg-gray-50 hover:cursor-pointer flex items-center gap-2 [font-family:var(--font-body)]"
+                      >
+                        <span>{emirate.en}</span>
+                        <span className="text-gray-400 shrink-0">/</span>
+                        <span>{emirate.ar}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </FormField>
 
             <FormField
