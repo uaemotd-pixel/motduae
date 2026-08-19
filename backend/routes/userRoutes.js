@@ -463,7 +463,8 @@ userRouter.post(
       user.resetPasswordExpires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
       await user.save({ validateBeforeSave: false });
 
-      const resetUrl = `${env.frontendUrl}/en/auth/reset-password?token=${rawToken}`;
+      const frontendBase = String(env.frontendUrl || "").replace(/\/$/, "");
+      const resetUrl = `${frontendBase}/en/auth/reset-password/${rawToken}`;
 
       try {
         await sendPasswordResetEmail({
