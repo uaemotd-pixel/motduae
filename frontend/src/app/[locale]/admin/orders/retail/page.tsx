@@ -171,6 +171,7 @@ const translations = {
     packed: "Packed",
     packSuccess: "Order packed at MOTD",
     packFailed: "Failed to pack order",
+
     logisticsShow: "View logistics",
     logisticsHide: "Hide logistics",
     logisticsTitle: "Logistics",

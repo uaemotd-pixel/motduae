@@ -7,6 +7,7 @@ import { isAuth, isAdmin, generateToken } from "../middleware/auth.js";
 import User from "../models/User.js";
 import Customer from "../models/customer.js";
 import SubAdmin from "../models/SubAdmin.js";
+import NewsletterSubscriber from "../models/NewsletterSubscriber.js";
 import { env } from "../config/env.js";
 import { validatePassword } from "../utils/passwordValidation.js";
 import {
@@ -49,6 +50,7 @@ import {
   forgotPasswordLimiter,
   resetPasswordLimiter,
   contactLimiter,
+  newsletterLimiter,
 } from "../middleware/rateLimiter.js";
 
 const userRouter = express.Router();
@@ -977,6 +979,43 @@ userRouter.post(
 
     await sendContactMessageEmail({ name, email, subject, message });
     res.send({ success: true, message: "We received your message" });
+  }),
+);
+
+userRouter.post(
+  "/newsletter/subscribe",
+  newsletterLimiter,
+  expressAsyncHandler(async (req, res) => {
+    const email = req.body?.email?.trim();
+    if (!email) {
+      return res.status(400).send({ message: "Email is required" });
+    }
+
+    // Simple email regex validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).send({ message: "Invalid email address" });
+    }
+
+    const lowercaseEmail = email.toLowerCase();
+
+    // Check if already subscribed
+    const existing = await NewsletterSubscriber.findOne({ email: lowercaseEmail });
+    if (existing) {
+      return res.send({
+        success: true,
+        alreadySubscribed: true,
+        message: "alreadySubscribed",
+      });
+    }
+
+    const subscriber = new NewsletterSubscriber({ email: lowercaseEmail });
+    await subscriber.save();
+
+    res.status(201).send({
+      success: true,
+      message: "success",
+    });
   }),
 );
 

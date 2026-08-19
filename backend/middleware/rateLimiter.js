@@ -65,3 +65,15 @@ export const contactLimiter = rateLimit({
   message: "Too many messages sent. Please try again in 15 minutes",
   handler: defaultHandler("Too many messages sent. Please try again in 15 minutes"),
 });
+
+export const newsletterLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP + email combination to 5 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: buildKeyGenerator("newsletter"),
+  validate: false,
+  statusCode: 429,
+  message: "Too many subscription attempts. Please try again in 15 minutes",
+  handler: defaultHandler("Too many subscription attempts. Please try again in 15 minutes"),
+});
