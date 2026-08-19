@@ -5,12 +5,14 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
-import { RefreshCw, Loader2, Search, PackageSearch } from "lucide-react";
+import { RefreshCw, Loader2, Search, PackageSearch, ChevronDown, ChevronUp } from "lucide-react";
 import StatusBadge from "@/components/admin/StatusBadge";
 import AdminOrdersTabs from "@/components/admin/AdminOrdersTabs";
 import AdminPackOrderButton, {
   type PackReadiness,
 } from "@/components/admin/AdminPackOrderButton";
+
+import OrderProgressPanel from "@/components/orders/OrderProgressPanel";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import {
   formatOrderDate,
@@ -20,6 +22,8 @@ import {
   CUSTOM_ORDER_STATUSES,
   type CustomOrderStatus,
   type CustomOrderStatusHistoryEntry,
+
+  type CustomOrderShipmentSummary,
 } from "@/lib/customOrders";
 import type { Locale } from "@/i18n/routing";
 import { ImageModal } from "@/components/shared/ImageModal";
@@ -79,6 +83,7 @@ interface Order {
   fabricId?: FabricPopulated | string | null;
   status: string;
   statusHistory?: CustomOrderStatusHistoryEntry[];
+  shipments?: CustomOrderShipmentSummary[];
   createdAt: string;
   returnItems?: unknown[];
   pricing: {
@@ -146,6 +151,7 @@ export default function AdminCustomOrdersPage() {
   const locale = (params.locale as Locale) || "en";
   const t = useTranslations("Admin.OrdersCustom");
   const tStatus = useTranslations("OrdersPage.custom.statuses");
+  const tLogistics = useTranslations("OrdersPage.logistics");
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,6 +187,16 @@ export default function AdminCustomOrdersPage() {
     getFirstDayOfMonthString(),
   );
   const [filterTo, setFilterTo] = useState<string>(getTodayString());
+  const [expandedLogistics, setExpandedLogistics] = useState<
+    Record<string, boolean>
+  >({});
+
+  const toggleLogistics = (orderId: string) => {
+    setExpandedLogistics((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
 
   const statusLabel = (status: string) => {
     if (isCustomOrderStatus(status)) {
@@ -954,6 +970,42 @@ export default function AdminCustomOrdersPage() {
                       </button>
                     )}
                   </div>
+                </div>
+
+                <div className="border-t border-gray-100 px-5 py-4 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => toggleLogistics(order._id)}
+                    className="inline-flex items-center gap-1.5 text-xs text-black/60 hover:text-black font-medium transition hover:cursor-pointer"
+                    aria-expanded={!!expandedLogistics[order._id]}
+                  >
+                    {expandedLogistics[order._id]
+                      ? tLogistics("hide")
+                      : tLogistics("show")}
+                    {expandedLogistics[order._id] ? (
+                      <ChevronUp className="w-3 h-3" />
+                    ) : (
+                      <ChevronDown className="w-3 h-3" />
+                    )}
+                  </button>
+
+                  {expandedLogistics[order._id] && (
+                    <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                      <p className="text-xs text-gray-400 uppercase tracking-wider mb-4 font-medium">
+                        {tLogistics("title")}
+                      </p>
+                      <OrderProgressPanel
+                        variant="custom"
+                        currentStatus={timelineStatus}
+                        statusHistory={order.statusHistory || []}
+                        shipments={order.shipments}
+                        locale={locale}
+                        visibility="internal"
+                        hasReturnItems={hasReturnItems}
+                        compact
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             );

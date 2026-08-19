@@ -9,6 +9,8 @@ import {
   RefreshCw,
   Search,
   Loader2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import StatusBadge from "@/components/admin/StatusBadge";
@@ -16,6 +18,12 @@ import AdminOrdersTabs from "@/components/admin/AdminOrdersTabs";
 import AdminPackOrderButton, {
   type PackReadiness,
 } from "@/components/admin/AdminPackOrderButton";
+import OrderProgressPanel from "@/components/orders/OrderProgressPanel";
+import type {
+  CustomOrderStatusHistoryEntry,
+  CustomOrderShipmentSummary,
+} from "@/lib/customOrders";
+import type { Locale } from "@/i18n/routing";
 import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
@@ -44,6 +52,8 @@ type RetailOrder = {
   currency: string;
   status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
   createdAt: string;
+  statusHistory?: CustomOrderStatusHistoryEntry[];
+  shipments?: CustomOrderShipmentSummary[];
   packedAt?: string | null;
   packReadiness?: PackReadiness;
 };
@@ -161,6 +171,10 @@ const translations = {
     packed: "Packed",
     packSuccess: "Order packed at MOTD",
     packFailed: "Failed to pack order",
+
+    logisticsShow: "View logistics",
+    logisticsHide: "Hide logistics",
+    logisticsTitle: "Logistics",
   },
   ar: {
     title: "الطلبات الجاهزة",
@@ -200,12 +214,15 @@ const translations = {
     packed: "تم التعبئة",
     packSuccess: "تم تعبئة الطلب في MOTD",
     packFailed: "فشل تعبئة الطلب",
+    logisticsShow: "عرض اللوجستيات",
+    logisticsHide: "إخفاء اللوجستيات",
+    logisticsTitle: "اللوجستيات",
   },
 };
 
 export default function AdminRetailOrdersPage() {
   const params = useParams();
-  const locale = (params?.locale as string) || "en";
+  const locale = ((params?.locale as string) || "en") as Locale;
   const t =
     translations[locale as keyof typeof translations] || translations.en;
 
@@ -242,6 +259,16 @@ export default function AdminRetailOrdersPage() {
   const [filterTo, setFilterTo] = useState<string>(getTodayString());
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
+  const [expandedLogistics, setExpandedLogistics] = useState<
+    Record<string, boolean>
+  >({});
+
+  const toggleLogistics = (orderId: string) => {
+    setExpandedLogistics((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
   const filterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // pop up image function
@@ -691,6 +718,41 @@ export default function AdminRetailOrdersPage() {
                       }}
                     />
                   </div>
+                </div>
+
+                <div className="border-t border-gray-100 px-5 py-4 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => toggleLogistics(order._id)}
+                    className="inline-flex items-center gap-1.5 text-xs text-black/60 hover:text-black font-medium transition hover:cursor-pointer"
+                    aria-expanded={!!expandedLogistics[order._id]}
+                  >
+                    {expandedLogistics[order._id]
+                      ? t.logisticsHide
+                      : t.logisticsShow}
+                    {expandedLogistics[order._id] ? (
+                      <ChevronUp className="w-3 h-3" />
+                    ) : (
+                      <ChevronDown className="w-3 h-3" />
+                    )}
+                  </button>
+
+                  {expandedLogistics[order._id] && (
+                    <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                      <p className="text-xs text-gray-400 uppercase tracking-wider mb-4 font-medium">
+                        {t.logisticsTitle}
+                      </p>
+                      <OrderProgressPanel
+                        variant="retail"
+                        currentStatus={order.status}
+                        statusHistory={order.statusHistory || []}
+                        shipments={order.shipments}
+                        locale={locale}
+                        visibility="internal"
+                        compact
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             );
