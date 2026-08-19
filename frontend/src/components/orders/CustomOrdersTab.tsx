@@ -1378,7 +1378,6 @@ export default function CustomOrdersTab({
                           statusHistory={detail.statusHistory || []}
                           shipments={detail.shipments}
                           locale={locale}
-
                           visibility="customer"
                           hasReturnItems={
                             (detail.returnItems?.length || 0) > 0 ||
