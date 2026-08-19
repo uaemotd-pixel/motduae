@@ -1632,10 +1632,11 @@ adminRouter.get(
 
 // PATCH /api/admin/orders/:id/status
 // C-18: use this path (not /orders/retail/:id/status). Any valid status is allowed (no strict pipeline step).
+// Appends statusHistory[] so admin/customer timelines stay in sync.
 adminRouter.patch(
   "/orders/:id/status",
   expressAsyncHandler(async (req, res) => {
-    const { status } = req.body;
+    const { status, note } = req.body;
 
     const validStatuses = RETAIL_ORDER_STATUSES;
     if (status && !validStatuses.includes(status)) {
@@ -1653,9 +1654,11 @@ adminRouter.patch(
         const historyBlock = {
           status,
           note:
-            previousStatus && previousStatus !== status
-              ? `Status changed from ${previousStatus} to ${status}`
-              : "",
+            typeof note === "string" && note.trim()
+              ? note.trim()
+              : previousStatus && previousStatus !== status
+                ? `Status changed from ${previousStatus} to ${status}`
+                : "",
           changedAt: new Date(),
           changedBy: req.user?._id,
         };
