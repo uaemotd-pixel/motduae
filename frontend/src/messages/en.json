@@ -1014,7 +1014,10 @@
     "title": "Elegance in Your Inbox",
     "description": "Receive seasonal fabric releases, atelier stories, and curated craftsmanship highlights — delivered sparingly, only when it matters.",
     "placeholder": "Email Address",
-    "subscribe": "Subscribe"
+    "subscribe": "Subscribe",
+    "success": "Thank you for subscribing!",
+    "alreadySubscribed": "You are already subscribed!",
+    "error": "Subscription failed. Please try again."
   },
   "Admin": {
     "loading": "Loading admin panel...",

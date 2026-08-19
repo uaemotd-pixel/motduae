@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { api, getApiErrorMessage } from "@/lib/api/client";
 
 interface SubscriptionNewsletterProps {
     onSubscribe?: (email: string) => void;
@@ -10,16 +11,40 @@ interface SubscriptionNewsletterProps {
 export function SubscriptionNewsletter({ onSubscribe }: SubscriptionNewsletterProps) {
     const t = useTranslations("newsletter");
     const [email, setEmail] = useState("");
+    const [status, setStatus] = useState<"idle" | "loading" | "success" | "alreadySubscribed" | "error">("idle");
+    const [errorMessage, setErrorMessage] = useState("");
 
-    const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        if (email && onSubscribe) {
-            onSubscribe(email);
-        } else if (email) {
-            console.log("Newsletter subscription:", email);
-            // Add your newsletter subscription logic here
+        if (!email) return;
+
+        setStatus("loading");
+        setErrorMessage("");
+
+        try {
+            if (onSubscribe) {
+                onSubscribe(email);
+            }
+            
+            const response = await api.post<{ success: boolean; alreadySubscribed?: boolean; message?: string }>(
+                "/api/users/newsletter/subscribe",
+                { email }
+            );
+
+            if (response.alreadySubscribed) {
+                setStatus("alreadySubscribed");
+            } else {
+                setStatus("success");
+                setEmail("");
+            }
+        } catch (err: any) {
+            console.error("Newsletter subscription error:", err);
+            const msg = getApiErrorMessage(err, "");
+            if (msg) {
+                setErrorMessage(msg);
+            }
+            setStatus("error");
         }
-        setEmail("");
     };
 
     return (
@@ -43,16 +68,40 @@ export function SubscriptionNewsletter({ onSubscribe }: SubscriptionNewsletterPr
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={t("placeholder")}
                     required
-                    className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] sm:text-[12px] md:text-[13px] lg:text-[14px] uppercase tracking-[0.2em] bg-transparent border-b border-(--color-border) py-3 xs:py-3.5 sm:py-4 px-2 placeholder:text-(--color-grey-muted)/40 focus:outline-none focus:border-black transition-colors font-normal"
+                    disabled={status === "loading"}
+                    className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] sm:text-[12px] md:text-[13px] lg:text-[14px] uppercase tracking-[0.2em] bg-transparent border-b border-(--color-border) py-3 xs:py-3.5 sm:py-4 px-2 placeholder:text-(--color-grey-muted)/40 focus:outline-none focus:border-black transition-colors font-normal disabled:opacity-50"
                 />
 
                 <button
                     type="submit"
-                    className="[font-family:var(--font-body)] text-[12px] xs:text-[10px] sm:text-[11px] md:text-[12px] lg:text-[13px] uppercase tracking-[0.35em] bg-black text-white py-3.5 xs:py-4 sm:py-4.5 md:py-5 mt-4 xs:mt-5 sm:mt-6 hover:bg-(--color-grey-muted) hover:text-white transition-all duration-300 font-normal"
+                    disabled={status === "loading"}
+                    className="[font-family:var(--font-body)] text-[12px] xs:text-[10px] sm:text-[11px] md:text-[12px] lg:text-[13px] uppercase tracking-[0.35em] bg-black text-white py-3.5 xs:py-4 sm:py-4.5 md:py-5 mt-4 xs:mt-5 sm:mt-6 hover:bg-(--color-grey-muted) hover:text-white transition-all duration-300 font-normal disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                    {t("subscribe")}
+                    {status === "loading" ? (
+                        <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    ) : (
+                        t("subscribe")
+                    )}
                 </button>
             </form>
+
+            {status === "success" && (
+                <p className="mt-4 text-[12px] sm:text-[13px] text-emerald-600 font-medium tracking-[0.05em] uppercase [font-family:var(--font-ui)] transition-all duration-300">
+                    {t("success")}
+                </p>
+            )}
+
+            {status === "alreadySubscribed" && (
+                <p className="mt-4 text-[12px] sm:text-[13px] text-amber-600 font-medium tracking-[0.05em] uppercase [font-family:var(--font-ui)] transition-all duration-300">
+                    {t("alreadySubscribed")}
+                </p>
+            )}
+
+            {status === "error" && (
+                <p className="mt-4 text-[12px] sm:text-[13px] text-rose-600 font-medium tracking-[0.05em] uppercase [font-family:var(--font-ui)] transition-all duration-300">
+                    {errorMessage || t("error")}
+                </p>
+            )}
         </div>
     );
 }
