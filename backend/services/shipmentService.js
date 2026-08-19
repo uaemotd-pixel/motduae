@@ -166,9 +166,20 @@ function resolveLinkedIdsFromBreakdown(entry, order, orderKind) {
   return { fabricShopId, tailorShopId, itemIds, addonIds };
 }
 
+function toPlainNestedAddress(input) {
+  if (input == null) return undefined;
+  const raw = typeof input.toObject === "function" ? input.toObject() : input;
+  if (!raw || typeof raw !== "object") return undefined;
+  const normalized = normalizeAddress(raw);
+  if (!normalized.line1 && !normalized.city && !normalized.fullName) {
+    return undefined;
+  }
+  return normalized;
+}
+
 function plannedShipmentFromEntry(entry, order, orderKind) {
   const linked = resolveLinkedIdsFromBreakdown(entry, order, orderKind);
-  return {
+  const planned = {
     parcelKey: entry.key,
     type: entry.type,
     label: entry.label || entry.type,
@@ -187,7 +198,6 @@ function plannedShipmentFromEntry(entry, order, orderKind) {
     addonIds: linked.addonIds,
     fabricShopId: linked.fabricShopId,
     tailorShopId: linked.tailorShopId,
-    pickupAddress: entry.pickupAddress || null,
     billable:
       typeof entry.billable === "boolean"
         ? entry.billable
@@ -195,6 +205,9 @@ function plannedShipmentFromEntry(entry, order, orderKind) {
     status: "planned",
     events: [],
   };
+  const pickupAddress = toPlainNestedAddress(entry.pickupAddress);
+  if (pickupAddress) planned.pickupAddress = pickupAddress;
+  return planned;
 }
 
 function asPlanId(value) {

@@ -103,8 +103,8 @@ const shipmentSchema = new mongoose.Schema(
     billable: { type: Boolean, default: true },
     from: { type: shipmentPartySchema, default: () => ({}) },
     to: { type: shipmentPartySchema, default: () => ({}) },
-    pickupAddress: { type: shipmentAddressSchema, default: null },
-    dropoffAddress: { type: shipmentAddressSchema, default: null },
+    pickupAddress: { type: shipmentAddressSchema },
+    dropoffAddress: { type: shipmentAddressSchema },
     itemIds: {
       type: [{ type: mongoose.Schema.Types.ObjectId }],
       default: [],
