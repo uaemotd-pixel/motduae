@@ -15,6 +15,7 @@
     "totalPrice": "السعر الإجمالي",
     "deliveryDetails": "تفاصيل التوصيل",
     "fullName": "الاسم الكامل",
+    "email": "البريد الإلكتروني",
     "phone": "رقم الهاتف",
     "emirate": "الإمارة",
     "selectEmirate": "اختر الإمارة",

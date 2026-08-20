@@ -1,6 +1,12 @@
 import { api, type ApiError } from "@/lib/api/client";
+import { isGuestAccountEmail } from "@/lib/auth/guestAccount";
 
-export type VerifyEmailMode = "signup" | "checkout" | "account" | "email-change";
+export type VerifyEmailMode =
+  | "signup"
+  | "checkout"
+  | "account"
+  | "email-change"
+  | "guest-checkout";
 
 /** Build absolute-path OTP URL; caller supplies `next` (path + query, no locale). */
 export function buildVerifyEmailHref(opts: {
@@ -32,7 +38,77 @@ export type VerificationStatusResponse = {
   resendAvailableInSec: number;
   maskedEmail: string;
   pendingEmail?: string | null;
+  guestContactEmail?: string | null;
 };
+
+export function normalizeEmail(email: string) {
+  return String(email || "").toLowerCase().trim();
+}
+
+export function isValidContactEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(email));
+}
+
+export type GuestContactFieldError =
+  | "required"
+  | "invalid"
+  | "inUse"
+  | "taken"
+  | "generic";
+
+export type GuestContactErrorCopy = {
+  guestEmailRequired: string;
+  guestEmailInvalid: string;
+  guestEmailInUse: string;
+  guestEmailTaken: string;
+  guestEmailGeneric: string;
+};
+
+export function guestContactClientError(
+  email: string,
+): Extract<GuestContactFieldError, "required" | "invalid"> | null {
+  const value = normalizeEmail(email);
+  if (!value) return "required";
+  if (!isValidContactEmail(value) || isGuestAccountEmail(value)) return "invalid";
+  return null;
+}
+
+export function guestContactErrorFromApi(error: unknown): GuestContactFieldError {
+  const code = getApiErrorCode(error);
+  if (code === "EMAIL_IN_USE_SIGN_IN") return "inUse";
+  if (code === "EMAIL_TAKEN") return "taken";
+  if (code === "EMAIL_INVALID") return "invalid";
+  return "generic";
+}
+
+export function guestContactErrorMessage(
+  key: GuestContactFieldError,
+  copy: GuestContactErrorCopy,
+): string {
+  if (key === "required") return copy.guestEmailRequired;
+  if (key === "invalid") return copy.guestEmailInvalid;
+  if (key === "inUse") return copy.guestEmailInUse;
+  if (key === "taken") return copy.guestEmailTaken;
+  return copy.guestEmailGeneric;
+}
+
+export function needsGuestContactOtp(
+  user: { isGuest?: boolean; guestContactEmail?: string | null } | null | undefined,
+  formEmail: string,
+) {
+  if (!user?.isGuest) return false;
+  const verified = normalizeEmail(user.guestContactEmail || "");
+  if (!verified) return true;
+  return normalizeEmail(formEmail) !== verified;
+}
+
+/** Scroll past the sticky navbar so the verify notice + CTA are in view. */
+export function scrollToCheckoutEmailNotice(el: HTMLElement | null) {
+  if (!el) return;
+  const navOffset = 96;
+  const top = window.scrollY + el.getBoundingClientRect().top - navOffset;
+  window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+}
 
 export function maskEmail(email: string): string {
   const value = String(email || "");
@@ -109,4 +185,20 @@ export async function verifyEmailChangeOtp(code: string) {
 
 export async function cancelEmailChangeRequest() {
   return api.post<{ ok: boolean }>("/api/users/email/change/cancel");
+}
+
+export async function startGuestContactRequest(payload: { email: string }) {
+  return api.post("/api/users/email/guest/start", payload);
+}
+
+export async function resendGuestContactOtp() {
+  return api.post<SendOtpResponse>("/api/users/email/guest/resend");
+}
+
+export async function verifyGuestContactOtp(code: string) {
+  return api.post("/api/users/email/guest/verify", { code });
+}
+
+export async function fetchGuestContactStatus() {
+  return api.get<VerificationStatusResponse>("/api/users/email/guest/status");
 }

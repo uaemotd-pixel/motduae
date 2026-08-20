@@ -41,6 +41,8 @@ import {
   savePendingCheckout,
 } from "../services/pendingCheckoutService.js";
 import { getCustomOrderTotalFromBody } from "../services/customPaidOrderService.js";
+import { resolveCheckoutContactEmail } from "../services/emailVerification/guestContactOtpService.js";
+import { EmailVerificationError } from "../services/emailVerification/emailVerificationService.js";
 import { hasActiveCustomerShipments } from "../services/shipmentService.js";
 import {
   normalizeEmirate,
@@ -574,6 +576,10 @@ orderRoutes.post("/custom", isAuth, requireEmailVerified, async (req, res) => {
 
     // Force delivery-only on stored checkout payload
     customPayload.deliveryType = "delivery";
+    customPayload.contactEmail = resolveCheckoutContactEmail(
+      req,
+      customPayload.contactEmail,
+    );
 
     // Refresh snapshot in case address/measurements changed after PI create
     const amountAed = await getCustomOrderTotalFromBody(customPayload);
@@ -603,6 +609,14 @@ orderRoutes.post("/custom", isAuth, requireEmailVerified, async (req, res) => {
     if (error instanceof PricingValidationError) {
       return res.status(400).json({
         success: false,
+        message: error.message,
+      });
+    }
+
+    if (error instanceof EmailVerificationError) {
+      return res.status(error.status).json({
+        success: false,
+        code: error.code,
         message: error.message,
       });
     }
@@ -715,6 +729,7 @@ orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
     const {
       orderItems,
       shippingAddress,
+      contactEmail,
       paymentMethod = "card",
       paymentIntentId,
     } = req.body;
@@ -778,12 +793,13 @@ orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
     }
 
     const prepared = await prepareRetailOrder(orderItems);
+    const storedContactEmail = resolveCheckoutContactEmail(req, contactEmail);
     await savePendingCheckout({
       paymentIntentId,
       userId: req.user._id,
       orderType: "retail",
       amountAed: prepared.totalPrice,
-      payload: { orderItems, shippingAddress },
+      payload: { orderItems, shippingAddress, contactEmail: storedContactEmail },
     });
 
     const { order, created } = await fulfillPaidCheckout({
@@ -801,6 +817,14 @@ orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
       order,
     });
   } catch (error) {
+    if (error instanceof EmailVerificationError) {
+      return res.status(error.status).json({
+        success: false,
+        code: error.code,
+        message: error.message,
+      });
+    }
+
     console.error("POST /api/orders/retail error:", error);
 
     res.status(error.message?.includes("Payment") ? 400 : 500).json({

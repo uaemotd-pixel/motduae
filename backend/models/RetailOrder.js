@@ -127,6 +127,12 @@ const retailOrderSchema = new mongoose.Schema(
       type: shippingAddressSchema,
       required: true,
     },
+    contactEmail: {
+      type: String,
+      default: "",
+      lowercase: true,
+      trim: true,
+    },
     paymentMethod: {
       type: String,
       enum: PAYMENT_METHODS,

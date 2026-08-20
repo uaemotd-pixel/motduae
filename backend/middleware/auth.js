@@ -3,21 +3,32 @@ import { env } from "../config/env.js";
 import User from "../models/User.js";
 import { extractAuthToken } from "../utils/authCookie.js";
 import { isEmailVerified } from "../services/emailVerification/isEmailVerified.js";
+import { isGuestUser } from "../services/emailVerification/isGuestUser.js";
+import { normalizeEmail } from "../services/emailVerification/emailOccupancy.js";
 
-export const generateToken = (user, isGuest = false) => {
-  return jwt.sign(
-    {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      isAdmin: user.isAdmin,
-      emailVerified: isEmailVerified(user),
-      isGuest,
-    },
-    env.jwtSecret,
-    { expiresIn: env.jwtExpiresIn },
-  );
+export const generateToken = (
+  user,
+  { guestContactEmail, guestPendingEmail } = {},
+) => {
+  const isGuest = isGuestUser(user);
+  const payload = {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    isAdmin: user.isAdmin,
+    emailVerified: isEmailVerified(user),
+    isGuest,
+  };
+
+  if (isGuest) {
+    const contact = normalizeEmail(guestContactEmail);
+    const pending = normalizeEmail(guestPendingEmail);
+    if (contact) payload.guestContactEmail = contact;
+    if (pending) payload.guestPendingEmail = pending;
+  }
+
+  return jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn });
 };
 
 export const isAuth = async (req, res, next) => {
@@ -46,6 +57,7 @@ export const isAuth = async (req, res, next) => {
       return;
     }
 
+    const isGuest = isGuestUser(user);
     // Revalidate privileged claims from DB so revoked admin/role cannot linger in JWT
     req.user = {
       _id: user._id,
@@ -55,7 +67,13 @@ export const isAuth = async (req, res, next) => {
       isAdmin: user.isAdmin,
       approvalStatus: user.approvalStatus,
       emailVerified: isEmailVerified(user),
-      isGuest: Boolean(decode.isGuest),
+      isGuest,
+      guestContactEmail: isGuest
+        ? normalizeEmail(decode.guestContactEmail) || undefined
+        : undefined,
+      guestPendingEmail: isGuest
+        ? normalizeEmail(decode.guestPendingEmail) || undefined
+        : undefined,
     };
     next();
   } catch {

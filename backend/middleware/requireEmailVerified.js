@@ -1,12 +1,21 @@
 import { isEmailVerified } from "../services/emailVerification/isEmailVerified.js";
+import { isGuestUser } from "../services/emailVerification/isGuestUser.js";
 
 /**
- * Guest checkout uses a shared account + JWT `isGuest` flag — no OTP.
- * Aligns with account UI (banner/profile Verify hidden for guests).
+ * Account: emailVerified on User.
+ * Guest: session must have verified guestContactEmail (checkout OTP).
  */
 export function requireEmailVerified(req, res, next) {
-  if (req.user?.isGuest) {
-    next();
+  if (isGuestUser(req.user)) {
+    if (req.user?.guestContactEmail) {
+      next();
+      return;
+    }
+
+    res.status(403).send({
+      code: "EMAIL_NOT_VERIFIED",
+      message: "Please verify your email before continuing",
+    });
     return;
   }
 

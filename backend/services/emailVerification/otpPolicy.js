@@ -12,6 +12,7 @@ export const PENDING_EMAIL_TTL_MS = 24 * 60 * 60 * 1000;
 export const OTP_PURPOSES = {
   VERIFY_EMAIL_ADDRESS: "Verify your email address",
   CHANGE_EMAIL: "Confirm your new email address",
+  GUEST_CHECKOUT: "Confirm your email for this order",
 };
 
 /** Stored on User.emailVerificationPurpose — not the email template copy. */

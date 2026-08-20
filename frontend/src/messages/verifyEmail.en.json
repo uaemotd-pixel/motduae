@@ -35,6 +35,14 @@
     "currentPassword": "Current password",
     "continueChange": "Continue",
     "pendingChangeBody": "An email change is in progress. We'll send the code to",
-    "pendingChangeResume": "Resume"
+    "pendingChangeResume": "Resume",
+    "guestCheckoutTitle": "Confirm your email for this order",
+    "guestCheckoutSubtitle": "We'll send a 6-digit code to",
+    "gateGuestCheckoutMessage": "Confirm your email so we can send order tracking to this inbox. You cannot complete checkout until you verify.",
+    "guestEmailRequired": "Email is required.",
+    "guestEmailInvalid": "Enter a valid email address.",
+    "guestEmailInUse": "This email already has an account. Please sign in.",
+    "guestEmailTaken": "This email cannot be used for guest checkout.",
+    "guestEmailGeneric": "This email cannot be used for this order. Try a different address."
   }
 }

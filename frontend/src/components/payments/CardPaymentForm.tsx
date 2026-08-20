@@ -22,6 +22,10 @@ type CardPaymentFormProps = {
   amountAed: number;
   cardholderName?: string;
   disabled?: boolean;
+  /** Keep Pay clickable so checkout can scroll to the email-verify notice. */
+  allowClickWhenIncomplete?: boolean;
+  /** Runs first on Pay; return false to abort (e.g. email not verified). */
+  onAttemptPay?: () => boolean;
   payLabel?: string;
   processingLabel?: string;
   loadingLabel?: string;
@@ -55,6 +59,8 @@ function CardFormInner({
   amountAed,
   cardholderName,
   disabled = false,
+  allowClickWhenIncomplete = false,
+  onAttemptPay,
   payLabel = "Pay",
   processingLabel = "Processing...",
   createIntent,
@@ -67,12 +73,14 @@ function CardFormInner({
   const createIntentRef = useRef(createIntent);
   const onPaidRef = useRef(onPaid);
   const onErrorRef = useRef(onError);
+  const onAttemptPayRef = useRef(onAttemptPay);
 
   useEffect(() => {
     createIntentRef.current = createIntent;
     onPaidRef.current = onPaid;
     onErrorRef.current = onError;
-  }, [createIntent, onPaid, onError]);
+    onAttemptPayRef.current = onAttemptPay;
+  }, [createIntent, onPaid, onError, onAttemptPay]);
 
   const [processing, setProcessing] = useState(false);
   const [cardComplete, setCardComplete] = useState(false);
@@ -80,9 +88,10 @@ function CardFormInner({
 
   const handleSubmit = async () => {
     if (!stripe || !elements || processing || disabled) return;
+    if (onAttemptPayRef.current && !onAttemptPayRef.current()) return;
 
     const cardElement = elements.getElement(CardElement);
-    if (!cardElement) return;
+    if (!cardElement || !cardComplete) return;
 
     setProcessing(true);
     setCardError(null);
@@ -132,7 +141,11 @@ function CardFormInner({
   };
 
   const isDisabled =
-    disabled || processing || !stripe || !elements || !cardComplete;
+    disabled ||
+    processing ||
+    !stripe ||
+    !elements ||
+    (!allowClickWhenIncomplete && !cardComplete);
 
   return (
     <div className="space-y-4">

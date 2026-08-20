@@ -194,6 +194,7 @@ export async function fulfillPaidCheckout({
         userName,
         orderItems: pending.payload.orderItems,
         shippingAddress: pending.payload.shippingAddress,
+        contactEmail: pending.payload.contactEmail,
         paymentIntentId,
         paymentMethod: resolvedMethod,
       });
