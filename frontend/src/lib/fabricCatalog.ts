@@ -32,8 +32,13 @@ export interface FabricProfile {
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
-  variants?: FabricVariantFormData[];
+  variants?: FabricVariantProfile[];
 }
+
+export type FabricVariantProfile = Omit<
+  FabricProfile,
+  "minAge" | "maxAge" | "variants"
+>;
 
 export type FabricVariantFormData = Omit<FabricFormData, "minAge" | "maxAge">;
 
