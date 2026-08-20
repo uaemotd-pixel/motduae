@@ -212,7 +212,7 @@ export default function OrderReviewStep() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
         {/* Left column - Order summary */}
-        <section className="border border-(--color-border) bg-[#FDFAF5] p-6 sm:p-8">
+        <section className="border border-(--color-border) bg-white p-6 sm:p-8">
           <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
             {t("summaryTitle")}
             {draft.lineItems.length > 1 && (
@@ -388,7 +388,7 @@ export default function OrderReviewStep() {
                             className={`px-3 py-1.5 text-[10px] tracking-[0.16em] uppercase transition hover:cursor-pointer ${
                               isSelected
                                 ? "bg-black text-white hover:bg-black/80"
-                                : "bg-[#F0EBE3] text-black hover:bg-black/10"
+                                : "bg-neutral-100 text-black hover:bg-black/10"
                             }`}
                           >
                             {isSelected ? (locale === "ar" ? "تمت الإضافة" : "Added") : (locale === "ar" ? "إضافة" : "Add")}
@@ -596,7 +596,7 @@ export default function OrderReviewStep() {
         </section>
 
         {/* Order Options - Always Show */}
-        <div className="border border-(--color-border) bg-[#FDFBF7] p-6 sm:p-8">
+        <div className="border border-(--color-border) bg-white p-6 sm:p-8">
           <h2 className="[font-family:var(--font-display)] text-[20px] mb-4">
             {locale === "ar"
               ? "خيارات الطلب (اختياري)"

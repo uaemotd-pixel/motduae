@@ -112,7 +112,7 @@ export default function FabricRegisterForm() {
 
                         {submitted ? (
                             <div className="text-center py-8">
-                                <div className="w-16 h-16 mx-auto mb-6 bg-[#F0EBE3] rounded-full flex items-center justify-center">
+                                <div className="w-16 h-16 mx-auto mb-6 bg-neutral-100 rounded-full flex items-center justify-center">
                                     <svg
                                         className="w-8 h-8 text-black"
                                         fill="none"
@@ -248,7 +248,7 @@ export default function FabricRegisterForm() {
                                         {t("passwordHint")}
                                     </p>
 
-                                    <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) leading-relaxed border border-(--color-border) bg-[#FDFAF5] p-4">
+                                    <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) leading-relaxed border border-(--color-border) bg-white p-4">
                                         {t("approvalNote")}
                                     </p>
 

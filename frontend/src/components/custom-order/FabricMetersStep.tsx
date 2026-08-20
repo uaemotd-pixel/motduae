@@ -193,7 +193,7 @@ export default function FabricMetersStep() {
       />
 
       {availablePairs.length > 0 && (
-        <div className="border border-(--color-border) bg-[#FDFAF5] p-6 mb-8 max-w-2xl">
+        <div className="border border-(--color-border) bg-white p-6 mb-8 max-w-2xl">
           <h3 className="[font-family:var(--font-display)] text-[18px] mb-4">
             {t("addItemTitle")}
           </h3>
@@ -238,7 +238,7 @@ export default function FabricMetersStep() {
         draft.selectedDesigns.length > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
           {draft.selectedFabrics.length > 0 && (
-            <div className="border border-(--color-border) bg-[#FDFAF5] p-4 sm:p-5">
+            <div className="border border-(--color-border) bg-white p-4 sm:p-5">
               <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
                 {t("selectedFabricsSummary", {
                   count: draft.selectedFabrics.length,
@@ -257,7 +257,7 @@ export default function FabricMetersStep() {
             </div>
           )}
           {draft.selectedDesigns.length > 0 && (
-            <div className="border border-(--color-border) bg-[#FDFAF5] p-4 sm:p-5">
+            <div className="border border-(--color-border) bg-white p-4 sm:p-5">
               <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
                 {t("selectedDesignsSummary", {
                   count: draft.selectedDesigns.length,
@@ -279,7 +279,7 @@ export default function FabricMetersStep() {
       )}
 
       {needsManualPairing && draft.lineItems.length === 0 && (
-        <div className="border border-(--color-border) bg-[#FDFAF5] p-6 mb-8">
+        <div className="border border-(--color-border) bg-white p-6 mb-8">
           <p className="[font-family:var(--font-body)] text-[14px] text-(--color-grey-muted)">
             {t("pairingHint")}
           </p>

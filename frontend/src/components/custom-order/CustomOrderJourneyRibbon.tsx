@@ -231,7 +231,7 @@ function SelectionFrameCard({
                     className="absolute inset-0 w-full h-full object-cover object-top"
                 />
             ) : !isPlaceholder && side?.isOwnFabric ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#F0EBE3] p-3">
+                <div className="absolute inset-0 flex items-center justify-center bg-neutral-100 p-3">
                     <svg
                         viewBox="0 0 48 48"
                         className="w-10 h-10 text-black/35"
@@ -353,7 +353,7 @@ export default function CustomOrderJourneyRibbon() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.45, ease: [0.25, 0.1, 0.25, 1] }}
-                className="mb-6 border border-(--color-border) bg-[#FDFAF5] overflow-hidden"
+                className="mb-6 border border-(--color-border) bg-white overflow-hidden"
             >
                 <div className="flex items-center justify-between gap-3 px-3 sm:px-5 py-2 border-b border-(--color-border)/60 bg-white/50">
                     <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-black">
