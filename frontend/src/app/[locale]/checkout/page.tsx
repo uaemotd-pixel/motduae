@@ -238,6 +238,7 @@ function CheckoutPageContent() {
     const clientKey = guestContactClientError(raw);
     if (clientKey) {
       setGuestEmailError(guestContactErrorMessage(clientKey, guestEmailCopy));
+      
       return false;
     }
 
