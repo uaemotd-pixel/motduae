@@ -54,6 +54,7 @@ import {
 type CustomerAddress = {
   _id?: string;
   fullName: string;
+  email?: string;
   phone: string;
   emirate: string;
   city: string;
@@ -67,6 +68,7 @@ type CustomerProfile = {
   id: string;
   userId: string;
   name: string;
+  email?: string;
   phone?: string;
   dob?: string;
   profilePic?: string;
@@ -120,9 +122,6 @@ export default function CustomOrderCheckoutStep() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
-  const [successOrderItems, setSuccessOrderItems] = useState<
-    Array<{ name: string }>
-  >([]);
   const [measurementsConfirmed, setMeasurementsConfirmed] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"apple_pay" | "card">(
     "card",
@@ -234,11 +233,21 @@ export default function CustomOrderCheckoutStep() {
   }, [needsEmailVerify]);
 
   useEffect(() => {
-    if (!user?.isGuest) return;
-    const known = user.guestContactEmail || user.guestPendingEmail || "";
-    if (!known) return;
-    setContactEmail((prev) => prev || known);
-  }, [user?.isGuest, user?.guestContactEmail, user?.guestPendingEmail]);
+    if (user?.isGuest) {
+      const known = user.guestContactEmail || user.guestPendingEmail || "";
+      if (!known) return;
+      setContactEmail((prev) => prev || known);
+      return;
+    }
+    if (user?.email) {
+      setContactEmail((prev) => prev || user.email || "");
+    }
+  }, [
+    user?.isGuest,
+    user?.email,
+    user?.guestContactEmail,
+    user?.guestPendingEmail,
+  ]);
 
   const [addons, setAddons] = useState<any[]>([]);
   useEffect(() => {
@@ -326,12 +335,16 @@ export default function CustomOrderCheckoutStep() {
             line2: defaultAddr.building || "",
             postalCode: defaultAddr.postalCode || "",
           });
+          setContactEmail(
+            data.email || user?.email || defaultAddr.email || "",
+          );
         } else {
           const normalizedPhone = normalizeUaePhone(data.phone || "");
           updateDeliveryAddress({
             fullName: data.name || "",
             phone: normalizedPhone,
           });
+          setContactEmail(data.email || user?.email || "");
         }
       } catch (err: any) {
         if (err.status !== 404) {
@@ -362,6 +375,9 @@ export default function CustomOrderCheckoutStep() {
       line2: address.building || "",
       postalCode: address.postalCode || "",
     });
+    setContactEmail(
+      address.email || customerProfile.email || user?.email || "",
+    );
 
     setErrors({});
     if (submitError) setSubmitError(null);
@@ -598,14 +614,7 @@ export default function CustomOrderCheckoutStep() {
         throw new Error(response.message || t("submitError"));
       }
 
-      const orderItemNames = draft.lineItems.map((item) => ({
-        name:
-          getDisplayName(item.design.name, item.design.nameAr) ||
-          t("unknownDesign"),
-      }));
-
       setOrderId(response.orderId);
-      setSuccessOrderItems(orderItemNames);
       resetOrder();
       setShowSuccess(true);
     } catch (err: unknown) {
@@ -862,52 +871,61 @@ export default function CustomOrderCheckoutStep() {
                     )}
                   </div>
 
-                  {user?.isGuest ? (
-                    <div>
-                      <label
-                        htmlFor="checkout-email"
-                        className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
-                      >
-                        {t("email")}*
-                      </label>
-                      <input
-                        id="checkout-email"
-                        ref={emailFieldRef}
-                        type="email"
-                        autoComplete="email"
-                        value={contactEmail}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setContactEmail(value);
-                          if (!emailTouched) return;
-                          const clientKey = guestContactClientError(value);
-                          setContactEmailError(
-                            clientKey
-                              ? guestContactErrorMessage(
-                                  clientKey,
-                                  guestEmailCopy,
-                                )
-                              : "",
-                          );
-                        }}
-                        onBlur={(e) => {
-                          setEmailTouched(true);
-                          void checkGuestContactEmail(e.target.value);
-                        }}
-                        aria-invalid={Boolean(contactEmailError)}
-                        className={`w-full border bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none transition ${
-                          contactEmailError
-                            ? "border-red-500 focus:border-red-500"
-                            : "border-(--color-border) focus:border-black"
-                        }`}
-                      />
-                      {contactEmailError ? (
-                        <p className="text-red-600 text-[12px] leading-snug mt-1.5">
-                          {contactEmailError}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
+                  <div>
+                    <label
+                      htmlFor="checkout-email"
+                      className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
+                    >
+                      {t("email")}*
+                    </label>
+                    <input
+                      id="checkout-email"
+                      ref={emailFieldRef}
+                      type="email"
+                      autoComplete="email"
+                      value={contactEmail}
+                      readOnly={!user?.isGuest}
+                      onChange={
+                        user?.isGuest
+                          ? (e) => {
+                              const value = e.target.value;
+                              setContactEmail(value);
+                              if (!emailTouched) return;
+                              const clientKey = guestContactClientError(value);
+                              setContactEmailError(
+                                clientKey
+                                  ? guestContactErrorMessage(
+                                      clientKey,
+                                      guestEmailCopy,
+                                    )
+                                  : "",
+                              );
+                            }
+                          : undefined
+                      }
+                      onBlur={
+                        user?.isGuest
+                          ? (e) => {
+                              setEmailTouched(true);
+                              void checkGuestContactEmail(e.target.value);
+                            }
+                          : undefined
+                      }
+                      aria-invalid={Boolean(contactEmailError)}
+                      className={`w-full border px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
+                        !user?.isGuest
+                          ? "bg-gray-50 border-(--color-border) cursor-not-allowed focus:ring-0"
+                          : contactEmailError
+                            ? "bg-white border-red-500 focus:border-red-500 transition"
+                            : "bg-white border-(--color-border) focus:border-black transition"
+                      }`}
+                    />
+                    {contactEmailError ? (
+                      <p className="text-red-600 text-[12px] leading-snug mt-1.5">
+                        {contactEmailError}
+                      </p>
+                    ) : null}
+                  </div>
 
                   {user?.isGuest &&
                   isValidContactEmail(contactEmail) &&
@@ -1014,22 +1032,22 @@ export default function CustomOrderCheckoutStep() {
                     >
                       {t("city")}*
                     </label>
-                      <input
-                        id="checkout-city"
-                        type="text"
-                        value={address.city || ""}
-                        readOnly={addressLocked}
-                        onChange={
-                          addressLocked
-                            ? undefined
-                            : (e) => handleFieldChange("city", e.target.value)
-                        }
-                        className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
-                          addressLocked
-                            ? "bg-gray-50 cursor-not-allowed focus:ring-0"
-                            : "bg-white focus:border-black transition"
-                        }`}
-                      />
+                    <input
+                      id="checkout-city"
+                      type="text"
+                      value={address.city || ""}
+                      readOnly={addressLocked}
+                      onChange={
+                        addressLocked
+                          ? undefined
+                          : (e) => handleFieldChange("city", e.target.value)
+                      }
+                      className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
+                        addressLocked
+                          ? "bg-gray-50 cursor-not-allowed focus:ring-0"
+                          : "bg-white focus:border-black transition"
+                      }`}
+                    />
                     {errors.city && (
                       <p className="text-red-600 text-[12px] mt-1">
                         {errors.city}
@@ -1037,66 +1055,62 @@ export default function CustomOrderCheckoutStep() {
                     )}
                   </div>
 
-                  <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                      <label
-                        htmlFor="checkout-line1"
-                        className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
-                      >
-                        {t("line1")}*
-                      </label>
-                        <input
-                          id="checkout-line1"
-                          type="text"
-                          value={address.line1 || ""}
-                          readOnly={addressLocked}
-                          onChange={
-                            addressLocked
-                              ? undefined
-                              : (e) =>
-                                  handleFieldChange("line1", e.target.value)
-                          }
-                          className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
-                            addressLocked
-                              ? "bg-gray-50 cursor-not-allowed focus:ring-0"
-                              : "bg-white focus:border-black transition"
-                          }`}
-                        />
-                      {errors.line1 && (
-                        <p className="text-red-600 text-[12px] mt-1">
-                          {errors.line1}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="checkout-line2"
-                        className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
-                      >
-                        {t("line2")}
-                      </label>
-                        <input
-                          id="checkout-line2"
-                          type="text"
-                          value={address.line2 || ""}
-                          readOnly={addressLocked}
-                          onChange={
-                            addressLocked
-                              ? undefined
-                              : (e) =>
-                                  handleFieldChange("line2", e.target.value)
-                          }
-                          className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
-                            addressLocked
-                              ? "bg-gray-50 cursor-not-allowed focus:ring-0"
-                              : "bg-white focus:border-black transition"
-                          }`}
-                        />
-                    </div>
+                  <div>
+                    <label
+                      htmlFor="checkout-line1"
+                      className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
+                    >
+                      {t("line1")}*
+                    </label>
+                    <input
+                      id="checkout-line1"
+                      type="text"
+                      value={address.line1 || ""}
+                      readOnly={addressLocked}
+                      onChange={
+                        addressLocked
+                          ? undefined
+                          : (e) => handleFieldChange("line1", e.target.value)
+                      }
+                      className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
+                        addressLocked
+                          ? "bg-gray-50 cursor-not-allowed focus:ring-0"
+                          : "bg-white focus:border-black transition"
+                      }`}
+                    />
+                    {errors.line1 && (
+                      <p className="text-red-600 text-[12px] mt-1">
+                        {errors.line1}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="sm:col-span-2">
+                  <div>
+                    <label
+                      htmlFor="checkout-line2"
+                      className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
+                    >
+                      {t("line2")}
+                    </label>
+                    <input
+                      id="checkout-line2"
+                      type="text"
+                      value={address.line2 || ""}
+                      readOnly={addressLocked}
+                      onChange={
+                        addressLocked
+                          ? undefined
+                          : (e) => handleFieldChange("line2", e.target.value)
+                      }
+                      className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
+                        addressLocked
+                          ? "bg-gray-50 cursor-not-allowed focus:ring-0"
+                          : "bg-white focus:border-black transition"
+                      }`}
+                    />
+                  </div>
+
+                  <div>
                     <label
                       htmlFor="checkout-postalCode"
                       className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
@@ -1106,24 +1120,24 @@ export default function CustomOrderCheckoutStep() {
                         ({t("optional")})
                       </span>
                     </label>
-                      <input
-                        id="checkout-postalCode"
-                        type="text"
-                        value={address.postalCode || ""}
-                        readOnly={addressLocked}
-                        onChange={
-                          addressLocked
-                            ? undefined
-                            : (e) =>
-                                handleFieldChange("postalCode", e.target.value)
-                        }
-                        placeholder="12345"
-                        className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
-                          addressLocked
-                            ? "bg-gray-50 cursor-not-allowed focus:ring-0"
-                            : "bg-white focus:border-black transition"
-                        }`}
-                      />
+                    <input
+                      id="checkout-postalCode"
+                      type="text"
+                      value={address.postalCode || ""}
+                      readOnly={addressLocked}
+                      onChange={
+                        addressLocked
+                          ? undefined
+                          : (e) =>
+                              handleFieldChange("postalCode", e.target.value)
+                      }
+                      placeholder="12345"
+                      className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
+                        addressLocked
+                          ? "bg-gray-50 cursor-not-allowed focus:ring-0"
+                          : "bg-white focus:border-black transition"
+                      }`}
+                    />
                   </div>
                 </div>
 
@@ -1268,9 +1282,7 @@ export default function CustomOrderCheckoutStep() {
         message={t("successMessage")}
         orderId={orderId ?? undefined}
         orderIdLabel={t("orderIdLabel")}
-        itemsInOrderLabel={t("itemsInOrder")}
         okLabel={t("okButton")}
-        orderItems={successOrderItems}
       />
     </>
   );

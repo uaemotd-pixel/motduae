@@ -329,19 +329,21 @@ export default function SubAdminPage() {
               </tbody>
             </table>
           </div>
-
-          {/* Pagination */}
-          <GlobalPagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
-            showItemsPerPage={true}
-            itemsPerPage={limit}
-            onItemsPerPageChange={handleLimitChange}
-            itemsPerPageOptions={[5, 10, 20, 50, 100]}
-            totalItems={totalItems}
-          />
         </div>
+      )}
+
+      {/* Pagination */}
+      {filteredSubs.length > 0 && totalPages > 0 && totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
       )}
 
       {/* DELETE CONFIRMATION MODAL */}

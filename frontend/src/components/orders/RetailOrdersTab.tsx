@@ -95,7 +95,7 @@ export default function RetailOrdersTab({
 
   if (orders.length === 0) {
     return (
-      <div className="text-center py-12 sm:py-16 border border-(--color-border) bg-[#FDFAF5] px-4 sm:px-6">
+      <div className="text-center py-12 sm:py-16 border border-(--color-border) bg-white px-4 sm:px-6">
         <p className="[font-family:var(--font-display)] text-lg sm:text-[22px] mb-2 sm:mb-3">
           {t("emptyTitle")}
         </p>
@@ -129,7 +129,7 @@ export default function RetailOrdersTab({
                 <div className="flex items-start gap-3 sm:gap-4">
                   {/* First item image always shown */}
                   {order.items[0]?.image && (
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 bg-[#F0EBE3] overflow-hidden">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 bg-neutral-100 overflow-hidden">
                       <img
                         src={resolveReadyMadeImage(order.items[0].image)}
                         alt={order.items[0].name}
@@ -147,7 +147,7 @@ export default function RetailOrdersTab({
                         {order.items[0]?.name || t("unknownItem")}
                       </h3>
                       {isMulti && (
-                        <span className="[font-family:var(--font-ui)] text-[8px] sm:text-[10px] text-(--color-grey-muted) bg-[#F0EBE3] px-1.5 sm:px-2 py-0.5 rounded shrink-0">
+                        <span className="[font-family:var(--font-ui)] text-[8px] sm:text-[10px] text-(--color-grey-muted) bg-neutral-100 px-1.5 sm:px-2 py-0.5 rounded shrink-0">
                           +{order.items.length - 1} more
                         </span>
                       )}
@@ -202,7 +202,7 @@ export default function RetailOrdersTab({
                             key={idx}
                             className="flex items-center gap-3 sm:gap-4"
                           >
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#F0EBE3] overflow-hidden rounded shrink-0">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-neutral-100 overflow-hidden rounded shrink-0">
                               <img
                                 src={resolveReadyMadeImage(item.image)}
                                 alt={item.name}

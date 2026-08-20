@@ -53,6 +53,7 @@ import {
 type CustomerAddress = {
   _id?: string;
   fullName: string;
+  email: string;
   phone: string;
   emirate: string;
   city: string;
@@ -66,6 +67,7 @@ type CustomerProfile = {
   id: string;
   userId: string;
   name: string;
+  email: string;
   phone?: string;
   dob?: string;
   profilePic?: string;
@@ -181,9 +183,6 @@ function CheckoutPageContent() {
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
-  const [lastOrderItems, setLastOrderItems] = useState<Array<{ name: string }>>(
-    [],
-  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"apple_pay" | "card">(
@@ -528,6 +527,7 @@ function CheckoutPageContent() {
           setFormData((prev) => ({
             ...prev,
             fullName: defaultAddr.fullName || data.name || "",
+            email: data.email || user?.email || prev.email || "",
             phone: normalizeUaePhone(defaultAddr.phone || ""),
             emirate: defaultAddr.emirate || "",
             city: defaultAddr.city || "",
@@ -540,6 +540,7 @@ function CheckoutPageContent() {
           setFormData((prev) => ({
             ...prev,
             fullName: data.name || "",
+            email: data.email || user?.email || prev.email || "",
             phone: normalizedPhone || "",
           }));
         }
@@ -567,6 +568,12 @@ function CheckoutPageContent() {
     setFormData((prev) => ({
       ...prev,
       fullName: address.fullName || "",
+      email:
+        address.email ||
+        customerProfile.email ||
+        user?.email ||
+        prev.email ||
+        "",
       phone: normalizeUaePhone(address.phone || ""),
       emirate: address.emirate || "",
       city: address.city || "",
@@ -592,6 +599,7 @@ function CheckoutPageContent() {
       setFormData((prev) => ({
         ...prev,
         fullName: user.name || prev.fullName,
+        email: user.email || prev.email,
       }));
       initialFillDone.current = true;
     }
@@ -839,7 +847,6 @@ function CheckoutPageContent() {
 
       if (response.success) {
         setLastOrderId(response.orderId);
-        setLastOrderItems(displayItems.map((item) => ({ name: item.name })));
         setShowSuccessModal(true);
         clearCompletedCheckoutItems();
       } else {
@@ -1071,36 +1078,41 @@ function CheckoutPageContent() {
                         )}
                       </div>
                     </div>
-                    {user?.isGuest ? (
-                      <div>
-                        <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
-                          {t.checkout.email}*
-                        </label>
-                        <input
-                          ref={emailFieldRef}
-                          type="email"
-                          name="email"
-                          value={formData.email}
-                          onChange={handleChange}
-                          onBlur={(e) => {
-                            setEmailTouched(true);
-                            void checkGuestContactEmail(e.target.value);
-                          }}
-                          autoComplete="email"
-                          aria-invalid={Boolean(errors.email)}
-                          className={`w-full h-11 md:h-12 bg-transparent border-b text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:outline-none placeholder:text-black/40 text-black ${
-                            errors.email
-                              ? "border-red-500 focus:border-red-500"
-                              : "border-black/15 focus:border-black"
-                          }`}
-                        />
-                        {errors.email && (
-                          <p className="text-red-600 text-[12px] leading-snug mt-1.5">
-                            {errors.email}
-                          </p>
-                        )}
-                      </div>
-                    ) : null}
+                    <div>
+                      <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
+                        {t.checkout.email}*
+                      </label>
+                      <input
+                        ref={emailFieldRef}
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        readOnly={!user?.isGuest}
+                        onChange={user?.isGuest ? handleChange : undefined}
+                        onBlur={
+                          user?.isGuest
+                            ? (e) => {
+                                setEmailTouched(true);
+                                void checkGuestContactEmail(e.target.value);
+                              }
+                            : undefined
+                        }
+                        autoComplete="email"
+                        aria-invalid={Boolean(errors.email)}
+                        className={`w-full h-11 md:h-12 border-b text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black focus:outline-none ${
+                          !user?.isGuest
+                            ? "bg-gray-50 border-black/15 cursor-not-allowed focus:ring-0"
+                            : errors.email
+                              ? "bg-transparent border-red-500 focus:border-red-500"
+                              : "bg-transparent border-black/15 focus:border-black"
+                        }`}
+                      />
+                      {errors.email && (
+                        <p className="text-red-600 text-[12px] leading-snug mt-1.5">
+                          {errors.email}
+                        </p>
+                      )}
+                    </div>
                     {user?.isGuest &&
                     isValidContactEmail(formData.email) &&
                     needsGuestOtp &&
@@ -1225,7 +1237,7 @@ function CheckoutPageContent() {
                         }`}
                       />
                     </div>
-                    <div className="sm:col-span-2">
+                    <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
                         Postal Code{" "}
                         <span className="normal-case">
@@ -1399,9 +1411,7 @@ function CheckoutPageContent() {
         message={t.checkout.successMessage}
         orderId={lastOrderId?.slice(-8) ?? undefined}
         orderIdLabel={t.checkout.orderIdLabel}
-        itemsInOrderLabel={t.checkout.itemsInOrder}
         okLabel={t.checkout.okButton}
-        orderItems={lastOrderItems}
       />
     </MainLayout>
   );
