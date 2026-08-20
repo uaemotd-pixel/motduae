@@ -17,6 +17,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import colors from "@/components/shared/colors";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
+import { UAE_EMIRATES } from "@/lib/uaeAddress";
 
 const COLOR_OPTIONS = colors;
 
@@ -46,6 +47,7 @@ export default function NewReadyMadePage() {
   const [designOpen, setDesignOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
   const [colorsOpen, setColorsOpen] = useState(false);
+  const [emirateOpen, setEmirateOpen] = useState(false);
 
   const [fabricShops, setFabricShops] = useState<any[]>([]);
   const [allFabrics, setAllFabrics] = useState<any[]>([]);
@@ -594,7 +596,7 @@ export default function NewReadyMadePage() {
             </AnimatedDropdown>
           </FormField>
 
-{/* LENGTH + PRICES - in one row */}
+          {/* LENGTH + PRICES - in one row */}
           <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             <FormField
               label="Fabric length"
@@ -621,10 +623,7 @@ export default function NewReadyMadePage() {
               />
             </FormField>
 
-            <FormField
-              label="Fabric Price"
-              error={fieldErrors.fabricPriceAED}
-            >
+            <FormField label="Fabric Price" error={fieldErrors.fabricPriceAED}>
               <input
                 type="number"
                 min="0"
@@ -734,7 +733,7 @@ export default function NewReadyMadePage() {
                       handleChange("tagAr", opt.ar);
                       setTagOpen(false);
                     }}
-                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer flex items-center justify-between gap-2"
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer flex items-center gap-2"
                   >
                     <span className="truncate">{opt.en}</span>
                     <span className="text-gray-500 shrink-0">/</span>
