@@ -1140,13 +1140,12 @@ export default function CustomOrderCheckoutStep() {
                     />
                   </div>
                 </div>
-
-                {usingOwnFabric && (
-                  <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mt-6">
-                    {t("ownFabricPickupNote")}
-                  </p>
-                )}
-              </div>
+                  {usingOwnFabric && (
+                    <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) mt-6">
+                      {t("ownFabricPickupNote")}
+                    </p>
+                  )}
+                </div>
 
               <div className="border border-(--color-border) bg-white p-6 sm:p-8 mb-6">
                 <h2 className="[font-family:var(--font-display)] text-[22px] mb-4">
