@@ -87,7 +87,7 @@ export default function ImageOptionSelect({
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-50 left-0 right-0 mt-1 max-h-72 overflow-y-auto border border-(--color-border) bg-[#FDFAF5] shadow-[0_12px_28px_rgba(0,0,0,0.08)]"
+          className="absolute z-50 left-0 right-0 mt-1 max-h-72 overflow-y-auto border border-(--color-border) bg-white shadow-[0_12px_28px_rgba(0,0,0,0.08)]"
         >
           {options.length === 0 ? (
             <li className="px-3 py-3 [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted)">
@@ -107,7 +107,7 @@ export default function ImageOptionSelect({
                     className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition hover:cursor-pointer ${
                       isSelected
                         ? "bg-black text-white"
-                        : "hover:bg-[#F0EBE3] text-black"
+                        : "hover:bg-neutral-100 text-black"
                     }`}
                   >
                     <OptionThumb
@@ -148,7 +148,7 @@ function OptionThumb({
 }) {
   return (
     <span
-      className={`relative w-11 h-14 shrink-0 overflow-hidden bg-[#F0EBE3] ${
+      className={`relative w-11 h-14 shrink-0 overflow-hidden bg-neutral-100 ${
         selected ? "ring-1 ring-white/50" : "border border-(--color-border)"
       }`}
     >
