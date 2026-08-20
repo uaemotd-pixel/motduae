@@ -1,5 +1,10 @@
 import { env } from "../../config/env.js";
 import { createStubClient } from "./shipaStubClient.js";
+import {
+  SHIPA_V2_SANDBOX_BASE_URL,
+  publicTrackingUrl,
+  toShipaV2OrderBody,
+} from "./shipaV2.js";
 
 /**
  * @typedef {object} ShipaAddress
@@ -42,34 +47,80 @@ import { createStubClient } from "./shipaStubClient.js";
  * @property {(awb: string) => Promise<object>} getLabel
  */
 
+function joinUrl(baseUrl, path, query = {}) {
+  const url = new URL(
+    path.startsWith("/") ? path.slice(1) : path,
+    `${baseUrl.replace(/\/$/, "")}/`,
+  );
+  for (const [key, value] of Object.entries(query)) {
+    if (value != null && value !== "") url.searchParams.set(key, String(value));
+  }
+  return url.toString();
+}
+
+function mapCreateResponse(data, customerRef) {
+  const record = Array.isArray(data) ? data[0] : data;
+  const shipaRef = String(record?.shipaRef || record?.awb || "").trim();
+  if (!shipaRef) {
+    throw new Error("Shipa V2 create order returned no shipaRef");
+  }
+  const orderStatus = String(record?.orderStatus || record?.status || "created");
+  return {
+    shipaOrderId: shipaRef,
+    awb: shipaRef,
+    trackingUrl: publicTrackingUrl(shipaRef),
+    labelUrl: "",
+    status: orderStatus.toLowerCase().includes("cancel")
+      ? "cancelled"
+      : "created",
+    raw: { customerRef, ...record },
+  };
+}
+
 /**
- * Live HTTP client skeleton. Paths/headers are placeholders until Shipa docs/keys arrive.
- * Call sites use the same interface as the stub — swap via SHIPA_MODE=live.
+ * Live Shipa Delivery API V2 client.
+ * Auth: Apigee `apikey` query param. Body: origin / destination / packages.
  *
  * @param {{ apiKey: string, baseUrl: string }} config
  * @returns {ShipaClient}
  */
 export function createLiveClient(config) {
-  const { apiKey, baseUrl } = config;
+  const apiKey = config.apiKey;
+  const baseUrl = (config.baseUrl || SHIPA_V2_SANDBOX_BASE_URL).replace(
+    /\/$/,
+    "",
+  );
 
-  if (!apiKey || !baseUrl) {
-    throw new Error(
-      "Shipa live mode requires SHIPA_API_KEY and SHIPA_BASE_URL",
-    );
+  if (!apiKey) {
+    throw new Error("Shipa live mode requires SHIPA_API_KEY");
   }
 
-  async function request(method, path, body) {
-    const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+  async function request(method, path, { body, query, accept } = {}) {
+    const url = joinUrl(baseUrl, path, { apikey: apiKey, ...query });
+    const headers = {
+      Accept: accept || "application/json",
+    };
+    if (body != null) {
+      headers["Content-Type"] = "application/json";
+    }
+
     const response = await fetch(url, {
       method,
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${apiKey}`,
-        "X-API-Key": apiKey,
-      },
+      headers,
       body: body != null ? JSON.stringify(body) : undefined,
     });
+
+    if (accept === "application/pdf") {
+      if (!response.ok) {
+        const text = await response.text();
+        const error = new Error(
+          `Shipa API ${method} ${path} failed (${response.status}) ${text}`.trim(),
+        );
+        error.status = response.status;
+        throw error;
+      }
+      return response.arrayBuffer();
+    }
 
     const text = await response.text();
     let data = null;
@@ -97,90 +148,67 @@ export function createLiveClient(config) {
     mode: "live",
 
     async createOrder(payload) {
-      // Tentative contract — adjust paths when official Shipa docs arrive.
-      const data = await request("POST", "/orders", {
-        reference: payload.reference,
-        pickup: payload.pickup,
-        dropoff: payload.dropoff,
-        metadata: {
-          parcelKey: payload.parcelKey,
-          orderId: payload.orderId,
-          shipmentType: payload.shipmentType,
-          ...(payload.metadata || {}),
-        },
-      });
-
-      return {
-        shipaOrderId: String(
-          data.shipaOrderId || data.orderId || data.id || "",
-        ),
-        awb: String(data.awb || data.trackingNumber || ""),
-        trackingUrl: String(data.trackingUrl || data.tracking_url || ""),
-        labelUrl: String(data.labelUrl || data.label_url || ""),
-        status: String(data.status || "created"),
-        raw: data,
-      };
+      const orderBody = toShipaV2OrderBody(payload);
+      const data = await request("POST", "/orders", { body: orderBody });
+      return mapCreateResponse(data, orderBody.customerRef);
     },
 
     async track(awb) {
-      const data = await request("GET", `/orders/${encodeURIComponent(awb)}/track`);
+      const id = encodeURIComponent(String(awb || ""));
+      const data = await request("GET", `/orders/${id}/tracking`);
       return {
-        awb: String(data.awb || awb),
-        status: String(data.status || ""),
-        trackingUrl: String(data.trackingUrl || data.tracking_url || ""),
-        events: Array.isArray(data.events) ? data.events : [],
+        awb: String(awb || ""),
+        status: "",
+        trackingUrl: publicTrackingUrl(awb),
+        events: [],
         raw: data,
       };
     },
 
     async getOrderStory(awbOrOrderId) {
-      const data = await request(
-        "GET",
-        `/orders/${encodeURIComponent(awbOrOrderId)}/story`,
-      );
+      const id = encodeURIComponent(String(awbOrOrderId || ""));
+      const data = await request("GET", `/orders/${id}/story`);
+      const events = Array.isArray(data) ? data : data?.events || [];
       return {
-        awb: String(data.awb || ""),
-        shipaOrderId: data.shipaOrderId || data.orderId || null,
-        events: Array.isArray(data.events) ? data.events : [],
+        awb: String(awbOrOrderId || ""),
+        shipaOrderId: awbOrOrderId || null,
+        events,
         raw: data,
       };
     },
 
     async cancel(awbOrOrderId) {
-      const data = await request(
-        "POST",
-        `/orders/${encodeURIComponent(awbOrOrderId)}/cancel`,
-      );
+      const id = encodeURIComponent(String(awbOrOrderId || ""));
+      const data = await request("POST", `/orders/${id}/cancel`, {
+        body: { cancelReasonId: 17 },
+      });
       return {
-        awb: String(data.awb || awbOrOrderId),
-        status: String(data.status || "cancelled"),
+        awb: String(awbOrOrderId || ""),
+        status: "cancelled",
         raw: data,
       };
     },
 
     async getLabel(awb) {
-      const data = await request(
-        "GET",
-        `/orders/${encodeURIComponent(awb)}/label`,
-      );
+      const id = encodeURIComponent(String(awb || ""));
+      const pdf = await request("GET", `/orders/${id}/pdf`, {
+        query: { mode: "attachment", template: "A4", copies: 1 },
+        accept: "application/pdf",
+      });
       return {
-        awb: String(data.awb || awb),
-        labelUrl: String(data.labelUrl || data.label_url || ""),
-        raw: data,
+        awb: String(awb || ""),
+        labelUrl: "",
+        raw: pdf,
       };
     },
   };
 }
 
-/**
- * Resolve the active Shipa client from env (stub by default).
- * @returns {ShipaClient}
- */
 export function getShipaClient() {
   if (env.shipa.mode === "live") {
     return createLiveClient({
       apiKey: env.shipa.apiKey,
-      baseUrl: env.shipa.baseUrl,
+      baseUrl: env.shipa.baseUrl || SHIPA_V2_SANDBOX_BASE_URL,
     });
   }
   return createStubClient();
