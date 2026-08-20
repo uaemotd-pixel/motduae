@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { env } from "../config/env.js";
 import { isShipaWebhookConfigured } from "../services/shipa/shipaClient.js";
 import { applyShipaWebhook } from "../services/shipmentService.js";
+import { normalizeShipaWebhookPayload } from "../services/shipa/shipaV2.js";
 
 const shipaWebhookRoutes = express.Router();
 
@@ -16,19 +17,22 @@ function timingSafeEqualString(a, b) {
 
 /**
  * Verify Shipa webhook authenticity.
- * Designed contract (until official docs arrive):
- * - Header `X-Shipa-Webhook-Secret` matches SHIPA_WEBHOOK_SECRET, OR
- * - Header `X-Shipa-Signature` = hex HMAC-SHA256 of raw body with the secret
+ * V2 lets us register custom headers (e.g. X-Shipa-Webhook-Secret).
+ * Also accepts HMAC X-Shipa-Signature for the stub/test contract.
  */
 function verifyShipaWebhook(req) {
   const secret = env.shipa.webhookSecret;
   if (!secret) return { ok: false, reason: "not_configured" };
 
-  const providedSecret =
-    req.headers["x-shipa-webhook-secret"] ||
-    req.headers["x-webhook-secret"];
-  if (providedSecret && timingSafeEqualString(providedSecret, secret)) {
-    return { ok: true, method: "shared_secret" };
+  const headerCandidates = [
+    req.headers["x-shipa-webhook-secret"],
+    req.headers["x-webhook-secret"],
+    req.headers["secret-api-header"],
+  ];
+  for (const providedSecret of headerCandidates) {
+    if (providedSecret && timingSafeEqualString(providedSecret, secret)) {
+      return { ok: true, method: "shared_secret" };
+    }
   }
 
   const signature =
@@ -104,8 +108,15 @@ shipaWebhookRoutes.post(
 
     try {
       const result = await applyShipaWebhook(payload);
+      if (result.ignored) {
+        console.info(
+          `[shipa-webhook] ignored event=${result.event || "unknown"}`,
+        );
+        return res.json({ received: true, ignored: true, event: result.event });
+      }
+      const normalized = normalizeShipaWebhookPayload(payload);
       console.info(
-        `[shipa-webhook] awb=${payload.awb} order=${result.order._id} ` +
+        `[shipa-webhook] awb=${normalized.awb} order=${result.order._id} ` +
           `duplicate=${result.duplicate} shipment=${result.shipmentStatus || result.shipment?.status} ` +
           `orderStatus=${result.orderStatus}`,
       );

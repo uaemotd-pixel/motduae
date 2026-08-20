@@ -18,6 +18,7 @@ import {
   planRetailOrderParcels,
 } from "./parcelPlanService.js";
 import { getShipaClient } from "./shipa/shipaClient.js";
+import { normalizeShipaWebhookPayload } from "./shipa/shipaV2.js";
 import { normalizeShopPickupAddress } from "../utils/shopPickupAddress.js";
 import {
   notifyCustomStatusChange,
@@ -929,50 +930,85 @@ function normalizeWebhookStatus(rawStatus) {
   );
 }
 
-async function findOrderByAwb(awb) {
-  if (!awb) return null;
-  const custom = await CustomOrder.findOne({ "shipments.awb": awb });
+async function findOrderByShipaIdentity(ref) {
+  if (!ref) return null;
+  const value = String(ref).trim();
+  if (!value) return null;
+
+  const orFilter = [
+    { "shipments.awb": value },
+    { "shipments.shipaOrderId": value },
+  ];
+
+  const custom = await CustomOrder.findOne({ $or: orFilter });
   if (custom) return { order: custom, orderKind: "custom" };
-  const retail = await RetailOrder.findOne({ "shipments.awb": awb });
+  const retail = await RetailOrder.findOne({ $or: orFilter });
   if (retail) return { order: retail, orderKind: "retail" };
+
+  const orderId = value.split(":")[0];
+  if (OBJECT_ID_RE.test(orderId)) {
+    const byId =
+      (await CustomOrder.findById(orderId)) ||
+      (await RetailOrder.findById(orderId));
+    if (byId) {
+      const kind = byId.orderType === "retail" || byId.orderItems
+        ? "retail"
+        : "custom";
+      return { order: byId, orderKind: kind };
+    }
+  }
+
   return null;
+}
+
+function findShipmentOnOrder(order, refs) {
+  const ids = refs.map((value) => String(value || "").trim()).filter(Boolean);
+  return (order.shipments || []).find((shipment) =>
+    ids.some(
+      (id) =>
+        shipment.awb === id ||
+        shipment.shipaOrderId === id ||
+        (shipment.parcelKey && id.endsWith(`:${shipment.parcelKey}`)),
+    ),
+  );
 }
 
 /**
  * Apply a per-AWB Shipa webhook payload. Idempotent by AWB + eventId (or status+time).
- *
- * Expected payload shape (designed contract until official docs arrive):
- * {
- *   eventId?: string,
- *   awb: string,
- *   shipaOrderId?: string,
- *   status: string,
- *   description?: string,
- *   occurredAt?: string|Date,
- *   trackingUrl?: string,
- *   labelUrl?: string,
- * }
+ * Accepts stub test bodies `{ awb, status }` and Shipa V2 event webhooks.
  */
 export async function applyShipaWebhook(payload = {}) {
-  const awb = String(payload.awb || payload.AWB || "").trim();
+  const normalized = normalizeShipaWebhookPayload(payload);
+  if (normalized.ignored) {
+    return {
+      order: null,
+      orderKind: null,
+      shipment: null,
+      duplicate: false,
+      ignored: true,
+      statusChanged: false,
+      orderStatus: null,
+      event: normalized.event,
+    };
+  }
+
+  const awb = String(normalized.awb || "").trim();
   if (!awb) {
-    const error = new Error("Webhook payload missing awb");
+    const error = new Error("Webhook payload missing awb / shipaRef / customerRef");
     error.statusCode = 400;
     throw error;
   }
 
-  const mappedStatus = normalizeWebhookStatus(
-    payload.status || payload.eventStatus || payload.event_type,
-  );
+  const mappedStatus = normalizeWebhookStatus(normalized.status);
   if (!mappedStatus) {
     const error = new Error(
-      `Unrecognized Shipa status: ${payload.status || payload.eventStatus || "unknown"}`,
+      `Unrecognized Shipa status: ${normalized.status || "unknown"}`,
     );
     error.statusCode = 400;
     throw error;
   }
 
-  const found = await findOrderByAwb(awb);
+  const found = await findOrderByShipaIdentity(awb);
   if (!found) {
     const error = new Error(`No order found for AWB ${awb}`);
     error.statusCode = 404;
@@ -980,18 +1016,22 @@ export async function applyShipaWebhook(payload = {}) {
   }
 
   const { order, orderKind } = found;
-  const shipment = (order.shipments || []).find((s) => s.awb === awb);
+  const shipment = findShipmentOnOrder(order, [
+    awb,
+    normalized.shipaOrderId,
+    normalized.customerRef,
+  ]);
   if (!shipment) {
     const error = new Error(`Shipment not found for AWB ${awb}`);
     error.statusCode = 404;
     throw error;
   }
 
-  const occurredAt = payload.occurredAt
-    ? new Date(payload.occurredAt)
+  const occurredAt = normalized.occurredAt
+    ? new Date(normalized.occurredAt)
     : new Date();
   const eventId =
-    String(payload.eventId || payload.id || "").trim() ||
+    String(normalized.eventId || "").trim() ||
     `${awb}:${mappedStatus}:${occurredAt.toISOString()}`;
 
   const alreadyApplied = (shipment.events || []).some(
@@ -1014,18 +1054,18 @@ export async function applyShipaWebhook(payload = {}) {
       eventId,
       status: mappedStatus,
       description:
-        payload.description ||
-        payload.message ||
-        `Shipa status: ${mappedStatus}`,
+        normalized.description || `Shipa status: ${mappedStatus}`,
       occurredAt,
-      raw: payload,
+      raw: normalized.raw || payload,
     },
   ];
 
-  if (payload.trackingUrl) shipment.trackingUrl = String(payload.trackingUrl);
-  if (payload.labelUrl) shipment.labelUrl = String(payload.labelUrl);
-  if (payload.shipaOrderId) {
-    shipment.shipaOrderId = String(payload.shipaOrderId);
+  if (normalized.trackingUrl) {
+    shipment.trackingUrl = String(normalized.trackingUrl);
+  }
+  if (normalized.labelUrl) shipment.labelUrl = String(normalized.labelUrl);
+  if (normalized.shipaOrderId) {
+    shipment.shipaOrderId = String(normalized.shipaOrderId);
   }
 
   const previousShipmentStatus = shipment.status;
@@ -1044,7 +1084,7 @@ export async function applyShipaWebhook(payload = {}) {
       order,
       order.status,
       `${isMotdInbound(shipment.type) ? "Packing hop" : "Delivery"} failed for AWB ${awb}${
-        payload.description ? `: ${payload.description}` : ""
+        normalized.description ? `: ${normalized.description}` : ""
       }. Order remains ${order.status}.`,
       null,
     );
