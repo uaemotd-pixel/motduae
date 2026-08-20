@@ -202,7 +202,7 @@ export default function FabricSelectionStep() {
             )}
 
             {selectedCount > 0 && (
-                <div className="mb-8 border border-(--color-border) bg-[#FDFAF5] p-4 sm:p-6">
+                <div className="mb-8 border border-(--color-border) bg-white p-4 sm:p-6">
                     <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
                         {t("selectedCount", { count: selectedCount })}
                     </p>
@@ -295,11 +295,11 @@ export default function FabricSelectionStep() {
                                         onClick={() => handleToggleFabric(item)}
                                         className={`group text-left border rounded-lg transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 ${
                                             isSelected
-                                                ? "border-black ring-2 ring-black bg-[#FDFAF5]"
+                                                ? "border-black ring-2 ring-black bg-white"
                                                 : "border-(--color-border) bg-white hover:border-black"
                                         }`}
                                     >
-                                        <div className="aspect-square bg-[#F0EBE3] overflow-hidden relative rounded-t-lg">
+                                        <div className="aspect-square bg-neutral-100 overflow-hidden relative rounded-t-lg">
                                             <img
                                                 src={imageUrl}
                                                 alt={title}

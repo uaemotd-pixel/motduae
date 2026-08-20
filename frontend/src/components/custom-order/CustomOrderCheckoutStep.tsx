@@ -570,7 +570,7 @@ export default function CustomOrderCheckoutStep() {
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-8">
             <div className="space-y-6">
-              <aside className="border border-(--color-border) bg-[#FDFAF5] p-6 sm:p-8 h-fit">
+              <aside className="border border-(--color-border) bg-white p-6 sm:p-8 h-fit">
                 <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
                   {t("summaryTitle")}
                 </h2>

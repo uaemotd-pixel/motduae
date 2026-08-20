@@ -35,7 +35,7 @@ export default function ContactUsPage() {
         isAr
           ? "يرجى ملء جميع الحقول المطلوبة."
           : "Please fill in all required fields.",
-        ERROR_TOAST
+        ERROR_TOAST,
       );
       return;
     }
@@ -46,7 +46,7 @@ export default function ContactUsPage() {
         isAr
           ? "يرجى إدخال بريد إلكتروني صحيح."
           : "Please enter a valid email address.",
-        ERROR_TOAST
+        ERROR_TOAST,
       );
       return;
     }
@@ -58,7 +58,7 @@ export default function ContactUsPage() {
         isAr
           ? "لقد استلمنا رسالتك. سنتواصل معك قريبًا إن لزم الأمر."
           : "We received your message. Our team will get back to you if needed.",
-        SUCCESS_TOAST
+        SUCCESS_TOAST,
       );
       setFormData({ name: "", email: "", subject: "", message: "" });
     } catch (error) {
@@ -66,7 +66,7 @@ export default function ContactUsPage() {
         isAr
           ? "فشل إرسال الرسالة. يرجى المحاولة لاحقًا."
           : "Failed to send message. Please try again later.",
-        ERROR_TOAST
+        ERROR_TOAST,
       );
     } finally {
       setLoading(false);
@@ -165,7 +165,7 @@ export default function ContactUsPage() {
                       placeholder={
                         isAr ? "أدخل اسمك الكريم..." : "Enter your full name..."
                       }
-                      className="w-full h-11 px-4 bg-[#FFFDF9] border border-[#E8E8E4] rounded-xl focus:outline-none focus:border-black text-sm text-black transition-colors disabled:opacity-50"
+                      className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-start hover:cursor-text text-xs sm:text-sm"
                       required
                     />
                   </div>
@@ -189,7 +189,7 @@ export default function ContactUsPage() {
                       placeholder={
                         isAr ? "example@domain.com" : "example@domain.com"
                       }
-                      className="w-full h-11 px-4 bg-[#FFFDF9] border border-[#E8E8E4] rounded-xl focus:outline-none focus:border-black text-sm text-black transition-colors disabled:opacity-50"
+                      className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-start hover:cursor-text text-xs sm:text-sm"
                       required
                     />
                   </div>
@@ -215,7 +215,7 @@ export default function ContactUsPage() {
                           ? "عن ماذا تريد الاستفسار؟"
                           : "What is this inquiry about?"
                       }
-                      className="w-full h-11 px-4 bg-[#FFFDF9] border border-[#E8E8E4] rounded-xl focus:outline-none focus:border-black text-sm text-black transition-colors disabled:opacity-50"
+                      className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-start hover:cursor-text text-xs sm:text-sm"
                       required
                     />
                   </div>
@@ -231,19 +231,21 @@ export default function ContactUsPage() {
                     <textarea
                       id="message"
                       disabled={loading}
-                      rows={5}
+                      rows={1}
                       value={formData.message}
-                      onChange={(e) =>
-                        setFormData({ ...formData, message: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setFormData({ ...formData, message: e.target.value });
+                        e.target.style.height = "auto";
+                        e.target.style.height = e.target.scrollHeight + "px";
+                      }}
                       placeholder={
                         isAr
                           ? "اكتب تفاصيل رسالتك هنا..."
                           : "Type your message here..."
                       }
-                      className="w-full p-4 bg-[#FFFDF9] border border-[#E8E8E4] rounded-xl focus:outline-none focus:border-black text-sm text-black transition-colors resize-none disabled:opacity-50"
+                      className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-start hover:cursor-text text-xs sm:text-sm resize-none overflow-hidden"
                       required
-                    ></textarea>
+                    />
                   </div>
 
                   <div className="flex justify-end">
