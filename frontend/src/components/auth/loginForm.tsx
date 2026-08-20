@@ -43,7 +43,7 @@ export default function LoginPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
-    const { login, loginWithGoogle } = useAuth();
+    const { login, loginAsGuest, loginWithGoogle } = useAuth();
     const googleRoleHint = getRoleHintFromRedirect(redirectUrl);
     const forgetPasswordHref = googleRoleHint
         ? `/auth/forgetPassword?redirect=${encodeURIComponent(redirectUrl!)}`
@@ -87,7 +87,7 @@ export default function LoginPage() {
         setSuccess("");
         setIsLoading(true);
         try {
-            await login("customer@motd.test", "MotdSeed123!", true);
+            await loginAsGuest();
             setSuccess(t.login.successMessage || "Login successful! Redirecting...");
         } catch (err: any) {
             setError(err.message || "An error occurred during guest sign-in.");

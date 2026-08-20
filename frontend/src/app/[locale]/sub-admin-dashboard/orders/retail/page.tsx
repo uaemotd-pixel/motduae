@@ -15,6 +15,7 @@ import StatusBadge from "@/components/admin/StatusBadge";
 import SubAdminOrdersTabs from "../SubAdminOrdersTabs";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
+import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
 
 type RetailOrder = {
   _id: string;
@@ -23,6 +24,7 @@ type RetailOrder = {
     email: string;
     phone?: string;
   } | null;
+  contactEmail?: string;
   orderItems: {
     name: string;
     quantity: number;
@@ -449,6 +451,8 @@ export default function AdminRetailOrdersPage() {
               const isUpdating = updatingOrderId === order._id;
               const nextStatus = getNextRetailOrderStatus(order.status);
               const previousStatus = getPreviousRetailOrderStatus(order.status);
+              const isGuest = isGuestOrderUser(order.userId);
+              const customerEmail = resolveOrderDisplayEmail(order);
 
               return (
                 <div
@@ -471,16 +475,14 @@ export default function AdminRetailOrdersPage() {
                         {t.columns.customer}
                       </p>
                       <p className="font-medium text-sm text-black">
-                        {order.userId?.email === "customer@motd.test"
+                        {isGuest
                           ? (order as any).shippingAddress?.fullName || t.unknownCustomer
                           : order.userId?.name || t.unknownCustomer}
                       </p>
-                      {order.userId?.email && (
-                        <p className="text-xs text-gray-500">
-                          {order.userId.email}
-                        </p>
-                      )}
-                      {order.userId?.email === "customer@motd.test" ? (
+                      {customerEmail ? (
+                        <p className="text-xs text-gray-500">{customerEmail}</p>
+                      ) : null}
+                      {isGuest ? (
                         (order as any).shippingAddress?.phone && (
                           <p className="text-xs text-gray-500 font-mono mt-0.5">
                             {(order as any).shippingAddress.phone}

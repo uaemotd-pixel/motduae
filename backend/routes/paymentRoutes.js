@@ -23,6 +23,8 @@ import {
   fulfillPaidCheckout,
   findExistingOrderByPaymentIntent,
 } from "../services/pendingCheckoutService.js";
+import { resolveCheckoutContactEmail } from "../services/emailVerification/guestContactOtpService.js";
+import { EmailVerificationError } from "../services/emailVerification/emailVerificationService.js";
 
 const paymentRoutes = express.Router();
 
@@ -186,7 +188,7 @@ paymentRoutes.post(
       return paymentNotConfigured(res);
     }
 
-    const { orderItems, shippingAddress } = req.body;
+    const { orderItems, shippingAddress, contactEmail } = req.body;
 
     // Reject any client-supplied price fields — compute prices server-side only
     if (
@@ -206,6 +208,7 @@ paymentRoutes.post(
 
     try {
       const normalizedShipping = validateRetailShippingAddress(shippingAddress);
+      const storedContactEmail = resolveCheckoutContactEmail(req, contactEmail);
       const prepared = await prepareRetailOrder(orderItems);
       const paymentIntent = await createStripePaymentIntent({
         amountAed: prepared.totalPrice,
@@ -221,6 +224,7 @@ paymentRoutes.post(
         payload: {
           orderItems,
           shippingAddress: normalizedShipping,
+          contactEmail: storedContactEmail,
         },
       });
 
@@ -232,6 +236,13 @@ paymentRoutes.post(
         currency: "AED",
       });
     } catch (error) {
+      if (error instanceof EmailVerificationError) {
+        return res.status(error.status).json({
+          success: false,
+          code: error.code,
+          message: error.message,
+        });
+      }
       res.status(400).json({
         success: false,
         message: error.message || "Failed to create payment",
@@ -250,6 +261,10 @@ paymentRoutes.post(
     }
 
     try {
+      const storedContactEmail = resolveCheckoutContactEmail(
+        req,
+        req.body?.contactEmail,
+      );
       const total = await getCustomOrderTotal(req.body);
       const paymentIntent = await createStripePaymentIntent({
         amountAed: total,
@@ -263,6 +278,7 @@ paymentRoutes.post(
         paymentMethod: _ignoredMethod,
         ...checkoutPayload
       } = req.body;
+      checkoutPayload.contactEmail = storedContactEmail;
 
       await savePendingCheckout({
         paymentIntentId: paymentIntent.id,
@@ -283,6 +299,14 @@ paymentRoutes.post(
       if (error instanceof PricingValidationError) {
         return res.status(400).json({
           success: false,
+          message: error.message,
+        });
+      }
+
+      if (error instanceof EmailVerificationError) {
+        return res.status(error.status).json({
+          success: false,
+          code: error.code,
           message: error.message,
         });
       }

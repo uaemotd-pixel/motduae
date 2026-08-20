@@ -149,6 +149,7 @@
     "total": "Total",
     "deliveryTitle": "Delivery Address",
     "fullName": "Full Name",
+    "email": "Email",
     "phone": "Phone",
     "emirate": "Emirate",
     "selectEmirate": "Select emirate",

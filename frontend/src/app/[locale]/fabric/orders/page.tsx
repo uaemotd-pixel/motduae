@@ -27,6 +27,7 @@ import {
   type CustomOrderShipmentSummary,
 } from "@/lib/customOrders";
 import type { Locale } from "@/i18n/routing";
+import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
 
 interface OrderUser {
   _id: string;
@@ -48,6 +49,7 @@ interface Measurements {
 interface Order {
   _id: string;
   userId: OrderUser | string;
+  contactEmail?: string;
   designSnapshot?: { name: string };
   fabricSnapshot?: { name: string } | null;
   measurements?: Measurements;
@@ -55,12 +57,12 @@ interface Order {
   createdAt: string;
   shipments?: CustomOrderShipmentSummary[];
   fabricMeters: number;
-  pricing?: {
-    total?: number;
-    currency?: string;
-    fabricCost?: number;
-    fabricPricePerMeter?: number;
-  } | null;
+  pricing: {
+    total: number;
+    currency: string;
+    fabricCost: number;
+    fabricPricePerMeter: number;
+  };
 }
 
 const TOAST_BASE = {
@@ -386,10 +388,7 @@ export default function FabricOrdersPage() {
         <div className="space-y-4">
           {filteredOrders.map((order) => {
             const isRetail = activeTab === "retail";
-            const isGuest =
-              order.userId &&
-              typeof order.userId === "object" &&
-              order.userId.email === "customer@motd.test";
+            const isGuest = isGuestOrderUser(order.userId);
             const customerName = isGuest
               ? (isRetail
                   ? (order as any).shippingAddress?.fullName
@@ -403,7 +402,7 @@ export default function FabricOrdersPage() {
                 ? order.userId
                 : null;
 
-            const customerEmail = user?.email || "";
+            const customerEmail = resolveOrderDisplayEmail(order);
             const customerPhone = isGuest
               ? (isRetail
                   ? (order as any).shippingAddress?.phone
@@ -661,8 +660,8 @@ export default function FabricOrdersPage() {
                     </p>
                     <p className="font-medium text-black text-sm [font-family:var(--font-body)]">
                       {formatCurrency(
-                        order.pricing?.fabricCost || 0,
-                        order.pricing?.currency || "AED",
+                        order.pricing.fabricCost || 0,
+                        order.pricing.currency || "AED",
                       )}
                     </p>
                     <p className="text-2xs text-gray-400 [font-family:var(--font-body)]">
@@ -727,8 +726,8 @@ export default function FabricOrdersPage() {
                         </p>
                         <p className="text-sm font-semibold font-mono text-black mt-0.5">
                           {formatCurrency(
-                            order.pricing?.fabricPricePerMeter || 0,
-                            order.pricing?.currency || "AED",
+                            order.pricing.fabricPricePerMeter || 0,
+                            order.pricing.currency || "AED",
                           )}{" "}
                           / m
                         </p>
@@ -741,8 +740,8 @@ export default function FabricOrdersPage() {
                         </p>
                         <p className="text-sm font-semibold font-mono text-black mt-0.5">
                           {formatCurrency(
-                            order.pricing?.fabricCost || 0,
-                            order.pricing?.currency || "AED",
+                            order.pricing.fabricCost || 0,
+                            order.pricing.currency || "AED",
                           )}
                         </p>
                       </div>

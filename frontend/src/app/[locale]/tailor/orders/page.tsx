@@ -32,6 +32,7 @@ import {
   type CustomOrderShipmentSummary,
 } from "@/lib/customOrders";
 import type { Locale } from "@/i18n/routing";
+import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
 
 interface OrderUser {
   _id: string;
@@ -59,6 +60,7 @@ interface Measurements {
 interface Order {
   _id: string;
   userId: OrderUser | string;
+  contactEmail?: string;
   designSnapshot?: { name: string };
   fabricSnapshot?: { name: string } | null;
   measurements?: Measurements;
@@ -421,18 +423,14 @@ export default function TailorOrdersPage() {
             const isUpdating = updatingOrderId === order._id;
             const nextStatus = getNextCustomOrderStatus(order.status);
             const previousStatus = getPreviousCustomOrderStatus(order.status);
-            const isGuest =
-              order.userId &&
-              typeof order.userId === "object" &&
-              order.userId.email === "customer@motd.test";
+            const isGuest = isGuestOrderUser(order.userId);
             const customerName = isGuest && (order as any).customerDeliveryAddress?.fullName
               ? (order as any).customerDeliveryAddress.fullName
               : readPartnerName(
                   typeof order.userId === "object" ? order.userId : null,
                   locale === "ar" ? "عميل غير معروف" : "Unknown Customer",
                 );
-            const customerEmail =
-              typeof order.userId === "object" ? order.userId.email : "";
+            const customerEmail = resolveOrderDisplayEmail(order);
             const customerPhone = isGuest
               ? (order as any).customerDeliveryAddress?.phone || ""
               : (typeof order.userId === "object" ? order.userId.phone : "");

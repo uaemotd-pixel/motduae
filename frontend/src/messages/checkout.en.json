@@ -15,6 +15,7 @@
     "totalPrice": "Total Price",
     "deliveryDetails": "Delivery Details",
     "fullName": "Full Name",
+    "email": "Email",
     "phone": "Phone",
     "emirate": "Emirate",
     "selectEmirate": "Select Emirate",

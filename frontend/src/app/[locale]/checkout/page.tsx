@@ -24,7 +24,15 @@ import CardPaymentForm from "@/components/payments/CardPaymentForm";
 import EmailVerifyRequiredNotice from "@/components/auth/EmailVerifyRequiredNotice";
 import {
   buildVerifyEmailHref,
+  guestContactClientError,
+  guestContactErrorFromApi,
+  guestContactErrorMessage,
   isEmailVerificationGateError,
+  isValidContactEmail,
+  needsGuestContactOtp,
+  normalizeEmail,
+  scrollToCheckoutEmailNotice,
+  startGuestContactRequest,
 } from "@/lib/auth/emailVerification";
 import toast from "react-hot-toast";
 import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
@@ -121,11 +129,18 @@ function CheckoutPageContent() {
   const fromWishlistAllRef = useRef<boolean>(false);
 
   const { items, clearCart } = useCart();
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { user, isLoading, isAuthenticated, applyUserResponse } = useAuth();
   const { clearWishlist, removeItem: removeWishlistItem } = useWishlist();
   const { unit: measurementUnit } = useMeasurementUnit();
   const fromWishlist = searchParams.get("fromWishlist") === "true";
   const tVerify = getTranslation(locale).verifyEmail;
+  const guestEmailCopy = {
+    guestEmailRequired: tVerify.guestEmailRequired,
+    guestEmailInvalid: tVerify.guestEmailInvalid,
+    guestEmailInUse: tVerify.guestEmailInUse,
+    guestEmailTaken: tVerify.guestEmailTaken,
+    guestEmailGeneric: tVerify.guestEmailGeneric,
+  };
 
   // --- State ---
   const [buyNowProductId, setBuyNowProductId] = useState<string | null>(null);
@@ -148,6 +163,7 @@ function CheckoutPageContent() {
 
   const [formData, setFormData] = useState({
     fullName: "",
+    email: "",
     phone: "",
     emirate: "",
     city: "",
@@ -174,10 +190,16 @@ function CheckoutPageContent() {
     "card",
   );
   const [emailVerifyEmphasize, setEmailVerifyEmphasize] = useState(false);
+  const [startingGuestOtp, setStartingGuestOtp] = useState(false);
   const emailVerifyNoticeRef = useRef<HTMLDivElement>(null);
+  const emailFieldRef = useRef<HTMLInputElement>(null);
+  const [emailTouched, setEmailTouched] = useState(false);
 
-  // Guests skip OTP (shared account); matches account banner + BE middleware
-  const needsEmailVerify = needsEmailVerification(user) && !user?.isGuest;
+  const needsAccountEmailVerify =
+    needsEmailVerification(user) && !user?.isGuest;
+  const needsGuestOtp = needsGuestContactOtp(user, formData.email);
+  const needsEmailVerify = needsAccountEmailVerify || needsGuestOtp;
+  const addressLocked = Boolean(user && !user.isGuest);
 
   const checkoutReturnPath = (() => {
     const search = searchParams.toString();
@@ -186,7 +208,7 @@ function CheckoutPageContent() {
 
   const verifyEmailHref = buildVerifyEmailHref({
     locale,
-    mode: "checkout",
+    mode: user?.isGuest ? "guest-checkout" : "checkout",
     next: checkoutReturnPath,
   });
 
@@ -207,15 +229,83 @@ function CheckoutPageContent() {
     }
   };
 
+  const setGuestEmailError = (message: string) => {
+    setEmailTouched(true);
+    setErrors((prev) => ({ ...prev, email: message }));
+  };
+
+  const checkGuestContactEmail = async (raw: string) => {
+    const clientKey = guestContactClientError(raw);
+    if (clientKey) {
+      setGuestEmailError(guestContactErrorMessage(clientKey, guestEmailCopy));
+      return false;
+    }
+
+    const normalized = normalizeEmail(raw);
+    if (
+      normalized === normalizeEmail(user?.guestPendingEmail || "") ||
+      normalized === normalizeEmail(user?.guestContactEmail || "")
+    ) {
+      setErrors((prev) => ({ ...prev, email: "" }));
+      return true;
+    }
+
+    if (startingGuestOtp) return false;
+    setStartingGuestOtp(true);
+    try {
+      const response = await startGuestContactRequest({ email: raw });
+      applyUserResponse(
+        response as Parameters<typeof applyUserResponse>[0],
+      );
+      setErrors((prev) => ({ ...prev, email: "" }));
+      return true;
+    } catch (err) {
+      setGuestEmailError(
+        guestContactErrorMessage(guestContactErrorFromApi(err), guestEmailCopy),
+      );
+      return false;
+    } finally {
+      setStartingGuestOtp(false);
+    }
+  };
+
   /** Block gated actions; keep user on checkout and highlight the notice. */
   const requireEmailVerified = () => {
+    if (user?.isGuest) {
+      const clientKey = guestContactClientError(formData.email);
+      if (clientKey) {
+        setGuestEmailError(guestContactErrorMessage(clientKey, guestEmailCopy));
+      }
+      if (clientKey || errors.email) {
+        setEmailVerifyEmphasize(true);
+        window.setTimeout(() => {
+          scrollToCheckoutEmailNotice(
+            emailFieldRef.current || emailVerifyNoticeRef.current,
+          );
+        }, 50);
+        return false;
+      }
+    }
     if (!needsEmailVerify) return true;
     setEmailVerifyEmphasize(true);
-    emailVerifyNoticeRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
+    window.setTimeout(() => {
+      scrollToCheckoutEmailNotice(emailVerifyNoticeRef.current);
+    }, 50);
     return false;
+  };
+
+  const startGuestCheckoutOtp = async () => {
+    persistWishlistItemsForReturn();
+    const ok = await checkGuestContactEmail(formData.email);
+    if (!ok) {
+      window.setTimeout(() => {
+        scrollToCheckoutEmailNotice(
+          emailFieldRef.current || emailVerifyNoticeRef.current,
+        );
+      }, 50);
+      return;
+    }
+    window.location.assign(verifyEmailHref);
   };
 
   useEffect(() => {
@@ -412,6 +502,7 @@ function CheckoutPageContent() {
         setFormData((prev) => ({
           ...prev,
           fullName: "",
+          email: user.guestContactEmail || user.guestPendingEmail || prev.email,
           phone: "",
           emirate: "",
           city: "",
@@ -472,7 +563,8 @@ function CheckoutPageContent() {
     if (!address) return;
 
     setSelectedAddressId(addressId);
-    setFormData({
+    setFormData((prev) => ({
+      ...prev,
       fullName: address.fullName || "",
       phone: normalizeUaePhone(address.phone || ""),
       emirate: address.emirate || "",
@@ -480,8 +572,7 @@ function CheckoutPageContent() {
       street: address.street || "",
       building: address.building || "",
       postalCode: address.postalCode || "",
-      deliveryNotes: formData.deliveryNotes,
-    });
+    }));
 
     // Clear errors when address changes
     setErrors({});
@@ -559,7 +650,17 @@ function CheckoutPageContent() {
       }
     }
     setFormData((prev) => ({ ...prev, [name]: processedValue }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+    if (name === "email" && emailTouched) {
+      const clientKey = guestContactClientError(processedValue);
+      setErrors((prev) => ({
+        ...prev,
+        email: clientKey
+          ? guestContactErrorMessage(clientKey, guestEmailCopy)
+          : "",
+      }));
+    } else if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
     if (errorMessage) setErrorMessage(null);
   };
 
@@ -577,6 +678,12 @@ function CheckoutPageContent() {
 
     if (!formData.fullName.trim()) {
       newErrors.fullName = "Full name is required";
+    }
+    if (user?.isGuest) {
+      const clientKey = guestContactClientError(formData.email);
+      if (clientKey) {
+        newErrors.email = guestContactErrorMessage(clientKey, guestEmailCopy);
+      }
     }
     if (!formData.phone.trim()) {
       newErrors.phone = "Phone number is required";
@@ -619,6 +726,9 @@ function CheckoutPageContent() {
 
     return {
       orderItems,
+      contactEmail: user?.isGuest
+        ? formData.email.trim().toLowerCase()
+        : user?.email,
       shippingAddress: {
         fullName: submittedName,
         phone: normalizeUaePhone(formData.phone),
@@ -878,7 +988,7 @@ function CheckoutPageContent() {
 
               {/* RIGHT COLUMN – DELIVERY & PAYMENT */}
               <div className="flex-1">
-                {needsEmailVerify ? (
+                {needsAccountEmailVerify ? (
                   <EmailVerifyRequiredNotice
                     ref={emailVerifyNoticeRef}
                     className="mb-4 md:mb-5"
@@ -937,8 +1047,19 @@ function CheckoutPageContent() {
                           type="text"
                           name="fullName"
                           value={formData.fullName}
-                          readOnly
-                          className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
+                          readOnly={addressLocked}
+                          onChange={addressLocked ? undefined : handleChange}
+                          className={`w-full h-11 md:h-12 border-b text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black focus:outline-none ${
+                            addressLocked
+                              ? "bg-gray-50 border-black/15 cursor-not-allowed focus:ring-0"
+                              : "bg-transparent border-black/15 focus:border-black"
+                          } ${
+                            user?.isGuest
+                              ? localeParams === "ar"
+                                ? "pl-16"
+                                : "pr-16"
+                              : ""
+                          }`}
                         />
                         {user?.isGuest && (
                           <span
@@ -949,6 +1070,52 @@ function CheckoutPageContent() {
                         )}
                       </div>
                     </div>
+                    {user?.isGuest ? (
+                      <div>
+                        <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
+                          {t.checkout.email}*
+                        </label>
+                        <input
+                          ref={emailFieldRef}
+                          type="email"
+                          name="email"
+                          value={formData.email}
+                          onChange={handleChange}
+                          onBlur={(e) => {
+                            setEmailTouched(true);
+                            void checkGuestContactEmail(e.target.value);
+                          }}
+                          autoComplete="email"
+                          aria-invalid={Boolean(errors.email)}
+                          className={`w-full h-11 md:h-12 bg-transparent border-b text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:outline-none placeholder:text-black/40 text-black ${
+                            errors.email
+                              ? "border-red-500 focus:border-red-500"
+                              : "border-black/15 focus:border-black"
+                          }`}
+                        />
+                        {errors.email && (
+                          <p className="text-red-600 text-[12px] leading-snug mt-1.5">
+                            {errors.email}
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
+                    {user?.isGuest &&
+                    isValidContactEmail(formData.email) &&
+                    needsGuestOtp &&
+                    !errors.email ? (
+                      <div className="sm:col-span-2">
+                        <EmailVerifyRequiredNotice
+                          ref={emailVerifyNoticeRef}
+                          message={tVerify.gateGuestCheckoutMessage}
+                          ctaLabel={tVerify.verifyNow}
+                          href={verifyEmailHref}
+                          emphasize={emailVerifyEmphasize}
+                          onBeforeNavigate={persistWishlistItemsForReturn}
+                          onCta={startGuestCheckoutOtp}
+                        />
+                      </div>
+                    ) : null}
                     <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
                         {t.checkout.phone}*
@@ -963,8 +1130,14 @@ function CheckoutPageContent() {
                           type="tel"
                           name="phone"
                           value={getPhoneDisplayValue(formData.phone)}
-                          readOnly
-                          className={`w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-mono rounded-none transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0 ${
+                          readOnly={addressLocked}
+                          onChange={addressLocked ? undefined : handleChange}
+                          maxLength={addressLocked ? undefined : 9}
+                          className={`w-full h-11 md:h-12 border-b text-[15px] md:text-[16px] font-mono rounded-none transition-all text-black focus:outline-none ${
+                            addressLocked
+                              ? "bg-gray-50 border-black/15 cursor-not-allowed focus:ring-0"
+                              : "bg-transparent border-black/15 focus:border-black"
+                          } ${
                             localeParams === "ar"
                               ? "pr-11 pl-0 text-right"
                               : "pl-11 pr-0 text-left"
@@ -976,13 +1149,29 @@ function CheckoutPageContent() {
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
                         {t.checkout.emirate}*
                       </label>
-                      <input
-                        type="text"
-                        name="emirate"
-                        value={formData.emirate}
-                        readOnly
-                        className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
-                      />
+                      {addressLocked ? (
+                        <input
+                          type="text"
+                          name="emirate"
+                          value={formData.emirate}
+                          readOnly
+                          className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
+                        />
+                      ) : (
+                        <select
+                          name="emirate"
+                          value={formData.emirate}
+                          onChange={handleChange}
+                          className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black focus:outline-none focus:border-black"
+                        >
+                          <option value="">{t.checkout.emirate}*</option>
+                          {UAE_EMIRATES.map((emirate) => (
+                            <option key={emirate.value} value={emirate.value}>
+                              {emirate.en} / {emirate.ar}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                     <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
@@ -992,8 +1181,13 @@ function CheckoutPageContent() {
                         type="text"
                         name="city"
                         value={formData.city}
-                        readOnly
-                        className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
+                        readOnly={addressLocked}
+                        onChange={addressLocked ? undefined : handleChange}
+                        className={`w-full h-11 md:h-12 border-b text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black focus:outline-none ${
+                          addressLocked
+                            ? "bg-gray-50 border-black/15 cursor-not-allowed focus:ring-0"
+                            : "bg-transparent border-black/15 focus:border-black"
+                        }`}
                       />
                     </div>
                     <div>
@@ -1004,8 +1198,13 @@ function CheckoutPageContent() {
                         type="text"
                         name="street"
                         value={formData.street}
-                        readOnly
-                        className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
+                        readOnly={addressLocked}
+                        onChange={addressLocked ? undefined : handleChange}
+                        className={`w-full h-11 md:h-12 border-b text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black focus:outline-none ${
+                          addressLocked
+                            ? "bg-gray-50 border-black/15 cursor-not-allowed focus:ring-0"
+                            : "bg-transparent border-black/15 focus:border-black"
+                        }`}
                       />
                     </div>
                     <div>
@@ -1016,8 +1215,13 @@ function CheckoutPageContent() {
                         type="text"
                         name="building"
                         value={formData.building}
-                        readOnly
-                        className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
+                        readOnly={addressLocked}
+                        onChange={addressLocked ? undefined : handleChange}
+                        className={`w-full h-11 md:h-12 border-b text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black focus:outline-none ${
+                          addressLocked
+                            ? "bg-gray-50 border-black/15 cursor-not-allowed focus:ring-0"
+                            : "bg-transparent border-black/15 focus:border-black"
+                        }`}
                       />
                     </div>
                     <div className="sm:col-span-2">
@@ -1031,8 +1235,13 @@ function CheckoutPageContent() {
                         type="text"
                         name="postalCode"
                         value={formData.postalCode}
-                        readOnly
-                        className="w-full h-11 md:h-12 bg-gray-50 border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black cursor-not-allowed focus:outline-none focus:ring-0"
+                        readOnly={addressLocked}
+                        onChange={addressLocked ? undefined : handleChange}
+                        className={`w-full h-11 md:h-12 border-b text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all text-black focus:outline-none ${
+                          addressLocked
+                            ? "bg-gray-50 border-black/15 cursor-not-allowed focus:ring-0"
+                            : "bg-transparent border-black/15 focus:border-black"
+                        }`}
                         placeholder="12345"
                       />
                     </div>
@@ -1138,6 +1347,8 @@ function CheckoutPageContent() {
                         vatError ||
                         vatRate === null
                       }
+                      allowClickWhenIncomplete={needsEmailVerify}
+                      onAttemptPay={requireEmailVerified}
                       payLabel={t.checkout.payButton}
                       processingLabel={t.checkout.processing}
                       loadingLabel={t.checkout.loadingCard}

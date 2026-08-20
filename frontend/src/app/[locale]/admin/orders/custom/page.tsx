@@ -26,6 +26,7 @@ import {
 import type { Locale } from "@/i18n/routing";
 import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
+import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
 
 interface OrderUser {
   _id: string;
@@ -74,6 +75,7 @@ interface CustomOrderItem {
 interface Order {
   _id: string;
   userId: OrderUser | string;
+  contactEmail?: string;
   tailorShopId: TailorShopPopulated | string;
   designSnapshot?: { name: string };
   designId?: DesignPopulated | string | null;
@@ -536,10 +538,7 @@ export default function AdminCustomOrdersPage() {
         <div className="space-y-4">
           {paginatedOrders.map((order) => {
             const isUpdating = updatingOrderId === order._id;
-            const isGuest =
-              order.userId &&
-              typeof order.userId === "object" &&
-              order.userId.email === "customer@motd.test";
+            const isGuest = isGuestOrderUser(order.userId);
             const customerName =
               isGuest && (order as any).customerDeliveryAddress?.fullName
                 ? (order as any).customerDeliveryAddress.fullName
@@ -547,10 +546,7 @@ export default function AdminCustomOrdersPage() {
                     typeof order.userId === "object" ? order.userId : null,
                     t("unknownCustomer"),
                   );
-            const customerEmail =
-              order.userId && typeof order.userId === "object"
-                ? order.userId.email || ""
-                : "";
+            const customerEmail = resolveOrderDisplayEmail(order);
 
             const tailorName = readPartnerName(
               typeof order.tailorShopId === "object"

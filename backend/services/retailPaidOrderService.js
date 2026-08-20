@@ -34,6 +34,7 @@ export async function createPaidRetailOrder({
   userName = "Customer",
   orderItems,
   shippingAddress,
+  contactEmail = "",
   paymentIntentId,
   paymentMethod,
 }) {
@@ -69,6 +70,7 @@ export async function createPaidRetailOrder({
       userId,
       orderItems: prepared.finalOrderItems,
       shippingAddress,
+      contactEmail: String(contactEmail || "").toLowerCase().trim(),
       paymentMethod,
       itemsPrice: prepared.itemsPrice,
       shippingPrice: prepared.shippingPrice,
