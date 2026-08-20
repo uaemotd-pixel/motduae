@@ -55,12 +55,12 @@ interface Order {
   createdAt: string;
   shipments?: CustomOrderShipmentSummary[];
   fabricMeters: number;
-  pricing: {
-    total: number;
-    currency: string;
-    fabricCost: number;
-    fabricPricePerMeter: number;
-  };
+  pricing?: {
+    total?: number;
+    currency?: string;
+    fabricCost?: number;
+    fabricPricePerMeter?: number;
+  } | null;
 }
 
 const TOAST_BASE = {
@@ -661,8 +661,8 @@ export default function FabricOrdersPage() {
                     </p>
                     <p className="font-medium text-black text-sm [font-family:var(--font-body)]">
                       {formatCurrency(
-                        order.pricing.fabricCost || 0,
-                        order.pricing.currency || "AED",
+                        order.pricing?.fabricCost || 0,
+                        order.pricing?.currency || "AED",
                       )}
                     </p>
                     <p className="text-2xs text-gray-400 [font-family:var(--font-body)]">
@@ -727,8 +727,8 @@ export default function FabricOrdersPage() {
                         </p>
                         <p className="text-sm font-semibold font-mono text-black mt-0.5">
                           {formatCurrency(
-                            order.pricing.fabricPricePerMeter || 0,
-                            order.pricing.currency || "AED",
+                            order.pricing?.fabricPricePerMeter || 0,
+                            order.pricing?.currency || "AED",
                           )}{" "}
                           / m
                         </p>
@@ -741,8 +741,8 @@ export default function FabricOrdersPage() {
                         </p>
                         <p className="text-sm font-semibold font-mono text-black mt-0.5">
                           {formatCurrency(
-                            order.pricing.fabricCost || 0,
-                            order.pricing.currency || "AED",
+                            order.pricing?.fabricCost || 0,
+                            order.pricing?.currency || "AED",
                           )}
                         </p>
                       </div>

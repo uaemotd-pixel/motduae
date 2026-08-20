@@ -9,7 +9,11 @@ import FabricImageUpload from "@/components/admin/FabricImageUpload";
 import StorePartnerPicker from "@/components/admin/StorePartnerPicker";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 import colors from "@/components/shared/colors";
-import { FabricFormData, PickupAddress } from "@/lib/createFabricAdmin";
+import {
+  FabricFormData,
+  FabricVariantFormData,
+  PickupAddress,
+} from "@/lib/createFabricAdmin";
 import { api } from "@/lib/api/client";
 import {
   isValidUaePhone,
@@ -151,7 +155,6 @@ export default function FabricAdminFormFields({
       if (field === "pickupAddress.phone") {
         onPickupChange("phone", normalized);
       } else {
-        // For variants
         const parts = field.split(".");
         const variantIndex = parseInt(parts[1]);
         const subfield = parts[2];
@@ -479,47 +482,75 @@ export default function FabricAdminFormFields({
         </FormField>
       </div>
 
-      <div className="md:col-span-2">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 items-end">
-          <FormField
-            label="Price Per Meter (AED)"
-            name="pricePerMeter"
-            required
-            error={fieldErrors.pricePerMeter}
-          >
-            <input
-              type="number"
-              inputMode="decimal"
-              step={0.1}
-              value={formData.pricePerMeter === 0 ? "" : formData.pricePerMeter}
-              onChange={handlePriceChange}
-              className={`w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm ${
-                fieldErrors.pricePerMeter ? "border-red-500" : ""
-              }`}
-              placeholder="150.00"
-            />
-          </FormField>
+      {/* Price, Stock, Min Age, Max Age - Row - UNIFIED STYLE */}
+      <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+        <FormField
+          label="Price/meter (AED)"
+          name="pricePerMeter"
+          required
+          error={fieldErrors.pricePerMeter}
+        >
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={formData.pricePerMeter}
+            onChange={(e) => onFieldChange("pricePerMeter", e.target.value)}
+            className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
+            placeholder="50"
+          />
+        </FormField>
 
-          <FormField
-            label="Stock in Meters"
-            name="stockInMeters"
-            required
-            error={fieldErrors.stockInMeters}
-          >
-            <input
-              type="number"
-              step={0.01}
-              min={0}
-              inputMode="decimal"
-              value={formData.stockInMeters === 0 ? "" : formData.stockInMeters}
-              onChange={handleStockChange}
-              className={`w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm ${
-                fieldErrors.stockInMeters ? "border-red-500" : ""
-              }`}
-              placeholder="100.00"
-            />
-          </FormField>
-        </div>
+        <FormField
+          label="Stock (meters)"
+          name="stockInMeters"
+          required
+          error={fieldErrors.stockInMeters}
+        >
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={formData.stockInMeters}
+            onChange={(e) => onFieldChange("stockInMeters", e.target.value)}
+            className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
+            placeholder="100"
+          />
+        </FormField>
+
+        <FormField label="Min Age (years)" name="minAge">
+          <input
+            type="number"
+            min="0"
+            max="150"
+            value={formData.minAge ?? ""}
+            onChange={(e) =>
+              onFieldChange(
+                "minAge",
+                e.target.value === "" ? null : Number(e.target.value),
+              )
+            }
+            className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
+            placeholder="0"
+          />
+        </FormField>
+
+        <FormField label="Max Age (years)" name="maxAge">
+          <input
+            type="number"
+            min="0"
+            max="150"
+            value={formData.maxAge ?? ""}
+            onChange={(e) =>
+              onFieldChange(
+                "maxAge",
+                e.target.value === "" ? null : Number(e.target.value),
+              )
+            }
+            className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
+            placeholder="150"
+          />
+        </FormField>
       </div>
 
       <div className="md:col-span-2">
@@ -750,7 +781,7 @@ export default function FabricAdminFormFields({
                     phone: "",
                   },
                   isActive: true,
-                },
+                } satisfies FabricVariantFormData,
               ]);
             }}
             className="px-3 sm:px-4 py-1.5 sm:py-2 border border-black text-xs uppercase tracking-wider hover:bg-black hover:text-white transition font-medium hover:cursor-pointer"
