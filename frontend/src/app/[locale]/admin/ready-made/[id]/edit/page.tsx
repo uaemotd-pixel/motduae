@@ -816,7 +816,7 @@ export default function EditReadyMadePage() {
                       handleChange("tagAr", opt.ar);
                       setTagOpen(false);
                     }}
-                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer flex items-center justify-between gap-2"
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer flex items-center gap-2"
                   >
                     <span className="truncate">{opt.en}</span>
                     <span className="text-gray-500 shrink-0">/</span>

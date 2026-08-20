@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import FormField from "@/components/admin/FormField";
-import { SHOP_EMIRATES, type ShopPickupAddress } from "@/lib/fabricShop";
+import { type ShopPickupAddress } from "@/lib/fabricShop";
 import { extractDigits } from "@/lib/uaePhone";
+import { UAE_EMIRATES, getEmirateEn, getEmirateAr } from "@/lib/uaeAddress";
+import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 
 const INPUT_CLASS =
   "w-full py-1 border-b border-gray-300 focus:border-black outline-none text-xs sm:text-sm";
@@ -22,6 +25,8 @@ export default function ReadyMadePickupAddressFields({
   title = "Pickup address",
   description = "Shipa collects this listing from this address. For MOTD returns, use the warehouse the admin decides.",
 }: Props) {
+  const [emirateOpen, setEmirateOpen] = useState(false);
+
   const handleChange = (field: keyof ShopPickupAddress, raw: string) => {
     let nextValue = raw;
     if (field === "phone") {
@@ -82,18 +87,52 @@ export default function ReadyMadePickupAddressFields({
           required
           error={fieldErrors["pickupAddress.emirate"]}
         >
-          <select
-            value={value.emirate}
-            onChange={(e) => handleChange("emirate", e.target.value)}
-            className={`${INPUT_CLASS} bg-transparent`}
+          <AnimatedDropdown
+            isOpen={emirateOpen}
+            onClose={() => setEmirateOpen(false)}
+            trigger={
+              <button
+                type="button"
+                onClick={() => setEmirateOpen(!emirateOpen)}
+                className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent text-xs sm:text-sm flex items-center justify-between hover:cursor-pointer"
+              >
+                <span className={value.emirate ? "text-black" : "text-gray-400"}>
+                  {value.emirate
+                    ? `${getEmirateEn(value.emirate)} / ${getEmirateAr(value.emirate)}`
+                    : "Select emirate"}
+                </span>
+                <span className="text-gray-400">▾</span>
+              </button>
+            }
+            dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+            position="bottom-left"
           >
-            <option value="">Select emirate</option>
-            {SHOP_EMIRATES.map((emirate) => (
-              <option key={emirate} value={emirate}>
-                {emirate}
-              </option>
+            <button
+              type="button"
+              onClick={() => {
+                handleChange("emirate", "");
+                setEmirateOpen(false);
+              }}
+              className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer text-gray-400"
+            >
+              Select emirate
+            </button>
+            {UAE_EMIRATES.map((emirate) => (
+              <button
+                key={emirate.value}
+                type="button"
+                onClick={() => {
+                  handleChange("emirate", emirate.value);
+                  setEmirateOpen(false);
+                }}
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer flex items-center gap-2"
+              >
+                <span>{emirate.en}</span>
+                <span className="text-gray-400 shrink-0">/</span>
+                <span>{emirate.ar}</span>
+              </button>
             ))}
-          </select>
+          </AnimatedDropdown>
         </FormField>
 
         <FormField
