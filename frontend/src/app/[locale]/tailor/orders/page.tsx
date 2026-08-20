@@ -59,7 +59,7 @@ interface Measurements {
 
 interface Order {
   _id: string;
-  userId: OrderUser | string;
+  userId: OrderUser | string | null;
   contactEmail?: string;
   designSnapshot?: { name: string };
   fabricSnapshot?: { name: string } | null;
@@ -67,12 +67,12 @@ interface Order {
   status: string;
   createdAt: string;
   shipments?: CustomOrderShipmentSummary[];
-  pricing: {
-    total: number;
-    currency: string;
-    tailoringFee: number;
-    designBase: number;
-  };
+  pricing?: {
+    total?: number;
+    currency?: string;
+    tailoringFee?: number;
+    designBase?: number;
+  } | null;
   addPocket?: boolean;
   addBottomWideFold?: boolean;
 }
@@ -119,6 +119,13 @@ function readPartnerName(
   if (!value) return fallback;
   if (typeof value === "string") return value;
   return value.name || fallback;
+}
+
+function getOrderUser(
+  userId: Order["userId"],
+): OrderUser | null {
+  if (!userId || typeof userId !== "object") return null;
+  return userId;
 }
 
 export default function TailorOrdersPage() {
@@ -287,18 +294,10 @@ export default function TailorOrdersPage() {
       // 1. Customer name/email/phone filter
       if (filterCustomer.trim()) {
         const term = filterCustomer.toLowerCase();
-        const customerName = readPartnerName(
-          typeof order.userId === "object" ? order.userId : null,
-          "",
-        ).toLowerCase();
-        const customerEmail = (
-          (typeof order.userId === "object" && order.userId?.email) ||
-          ""
-        ).toLowerCase();
-        const customerPhone = (
-          (typeof order.userId === "object" && order.userId?.phone) ||
-          ""
-        ).toLowerCase();
+        const user = getOrderUser(order.userId);
+        const customerName = readPartnerName(user, "").toLowerCase();
+        const customerEmail = resolveOrderDisplayEmail(order).toLowerCase();
+        const customerPhone = (user?.phone || "").toLowerCase();
         const orderId = order._id.toLowerCase();
 
         if (
@@ -423,17 +422,18 @@ export default function TailorOrdersPage() {
             const isUpdating = updatingOrderId === order._id;
             const nextStatus = getNextCustomOrderStatus(order.status);
             const previousStatus = getPreviousCustomOrderStatus(order.status);
+            const user = getOrderUser(order.userId);
             const isGuest = isGuestOrderUser(order.userId);
             const customerName = isGuest && (order as any).customerDeliveryAddress?.fullName
               ? (order as any).customerDeliveryAddress.fullName
               : readPartnerName(
-                  typeof order.userId === "object" ? order.userId : null,
+                  user,
                   locale === "ar" ? "عميل غير معروف" : "Unknown Customer",
                 );
             const customerEmail = resolveOrderDisplayEmail(order);
             const customerPhone = isGuest
               ? (order as any).customerDeliveryAddress?.phone || ""
-              : (typeof order.userId === "object" ? order.userId.phone : "");
+              : (user?.phone || "");
             const fabricName =
               order.fabricSnapshot?.name ||
               (locale === "ar" ? "قماش خاص" : "Self Fabric");
@@ -532,8 +532,8 @@ export default function TailorOrdersPage() {
                       </p>
                       <p className="font-semibold text-black text-xs">
                         {formatCurrency(
-                          order.pricing.tailoringFee,
-                          order.pricing.currency,
+                          order.pricing?.tailoringFee || 0,
+                          order.pricing?.currency || "AED",
                         )}
                       </p>
                     </div>
@@ -543,8 +543,8 @@ export default function TailorOrdersPage() {
                       </p>
                       <p className="font-semibold text-black text-xs">
                         {formatCurrency(
-                          order.pricing.designBase,
-                          order.pricing.currency,
+                          order.pricing?.designBase || 0,
+                          order.pricing?.currency || "AED",
                         )}
                       </p>
                     </div>

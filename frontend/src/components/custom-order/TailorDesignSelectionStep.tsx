@@ -210,7 +210,7 @@ export default function TailorDesignSelectionStep() {
             )}
 
             {selectedCount > 0 && (
-                <div className="mb-8 border border-(--color-border) bg-[#FDFAF5] p-4 sm:p-6">
+                <div className="mb-8 border border-(--color-border) bg-white p-4 sm:p-6">
                     <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
                         {t("selectedCount", { count: selectedCount })}
                     </p>
@@ -242,7 +242,7 @@ export default function TailorDesignSelectionStep() {
             )}
 
             {showOwnFabricOption && usingOwnFabric && (
-                <div className="mb-8 border border-(--color-border) bg-[#FDFAF5] p-6 sm:p-8">
+                <div className="mb-8 border border-(--color-border) bg-white p-6 sm:p-8">
                     <h3 className="[font-family:var(--font-display)] text-[20px] mb-3">
                         {t("ownFabricConfirmedTitle")}
                     </h3>
@@ -295,11 +295,11 @@ export default function TailorDesignSelectionStep() {
                                 onClick={() => handleToggleDesign(item)}
                                 className={`group text-left border rounded-lg transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 ${
                                     isSelected
-                                        ? "border-black ring-2 ring-black bg-[#FDFAF5]"
+                                        ? "border-black ring-2 ring-black bg-white"
                                         : "border-(--color-border) bg-white hover:border-black"
                                 }`}
                             >
-                                <div className="aspect-4/5 bg-[#F0EBE3] overflow-hidden relative rounded-t-lg">
+                                <div className="aspect-4/5 bg-neutral-100 overflow-hidden relative rounded-t-lg">
                                     <img
                                         src={imageUrl}
                                         alt={name}
@@ -311,7 +311,7 @@ export default function TailorDesignSelectionStep() {
                                         </span>
                                     )}
                                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                    <span className="absolute top-3 left-3 [font-family:var(--font-ui)] text-[10px] xs:text-[12px] uppercase tracking-[0.24em] bg-[#8B6F47] text-white px-2.5 xs:px-3 py-1 xs:py-1.25 font-bold">
+                                    <span className="absolute top-3 left-3 [font-family:var(--font-ui)] text-[10px] xs:text-[12px] uppercase tracking-[0.24em] bg-neutral-100 text-black px-2.5 xs:px-3 py-1 xs:py-1.25 font-bold">
                                         {category}
                                     </span>
                                 </div>
