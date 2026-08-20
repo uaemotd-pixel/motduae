@@ -22,10 +22,13 @@ import {
   fabricToForm,
   emptyFabricForm,
   fetchFabricItem,
+  getFabricAgeFieldErrors,
   isShopMissingError,
+  mapFabricApiErrorToFieldErrors,
   slugifyFabricName,
   updateFabricItem,
   type FabricFormData,
+  type FabricVariantFormData,
 } from "@/lib/fabricCatalog";
 import colors from "../shared/colors";
 
@@ -267,6 +270,18 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         next.slug = slugifyFabricName(value);
       }
 
+      if (field === "minAge" || field === "maxAge") {
+        const ageErrors = getFabricAgeFieldErrors(next);
+        setFieldErrors((prevErrors) => {
+          const nextErrors = { ...prevErrors };
+          delete nextErrors.minAge;
+          delete nextErrors.maxAge;
+          return { ...nextErrors, ...ageErrors };
+        });
+      } else if (fieldErrors[field]) {
+        setFieldErrors((prevErrors) => ({ ...prevErrors, [field]: undefined }));
+      }
+
       return next;
     });
 
@@ -326,7 +341,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
           stockInMeters: 0,
           storePickupAddress: prev.storePickupAddress,
           isActive: true,
-        },
+        } satisfies FabricVariantFormData,
       ],
     }));
   };
@@ -407,6 +422,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     if (isNaN(stockNum) || stockNum < 0) {
       errors.stockInMeters = t("validation.stockInMetersInvalid");
     }
+    Object.assign(errors, getFabricAgeFieldErrors(formData));
 
     if (!formData.storePickupAddress.emirate) {
       errors["storePickupAddress.emirate"] = "Emirate is required";
@@ -489,6 +505,10 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
               err,
               isEditMode ? t("errors.updateFailed") : t("errors.createFailed"),
             );
+      const nextFieldErrors = mapFabricApiErrorToFieldErrors(message);
+      if (Object.keys(nextFieldErrors).length > 0) {
+        setFieldErrors((prev) => ({ ...prev, ...nextFieldErrors }));
+      }
       toast.error(message, ERROR_TOAST);
     } finally {
       setSubmitting(false);
@@ -639,8 +659,8 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
             />
           </FormField>
 
-          {/* Row for Material (EN / AR), Colors */}
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Row for Material (EN / AR), Colors, Tag */}
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
             {/* MATERIAL (EN / AR) - from DB */}
             <FormField
               label="MATERIAL (EN / AR)"
@@ -814,160 +834,204 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 </AnimatePresence>
               </div>
             </FormField>
-          </div>
 
-          {/* TAG (EN / AR) - from DB */}
-          <FormField label="TAG (EN / AR)" name="tag" error={fieldErrors.tag}>
-            <div className="relative" ref={tagDropdownRef}>
-              <button
-                type="button"
-                onClick={() => setIsTagDropdownOpen((prev) => !prev)}
-                className={`${INPUT_CLASS} cursor-pointer text-left flex items-center justify-between gap-2 hover:cursor-pointer`}
-              >
-                <span className="truncate text-xs sm:text-sm flex items-center gap-2 min-w-0">
-                  {formData.tag ? (
-                    <>
-                      <span className="truncate">
-                        {allTags.find((t) => t.value === formData.tag)?.en || formData.tag}
-                      </span>
-                      <span className="text-black/40 shrink-0">/</span>
-                      <span className="truncate">
-                        {allTags.find((t) => t.value === formData.tag)?.ar || formData.tagAr}
-                      </span>
-                    </>
-                  ) : tagsLoading ? (
-                    <span className="text-black/60">Loading...</span>
-                  ) : (
-                    <span className="text-black/60">Select tag (optional)</span>
-                  )}
-                </span>
-                <ChevronDown
-                  size={14}
-                  className={`shrink-0 text-black/40 transition-transform duration-200 ${isTagDropdownOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-              <AnimatePresence>
-                {isTagDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden max-h-60 overflow-y-auto"
-                  >
-                    {tagsLoading ? (
-                      <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-                        Loading tags...
-                      </div>
-                    ) : allTags.length === 0 ? (
-                      <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-                        No tags found
-                      </div>
-                    ) : (
+            {/* TAG (EN / AR) - from DB */}
+            <FormField label="TAG (EN / AR)" name="tag" error={fieldErrors.tag}>
+              <div className="relative" ref={tagDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsTagDropdownOpen((prev) => !prev)}
+                  className={`${INPUT_CLASS} cursor-pointer text-left flex items-center justify-between gap-2 hover:cursor-pointer`}
+                >
+                  <span className="truncate text-xs sm:text-sm flex items-center gap-2 min-w-0">
+                    {formData.tag ? (
                       <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleChange("tag", "");
-                            handleChange("tagAr", "");
-                            setIsTagDropdownOpen(false);
-                          }}
-                          className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${!formData.tag ? "bg-neutral-100 font-medium" : ""}`}
-                        >
-                          Select tag (optional)
-                        </button>
-                        {allTags.map((opt) => (
+                        <span className="truncate">
+                          {allTags.find((t) => t.value === formData.tag)?.en || formData.tag}
+                        </span>
+                        <span className="text-black/40 shrink-0">/</span>
+                        <span className="truncate">
+                          {allTags.find((t) => t.value === formData.tag)?.ar || formData.tagAr}
+                        </span>
+                      </>
+                    ) : tagsLoading ? (
+                      <span className="text-black/60">Loading...</span>
+                    ) : (
+                      <span className="text-black/60">Select tag (optional)</span>
+                    )}
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`shrink-0 text-black/40 transition-transform duration-200 ${isTagDropdownOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                <AnimatePresence>
+                  {isTagDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden max-h-60 overflow-y-auto"
+                    >
+                      {tagsLoading ? (
+                        <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                          Loading tags...
+                        </div>
+                      ) : allTags.length === 0 ? (
+                        <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                          No tags found
+                        </div>
+                      ) : (
+                        <>
                           <button
-                            key={opt.value}
                             type="button"
                             onClick={() => {
-                              handleChange("tag", opt.value);
-                              handleChange("tagAr", opt.ar);
+                              handleChange("tag", "");
+                              handleChange("tagAr", "");
                               setIsTagDropdownOpen(false);
                             }}
-                            className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer flex items-center gap-2 ${formData.tag === opt.value ? "bg-neutral-100 font-medium" : ""}`}
+                            className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${!formData.tag ? "bg-neutral-100 font-medium" : ""}`}
                           >
-                            <span className="truncate">{opt.en}</span>
-                            <span className="text-black/40 shrink-0">/</span>
-                            <span className="truncate">{opt.ar}</span>
+                            Select tag (optional)
                           </button>
-                        ))}
-                      </>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </FormField>
+                          {allTags.map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => {
+                                handleChange("tag", opt.value);
+                                handleChange("tagAr", opt.ar);
+                                setIsTagDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer flex items-center gap-2 ${formData.tag === opt.value ? "bg-neutral-100 font-medium" : ""}`}
+                            >
+                              <span className="truncate">{opt.en}</span>
+                              <span className="text-black/40 shrink-0">/</span>
+                              <span className="truncate">{opt.ar}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </FormField>
+          </div>
 
-          {/* PRICE PER METER (AED) */}
-          <FormField
-            label="PRICE PER METER (AED)"
-            name="pricePerMeter"
-            error={fieldErrors.pricePerMeter}
-            required
-          >
-            <input
-              type="text"
-              inputMode="decimal"
-              value={formData.pricePerMeter === 0 ? "" : formData.pricePerMeter}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === "" || /^\d*\.?\d*$/.test(val)) {
-                  handleChange("pricePerMeter", val);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  const current = Number(formData.pricePerMeter) || 0;
-                  const next = parseFloat((current + 0.01).toFixed(2));
-                  handleChange("pricePerMeter", next);
-                } else if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  const current = Number(formData.pricePerMeter) || 0;
-                  const next = Math.max(0, current - 0.01);
-                  handleChange("pricePerMeter", parseFloat(next.toFixed(2)));
-                }
-              }}
-              className={`${INPUT_CLASS} hover:cursor-text`}
-              placeholder="0.00"
-            />
-          </FormField>
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+            {/* PRICE PER METER (AED) */}
+            <FormField
+              label="PRICE PER METER (AED)"
+              name="pricePerMeter"
+              error={fieldErrors.pricePerMeter}
+              required
+            >
+              <input
+                type="text"
+                inputMode="decimal"
+                value={formData.pricePerMeter === 0 ? "" : formData.pricePerMeter}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "" || /^\d*\.?\d*$/.test(val)) {
+                    handleChange("pricePerMeter", val);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    const current = Number(formData.pricePerMeter) || 0;
+                    const next = parseFloat((current + 0.01).toFixed(2));
+                    handleChange("pricePerMeter", next);
+                  } else if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    const current = Number(formData.pricePerMeter) || 0;
+                    const next = Math.max(0, current - 0.01);
+                    handleChange("pricePerMeter", parseFloat(next.toFixed(2)));
+                  }
+                }}
+                className={`${INPUT_CLASS} hover:cursor-text`}
+                placeholder="0.00"
+              />
+            </FormField>
 
-          {/* STOCK IN METERS */}
-          <FormField
-            label="STOCK IN METERS"
-            name="stockInMeters"
-            error={fieldErrors.stockInMeters}
-            required
-          >
-            <input
-              type="text"
-              inputMode="numeric"
-              value={formData.stockInMeters === 0 ? "" : formData.stockInMeters}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === "" || /^\d*$/.test(val)) {
-                  handleChange("stockInMeters", val);
+            {/* STOCK IN METERS */}
+            <FormField
+              label="STOCK IN METERS"
+              name="stockInMeters"
+              error={fieldErrors.stockInMeters}
+              required
+            >
+              <input
+                type="text"
+                inputMode="numeric"
+                value={formData.stockInMeters === 0 ? "" : formData.stockInMeters}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "" || /^\d*$/.test(val)) {
+                    handleChange("stockInMeters", val);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    const current = Number(formData.stockInMeters) || 0;
+                    handleChange("stockInMeters", current + 1);
+                  } else if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    const current = Number(formData.stockInMeters) || 0;
+                    const next = Math.max(0, current - 1);
+                    handleChange("stockInMeters", next);
+                  }
+                }}
+                className={`${INPUT_CLASS} hover:cursor-text`}
+                placeholder="e.g., 100"
+              />
+            </FormField>
+
+            <FormField
+              label="MIN AGE (YEARS)"
+              name="minAge"
+              error={fieldErrors.minAge}
+            >
+              <input
+                type="number"
+                min="0"
+                max="150"
+                value={formData.minAge ?? ""}
+                onChange={(e) =>
+                  handleChange(
+                    "minAge",
+                    e.target.value === "" ? null : Number(e.target.value),
+                  )
                 }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  const current = Number(formData.stockInMeters) || 0;
-                  handleChange("stockInMeters", current + 1);
-                } else if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  const current = Number(formData.stockInMeters) || 0;
-                  const next = Math.max(0, current - 1);
-                  handleChange("stockInMeters", next);
+                className={`${INPUT_CLASS} hover:cursor-text`}
+                placeholder="0"
+              />
+            </FormField>
+
+            <FormField
+              label="MAX AGE (YEARS)"
+              name="maxAge"
+              error={fieldErrors.maxAge}
+            >
+              <input
+                type="number"
+                min="0"
+                max="150"
+                value={formData.maxAge ?? ""}
+                onChange={(e) =>
+                  handleChange(
+                    "maxAge",
+                    e.target.value === "" ? null : Number(e.target.value),
+                  )
                 }
-              }}
-              className={`${INPUT_CLASS} hover:cursor-text`}
-              placeholder="e.g., 100"
-            />
-          </FormField>
+                className={`${INPUT_CLASS} hover:cursor-text`}
+                placeholder="150"
+              />
+            </FormField>
+          </div>
 
           {/* Store Pickup Address */}
           <div className="md:col-span-2">
@@ -1113,6 +1177,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                   />
                 </div>
               </FormField>
+
             </div>
           </div>
 

@@ -9,6 +9,8 @@ import { getTranslation } from "@/lib/getTranslation";
 import {
   defaultFabricForm,
   FabricFormData,
+  getFabricAgeFieldErrors,
+  mapFabricApiErrorToFieldErrors,
   PickupAddress,
   toFabricApiPayload,
   validateFabricForm,
@@ -26,10 +28,25 @@ export default function NewFabricPage() {
   const [formData, setFormData] = useState<FabricFormData>(defaultFabricForm());
 
   const handleChange = (field: keyof FabricFormData, value: unknown) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    if (fieldErrors[field]) {
-      setFieldErrors((prev) => ({ ...prev, [field]: "" }));
-    }
+    setFormData((prev) => {
+      const nextFormData = { ...prev, [field]: value };
+
+      if (field === "minAge" || field === "maxAge") {
+        const ageErrors = getFabricAgeFieldErrors(nextFormData);
+        setFieldErrors((prevErrors) => {
+          const nextErrors = { ...prevErrors };
+
+          delete nextErrors.minAge;
+          delete nextErrors.maxAge;
+
+          return { ...nextErrors, ...ageErrors };
+        });
+      } else if (fieldErrors[field]) {
+        setFieldErrors((prevErrors) => ({ ...prevErrors, [field]: "" }));
+      }
+
+      return nextFormData;
+    });
   };
 
   const handlePickupAddressChange = (
@@ -84,6 +101,10 @@ export default function NewFabricPage() {
         err,
         t.adminFabrics.errors.create_failed,
       );
+      const nextFieldErrors = mapFabricApiErrorToFieldErrors(message);
+      if (Object.keys(nextFieldErrors).length > 0) {
+        setFieldErrors((prev) => ({ ...prev, ...nextFieldErrors }));
+      }
       setError(message);
       toast.error(message);
     } finally {

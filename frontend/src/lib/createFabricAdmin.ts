@@ -16,6 +16,8 @@ export interface PickupAddress {
   phone: string;
 }
 
+export type FabricVariantFormData = Omit<FabricFormData, "minAge" | "maxAge">;
+
 export interface FabricFormData {
   _id?: string;
   name: string;
@@ -31,10 +33,12 @@ export interface FabricFormData {
   tagAr: string;
   pricePerMeter: number | string;
   stockInMeters: number | string;
+  minAge: number | null;
+  maxAge: number | null;
   listedByStore: string;
   pickupAddress: PickupAddress;
   isActive: boolean;
-  variants?: FabricFormData[];
+  variants?: FabricVariantFormData[];
 }
 
 export function defaultFabricForm(): FabricFormData {
@@ -52,6 +56,8 @@ export function defaultFabricForm(): FabricFormData {
     tagAr: "",
     pricePerMeter: 0,
     stockInMeters: 0,
+    minAge: null,
+    maxAge: null,
     listedByStore: "",
     pickupAddress: {
       emirate: "",
@@ -75,7 +81,7 @@ function slugFromName(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function resolveSlug(form: FabricFormData): string {
+function resolveSlug(form: { name: string; slug: string }): string {
   const slug = form.slug.trim();
   return slug || slugFromName(form.name);
 }
@@ -115,6 +121,14 @@ export function fromApiFabric(
   const tagAr = typeof product.tagAr === "string" ? product.tagAr : "";
   const pricePerMeter = Number(product.pricePerMeter) || 0;
   const stockInMeters = Number(product.stockInMeters) || 0;
+  const minAge =
+    product.minAge !== undefined && product.minAge !== null
+      ? Number(product.minAge)
+      : null;
+  const maxAge =
+    product.maxAge !== undefined && product.maxAge !== null
+      ? Number(product.maxAge)
+      : null;
   const listedByStore =
     typeof product.listedByStore === "string" ? product.listedByStore : "";
 
@@ -145,7 +159,12 @@ export function fromApiFabric(
       : defaultForm.isActive;
 
   const rawVariants = Array.isArray(product.variants) ? product.variants : [];
-  const variants = rawVariants.map((v: any) => fromApiFabric(v));
+  const variants = rawVariants.map((v: any) => {
+    const base = fromApiFabric(v);
+    // Remove minAge/maxAge from variants
+    const { minAge: _, maxAge: __, ...variantWithoutAge } = base;
+    return variantWithoutAge;
+  });
 
   return {
     _id: typeof product._id === "string" ? product._id : undefined,
@@ -162,6 +181,8 @@ export function fromApiFabric(
     tagAr,
     pricePerMeter,
     stockInMeters,
+    minAge,
+    maxAge,
     listedByStore,
     pickupAddress,
     isActive,
@@ -227,6 +248,14 @@ export function toFabricApiPayload(
         : undefined,
     })),
   };
+
+  // Only include minAge/maxAge if not null
+  if (form.minAge !== null && form.minAge !== undefined) {
+    payload.minAge = Number(form.minAge);
+  }
+  if (form.maxAge !== null && form.maxAge !== undefined) {
+    payload.maxAge = Number(form.maxAge);
+  }
 
   if (options?.includeIsActive && form.isActive !== undefined) {
     payload.isActive = form.isActive;
@@ -296,6 +325,20 @@ export function validateFabricForm(
   const stockVal = Number(form.stockInMeters);
   if (isNaN(stockVal) || stockVal < 0) {
     errors.stockInMeters = "Please enter a valid stock amount";
+  }
+
+  const minAge = form.minAge;
+  const maxAge = form.maxAge;
+
+  if (minAge != null && (isNaN(minAge) || minAge < 0)) {
+    errors.minAge = "Min age must be a positive number";
+  }
+  if (maxAge != null && (isNaN(maxAge) || maxAge < 0)) {
+    errors.maxAge = "Max age must be a positive number";
+  }
+  if (minAge != null && maxAge != null && minAge > maxAge) {
+    errors.minAge = "Min age cannot exceed max age";
+    errors.maxAge = "Max age must be greater than min age";
   }
 
   // Pickup address validations using uaeAddress utilities
@@ -409,6 +452,44 @@ export function validateFabricForm(
   }
 
   return errors;
+}
+
+export function getFabricAgeFieldErrors(
+  form: Pick<FabricFormData, "minAge" | "maxAge">,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const minAge = form.minAge;
+  const maxAge = form.maxAge;
+
+  if (minAge != null && (isNaN(minAge) || minAge < 0)) {
+    errors.minAge = "Min age must be a positive number";
+  }
+  if (maxAge != null && (isNaN(maxAge) || maxAge < 0)) {
+    errors.maxAge = "Max age must be a positive number";
+  }
+  if (minAge != null && maxAge != null && minAge > maxAge) {
+    errors.minAge = "Min age cannot exceed max age";
+    errors.maxAge = "Max age must be greater than min age";
+  }
+
+  return errors;
+}
+
+export function mapFabricApiErrorToFieldErrors(
+  message: string,
+): Record<string, string> {
+  const trimmedMessage = message.trim();
+
+  if (
+    trimmedMessage === "Max age must be greater than or equal to min age"
+  ) {
+    return {
+      minAge: trimmedMessage,
+      maxAge: trimmedMessage,
+    };
+  }
+
+  return {};
 }
 
 // Helper to get emirate display values
