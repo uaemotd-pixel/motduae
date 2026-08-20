@@ -10,6 +10,7 @@ import {
   fetchFabricItems,
   isShopMissingError,
   type FabricProfile,
+  type FabricVariantProfile,
 } from "@/lib/fabricCatalog";
 import { useParams } from "next/navigation";
 import {
@@ -101,14 +102,23 @@ export default function FabricDesignsList() {
     loadFabrics();
   }, [loadFabrics]);
 
-  const handleDelete = async (fabric: FabricProfile) => {
+  const handleDelete = async (
+    fabric: Pick<FabricProfile, "_id" | "name" | "nameAr"> | FabricVariantProfile,
+  ) => {
     const name = locale === "ar" ? fabric.nameAr || fabric.name : fabric.name;
     if (!window.confirm(t("confirmDelete", { name }))) return;
 
     setDeletingId(fabric._id);
     try {
       await deleteFabricItem(fabric._id);
-      setFabrics((prev) => prev.filter((item) => item._id !== fabric._id));
+      setFabrics((prev) =>
+        prev
+          .filter((item) => item._id !== fabric._id)
+          .map((item) => ({
+            ...item,
+            variants: item.variants?.filter((variant) => variant._id !== fabric._id),
+          })),
+      );
       toast.success(t("deleted"), SUCCESS_TOAST);
     } catch (err: unknown) {
       toast.error(
