@@ -89,10 +89,12 @@ export const env = {
   },
   get shipa() {
     const mode = (process.env.SHIPA_MODE || 'stub').toLowerCase();
+    const fallbackBase =
+      'https://sandbox-api.shipadelivery.com/v2';
     return {
       mode: mode === 'live' ? 'live' : 'stub',
       apiKey: process.env.SHIPA_API_KEY || '',
-      baseUrl: (process.env.SHIPA_BASE_URL || '').replace(/\/$/, ''),
+      baseUrl: (process.env.SHIPA_BASE_URL || fallbackBase).replace(/\/$/, ''),
       webhookSecret: process.env.SHIPA_WEBHOOK_SECRET || '',
     };
   },
