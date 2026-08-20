@@ -26,12 +26,21 @@ export interface FabricProfile {
   tagAr: string;
   pricePerMeter: number;
   stockInMeters: number;
+  minAge: number | null;
+  maxAge: number | null;
   storePickupAddress?: PickupAddress;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
-  variants?: FabricProfile[];
+  variants?: FabricVariantProfile[];
 }
+
+export type FabricVariantProfile = Omit<
+  FabricProfile,
+  "minAge" | "maxAge" | "variants"
+>;
+
+export type FabricVariantFormData = Omit<FabricFormData, "minAge" | "maxAge">;
 
 export interface FabricFormData {
   _id?: string;
@@ -48,9 +57,11 @@ export interface FabricFormData {
   tagAr: string;
   pricePerMeter: number;
   stockInMeters: number;
+  minAge: number | null;
+  maxAge: number | null;
   storePickupAddress: PickupAddress;
   isActive: boolean;
-  variants?: FabricFormData[];
+  variants?: FabricVariantFormData[];
 }
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -70,6 +81,8 @@ export function emptyFabricForm(): FabricFormData {
     tagAr: "",
     pricePerMeter: 0,
     stockInMeters: 0,
+    minAge: null,
+    maxAge: null,
     storePickupAddress: {
       emirate: "",
       city: "",
@@ -109,6 +122,14 @@ export function fabricToForm(fabric: FabricProfile): FabricFormData {
     tagAr: fabric.tagAr ?? "",
     pricePerMeter: fabric.pricePerMeter ?? 0,
     stockInMeters: fabric.stockInMeters ?? 0,
+    minAge:
+      fabric.minAge !== undefined && fabric.minAge !== null
+        ? Number(fabric.minAge)
+        : null,
+    maxAge:
+      fabric.maxAge !== undefined && fabric.maxAge !== null
+        ? Number(fabric.maxAge)
+        : null,
     storePickupAddress: {
       emirate: fabric.storePickupAddress?.emirate ?? "",
       city: fabric.storePickupAddress?.city ?? "",
@@ -117,7 +138,12 @@ export function fabricToForm(fabric: FabricProfile): FabricFormData {
       phone: fabric.storePickupAddress?.phone ?? "",
     },
     isActive: fabric.isActive ?? true,
-    variants: fabric.variants?.map(fabricToForm) ?? [],
+    variants:
+      fabric.variants?.map((variant) => {
+        const { minAge: _, maxAge: __, ...variantWithoutAge } =
+          fabricToForm(variant as FabricProfile);
+        return variantWithoutAge;
+      }) ?? [],
   };
 }
 
@@ -136,6 +162,8 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
     tagAr: form.tagAr.trim(),
     pricePerMeter: Number(form.pricePerMeter),
     stockInMeters: Number(form.stockInMeters),
+    minAge: form.minAge,
+    maxAge: form.maxAge,
     storePickupAddress: {
       emirate: form.storePickupAddress.emirate.trim(),
       city: form.storePickupAddress.city.trim(),
@@ -207,4 +235,44 @@ export async function deleteFabricItem(id: string): Promise<void> {
 
 export function isShopMissingError(error: unknown): boolean {
   return (error as ApiError)?.status === 404;
+}
+
+export function getFabricAgeFieldErrors(
+  form: Pick<FabricFormData, "minAge" | "maxAge">,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+
+  if (form.minAge != null && (isNaN(form.minAge) || form.minAge < 0)) {
+    errors.minAge = "Min age must be a positive number";
+  }
+  if (form.maxAge != null && (isNaN(form.maxAge) || form.maxAge < 0)) {
+    errors.maxAge = "Max age must be a positive number";
+  }
+  if (
+    form.minAge != null &&
+    form.maxAge != null &&
+    form.minAge > form.maxAge
+  ) {
+    errors.minAge = "Min age cannot exceed max age";
+    errors.maxAge = "Max age must be greater than min age";
+  }
+
+  return errors;
+}
+
+export function mapFabricApiErrorToFieldErrors(
+  message: string,
+): Record<string, string> {
+  const trimmedMessage = message.trim();
+
+  if (
+    trimmedMessage === "Max age must be greater than or equal to min age"
+  ) {
+    return {
+      minAge: trimmedMessage,
+      maxAge: trimmedMessage,
+    };
+  }
+
+  return {};
 }

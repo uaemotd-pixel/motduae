@@ -37,7 +37,11 @@ import {
   notifyCustomStatusChange,
   notifyRetailStatusChange,
 } from "../services/notificationService.js";
-import { normalizeEmirate, UAE_EMIRATES, isValidEmirate } from "../utils/uaeAddress.js";
+import {
+  normalizeEmirate,
+  UAE_EMIRATES,
+  isValidEmirate,
+} from "../utils/uaeAddress.js";
 import {
   createReadyCustomShipments,
   getPackReadiness,
@@ -713,6 +717,18 @@ async function assertFabricStorePartner(listedByStore) {
   return { ok: true };
 }
 
+function parseFabricAge(value, fallback = 0) {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+  const age = Number(value);
+  return Number.isFinite(age) && age >= 0 ? age : fallback;
+}
+
+function hasInvalidFabricAgeRange(minAge, maxAge) {
+  return Number.isFinite(minAge) && Number.isFinite(maxAge) && maxAge < minAge;
+}
+
 // GET /api/admin/fabrics
 // Admin can view all fabrics in the catalog (including inactive)
 adminRouter.get(
@@ -820,10 +836,21 @@ adminRouter.post(
       tagAr,
       pricePerMeter,
       stockInMeters,
+      minAge,
+      maxAge,
       listedByStore,
       storePickupAddress,
       isActive,
     } = req.body;
+
+    const normalizedMinAge = parseFabricAge(minAge);
+    const normalizedMaxAge = parseFabricAge(maxAge);
+
+    if (hasInvalidFabricAgeRange(normalizedMinAge, normalizedMaxAge)) {
+      return res.status(400).send({
+        message: "Max age must be greater than or equal to min age",
+      });
+    }
 
     const partnerCheck = await assertFabricStorePartner(listedByStore);
     if (!partnerCheck.ok) {
@@ -855,6 +882,8 @@ adminRouter.post(
       tagAr: tagAr || "",
       pricePerMeter,
       stockInMeters: stockInMeters || 0,
+      minAge: normalizedMinAge,
+      maxAge: normalizedMaxAge,
       listedByStore,
       storePickupAddress,
       isActive: isActive !== undefined ? isActive : true,
@@ -906,6 +935,8 @@ adminRouter.post(
           tagAr: variant.tagAr || "",
           pricePerMeter: Number(variant.pricePerMeter),
           stockInMeters: Number(variant.stockInMeters || 0),
+          minAge: createdFabric.minAge,
+          maxAge: createdFabric.maxAge,
           listedByStore: createdFabric.listedByStore,
           storePickupAddress: createdFabric.storePickupAddress,
           isVariantOf: createdFabric._id,
@@ -975,6 +1006,17 @@ adminRouter.put(
     fabric.tagAr = req.body.tagAr ?? fabric.tagAr;
     fabric.pricePerMeter = req.body.pricePerMeter ?? fabric.pricePerMeter;
     fabric.stockInMeters = req.body.stockInMeters ?? fabric.stockInMeters;
+    const nextMinAge = parseFabricAge(req.body.minAge, fabric.minAge);
+    const nextMaxAge = parseFabricAge(req.body.maxAge, fabric.maxAge);
+
+    if (hasInvalidFabricAgeRange(nextMinAge, nextMaxAge)) {
+      return res.status(400).send({
+        message: "Max age must be greater than or equal to min age",
+      });
+    }
+
+    fabric.minAge = nextMinAge;
+    fabric.maxAge = nextMaxAge;
 
     // Update pickup address fields individually (✅ ensures changes are detected)
     if (req.body.storePickupAddress) {
@@ -1042,6 +1084,8 @@ adminRouter.put(
               existing.pricePerMeter = Number(variant.pricePerMeter);
             if (variant.stockInMeters !== undefined)
               existing.stockInMeters = Number(variant.stockInMeters);
+            existing.minAge = updatedFabric.minAge;
+            existing.maxAge = updatedFabric.maxAge;
             if (variant.isActive !== undefined)
               existing.isActive = variant.isActive;
 
@@ -1078,6 +1122,8 @@ adminRouter.put(
             tagAr: variant.tagAr || "",
             pricePerMeter: Number(variant.pricePerMeter),
             stockInMeters: Number(variant.stockInMeters || 0),
+            minAge: updatedFabric.minAge,
+            maxAge: updatedFabric.maxAge,
             listedByStore: updatedFabric.listedByStore,
             storePickupAddress: updatedFabric.storePickupAddress,
             isVariantOf: updatedFabric._id,
@@ -1783,7 +1829,9 @@ adminRouter.patch(
 adminRouter.post(
   "/orders/:kind/:id/pack",
   expressAsyncHandler(async (req, res) => {
-    const kind = String(req.params.kind || "").trim().toLowerCase();
+    const kind = String(req.params.kind || "")
+      .trim()
+      .toLowerCase();
     if (kind !== "custom" && kind !== "retail") {
       res.status(400).send({
         message: "kind must be custom or retail",

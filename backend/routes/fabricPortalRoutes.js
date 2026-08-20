@@ -87,6 +87,18 @@ const pickShopFields = (body) => {
   return data;
 };
 
+function parseFabricAge(value, fallback = 0) {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+  const age = Number(value);
+  return Number.isFinite(age) && age >= 0 ? age : fallback;
+}
+
+function hasInvalidFabricAgeRange(minAge, maxAge) {
+  return Number.isFinite(minAge) && Number.isFinite(maxAge) && maxAge < minAge;
+}
+
 // Backend - store full format
 const validateShopPayload = (data, { requireCore = false } = {}) => {
   const normalizePhone = (phone) => {
@@ -385,9 +397,22 @@ fabricPortalRouter.post(
       tagAr,
       pricePerMeter,
       stockInMeters,
+      minAge,
+      maxAge,
       storePickupAddress,
       isActive,
     } = req.body;
+
+    const normalizedMinAge = parseFabricAge(minAge);
+    const normalizedMaxAge = parseFabricAge(maxAge);
+
+    if (hasInvalidFabricAgeRange(normalizedMinAge, normalizedMaxAge)) {
+      res.status(400).json({
+        success: false,
+        message: "Max age must be greater than or equal to min age",
+      });
+      return;
+    }
 
     if (
       !name ||
@@ -434,6 +459,8 @@ fabricPortalRouter.post(
       tagAr: tagAr || "",
       pricePerMeter: Number(pricePerMeter),
       stockInMeters: Number(stockInMeters || 0),
+      minAge: normalizedMinAge,
+      maxAge: normalizedMaxAge,
       listedByStore: req.user._id,
       fabricShopId: shop._id,
       storePickupAddress: {
@@ -501,6 +528,8 @@ fabricPortalRouter.post(
           tagAr: variant.tagAr || "",
           pricePerMeter: Number(variant.pricePerMeter),
           stockInMeters: Number(variant.stockInMeters || 0),
+          minAge: fabric.minAge,
+          maxAge: fabric.maxAge,
           listedByStore: fabric.listedByStore,
           fabricShopId: fabric.fabricShopId,
           storePickupAddress: fabric.storePickupAddress,
@@ -549,9 +578,22 @@ fabricPortalRouter.put(
       tagAr,
       pricePerMeter,
       stockInMeters,
+      minAge,
+      maxAge,
       storePickupAddress,
       isActive,
     } = req.body;
+
+    const nextMinAge = parseFabricAge(minAge, fabric.minAge);
+    const nextMaxAge = parseFabricAge(maxAge, fabric.maxAge);
+
+    if (hasInvalidFabricAgeRange(nextMinAge, nextMaxAge)) {
+      res.status(400).json({
+        success: false,
+        message: "Max age must be greater than or equal to min age",
+      });
+      return;
+    }
 
     if (slug && slug.toLowerCase() !== fabric.slug) {
       const slugTaken = await Fabric.findOne({ slug: slug.toLowerCase() });
@@ -578,6 +620,8 @@ fabricPortalRouter.put(
       fabric.pricePerMeter = Number(pricePerMeter);
     if (stockInMeters !== undefined)
       fabric.stockInMeters = Number(stockInMeters);
+    fabric.minAge = nextMinAge;
+    fabric.maxAge = nextMaxAge;
     if (isActive !== undefined) fabric.isActive = isActive;
 
     if (storePickupAddress) {
@@ -644,6 +688,8 @@ fabricPortalRouter.put(
               existing.pricePerMeter = Number(variant.pricePerMeter);
             if (variant.stockInMeters !== undefined)
               existing.stockInMeters = Number(variant.stockInMeters);
+            existing.minAge = updatedFabric.minAge;
+            existing.maxAge = updatedFabric.maxAge;
             if (variant.isActive !== undefined)
               existing.isActive = variant.isActive;
 
@@ -681,6 +727,8 @@ fabricPortalRouter.put(
             tagAr: variant.tagAr || "",
             pricePerMeter: Number(variant.pricePerMeter),
             stockInMeters: Number(variant.stockInMeters || 0),
+            minAge: updatedFabric.minAge,
+            maxAge: updatedFabric.maxAge,
             listedByStore: updatedFabric.listedByStore,
             fabricShopId: updatedFabric.fabricShopId,
             storePickupAddress: updatedFabric.storePickupAddress,
