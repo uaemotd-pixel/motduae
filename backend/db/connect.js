@@ -12,7 +12,7 @@ if (!globalCache._mongooseCache) {
 
 async function ensureGuestUser() {
   try {
-    const email = 'customer@motd.test';
+    const email = env.guestCustomerEmail;
     const exists = await User.findOne({ email });
     if (!exists) {
       const passwordHash = await bcrypt.hash('MotdSeed123!', 10);
@@ -23,7 +23,7 @@ async function ensureGuestUser() {
         role: 'customer',
         phone: '+971500000000',
       });
-      console.log('Successfully created guest customer account: customer@motd.test');
+      console.log(`Successfully created guest customer account: ${email}`);
       
       const customerProfile = await Customer.findOne({ userId: newUser._id });
       if (customerProfile) {

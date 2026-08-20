@@ -310,6 +310,12 @@ const customOrderSchema = new mongoose.Schema(
       type: deliveryAddressSchema,
       required: false,
     },
+    contactEmail: {
+      type: String,
+      default: "",
+      lowercase: true,
+      trim: true,
+    },
     pickupAddress: {
       type: pickupAddressSchema,
       required: false,

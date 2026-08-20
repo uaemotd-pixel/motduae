@@ -20,6 +20,8 @@ import {
   pendingEmailExpiresAt,
 } from "./emailOccupancy.js";
 
+import { isGuestUser } from "./isGuestUser.js";
+
 const CHANGE_ROLES = new Set(["customer", "tailor", "fabric_store"]);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -28,7 +30,7 @@ function isDuplicateKeyError(error) {
 }
 
 export function assertCanChangeEmail(user, { isGuest } = {}) {
-  if (isGuest || user?.isGuest) {
+  if (isGuestUser(user) || isGuest || user?.isGuest) {
     throw new EmailVerificationError(
       "EMAIL_CHANGE_NOT_ALLOWED",
       "Email cannot be changed for this account",

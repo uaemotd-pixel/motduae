@@ -20,6 +20,7 @@ import {
 import { createAdminNotificationForNewUser } from "../services/adminNotificationService.js";
 import { clearAuthCookie, setAuthCookie } from "../utils/authCookie.js";
 import { isEmailVerified } from "../services/emailVerification/isEmailVerified.js";
+import { isGuestUser } from "../services/emailVerification/isGuestUser.js";
 import {
   EmailVerificationError,
   issueOtp,
@@ -37,9 +38,16 @@ import {
   isDuplicatePendingEmailError,
 } from "../services/emailVerification/emailChangeService.js";
 import {
+  startGuestContact,
+  issueGuestOtp,
+  verifyGuestOtp,
+  getGuestContactStatus,
+} from "../services/emailVerification/guestContactOtpService.js";
+import {
   ensureFreshEmailChange,
   findEmailOccupant,
   persistReleasedEmailChange,
+  normalizeEmail,
 } from "../services/emailVerification/emailOccupancy.js";
 import {
   RESEND_COOLDOWN_MS,
@@ -80,8 +88,26 @@ const linkGoogleToUser = (user, { googleId, name }) => {
   }
 };
 
-const sendUserResponse = (res, user, { isGuest = false } = {}) => {
-  setAuthCookie(res, generateToken(user, isGuest));
+const guestSessionClaims = (req, extra = {}) => {
+  if (!isGuestUser(req?.user)) {
+    return extra;
+  }
+  return {
+    guestContactEmail: extra.guestContactEmail ?? req.user?.guestContactEmail,
+    guestPendingEmail: extra.guestPendingEmail ?? req.user?.guestPendingEmail,
+    ...extra,
+  };
+};
+
+const sendUserResponse = (res, user, claims = {}) => {
+  const isGuest = isGuestUser(user);
+  const guestClaims = isGuest
+    ? {
+        guestContactEmail: claims.guestContactEmail,
+        guestPendingEmail: claims.guestPendingEmail,
+      }
+    : {};
+  setAuthCookie(res, generateToken(user, guestClaims));
   res.send({
     _id: user._id,
     name: user.name,
@@ -94,6 +120,9 @@ const sendUserResponse = (res, user, { isGuest = false } = {}) => {
     authProvider: user.authProvider,
     hasPassword: Boolean(user.password),
     emailVerified: isEmailVerified(user),
+    isGuest,
+    guestContactEmail: isGuest ? guestClaims.guestContactEmail || null : null,
+    guestPendingEmail: isGuest ? guestClaims.guestPendingEmail || null : null,
   });
 };
 
@@ -164,8 +193,9 @@ userRouter.get(
       if (subAdmin) perms = subAdmin.perms || {};
     }
 
-    const isGuest = req.user?.isGuest || false;
-    setAuthCookie(res, generateToken(user, isGuest));
+    const guestClaims = guestSessionClaims(req);
+    setAuthCookie(res, generateToken(user, guestClaims));
+    const isGuest = isGuestUser(user);
     res.json({
       _id: user._id,
       name: user.name,
@@ -180,6 +210,8 @@ userRouter.get(
       emailVerified: isEmailVerified(user),
       perms,
       isGuest,
+      guestContactEmail: isGuest ? guestClaims.guestContactEmail || null : null,
+      guestPendingEmail: isGuest ? guestClaims.guestPendingEmail || null : null,
     });
   }),
 );
@@ -193,10 +225,27 @@ userRouter.post(
 );
 
 userRouter.post(
+  "/signin/guest",
+  loginLimiter,
+  expressAsyncHandler(async (_req, res) => {
+    const user = await User.findOne({ email: env.guestCustomerEmail });
+    if (!user) {
+      res.status(503).send({ message: "Guest checkout is not available" });
+      return;
+    }
+    if (user.isActive === false) {
+      res.status(403).send({ message: "Account is deactivated" });
+      return;
+    }
+    sendUserResponse(res, user);
+  }),
+);
+
+userRouter.post(
   "/signin",
   loginLimiter,
   expressAsyncHandler(async (req, res) => {
-    const { email, password, isGuest = false } = req.body;
+    const { email, password } = req.body;
     if (!email || !password) {
       res.status(400).send({ message: "Email and password are required" });
       return;
@@ -231,7 +280,8 @@ userRouter.post(
       const subAdmin = await SubAdmin.findOne({ email });
       if (subAdmin) perms = subAdmin.perms || {};
     }
-    setAuthCookie(res, generateToken(user, isGuest));
+    const isGuest = isGuestUser(user);
+    setAuthCookie(res, generateToken(user));
     res.json({
       _id: user._id,
       name: user.name,
@@ -246,6 +296,8 @@ userRouter.post(
       emailVerified: isEmailVerified(user),
       perms,
       isGuest,
+      guestContactEmail: null,
+      guestPendingEmail: null,
     });
   }),
 );
@@ -702,6 +754,112 @@ userRouter.get(
 );
 
 userRouter.post(
+  "/email/guest/start",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    const { email } = req.body || {};
+    let started;
+    try {
+      started = await startGuestContact(req.user, email);
+    } catch (error) {
+      if (sendEmailVerificationError(res, error)) return;
+      throw error;
+    }
+
+    const user = await User.findById(req.user._id);
+    sendUserResponse(res, user, {
+      guestPendingEmail: started.email,
+      guestContactEmail:
+        normalizeEmail(req.user.guestContactEmail) === started.email
+          ? started.email
+          : undefined,
+    });
+  }),
+);
+
+userRouter.post(
+  "/email/guest/resend",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    const pending = req.user?.guestPendingEmail;
+    let issued;
+    try {
+      issued = await issueGuestOtp(req.user, pending);
+    } catch (error) {
+      if (sendEmailVerificationError(res, error)) return;
+      throw error;
+    }
+
+    await sendOtpEmail({
+      to: issued.email,
+      name: req.user.name || "there",
+      otp: issued.code,
+      userId: req.user._id,
+      purpose: OTP_PURPOSES.GUEST_CHECKOUT,
+    });
+
+    const user = await User.findById(req.user._id);
+    setAuthCookie(
+      res,
+      generateToken(user, {
+        guestPendingEmail: issued.email,
+        guestContactEmail: req.user.guestContactEmail,
+      }),
+    );
+    res.json({
+      ok: true,
+      expiresAt: issued.expiresAt,
+      resendAvailableInSec: Math.ceil(RESEND_COOLDOWN_MS / 1000),
+      maskedEmail: issued.maskedEmail,
+    });
+  }),
+);
+
+userRouter.post(
+  "/email/guest/verify",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    const { code } = req.body || {};
+    let verified;
+    try {
+      verified = await verifyGuestOtp(
+        req.user,
+        req.user?.guestPendingEmail,
+        code,
+      );
+    } catch (error) {
+      if (sendEmailVerificationError(res, error)) return;
+      throw error;
+    }
+
+    const user = await User.findById(req.user._id);
+    sendUserResponse(res, user, {
+      guestContactEmail: verified.email,
+      guestPendingEmail: undefined,
+    });
+  }),
+);
+
+userRouter.get(
+  "/email/guest/status",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    let status;
+    try {
+      status = await getGuestContactStatus(
+        req.user,
+        req.user?.guestPendingEmail,
+        req.user?.guestContactEmail,
+      );
+    } catch (error) {
+      if (sendEmailVerificationError(res, error)) return;
+      throw error;
+    }
+    res.json(status);
+  }),
+);
+
+userRouter.post(
   "/email/send-otp",
   isAuth,
   expressAsyncHandler(async (req, res) => {
@@ -712,6 +870,14 @@ userRouter.post(
     }
 
     await ensureFreshEmailChange(User, user);
+
+    if (isGuestUser(user) || req.user?.isGuest) {
+      res.status(403).send({
+        code: "GUEST_OTP_NOT_ALLOWED",
+        message: "Use guest checkout verification instead",
+      });
+      return;
+    }
 
     if (hasPendingEmailChange(user)) {
       res.status(409).send({
@@ -754,8 +920,17 @@ userRouter.post(
   expressAsyncHandler(async (req, res) => {
     const { code } = req.body || {};
 
-    const current = await User.findById(req.user._id).select("pendingEmail pendingEmailExpiresAt");
+    const current = await User.findById(req.user._id).select(
+      "pendingEmail pendingEmailExpiresAt email",
+    );
     await ensureFreshEmailChange(User, current);
+    if (isGuestUser(current) || req.user?.isGuest) {
+      res.status(403).send({
+        code: "GUEST_OTP_NOT_ALLOWED",
+        message: "Use guest checkout verification instead",
+      });
+      return;
+    }
     if (hasPendingEmailChange(current)) {
       res.status(409).send({
         code: "EMAIL_CHANGE_PENDING",

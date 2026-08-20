@@ -22,6 +22,9 @@ import {
   resendEmailChangeOtp,
   verifyEmailChangeOtp,
   fetchVerificationStatus,
+  fetchGuestContactStatus,
+  resendGuestContactOtp,
+  verifyGuestContactOtp,
   type VerifyEmailMode,
 } from "@/lib/auth/emailVerification";
 import { getApiErrorMessage } from "@/lib/api/client";
@@ -57,6 +60,7 @@ export default function VerifyEmailOtp({
   const isPartner =
     user?.role === "tailor" || user?.role === "fabric_store";
   const isEmailChange = mode === "email-change";
+  const isGuestCheckout = mode === "guest-checkout";
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(""));
@@ -74,17 +78,21 @@ export default function VerifyEmailOtp({
   }, [pendingMaskedEmail]);
 
   useEffect(() => {
-    if (isEmailChange) return;
+    if (isEmailChange || isGuestCheckout) return;
     if (user?.email) setMasked(maskEmail(user.email));
-  }, [user?.email, isEmailChange]);
+  }, [user?.email, isEmailChange, isGuestCheckout]);
 
   useEffect(() => {
-    if (!isEmailChange) return;
+    if (!isEmailChange && !isGuestCheckout) return;
     let cancelled = false;
-    fetchVerificationStatus()
+    const load = isGuestCheckout
+      ? fetchGuestContactStatus()
+      : fetchVerificationStatus();
+    load
       .then((status) => {
         if (cancelled) return;
         if (status.pendingEmail) setMasked(status.pendingEmail);
+        else if (status.maskedEmail) setMasked(status.maskedEmail);
         if (status.otpSent) {
           setPhase("sent");
           setCooldown(status.resendAvailableInSec || 0);
@@ -94,7 +102,7 @@ export default function VerifyEmailOtp({
     return () => {
       cancelled = true;
     };
-  }, [isEmailChange]);
+  }, [isEmailChange, isGuestCheckout]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -121,7 +129,9 @@ export default function VerifyEmailOtp({
     try {
       const res = isEmailChange
         ? await resendEmailChangeOtp()
-        : await sendEmailOtpRequest();
+        : isGuestCheckout
+          ? await resendGuestContactOtp()
+          : await sendEmailOtpRequest();
       if (res.maskedEmail) setMasked(res.maskedEmail);
       setCooldown(res.resendAvailableInSec || 60);
       setPhase("sent");
@@ -143,7 +153,9 @@ export default function VerifyEmailOtp({
     try {
       const response = isEmailChange
         ? await verifyEmailChangeOtp(code)
-        : await verifyEmailOtpRequest(code);
+        : isGuestCheckout
+          ? await verifyGuestContactOtp(code)
+          : await verifyEmailOtpRequest(code);
       applyUserResponse(response as Parameters<typeof applyUserResponse>[0]);
       setPhase("verified");
       window.setTimeout(() => finishSuccess(), 900);
@@ -218,9 +230,11 @@ export default function VerifyEmailOtp({
             ? t.checkoutTitle
             : mode === "account"
               ? t.accountTitle
-              : mode === "email-change"
-                ? t.changeTitle
-                : t.title;
+          : mode === "email-change"
+            ? t.changeTitle
+            : mode === "guest-checkout"
+              ? t.guestCheckoutTitle
+              : t.title;
 
   const showDigits =
     phase === "sent" ||
@@ -282,9 +296,11 @@ export default function VerifyEmailOtp({
                   <p className="font-body-md text-[14px] sm:text-[15px] text-black/50 leading-relaxed">
                     {isEmailChange
                       ? t.changeSubtitle
-                      : isPartner
-                        ? t.partnerSubtitle
-                        : t.subtitle}
+                      : isGuestCheckout
+                        ? t.guestCheckoutSubtitle
+                        : isPartner
+                          ? t.partnerSubtitle
+                          : t.subtitle}
                   </p>
                   {masked ? (
                     <p className="mt-2 font-body-md text-[14px] text-black/70">
@@ -447,7 +463,7 @@ export default function VerifyEmailOtp({
               </form>
             )}
 
-            {isEmailChange &&
+            {(isEmailChange || isGuestCheckout) &&
             phase !== "verifying" &&
             phase !== "verified" ? (
               <button

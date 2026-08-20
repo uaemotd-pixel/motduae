@@ -13,6 +13,7 @@ import VerifyEmailOtp, {
 import { AuthSplitSkeleton } from "@/components/ui/Skeleton";
 import {
   cancelEmailChangeRequest,
+  fetchGuestContactStatus,
   fetchVerificationStatus,
 } from "@/lib/auth/emailVerification";
 
@@ -22,6 +23,7 @@ function resolveMode(raw: string | null): VerifyEmailMode {
   if (raw === "checkout") return "checkout";
   if (raw === "account") return "account";
   if (raw === "email-change") return "email-change";
+  if (raw === "guest-checkout") return "guest-checkout";
   return "signup";
 }
 
@@ -58,13 +60,16 @@ function VerifyEmailPageContent() {
   const nextParam = searchParams.get("next") || searchParams.get("redirect");
   const mode = resolveMode(searchParams.get("mode"));
   const isEmailChange = mode === "email-change";
+  const isGuestCheckout = mode === "guest-checkout";
   const redirected = useRef(false);
   /** Once OTP UI is shown, keep it mounted through Verified → redirect (don't flash skeleton). */
   const heldVerifyUi = useRef(false);
   const [changeReady, setChangeReady] = useState(false);
   const [changeMasked, setChangeMasked] = useState("");
+  const [guestReady, setGuestReady] = useState(false);
+  const [guestMasked, setGuestMasked] = useState("");
 
-  if (user && needsEmailVerification(user) && !isEmailChange) {
+  if (user && needsEmailVerification(user) && !isEmailChange && !isGuestCheckout) {
     heldVerifyUi.current = true;
   }
 
@@ -77,7 +82,7 @@ function VerifyEmailPageContent() {
       return;
     }
 
-    if (isEmailChange) {
+    if (isEmailChange || isGuestCheckout) {
       return;
     }
 
@@ -94,7 +99,7 @@ function VerifyEmailPageContent() {
       }
       navigateAfterLogin(user, nextParam, locale);
     }
-  }, [user, isLoading, locale, nextParam, mode, isEmailChange]);
+  }, [user, isLoading, locale, nextParam, mode, isEmailChange, isGuestCheckout]);
 
   useEffect(() => {
     if (!isEmailChange || isLoading || !user || redirected.current) return;
@@ -121,6 +126,38 @@ function VerifyEmailPageContent() {
       cancelled = true;
     };
   }, [isEmailChange, isLoading, user, locale, nextParam]);
+
+  useEffect(() => {
+    if (!isGuestCheckout || isLoading || !user || redirected.current) return;
+
+    if (!user.isGuest) {
+      redirected.current = true;
+      goToNextOrDefault(locale, nextParam, "/checkout");
+      return;
+    }
+
+    let cancelled = false;
+    fetchGuestContactStatus()
+      .then((status) => {
+        if (cancelled || redirected.current) return;
+        if (!status.pendingEmail) {
+          redirected.current = true;
+          goToNextOrDefault(locale, nextParam, "/checkout");
+          return;
+        }
+        setGuestMasked(status.pendingEmail);
+        setGuestReady(true);
+      })
+      .catch(() => {
+        if (cancelled || redirected.current) return;
+        redirected.current = true;
+        goToNextOrDefault(locale, nextParam, "/checkout");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isGuestCheckout, isLoading, user, locale, nextParam]);
 
   const leaveChangeFlow = (cancelledChange: boolean) => {
     const finish = () => {
@@ -170,6 +207,23 @@ function VerifyEmailPageContent() {
         nextPath={nextParam || ACCOUNT_DEFAULT_NEXT}
         onSkip={() => leaveChangeFlow(true)}
         onVerified={() => leaveChangeFlow(false)}
+      />
+    );
+  }
+
+  if (isGuestCheckout) {
+    if (!guestReady) {
+      return <AuthSplitSkeleton variant="otp" />;
+    }
+
+    return (
+      <VerifyEmailOtp
+        locale={locale}
+        mode="guest-checkout"
+        pendingMaskedEmail={guestMasked}
+        nextPath={nextParam || "/checkout"}
+        onSkip={() => goToNextOrDefault(locale, nextParam, "/checkout")}
+        onVerified={() => goToNextOrDefault(locale, nextParam, "/checkout")}
       />
     );
   }

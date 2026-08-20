@@ -26,6 +26,8 @@ interface ApiUserResponse {
     emailVerified?: boolean;
     perms?: Record<string, boolean>;
     isGuest?: boolean;
+    guestContactEmail?: string | null;
+    guestPendingEmail?: string | null;
 }
 
 export interface User {
@@ -43,6 +45,8 @@ export interface User {
     emailVerified?: boolean;
     perms?: Record<string, boolean>;
     isGuest?: boolean;
+    guestContactEmail?: string | null;
+    guestPendingEmail?: string | null;
 }
 
 export type GoogleAuthRole = "customer" | "tailor" | "fabric_store";
@@ -72,6 +76,8 @@ function mapApiUser(data: ApiUserResponse): User {
         emailVerified: data.emailVerified !== false,
         perms: data.perms || {},
         isGuest: data.isGuest,
+        guestContactEmail: data.guestContactEmail || null,
+        guestPendingEmail: data.guestPendingEmail || null,
     };
 }
 
@@ -79,6 +85,7 @@ interface AuthContextType {
     user: User | null;
     isLoading: boolean;
     login: (email: string, password: string, isGuest?: boolean) => Promise<User>;
+    loginAsGuest: () => Promise<User>;
     loginWithGoogle: (credential: string, options?: GoogleAuthOptions) => Promise<User>;
     register: (username: string, email: string, password: string, phone: string) => Promise<User>;
     registerTailor: (name: string, email: string, password: string) => Promise<User>;
@@ -131,6 +138,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
             password,
             isGuest,
         });
+        return persistSession(response);
+    };
+
+    const loginAsGuest = async (): Promise<User> => {
+        const response = await api.post<ApiUserResponse>('/api/users/signin/guest');
         return persistSession(response);
     };
 
@@ -197,6 +209,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         user,
         isLoading,
         login,
+        loginAsGuest,
         loginWithGoogle,
         register,
         registerTailor,

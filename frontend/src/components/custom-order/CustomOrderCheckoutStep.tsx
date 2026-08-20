@@ -27,7 +27,15 @@ import SuccessModal from "@/components/shared/SuccessModal";
 import EmailVerifyRequiredNotice from "@/components/auth/EmailVerifyRequiredNotice";
 import {
   buildVerifyEmailHref,
+  guestContactClientError,
+  guestContactErrorFromApi,
+  guestContactErrorMessage,
   isEmailVerificationGateError,
+  isValidContactEmail,
+  needsGuestContactOtp,
+  normalizeEmail,
+  scrollToCheckoutEmailNotice,
+  startGuestContactRequest,
 } from "@/lib/auth/emailVerification";
 import { getTranslation } from "@/lib/getTranslation";
 import toast from "react-hot-toast";
@@ -83,8 +91,15 @@ export default function CustomOrderCheckoutStep() {
   const params = useParams();
   const locale = params.locale === "ar" ? "ar" : "en";
 
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { user, isLoading, isAuthenticated, applyUserResponse } = useAuth();
   const tVerify = getTranslation(locale).verifyEmail;
+  const guestEmailCopy = {
+    guestEmailRequired: tVerify.guestEmailRequired,
+    guestEmailInvalid: tVerify.guestEmailInvalid,
+    guestEmailInUse: tVerify.guestEmailInUse,
+    guestEmailTaken: tVerify.guestEmailTaken,
+    guestEmailGeneric: tVerify.guestEmailGeneric,
+  };
   const {
     draft,
     isHydrated,
@@ -113,34 +128,117 @@ export default function CustomOrderCheckoutStep() {
     "card",
   );
   const [emailVerifyEmphasize, setEmailVerifyEmphasize] = useState(false);
+  const [startingGuestOtp, setStartingGuestOtp] = useState(false);
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactEmailError, setContactEmailError] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
   const emailVerifyNoticeRef = useRef<HTMLDivElement>(null);
+  const emailFieldRef = useRef<HTMLInputElement>(null);
 
   const [customerProfile, setCustomerProfile] =
     useState<CustomerProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
 
-  const needsEmailVerify = needsEmailVerification(user) && !user?.isGuest;
+  const needsAccountEmailVerify =
+    needsEmailVerification(user) && !user?.isGuest;
+  const needsGuestOtp = needsGuestContactOtp(user, contactEmail);
+  const needsEmailVerify = needsAccountEmailVerify || needsGuestOtp;
+  const addressLocked = Boolean(user && !user.isGuest);
 
   const verifyEmailHref = buildVerifyEmailHref({
     locale,
-    mode: "checkout",
+    mode: user?.isGuest ? "guest-checkout" : "checkout",
     next: "/custom-order/checkout",
   });
 
   const requireEmailVerified = () => {
+    if (user?.isGuest) {
+      const clientKey = guestContactClientError(contactEmail);
+      if (clientKey) {
+        setEmailTouched(true);
+        setContactEmailError(
+          guestContactErrorMessage(clientKey, guestEmailCopy),
+        );
+      }
+      if (clientKey || contactEmailError) {
+        setEmailVerifyEmphasize(true);
+        window.setTimeout(() => {
+          scrollToCheckoutEmailNotice(
+            emailFieldRef.current || emailVerifyNoticeRef.current,
+          );
+        }, 50);
+        return false;
+      }
+    }
     if (!needsEmailVerify) return true;
     setEmailVerifyEmphasize(true);
-    emailVerifyNoticeRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
+    window.setTimeout(() => {
+      scrollToCheckoutEmailNotice(emailVerifyNoticeRef.current);
+    }, 50);
     return false;
+  };
+
+  const checkGuestContactEmail = async (raw: string) => {
+    const clientKey = guestContactClientError(raw);
+    if (clientKey) {
+      setEmailTouched(true);
+      setContactEmailError(guestContactErrorMessage(clientKey, guestEmailCopy));
+      return false;
+    }
+
+    const normalized = normalizeEmail(raw);
+    if (
+      normalized === normalizeEmail(user?.guestPendingEmail || "") ||
+      normalized === normalizeEmail(user?.guestContactEmail || "")
+    ) {
+      setContactEmailError("");
+      return true;
+    }
+
+    if (startingGuestOtp) return false;
+    setStartingGuestOtp(true);
+    try {
+      const response = await startGuestContactRequest({ email: raw });
+      applyUserResponse(
+        response as Parameters<typeof applyUserResponse>[0],
+      );
+      setContactEmailError("");
+      return true;
+    } catch (err) {
+      setEmailTouched(true);
+      setContactEmailError(
+        guestContactErrorMessage(guestContactErrorFromApi(err), guestEmailCopy),
+      );
+      return false;
+    } finally {
+      setStartingGuestOtp(false);
+    }
+  };
+
+  const startGuestCheckoutOtp = async () => {
+    const ok = await checkGuestContactEmail(contactEmail);
+    if (!ok) {
+      window.setTimeout(() => {
+        scrollToCheckoutEmailNotice(
+          emailFieldRef.current || emailVerifyNoticeRef.current,
+        );
+      }, 50);
+      return;
+    }
+    window.location.assign(verifyEmailHref);
   };
 
   useEffect(() => {
     if (!needsEmailVerify) setEmailVerifyEmphasize(false);
   }, [needsEmailVerify]);
+
+  useEffect(() => {
+    if (!user?.isGuest) return;
+    const known = user.guestContactEmail || user.guestPendingEmail || "";
+    if (!known) return;
+    setContactEmail((prev) => prev || known);
+  }, [user?.isGuest, user?.guestContactEmail, user?.guestPendingEmail]);
 
   const [addons, setAddons] = useState<any[]>([]);
   useEffect(() => {
@@ -409,6 +507,9 @@ export default function CustomOrderCheckoutStep() {
       deliveryType: "delivery" as const,
       deliveryAddress,
       addonIds: draft.addonIds || [],
+      contactEmail: user?.isGuest
+        ? contactEmail.trim().toLowerCase()
+        : user?.email,
     };
   };
 
@@ -557,7 +658,7 @@ export default function CustomOrderCheckoutStep() {
             </p>
           </div>
 
-          {needsEmailVerify ? (
+          {needsAccountEmailVerify ? (
             <EmailVerifyRequiredNotice
               ref={emailVerifyNoticeRef}
               className="mb-8"
@@ -727,8 +828,24 @@ export default function CustomOrderCheckoutStep() {
                         id="checkout-fullName"
                         type="text"
                         value={address.fullName || ""}
-                        readOnly
-                        className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
+                        readOnly={addressLocked}
+                        onChange={
+                          addressLocked
+                            ? undefined
+                            : (e) =>
+                                handleFieldChange("fullName", e.target.value)
+                        }
+                        className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
+                          addressLocked
+                            ? "bg-gray-50 cursor-not-allowed focus:ring-0"
+                            : `bg-white focus:border-black transition ${
+                                user?.isGuest
+                                  ? locale === "ar"
+                                    ? "pl-20"
+                                    : "pr-20"
+                                  : ""
+                              }`
+                        }`}
                       />
                       {user?.isGuest && (
                         <span
@@ -744,6 +861,69 @@ export default function CustomOrderCheckoutStep() {
                       </p>
                     )}
                   </div>
+
+                  {user?.isGuest ? (
+                    <div>
+                      <label
+                        htmlFor="checkout-email"
+                        className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2"
+                      >
+                        {t("email")}*
+                      </label>
+                      <input
+                        id="checkout-email"
+                        ref={emailFieldRef}
+                        type="email"
+                        autoComplete="email"
+                        value={contactEmail}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setContactEmail(value);
+                          if (!emailTouched) return;
+                          const clientKey = guestContactClientError(value);
+                          setContactEmailError(
+                            clientKey
+                              ? guestContactErrorMessage(
+                                  clientKey,
+                                  guestEmailCopy,
+                                )
+                              : "",
+                          );
+                        }}
+                        onBlur={(e) => {
+                          setEmailTouched(true);
+                          void checkGuestContactEmail(e.target.value);
+                        }}
+                        aria-invalid={Boolean(contactEmailError)}
+                        className={`w-full border bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none transition ${
+                          contactEmailError
+                            ? "border-red-500 focus:border-red-500"
+                            : "border-(--color-border) focus:border-black"
+                        }`}
+                      />
+                      {contactEmailError ? (
+                        <p className="text-red-600 text-[12px] leading-snug mt-1.5">
+                          {contactEmailError}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {user?.isGuest &&
+                  isValidContactEmail(contactEmail) &&
+                  needsGuestOtp &&
+                  !contactEmailError ? (
+                    <div className="sm:col-span-2">
+                      <EmailVerifyRequiredNotice
+                        ref={emailVerifyNoticeRef}
+                        message={tVerify.gateGuestCheckoutMessage}
+                        ctaLabel={tVerify.verifyNow}
+                        href={verifyEmailHref}
+                        emphasize={emailVerifyEmphasize}
+                        onCta={startGuestCheckoutOtp}
+                      />
+                    </div>
+                  ) : null}
 
                   <div>
                     <label
@@ -762,8 +942,19 @@ export default function CustomOrderCheckoutStep() {
                         id="checkout-phone"
                         type="tel"
                         value={getPhoneDisplayValue(address.phone || "")}
-                        readOnly
-                        className={`w-full border border-(--color-border) bg-gray-50 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0 ${
+                        readOnly={addressLocked}
+                        onChange={
+                          addressLocked
+                            ? undefined
+                            : (e) => handleFieldChange("phone", e.target.value)
+                        }
+                        placeholder={addressLocked ? undefined : "XXXXXXXXX"}
+                        maxLength={addressLocked ? undefined : 9}
+                        className={`w-full border border-(--color-border) py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
+                          addressLocked
+                            ? "bg-gray-50 cursor-not-allowed focus:ring-0"
+                            : "bg-white focus:border-black transition"
+                        } ${
                           locale === "ar"
                             ? "pr-16 pl-4 text-right"
                             : "pl-16 pr-4 text-left"
@@ -784,13 +975,31 @@ export default function CustomOrderCheckoutStep() {
                     >
                       {t("emirate")}*
                     </label>
-                    <input
-                      id="checkout-emirate"
-                      type="text"
-                      value={address.emirate || ""}
-                      readOnly
-                      className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
-                    />
+                    {addressLocked ? (
+                      <input
+                        id="checkout-emirate"
+                        type="text"
+                        value={address.emirate || ""}
+                        readOnly
+                        className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
+                      />
+                    ) : (
+                      <select
+                        id="checkout-emirate"
+                        value={address.emirate || ""}
+                        onChange={(e) =>
+                          handleFieldChange("emirate", e.target.value)
+                        }
+                        className="w-full border border-(--color-border) bg-white px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none focus:border-black transition"
+                      >
+                        <option value="">{t("emirate")}*</option>
+                        {UAE_EMIRATES.map((emirate) => (
+                          <option key={emirate.value} value={emirate.value}>
+                            {emirate.en} / {emirate.ar}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     {errors.emirate && (
                       <p className="text-red-600 text-[12px] mt-1">
                         {errors.emirate}
@@ -805,13 +1014,22 @@ export default function CustomOrderCheckoutStep() {
                     >
                       {t("city")}*
                     </label>
-                    <input
-                      id="checkout-city"
-                      type="text"
-                      value={address.city || ""}
-                      readOnly
-                      className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
-                    />
+                      <input
+                        id="checkout-city"
+                        type="text"
+                        value={address.city || ""}
+                        readOnly={addressLocked}
+                        onChange={
+                          addressLocked
+                            ? undefined
+                            : (e) => handleFieldChange("city", e.target.value)
+                        }
+                        className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
+                          addressLocked
+                            ? "bg-gray-50 cursor-not-allowed focus:ring-0"
+                            : "bg-white focus:border-black transition"
+                        }`}
+                      />
                     {errors.city && (
                       <p className="text-red-600 text-[12px] mt-1">
                         {errors.city}
@@ -827,13 +1045,23 @@ export default function CustomOrderCheckoutStep() {
                       >
                         {t("line1")}*
                       </label>
-                      <input
-                        id="checkout-line1"
-                        type="text"
-                        value={address.line1 || ""}
-                        readOnly
-                        className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
-                      />
+                        <input
+                          id="checkout-line1"
+                          type="text"
+                          value={address.line1 || ""}
+                          readOnly={addressLocked}
+                          onChange={
+                            addressLocked
+                              ? undefined
+                              : (e) =>
+                                  handleFieldChange("line1", e.target.value)
+                          }
+                          className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
+                            addressLocked
+                              ? "bg-gray-50 cursor-not-allowed focus:ring-0"
+                              : "bg-white focus:border-black transition"
+                          }`}
+                        />
                       {errors.line1 && (
                         <p className="text-red-600 text-[12px] mt-1">
                           {errors.line1}
@@ -848,13 +1076,23 @@ export default function CustomOrderCheckoutStep() {
                       >
                         {t("line2")}
                       </label>
-                      <input
-                        id="checkout-line2"
-                        type="text"
-                        value={address.line2 || ""}
-                        readOnly
-                        className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
-                      />
+                        <input
+                          id="checkout-line2"
+                          type="text"
+                          value={address.line2 || ""}
+                          readOnly={addressLocked}
+                          onChange={
+                            addressLocked
+                              ? undefined
+                              : (e) =>
+                                  handleFieldChange("line2", e.target.value)
+                          }
+                          className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
+                            addressLocked
+                              ? "bg-gray-50 cursor-not-allowed focus:ring-0"
+                              : "bg-white focus:border-black transition"
+                          }`}
+                        />
                     </div>
                   </div>
 
@@ -868,14 +1106,24 @@ export default function CustomOrderCheckoutStep() {
                         ({t("optional")})
                       </span>
                     </label>
-                    <input
-                      id="checkout-postalCode"
-                      type="text"
-                      value={address.postalCode || ""}
-                      readOnly
-                      placeholder="12345"
-                      className="w-full border border-(--color-border) bg-gray-50 px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black cursor-not-allowed focus:outline-none focus:ring-0"
-                    />
+                      <input
+                        id="checkout-postalCode"
+                        type="text"
+                        value={address.postalCode || ""}
+                        readOnly={addressLocked}
+                        onChange={
+                          addressLocked
+                            ? undefined
+                            : (e) =>
+                                handleFieldChange("postalCode", e.target.value)
+                        }
+                        placeholder="12345"
+                        className={`w-full border border-(--color-border) px-4 py-3 [font-family:var(--font-body)] text-[15px] text-black focus:outline-none ${
+                          addressLocked
+                            ? "bg-gray-50 cursor-not-allowed focus:ring-0"
+                            : "bg-white focus:border-black transition"
+                        }`}
+                      />
                   </div>
                 </div>
 
@@ -961,6 +1209,8 @@ export default function CustomOrderCheckoutStep() {
                     !pricing ||
                     !measurementsConfirmed
                   }
+                  allowClickWhenIncomplete={needsEmailVerify}
+                  onAttemptPay={requireEmailVerified}
                   payLabel={t("payButton")}
                   processingLabel={t("processing")}
                   loadingLabel={t("loadingCard")}

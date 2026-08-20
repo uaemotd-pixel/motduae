@@ -19,6 +19,7 @@ import {
 import type { Locale } from "@/i18n/routing";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
 import { TableSkeleton } from "@/components/ui/Skeleton";
+import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
 
 interface OrderUser {
   _id: string;
@@ -30,6 +31,7 @@ interface OrderUser {
 interface Order {
   _id: string;
   userId: OrderUser | string;
+  contactEmail?: string;
   tailorShopId: { _id: string; name: string } | string;
   designSnapshot?: { name: string };
   fabricSnapshot?: { name: string } | null;
@@ -394,18 +396,14 @@ export default function AdminCustomOrdersPage() {
               const isUpdating = updatingOrderId === order._id;
               const nextStatus = getNextCustomOrderStatus(order.status);
               const previousStatus = getPreviousCustomOrderStatus(order.status);
-              const isGuest =
-                order.userId &&
-                typeof order.userId === "object" &&
-                order.userId.email === "customer@motd.test";
+              const isGuest = isGuestOrderUser(order.userId);
               const customerName = isGuest && (order as any).customerDeliveryAddress?.fullName
                 ? (order as any).customerDeliveryAddress.fullName
                 : readPartnerName(
                     typeof order.userId === "object" ? order.userId : null,
                     t("unknownCustomer"),
                   );
-              const customerEmail =
-                typeof order.userId === "object" ? order.userId.email : "";
+              const customerEmail = resolveOrderDisplayEmail(order);
               const tailorName = readPartnerName(
                 typeof order.tailorShopId === "object"
                   ? order.tailorShopId

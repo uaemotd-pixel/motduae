@@ -394,6 +394,7 @@ export async function createPaidCustomOrder({
     addPocket = false,
     addBottomWideFold = false,
     addonIds = [],
+    contactEmail = "",
   } = payload;
 
   if (deliveryType === "pickup") {
@@ -467,6 +468,7 @@ export async function createPaidCustomOrder({
         items: orderItems,
         measurements: measurements || {},
         customerDeliveryAddress: deliveryAddr,
+        contactEmail: String(contactEmail || "").toLowerCase().trim(),
         pickupAddress: selfPickupAddress,
         status: "confirmed",
         statusHistory: [
@@ -533,6 +535,7 @@ export async function createPaidCustomOrder({
         designSnapshot: buildDesignSnapshot(design),
         measurements: measurements || {},
         customerDeliveryAddress: deliveryAddr,
+        contactEmail: String(contactEmail || "").toLowerCase().trim(),
         pickupAddress: selfPickupAddress,
         status: "confirmed",
         statusHistory: [

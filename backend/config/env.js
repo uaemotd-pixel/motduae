@@ -61,6 +61,11 @@ export const env = {
   get googleClientId() {
     return process.env.GOOGLE_CLIENT_ID || '';
   },
+  get guestCustomerEmail() {
+    return (
+      process.env.GUEST_CUSTOMER_EMAIL || 'guestcustomer@motd.test'
+    ).toLowerCase().trim();
+  },
   get email() {
     const provider = (process.env.EMAIL_PROVIDER || 'console').toLowerCase();
     return {

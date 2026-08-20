@@ -111,7 +111,7 @@ export async function findEmailOccupant(
 
   const query = UserModel.findOne(filter);
   if (query && typeof query.select === "function") {
-    return query.select("_id");
+    return query.select("_id role email");
   }
   return query;
 }

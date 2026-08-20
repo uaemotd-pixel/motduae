@@ -35,6 +35,14 @@
     "currentPassword": "كلمة المرور الحالية",
     "continueChange": "متابعة",
     "pendingChangeBody": "تغيير البريد جارٍ. سنرسل الرمز إلى",
-    "pendingChangeResume": "استئناف"
+    "pendingChangeResume": "استئناف",
+    "guestCheckoutTitle": "أكد بريدك لهذا الطلب",
+    "guestCheckoutSubtitle": "سنرسل رمزًا من 6 أرقام إلى",
+    "gateGuestCheckoutMessage": "أكد بريدك حتى نرسل تتبع الطلب إلى هذا الصندوق. لا يمكنك إتمام الطلب حتى تتحقق من بريدك.",
+    "guestEmailRequired": "البريد الإلكتروني مطلوب.",
+    "guestEmailInvalid": "أدخل عنوان بريد إلكتروني صالح.",
+    "guestEmailInUse": "هذا البريد مرتبط بحساب. يرجى تسجيل الدخول.",
+    "guestEmailTaken": "لا يمكن استخدام هذا البريد لإتمام الطلب كزائر.",
+    "guestEmailGeneric": "لا يمكن استخدام هذا البريد لهذا الطلب. جرّب عنوانًا آخر."
   }
 }
