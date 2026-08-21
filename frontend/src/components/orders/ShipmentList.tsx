@@ -15,6 +15,7 @@ type ShipmentListProps = {
   locale: Locale;
   visibility?: "customer" | "internal";
   compact?: boolean;
+  emptyMessage?: string;
 };
 
 function statusTone(status: string): string {
@@ -37,6 +38,7 @@ export default function ShipmentList({
   locale,
   visibility = "customer",
   compact = false,
+  emptyMessage,
 }: ShipmentListProps) {
   const t = useTranslations("OrdersPage.shipments");
   const lang = locale === "ar" ? "ar" : "en";
@@ -50,7 +52,7 @@ export default function ShipmentList({
         }`}
       >
         <p className="text-xs text-gray-500 [font-family:var(--font-body)]">
-          {t("empty")}
+          {emptyMessage || t("empty")}
         </p>
       </div>
     );

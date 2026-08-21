@@ -379,6 +379,10 @@ const customOrderSchema = new mongoose.Schema(
     returnReason: { type: String, default: "", trim: true },
     returnComment: { type: String, default: "", trim: true },
     returnPickupAddress: { type: pickupAddressSchema, required: false },
+    publicTrackingToken: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,
@@ -397,6 +401,13 @@ customOrderSchema.index(
     partialFilterExpression: {
       stripePaymentIntentId: { $type: "string", $gt: "" },
     },
+  },
+);
+customOrderSchema.index(
+  { publicTrackingToken: 1 },
+  {
+    unique: true,
+    sparse: true,
   },
 );
 

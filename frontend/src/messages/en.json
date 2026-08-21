@@ -182,7 +182,10 @@
     "okButton": "OK",
     "postalCode": "Postal code",
     "optional": "optional",
-    "unknownDesign": "Custom design"
+    "unknownDesign": "Custom design",
+    "trackCta": "Track your order",
+    "copyLink": "Copy link",
+    "copied": "Copied"
   },
   "CustomOrderReview": {
     "pricingNotReady": {
@@ -1350,6 +1353,20 @@
       "title": "Logistics",
       "show": "View logistics",
       "hide": "Hide logistics"
+    },
+    "track": {
+      "title": "Track your order",
+      "description": "Follow the status of this order. The link stays the same as it progresses.",
+      "refresh": "Refresh status",
+      "invalid": "This tracking link is invalid.",
+      "error": "Unable to load this order.",
+      "courierEmpty": "Courier details appear here once your order is packed.",
+      "pieceReadyWaiting": "This piece is ready. Waiting for the rest of your order.",
+      "deliveryAddress": "Delivery address",
+      "progress": "Order progress",
+      "copyLink": "Copy link",
+      "copied": "Copied",
+      "trackCta": "Track your order"
     }
   },
   "Footer": {

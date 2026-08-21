@@ -122,6 +122,10 @@ export default function CustomOrderCheckoutStep() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [trackingUrl, setTrackingUrl] = useState<string | null>(null);
+  const [successOrderItems, setSuccessOrderItems] = useState<
+    Array<{ name: string }>
+  >([]);
   const [measurementsConfirmed, setMeasurementsConfirmed] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"apple_pay" | "card">(
     "card",
@@ -587,6 +591,7 @@ export default function CustomOrderCheckoutStep() {
       let response: {
         success: boolean;
         orderId: string;
+        trackingUrl?: string;
         message?: string;
       };
 
@@ -615,6 +620,16 @@ export default function CustomOrderCheckoutStep() {
       }
 
       setOrderId(response.orderId);
+      setTrackingUrl(
+        typeof response.trackingUrl === "string" ? response.trackingUrl : null,
+      );
+      setSuccessOrderItems(
+        draft.lineItems.map((item) => ({
+          name:
+            getDisplayName(item.design.name, item.design.nameAr) ||
+            t("unknownDesign"),
+        })),
+      );
       resetOrder();
       setShowSuccess(true);
     } catch (err: unknown) {
@@ -1281,6 +1296,11 @@ export default function CustomOrderCheckoutStep() {
         orderId={orderId ?? undefined}
         orderIdLabel={t("orderIdLabel")}
         okLabel={t("okButton")}
+        orderItems={successOrderItems}
+        trackHref={trackingUrl || undefined}
+        trackLabel={t("trackCta")}
+        copyLabel={t("copyLink")}
+        copiedLabel={t("copied")}
       />
     </>
   );

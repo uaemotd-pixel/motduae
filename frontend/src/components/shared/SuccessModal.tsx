@@ -1,7 +1,7 @@
 // components/shared/SuccessModal.tsx
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface SuccessModalProps {
@@ -12,6 +12,12 @@ interface SuccessModalProps {
     orderId?: string;
     orderIdLabel?: string;
     okLabel?: string;
+    orderName?: string;
+    orderItems?: Array<{ name: string }>;
+    trackHref?: string;
+    trackLabel?: string;
+    copyLabel?: string;
+    copiedLabel?: string;
 }
 
 export default function SuccessModal({
@@ -22,8 +28,25 @@ export default function SuccessModal({
     orderId,
     orderIdLabel = "Order ID",
     okLabel = "OK",
+    trackHref,
+    trackLabel = "Track your order",
+    copyLabel = "Copy link",
+    copiedLabel = "Copied",
 }: SuccessModalProps) {
-    // Close on Escape key
+    const [copied, setCopied] = useState(false);
+    useEffect(() => {
+        if (!isOpen) setCopied(false);
+    }, [isOpen]);
+
+    const copyTrackLink = async () => {
+        if (!trackHref) return;
+        try {
+            await navigator.clipboard.writeText(trackHref);
+            setCopied(true);
+        } catch {
+            setCopied(false);
+        }
+    };
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === "Escape" && isOpen) onClose();
@@ -95,6 +118,24 @@ export default function SuccessModal({
                                 <p className="[font-family:var(--font-ui)] text-[11px] tracking-[0.2em] text-black/60 mb-6">
                                     {orderIdLabel}: <span className="font-medium">{orderId.slice(-8)}</span>
                                 </p>
+                            )}
+
+                            {trackHref && (
+                                <div className="mb-4 space-y-2">
+                                    <a
+                                        href={trackHref}
+                                        className="block w-full px-6 py-2 bg-black text-white text-[11px] uppercase tracking-[0.24em] [font-family:var(--font-ui)] hover:bg-[#2A2A28] transition"
+                                    >
+                                        {trackLabel}
+                                    </a>
+                                    <button
+                                        type="button"
+                                        onClick={() => void copyTrackLink()}
+                                        className="w-full px-6 py-2 border border-black text-black text-[11px] uppercase tracking-[0.24em] [font-family:var(--font-ui)] hover:bg-black hover:text-white transition hover:cursor-pointer"
+                                    >
+                                        {copied ? copiedLabel : copyLabel}
+                                    </button>
+                                </div>
                             )}
 
                             <button

@@ -183,6 +183,10 @@ function CheckoutPageContent() {
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
+  const [lastTrackingUrl, setLastTrackingUrl] = useState<string | null>(null);
+  const [lastOrderItems, setLastOrderItems] = useState<Array<{ name: string }>>(
+    [],
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"apple_pay" | "card">(
@@ -822,6 +826,7 @@ function CheckoutPageContent() {
       let response: {
         success: boolean;
         orderId: string;
+        trackingUrl?: string;
         message?: string;
       };
 
@@ -847,6 +852,10 @@ function CheckoutPageContent() {
 
       if (response.success) {
         setLastOrderId(response.orderId);
+        setLastTrackingUrl(
+          typeof response.trackingUrl === "string" ? response.trackingUrl : null,
+        );
+        setLastOrderItems(displayItems.map((item) => ({ name: item.name })));
         setShowSuccessModal(true);
         clearCompletedCheckoutItems();
       } else {
@@ -1412,6 +1421,11 @@ function CheckoutPageContent() {
         orderId={lastOrderId?.slice(-8) ?? undefined}
         orderIdLabel={t.checkout.orderIdLabel}
         okLabel={t.checkout.okButton}
+        orderItems={lastOrderItems}
+        trackHref={lastTrackingUrl || undefined}
+        trackLabel={t.checkout.trackCta}
+        copyLabel={t.checkout.copyLink}
+        copiedLabel={t.checkout.copied}
       />
     </MainLayout>
   );

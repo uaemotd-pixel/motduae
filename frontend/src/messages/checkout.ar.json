@@ -44,6 +44,9 @@
     "successMessage": "تم تقديم طلبك بنجاح.",
     "orderIdLabel": "رقم الطلب",
     "itemsInOrder": "المنتجات في هذا الطلب:",
-    "okButton": "حسناً"
+    "okButton": "حسناً",
+    "trackCta": "تتبّع طلبك",
+    "copyLink": "نسخ الرابط",
+    "copied": "تم النسخ"
   }
 }
