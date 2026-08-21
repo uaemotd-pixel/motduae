@@ -28,6 +28,7 @@ import {
 } from "@/lib/customOrders";
 import type { Locale } from "@/i18n/routing";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
+import { isWithinLocalDateRange } from "@/lib/dateRange";
 
 interface OrderUser {
   _id: string;
@@ -118,6 +119,8 @@ export default function FabricOrdersPage() {
   // Filters State
   const [filterCustomer, setFilterCustomer] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("");
+  const [filterFrom, setFilterFrom] = useState<string>("");
+  const [filterTo, setFilterTo] = useState<string>("");
 
   const statusLabel = (status: string) => {
     if (isCustomOrderStatus(status)) {
@@ -243,9 +246,13 @@ export default function FabricOrdersPage() {
         if (order.status !== filterStatus) return false;
       }
 
+      if (!isWithinLocalDateRange(order.createdAt, filterFrom, filterTo)) {
+        return false;
+      }
+
       return true;
     });
-  }, [orders, filterCustomer, filterStatus]);
+  }, [orders, filterCustomer, filterStatus, filterFrom, filterTo]);
 
   if (loading && orders.length === 0) {
     return (
@@ -309,6 +316,8 @@ export default function FabricOrdersPage() {
             setActiveTab("custom");
             setFilterStatus("");
             setFilterCustomer("");
+            setFilterFrom("");
+            setFilterTo("");
           }}
         >
           {locale === "ar" ? "تفصيل مخصص" : "Custom Orders"}
@@ -324,6 +333,8 @@ export default function FabricOrdersPage() {
             setActiveTab("retail");
             setFilterStatus("");
             setFilterCustomer("");
+            setFilterFrom("");
+            setFilterTo("");
           }}
         >
           {locale === "ar" ? "ملابس جاهزة" : "Ready Made Orders"}
@@ -331,7 +342,7 @@ export default function FabricOrdersPage() {
       </div>
 
       {/* Filters Section */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
           <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider [font-family:var(--font-ui)]">
             {locale === "ar" ? "البحث" : "Search"}
@@ -370,6 +381,30 @@ export default function FabricOrdersPage() {
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider [font-family:var(--font-ui)]">
+            {t("fromLabel")}
+          </label>
+          <input
+            type="date"
+            value={filterFrom}
+            onChange={(e) => setFilterFrom(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition hover:cursor-pointer [font-family:var(--font-body)]"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider [font-family:var(--font-ui)]">
+            {t("toLabel")}
+          </label>
+          <input
+            type="date"
+            value={filterTo}
+            onChange={(e) => setFilterTo(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition hover:cursor-pointer [font-family:var(--font-body)]"
+          />
         </div>
       </div>
 

@@ -18,6 +18,7 @@ import {
   normalizeShopPickupAddress,
 } from "../utils/shopPickupAddress.js";
 import { createReadyCustomShipments } from "../services/shipmentService.js";
+import { getTimeframeWindow } from "../utils/dateRange.js";
 
 const tailorPortalRouter = express.Router();
 
@@ -456,26 +457,6 @@ tailorPortalRouter.patch(
 // ==========================================
 // GET /api/tailor/dashboard
 // ==========================================
-function getPartnerTimeframeWindow(timeframe) {
-  const now = new Date();
-  const end = new Date(now);
-  end.setUTCHours(23, 59, 59, 999);
-
-  let start;
-  if (timeframe === "week") {
-    start = new Date(end);
-    start.setUTCDate(start.getUTCDate() - 6);
-  } else if (timeframe === "year") {
-    start = new Date(end);
-    start.setUTCMonth(start.getUTCMonth() - 11);
-  } else {
-    start = new Date(end);
-    start.setUTCDate(start.getUTCDate() - 29);
-  }
-  start.setUTCHours(0, 0, 0, 0);
-  return { start, end };
-}
-
 tailorPortalRouter.get(
   "/dashboard",
   expressAsyncHandler(async (req, res) => {
@@ -486,7 +467,7 @@ tailorPortalRouter.get(
       timeframeRaw === "year"
         ? timeframeRaw
         : "month";
-    const { start, end } = getPartnerTimeframeWindow(timeframe);
+    const { start, end } = getTimeframeWindow(timeframe);
 
     const shop = await findOwnShop(req.user._id);
     const settings = await PlatformSettings.findOne({}).lean();
