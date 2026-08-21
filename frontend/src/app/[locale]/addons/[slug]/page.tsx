@@ -246,11 +246,10 @@ export default function AddonDetailPage() {
                         <button
                           key={idx}
                           onClick={() => setSelectedImage(thumbUrl)}
-                          className={`shrink-0 w-20 xs:w-24 h-20 xs:h-24 rounded-md overflow-hidden border-2 transition-all duration-200 ${
-                            selectedImage === thumbUrl
+                          className={`shrink-0 w-20 xs:w-24 h-20 xs:h-24 rounded-md overflow-hidden border-2 transition-all duration-200 ${selectedImage === thumbUrl
                               ? "border-black"
                               : "border-transparent opacity-60 hover:opacity-100"
-                          }`}
+                            }`}
                         >
                           <img
                             src={thumbUrl}
@@ -276,11 +275,10 @@ export default function AddonDetailPage() {
                     aria-label="Add to wishlist"
                   >
                     <svg
-                      className={`w-6 h-6 transition-colors ${
-                        liked
+                      className={`w-6 h-6 transition-colors ${liked
                           ? "fill-red-500 stroke-red-500"
                           : "stroke-black fill-none"
-                      }`}
+                        }`}
                       viewBox="0 0 24 24"
                       strokeWidth="1.5"
                       stroke="currentColor"
@@ -300,12 +298,11 @@ export default function AddonDetailPage() {
                 <div className="grid grid-cols-2 gap-x-6 my-2">
                   <div>
                     <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
-                      {isAr ? "التوفر" : "Availability"}
+                      {isAr ? "المتوفر" : "Availability"}
                     </span>
                     <p
-                      className={`[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] font-medium ${
-                        stock > 0 ? "text-green-700" : "text-red-600"
-                      }`}
+                      className={`[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] font-medium ${stock > 0 ? "text-green-700" : "text-red-600"
+                        }`}
                     >
                       {stock > 0
                         ? isAr
@@ -356,11 +353,10 @@ export default function AddonDetailPage() {
                       <button
                         onClick={handleBuyNow}
                         disabled={stock < 1}
-                        className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
-                          stock < 1
+                        className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${stock < 1
                             ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
                             : "hover:bg-black hover:text-white"
-                        }`}
+                          }`}
                       >
                         {isAr ? "شراء الآن" : "Buy Now"}
                       </button>
@@ -369,11 +365,10 @@ export default function AddonDetailPage() {
                     <button
                       onClick={handleAddToCart}
                       disabled={stock < 1}
-                      className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
-                        stock < 1
+                      className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${stock < 1
                           ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
                           : "bg-black text-white hover:bg-white hover:text-black hover:border-black"
-                      }`}
+                        }`}
                     >
                       {isAr ? "إضافة إلى السلة" : "Add to Cart"}
                     </button>

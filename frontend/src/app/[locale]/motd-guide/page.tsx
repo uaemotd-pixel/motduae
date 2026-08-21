@@ -4,16 +4,16 @@ import { useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import MainLayout from "../main/layout";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Plus, 
-  Minus, 
-  Search, 
-  Sparkles, 
-  Scissors, 
-  Ruler, 
-  ShoppingBag, 
-  Truck, 
-  CreditCard, 
+import {
+  Plus,
+  Minus,
+  Search,
+  Sparkles,
+  Scissors,
+  Ruler,
+  ShoppingBag,
+  Truck,
+  CreditCard,
   Heart,
   ChevronRight,
   ArrowDown
@@ -234,7 +234,7 @@ export default function MOTDGuidePage() {
               {isAr ? "دليل MOTD" : "THE MOTD GUIDE"}
             </span>
             <h1 className="[font-family:var(--font-display)] text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-black leading-tight">
-              {isAr ? "دليل مخوّر اليوم" : "The MOTD Guide"}
+              {isAr ? "دليل MOTD" : "The MOTD Guide"}
             </h1>
             <div className="h-px w-20 bg-black/10 mx-auto my-3"></div>
             <p className="[font-family:var(--font-body)] text-[#5A5A56] max-w-2xl mx-auto text-[15px] sm:text-[18px] leading-relaxed font-light">
@@ -243,7 +243,7 @@ export default function MOTDGuidePage() {
                 : "Everything you need to know about ordering, tailoring, caring for and enjoying your Mukhawar."}
             </p>
             <div className="pt-4 flex justify-center">
-              <motion.button 
+              <motion.button
                 onClick={() => sectionsContainerRef.current?.scrollIntoView({ behavior: "smooth" })}
                 className="flex items-center gap-2 text-xs uppercase tracking-widest text-[#8A8A80] hover:text-black transition cursor-pointer"
                 animate={{ y: [0, 5, 0] }}
@@ -332,8 +332,8 @@ export default function MOTDGuidePage() {
                   key={sec.id}
                   onClick={() => handleSectionSelect(sec.id)}
                   className={`border rounded-2xl p-5 text-left flex flex-col justify-between h-40 cursor-pointer transition-all duration-300 relative overflow-hidden group
-                    ${isSelected 
-                      ? "bg-black border-black text-white shadow-lg" 
+                    ${isSelected
+                      ? "bg-black border-black text-white shadow-lg"
                       : "bg-white border-[#E8E8E4] text-black hover:border-black hover:shadow-md"
                     }`}
                 >
@@ -356,7 +356,7 @@ export default function MOTDGuidePage() {
 
                   {/* Corner Accent Arrow */}
                   <ChevronRight className={`absolute bottom-5 right-5 w-4 h-4 transition-transform duration-300
-                    ${isSelected ? "text-white/40 translate-x-0" : "text-[#8A8A80] opacity-0 group-hover:opacity-100 translate-x-1 group-hover:translate-x-0"}`} 
+                    ${isSelected ? "text-white/40 translate-x-0" : "text-[#8A8A80] opacity-0 group-hover:opacity-100 translate-x-1 group-hover:translate-x-0"}`}
                   />
                 </button>
               );
@@ -372,8 +372,8 @@ export default function MOTDGuidePage() {
                   {isAr ? "الموضوع المحدد حالياً" : "CURRENT GUIDE TOPIC"}
                 </span>
                 <h3 className="[font-family:var(--font-display)] text-xl font-medium text-black">
-                  {isAr 
-                    ? SECTIONS.find(s => s.id === selectedSection)?.titleAr 
+                  {isAr
+                    ? SECTIONS.find(s => s.id === selectedSection)?.titleAr
                     : SECTIONS.find(s => s.id === selectedSection)?.titleEn
                   }
                 </h3>

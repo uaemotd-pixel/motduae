@@ -145,12 +145,12 @@ export function getDesignDisplayFields(
 
 export function formatDesignCategory(category: string, locale: Locale): string {
   const labels: Record<DesignCategory, { en: string; ar: string }> = {
-    "hand-embroidered": { en: "Hand Embroidered", ar: "شغل يد" },
-    "crystal-embellished": { en: "Crystal Embellished", ar: "مع فصوص" },
-    "non-crystal": { en: "Non-Crystal", ar: "بدون فصوص" },
-    talli: { en: "Talli", ar: "تلّي" },
+    "hand-embroidered": { en: "Hand Embroidered", ar: "مطرّز يدوياً" },
+    "crystal-embellished": { en: "Crystal Embellished", ar: "مزيّن بالكريستال" },
+    "non-crystal": { en: "Non-Crystal", ar: "بدون كريستال" },
+    talli: { en: "Talli", ar: "تلIي" },
     khous: { en: "Khous", ar: "خوص" },
-    beaded: { en: "Beaded", ar: "مع خرز" },
+    beaded: { en: "Beaded", ar: "مزيّن بالخرز" },
   };
 
   const entry = labels[category as DesignCategory];

@@ -218,14 +218,14 @@ export function AddOnsSection() {
           <div>
             <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[8px] sm:text-[9px] md:text-[8px] lg:text-[9px] xl:text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-2 xs:mb-3 flex items-center gap-2 xs:gap-3">
               <span className="block w-3 xs:w-4 sm:w-5 h-px bg-(--color-grey-muted)"></span>
-              <span>{isAr ? "إكسسوارات مميزة" : "Accessory Add-Ons"}</span>
+              <span>{isAr ? "إضافات و إكسسوارات" : "Accessory Add-Ons"}</span>
             </span>
             <h2 className="[font-family:var(--font-display)] text-[32px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[44px] xl:text-[48px] 2xl:text-[56px] font-normal leading-[1.1] xs:leading-[1.09] sm:leading-[1.08] tracking-[-0.01em] text-black">
-              {isAr ? "إضافات مميزة" : "Featured Add-Ons"}
+              {isAr ? "إضافات مختارة" : "Featured Add-Ons"}
             </h2>
             <p className="[font-family:var(--font-body)] text-xs sm:text-sm text-gray-500 max-w-lg mt-2">
               {isAr
-                ? "إكسسوارات وإضافات مميزة ومكملة لملابسك وتصميماتك المفضلة."
+                ? "استكشفي مجموعتنا من الإكسسوارات و الإضافات المختارة لإكمال إطلالتك"
                 : "Explore our collection of accessory pieces and optional add-ons to complete your look."}
             </p>
           </div>
@@ -242,9 +242,8 @@ export function AddOnsSection() {
           <button
             onClick={scrollPrev}
             disabled={!prevBtnEnabled}
-            className={`hidden sm:flex absolute left-2 xs:left-3 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/prev ${
-              !prevBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
-            }`}
+            className={`hidden sm:flex absolute left-2 xs:left-3 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/prev ${!prevBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
+              }`}
             aria-label="Previous slide"
           >
             <svg
@@ -263,9 +262,8 @@ export function AddOnsSection() {
           <button
             onClick={scrollNext}
             disabled={!nextBtnEnabled}
-            className={`hidden sm:flex absolute right-2 xs:right-3 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/next ${
-              !nextBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
-            }`}
+            className={`hidden sm:flex absolute right-2 xs:right-3 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/next ${!nextBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
+              }`}
             aria-label="Next slide"
           >
             <svg
@@ -391,11 +389,10 @@ export function AddOnsSection() {
               <button
                 key={index}
                 onClick={() => scrollTo(index)}
-                className={`w-1.5 h-1.5 xs:w-2 xs:h-2 rounded-full transition-all mx-0.5 xs:mx-1 ${
-                  index === selectedIndex
-                    ? "bg-black scale-125"
-                    : "bg-gray-400 hover:bg-gray-600"
-                }`}
+                className={`w-1.5 h-1.5 xs:w-2 xs:h-2 rounded-full transition-all mx-0.5 xs:mx-1 ${index === selectedIndex
+                  ? "bg-black scale-125"
+                  : "bg-gray-400 hover:bg-gray-600"
+                  }`}
                 aria-label={`Go to slide ${index + 1}`}
               />
             ))}

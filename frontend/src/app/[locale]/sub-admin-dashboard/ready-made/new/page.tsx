@@ -36,7 +36,7 @@ const COLOR_OPTIONS = [
   { value: "white", en: "White", ar: "أبيض" },
 
   { value: "red", en: "Red", ar: "أحمر" },
-  { value: "maroon", en: "Maroon", ar: "خمري" },
+  // { value: "maroon", en: "Maroon", ar: "خمري" },
   { value: "burgundy", en: "Burgundy", ar: "عنابي" },
 
   { value: "pink", en: "Pink", ar: "وردي" },
@@ -47,14 +47,14 @@ const COLOR_OPTIONS = [
   { value: "lavender", en: "Lavender", ar: "لافندر" },
 
   { value: "blue", en: "Blue", ar: "أزرق" },
-  { value: "navy", en: "Navy Blue", ar: "كحلي" },
+  // { value: "navy", en: "Navy Blue", ar: "كحلي" },
   { value: "royal-blue", en: "Royal Blue", ar: "أزرق ملكي" },
   { value: "sky-blue", en: "Sky Blue", ar: "أزرق سماوي" },
   { value: "turquoise", en: "Turquoise", ar: "فيروزي" },
 
   { value: "green", en: "Green", ar: "أخضر" },
   { value: "emerald", en: "Emerald Green", ar: "أخضر زمردي" },
-  { value: "olive", en: "Olive Green", ar: "أخضر زيتوني" },
+  // { value: "olive", en: "Olive Green", ar: "أخضر زيتوني" },
   { value: "mint", en: "Mint Green", ar: "أخضر نعناعي" },
 
   { value: "yellow", en: "Yellow", ar: "أصفر" },
@@ -65,7 +65,7 @@ const COLOR_OPTIONS = [
 
   { value: "brown", en: "Brown", ar: "بني" },
   { value: "chocolate", en: "Chocolate Brown", ar: "بني شوكولاتة" },
-  { value: "beige", en: "Beige", ar: "بيج" },
+  // { value: "beige", en: "Beige", ar: "بيج" },
   { value: "camel", en: "Camel", ar: "جملي" },
 
   { value: "grey", en: "Grey", ar: "رمادي" },
@@ -76,7 +76,7 @@ const COLOR_OPTIONS = [
   { value: "bronze", en: "Bronze", ar: "برونزي" },
 
   { value: "cream", en: "Cream", ar: "كريمي" },
-  { value: "ivory", en: "Ivory", ar: "عاجي" },
+  // { value: "ivory", en: "Ivory", ar: "عاجي" },
 
   { value: "multi", en: "Multi Color", ar: "متعدد الألوان" },
 ];

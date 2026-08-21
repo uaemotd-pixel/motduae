@@ -84,12 +84,12 @@ export default function ContactUsPage() {
               </span>
               <h1 className="[font-family:var(--font-display)] text-4xl sm:text-5xl font-light tracking-tight text-black mb-4">
                 {isAr
-                  ? "يسعدنا دائمًا سماع رأيك"
+                  ? "يسعدنا التواصل معك"
                   : "We'd Love to Hear From You"}
               </h1>
               <p className="[font-family:var(--font-body)] text-[#5A5A56] max-w-xl mx-auto text-sm sm:text-base leading-relaxed">
                 {isAr
-                  ? "لديك استفسار حول تفصيل المخوّرات أو الأقمشة؟ لا تتردد في مراسلتنا وسيرد عليك فريق الدعم في أقرب وقت."
+                  ? "هل لديك استفسار حول التصاميم أو الأقمشة أو المقاسات أو طلبك؟ تواصل معنا وسيسعد فريقنا بمساعدتك."
                   : "Have a question about fabric sourcing, custom measurements, or design tailoring? Contact us and our support team will respond shortly."}
               </p>
             </div>
@@ -98,7 +98,7 @@ export default function ContactUsPage() {
               <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-6 self-start">
                 <div className="bg-white border border-[#E8E8E4] rounded-2xl p-8 space-y-8 shadow-sm">
                   <h3 className="[font-family:var(--font-display)] text-xl font-normal text-black pb-4 border-b border-[#E8E8E4]">
-                    {isAr ? "معلومات الاتصال" : "Contact Information"}
+                    {isAr ? "معلومات التواصل" : "Contact Information"}
                   </h3>
 
                   <div className="flex gap-4 items-start">
@@ -163,7 +163,7 @@ export default function ContactUsPage() {
                         setFormData({ ...formData, name: e.target.value })
                       }
                       placeholder={
-                        isAr ? "أدخل اسمك الكريم..." : "Enter your full name..."
+                        isAr ? "أدخل اسمك الكامل..." : "Enter your full name..."
                       }
                       className="w-full h-11 px-4 bg-[#FFFDF9] border border-[#E8E8E4] rounded-xl focus:outline-none focus:border-black text-sm text-black transition-colors disabled:opacity-50"
                       required
@@ -212,7 +212,7 @@ export default function ContactUsPage() {
                       }
                       placeholder={
                         isAr
-                          ? "عن ماذا تريد الاستفسار؟"
+                          ? "ما موضوع استفسارك؟"
                           : "What is this inquiry about?"
                       }
                       className="w-full h-11 px-4 bg-[#FFFDF9] border border-[#E8E8E4] rounded-xl focus:outline-none focus:border-black text-sm text-black transition-colors disabled:opacity-50"
@@ -238,7 +238,7 @@ export default function ContactUsPage() {
                       }
                       placeholder={
                         isAr
-                          ? "اكتب تفاصيل رسالتك هنا..."
+                          ? "أكتب رسالتك هنا..."
                           : "Type your message here..."
                       }
                       className="w-full p-4 bg-[#FFFDF9] border border-[#E8E8E4] rounded-xl focus:outline-none focus:border-black text-sm text-black transition-colors resize-none disabled:opacity-50"
