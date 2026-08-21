@@ -23,6 +23,7 @@ import {
   fulfillPaidCheckout,
   findExistingOrderByPaymentIntent,
 } from "../services/pendingCheckoutService.js";
+import { buildPublicOrderTrackingUrl } from "../services/publicTrackingToken.js";
 import { resolveCheckoutContactEmail } from "../services/emailVerification/guestContactOtpService.js";
 import { EmailVerificationError } from "../services/emailVerification/emailVerificationService.js";
 
@@ -370,6 +371,9 @@ paymentRoutes.post(
         created: result.created,
         orderType: result.orderType,
         orderId: result.order._id,
+        trackingUrl: buildPublicOrderTrackingUrl(
+          result.order.publicTrackingToken,
+        ),
         order: result.order,
         message: result.created
           ? "Order created from payment"

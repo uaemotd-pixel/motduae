@@ -95,3 +95,38 @@ export async function sendOtpEmail({
 export async function sendEmailOtpEmail(args) {
   return sendOtpEmail(args);
 }
+
+export async function sendOrderPlacedEmail({
+  to,
+  name,
+  userId,
+  orderId,
+  orderType,
+  trackingUrl,
+  shortOrderId,
+  totalAed,
+}) {
+  const event =
+    orderType === "custom"
+      ? EMAIL_EVENTS.ORDER_CUSTOM_PLACED
+      : EMAIL_EVENTS.ORDER_RETAIL_PLACED;
+
+  return send(
+    event,
+    {
+      to,
+      name,
+      trackingUrl,
+      orderType,
+      shortOrderId,
+      totalAed,
+    },
+    {
+      to,
+      userId,
+      orderId,
+      orderType,
+      dedupeKey: buildDedupeKey(event, [orderId]),
+    },
+  );
+}

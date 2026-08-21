@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Script from "next/script";
+import { usePathname } from "next/navigation";
 import {
   getGaMeasurementId,
   readCookieConsent,
@@ -26,6 +27,38 @@ function disableGoogleAnalytics(measurementId: string) {
     }
     document.cookie = `${name}=; Max-Age=0; path=/`;
   }
+}
+
+function redactTrackingPath(pathname: string) {
+  return pathname.replace(/\/orders\/track\/[^/?#]+/, "/orders/track");
+}
+
+function GaPageViews({ measurementId }: { measurementId: string }) {
+  const pathname = usePathname() || "/";
+  const redactedPath = redactTrackingPath(pathname);
+
+  useEffect(() => {
+    const gtag = (
+      window as unknown as { gtag?: (...args: unknown[]) => void }
+    ).gtag;
+    if (typeof gtag !== "function") return;
+    const origin = window.location.origin;
+    gtag("event", "page_view", {
+      page_path: redactedPath,
+      page_location: `${origin}${redactedPath}`,
+      page_title: document.title,
+    });
+  }, [redactedPath]);
+
+  return (
+    <Script id="motd-ga4" strategy="afterInteractive">{`
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        window.gtag = gtag;
+        gtag('js', new Date());
+        gtag('config', '${measurementId}', { anonymize_ip: true, send_page_view: false });
+      `}</Script>
+  );
 }
 
 export default function AnalyticsProvider() {
@@ -60,13 +93,7 @@ export default function AnalyticsProvider() {
         src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`}
         strategy="afterInteractive"
       />
-      <Script id="motd-ga4" strategy="afterInteractive">{`
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        window.gtag = gtag;
-        gtag('js', new Date());
-        gtag('config', '${measurementId}', { anonymize_ip: true });
-      `}</Script>
+      <GaPageViews measurementId={measurementId!} />
     </>
   );
 }

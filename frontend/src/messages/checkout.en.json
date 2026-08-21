@@ -44,6 +44,9 @@
     "successMessage": "Your order has been placed successfully.",
     "orderIdLabel": "Order ID",
     "itemsInOrder": "Items in this order:",
-    "okButton": "OK"
+    "okButton": "OK",
+    "trackCta": "Track your order",
+    "copyLink": "Copy link",
+    "copied": "Copied"
   }
 }

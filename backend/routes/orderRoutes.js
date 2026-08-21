@@ -33,7 +33,6 @@ import {
   PricingValidationError,
 } from "../services/pricingService.js";
 import PlatformSettings from "../models/PlatformSettings.js";
-import { isBillableShipmentType } from "../models/schemas/shipmentSchemas.js";
 import { prepareRetailOrder } from "../services/retailOrderService.js";
 import { isStripeConfigured } from "../services/stripeService.js";
 import {
@@ -49,6 +48,11 @@ import {
   isValidEmirate,
   UAE_EMIRATES,
 } from "../utils/uaeAddress.js";
+import {
+  formatCustomOrderListItem,
+  formatRetailOrderListItem,
+} from "../services/orderCustomerFormat.js";
+import { buildPublicOrderTrackingUrl } from "../services/publicTrackingToken.js";
 
 const orderRoutes = express.Router();
 
@@ -268,65 +272,6 @@ function buildDesignSnapshot(design) {
     tailoringFee: design.tailoringFee,
     estimatedMeters: design.estimatedMeters,
   };
-}
-
-function formatTailorShopSummary(tailorShop) {
-  if (!tailorShop) return null;
-
-  const id = tailorShop._id ?? tailorShop;
-  if (!id) return null;
-
-  return {
-    _id: String(id),
-    name: tailorShop.name || "",
-    nameAr: tailorShop.nameAr || "",
-    slug: tailorShop.slug || "",
-  };
-}
-
-function formatDesignSummary(snapshot, designIdDoc) {
-  if (!snapshot) return null;
-
-  return {
-    name: snapshot.name,
-    nameAr: snapshot.nameAr || "",
-    slug: snapshot.slug || "",
-    category: snapshot.category || "",
-    images: (designIdDoc && designIdDoc.images) || [],
-  };
-}
-
-function formatFabricSummary(snapshot, fabricIdDoc) {
-  if (!snapshot) return null;
-
-  return {
-    name: snapshot.name,
-    nameAr: snapshot.nameAr || "",
-    material: snapshot.material || "",
-    images: (fabricIdDoc && fabricIdDoc.images) || [],
-  };
-}
-
-function formatCustomOrderLineItems(order) {
-  if (Array.isArray(order.items) && order.items.length > 0) {
-    return order.items.map((item) => ({
-      design: formatDesignSummary(item.designSnapshot, item.designId),
-      fabric: formatFabricSummary(item.fabricSnapshot, item.fabricId),
-      fabricMeters: item.fabricMeters,
-      tailorShop: formatTailorShopSummary(item.tailorShopId),
-    }));
-  }
-
-  if (!order.designSnapshot) return [];
-
-  return [
-    {
-      design: formatDesignSummary(order.designSnapshot, order.designId),
-      fabric: formatFabricSummary(order.fabricSnapshot, order.fabricId),
-      fabricMeters: order.fabricMeters,
-      tailorShop: formatTailorShopSummary(order.tailorShopId),
-    },
-  ];
 }
 
 async function deductFabricStock(fabricId, meters) {
@@ -603,6 +548,7 @@ orderRoutes.post("/custom", isAuth, requireEmailVerified, async (req, res) => {
         ? "Custom order created successfully"
         : "Order already exists for this payment",
       orderId: order._id,
+      trackingUrl: buildPublicOrderTrackingUrl(order.publicTrackingToken),
       order,
     });
   } catch (error) {
@@ -645,28 +591,10 @@ orderRoutes.get("/custom/mine", isAuth, async (req, res) => {
         "_id createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters pricing tailorShopId userId items addons",
       );
 
-    const formatted = orders.map((order) => {
-      const items = formatCustomOrderLineItems(order);
-      const primaryItem = items[0] ?? null;
-
-      return {
-        id: order._id,
-        date: order.createdAt,
-        status: order.status,
-        fabricSource: order.fabricSource,
-        total: order.pricing?.total,
-        currency: order.pricing?.currency,
-        userId: order.userId,
-        itemCount: items.length,
-        items,
-        design: primaryItem?.design ?? null,
-        tailorShop:
-          primaryItem?.tailorShop ??
-          formatTailorShopSummary(order.tailorShopId),
-        addons: order.addons || [],
-        pricing: order.pricing || null,
-      };
-    });
+    const formatted = orders.map((order) => ({
+      ...formatCustomOrderListItem(order),
+      userId: order.userId,
+    }));
 
     res.json({
       success: true,
@@ -814,6 +742,7 @@ orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
         ? "Order created successfully"
         : "Order already exists for this payment",
       orderId: order._id,
+      trackingUrl: buildPublicOrderTrackingUrl(order.publicTrackingToken),
       order,
     });
   } catch (error) {
@@ -834,34 +763,6 @@ orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
   }
 });
 
-function formatCustomerShipments(shipments = []) {
-  return shipments
-    .filter((shipment) => {
-      const billable =
-        typeof shipment.billable === "boolean"
-          ? shipment.billable
-          : isBillableShipmentType(shipment.type);
-      return billable;
-    })
-    .map((shipment) => ({
-      parcelKey: shipment.parcelKey,
-      type: shipment.type,
-      label: shipment.label,
-      status: shipment.status,
-      awb: shipment.awb,
-      trackingUrl: shipment.trackingUrl,
-      billable: true,
-    }));
-}
-
-function formatStatusHistory(statusHistory = []) {
-  return statusHistory.map((entry) => ({
-    status: entry.status,
-    note: entry.note,
-    changedAt: entry.changedAt,
-  }));
-}
-
 // This route is for getting only my orders means the logged-in user orders
 orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
   try {
@@ -880,72 +781,7 @@ orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
         "_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments",
       );
 
-    const formatted = orders.map((order) => ({
-      id: order._id,
-      date: order.createdAt,
-      status: order.status,
-      totalPrice: order.totalPrice,
-      currency: order.currency,
-      itemsPrice: order.itemsPrice,
-      shippingPrice: order.shippingPrice,
-      vatAmount: order.vatAmount,
-      vatRate: order.vatRate,
-      items:
-        order.orderItems?.map((item) => {
-          const product = item.productId || {};
-          const fabric = product.fabricId || {};
-          const design = product.designId || {};
-
-          let fabricName = fabric.name || product.fabricType || "";
-          let fabricNameAr = fabric.nameAr || product.fabricTypeAr || "";
-          let fabricImage = fabric.images?.[0] || "";
-          let fabricSlug = fabric.slug || "";
-
-          let designName = design.name || product.name || "";
-          let designNameAr = design.nameAr || product.nameAr || "";
-          let designImage = design.images?.[0] || product.thumbnailImage || "";
-          let designSlug = design.slug || "";
-
-          if (item.size === "Per Meter") {
-            fabricName = item.name;
-            fabricNameAr = item.nameAr || "";
-            fabricImage = item.image || "";
-            fabricSlug = item.slug || "";
-            designName = "";
-            designNameAr = "";
-            designImage = "";
-            designSlug = "";
-          } else if (item.size === "N/A") {
-            fabricName = "";
-            fabricNameAr = "";
-            fabricImage = "";
-            fabricSlug = "";
-            designName = "";
-            designNameAr = "";
-            designImage = "";
-            designSlug = "";
-          }
-
-          return {
-            name: item.name,
-            nameAr: item.nameAr,
-            image: item.image,
-            size: item.size,
-            price: item.price,
-            quantity: item.quantity,
-            fabricName,
-            fabricNameAr,
-            fabricImage,
-            fabricSlug,
-            designName,
-            designNameAr,
-            designImage,
-            designSlug,
-          };
-        }) || [],
-      statusHistory: formatStatusHistory(order.statusHistory),
-      shipments: formatCustomerShipments(order.shipments),
-    }));
+    const formatted = orders.map((order) => formatRetailOrderListItem(order));
 
     res.json({ success: true, orders: formatted });
   } catch (error) {

@@ -19,6 +19,7 @@ type OrderProgressPanelProps = {
   visibility?: "customer" | "internal";
   hasReturnItems?: boolean;
   compact?: boolean;
+  emptyShipmentsMessage?: string;
 };
 
 export default function OrderProgressPanel({
@@ -30,6 +31,7 @@ export default function OrderProgressPanel({
   visibility = "customer",
   hasReturnItems = false,
   compact = false,
+  emptyShipmentsMessage,
 }: OrderProgressPanelProps) {
   return (
     <div
@@ -58,6 +60,7 @@ export default function OrderProgressPanel({
         locale={locale}
         visibility={visibility}
         compact={compact}
+        emptyMessage={emptyShipmentsMessage}
       />
     </div>
   );

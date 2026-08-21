@@ -77,3 +77,17 @@ export const newsletterLimiter = rateLimit({
   message: "Too many subscription attempts. Please try again in 15 minutes",
   handler: defaultHandler("Too many subscription attempts. Please try again in 15 minutes"),
 });
+
+export const publicOrderTrackLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `track_${req.ip}`,
+  validate: false,
+  statusCode: 429,
+  message: "Too many tracking requests. Please try again in 15 minutes",
+  handler: defaultHandler(
+    "Too many tracking requests. Please try again in 15 minutes",
+  ),
+});

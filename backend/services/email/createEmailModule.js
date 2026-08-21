@@ -15,6 +15,8 @@ function safePayloadSnapshot(payload = {}) {
     password,
     otp,
     code,
+    trackingUrl,
+    publicTrackingToken,
     ...rest
   } = payload;
   return rest;
