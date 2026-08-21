@@ -172,11 +172,10 @@ export default function CustomerReviewsView() {
                     className="p-0.5 sm:p-1 hover:scale-110 transition-transform cursor-pointer"
                   >
                     <Star
-                      className={`w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 transition-colors ${
-                        isSelected
-                          ? "fill-black stroke-black text-black"
-                          : "fill-none stroke-gray-300 text-gray-300"
-                      }`}
+                      className={`w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 transition-colors ${isSelected
+                        ? "fill-black stroke-black text-black"
+                        : "fill-none stroke-gray-300 text-gray-300"
+                        }`}
                     />
                   </button>
                 );
@@ -201,12 +200,12 @@ export default function CustomerReviewsView() {
 
             <div className="space-y-1.5 sm:space-y-2">
               <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
-                التقييم (العربية) - اختياري
+                التقييم (بالإنجليزية)
               </label>
               <textarea
                 value={quoteAr}
                 onChange={(e) => setQuoteAr(e.target.value)}
-                placeholder="كانت الأقمشة والتفصيل استثنائية..."
+                placeholder="كان القماش والخوّار استثنائيين..."
                 className={TEXTAREA_CLASS}
                 dir="rtl"
               />
@@ -230,7 +229,7 @@ export default function CustomerReviewsView() {
 
             <div className="space-y-1.5 sm:space-y-2">
               <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
-                المهنة والمدينة (العربية)
+                الالمهنة / الموقع
               </label>
               <input
                 type="text"
@@ -276,11 +275,10 @@ export default function CustomerReviewsView() {
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Star
                       key={i}
-                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${
-                        i < rev.rating
-                          ? "fill-black stroke-black text-black"
-                          : "fill-none stroke-gray-300 text-gray-300"
-                      }`}
+                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${i < rev.rating
+                        ? "fill-black stroke-black text-black"
+                        : "fill-none stroke-gray-300 text-gray-300"
+                        }`}
                     />
                   ))}
                   <span className="text-[10px] sm:text-xs text-gray-400 ml-1 sm:ml-2 font-['TT_Norms_Pro']">
