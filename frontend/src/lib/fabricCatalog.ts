@@ -254,7 +254,7 @@ export function getFabricAgeFieldErrors(
     form.minAge > form.maxAge
   ) {
     errors.minAge = "Min age cannot exceed max age";
-    errors.maxAge = "Max age must be greater than min age";
+    errors.maxAge = "Max age cannot be smaller than min age";
   }
 
   return errors;
@@ -266,11 +266,13 @@ export function mapFabricApiErrorToFieldErrors(
   const trimmedMessage = message.trim();
 
   if (
-    trimmedMessage === "Max age must be greater than or equal to min age"
+    trimmedMessage === "Max age must be greater than or equal to min age" ||
+    trimmedMessage === "Max age cannot be smaller than min age" ||
+    trimmedMessage === "Min age cannot exceed max age"
   ) {
     return {
-      minAge: trimmedMessage,
-      maxAge: trimmedMessage,
+      minAge: "Min age cannot exceed max age",
+      maxAge: "Max age cannot be smaller than min age",
     };
   }
 

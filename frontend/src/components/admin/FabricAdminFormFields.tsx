@@ -518,7 +518,11 @@ export default function FabricAdminFormFields({
           />
         </FormField>
 
-        <FormField label="Min Age (years)" name="minAge">
+        <FormField
+          label="Min Age (years)"
+          name="minAge"
+          error={fieldErrors.minAge}
+        >
           <input
             type="number"
             min="0"
@@ -535,7 +539,11 @@ export default function FabricAdminFormFields({
           />
         </FormField>
 
-        <FormField label="Max Age (years)" name="maxAge">
+        <FormField
+          label="Max Age (years)"
+          name="maxAge"
+          error={fieldErrors.maxAge}
+        >
           <input
             type="number"
             min="0"

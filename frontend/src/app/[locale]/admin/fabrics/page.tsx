@@ -88,7 +88,7 @@ export default function AdminFabricsPage() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
 
@@ -98,12 +98,10 @@ export default function AdminFabricsPage() {
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
 
-  // Filter Badges
+  // Filter tabs (All / Available / Sold) — same pattern as ready-made admin
   const [statusFilter, setStatusFilter] = useState<
     "all" | "available" | "sold"
   >("all");
-  const availableCount = items.filter((i) => i.isActive).length;
-  const soldCount = items.filter((i) => !i.isActive).length;
 
   // pop up image function
   const handleImageClick = (imageUrl: string) => {
@@ -176,13 +174,13 @@ export default function AdminFabricsPage() {
         setItems(res.items || []);
         setTotalItems(res.total || 0);
         setCurrentPage(res.page || 1);
-        setTotalPages(res.totalPages || 1);
+        setTotalPages(res.totalPages || 0);
         setError(null);
       } catch (err: unknown) {
         setError(getApiErrorMessage(err, t.adminFabrics.list.load_error_title));
         setItems([]);
         setTotalItems(0);
-        setTotalPages(1);
+        setTotalPages(0);
       } finally {
         setLoading(false);
       }
@@ -470,7 +468,7 @@ export default function AdminFabricsPage() {
       </div>
 
       {/* Tabs & Search */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
           <button
             onClick={() => {
@@ -484,7 +482,7 @@ export default function AdminFabricsPage() {
                 : "text-gray-500 hover:text-black"
             }`}
           >
-            All ({totalItems})
+            All
           </button>
           <button
             onClick={() => {
@@ -498,7 +496,7 @@ export default function AdminFabricsPage() {
                 : "text-gray-500 hover:text-black"
             }`}
           >
-            Available ({availableCount})
+            Available
           </button>
           <button
             onClick={() => {
@@ -512,19 +510,19 @@ export default function AdminFabricsPage() {
                 : "text-gray-500 hover:text-black"
             }`}
           >
-            Sold ({soldCount})
+            Sold
           </button>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-          <div className="relative flex-1 max-w-full sm:max-w-md">
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
             <input
               type="text"
               placeholder={t.adminFabrics.list.search_placeholder}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
+              className="w-full sm:w-64 pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
             />
           </div>
           <button
@@ -532,9 +530,7 @@ export default function AdminFabricsPage() {
             className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white shrink-0 hover:cursor-pointer"
           >
             <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="hidden xs:inline">
-              {t.adminFabrics.list.refresh}
-            </span>
+            <span>{t.adminFabrics.list.refresh}</span>
           </button>
         </div>
       </div>
@@ -547,7 +543,7 @@ export default function AdminFabricsPage() {
               ? t.adminFabrics.list.empty_search
               : t.adminFabrics.list.empty}
           </p>
-          {!searchTerm && (
+          {!searchTerm && statusFilter === "all" && (
             <Link
               href="/admin/fabrics/new"
               className="inline-block mt-4 text-black underline underline-offset-4 hover:text-gray-600 text-sm"

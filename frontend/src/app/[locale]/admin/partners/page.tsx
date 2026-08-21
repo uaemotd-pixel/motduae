@@ -344,7 +344,7 @@ export default function AdminPartnersPage() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
 
@@ -448,7 +448,7 @@ export default function AdminPartnersPage() {
         setRows(res.items || []);
         setTotalItems(res.total || 0);
         setCurrentPage(res.page || 1);
-        setTotalPages(res.totalPages || 1);
+        setTotalPages(res.totalPages || 0);
 
         const statsRes = await api.get<{
           total: number;
@@ -468,7 +468,7 @@ export default function AdminPartnersPage() {
         toast.error("Failed to load data");
         setRows([]);
         setTotalItems(0);
-        setTotalPages(1);
+        setTotalPages(0);
       } finally {
         if (showLoading) {
           setLoading(false);
@@ -1032,16 +1032,18 @@ export default function AdminPartnersPage() {
       )}
 
       {/* Pagination */}
-      <GlobalPagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={handlePageChange}
-        showItemsPerPage={true}
-        itemsPerPage={limit}
-        onItemsPerPageChange={handleLimitChange}
-        itemsPerPageOptions={[5, 10, 20, 50, 100]}
-        totalItems={totalItems}
-      />
+      {totalPages > 0 && totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
+      )}
 
       <ImageModal
         isOpen={imageModalOpen}

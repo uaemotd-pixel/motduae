@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
 import {
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 
 interface Season {
@@ -28,7 +29,13 @@ interface Season {
   updatedAt?: string;
 }
 
-// Helper: convert to lowercase slug format
+interface ApiResponse {
+  items: Season[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
 const toSlug = (str: string): string => {
   return str
     .toLowerCase()
@@ -37,7 +44,6 @@ const toSlug = (str: string): string => {
     .replace(/[^a-z0-9-]/g, "");
 };
 
-// Helper: lowercase with spaces preserved for display
 const toLowerPreserveSpaces = (str: string): string => {
   return str.toLowerCase().trim();
 };
@@ -54,37 +60,90 @@ export default function AdminSettingsSeasonsPage() {
   const [seasonToDelete, setSeasonToDelete] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
+
   const [formName, setFormName] = useState("");
   const [formNameAr, setFormNameAr] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formDescriptionAr, setFormDescriptionAr] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
 
-  const fetchSeasons = async () => {
-    try {
-      setLoading(true);
-      const data = await api.get<Season[]>("/api/admin/seasons");
-      setSeasons(Array.isArray(data) ? data : []);
-    } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to load seasons"));
-      setSeasons([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoad = useRef(true);
+
+  const fetchSeasons = useCallback(
+    async (page = 1, limitOverride?: number, searchOverride?: string) => {
+      try {
+        setLoading(true);
+        const l = limitOverride ?? limit;
+        const search = searchOverride ?? searchQuery;
+        const searchParam = search.trim()
+          ? `&search=${encodeURIComponent(search.trim())}`
+          : "";
+
+        const data = await api.get<ApiResponse>(
+          `/api/admin/seasons?page=${page}&limit=${l}${searchParam}`,
+        );
+
+        setSeasons(data.items || []);
+        setTotalItems(data.total || 0);
+        setCurrentPage(data.page || 1);
+        setTotalPages(data.totalPages || 0);
+
+        if (data.page > data.totalPages && data.totalPages > 0) {
+          await fetchSeasons(data.totalPages, l, search);
+        }
+      } catch (err: unknown) {
+        toast.error(getApiErrorMessage(err, "Failed to load seasons"));
+        setSeasons([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [limit, searchQuery],
+  );
 
   useEffect(() => {
-    fetchSeasons();
+    void fetchSeasons(1).finally(() => {
+      isInitialLoad.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredSeasons = seasons.filter((s) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      s.name?.toLowerCase().includes(q) ||
-      s.description?.toLowerCase().includes(q)
-    );
-  });
+  useEffect(() => {
+    if (isInitialLoad.current) return;
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      void fetchSeasons(1);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    void fetchSeasons(page);
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    setCurrentPage(1);
+    void fetchSeasons(1, newLimit);
+  };
 
   const openAddModal = () => {
     setEditingSeason(null);
@@ -96,13 +155,13 @@ export default function AdminSettingsSeasonsPage() {
     setShowModal(true);
   };
 
-  const openEditModal = (season: Season) => {
-    setEditingSeason(season);
-    setFormName(season.name);
-    setFormNameAr(season.nameAr || "");
-    setFormDescription(season.description || "");
-    setFormDescriptionAr(season.descriptionAr || "");
-    setFormIsActive(season.isActive);
+  const openEditModal = (item: Season) => {
+    setEditingSeason(item);
+    setFormName(item.name);
+    setFormNameAr(item.nameAr || "");
+    setFormDescription(item.description || "");
+    setFormDescriptionAr(item.descriptionAr || "");
+    setFormIsActive(item.isActive);
     setShowModal(true);
   };
 
@@ -126,7 +185,7 @@ export default function AdminSettingsSeasonsPage() {
         toast.success("Season created");
       }
       setShowModal(false);
-      fetchSeasons();
+      void fetchSeasons(editingSeason ? currentPage : 1);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to save season"));
     } finally {
@@ -146,7 +205,7 @@ export default function AdminSettingsSeasonsPage() {
     try {
       await api.delete(`/api/admin/seasons/${seasonToDelete}`);
       toast.success("Season deleted");
-      fetchSeasons();
+      void fetchSeasons(currentPage);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to delete season"));
     } finally {
@@ -160,23 +219,25 @@ export default function AdminSettingsSeasonsPage() {
     setSeasonToDelete(null);
   };
 
-  const toggleActive = async (season: Season) => {
-    const newIsActive = !season.isActive;
+  const toggleActive = async (item: Season) => {
+    const newIsActive = !item.isActive;
     setSeasons((prev) =>
-      prev.map((s) =>
-        s._id === season._id ? { ...s, isActive: newIsActive } : s,
+      prev.map((x) =>
+        x._id === item._id ? { ...x, isActive: newIsActive } : x,
       ),
     );
-    setTogglingId(season._id);
+    setTogglingId(item._id);
     try {
-      await api.put(`/api/admin/seasons/${season._id}`, {
+      await api.put(`/api/admin/seasons/${item._id}`, {
         isActive: newIsActive,
       });
-      toast.success(`Season ${newIsActive ? "activated" : "deactivated"}`);
+      toast.success(
+        `Season ${newIsActive ? "activated" : "deactivated"}`,
+      );
     } catch (err: unknown) {
       setSeasons((prev) =>
-        prev.map((s) =>
-          s._id === season._id ? { ...s, isActive: !newIsActive } : s,
+        prev.map((x) =>
+          x._id === item._id ? { ...x, isActive: !newIsActive } : x,
         ),
       );
       toast.error(getApiErrorMessage(err, "Failed to update season"));
@@ -200,7 +261,6 @@ export default function AdminSettingsSeasonsPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -211,9 +271,7 @@ export default function AdminSettingsSeasonsPage() {
               <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">
                 Seasons
               </h1>
-              <p className="text-gray-500 text-sm">
-                Manage seasonal collections across your platform
-              </p>
+              <p className="text-gray-500 text-sm">Manage seasonal collections across your platform</p>
             </div>
           </div>
         </div>
@@ -229,7 +287,6 @@ export default function AdminSettingsSeasonsPage() {
         </motion.button>
       </div>
 
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
@@ -250,19 +307,15 @@ export default function AdminSettingsSeasonsPage() {
         )}
       </div>
 
-      {/* Count badge */}
-      {!loading && seasons.length > 0 && (
+      {!loading && totalItems > 0 && (
         <div className="text-xs text-gray-400 font-medium tracking-wide uppercase">
-          {filteredSeasons.length === seasons.length
-            ? `${seasons.length} season${seasons.length === 1 ? "" : "s"} total`
-            : `${filteredSeasons.length} of ${seasons.length} season${seasons.length === 1 ? "" : "s"}`}
+          {searchQuery.trim() ? `${totalItems} matching season${totalItems === 1 ? '' : 's'}` : `${totalItems} season${totalItems === 1 ? '' : 's'} total`}
         </div>
       )}
 
-      {/* Loading */}
       {loading ? (
         <TableSkeleton rows={6} cols={3} className="rounded-2xl" />
-      ) : filteredSeasons.length === 0 ? (
+      ) : seasons.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center py-20">
           <div className="w-20 h-20 bg-linear-to-br from-gray-50 to-gray-100 rounded-3xl flex items-center justify-center mb-6 shadow-inner">
             <Sun className="w-8 h-8 text-gray-400" />
@@ -291,9 +344,9 @@ export default function AdminSettingsSeasonsPage() {
       ) : (
         <div className="grid gap-3">
           <AnimatePresence mode="popLayout">
-            {filteredSeasons.map((season, index) => (
+            {seasons.map((item, index) => (
               <motion.div
-                key={season._id}
+                key={item._id}
                 layout
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -305,48 +358,48 @@ export default function AdminSettingsSeasonsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3 flex-wrap">
                       <h3 className="text-base font-semibold text-gray-900 group-hover:text-gray-700 transition-colors">
-                        {season.name}
+                        {item.name}
                       </h3>
-                      {season.nameAr && (
+                      {item.nameAr && (
                         <span
                           dir="rtl"
                           className="text-sm text-gray-400 font-normal"
                         >
-                          {season.nameAr}
+                          {item.nameAr}
                         </span>
                       )}
                       <motion.button
                         type="button"
-                        onClick={() => toggleActive(season)}
-                        disabled={togglingId === season._id}
+                        onClick={() => toggleActive(item)}
+                        disabled={togglingId === item._id}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        title={`Click to ${season.isActive ? "deactivate" : "activate"}`}
+                        title={`Click to ${item.isActive ? "deactivate" : "activate"}`}
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-all ${
-                          season.isActive
+                          item.isActive
                             ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 hover:bg-red-50 hover:text-red-600 hover:ring-red-300"
                             : "bg-gray-50 text-gray-400 ring-1 ring-gray-300/20 hover:bg-gray-100 hover:text-gray-500"
                         }`}
                       >
-                        {togglingId === season._id ? (
+                        {togglingId === item._id ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : season.isActive ? (
+                        ) : item.isActive ? (
                           <Check className="w-3 h-3" />
                         ) : (
                           <X className="w-3 h-3" />
                         )}
-                        {season.isActive ? "Active" : "Inactive"}
+                        {item.isActive ? "Active" : "Inactive"}
                       </motion.button>
                     </div>
-                    {season.description && (
+                    {item.description && (
                       <p className="text-sm text-gray-500 mt-1.5 line-clamp-2 leading-relaxed">
-                        {season.description}
+                        {item.description}
                       </p>
                     )}
                     <div className="flex items-center gap-3 mt-2">
-                      {season.createdAt && (
+                      {item.createdAt && (
                         <span className="text-xs text-gray-400">
-                          Created {formatDate(season.createdAt)}
+                          Created {formatDate(item.createdAt)}
                         </span>
                       )}
                     </div>
@@ -354,7 +407,7 @@ export default function AdminSettingsSeasonsPage() {
                   <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <motion.button
                       type="button"
-                      onClick={() => openEditModal(season)}
+                      onClick={() => openEditModal(item)}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       className="p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition-all hover:cursor-pointer"
@@ -364,14 +417,14 @@ export default function AdminSettingsSeasonsPage() {
                     </motion.button>
                     <motion.button
                       type="button"
-                      disabled={deletingId === season._id}
-                      onClick={() => promptDelete(season._id)}
+                      disabled={deletingId === item._id}
+                      onClick={() => promptDelete(item._id)}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       className="p-2 rounded-xl border border-gray-200 hover:bg-red-50 text-gray-400 hover:text-red-600 transition-all hover:cursor-pointer disabled:opacity-50"
                       aria-label="Delete season"
                     >
-                      {deletingId === season._id ? (
+                      {deletingId === item._id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <Trash2 className="w-4 h-4" />
@@ -385,7 +438,19 @@ export default function AdminSettingsSeasonsPage() {
         </div>
       )}
 
-      {/* Create / Edit Modal */}
+      {totalPages > 0 && totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
+      )}
+
       <AnimatePresence>
         {showModal && (
           <motion.div
@@ -433,7 +498,7 @@ export default function AdminSettingsSeasonsPage() {
                         required
                         value={formName}
                         onChange={(e) => setFormName(e.target.value)}
-                        placeholder="e.g. spring-collection (will become lowercase slug)"
+                        placeholder="e.g. spring-summer (will become lowercase slug)"
                         className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow"
                       />
                       <p className="text-xs text-gray-400 mt-1">
@@ -450,7 +515,7 @@ export default function AdminSettingsSeasonsPage() {
                         value={formNameAr}
                         onChange={(e) => setFormNameAr(e.target.value)}
                         dir="rtl"
-                        placeholder="مثال: مجموعة الربيع"
+                        placeholder="مثال: ربيع صيف"
                         className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow"
                       />
                       <p className="text-xs text-gray-400 mt-1 text-right">

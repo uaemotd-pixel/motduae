@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
 import {
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 
 interface Category {
@@ -26,6 +27,13 @@ interface Category {
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
+}
+
+interface CategoriesApiResponse {
+  items: Category[];
+  total: number;
+  page: number;
+  totalPages: number;
 }
 
 // Helper: convert to lowercase slug format
@@ -54,37 +62,95 @@ export default function AdminSettingsCategoriesPage() {
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
+
   const [formName, setFormName] = useState("");
   const [formNameAr, setFormNameAr] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formDescriptionAr, setFormDescriptionAr] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
 
-  const fetchCategories = async () => {
-    try {
-      setLoading(true);
-      const data = await api.get<Category[]>("/api/admin/categories");
-      setCategories(Array.isArray(data) ? data : []);
-    } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to load categories"));
-      setCategories([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoad = useRef(true);
+
+  const fetchCategories = useCallback(
+    async (
+      page = 1,
+      limitOverride?: number,
+      searchOverride?: string,
+    ) => {
+      try {
+        setLoading(true);
+        const l = limitOverride ?? limit;
+        const search = searchOverride ?? searchQuery;
+        const searchParam = search.trim()
+          ? `&search=${encodeURIComponent(search.trim())}`
+          : "";
+
+        const data = await api.get<CategoriesApiResponse>(
+          `/api/admin/categories?page=${page}&limit=${l}${searchParam}`,
+        );
+
+        setCategories(data.items || []);
+        setTotalItems(data.total || 0);
+        setCurrentPage(data.page || 1);
+        setTotalPages(data.totalPages || 0);
+
+        if (data.page > data.totalPages && data.totalPages > 0) {
+          await fetchCategories(data.totalPages, l, search);
+        }
+      } catch (err: unknown) {
+        toast.error(getApiErrorMessage(err, "Failed to load categories"));
+        setCategories([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [limit, searchQuery],
+  );
 
   useEffect(() => {
-    fetchCategories();
+    void fetchCategories(1).finally(() => {
+      isInitialLoad.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredCategories = categories.filter((c) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      c.name?.toLowerCase().includes(q) ||
-      c.description?.toLowerCase().includes(q)
-    );
-  });
+  useEffect(() => {
+    if (isInitialLoad.current) return;
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      void fetchCategories(1);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+    // Intentionally only react to searchQuery — page/limit changes call fetch directly
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    void fetchCategories(page);
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    setCurrentPage(1);
+    void fetchCategories(1, newLimit);
+  };
 
   const openAddModal = () => {
     setEditingCategory(null);
@@ -128,7 +194,7 @@ export default function AdminSettingsCategoriesPage() {
         toast.success("Category created");
       }
       setShowModal(false);
-      fetchCategories();
+      void fetchCategories(editingCategory ? currentPage : 1);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to save category"));
     } finally {
@@ -148,7 +214,7 @@ export default function AdminSettingsCategoriesPage() {
     try {
       await api.delete(`/api/admin/categories/${categoryToDelete}`);
       toast.success("Category deleted");
-      fetchCategories();
+      void fetchCategories(currentPage);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to delete category"));
     } finally {
@@ -253,18 +319,18 @@ export default function AdminSettingsCategoriesPage() {
       </div>
 
       {/* Count badge */}
-      {!loading && categories.length > 0 && (
+      {!loading && totalItems > 0 && (
         <div className="text-xs text-gray-400 font-medium tracking-wide uppercase">
-          {filteredCategories.length === categories.length
-            ? `${categories.length} categor${categories.length === 1 ? "y" : "ies"} total`
-            : `${filteredCategories.length} of ${categories.length} categor${categories.length === 1 ? "y" : "ies"}`}
+          {searchQuery.trim()
+            ? `${totalItems} matching categor${totalItems === 1 ? "y" : "ies"}`
+            : `${totalItems} categor${totalItems === 1 ? "y" : "ies"} total`}
         </div>
       )}
 
       {/* Loading */}
       {loading ? (
         <TableSkeleton rows={6} cols={3} className="rounded-2xl" />
-      ) : filteredCategories.length === 0 ? (
+      ) : categories.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center py-20">
           <div className="w-20 h-20 bg-linear-to-br from-gray-50 to-gray-100 rounded-3xl flex items-center justify-center mb-6 shadow-inner">
             <FolderTree className="w-8 h-8 text-gray-400" />
@@ -293,7 +359,7 @@ export default function AdminSettingsCategoriesPage() {
       ) : (
         <div className="grid gap-3">
           <AnimatePresence mode="popLayout">
-            {filteredCategories.map((cat, index) => (
+            {categories.map((cat, index) => (
               <motion.div
                 key={cat._id}
                 layout
@@ -385,6 +451,20 @@ export default function AdminSettingsCategoriesPage() {
             ))}
           </AnimatePresence>
         </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 0 && totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
       )}
 
       {/* Create / Edit Modal */}
