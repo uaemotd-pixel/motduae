@@ -15,7 +15,7 @@
       "designs": "التصاميم",
       "fabrics": "الأقمشة",
       "brands": "العلامات التجارية",
-      "joinOurCommunity": "انضم إلى مجتمعنا",
+      "joinOurCommunity": "انضم إلينا",
       "motdGuide": "دليل MOTD",
       "contactUs": "اتصل بنا"
     },
@@ -33,9 +33,9 @@
     "ariaLabel": "القسم الرئيسي",
     "imageAlt": "قماش مطرّز من خياط إماراتي",
     "eyebrow": "مخوّر اليوم",
-    "headlineLine1": "جذور في التقاليد",
-    "headlineLine2": "تُرتدى اليوم",
-    "body": "نختار بعناية أقمشة مطرّزة استثنائية من خياطين موثوقين في أنحاء الإمارات — لنحوّل رحلة تستغرق شهوراً إلى تجربة سلسة ومدروسة.",
+    "headlineLine1": "متجذر في التراث،",
+    "headlineLine2": "عصري الهيئة",
+    "body": "نختار قطع مخوّرة استثنائية بعناية من مصممين موثوقين حول الإمارات لنحوّل رحلة تستغرق شهوراً إلى تجربة سلسة ومدروسة.",
     "ctaShopNow": "تسوق الآن",
     "ctaMeetTailors": "تعرّف على الخياطين"
   },
@@ -43,11 +43,11 @@
     "ariaLabel": "تصاميم المخاوير الرائجة",
     "eyebrow": "الأكثر شعبية",
     "title": "تصاميم رائجة",
-    "exploreLink": "تصفح جميع التصاميم الـ 500+ →"
+    "exploreLink": "تصفح جميع التصاميم المتوفرة"
   },
   "ReadyToWear": {
     "ariaLabel": "جاهز للارتداء — مواد الأقمشة",
-    "eyebrow": "المواد المنسقة",
+    "eyebrow": "خامات مختارة بعناية",
     "title": "جاهز للارتداء",
     "exploreLink": "تصفح الكل ←",
     "shopNow": "تسوق الآن",
@@ -70,7 +70,7 @@
     "browseAll": "تصفح جميع الأقمشة",
     "goBack": "رجوع",
     "fabrics": "الأقمشة",
-    "material": "المادة",
+    "material": "نوع القماش",
     "color": "اللون",
     "city": "المدينة",
     "perMeter": "السعر لكل متر",
@@ -158,22 +158,22 @@
   },
   "TailorsSection": {
     "ariaLabel": "تعرف على الخياطين",
-    "eyebrow": "حرفيو الإمارات الماهرون",
+    "eyebrow": "نخبة حرفيي الإمارات",
     "title": "تعرف على الخياطين",
-    "description": "اكتشف أشهر خياطي الإمارات الذين يحافظون على التراث العريق من خلال حرفية استثنائية",
-    "viewAll": "عرض جميع خياطي الإمارات",
+    "description": "استكشفي نخبة من خياطي الاإمارات الذين يجسّدون المهارة و الإبداع من خلال حرفية استثنائية",
+    "viewAll": "عرض نخبة خياطي الإمارات",
     "bookConsultation": "اطّلع على تصاميم الخياط",
     "explore": "استكشف الأتيليه",
-    "ateliers": "أتيليهات",
+    "ateliers": "دور الخياطة",
     "reviews": "مراجعة",
     "loading": "جاري تحميل الخياطين...",
     "empty": "لا توجد متاجر خياطة متاحة",
     "error": "تعذر تحميل الخياطين"
   },
   "TailorsListing": {
-    "eyebrow": "حرفيو الإمارات الماهرون",
-    "title": "خياطو الإمارات الماهرون",
-    "description": "تصفح متاجر الخياطة المعتمدة في الإمارات. يقدم كل أتيليه تصاميم مفصّلة يمكنك طلبها عبر مسار الخياطة المخصصة.",
+    "eyebrow": "نخبة حرفيي الإمارات",
+    "title": "نخبة خياطي الإمارات",
+    "description": "تصفّحي نخبة من دور الخياطة المعتمدة في الإمارات واكتشفي تصاميمهم التي يمكنكِ تفصيلها وطلبها عبر MOTD.",
     "showing": "عرض {count} متجر خياطة",
     "viewShop": "عرض المتجر",
     "reviews": "مراجعة",
@@ -228,7 +228,7 @@
     "okButton": "حسناً",
     "postalCode": "الرمز البريدي",
     "optional": "اختياري",
-    "unknownDesign": "تصميم مخصص"
+    "unknownDesign": "تفصيل المخوّر"
   },
   "CustomOrderReview": {
     "pricingNotReady": {
@@ -446,21 +446,21 @@
   "MeasurementGuide": {
     "ariaLabel": "قِس بثقة",
     "eyebrow": "ضمان القياس المثالي",
-    "title": "قِس بثقة",
+    "title": "خذي مقاساتِك بثقة",
     "titleLine1": "قِس",
     "titleLine2": "بثقة",
-    "description": "الحصول على قياساتك بدقة هو الخطوة الأولى نحو قطعة مفصّلة بإتقان. اتبع دليلنا البسيط لضمان ملاءمة مثالية.",
+    "description": "اتبعي دليلنا المبسّط لأخذ مقاساتِك بدقّة والحصول على قطعة مفصّلة بالشكل الذي يناسبك",
     "tip1": {
-      "title": "استخدم شريط قياس مرن",
-      "desc": "تأكد أن الشريط ملاصق دون شد زائد، وأبقه موازياً للأرض للحصول على قياسات دقيقة."
+      "title": "استخدمي شريط قياس مرن",
+      "desc": "اجعلي شريط القياس ملاصقاٍ للجسم دون شدّه، وتأكدي من بقائه موازياً للأرض"
     },
     "tip2": {
-      "title": "قف بشكل طبيعي",
-      "desc": "أبقِ جسمك مسترخياً مع تقارب القدمين وذراعيك على جانبيك للحصول على قياسات متسقة."
+      "title": "قفي بشكل طبيعي",
+      "desc": "قفي باسترخاء مع ضم القدمين و إبقاء الذراعين على جانبي الجسم"
     },
     "tip3": {
-      "title": "راجع المناطق الأساسية",
-      "desc": "ركّز على الصدر والخصر والوركين وطول الساق والكم — فهذه تحدد قصّة قطعتك."
+      "title": "راجعي المقاسات الأساسية",
+      "desc": "راجعي المقاسات وفقاً للدليل بما في ذلك: الطول و الكتف و الصدر و الخصر وعرض الورك وتفاصيل الكم"
     },
     "btn": "تحميل دليل القياس",
     "downloadCta": "تحميل دليل القياس",
@@ -511,7 +511,7 @@
   },
   "Testimonials": {
     "ariaLabel": "تجربة العملاء",
-    "title": "تجربة العملاء",
+    "title": "تجربة العميل",
     "cards": {
       "kauser-al-qayyum": {
         "quote": "دقة القياس عبر الهاتف الذكي راقية حقاً. القطعة تبدو مفصّلة على حركة الجسد — هادئة ودقيقة وشخصية.",
@@ -784,8 +784,8 @@
         "name": "اسم القماش (بالإنجليزي)",
         "nameAr": "اسم القماش (بالعربي)",
         "slug": "الاسم اللطيف للرابط (Slug)",
-        "material": "الخامة (بالإنجليزي)",
-        "materialAr": "الخامة (بالعربي)",
+        "material": "نوع القماش (بالإنجليزي)",
+        "materialAr": "نوع القماش (بالعربي)",
         "description": "الوصف (بالإنجليزي)",
         "descriptionAr": "الوصف (بالعربي)",
         "pricePerMeter": "السعر لكل متر (د.إ)",
@@ -1140,7 +1140,7 @@
     "formLabel": "الاشتراك في النشرة",
     "emailLabel": "البريد الإلكتروني",
     "emailPlaceholder": "البريد الإلكتروني",
-    "subscribe": "اشترك"
+    "subscribe": "اشتركي"
   },
   "TailorGrid": {
     "ariaLabel": "تعرّف على الخياطين",
@@ -1221,14 +1221,14 @@
   },
   "community": {
     "eyebrow": "للشركاء",
-    "title": "انضم إلى مجتمعنا",
-    "description": "شبكة منتقاة لخياطين محترفين وبيوت أقمشة — حيث تلتقي الحرفية بالعرض العصري والظهور العالمي.",
+    "title": "انضم إلينا",
+    "description": "شبكة مختارة من الخيّاطين و بيوت الأقمشة، حيث تلتقي الحرفيّة بالعرض العصري و الوصول إلى جمهور أوسع",
     "btn": "قدّم طلب الانضمام"
   },
   "newsletter": {
     "eyebrow": "النشرة الإخبارية",
-    "title": "أناقة في بريدك",
-    "description": "إصدارات موسمية من الأقمشة وقصص الورش وحرفية منتقاة — باعتدال، وعندما يهم الأمر فقط.",
+    "title": "أناقة تصلكِ إلى بريدكِ",
+    "description": "اكتشفي أحدث الأقمشة الموسمية وقصص دور الخياطة و لمحات مختارة من عالم الحرفية تصلكِ بعناية وفي الوقت المناسب",
     "placeholder": "البريد الإلكتروني",
     "subscribe": "اشترك",
     "success": "شكرًا للاشتراك!",
@@ -1293,7 +1293,7 @@
       },
       "fabricLabel": "القماش: {name}",
       "unknownCustomer": "عميل غير معروف",
-      "unknownDesign": "تصميم مخصص",
+      "unknownDesign": "تفصيل المخوّر",
       "unknownTailor": "خياط غير معروف",
       "unknownFabric": "—"
     },
@@ -1466,7 +1466,7 @@
       "emptyDescription": "ابدأ طلب خياطة مخصص لعرضه هنا.",
       "startOrder": "ابدأ طلباً مخصصاً",
       "orderId": "طلب #{id}",
-      "unknownDesign": "تصميم مخصص",
+      "unknownDesign": "تفصيل المخوّر",
       "viewTimeline": "عرض الخط الزمني",
       "hideTimeline": "إخفاء الخط الزمني",
       "loadingDetail": "جاري تحميل الخط الزمني...",
@@ -1515,18 +1515,42 @@
       "pending": "معلّق",
       "inProgress": "قيد التنفيذ",
       "statuses": {
-        "pending": { "title": "Order Placed" },
-        "confirmed": { "title": "Order Confirmed" },
-        "fabric_delivered": { "title": "Fabric Delivered" },
-        "at_tailor": { "title": "Tailor Received Fabric" },
-        "in_production": { "title": "Stitching in Progress" },
-        "ready": { "title": "Ready" },
-        "out_for_delivery": { "title": "Out for Delivery" },
-        "delivered": { "title": "Delivered" },
-        "return_requested": { "title": "Return Requested" },
-        "return_approved": { "title": "Return Approved" },
-        "return_rejected": { "title": "تم رفض الإرجاع" },
-        "refund_processed": { "title": "Refund Processed" }
+        "pending": {
+          "title": "Order Placed"
+        },
+        "confirmed": {
+          "title": "Order Confirmed"
+        },
+        "fabric_delivered": {
+          "title": "Fabric Delivered"
+        },
+        "at_tailor": {
+          "title": "Tailor Received Fabric"
+        },
+        "in_production": {
+          "title": "Stitching in Progress"
+        },
+        "ready": {
+          "title": "Ready"
+        },
+        "out_for_delivery": {
+          "title": "Out for Delivery"
+        },
+        "delivered": {
+          "title": "Delivered"
+        },
+        "return_requested": {
+          "title": "Return Requested"
+        },
+        "return_approved": {
+          "title": "Return Approved"
+        },
+        "return_rejected": {
+          "title": "تم رفض الإرجاع"
+        },
+        "refund_processed": {
+          "title": "Refund Processed"
+        }
       }
     },
     "shipments": {
@@ -1544,8 +1568,8 @@
   "Footer": {
     "ariaLabel": "تذييل الموقع",
     "logoAlt": "MOTD — مخوّر اليوم",
-    "tagline": "فخامة شرقية مفصّلة للعالم المعاصر.",
-    "description": "وجهة راقية تربط العملاء المميزين بأقمشة استثنائية وبيوت خياطة متقنة وحرفية رفيعة مستوحاة من أناقة الخليج المعاصرة.",
+    "tagline": "فخامة إماراتيّة مفصّلة للعالم المعاصر.",
+    "description": "وجهة راقية تجمع بين العملاء الباحثين عن التميّز و الأقمشة الاستثنائيّة و دور الخياطة المتميزة و الحرفة الرفيعة المستوحاة من أناقة المرأة الإماراتية المعاصرة.",
     "copyright": "© 2026 MOTD. جميع الحقوق محفوظة.",
     "paymentMethods": "طرق الدفع المقبولة",
     "columns": {
@@ -1557,10 +1581,10 @@
     "services": "خدمة العملاء",
     "business": "الأعمال",
     "quickLinksList": {
-      "home": "الرئيسية",
+      "home": "الصفحة الرئيسية",
       "exploreFabrics": "استكشف الأقمشة",
       "tailors": "الخياطون",
-      "customDesign": "تصميم مخصص",
+      "customDesign": "تفصيل المخوّر",
       "aboutUs": "من نحن",
       "contact": "اتصل بنا"
     },
@@ -1573,10 +1597,10 @@
       "supportCenter": "مركز الدعم"
     },
     "businessLinks": {
-      "becomeTailor": "كن خياطاً",
-      "fabricVendor": "تسجيل مورد أقمشة",
-      "shippingPartner": "شريك شحن",
-      "vendorDashboard": "لوحة البائع",
+      "becomeTailor": "انضم كخيّاط",
+      "fabricVendor": "تسجيل مورّد أقمشة",
+      "shippingPartner": "شريك التوصيل",
+      "vendorDashboard": "لوحة تحكّم البائع",
       "partnerships": "فرص الشراكة"
     },
     "social": {
