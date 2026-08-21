@@ -20,6 +20,7 @@ import type { Locale } from "@/i18n/routing";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
+import { isWithinLocalDateRange } from "@/lib/dateRange";
 
 interface OrderUser {
   _id: string;
@@ -218,18 +219,9 @@ export default function AdminCustomOrdersPage() {
         if (order.status !== filterStatus) return false;
       }
 
-      // 3. From Date filter
-      if (filterFrom) {
-        const orderDate = new Date(order.createdAt);
-        const fromDate = new Date(filterFrom + "T00:00:00");
-        if (orderDate < fromDate) return false;
-      }
-
-      // 4. To Date filter
-      if (filterTo) {
-        const orderDate = new Date(order.createdAt);
-        const toDate = new Date(filterTo + "T23:59:59");
-        if (orderDate > toDate) return false;
+      // 3. Date range (inclusive local calendar days)
+      if (!isWithinLocalDateRange(order.createdAt, filterFrom, filterTo)) {
+        return false;
       }
 
       return true;

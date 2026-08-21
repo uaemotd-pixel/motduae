@@ -51,6 +51,10 @@ import {
   isEmptyShopPickupAddress,
   normalizeShopPickupAddress,
 } from "../utils/shopPickupAddress.js";
+import {
+  applyCreatedAtFilter,
+  getTimeframeWindow,
+} from "../utils/dateRange.js";
 
 const adminRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -1570,14 +1574,6 @@ adminRouter.patch(
 // C-06: Admin retail orders
 // ==========================================
 
-function parseQueryDate(value, label) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return { error: `Invalid ${label} date` };
-  }
-  return { date };
-}
-
 // GET /api/admin/orders/retail
 // List retail orders with optional filters: status, from, to, customer (userId or name/email)
 adminRouter.get(
@@ -1601,24 +1597,13 @@ adminRouter.get(
     }
 
     if (from || to) {
-      filter.createdAt = {};
-
-      if (from) {
-        const parsed = parseQueryDate(from, "from");
-        if (parsed.error) {
-          res.status(400).send({ message: parsed.error });
-          return;
-        }
-        filter.createdAt.$gte = parsed.date;
+      const parsed = applyCreatedAtFilter(from, to);
+      if (parsed.error) {
+        res.status(400).send({ message: parsed.error });
+        return;
       }
-
-      if (to) {
-        const parsed = parseQueryDate(to, "to");
-        if (parsed.error) {
-          res.status(400).send({ message: parsed.error });
-          return;
-        }
-        filter.createdAt.$lte = parsed.date;
+      if (parsed.createdAt) {
+        filter.createdAt = parsed.createdAt;
       }
     }
 
@@ -1885,53 +1870,6 @@ adminRouter.post(
 // C-08: Admin dashboard stats
 // ==========================================
 
-function getTimeframeWindow(timeframe) {
-  const now = new Date();
-
-  // Normalize now to avoid edge-case partial-day issues:
-  // We'll use UTC boundaries for consistency.
-  const end = new Date(now);
-  end.setUTCHours(23, 59, 59, 999);
-
-  let start;
-  let prevStart;
-  let prevEnd;
-
-  if (timeframe === "week") {
-    // last 7 days
-    start = new Date(end);
-    start.setUTCDate(start.getUTCDate() - 6);
-
-    prevEnd = new Date(start);
-    prevEnd.setUTCHours(23, 59, 59, 999);
-
-    prevStart = new Date(prevEnd);
-    prevStart.setUTCDate(prevStart.getUTCDate() - 6);
-  } else if (timeframe === "year") {
-    // last 12 months
-    start = new Date(end);
-    start.setUTCMonth(start.getUTCMonth() - 11);
-
-    prevEnd = new Date(start);
-    prevEnd.setUTCHours(23, 59, 59, 999);
-
-    prevStart = new Date(prevEnd);
-    prevStart.setUTCMonth(prevStart.getUTCMonth() - 11);
-  } else {
-    // month (default) -> last 1 month
-    start = new Date(end);
-    start.setUTCDate(start.getUTCDate() - 29);
-
-    prevEnd = new Date(start);
-    prevEnd.setUTCHours(23, 59, 59, 999);
-
-    prevStart = new Date(prevEnd);
-    prevStart.setUTCDate(prevStart.getUTCDate() - 29);
-  }
-
-  return { start, end, prevStart, prevEnd };
-}
-
 function safeGrowthPercent(current, previous) {
   const prev = typeof previous === "number" ? previous : 0;
   const curr = typeof current === "number" ? current : 0;
@@ -1956,7 +1894,9 @@ adminRouter.get(
         ? timeframeRaw
         : "month";
 
-    const { start, end, prevStart, prevEnd } = getTimeframeWindow(timeframe);
+    const { start, end, prevStart, prevEnd } = getTimeframeWindow(timeframe, {
+      includePrevious: true,
+    });
 
     const revenueExprRetail = "$totalPrice";
     const revenueExprCustom = "$pricing.total";

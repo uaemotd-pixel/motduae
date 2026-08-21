@@ -722,7 +722,9 @@
       "hideMeasurements": "Hide Details",
       "showMeasurements": "Show Details",
       "updateSuccess": "Order status updated successfully",
-      "updateFailed": "Failed to update order status"
+      "updateFailed": "Failed to update order status",
+      "fromLabel": "From Date",
+      "toLabel": "To Date"
     }
   },
   "TailorPortal": {
@@ -757,7 +759,9 @@
       "updateFailed": "Failed to update order status",
       "measurements": "Measurements",
       "hideMeasurements": "Hide Measurements",
-      "showMeasurements": "Show Measurements"
+      "showMeasurements": "Show Measurements",
+      "fromLabel": "From Date",
+      "toLabel": "To Date"
     },
     "pending": {
       "eyebrow": "Tailor Portal",

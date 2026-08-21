@@ -29,6 +29,7 @@ import type { Locale } from "@/i18n/routing";
 import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
+import { isWithinLocalDateRange } from "@/lib/dateRange";
 
 interface OrderUser {
   _id: string;
@@ -306,16 +307,10 @@ export default function AdminCustomOrdersPage() {
         if (order.status !== filterStatus) return false;
       }
 
-      if (filterFrom) {
-        const orderDate = new Date(order.createdAt);
-        const fromDate = new Date(filterFrom + "T00:00:00");
-        if (orderDate < fromDate) return false;
-      }
-
-      if (filterTo) {
-        const orderDate = new Date(order.createdAt);
-        const toDate = new Date(filterTo + "T23:59:59");
-        if (orderDate > toDate) return false;
+      if (
+        !isWithinLocalDateRange(order.createdAt, filterFrom, filterTo)
+      ) {
+        return false;
       }
 
       return true;
