@@ -220,9 +220,8 @@ const ColorDropdown = ({
             <button
               key={c.value}
               onClick={() => toggleColor(c.value)}
-              className={`w-full px-4 py-2.5 text-left text-[11px] tracking-[0.14em] flex items-center gap-3 hover:bg-[#EDE8E0] transition cursor-pointer ${
-                selected.includes(c.value) ? "bg-[#EDE8E0]" : ""
-              }`}
+              className={`w-full px-4 py-2.5 text-left text-[11px] tracking-[0.14em] flex items-center gap-3 hover:bg-[#EDE8E0] transition cursor-pointer ${selected.includes(c.value) ? "bg-[#EDE8E0]" : ""
+                }`}
             >
               <span
                 className="w-4 h-4 rounded-full shrink-0 border border-[#C8C4BC]"
@@ -454,12 +453,11 @@ const Pagination = ({
           className={`
             min-w-10 h-10 px-2 flex items-center justify-center rounded-lg font-mono text-[13px] tracking-wide
             transition-all duration-200 cursor-pointer
-            ${
-              page === currentPage
-                ? "bg-black text-white border-black"
-                : page === "..."
-                  ? "border-transparent cursor-default text-[#8A8A80]"
-                  : "border border-[#E4E0D8] bg-transparent text-black hover:border-black hover:bg-black hover:text-white"
+            ${page === currentPage
+              ? "bg-black text-white border-black"
+              : page === "..."
+                ? "border-transparent cursor-default text-[#8A8A80]"
+                : "border border-[#E4E0D8] bg-transparent text-black hover:border-black hover:bg-black hover:text-white"
             }
           `}
         >
@@ -682,7 +680,7 @@ export default function ReadyMadeCatalogPage() {
     });
   };
 
-let filteredProducts = products.filter((item) => {
+  let filteredProducts = products.filter((item) => {
     // Category filter (matches product tag to category name)
     if (filters.categories.length > 0) {
       const activeTag = isAr ? item.tagAr || item.tag : item.tag;
@@ -949,7 +947,7 @@ let filteredProducts = products.filter((item) => {
       {/* Materials - 3rd */}
       {materials.length > 0 && (
         <CollapsibleFilter
-          label={isAr ? "الخامة" : "Material"}
+          label={isAr ? "نوع القماش" : "Material"}
           count={filters.materials.length}
         >
           <div className="flex flex-col gap-2">
@@ -974,7 +972,7 @@ let filteredProducts = products.filter((item) => {
       {/* Patterns - 4th */}
       {patterns.length > 0 && (
         <CollapsibleFilter
-          label={isAr ? "النقش" : "Pattern"}
+          label={isAr ? "النقشة" : "Pattern"}
           count={filters.patterns.length}
         >
           <div className="flex flex-col gap-2">
@@ -1059,7 +1057,7 @@ let filteredProducts = products.filter((item) => {
 
       {/* Availability - 8th (last) */}
       <div className="border-b border-[#E4E0D8] pb-4">
-        <FilterLabel>{isAr ? "التوفر" : "Availability"}</FilterLabel>
+        <FilterLabel>{isAr ? "المتوفر" : "Availability"}</FilterLabel>
         <label className="flex items-center gap-3 cursor-pointer group">
           <CustomCheckbox
             checked={filters.inStockOnly}
@@ -1332,7 +1330,7 @@ let filteredProducts = products.filter((item) => {
                   </h3>
                   <p className="text-[#7A7A72] text-[13px] max-w-xs leading-relaxed mb-8">
                     {isAr
-                      ? "حاول ضبط الفلاتر أو شروط البحث للعثور على ما تبحث عنه."
+                      ? "جرّب تعديل خيارات التصفية أو كلمات البحث للعثور على ما تبحث عنه."
                       : "Try adjusting your filters or search terms to find what you're looking for."}
                   </p>
                   <button
@@ -1450,7 +1448,7 @@ let filteredProducts = products.filter((item) => {
 
                             <div className="flex items-center gap-1.5 my-1 flex-wrap">
                               {product.colors &&
-                              Array.isArray(product.colors) ? (
+                                Array.isArray(product.colors) ? (
                                 product.colors
                                   .slice(0, 4)
                                   .map((color, index) => {

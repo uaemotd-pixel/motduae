@@ -296,11 +296,10 @@ export default function FabricDetailView({
                       key={`${fabric._id}-image-${index}`}
                       type="button"
                       onClick={() => setActiveImage(index)}
-                      className={`w-16 h-16 shrink-0 overflow-hidden border-2 transition ${
-                        index === activeImage
+                      className={`w-16 h-16 shrink-0 overflow-hidden border-2 transition ${index === activeImage
                           ? "border-black"
                           : "border-[#E4E0D8]"
-                      }`}
+                        }`}
                     >
                       <img
                         src={image}
@@ -349,11 +348,10 @@ export default function FabricDetailView({
                     aria-label="Add to wishlist"
                   >
                     <svg
-                      className={`w-6 h-6 transition-colors ${
-                        liked
+                      className={`w-6 h-6 transition-colors ${liked
                           ? "fill-red-500 stroke-red-500"
                           : "stroke-black fill-none"
-                      }`}
+                        }`}
                       viewBox="0 0 24 24"
                       strokeWidth="1.5"
                       stroke="currentColor"
@@ -460,18 +458,16 @@ export default function FabricDetailView({
                         <Link
                           key={v._id}
                           href={`/fabrics/${v.slug}`}
-                          className={`group block w-16 sm:w-20 text-center transition-all ${
-                            isActive
+                          className={`group block w-16 sm:w-20 text-center transition-all ${isActive
                               ? "opacity-100 pointer-events-none"
                               : "opacity-60 hover:opacity-100"
-                          }`}
+                            }`}
                         >
                           <div
-                            className={`w-16 h-16 sm:w-20 sm:h-20 overflow-hidden rounded-sm border-2 ${
-                              isActive
+                            className={`w-16 h-16 sm:w-20 sm:h-20 overflow-hidden rounded-sm border-2 ${isActive
                                 ? "border-black"
                                 : "border-transparent group-hover:border-black/30"
-                            } transition`}
+                              } transition`}
                           >
                             <img
                               src={imageSrc}
@@ -536,20 +532,19 @@ export default function FabricDetailView({
                   {/* Availability */}
                   <div>
                     <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
-                      {locale === "ar" ? "التوفر" : "Availability"}
+                      {locale === "ar" ? "المتوفر" : "Availability"}
                     </span>
                     <p
-                      className={`[font-family:var(--font-body)] text-[14px] font-medium ${
-                        fabric.stockInMeters > 0
+                      className={`[font-family:var(--font-body)] text-[14px] font-medium ${fabric.stockInMeters > 0
                           ? "text-green-700"
                           : "text-red-600"
-                      }`}
+                        }`}
                     >
                       {fabric.stockInMeters > 0
                         ? `In stock (${formatStockDisplay(
-                            fabric.stockInMeters,
-                            unit,
-                          )})`
+                          fabric.stockInMeters,
+                          unit,
+                        )})`
                         : locale === "ar"
                           ? "نفذت الكمية"
                           : "Out of stock"}
@@ -594,11 +589,10 @@ export default function FabricDetailView({
                     <button
                       onClick={handleBuyNow}
                       disabled={fabric.stockInMeters < 1}
-                      className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
-                        fabric.stockInMeters < 1
+                      className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${fabric.stockInMeters < 1
                           ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
                           : "hover:bg-black hover:text-white"
-                      }`}
+                        }`}
                     >
                       {locale === "ar" ? "شراء الآن" : "Buy Now"}
                     </button>
@@ -608,11 +602,10 @@ export default function FabricDetailView({
                   <button
                     onClick={handleAddToCart}
                     disabled={fabric.stockInMeters < 1}
-                    className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
-                      fabric.stockInMeters < 1
+                    className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${fabric.stockInMeters < 1
                         ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
                         : "bg-black text-white hover:bg-white hover:text-black hover:border-black"
-                    }`}
+                      }`}
                   >
                     {locale === "ar" ? "إضافة إلى السلة" : "Add to Cart"}
                   </button>

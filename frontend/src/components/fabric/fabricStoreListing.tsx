@@ -220,9 +220,8 @@ const ColorDropdown = ({
             <button
               key={c.value}
               onClick={() => toggleColor(c.value)}
-              className={`w-full px-4 py-2.5 text-left text-[11px] tracking-[0.14em] flex items-center gap-3 hover:bg-[#EDE8E0] transition cursor-pointer ${
-                selected.includes(c.value) ? "bg-[#EDE8E0]" : ""
-              }`}
+              className={`w-full px-4 py-2.5 text-left text-[11px] tracking-[0.14em] flex items-center gap-3 hover:bg-[#EDE8E0] transition cursor-pointer ${selected.includes(c.value) ? "bg-[#EDE8E0]" : ""
+                }`}
             >
               <span
                 className="w-4 h-4 rounded-full shrink-0 border border-[#C8C4BC]"
@@ -454,12 +453,11 @@ const Pagination = ({
           className={`
             min-w-10 h-10 px-2 flex items-center justify-center rounded-lg font-mono text-[13px] tracking-wide
             transition-all duration-200 cursor-pointer
-            ${
-              page === currentPage
-                ? "bg-black text-white border-black"
-                : page === "..."
-                  ? "border-transparent cursor-default text-[#8A8A80]"
-                  : "border border-[#E4E0D8] bg-transparent text-black hover:border-black hover:bg-black hover:text-white"
+            ${page === currentPage
+              ? "bg-black text-white border-black"
+              : page === "..."
+                ? "border-transparent cursor-default text-[#8A8A80]"
+                : "border border-[#E4E0D8] bg-transparent text-black hover:border-black hover:bg-black hover:text-white"
             }
           `}
         >
@@ -919,7 +917,7 @@ export default function FabricsCatalogPage() {
       {/* Materials - 3rd */}
       {materials.length > 0 && (
         <CollapsibleFilter
-          label={isAr ? "الخامة" : "Material"}
+          label={isAr ? "نوع القماش" : "Material"}
           count={filters.materials.length}
         >
           <div className="flex flex-col gap-2">
@@ -944,7 +942,7 @@ export default function FabricsCatalogPage() {
       {/* Patterns - 4th */}
       {patterns.length > 0 && (
         <CollapsibleFilter
-          label={isAr ? "النقش" : "Pattern"}
+          label={isAr ? "النقشة" : "Pattern"}
           count={filters.patterns.length}
         >
           <div className="flex flex-col gap-2">
@@ -1029,7 +1027,7 @@ export default function FabricsCatalogPage() {
 
       {/* Availability - 8th (last) */}
       <div className="border-b border-[#E4E0D8] pb-4">
-        <FilterLabel>{isAr ? "التوفر" : "Availability"}</FilterLabel>
+        <FilterLabel>{isAr ? "المتوفر" : "Availability"}</FilterLabel>
         <label className="flex items-center gap-3 cursor-pointer group">
           <CustomCheckbox
             checked={filters.inStockOnly}
@@ -1074,7 +1072,7 @@ export default function FabricsCatalogPage() {
             </h1>
             <p className="[font-family:var(--font-body)] text-[14px] xs:text-[13px] sm:text-[14px] md:text-[13px] lg:text-[14px] xl:text-[15px] 2xl:text-[16px] leading-normal xs:leading-[1.6] text-[#7A7A72] max-w-2xl">
               {isAr
-                ? "تصفح مجموعتنا الحصرية من الأقمشة الفاخرة."
+                ? "استكشف مجموعتنا الحصريّة من الأقمشة الفاخرة."
                 : "Explore our exclusive collection of luxury fabrics."}
             </p>
           </div>
@@ -1234,7 +1232,7 @@ export default function FabricsCatalogPage() {
               <div className="flex items-center gap-6">
                 <span className="text-[11px] tracking-[0.18em] uppercase text-[#7A7A72] font-mono">
                   {isAr
-                    ? `عرض ${startIndex + 1}-${Math.min(startIndex + fabricsPerPage, filteredFabrics.length)} من ${filteredFabrics.length} منتج`
+                    ? `عرض ${startIndex + 1}-${Math.min(startIndex + fabricsPerPage, filteredFabrics.length)} من ${filteredFabrics.length} أصل منتج`
                     : `Showing ${startIndex + 1}-${Math.min(startIndex + fabricsPerPage, filteredFabrics.length)} of ${filteredFabrics.length} products`}
                 </span>
                 <select
@@ -1244,10 +1242,10 @@ export default function FabricsCatalogPage() {
                 >
                   <option value="newest">{isAr ? "الأحدث" : "Newest"}</option>
                   <option value="price-low">
-                    {isAr ? "السعر: من الأقل للأعلى" : "Price: Low to High"}
+                    {isAr ? "السعر: من الأقل إلى الأعلى" : "Price: Low to High"}
                   </option>
                   <option value="price-high">
-                    {isAr ? "السعر: من الأعلى للأقل" : "Price: High to Low"}
+                    {isAr ? "السعر: من الأعلى إلى الأقل" : "Price: High to Low"}
                   </option>
                 </select>
               </div>
@@ -1297,7 +1295,7 @@ export default function FabricsCatalogPage() {
                 </h3>
                 <p className="text-[#7A7A72] text-[13px] max-w-xs leading-relaxed mb-8">
                   {isAr
-                    ? "حاول ضبط الفلاتر أو شروط البحث للعثور على ما تبحث عنه."
+                    ? "جرّب تعديل خيارات التصفية أو كلمات البحث للعثور على ما تبحث عنه."
                     : "Try adjusting your filters or search terms to find what you're looking for."}
                 </p>
                 <button

@@ -333,12 +333,11 @@ const Pagination = ({
           className={`
             min-w-10 h-10 px-2 flex items-center justify-center rounded-lg font-mono text-[13px] tracking-wide
             transition-all duration-200 cursor-pointer
-            ${
-              page === currentPage
-                ? "bg-black text-white border-black"
-                : page === "..."
-                  ? "border-transparent cursor-default text-[#8A8A80]"
-                  : "border border-[#E4E0D8] bg-transparent text-black hover:border-black hover:bg-black hover:text-white"
+            ${page === currentPage
+              ? "bg-black text-white border-black"
+              : page === "..."
+                ? "border-transparent cursor-default text-[#8A8A80]"
+                : "border border-[#E4E0D8] bg-transparent text-black hover:border-black hover:bg-black hover:text-white"
             }
           `}
         >
@@ -766,7 +765,7 @@ export default function DesignShopCatalogPage() {
       {/* Materials - 2nd */}
       {materials.length > 0 && (
         <CollapsibleFilter
-          label={isAr ? "الخامة" : "Material"}
+          label={isAr ? "نوع القماش" : "Material"}
           count={filters.materials.length}
         >
           <div className="flex flex-col gap-2">
@@ -791,7 +790,7 @@ export default function DesignShopCatalogPage() {
       {/* Patterns - 3rd */}
       {patterns.length > 0 && (
         <CollapsibleFilter
-          label={isAr ? "النقش" : "Pattern"}
+          label={isAr ? "النقشة" : "Pattern"}
           count={filters.patterns.length}
         >
           <div className="flex flex-col gap-2">
@@ -851,7 +850,7 @@ export default function DesignShopCatalogPage() {
 
       {/* Age Range - 6th */}
       <div className="border-b border-[#E4E0D8] pb-4">
-        <FilterLabel>{isAr ? "عمر التصميم" : "Age Range"}</FilterLabel>
+        <FilterLabel>{isAr ? "الفئة العمرية" : "Age Range"}</FilterLabel>
         <div className="space-y-4">
           <div className="flex justify-between text-[13px] font-mono text-[#7A7A72]">
             <span>0</span>
@@ -899,7 +898,7 @@ export default function DesignShopCatalogPage() {
       {/* Tags - 7th (last) */}
       {tags.length > 0 && (
         <CollapsibleFilter
-          label={isAr ? "الوسم" : "Tag"}
+          label={isAr ? "التصنيف" : "Tag"}
           count={filters.tags.length}
         >
           <div className="flex flex-col gap-2">
@@ -952,7 +951,7 @@ export default function DesignShopCatalogPage() {
               </h1>
               <p className="[font-family:var(--font-body)] text-[14px] xs:text-[13px] sm:text-[14px] md:text-[13px] lg:text-[14px] xl:text-[15px] 2xl:text-[16px] leading-normal xs:leading-[1.6] text-[#7A7A72] max-w-2xl">
                 {isAr
-                  ? "تصفح مجموعة تصاميم الخياط مع فلاتر حديثة."
+                  ? "تصفّح تصاميم الخيّاطين الرائجة باستخدام خيارات التصفية."
                   : "Browse Trending Tailor Designs with modern filters."}
               </p>
             </div>
@@ -1047,7 +1046,7 @@ export default function DesignShopCatalogPage() {
                 <div className="flex items-center gap-6">
                   <span className="text-[11px] tracking-[0.18em] uppercase text-[#7A7A72] font-mono">
                     {isAr
-                      ? `عرض ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredDesigns.length)} من ${filteredDesigns.length} تصميم`
+                      ? `عرض ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredDesigns.length)} من أصل ${filteredDesigns.length} تصميم`
                       : `Showing ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredDesigns.length)} of ${filteredDesigns.length} designs`}
                   </span>
 
@@ -1058,10 +1057,10 @@ export default function DesignShopCatalogPage() {
                   >
                     <option value="newest">{isAr ? "الأحدث" : "Newest"}</option>
                     <option value="price-low">
-                      {isAr ? "السعر: من الأقل للأعلى" : "Price: Low to High"}
+                      {isAr ? "السعر: من الأقل إلى الأعلى" : "Price: Low to High"}
                     </option>
                     <option value="price-high">
-                      {isAr ? "السعر: من الأعلى للأقل" : "Price: High to Low"}
+                      {isAr ? "السعر: من الأعلى إلى الأقل" : "Price: High to Low"}
                     </option>
                   </select>
                 </div>
@@ -1140,8 +1139,8 @@ export default function DesignShopCatalogPage() {
                         );
                         return catIndex >= 0
                           ? CATEGORY_COLOR_PALETTE[
-                              catIndex % CATEGORY_COLOR_PALETTE.length
-                            ]
+                          catIndex % CATEGORY_COLOR_PALETTE.length
+                          ]
                           : "#000000";
                       })();
 
