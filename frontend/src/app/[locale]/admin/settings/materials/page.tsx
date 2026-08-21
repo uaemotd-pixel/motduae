@@ -1,11 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
-import { Plus, Pencil, Trash2, Loader2, Search, X, Check } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
+  Search,
+  X,
+  Check,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 
 interface Material {
@@ -19,7 +28,13 @@ interface Material {
   updatedAt?: string;
 }
 
-// Helper: convert to lowercase slug format
+interface ApiResponse {
+  items: Material[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
 const toSlug = (str: string): string => {
   return str
     .toLowerCase()
@@ -28,7 +43,6 @@ const toSlug = (str: string): string => {
     .replace(/[^a-z0-9-]/g, "");
 };
 
-// Helper: lowercase with spaces preserved for display
 const toLowerPreserveSpaces = (str: string): string => {
   return str.toLowerCase().trim();
 };
@@ -45,37 +59,90 @@ export default function AdminSettingsMaterialsPage() {
   const [materialToDelete, setMaterialToDelete] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
+
   const [formName, setFormName] = useState("");
   const [formNameAr, setFormNameAr] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formDescriptionAr, setFormDescriptionAr] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
 
-  const fetchMaterials = async () => {
-    try {
-      setLoading(true);
-      const data = await api.get<Material[]>("/api/admin/materials");
-      setMaterials(Array.isArray(data) ? data : []);
-    } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to load materials"));
-      setMaterials([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoad = useRef(true);
+
+  const fetchMaterials = useCallback(
+    async (page = 1, limitOverride?: number, searchOverride?: string) => {
+      try {
+        setLoading(true);
+        const l = limitOverride ?? limit;
+        const search = searchOverride ?? searchQuery;
+        const searchParam = search.trim()
+          ? `&search=${encodeURIComponent(search.trim())}`
+          : "";
+
+        const data = await api.get<ApiResponse>(
+          `/api/admin/materials?page=${page}&limit=${l}${searchParam}`,
+        );
+
+        setMaterials(data.items || []);
+        setTotalItems(data.total || 0);
+        setCurrentPage(data.page || 1);
+        setTotalPages(data.totalPages || 0);
+
+        if (data.page > data.totalPages && data.totalPages > 0) {
+          await fetchMaterials(data.totalPages, l, search);
+        }
+      } catch (err: unknown) {
+        toast.error(getApiErrorMessage(err, "Failed to load materials"));
+        setMaterials([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [limit, searchQuery],
+  );
 
   useEffect(() => {
-    fetchMaterials();
+    void fetchMaterials(1).finally(() => {
+      isInitialLoad.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredMaterials = materials.filter((m) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      m.name?.toLowerCase().includes(q) ||
-      m.description?.toLowerCase().includes(q)
-    );
-  });
+  useEffect(() => {
+    if (isInitialLoad.current) return;
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      void fetchMaterials(1);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    void fetchMaterials(page);
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    setCurrentPage(1);
+    void fetchMaterials(1, newLimit);
+  };
 
   const openAddModal = () => {
     setEditingMaterial(null);
@@ -87,13 +154,13 @@ export default function AdminSettingsMaterialsPage() {
     setShowModal(true);
   };
 
-  const openEditModal = (mat: Material) => {
-    setEditingMaterial(mat);
-    setFormName(mat.name);
-    setFormNameAr(mat.nameAr || "");
-    setFormDescription(mat.description || "");
-    setFormDescriptionAr(mat.descriptionAr || "");
-    setFormIsActive(mat.isActive);
+  const openEditModal = (item: Material) => {
+    setEditingMaterial(item);
+    setFormName(item.name);
+    setFormNameAr(item.nameAr || "");
+    setFormDescription(item.description || "");
+    setFormDescriptionAr(item.descriptionAr || "");
+    setFormIsActive(item.isActive);
     setShowModal(true);
   };
 
@@ -117,7 +184,7 @@ export default function AdminSettingsMaterialsPage() {
         toast.success("Material created");
       }
       setShowModal(false);
-      fetchMaterials();
+      void fetchMaterials(editingMaterial ? currentPage : 1);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to save material"));
     } finally {
@@ -137,7 +204,7 @@ export default function AdminSettingsMaterialsPage() {
     try {
       await api.delete(`/api/admin/materials/${materialToDelete}`);
       toast.success("Material deleted");
-      fetchMaterials();
+      void fetchMaterials(currentPage);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to delete material"));
     } finally {
@@ -151,23 +218,25 @@ export default function AdminSettingsMaterialsPage() {
     setMaterialToDelete(null);
   };
 
-  const toggleActive = async (mat: Material) => {
-    const newIsActive = !mat.isActive;
+  const toggleActive = async (item: Material) => {
+    const newIsActive = !item.isActive;
     setMaterials((prev) =>
-      prev.map((m) =>
-        m._id === mat._id ? { ...m, isActive: newIsActive } : m,
+      prev.map((x) =>
+        x._id === item._id ? { ...x, isActive: newIsActive } : x,
       ),
     );
-    setTogglingId(mat._id);
+    setTogglingId(item._id);
     try {
-      await api.put(`/api/admin/materials/${mat._id}`, {
+      await api.put(`/api/admin/materials/${item._id}`, {
         isActive: newIsActive,
       });
-      toast.success(`Material ${newIsActive ? "activated" : "deactivated"}`);
+      toast.success(
+        `Material ${newIsActive ? "activated" : "deactivated"}`,
+      );
     } catch (err: unknown) {
       setMaterials((prev) =>
-        prev.map((m) =>
-          m._id === mat._id ? { ...m, isActive: !newIsActive } : m,
+        prev.map((x) =>
+          x._id === item._id ? { ...x, isActive: !newIsActive } : x,
         ),
       );
       toast.error(getApiErrorMessage(err, "Failed to update material"));
@@ -191,7 +260,6 @@ export default function AdminSettingsMaterialsPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -214,9 +282,7 @@ export default function AdminSettingsMaterialsPage() {
               <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">
                 Materials
               </h1>
-              <p className="text-gray-500 text-sm">
-                Manage fabric materials and types used across your platform
-              </p>
+              <p className="text-gray-500 text-sm">Manage fabric materials and types used across your platform</p>
             </div>
           </div>
         </div>
@@ -232,7 +298,6 @@ export default function AdminSettingsMaterialsPage() {
         </motion.button>
       </div>
 
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
@@ -253,19 +318,15 @@ export default function AdminSettingsMaterialsPage() {
         )}
       </div>
 
-      {/* Count badge */}
-      {!loading && materials.length > 0 && (
+      {!loading && totalItems > 0 && (
         <div className="text-xs text-gray-400 font-medium tracking-wide uppercase">
-          {filteredMaterials.length === materials.length
-            ? `${materials.length} material${materials.length === 1 ? "" : "s"} total`
-            : `${filteredMaterials.length} of ${materials.length} material${materials.length === 1 ? "" : "s"}`}
+          {searchQuery.trim() ? `${totalItems} matching material${totalItems === 1 ? '' : 's'}` : `${totalItems} material${totalItems === 1 ? '' : 's'} total`}
         </div>
       )}
 
-      {/* Loading */}
       {loading ? (
         <TableSkeleton rows={6} cols={3} className="rounded-2xl" />
-      ) : filteredMaterials.length === 0 ? (
+      ) : materials.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center py-20">
           <div className="w-20 h-20 bg-linear-to-br from-gray-50 to-gray-100 rounded-3xl flex items-center justify-center mb-6 shadow-inner">
             <svg
@@ -306,9 +367,9 @@ export default function AdminSettingsMaterialsPage() {
       ) : (
         <div className="grid gap-3">
           <AnimatePresence mode="popLayout">
-            {filteredMaterials.map((mat, index) => (
+            {materials.map((item, index) => (
               <motion.div
-                key={mat._id}
+                key={item._id}
                 layout
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -320,48 +381,48 @@ export default function AdminSettingsMaterialsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3 flex-wrap">
                       <h3 className="text-base font-semibold text-gray-900 group-hover:text-gray-700 transition-colors">
-                        {mat.name}
+                        {item.name}
                       </h3>
-                      {mat.nameAr && (
+                      {item.nameAr && (
                         <span
                           dir="rtl"
                           className="text-sm text-gray-400 font-normal"
                         >
-                          {mat.nameAr}
+                          {item.nameAr}
                         </span>
                       )}
                       <motion.button
                         type="button"
-                        onClick={() => toggleActive(mat)}
-                        disabled={togglingId === mat._id}
+                        onClick={() => toggleActive(item)}
+                        disabled={togglingId === item._id}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        title={`Click to ${mat.isActive ? "deactivate" : "activate"}`}
+                        title={`Click to ${item.isActive ? "deactivate" : "activate"}`}
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-all ${
-                          mat.isActive
+                          item.isActive
                             ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 hover:bg-red-50 hover:text-red-600 hover:ring-red-300"
                             : "bg-gray-50 text-gray-400 ring-1 ring-gray-300/20 hover:bg-gray-100 hover:text-gray-500"
                         }`}
                       >
-                        {togglingId === mat._id ? (
+                        {togglingId === item._id ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : mat.isActive ? (
+                        ) : item.isActive ? (
                           <Check className="w-3 h-3" />
                         ) : (
                           <X className="w-3 h-3" />
                         )}
-                        {mat.isActive ? "Active" : "Inactive"}
+                        {item.isActive ? "Active" : "Inactive"}
                       </motion.button>
                     </div>
-                    {mat.description && (
+                    {item.description && (
                       <p className="text-sm text-gray-500 mt-1.5 line-clamp-2 leading-relaxed">
-                        {mat.description}
+                        {item.description}
                       </p>
                     )}
                     <div className="flex items-center gap-3 mt-2">
-                      {mat.createdAt && (
+                      {item.createdAt && (
                         <span className="text-xs text-gray-400">
-                          Created {formatDate(mat.createdAt)}
+                          Created {formatDate(item.createdAt)}
                         </span>
                       )}
                     </div>
@@ -369,7 +430,7 @@ export default function AdminSettingsMaterialsPage() {
                   <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <motion.button
                       type="button"
-                      onClick={() => openEditModal(mat)}
+                      onClick={() => openEditModal(item)}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       className="p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition-all hover:cursor-pointer"
@@ -379,14 +440,14 @@ export default function AdminSettingsMaterialsPage() {
                     </motion.button>
                     <motion.button
                       type="button"
-                      disabled={deletingId === mat._id}
-                      onClick={() => promptDelete(mat._id)}
+                      disabled={deletingId === item._id}
+                      onClick={() => promptDelete(item._id)}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       className="p-2 rounded-xl border border-gray-200 hover:bg-red-50 text-gray-400 hover:text-red-600 transition-all hover:cursor-pointer disabled:opacity-50"
                       aria-label="Delete material"
                     >
-                      {deletingId === mat._id ? (
+                      {deletingId === item._id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <Trash2 className="w-4 h-4" />
@@ -400,7 +461,19 @@ export default function AdminSettingsMaterialsPage() {
         </div>
       )}
 
-      {/* Create / Edit Modal */}
+      {totalPages > 0 && totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
+      )}
+
       <AnimatePresence>
         {showModal && (
           <motion.div

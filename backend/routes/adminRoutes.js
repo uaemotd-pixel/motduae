@@ -479,7 +479,7 @@ adminRouter.get(
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const search = req.query.search | "";
+    const search = req.query.search || "";
     const type = req.query.type || "all";
 
     // Build filter for users with fabric_store role
@@ -529,7 +529,7 @@ adminRouter.get(
       items,
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit) || 0,
     });
   }),
 );
@@ -735,6 +735,7 @@ function hasInvalidFabricAgeRange(minAge, maxAge) {
 
 // GET /api/admin/fabrics
 // Admin can view all fabrics in the catalog (including inactive)
+// Supports ?page=1&limit=10&search=...&status=available|sold
 adminRouter.get(
   "/fabrics",
   expressAsyncHandler(async (req, res) => {
@@ -742,6 +743,7 @@ adminRouter.get(
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
+    const status = req.query.status || "";
 
     const filter = {
       $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
@@ -751,13 +753,19 @@ adminRouter.get(
       filter.listedByStore = req.query.listedByStore;
     }
 
+    if (status === "available") {
+      filter.isActive = true;
+    } else if (status === "sold") {
+      filter.isActive = false;
+    }
+
     if (search) {
       filter.$and = [
         {
           $or: [
             { name: { $regex: search, $options: "i" } },
             { material: { $regex: search, $options: "i" } },
-            { city: { $regex: search, $regex: search, $options: "i" } },
+            { city: { $regex: search, $options: "i" } },
           ],
         },
       ];
@@ -792,7 +800,7 @@ adminRouter.get(
       items: fabricsWithVariants,
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit) || 0,
     });
   }),
 );
@@ -2854,17 +2862,42 @@ adminRouter.patch(
 // C-21: Admin Categories CRUD
 // ==========================================
 
-// GET /api/admin/categories?domain=designs
-// List categories filtered by domain
+// GET /api/admin/categories?domain=designs&page=1&limit=10&search=...
+// List categories filtered by domain (paginated)
 adminRouter.get(
   "/categories",
   expressAsyncHandler(async (req, res) => {
-    const { domain } = req.query;
-    const filter = domain ? { domain } : {};
-    const categories = await Category.find(filter).sort({
-      name: 1,
+    const { domain, search } = req.query;
+    const pageNumber = Math.max(Number(req.query.page) || 1, 1);
+    const limitNumber = Math.min(Math.max(Number(req.query.limit) || 10, 1), 100);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const filter = {};
+    if (domain) {
+      filter.domain = domain;
+    }
+
+    if (search && typeof search === "string" && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$or = [
+        { name: regex },
+        { nameAr: regex },
+        { description: regex },
+        { descriptionAr: regex },
+      ];
+    }
+
+    const [categories, total] = await Promise.all([
+      Category.find(filter).sort({ name: 1 }).skip(skip).limit(limitNumber),
+      Category.countDocuments(filter),
+    ]);
+
+    res.send({
+      items: categories,
+      total,
+      page: pageNumber,
+      totalPages: Math.ceil(total / limitNumber) || 0,
     });
-    res.send(categories);
   }),
 );
 
@@ -2986,15 +3019,51 @@ adminRouter.delete(
 // fabric types / materials (cotton, silk, etc.)
 // ==========================================
 
-// GET /api/admin/materials?domain=fabrics
-// List materials filtered by domain
+// GET /api/admin/materials?domain=fabrics&page=1&limit=10&search=...
+// List materials filtered by domain (paginated when page/limit provided)
 adminRouter.get(
   "/materials",
   expressAsyncHandler(async (req, res) => {
-    const { domain } = req.query;
-    const filter = domain ? { domain } : {};
-    const materials = await Material.find(filter).sort({ name: 1 });
-    res.send(materials);
+    const { domain, search } = req.query;
+    const filter = {};
+    if (domain) filter.domain = domain;
+    if (search && typeof search === "string" && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$or = [
+        { name: regex },
+        { nameAr: regex },
+        { description: regex },
+        { descriptionAr: regex },
+      ];
+    }
+
+    const wantsPagination =
+      req.query.page !== undefined || req.query.limit !== undefined;
+
+    if (!wantsPagination) {
+      const materials = await Material.find(filter).sort({ name: 1 });
+      res.send(materials);
+      return;
+    }
+
+    const pageNumber = Math.max(Number(req.query.page) || 1, 1);
+    const limitNumber = Math.min(
+      Math.max(Number(req.query.limit) || 10, 1),
+      100,
+    );
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const [items, total] = await Promise.all([
+      Material.find(filter).sort({ name: 1 }).skip(skip).limit(limitNumber),
+      Material.countDocuments(filter),
+    ]);
+
+    res.send({
+      items,
+      total,
+      page: pageNumber,
+      totalPages: Math.ceil(total / limitNumber) || 0,
+    });
   }),
 );
 
@@ -3116,15 +3185,51 @@ adminRouter.delete(
 // design patterns / styles (floral, geometric, etc.)
 // ==========================================
 
-// GET /api/admin/patterns
-// List patterns
+// GET /api/admin/patterns?domain=...&page=1&limit=10&search=...
+// List patterns (paginated when page/limit provided)
 adminRouter.get(
   "/patterns",
   expressAsyncHandler(async (req, res) => {
-    const { domain } = req.query;
-    const filter = domain ? { domain } : {};
-    const patterns = await Pattern.find(filter).sort({ name: 1 });
-    res.send(patterns);
+    const { domain, search } = req.query;
+    const filter = {};
+    if (domain) filter.domain = domain;
+    if (search && typeof search === "string" && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$or = [
+        { name: regex },
+        { nameAr: regex },
+        { description: regex },
+        { descriptionAr: regex },
+      ];
+    }
+
+    const wantsPagination =
+      req.query.page !== undefined || req.query.limit !== undefined;
+
+    if (!wantsPagination) {
+      const patterns = await Pattern.find(filter).sort({ name: 1 });
+      res.send(patterns);
+      return;
+    }
+
+    const pageNumber = Math.max(Number(req.query.page) || 1, 1);
+    const limitNumber = Math.min(
+      Math.max(Number(req.query.limit) || 10, 1),
+      100,
+    );
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const [items, total] = await Promise.all([
+      Pattern.find(filter).sort({ name: 1 }).skip(skip).limit(limitNumber),
+      Pattern.countDocuments(filter),
+    ]);
+
+    res.send({
+      items,
+      total,
+      page: pageNumber,
+      totalPages: Math.ceil(total / limitNumber) || 0,
+    });
   }),
 );
 
@@ -3246,15 +3351,51 @@ adminRouter.delete(
 // seasonal collections (Spring, Summer, Ramadan, etc.)
 // ==========================================
 
-// GET /api/admin/seasons
-// List seasons
+// GET /api/admin/seasons?domain=...&page=1&limit=10&search=...
+// List seasons (paginated when page/limit provided)
 adminRouter.get(
   "/seasons",
   expressAsyncHandler(async (req, res) => {
-    const { domain } = req.query;
-    const filter = domain ? { domain } : {};
-    const seasons = await Season.find(filter).sort({ name: 1 });
-    res.send(seasons);
+    const { domain, search } = req.query;
+    const filter = {};
+    if (domain) filter.domain = domain;
+    if (search && typeof search === "string" && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$or = [
+        { name: regex },
+        { nameAr: regex },
+        { description: regex },
+        { descriptionAr: regex },
+      ];
+    }
+
+    const wantsPagination =
+      req.query.page !== undefined || req.query.limit !== undefined;
+
+    if (!wantsPagination) {
+      const seasons = await Season.find(filter).sort({ name: 1 });
+      res.send(seasons);
+      return;
+    }
+
+    const pageNumber = Math.max(Number(req.query.page) || 1, 1);
+    const limitNumber = Math.min(
+      Math.max(Number(req.query.limit) || 10, 1),
+      100,
+    );
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const [items, total] = await Promise.all([
+      Season.find(filter).sort({ name: 1 }).skip(skip).limit(limitNumber),
+      Season.countDocuments(filter),
+    ]);
+
+    res.send({
+      items,
+      total,
+      page: pageNumber,
+      totalPages: Math.ceil(total / limitNumber) || 0,
+    });
   }),
 );
 
@@ -3376,15 +3517,51 @@ adminRouter.delete(
 // labels used to tag products across domains
 // ==========================================
 
-// GET /api/admin/tags
-// List tags
+// GET /api/admin/tags?domain=...&page=1&limit=10&search=...
+// List tags (paginated when page/limit provided; array otherwise for dropdowns)
 adminRouter.get(
   "/tags",
   expressAsyncHandler(async (req, res) => {
-    const { domain } = req.query;
-    const filter = domain ? { domain } : {};
-    const tags = await Tag.find(filter).sort({ name: 1 });
-    res.send(tags);
+    const { domain, search } = req.query;
+    const filter = {};
+    if (domain) filter.domain = domain;
+    if (search && typeof search === "string" && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$or = [
+        { name: regex },
+        { nameAr: regex },
+        { description: regex },
+        { descriptionAr: regex },
+      ];
+    }
+
+    const wantsPagination =
+      req.query.page !== undefined || req.query.limit !== undefined;
+
+    if (!wantsPagination) {
+      const tags = await Tag.find(filter).sort({ name: 1 });
+      res.send(tags);
+      return;
+    }
+
+    const pageNumber = Math.max(Number(req.query.page) || 1, 1);
+    const limitNumber = Math.min(
+      Math.max(Number(req.query.limit) || 10, 1),
+      100,
+    );
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const [items, total] = await Promise.all([
+      Tag.find(filter).sort({ name: 1 }).skip(skip).limit(limitNumber),
+      Tag.countDocuments(filter),
+    ]);
+
+    res.send({
+      items,
+      total,
+      page: pageNumber,
+      totalPages: Math.ceil(total / limitNumber) || 0,
+    });
   }),
 );
 

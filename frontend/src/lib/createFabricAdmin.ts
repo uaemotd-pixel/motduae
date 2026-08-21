@@ -327,19 +327,7 @@ export function validateFabricForm(
     errors.stockInMeters = "Please enter a valid stock amount";
   }
 
-  const minAge = form.minAge;
-  const maxAge = form.maxAge;
-
-  if (minAge != null && (isNaN(minAge) || minAge < 0)) {
-    errors.minAge = "Min age must be a positive number";
-  }
-  if (maxAge != null && (isNaN(maxAge) || maxAge < 0)) {
-    errors.maxAge = "Max age must be a positive number";
-  }
-  if (minAge != null && maxAge != null && minAge > maxAge) {
-    errors.minAge = "Min age cannot exceed max age";
-    errors.maxAge = "Max age must be greater than min age";
-  }
+  Object.assign(errors, getFabricAgeFieldErrors(form));
 
   // Pickup address validations using uaeAddress utilities
   if (!form.pickupAddress.emirate?.trim()) {
@@ -469,7 +457,7 @@ export function getFabricAgeFieldErrors(
   }
   if (minAge != null && maxAge != null && minAge > maxAge) {
     errors.minAge = "Min age cannot exceed max age";
-    errors.maxAge = "Max age must be greater than min age";
+    errors.maxAge = "Max age cannot be smaller than min age";
   }
 
   return errors;
@@ -481,11 +469,13 @@ export function mapFabricApiErrorToFieldErrors(
   const trimmedMessage = message.trim();
 
   if (
-    trimmedMessage === "Max age must be greater than or equal to min age"
+    trimmedMessage === "Max age must be greater than or equal to min age" ||
+    trimmedMessage === "Max age cannot be smaller than min age" ||
+    trimmedMessage === "Min age cannot exceed max age"
   ) {
     return {
-      minAge: trimmedMessage,
-      maxAge: trimmedMessage,
+      minAge: "Min age cannot exceed max age",
+      maxAge: "Max age cannot be smaller than min age",
     };
   }
 

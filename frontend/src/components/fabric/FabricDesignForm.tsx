@@ -678,17 +678,23 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                     {formData.material ? (
                       <>
                         <span className="truncate">
-                          {allMaterials.find((m) => m.value === formData.material)?.en || formData.material}
+                          {allMaterials.find(
+                            (m) => m.value === formData.material,
+                          )?.en || formData.material}
                         </span>
                         <span className="text-black/40 shrink-0">/</span>
                         <span className="truncate">
-                          {allMaterials.find((m) => m.value === formData.material)?.ar || formData.materialAr}
+                          {allMaterials.find(
+                            (m) => m.value === formData.material,
+                          )?.ar || formData.materialAr}
                         </span>
                       </>
                     ) : materialsLoading ? (
                       <span className="text-black/60">Loading...</span>
                     ) : (
-                      <span className="text-black/60">Select material (EN / AR)</span>
+                      <span className="text-black/60">
+                        Select material (EN / AR)
+                      </span>
                     )}
                   </span>
                   <ChevronDown
@@ -821,7 +827,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                                 />
                                 <span className="inline-flex items-center gap-1 text-[8px] sm:text-[10px] lg:text-xs min-w-0 hover:cursor-pointer">
                                   <span className="truncate">{opt.en}</span>
-                                  <span className="text-gray-400 shrink-0">/</span>
+                                  <span className="text-gray-400 shrink-0">
+                                    /
+                                  </span>
                                   <span className="truncate">{opt.ar}</span>
                                 </span>
                               </span>
@@ -847,17 +855,21 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                     {formData.tag ? (
                       <>
                         <span className="truncate">
-                          {allTags.find((t) => t.value === formData.tag)?.en || formData.tag}
+                          {allTags.find((t) => t.value === formData.tag)?.en ||
+                            formData.tag}
                         </span>
                         <span className="text-black/40 shrink-0">/</span>
                         <span className="truncate">
-                          {allTags.find((t) => t.value === formData.tag)?.ar || formData.tagAr}
+                          {allTags.find((t) => t.value === formData.tag)?.ar ||
+                            formData.tagAr}
                         </span>
                       </>
                     ) : tagsLoading ? (
                       <span className="text-black/60">Loading...</span>
                     ) : (
-                      <span className="text-black/60">Select tag (optional)</span>
+                      <span className="text-black/60">
+                        Select tag (optional)
+                      </span>
                     )}
                   </span>
                   <ChevronDown
@@ -931,7 +943,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
               <input
                 type="text"
                 inputMode="decimal"
-                value={formData.pricePerMeter === 0 ? "" : formData.pricePerMeter}
+                value={
+                  formData.pricePerMeter === 0 ? "" : formData.pricePerMeter
+                }
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val === "" || /^\d*\.?\d*$/.test(val)) {
@@ -966,7 +980,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
               <input
                 type="text"
                 inputMode="numeric"
-                value={formData.stockInMeters === 0 ? "" : formData.stockInMeters}
+                value={
+                  formData.stockInMeters === 0 ? "" : formData.stockInMeters
+                }
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val === "" || /^\d*$/.test(val)) {
@@ -1177,7 +1193,6 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                   />
                 </div>
               </FormField>
-
             </div>
           </div>
 

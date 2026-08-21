@@ -587,7 +587,7 @@ export default function CustomOrdersTab({
 
   if (unifiedOrders.length === 0) {
     return (
-      <div className="text-center py-16 sm:py-20 border border-gray-200 bg-[#FDFAF5] rounded-2xl px-6">
+      <div className="text-center py-16 sm:py-20 border border-gray-200 bg-white rounded-2xl px-6">
         <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
         <p className="font-display text-xl sm:text-2xl mb-2">
           {t("emptyTitle")}
@@ -689,7 +689,7 @@ export default function CustomOrdersTab({
                             key={index}
                             className="group relative flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-black/5 hover:border-black/15 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-300"
                           >
-                            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#F0EBE3] overflow-hidden rounded-lg border border-black/5 shrink-0 relative flex items-center justify-center">
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-neutral-100 overflow-hidden rounded-lg border border-black/5 shrink-0 relative flex items-center justify-center">
                               {dImage ? (
                                 <>
                                   <img
@@ -750,7 +750,7 @@ export default function CustomOrdersTab({
                             key={index}
                             className="group relative flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-black/5 hover:border-black/15 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-300"
                           >
-                            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#F0EBE3] overflow-hidden rounded-lg border border-black/5 shrink-0 flex items-center justify-center relative">
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-neutral-100 overflow-hidden rounded-lg border border-black/5 shrink-0 flex items-center justify-center relative">
                               {fImage ? (
                                 <>
                                   <img
@@ -812,7 +812,7 @@ export default function CustomOrdersTab({
                               className="flex justify-between items-center text-xs py-2.5 first:pt-0 last:pb-0 gap-4"
                             >
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-[#F0EBE3] overflow-hidden rounded-lg border border-black/5 shrink-0 flex items-center justify-center relative">
+                                <div className="w-10 h-10 bg-neutral-100 overflow-hidden rounded-lg border border-black/5 shrink-0 flex items-center justify-center relative">
                                   {addOnImage ? (
                                     <>
                                       <img
@@ -900,7 +900,7 @@ export default function CustomOrdersTab({
                   <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mb-2 font-ui font-semibold">
                     {locale === "ar" ? "تفاصيل السعر" : "PRICE BREAKDOWN"}
                   </p>
-                  <div className="bg-[#FDFAF5] border border-gray-200 rounded-xl p-4 space-y-2 text-xs text-gray-600 font-ui">
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-2 text-xs text-gray-600 font-ui">
                     <div className="flex justify-between">
                       <span>
                         {tReview("lines.designBase", {
@@ -1001,7 +1001,7 @@ export default function CustomOrdersTab({
 
               {isDelivered && (
                 <div className="px-4 sm:px-6 pb-4">
-                  <div className="mt-2 border border-gray-200 rounded-xl bg-[#FDFAF5] p-4">
+                  <div className="mt-2 border border-gray-200 rounded-xl bg-white p-4">
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input
                         type="checkbox"
@@ -1392,7 +1392,7 @@ export default function CustomOrdersTab({
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="border-t border-gray-200 p-4 sm:p-6 bg-[#FDFAF5]"
+                    className="border-t border-gray-200 p-4 sm:p-6 bg-white"
                   >
                     {detailLoadingId === order.id && (
                       <div className="flex justify-center py-4">
@@ -1521,7 +1521,7 @@ export default function CustomOrdersTab({
                               key={idx}
                               className="group flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-black/5 hover:border-black/15 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-300 w-full"
                             >
-                              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#F0EBE3] overflow-hidden rounded-lg border border-black/5 shrink-0 relative flex items-center justify-center">
+                              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-neutral-100 overflow-hidden rounded-lg border border-black/5 shrink-0 relative flex items-center justify-center">
                                 {item.image ? (
                                   <>
                                     <img
@@ -1842,7 +1842,7 @@ export default function CustomOrdersTab({
                   <p className="text-[9px] uppercase tracking-[0.18em] text-gray-400 mb-2 font-ui font-semibold">
                     {locale === "ar" ? "تفاصيل السعر" : "PRICE BREAKDOWN"}
                   </p>
-                  <div className="bg-[#FDFAF5] border border-gray-200 rounded-xl p-4 space-y-2 text-xs text-gray-600 font-ui">
+                  <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-2 text-xs text-gray-600 font-ui">
                     <div className="flex justify-between">
                       <span>
                         {locale === "ar" ? "سعر المنتجات" : "Items Price"}
@@ -1913,7 +1913,7 @@ export default function CustomOrdersTab({
                       transition={{ duration: 0.3 }}
                       className="overflow-hidden"
                     >
-                      <div className="mt-4 bg-[#FDFAF5] border border-gray-200 rounded-xl p-4 sm:p-6">
+                      <div className="mt-4 bg-white border border-gray-200 rounded-xl p-4 sm:p-6">
                         <h4 className="font-display text-lg mb-4">
                           {tLogistics("title")}
                         </h4>

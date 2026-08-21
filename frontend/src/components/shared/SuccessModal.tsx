@@ -11,10 +11,7 @@ interface SuccessModalProps {
     message?: string;
     orderId?: string;
     orderIdLabel?: string;
-    itemsInOrderLabel?: string;
     okLabel?: string;
-    orderName?: string;
-    orderItems?: Array<{ name: string }>;
 }
 
 export default function SuccessModal({
@@ -24,10 +21,7 @@ export default function SuccessModal({
     message = "Your order has been confirmed.",
     orderId,
     orderIdLabel = "Order ID",
-    itemsInOrderLabel = "Items in this order:",
     okLabel = "OK",
-    orderName,
-    orderItems,
 }: SuccessModalProps) {
     // Close on Escape key
     useEffect(() => {
@@ -98,34 +92,8 @@ export default function SuccessModal({
 
                             {/* Order ID */}
                             {orderId && (
-                                <p className="[font-family:var(--font-ui)] text-[11px] tracking-[0.2em] text-black/60 mb-3">
-                                    {orderIdLabel}: <span className="font-medium">{orderId.slice(-8)}</span>
-                                </p>
-                            )}
-
-                            {/* Ordered Items List */}
-                            {orderItems && orderItems.length > 0 && (
-                                <div className="mt-2 mb-4 text-left max-h-40 overflow-y-auto">
-                                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) mb-2">
-                                        {itemsInOrderLabel}
-                                    </p>
-                                    <ul className="space-y-1.5">
-                                        {orderItems.map((item, idx) => (
-                                            <li
-                                                key={`${item.name}-${idx}`}
-                                                className="text-[12px] text-black/80 border-b border-(--color-border) pb-1"
-                                            >
-                                                <span className="font-medium">{item.name}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {/* Legacy orderName (if no orderItems) */}
-                            {orderName && (!orderItems || orderItems.length === 0) && (
                                 <p className="[font-family:var(--font-ui)] text-[11px] tracking-[0.2em] text-black/60 mb-6">
-                                    Order Name: <span className="font-medium">{orderName}</span>
+                                    {orderIdLabel}: <span className="font-medium">{orderId.slice(-8)}</span>
                                 </p>
                             )}
 
