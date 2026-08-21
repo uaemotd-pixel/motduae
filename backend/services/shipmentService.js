@@ -478,6 +478,72 @@ function isTailorDispatchType(type) {
   );
 }
 
+/** Distinct tailors on a custom order (line items + legacy order.tailorShopId). */
+export function getCustomOrderTailorShopIds(order) {
+  const ids = new Set();
+  const orderLevel = idStr(order?.tailorShopId);
+  if (orderLevel) ids.add(orderLevel);
+  for (const item of order?.items || []) {
+    const itemTailor = idStr(item?.tailorShopId);
+    if (itemTailor) ids.add(itemTailor);
+  }
+  return [...ids];
+}
+
+function tailorHasDispatchedFromReady(order, tailorShopId) {
+  const tailorId = idStr(tailorShopId);
+  if (!tailorId) return false;
+  return activeShipments(order).some(
+    (shipment) =>
+      isTailorDispatchType(shipment.type) &&
+      idStr(shipment.tailorShopId) === tailorId &&
+      shipment.status !== "planned",
+  );
+}
+
+/** True when every tailor on the order has a created (or later) dispatch parcel. */
+export function areAllCustomTailorsReady(order) {
+  const tailorIds = getCustomOrderTailorShopIds(order);
+  if (tailorIds.length === 0) return true;
+  return tailorIds.every((id) => tailorHasDispatchedFromReady(order, id));
+}
+
+const TAILOR_ORDER_WIDE_STATUSES = new Set([
+  "cancelled",
+  "out_for_delivery",
+  "delivered",
+  "return_requested",
+  "return_approved",
+  "return_rejected",
+  "refund_processed",
+]);
+
+/**
+ * Status this tailor should see. Their Ready does not wait on other tailors;
+ * customer-facing order.status still does.
+ */
+export function getTailorFacingStatus(order, tailorShopId) {
+  const status = order?.status || "pending";
+  if (TAILOR_ORDER_WIDE_STATUSES.has(status)) return status;
+  if (tailorHasDispatchedFromReady(order, tailorShopId)) return "ready";
+  return status;
+}
+
+export function presentCustomOrderForTailor(order, tailorShopId) {
+  const payload =
+    order && typeof order.toObject === "function" ? order.toObject() : order;
+  const tailorStatus = getTailorFacingStatus(payload, tailorShopId);
+  const orderStatus = payload?.status;
+  return {
+    ...payload,
+    tailorStatus,
+    awaitingOtherTailors:
+      tailorStatus === "ready" &&
+      orderStatus !== "ready" &&
+      !TAILOR_ORDER_WIDE_STATUSES.has(orderStatus),
+  };
+}
+
 function activeShipments(order) {
   return (order.shipments || []).filter((s) => s.status !== "cancelled");
 }
@@ -1205,6 +1271,47 @@ export async function createReadyCustomShipments(
     ...options,
     tailorShopId: tailorShopId || undefined,
   });
+}
+
+/**
+ * One tailor marked ready: create that tailor's packing AWB, but only set
+ * customer-facing `ready` when every tailor on the order has dispatched.
+ */
+export async function markCustomTailorReady(
+  orderDoc,
+  tailorShopId,
+  options = {},
+) {
+  const result = await createReadyCustomShipments(orderDoc, tailorShopId, options);
+  const order = result?.order || orderDoc;
+  const allReady = areAllCustomTailorsReady(order);
+  const tailorName = String(options.tailorName || "Tailor").trim() || "Tailor";
+  const customNote =
+    typeof options.note === "string" ? options.note.trim() : "";
+  const note = customNote
+    ? customNote
+    : allReady
+      ? `${tailorName} marked ready`
+      : `${tailorName} marked ready. Waiting for remaining tailors`;
+
+  const previousStatus = order.status;
+  if (allReady) {
+    order.status = "ready";
+    appendStatusHistory(order, "ready", note, options.changedBy || null);
+    await order.save();
+    if (previousStatus !== "ready") {
+      await notifyCustomStatusChange(order, "ready", options.changedBy || null);
+    }
+  } else {
+    appendStatusHistory(order, order.status, note, options.changedBy || null);
+    await order.save();
+  }
+
+  return {
+    ...result,
+    order,
+    orderReady: allReady,
+  };
 }
 
 function packOrderNotFoundError() {

@@ -17,7 +17,7 @@ import {
   isCompleteShopPickupAddress,
   normalizeShopPickupAddress,
 } from "../utils/shopPickupAddress.js";
-import { createReadyCustomShipments } from "../services/shipmentService.js";
+import { markCustomTailorReady, presentCustomOrderForTailor } from "../services/shipmentService.js";
 import { getTimeframeWindow } from "../utils/dateRange.js";
 
 const tailorPortalRouter = express.Router();
@@ -381,7 +381,7 @@ tailorPortalRouter.get(
 
     res.json({
       success: true,
-      items: orders,
+      items: orders.map((order) => presentCustomOrderForTailor(order, shop._id)),
       tailorShopId: shop._id,
     });
   }),
@@ -426,6 +426,20 @@ tailorPortalRouter.patch(
       return;
     }
 
+    if (status === "ready") {
+      const shipmentResult = await markCustomTailorReady(order, shop._id, {
+        changedBy: req.user._id,
+        tailorName: shop.name,
+        note: typeof note === "string" ? note.trim() : "",
+      });
+      const updated = shipmentResult?.order || order;
+      res.json({
+        success: true,
+        order: presentCustomOrderForTailor(updated, shop._id),
+      });
+      return;
+    }
+
     if (status) {
       order.status = status;
       order.statusHistory.push({
@@ -437,19 +451,9 @@ tailorPortalRouter.patch(
       await order.save();
     }
 
-    let responseOrder = order;
-    if (status === "ready") {
-      const shipmentResult = await createReadyCustomShipments(
-        order,
-        shop._id,
-        { changedBy: req.user._id },
-      );
-      responseOrder = shipmentResult?.order || order;
-    }
-
     res.json({
       success: true,
-      order: responseOrder,
+      order: presentCustomOrderForTailor(order, shop._id),
     });
   }),
 );

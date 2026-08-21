@@ -66,6 +66,8 @@ interface Order {
   fabricSnapshot?: { name: string } | null;
   measurements?: Measurements;
   status: string;
+  tailorStatus?: string;
+  awaitingOtherTailors?: boolean;
   createdAt: string;
   shipments?: CustomOrderShipmentSummary[];
   pricing?: {
@@ -315,7 +317,8 @@ export default function TailorOrdersPage() {
 
       // 2. Status filter
       if (filterStatus) {
-        if (order.status !== filterStatus) return false;
+        const displayStatus = order.tailorStatus || order.status;
+        if (displayStatus !== filterStatus) return false;
       }
 
       if (!isWithinLocalDateRange(order.createdAt, filterFrom, filterTo)) {
@@ -451,8 +454,10 @@ export default function TailorOrdersPage() {
         <div className="space-y-4">
           {filteredOrders.map((order) => {
             const isUpdating = updatingOrderId === order._id;
-            const nextStatus = getNextCustomOrderStatus(order.status);
-            const previousStatus = getPreviousCustomOrderStatus(order.status);
+            const displayStatus = order.tailorStatus || order.status;
+            const awaitingOtherTailors = Boolean(order.awaitingOtherTailors);
+            const nextStatus = getNextCustomOrderStatus(displayStatus);
+            const previousStatus = getPreviousCustomOrderStatus(displayStatus);
             const user = getOrderUser(order.userId);
             const isGuest = isGuestOrderUser(order.userId);
             const customerName = isGuest && (order as any).customerDeliveryAddress?.fullName
@@ -471,12 +476,14 @@ export default function TailorOrdersPage() {
             const isExpanded = !!expandedOrders[order._id];
             const isOptionsExpanded = !!expandedOptions[order._id];
             const isShipmentsExpanded = !!expandedShipments[order._id];
-            const isOutForDeliveryStatus = isOutForDelivery(order.status);
-            const isDeliveredStatus = isDelivered(order.status);
-            const isCompletedStatus = isCompleted(order.status);
-            const canAdvanceStatus = canAdvance(order.status);
-            const canRevertStatus = canRevert(order.status);
-            const isActionable = isTailorActionable(order.status);
+            const isOutForDeliveryStatus = isOutForDelivery(displayStatus);
+            const isDeliveredStatus = isDelivered(displayStatus);
+            const isCompletedStatus = isCompleted(displayStatus);
+            const canAdvanceStatus =
+              canAdvance(displayStatus) && !awaitingOtherTailors;
+            const canRevertStatus =
+              canRevert(displayStatus) && !awaitingOtherTailors;
+            const isActionable = isTailorActionable(displayStatus);
 
             return (
               <div
@@ -537,9 +544,16 @@ export default function TailorOrdersPage() {
                       {t("status")}
                     </p>
                     <StatusBadge
-                      status={order.status}
-                      label={statusLabel(order.status)}
+                      status={displayStatus}
+                      label={statusLabel(displayStatus)}
                     />
+                    {awaitingOtherTailors && (
+                      <p className="text-[9px] text-teal-700 mt-1 font-medium">
+                        {locale === "ar"
+                          ? "تم تجهيز عملك. بانتظار بقية الخياطين"
+                          : "Your work is ready. Waiting for other tailors"}
+                      </p>
+                    )}
                     {isOutForDeliveryStatus && (
                       <p className="text-[9px] text-amber-600 mt-1 font-medium">
                         ⚠️{" "}
@@ -724,9 +738,11 @@ export default function TailorOrdersPage() {
                           : "Locked - customer action required"}
                       </span>
                     )}
-                    {isCompletedStatus && (
-                      <span className="ml-3 text-[10px] text-green-600 font-medium">
-                        ✅ {locale === "ar" ? "مكتمل" : "Completed"}
+                    {awaitingOtherTailors && (
+                      <span className="ml-3 text-[10px] text-teal-700 font-medium">
+                        {locale === "ar"
+                          ? "بانتظار بقية الخياطين"
+                          : "Waiting for other tailors"}
                       </span>
                     )}
                   </div>
