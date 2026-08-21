@@ -10,6 +10,7 @@ import FabricShop from "../models/FabricShop.js";
 import Design from "../models/Design.js";
 import RetailOrder from "../models/RetailOrder.js";
 import CustomOrder from "../models/CustomOrder.js";
+import AddOn from "../models/AddOn.js";
 
 const MODELS = [
   User,
@@ -21,6 +22,7 @@ const MODELS = [
   Design,
   RetailOrder,
   CustomOrder,
+  AddOn,
 ];
 
 const BCRYPT_ROUNDS = 10;
@@ -244,6 +246,56 @@ async function seedFabricShops() {
   for (const shop of shops) {
     console.log(`  ${shop.slug} — ${shop.name} (${shop.city})`);
   }
+}
+
+async function seedAddOns() {
+  const hanayan = seedContext.fabricShops.find(
+    (shop) => shop.slug === "hanayan-fabrics",
+  );
+  const mauzan = seedContext.fabricShops.find(
+    (shop) => shop.slug === "mauzan-textiles",
+  );
+  if (!hanayan || !mauzan) {
+    throw new Error("Fabric shops must be seeded before add-ons");
+  }
+
+  await AddOn.insertMany([
+    {
+      name: "Hanayan Tassel Set",
+      nameAr: "طقم شراشيب هنيان",
+      slug: "hanayan-tassel-set",
+      description:
+        "Matching tassels from the same Dubai fabric shop as Hanayan yardage.",
+      descriptionAr: "شراشيب مطابقة من نفس متجر أقمشة هنيان في دبي.",
+      price: 85,
+      stock: 40,
+      thumbnailImage: "/images/fab1.png",
+      images: ["/images/fab1.png"],
+      tag: "MATCHING",
+      isActive: true,
+      fabricShopId: hanayan._id,
+      ownerName: hanayan.name,
+    },
+    {
+      name: "Mauzan Embroidery Kit",
+      nameAr: "طقم تطريز موزان",
+      slug: "mauzan-embroidery-kit",
+      description:
+        "Embroidery kit shipped from Mauzan in Abu Dhabi, a different shop than Hanayan fabric.",
+      descriptionAr:
+        "طقم تطريز يُشحن من موزان في أبوظبي، متجر مختلف عن قماش هنيان.",
+      price: 120,
+      stock: 25,
+      thumbnailImage: "/images/fab2.png",
+      images: ["/images/fab2.png"],
+      tag: "ADD-ON",
+      isActive: true,
+      fabricShopId: mauzan._id,
+      ownerName: mauzan.name,
+    },
+  ]);
+
+  console.log("Seeded add-ons: hanayan-tassel-set, mauzan-embroidery-kit");
 }
 
 async function seedReadyMadeProducts() {
@@ -943,6 +995,7 @@ async function seed() {
 
   await seedUsersAndSettings();
   await seedFabricShops();
+  await seedAddOns();
   await seedFabrics();
   await seedTailorShopsAndDesigns();
   await seedReadyMadeProducts();
