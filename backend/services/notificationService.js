@@ -1,6 +1,7 @@
 import AdminNotification from "../models/AdminNotification.js";
 import CustomOrder from "../models/CustomOrder.js";
 import RetailOrder from "../models/RetailOrder.js";
+import { applyCreatedAtFilter } from "../utils/dateRange.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -112,21 +113,9 @@ function buildListFilters(query = {}) {
   }
 
   if (query.from || query.to) {
-    filters.createdAt = {};
-    if (query.from) {
-      const fromDate = new Date(query.from);
-      if (!Number.isNaN(fromDate.getTime())) {
-        filters.createdAt.$gte = fromDate;
-      }
-    }
-    if (query.to) {
-      const toDate = new Date(query.to);
-      if (!Number.isNaN(toDate.getTime())) {
-        filters.createdAt.$lte = toDate;
-      }
-    }
-    if (Object.keys(filters.createdAt).length === 0) {
-      delete filters.createdAt;
+    const parsed = applyCreatedAtFilter(query.from, query.to);
+    if (parsed.createdAt) {
+      filters.createdAt = parsed.createdAt;
     }
   }
 

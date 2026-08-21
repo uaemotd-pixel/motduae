@@ -16,6 +16,7 @@ import SubAdminOrdersTabs from "../SubAdminOrdersTabs";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
+import { localDayEndISO, localDayStartISO } from "@/lib/dateRange";
 
 type RetailOrder = {
   _id: string;
@@ -216,8 +217,8 @@ export default function AdminRetailOrdersPage() {
       if (filterStatus) queryParams.append("status", filterStatus);
       if (filterCustomer.trim())
         queryParams.append("customer", filterCustomer.trim());
-      if (filterFrom) queryParams.append("from", filterFrom);
-      if (filterTo) queryParams.append("to", filterTo);
+      if (filterFrom) queryParams.append("from", localDayStartISO(filterFrom));
+      if (filterTo) queryParams.append("to", localDayEndISO(filterTo));
 
       const url = `/api/admin/orders/retail${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
       const data = await api.get<RetailOrder[]>(url);
