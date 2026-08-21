@@ -891,10 +891,15 @@ export async function createShipmentsForOrder(
     );
 
     if (!pickupAddress.line1 || !dropoffAddress.line1) {
+      const detail =
+        "Missing pickup or dropoff address — set the fabric/tailor shop pickupAddress (street, city, emirate, phone) and customer delivery address";
+      console.error(
+        `Shipa create skipped parcel=${shipment.parcelKey} type=${shipment.type}: ${detail}`,
+        { pickup: pickupAddress, dropoff: dropoffAddress },
+      );
       errors.push({
         parcelKey: shipment.parcelKey,
-        error:
-          "Missing pickup or dropoff address — set the ready-made pickup address (or shop pickupAddress) and customer delivery address",
+        error: detail,
       });
       continue;
     }
@@ -941,9 +946,16 @@ export async function createShipmentsForOrder(
         type: shipment.type,
       });
     } catch (error) {
+      const detail = error.data
+        ? `${error.message} ${JSON.stringify(error.data)}`
+        : error.message || String(error);
+      console.error(
+        `Shipa createOrder failed parcel=${shipment.parcelKey} type=${shipment.type}:`,
+        detail,
+      );
       errors.push({
         parcelKey: shipment.parcelKey,
-        error: error.message || String(error),
+        error: detail,
       });
     }
   }
@@ -961,12 +973,14 @@ export async function createShipmentsForOrder(
   }
 
   if (errors.length > 0) {
+    const summary = errors
+      .map((e) => `${e.parcelKey || "unknown"}: ${e.error}`)
+      .join("; ");
+    console.error("Shipa parcel create failed:", summary);
     appendStatusHistory(
       order,
       order.status,
-      `Shipa parcel create failed: ${errors
-        .map((e) => `${e.parcelKey || "unknown"}: ${e.error}`)
-        .join("; ")}`,
+      `Shipa parcel create failed: ${summary}`,
       options.changedBy || null,
     );
   }
