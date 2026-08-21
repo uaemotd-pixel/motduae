@@ -19,8 +19,22 @@ import {
 } from "../utils/shopPickupAddress.js";
 import { markCustomTailorReady, presentCustomOrderForTailor } from "../services/shipmentService.js";
 import { getTimeframeWindow } from "../utils/dateRange.js";
+import { splitMotdCommission } from "../services/pricingService.js";
 
 const tailorPortalRouter = express.Router();
+
+const DEFAULT_TAILOR_COMMISSION_PERCENT = 12;
+
+const resolveTailorCommissionPercent = (settings) => {
+  if (
+    typeof settings?.motdCommissionFromTailor === "number" &&
+    Number.isFinite(settings.motdCommissionFromTailor) &&
+    settings.motdCommissionFromTailor > 0
+  ) {
+    return Math.min(100, Math.max(0, settings.motdCommissionFromTailor));
+  }
+  return DEFAULT_TAILOR_COMMISSION_PERCENT;
+};
 
 const SHOP_FIELDS = [
   "name",
@@ -476,14 +490,19 @@ tailorPortalRouter.get(
     const shop = await findOwnShop(req.user._id);
     const settings = await PlatformSettings.findOne({}).lean();
     const defaultTailoringFee = Number(settings?.defaultTailoringFee || 0);
+    const commissionPercent = resolveTailorCommissionPercent(settings);
 
     if (!shop) {
       res.json({
         success: true,
         currency: "AED",
         tailorShopId: null,
+        commissionPercent,
         tailoringFeeEnabled: defaultTailoringFee > 0,
         kpis: {
+          tailorRevenue: 0,
+          tailorGross: 0,
+          motdCommission: 0,
           designFees: 0,
           tailoringFees: 0,
           orderCount: 0,
@@ -492,7 +511,13 @@ tailorPortalRouter.get(
         },
         monthlyData: [],
         statusBreakdown: [],
-        feeSplit: { designFees: 0, tailoringFees: 0 },
+        feeSplit: {
+          tailorGross: 0,
+          motdCommission: 0,
+          tailorNet: 0,
+          designFees: 0,
+          tailoringFees: 0,
+        },
         recentOrders: [],
         pricingOrders: [],
       });
@@ -500,70 +525,70 @@ tailorPortalRouter.get(
     }
 
     const shopId = shop._id;
+    const shopIdStr = shopId.toString();
     const orderMatch = {
       $or: [{ tailorShopId: shopId }, { "items.tailorShopId": shopId }],
     };
 
-    const [ordersInWindow, allScopedOrders, activeDesigns] = await Promise.all([
-      CustomOrder.find({
-        ...orderMatch,
-        createdAt: { $gte: start, $lte: end },
-      })
-        .populate("userId", "name email")
-        .sort({ createdAt: -1 })
-        .lean(),
-      CustomOrder.find(orderMatch)
-        .populate("userId", "name email")
-        .sort({ createdAt: -1 })
-        .limit(8)
-        .lean(),
-      Design.countDocuments({ tailorShopId: shopId, isActive: true }),
-    ]);
+    const [ordersInWindow, recentScopedOrders, activeDesigns] =
+      await Promise.all([
+        CustomOrder.find({
+          ...orderMatch,
+          createdAt: { $gte: start, $lte: end },
+        })
+          .populate("userId", "name email")
+          .sort({ createdAt: -1 })
+          .lean(),
+        CustomOrder.find(orderMatch)
+          .populate("userId", "name email")
+          .sort({ createdAt: -1 })
+          .limit(20)
+          .lean(),
+        Design.countDocuments({ tailorShopId: shopId, isActive: true }),
+      ]);
+
+    const isShopItem = (item) => {
+      const sid =
+        item.tailorShopId?._id?.toString?.() ||
+        item.tailorShopId?.toString?.() ||
+        "";
+      return sid === shopIdStr;
+    };
 
     const getDesignFee = (order) => {
       if (order.items && order.items.length > 0) {
         return order.items
-          .filter((item) => {
-            const sid =
-              item.tailorShopId?._id?.toString?.() ||
-              item.tailorShopId?.toString?.() ||
-              "";
-            return sid === shopId.toString();
-          })
+          .filter(isShopItem)
           .reduce((sum, item) => sum + (item.pricing?.designBase || 0), 0);
       }
       const orderShopId =
         order.tailorShopId?._id?.toString?.() ||
         order.tailorShopId?.toString?.() ||
         "";
-      return orderShopId === shopId.toString()
-        ? order.pricing?.designBase || 0
-        : 0;
+      return orderShopId === shopIdStr ? order.pricing?.designBase || 0 : 0;
     };
 
     const getTailoringFee = (order) => {
       if (order.items && order.items.length > 0) {
         return order.items
-          .filter((item) => {
-            const sid =
-              item.tailorShopId?._id?.toString?.() ||
-              item.tailorShopId?.toString?.() ||
-              "";
-            return sid === shopId.toString();
-          })
+          .filter(isShopItem)
           .reduce((sum, item) => sum + (item.pricing?.tailoringFee || 0), 0);
       }
       const orderShopId =
         order.tailorShopId?._id?.toString?.() ||
         order.tailorShopId?.toString?.() ||
         "";
-      return orderShopId === shopId.toString()
-        ? order.pricing?.tailoringFee || 0
-        : 0;
+      return orderShopId === shopIdStr ? order.pricing?.tailoringFee || 0 : 0;
     };
+
+    // Tailor gross for custom stitching = design + tailoring fees for this shop.
+    const getTailorGross = (order) => getDesignFee(order) + getTailoringFee(order);
 
     let designFees = 0;
     let tailoringFees = 0;
+    let tailorGross = 0;
+    let motdCommission = 0;
+    let tailorRevenue = 0;
     const statusMap = new Map();
     const IN_PROGRESS = new Set([
       "confirmed",
@@ -576,8 +601,17 @@ tailorPortalRouter.get(
     let inProgress = 0;
 
     for (const order of ordersInWindow) {
-      designFees += getDesignFee(order);
-      tailoringFees += getTailoringFee(order);
+      const design = getDesignFee(order);
+      const tailoring = getTailoringFee(order);
+      const gross = design + tailoring;
+      const breakdown = splitMotdCommission(gross, commissionPercent);
+
+      designFees += design;
+      tailoringFees += tailoring;
+      tailorGross += breakdown.gross;
+      motdCommission += breakdown.commission;
+      tailorRevenue += breakdown.net;
+
       const st = order.status || "unknown";
       statusMap.set(st, (statusMap.get(st) || 0) + 1);
       if (IN_PROGRESS.has(st)) inProgress += 1;
@@ -602,21 +636,36 @@ tailorPortalRouter.get(
     for (const order of monthlyOrders) {
       const d = new Date(order.createdAt);
       const key = `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
-      const prev = monthlyMap.get(key) || { design: 0, tailoring: 0 };
+      const design = getDesignFee(order);
+      const tailoring = getTailoringFee(order);
+      const net = splitMotdCommission(
+        design + tailoring,
+        commissionPercent,
+      ).net;
+      const prev = monthlyMap.get(key) || {
+        design: 0,
+        tailoring: 0,
+        revenue: 0,
+      };
       monthlyMap.set(key, {
-        design: prev.design + getDesignFee(order),
-        tailoring: prev.tailoring + getTailoringFee(order),
+        design: prev.design + design,
+        tailoring: prev.tailoring + tailoring,
+        revenue: prev.revenue + net,
       });
     }
 
     const monthlyData = monthStarts.map((d) => {
       const key = `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
-      const row = monthlyMap.get(key) || { design: 0, tailoring: 0 };
+      const row = monthlyMap.get(key) || {
+        design: 0,
+        tailoring: 0,
+        revenue: 0,
+      };
       return {
         month: d.toLocaleString("en-US", { month: "short" }),
-        design: row.design,
-        tailoring: row.tailoring,
-        revenue: row.design + row.tailoring,
+        design: Number(row.design.toFixed(2)),
+        tailoring: Number(row.tailoring.toFixed(2)),
+        revenue: Number(row.revenue.toFixed(2)),
       };
     });
 
@@ -624,34 +673,67 @@ tailorPortalRouter.get(
       .map(([status, count]) => ({ status, count }))
       .sort((a, b) => b.count - a.count);
 
-    const recentOrders = allScopedOrders.map((o) => ({
-      id: o._id.toString(),
-      amount: getDesignFee(o) + getTailoringFee(o),
-      status: o.status,
-      date: o.createdAt ? new Date(o.createdAt).toISOString() : "",
-      type: "custom",
-    }));
+    const recentOrders = recentScopedOrders
+      .map((o) => {
+        const breakdown = splitMotdCommission(
+          getTailorGross(o),
+          commissionPercent,
+        );
+        return {
+          id: o._id.toString(),
+          amount: breakdown.net,
+          status: o.status,
+          date: o.createdAt ? new Date(o.createdAt).toISOString() : "",
+          type: "custom",
+        };
+      })
+      .filter((o) => o.amount > 0)
+      .slice(0, 8);
 
-    // Optional platform fee: show only if admin default > 0 or this period has any charged.
+    const pricingOrders = recentScopedOrders
+      .map((o) => {
+        const designFee = getDesignFee(o);
+        const tailoringFee = getTailoringFee(o);
+        const gross = designFee + tailoringFee;
+        return {
+          ...o,
+          designFeeGross: designFee,
+          tailoringFeeGross: tailoringFee,
+          tailorFeeGross: gross,
+        };
+      })
+      .filter((o) => o.tailorFeeGross > 0)
+      .slice(0, 20);
+
     const tailoringFeeEnabled = defaultTailoringFee > 0 || tailoringFees > 0;
 
     res.json({
       success: true,
       currency: "AED",
       tailorShopId: shopId,
+      commissionPercent,
       tailoringFeeEnabled,
       kpis: {
-        designFees,
-        tailoringFees,
+        tailorRevenue: Number(tailorRevenue.toFixed(2)),
+        tailorGross: Number(tailorGross.toFixed(2)),
+        motdCommission: Number(motdCommission.toFixed(2)),
+        designFees: Number(designFees.toFixed(2)),
+        tailoringFees: Number(tailoringFees.toFixed(2)),
         orderCount: ordersInWindow.length,
         activeDesigns,
         inProgress,
       },
       monthlyData,
       statusBreakdown,
-      feeSplit: { designFees, tailoringFees },
+      feeSplit: {
+        tailorGross: Number(tailorGross.toFixed(2)),
+        motdCommission: Number(motdCommission.toFixed(2)),
+        tailorNet: Number(tailorRevenue.toFixed(2)),
+        designFees: Number(designFees.toFixed(2)),
+        tailoringFees: Number(tailoringFees.toFixed(2)),
+      },
       recentOrders,
-      pricingOrders: allScopedOrders,
+      pricingOrders,
     });
   }),
 );

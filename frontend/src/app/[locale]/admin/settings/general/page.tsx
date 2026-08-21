@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent, FocusEvent } from "react";
 import { useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
@@ -53,10 +53,11 @@ const translations = {
   en: {
     title: "Platform Settings",
     subtitle:
-      "Manage global pricing defaults, per-parcel delivery fees, tailoring fees, VAT rate, and currency defaults.",
+      "Manage global pricing defaults, per-parcel delivery fees, tailoring fees, MOTD commissions, VAT rate, and currency defaults.",
     deliveryFee: "Per-parcel delivery fee (AED)",
     tailoringFee: "Default Tailoring Fee (AED)",
-    platformFee: "Platform Fee (AED)",
+    motdCommissionFromTailor: "MOTD Commission from Tailor (%)",
+    motdCommissionFromFabricStore: "MOTD Commission from Fabric Store (%)",
     vatRate: "VAT Rate (%)",
     returnDeductionPercent: "Return Deduction (%)",
     returnAllowedDays: "Return Allowed Days",
@@ -75,8 +76,10 @@ const translations = {
         "Per-parcel delivery fee must be a valid number greater than or equal to 0.",
       tailoringFeeMin:
         "Tailoring fee must be a valid number greater than or equal to 0.",
-      platformFeeMin:
-        "Platform fee must be a valid number greater than or equal to 0.",
+      motdCommissionFromTailorRange:
+        "MOTD commission from tailor must be a valid percentage between 0% and 100%.",
+      motdCommissionFromFabricStoreRange:
+        "MOTD commission from fabric store must be a valid percentage between 0% and 100%.",
       vatRateRange: "VAT rate must be a valid percentage between 0% and 100%.",
       returnDeductionRange:
         "Return deduction percent must be a valid percentage between 0% and 100%.",
@@ -87,10 +90,11 @@ const translations = {
   ar: {
     title: "إعدادات المنصة",
     subtitle:
-      "إدارة قيم التسعير الافتراضية العالمية، رسوم التوصيل لكل طرد، رسوم الخياطة، ضريبة القيمة المضافة، والعملة الافتراضية.",
+      "إدارة قيم التسعير الافتراضية العالمية، رسوم التوصيل لكل طرد، رسوم الخياطة، عمولات MOTD، ضريبة القيمة المضافة، والعملة الافتراضية.",
     deliveryFee: "رسوم التوصيل لكل طرد (درهم)",
     tailoringFee: "رسوم الخياطة الافتراضية (درهم)",
-    platformFee: "رسوم المنصة (درهم)",
+    motdCommissionFromTailor: "عمولة MOTD من الخياط (%)",
+    motdCommissionFromFabricStore: "عمولة MOTD من متجر الأقمشة (%)",
     vatRate: "نسبة ضريبة القيمة المضافة (%)",
     returnDeductionPercent: "خصم الإرجاع (%)",
     returnAllowedDays: "عدد أيام الإرجاع المسموحة",
@@ -109,7 +113,10 @@ const translations = {
         "يجب أن تكون رسوم التوصيل لكل طرد قيمة صحيحة أكبر من أو تساوي 0.",
       tailoringFeeMin:
         "يجب أن تكون رسوم الخياطة قيمة صحيحة أكبر من أو تساوي 0.",
-      platformFeeMin: "يجب أن تكون رسوم المنصة قيمة صحيحة أكبر من أو تساوي 0.",
+      motdCommissionFromTailorRange:
+        "يجب أن تكون عمولة MOTD من الخياط نسبة بين 0% و 100%.",
+      motdCommissionFromFabricStoreRange:
+        "يجب أن تكون عمولة MOTD من متجر الأقمشة نسبة بين 0% و 100%.",
       vatRateRange: "يجب أن تكون نسبة ضريبة القيمة المضافة بين 0% و 100%.",
       returnDeductionRange: "يجب أن تكون نسبة خصم الإرجاع بين 0% و 100%.",
       returnAllowedDaysMin:
@@ -143,11 +150,29 @@ function isFulfillmentEmpty(address: ShopPickupAddress): boolean {
   );
 }
 
+function parseNonNegativeNumber(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (
+    trimmed === "" ||
+    trimmed === "-" ||
+    trimmed === "." ||
+    trimmed === "-."
+  ) {
+    return null;
+  }
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || value < 0) {
+    return null;
+  }
+  return value;
+}
+
 type PlatformSettingsPayload = {
   defaultDeliveryFee?: number;
   perParcelDeliveryFee?: number;
   defaultTailoringFee: number;
-  platformFee: number;
+  motdCommissionFromTailor: number;
+  motdCommissionFromFabricStore: number;
   vatRate: number;
   returnDeductionPercent: number;
   returnAllowedDays: number;
@@ -168,7 +193,10 @@ export default function AdminSettingsGeneralPage() {
   // Input states (stored as string for better user typing experience)
   const [deliveryFee, setDeliveryFee] = useState<string>("0");
   const [tailoringFee, setTailoringFee] = useState<string>("0");
-  const [platformFee, setPlatformFee] = useState<string>("0");
+  const [motdCommissionFromTailor, setMotdCommissionFromTailor] =
+    useState<string>("0");
+  const [motdCommissionFromFabricStore, setMotdCommissionFromFabricStore] =
+    useState<string>("15");
   const [vatRatePercent, setVatRatePercent] = useState<string>("5");
   const [returnDeductionPercent, setReturnDeductionPercent] =
     useState<string>("0");
@@ -189,7 +217,12 @@ export default function AdminSettingsGeneralPage() {
           data.perParcelDeliveryFee ?? data.defaultDeliveryFee ?? 30;
         setDeliveryFee(parcelFee.toString());
         setTailoringFee(data.defaultTailoringFee.toString());
-        setPlatformFee(data.platformFee.toString());
+        setMotdCommissionFromTailor(
+          (data.motdCommissionFromTailor ?? 0).toString(),
+        );
+        setMotdCommissionFromFabricStore(
+          (data.motdCommissionFromFabricStore ?? 0).toString(),
+        );
         setVatRatePercent((data.vatRate * 100).toString());
         setReturnDeductionPercent(
           (data.returnDeductionPercent ?? 0).toString(),
@@ -207,52 +240,124 @@ export default function AdminSettingsGeneralPage() {
     fetchSettings();
   }, [locale]);
 
-  const handleChange = (field: string, val: string) => {
+  const getNumericFieldError = (
+    field: string,
+    val: string,
+    options?: { allowEmpty?: boolean },
+  ): string => {
+    const trimmed = val.trim();
+    if (options?.allowEmpty && trimmed === "") {
+      return "";
+    }
+
+    const parsed = parseNonNegativeNumber(val);
+
+    if (field === "deliveryFee") {
+      return parsed === null ? t.validation.deliveryFeeMin : "";
+    }
+    if (field === "tailoringFee") {
+      return parsed === null ? t.validation.tailoringFeeMin : "";
+    }
+    if (field === "motdCommissionFromTailor") {
+      return parsed === null || parsed > 100
+        ? t.validation.motdCommissionFromTailorRange
+        : "";
+    }
+    if (field === "motdCommissionFromFabricStore") {
+      return parsed === null || parsed > 100
+        ? t.validation.motdCommissionFromFabricStoreRange
+        : "";
+    }
+    if (field === "vatRatePercent") {
+      return parsed === null || parsed > 100 ? t.validation.vatRateRange : "";
+    }
+    if (field === "returnDeductionPercent") {
+      return parsed === null || parsed > 100
+        ? t.validation.returnDeductionRange
+        : "";
+    }
+    if (field === "returnAllowedDays") {
+      return parsed === null || !Number.isInteger(parsed)
+        ? t.validation.returnAllowedDaysMin
+        : "";
+    }
+    return "";
+  };
+
+  const setNumericFieldValue = (field: string, val: string) => {
     if (field === "deliveryFee") setDeliveryFee(val);
     if (field === "tailoringFee") setTailoringFee(val);
-    if (field === "platformFee") setPlatformFee(val);
+    if (field === "motdCommissionFromTailor") setMotdCommissionFromTailor(val);
+    if (field === "motdCommissionFromFabricStore")
+      setMotdCommissionFromFabricStore(val);
     if (field === "vatRatePercent") setVatRatePercent(val);
     if (field === "returnDeductionPercent") setReturnDeductionPercent(val);
     if (field === "returnAllowedDays") setReturnAllowedDays(val);
+  };
 
-    if (fieldErrors[field]) {
-      setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+  const handleChange = (field: string, val: string) => {
+    setNumericFieldValue(field, val);
+
+    const error = getNumericFieldError(field, val, { allowEmpty: true });
+    setFieldErrors((prev) => {
+      if (!error && !prev[field]) return prev;
+      if (!error) {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      }
+      return { ...prev, [field]: error };
+    });
+  };
+
+  const handleNumericFocus = (
+    e: FocusEvent<HTMLInputElement>,
+    field: string,
+    currentValue: string,
+  ) => {
+    // Clear a lone zero so typing starts fresh instead of becoming "05".
+    if (currentValue.trim() === "0") {
+      setNumericFieldValue(field, "");
+      setFieldErrors((prev) => {
+        if (!prev[field]) return prev;
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+      return;
     }
+    e.target.select();
+  };
+
+  const handleNumericBlur = (field: string, currentValue: string) => {
+    const error = getNumericFieldError(field, currentValue);
+    setFieldErrors((prev) => {
+      if (!error && !prev[field]) return prev;
+      if (!error) {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      }
+      return { ...prev, [field]: error };
+    });
   };
 
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
 
-    const delFee = parseFloat(deliveryFee);
-    const tailFee = parseFloat(tailoringFee);
-    const platFee = parseFloat(platformFee);
-    const vat = parseFloat(vatRatePercent);
-    const returnDeduction = parseFloat(returnDeductionPercent);
-    const returnDays = parseFloat(returnAllowedDays);
+    const numericFields: Array<[string, string]> = [
+      ["deliveryFee", deliveryFee],
+      ["tailoringFee", tailoringFee],
+      ["motdCommissionFromTailor", motdCommissionFromTailor],
+      ["motdCommissionFromFabricStore", motdCommissionFromFabricStore],
+      ["vatRatePercent", vatRatePercent],
+      ["returnDeductionPercent", returnDeductionPercent],
+      ["returnAllowedDays", returnAllowedDays],
+    ];
 
-    if (isNaN(delFee) || delFee < 0) {
-      errors.deliveryFee = t.validation.deliveryFeeMin;
-    }
-    if (isNaN(tailFee) || tailFee < 0) {
-      errors.tailoringFee = t.validation.tailoringFeeMin;
-    }
-    if (isNaN(platFee) || platFee < 0) {
-      errors.platformFee = t.validation.platformFeeMin;
-    }
-    if (isNaN(vat) || vat < 0 || vat > 100) {
-      errors.vatRatePercent = t.validation.vatRateRange;
-    }
-
-    if (
-      isNaN(returnDeduction) ||
-      returnDeduction < 0 ||
-      returnDeduction > 100
-    ) {
-      errors.returnDeductionPercent = t.validation.returnDeductionRange;
-    }
-
-    if (isNaN(returnDays) || returnDays < 0) {
-      errors.returnAllowedDays = t.validation.returnAllowedDaysMin;
+    for (const [field, value] of numericFields) {
+      const error = getNumericFieldError(field, value);
+      if (error) errors[field] = error;
     }
 
     if (!isFulfillmentEmpty(fulfillmentAddress)) {
@@ -274,7 +379,10 @@ export default function AdminSettingsGeneralPage() {
         perParcelDeliveryFee: parseFloat(deliveryFee),
         defaultDeliveryFee: parseFloat(deliveryFee),
         defaultTailoringFee: parseFloat(tailoringFee),
-        platformFee: parseFloat(platformFee),
+        motdCommissionFromTailor: parseFloat(motdCommissionFromTailor),
+        motdCommissionFromFabricStore: parseFloat(
+          motdCommissionFromFabricStore,
+        ),
         vatRate: parseFloat(vatRatePercent) / 100,
         returnDeductionPercent: parseFloat(returnDeductionPercent),
         returnAllowedDays: parseFloat(returnAllowedDays),
@@ -292,11 +400,14 @@ export default function AdminSettingsGeneralPage() {
         saved.perParcelDeliveryFee ?? saved.defaultDeliveryFee ?? 30;
       setDeliveryFee(parcelFee.toString());
       setTailoringFee(saved.defaultTailoringFee.toString());
-      setPlatformFee(saved.platformFee.toString());
-      setVatRatePercent((saved.vatRate * 100).toString());
-      setReturnDeductionPercent(
-        (saved.returnDeductionPercent ?? 0).toString(),
+      setMotdCommissionFromTailor(
+        (saved.motdCommissionFromTailor ?? 0).toString(),
       );
+      setMotdCommissionFromFabricStore(
+        (saved.motdCommissionFromFabricStore ?? 0).toString(),
+      );
+      setVatRatePercent((saved.vatRate * 100).toString());
+      setReturnDeductionPercent((saved.returnDeductionPercent ?? 0).toString());
       setReturnAllowedDays((saved.returnAllowedDays ?? 0).toString());
       setCurrency(saved.currency || "AED");
       setFulfillmentAddress(fulfillmentFromApi(saved.fulfillmentAddress));
@@ -336,9 +447,19 @@ export default function AdminSettingsGeneralPage() {
               type="number"
               step="0.01"
               min="0"
+              inputMode="decimal"
               value={deliveryFee}
               onChange={(e) => handleChange("deliveryFee", e.target.value)}
-              className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none text-sm text-black"
+              onFocus={(e) =>
+                handleNumericFocus(e, "deliveryFee", deliveryFee)
+              }
+              onBlur={() => handleNumericBlur("deliveryFee", deliveryFee)}
+              aria-invalid={Boolean(fieldErrors.deliveryFee)}
+              className={`w-full py-1 border-b focus:outline-none text-sm text-black ${
+                fieldErrors.deliveryFee
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-gray-300 focus:border-black"
+              }`}
             />
           </FormField>
 
@@ -352,25 +473,95 @@ export default function AdminSettingsGeneralPage() {
               type="number"
               step="1"
               min="0"
+              inputMode="numeric"
               value={tailoringFee}
               onChange={(e) => handleChange("tailoringFee", e.target.value)}
-              className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none text-sm text-black"
+              onFocus={(e) =>
+                handleNumericFocus(e, "tailoringFee", tailoringFee)
+              }
+              onBlur={() => handleNumericBlur("tailoringFee", tailoringFee)}
+              aria-invalid={Boolean(fieldErrors.tailoringFee)}
+              className={`w-full py-1 border-b focus:outline-none text-sm text-black ${
+                fieldErrors.tailoringFee
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-gray-300 focus:border-black"
+              }`}
             />
           </FormField>
 
           <FormField
-            label={t.platformFee}
-            name="platformFee"
+            label={t.motdCommissionFromTailor}
+            name="motdCommissionFromTailor"
             required
-            error={fieldErrors.platformFee}
+            error={fieldErrors.motdCommissionFromTailor}
           >
             <input
               type="number"
               step="0.01"
               min="0"
-              value={platformFee}
-              onChange={(e) => handleChange("platformFee", e.target.value)}
-              className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none text-sm text-black"
+              max="100"
+              inputMode="decimal"
+              value={motdCommissionFromTailor}
+              onChange={(e) =>
+                handleChange("motdCommissionFromTailor", e.target.value)
+              }
+              onFocus={(e) =>
+                handleNumericFocus(
+                  e,
+                  "motdCommissionFromTailor",
+                  motdCommissionFromTailor,
+                )
+              }
+              onBlur={() =>
+                handleNumericBlur(
+                  "motdCommissionFromTailor",
+                  motdCommissionFromTailor,
+                )
+              }
+              aria-invalid={Boolean(fieldErrors.motdCommissionFromTailor)}
+              className={`w-full py-1 border-b focus:outline-none text-sm text-black ${
+                fieldErrors.motdCommissionFromTailor
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-gray-300 focus:border-black"
+              }`}
+            />
+          </FormField>
+
+          <FormField
+            label={t.motdCommissionFromFabricStore}
+            name="motdCommissionFromFabricStore"
+            required
+            error={fieldErrors.motdCommissionFromFabricStore}
+          >
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              inputMode="decimal"
+              value={motdCommissionFromFabricStore}
+              onChange={(e) =>
+                handleChange("motdCommissionFromFabricStore", e.target.value)
+              }
+              onFocus={(e) =>
+                handleNumericFocus(
+                  e,
+                  "motdCommissionFromFabricStore",
+                  motdCommissionFromFabricStore,
+                )
+              }
+              onBlur={() =>
+                handleNumericBlur(
+                  "motdCommissionFromFabricStore",
+                  motdCommissionFromFabricStore,
+                )
+              }
+              aria-invalid={Boolean(fieldErrors.motdCommissionFromFabricStore)}
+              className={`w-full py-1 border-b focus:outline-none text-sm text-black ${
+                fieldErrors.motdCommissionFromFabricStore
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-gray-300 focus:border-black"
+              }`}
             />
           </FormField>
 
@@ -385,9 +576,21 @@ export default function AdminSettingsGeneralPage() {
               step="0.01"
               min="0"
               max="100"
+              inputMode="decimal"
               value={vatRatePercent}
               onChange={(e) => handleChange("vatRatePercent", e.target.value)}
-              className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none text-sm text-black"
+              onFocus={(e) =>
+                handleNumericFocus(e, "vatRatePercent", vatRatePercent)
+              }
+              onBlur={() =>
+                handleNumericBlur("vatRatePercent", vatRatePercent)
+              }
+              aria-invalid={Boolean(fieldErrors.vatRatePercent)}
+              className={`w-full py-1 border-b focus:outline-none text-sm text-black ${
+                fieldErrors.vatRatePercent
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-gray-300 focus:border-black"
+              }`}
             />
           </FormField>
 
@@ -402,11 +605,30 @@ export default function AdminSettingsGeneralPage() {
               step="0.01"
               min="0"
               max="100"
+              inputMode="decimal"
               value={returnDeductionPercent}
               onChange={(e) =>
                 handleChange("returnDeductionPercent", e.target.value)
               }
-              className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none text-sm text-black"
+              onFocus={(e) =>
+                handleNumericFocus(
+                  e,
+                  "returnDeductionPercent",
+                  returnDeductionPercent,
+                )
+              }
+              onBlur={() =>
+                handleNumericBlur(
+                  "returnDeductionPercent",
+                  returnDeductionPercent,
+                )
+              }
+              aria-invalid={Boolean(fieldErrors.returnDeductionPercent)}
+              className={`w-full py-1 border-b focus:outline-none text-sm text-black ${
+                fieldErrors.returnDeductionPercent
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-gray-300 focus:border-black"
+              }`}
             />
           </FormField>
 
@@ -420,11 +642,23 @@ export default function AdminSettingsGeneralPage() {
               type="number"
               step="1"
               min="0"
+              inputMode="numeric"
               value={returnAllowedDays}
               onChange={(e) =>
                 handleChange("returnAllowedDays", e.target.value)
               }
-              className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none text-sm text-black"
+              onFocus={(e) =>
+                handleNumericFocus(e, "returnAllowedDays", returnAllowedDays)
+              }
+              onBlur={() =>
+                handleNumericBlur("returnAllowedDays", returnAllowedDays)
+              }
+              aria-invalid={Boolean(fieldErrors.returnAllowedDays)}
+              className={`w-full py-1 border-b focus:outline-none text-sm text-black ${
+                fieldErrors.returnAllowedDays
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-gray-300 focus:border-black"
+              }`}
             />
           </FormField>
 
@@ -475,4 +709,3 @@ export default function AdminSettingsGeneralPage() {
     </div>
   );
 }
-

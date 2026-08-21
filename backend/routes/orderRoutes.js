@@ -846,7 +846,8 @@ orderRoutes.get(
       settings = await PlatformSettings.create({
         defaultDeliveryFee: 30,
         defaultTailoringFee: 150,
-        platformFee: 0,
+        motdCommissionFromTailor: 12,
+        motdCommissionFromFabricStore: 15,
         vatRate: 0.05,
         currency: "AED",
       });

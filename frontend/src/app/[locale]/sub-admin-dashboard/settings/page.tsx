@@ -47,10 +47,11 @@ const translations = {
   en: {
     title: "Platform Settings",
     subtitle:
-      "Manage global pricing defaults, delivery fees, tailoring fees, VAT rate, and currency defaults.",
+      "Manage global pricing defaults, delivery fees, tailoring fees, MOTD commissions, VAT rate, and currency defaults.",
     deliveryFee: "Default Delivery Fee (AED)",
     tailoringFee: "Default Tailoring Fee (AED)",
-    platformFee: "Platform Fee (AED)",
+    motdCommissionFromTailor: "MOTD Commission from Tailor (%)",
+    motdCommissionFromFabricStore: "MOTD Commission from Fabric Store (%)",
     vatRate: "VAT Rate (%)",
     currency: "Currency",
     currencyHelp: "The primary base currency is locked to AED.",
@@ -64,18 +65,21 @@ const translations = {
         "Delivery fee must be a valid number greater than or equal to 0.",
       tailoringFeeMin:
         "Tailoring fee must be a valid number greater than or equal to 0.",
-      platformFeeMin:
-        "Platform fee must be a valid number greater than or equal to 0.",
+      motdCommissionFromTailorRange:
+        "MOTD commission from tailor must be a valid percentage between 0% and 100%.",
+      motdCommissionFromFabricStoreRange:
+        "MOTD commission from fabric store must be a valid percentage between 0% and 100%.",
       vatRateRange: "VAT rate must be a valid percentage between 0% and 100%.",
     },
   },
   ar: {
     title: "إعدادات المنصة",
     subtitle:
-      "إدارة قيم التسعير الافتراضية العالمية، رسوم التوصيل، رسوم الخياطة، ضريبة القيمة المضافة، والعملة الافتراضية.",
+      "إدارة قيم التسعير الافتراضية العالمية، رسوم التوصيل، رسوم الخياطة، عمولات MOTD، ضريبة القيمة المضافة، والعملة الافتراضية.",
     deliveryFee: "رسوم التوصيل الافتراضية (درهم)",
     tailoringFee: "رسوم الخياطة الافتراضية (درهم)",
-    platformFee: "رسوم المنصة (درهم)",
+    motdCommissionFromTailor: "عمولة MOTD من الخياط (%)",
+    motdCommissionFromFabricStore: "عمولة MOTD من متجر الأقمشة (%)",
     vatRate: "نسبة ضريبة القيمة المضافة (%)",
     currency: "العملة",
     currencyHelp: "العملة الأساسية مقفلة على الدرهم الإماراتي (AED).",
@@ -88,7 +92,10 @@ const translations = {
       deliveryFeeMin: "يجب أن تكون رسوم التوصيل قيمة صحيحة أكبر من أو تساوي 0.",
       tailoringFeeMin:
         "يجب أن تكون رسوم الخياطة قيمة صحيحة أكبر من أو تساوي 0.",
-      platformFeeMin: "يجب أن تكون رسوم المنصة قيمة صحيحة أكبر من أو تساوي 0.",
+      motdCommissionFromTailorRange:
+        "يجب أن تكون عمولة MOTD من الخياط نسبة بين 0% و 100%.",
+      motdCommissionFromFabricStoreRange:
+        "يجب أن تكون عمولة MOTD من متجر الأقمشة نسبة بين 0% و 100%.",
       vatRateRange: "يجب أن تكون نسبة ضريبة القيمة المضافة بين 0% و 100%.",
     },
   },
@@ -108,7 +115,10 @@ export default function AdminSettingsPage() {
   // Input states (stored as string for better user typing experience)
   const [deliveryFee, setDeliveryFee] = useState<string>("0");
   const [tailoringFee, setTailoringFee] = useState<string>("0");
-  const [platformFee, setPlatformFee] = useState<string>("0");
+  const [motdCommissionFromTailor, setMotdCommissionFromTailor] =
+    useState<string>("0");
+  const [motdCommissionFromFabricStore, setMotdCommissionFromFabricStore] =
+    useState<string>("15");
   const [vatRatePercent, setVatRatePercent] = useState<string>("5");
   const [currency, setCurrency] = useState<string>("AED");
 
@@ -119,14 +129,20 @@ export default function AdminSettingsPage() {
         const data = await api.get<{
           defaultDeliveryFee: number;
           defaultTailoringFee: number;
-          platformFee: number;
+          motdCommissionFromTailor: number;
+          motdCommissionFromFabricStore: number;
           vatRate: number;
           currency: string;
         }>("/api/admin/settings");
 
         setDeliveryFee(data.defaultDeliveryFee.toString());
         setTailoringFee(data.defaultTailoringFee.toString());
-        setPlatformFee(data.platformFee.toString());
+        setMotdCommissionFromTailor(
+          (data.motdCommissionFromTailor ?? 0).toString(),
+        );
+        setMotdCommissionFromFabricStore(
+          (data.motdCommissionFromFabricStore ?? 0).toString(),
+        );
         setVatRatePercent((data.vatRate * 100).toString());
         setCurrency(data.currency || "AED");
       } catch (err: unknown) {
@@ -142,7 +158,10 @@ export default function AdminSettingsPage() {
   const handleChange = (field: string, val: string) => {
     if (field === "deliveryFee") setDeliveryFee(val);
     if (field === "tailoringFee") setTailoringFee(val);
-    if (field === "platformFee") setPlatformFee(val);
+    if (field === "motdCommissionFromTailor")
+      setMotdCommissionFromTailor(val);
+    if (field === "motdCommissionFromFabricStore")
+      setMotdCommissionFromFabricStore(val);
     if (field === "vatRatePercent") setVatRatePercent(val);
 
     if (fieldErrors[field]) {
@@ -155,7 +174,8 @@ export default function AdminSettingsPage() {
 
     const delFee = parseFloat(deliveryFee);
     const tailFee = parseFloat(tailoringFee);
-    const platFee = parseFloat(platformFee);
+    const tailorCommission = parseFloat(motdCommissionFromTailor);
+    const fabricStoreCommission = parseFloat(motdCommissionFromFabricStore);
     const vat = parseFloat(vatRatePercent);
 
     if (isNaN(delFee) || delFee < 0) {
@@ -164,8 +184,21 @@ export default function AdminSettingsPage() {
     if (isNaN(tailFee) || tailFee < 0) {
       errors.tailoringFee = t.validation.tailoringFeeMin;
     }
-    if (isNaN(platFee) || platFee < 0) {
-      errors.platformFee = t.validation.platformFeeMin;
+    if (
+      isNaN(tailorCommission) ||
+      tailorCommission < 0 ||
+      tailorCommission > 100
+    ) {
+      errors.motdCommissionFromTailor =
+        t.validation.motdCommissionFromTailorRange;
+    }
+    if (
+      isNaN(fabricStoreCommission) ||
+      fabricStoreCommission < 0 ||
+      fabricStoreCommission > 100
+    ) {
+      errors.motdCommissionFromFabricStore =
+        t.validation.motdCommissionFromFabricStoreRange;
     }
     if (isNaN(vat) || vat < 0 || vat > 100) {
       errors.vatRatePercent = t.validation.vatRateRange;
@@ -185,7 +218,10 @@ export default function AdminSettingsPage() {
       const payload = {
         defaultDeliveryFee: parseFloat(deliveryFee),
         defaultTailoringFee: parseFloat(tailoringFee),
-        platformFee: parseFloat(platformFee),
+        motdCommissionFromTailor: parseFloat(motdCommissionFromTailor),
+        motdCommissionFromFabricStore: parseFloat(
+          motdCommissionFromFabricStore,
+        ),
         vatRate: parseFloat(vatRatePercent) / 100,
         currency,
       };
@@ -195,7 +231,8 @@ export default function AdminSettingsPage() {
         settings: {
           defaultDeliveryFee: number;
           defaultTailoringFee: number;
-          platformFee: number;
+          motdCommissionFromTailor: number;
+          motdCommissionFromFabricStore: number;
           vatRate: number;
           currency: string;
         };
@@ -207,7 +244,12 @@ export default function AdminSettingsPage() {
       if (response && response.settings) {
         setDeliveryFee(response.settings.defaultDeliveryFee.toString());
         setTailoringFee(response.settings.defaultTailoringFee.toString());
-        setPlatformFee(response.settings.platformFee.toString());
+        setMotdCommissionFromTailor(
+          (response.settings.motdCommissionFromTailor ?? 0).toString(),
+        );
+        setMotdCommissionFromFabricStore(
+          (response.settings.motdCommissionFromFabricStore ?? 0).toString(),
+        );
         setVatRatePercent((response.settings.vatRate * 100).toString());
         setCurrency(response.settings.currency || "AED");
       }
@@ -270,17 +312,39 @@ export default function AdminSettingsPage() {
             </FormField>
 
             <FormField
-              label={t.platformFee}
-              name="platformFee"
+              label={t.motdCommissionFromTailor}
+              name="motdCommissionFromTailor"
               required
-              error={fieldErrors.platformFee}
+              error={fieldErrors.motdCommissionFromTailor}
             >
               <input
                 type="number"
                 step="0.01"
                 min="0"
-                value={platformFee}
-                onChange={(e) => handleChange("platformFee", e.target.value)}
+                max="100"
+                value={motdCommissionFromTailor}
+                onChange={(e) =>
+                  handleChange("motdCommissionFromTailor", e.target.value)
+                }
+                className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none text-sm text-black"
+              />
+            </FormField>
+
+            <FormField
+              label={t.motdCommissionFromFabricStore}
+              name="motdCommissionFromFabricStore"
+              required
+              error={fieldErrors.motdCommissionFromFabricStore}
+            >
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={motdCommissionFromFabricStore}
+                onChange={(e) =>
+                  handleChange("motdCommissionFromFabricStore", e.target.value)
+                }
                 className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none text-sm text-black"
               />
             </FormField>

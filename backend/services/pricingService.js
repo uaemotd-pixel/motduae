@@ -14,6 +14,18 @@ export class PricingValidationError extends Error {
 const roundMoney = (amount) => Number(amount.toFixed(2));
 
 /**
+ * Split a fabric-store line into gross, MOTD commission, and net store payout.
+ * `commissionPercent` is 0–100 (e.g. 15 = 15%).
+ */
+export function splitMotdCommission(grossAmount, commissionPercent = 15) {
+  const gross = roundMoney(Math.max(0, Number(grossAmount) || 0));
+  const percent = Math.min(100, Math.max(0, Number(commissionPercent) || 0));
+  const commission = roundMoney((gross * percent) / 100);
+  const net = roundMoney(gross - commission);
+  return { gross, commission, net, percent };
+}
+
+/**
  * Apply add-on costs onto an existing custom-order pricing snapshot.
  * `pricing.subtotal` already includes deliveryFee, so do NOT add delivery again.
  */

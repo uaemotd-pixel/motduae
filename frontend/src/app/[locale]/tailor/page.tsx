@@ -16,7 +16,6 @@ import {
   Activity,
   Store,
   RefreshCw,
-  Sparkles,
 } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
 import Chart from "chart.js/auto";
@@ -33,6 +32,7 @@ import {
   chartGridColor,
   formatCompact,
 } from "@/components/dashboard/chartDefaults";
+import { splitFabricCommission } from "@/lib/fabricCommission";
 
 interface OrderUser {
   _id: string;
@@ -74,15 +74,21 @@ interface Order {
     designBase: number;
   };
   items?: CustomOrderItem[];
+  designFeeGross?: number;
+  tailoringFeeGross?: number;
+  tailorFeeGross?: number;
 }
 
 interface TailorDashboardData {
   success: boolean;
   currency: string;
   tailorShopId?: string | null;
-  /** False when platform default is 0 and period has no charged tailoring fees */
+  commissionPercent?: number;
   tailoringFeeEnabled?: boolean;
   kpis: {
+    tailorRevenue: number;
+    tailorGross?: number;
+    motdCommission?: number;
     designFees: number;
     tailoringFees: number;
     orderCount: number;
@@ -96,7 +102,13 @@ interface TailorDashboardData {
     revenue: number;
   }>;
   statusBreakdown: Array<{ status: string; count: number }>;
-  feeSplit: { designFees: number; tailoringFees: number };
+  feeSplit?: {
+    tailorGross: number;
+    motdCommission: number;
+    tailorNet: number;
+    designFees: number;
+    tailoringFees: number;
+  };
   recentOrders: Array<{
     id: string;
     amount: number;
@@ -112,7 +124,6 @@ export default function TailorDashboardPage() {
   const { user } = useAuth();
   const params = useParams();
   const locale = (params.locale as Locale) || "en";
-  const isAr = locale === "ar";
 
   const [timeframe, setTimeframe] = useState<"week" | "month" | "year">("month");
   const [data, setData] = useState<TailorDashboardData | null>(null);
@@ -122,7 +133,7 @@ export default function TailorDashboardPage() {
 
   const earningsChartRef = useRef<Chart | null>(null);
   const statusChartRef = useRef<Chart | null>(null);
-  const feeChartRef = useRef<Chart | null>(null);
+  const commissionChartRef = useRef<Chart | null>(null);
 
   const fetchDashboard = async (showRefresh = false) => {
     try {
@@ -150,12 +161,16 @@ export default function TailorDashboardPage() {
       currency: data?.currency || currency,
     }).format(amount);
 
-  const tailorShopId = data?.tailorShopId
-    ? String(data.tailorShopId)
-    : null;
+  const tailorShopId = data?.tailorShopId ? String(data.tailorShopId) : null;
+  const commissionPercent = data?.commissionPercent ?? 12;
 
-  const getTailorFee = (order: Order) => {
+  const getTailorGross = (order: Order) => {
+    if (typeof order.tailorFeeGross === "number" && Number.isFinite(order.tailorFeeGross)) {
+      return order.tailorFeeGross;
+    }
+
     if (!tailorShopId) return 0;
+
     if (order.items && order.items.length > 0) {
       return order.items
         .filter((item) => {
@@ -163,42 +178,31 @@ export default function TailorDashboardPage() {
             typeof item.tailorShopId === "object"
               ? item.tailorShopId?._id
               : item.tailorShopId;
-          return itemShopId === tailorShopId;
+          return String(itemShopId || "") === tailorShopId;
         })
-        .reduce((sum, item) => sum + (item.pricing?.designBase || 0), 0);
+        .reduce(
+          (sum, item) =>
+            sum +
+            (item.pricing?.designBase || 0) +
+            (item.pricing?.tailoringFee || 0),
+          0,
+        );
     }
+
     const orderShopId =
       typeof order.tailorShopId === "object"
         ? order.tailorShopId?._id
         : order.tailorShopId;
-    if (orderShopId === tailorShopId) {
-      return order.pricing?.designBase || 0;
+    if (String(orderShopId || "") === tailorShopId) {
+      return (
+        (order.pricing?.designBase || 0) + (order.pricing?.tailoringFee || 0)
+      );
     }
     return 0;
   };
 
-  const getTailoringFee = (order: Order) => {
-    if (!tailorShopId) return 0;
-    if (order.items && order.items.length > 0) {
-      return order.items
-        .filter((item) => {
-          const itemShopId =
-            typeof item.tailorShopId === "object"
-              ? item.tailorShopId?._id
-              : item.tailorShopId;
-          return itemShopId === tailorShopId;
-        })
-        .reduce((sum, item) => sum + (item.pricing?.tailoringFee || 0), 0);
-    }
-    const orderShopId =
-      typeof order.tailorShopId === "object"
-        ? order.tailorShopId?._id
-        : order.tailorShopId;
-    if (orderShopId === tailorShopId) {
-      return order.pricing?.tailoringFee || 0;
-    }
-    return 0;
-  };
+  const getTailorBreakdown = (order: Order) =>
+    splitFabricCommission(getTailorGross(order), commissionPercent);
 
   const readPartnerName = (
     value: { name?: string } | string | null | undefined,
@@ -220,6 +224,8 @@ export default function TailorDashboardPage() {
   const pricingOrders = data?.pricingOrders || [];
   const filteredPricingOrders = useMemo(() => {
     return pricingOrders.filter((order) => {
+      if (getTailorGross(order) <= 0) return false;
+
       if (!pricingSearch.trim()) return true;
       const term = pricingSearch.toLowerCase();
       const customerName = readPartnerName(
@@ -235,20 +241,17 @@ export default function TailorDashboardPage() {
         order._id.toLowerCase().includes(term)
       );
     });
-  }, [pricingOrders, pricingSearch]);
+  }, [pricingOrders, pricingSearch, tailorShopId, commissionPercent]);
 
   useEffect(() => {
     if (!data) return;
 
-    const showTailoring =
-      data.tailoringFeeEnabled ?? (data.kpis?.tailoringFees || 0) > 0;
-
     earningsChartRef.current?.destroy();
     statusChartRef.current?.destroy();
-    feeChartRef.current?.destroy();
+    commissionChartRef.current?.destroy();
     earningsChartRef.current = null;
     statusChartRef.current = null;
-    feeChartRef.current = null;
+    commissionChartRef.current = null;
 
     const earningsCanvas = document.getElementById(
       "tailor-earnings-chart",
@@ -256,73 +259,53 @@ export default function TailorDashboardPage() {
     const statusCanvas = document.getElementById(
       "tailor-status-chart",
     ) as HTMLCanvasElement | null;
-    const feeCanvas = document.getElementById(
-      "tailor-fee-chart",
+    const commissionCanvas = document.getElementById(
+      "tailor-commission-chart",
     ) as HTMLCanvasElement | null;
     if (!earningsCanvas || !statusCanvas) return;
-    if (showTailoring && !feeCanvas) return;
 
     const monthly = data.monthlyData || [];
-    const earningsDatasets: ChartConfiguration<"line">["data"]["datasets"] = [
-      {
-        label: isAr ? "رسوم التصميم" : "Design fees",
-        data: monthly.map((d) => d.design || 0),
-        borderColor: DASH_PALETTE.gold,
-        backgroundColor: (ctx) => {
-          const { ctx: c, chartArea } = ctx.chart;
-          if (!chartArea) return "transparent";
-          const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-          g.addColorStop(0, withAlpha(DASH_PALETTE.gold, 0.3));
-          g.addColorStop(1, withAlpha(DASH_PALETTE.gold, 0));
-          return g;
-        },
-        borderWidth: 2.5,
-        tension: 0.4,
-        fill: true,
-        pointRadius: 3,
-        pointBackgroundColor: DASH_PALETTE.surface,
-        pointBorderColor: DASH_PALETTE.gold,
-        pointBorderWidth: 2,
-      },
-    ];
-
-    if (showTailoring) {
-      earningsDatasets.push({
-        label: isAr ? "رسوم الخياطة" : "Tailoring fees",
-        data: monthly.map((d) => d.tailoring || 0),
-        borderColor: DASH_PALETTE.charcoal,
-        borderWidth: 2,
-        tension: 0.4,
-        fill: false,
-        borderDash: [5, 4],
-        pointRadius: 3,
-        pointBackgroundColor: DASH_PALETTE.surface,
-        pointBorderColor: DASH_PALETTE.charcoal,
-        pointBorderWidth: 2,
-      });
-    }
-
     const earningsConfig: ChartConfiguration<"line"> = {
       type: "line",
       data: {
         labels: monthly.map((d) => d.month),
-        datasets: earningsDatasets,
+        datasets: [
+          {
+            label: t("chartPayoutLabel"),
+            data: monthly.map((d) => d.revenue || 0),
+            borderColor: DASH_PALETTE.gold,
+            backgroundColor: (ctx) => {
+              const { ctx: c, chartArea } = ctx.chart;
+              if (!chartArea) return "transparent";
+              const g = c.createLinearGradient(
+                0,
+                chartArea.top,
+                0,
+                chartArea.bottom,
+              );
+              g.addColorStop(0, withAlpha(DASH_PALETTE.gold, 0.35));
+              g.addColorStop(1, withAlpha(DASH_PALETTE.gold, 0));
+              return g;
+            },
+            borderWidth: 2.5,
+            tension: 0.4,
+            fill: true,
+            pointRadius: 3,
+            pointBackgroundColor: DASH_PALETTE.surface,
+            pointBorderColor: DASH_PALETTE.gold,
+            pointBorderWidth: 2,
+          },
+        ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        interaction: { mode: "index", intersect: false },
         plugins: {
-          legend: {
-            position: "top",
-            labels: chartLegend.labels,
-            display: showTailoring,
-          },
+          legend: { display: false },
           tooltip: {
             ...chartTooltip,
             callbacks: {
-              label: (ctx) =>
-                `${ctx.dataset.label}: ${formatCurrency(Number(ctx.parsed.y))}`,
+              label: (ctx) => formatCurrency(Number(ctx.parsed.y)),
             },
           },
         },
@@ -374,15 +357,25 @@ export default function TailorDashboardPage() {
     earningsChartRef.current = new Chart(earningsCanvas, earningsConfig);
     statusChartRef.current = new Chart(statusCanvas, statusConfig);
 
-    if (showTailoring && feeCanvas) {
-      const feeSplit = data.feeSplit || { designFees: 0, tailoringFees: 0 };
-      feeChartRef.current = new Chart(feeCanvas, {
+    const feeSplit = data.feeSplit || {
+      tailorGross: data.kpis.tailorGross || 0,
+      motdCommission: data.kpis.motdCommission || 0,
+      tailorNet: data.kpis.tailorRevenue || 0,
+      designFees: data.kpis.designFees || 0,
+      tailoringFees: data.kpis.tailoringFees || 0,
+    };
+
+    if (commissionCanvas && feeSplit.tailorGross > 0) {
+      commissionChartRef.current = new Chart(commissionCanvas, {
         type: "doughnut",
         data: {
-          labels: [isAr ? "تصميم" : "Design", isAr ? "خياطة" : "Tailoring"],
+          labels: [
+            t("chartPayoutLabel"),
+            t("colMotdCommission", { percent: commissionPercent }),
+          ],
           datasets: [
             {
-              data: [feeSplit.designFees, feeSplit.tailoringFees],
+              data: [feeSplit.tailorNet, feeSplit.motdCommission],
               backgroundColor: [
                 withAlpha(DASH_PALETTE.gold, 0.9),
                 withAlpha(DASH_PALETTE.charcoal, 0.85),
@@ -398,7 +391,12 @@ export default function TailorDashboardPage() {
           cutout: "65%",
           plugins: {
             legend: { position: "bottom", labels: chartLegend.labels },
-            tooltip: chartTooltip,
+            tooltip: {
+              ...chartTooltip,
+              callbacks: {
+                label: (ctx) => formatCurrency(Number(ctx.parsed)),
+              },
+            },
           },
         },
       });
@@ -407,25 +405,27 @@ export default function TailorDashboardPage() {
     return () => {
       earningsChartRef.current?.destroy();
       statusChartRef.current?.destroy();
-      feeChartRef.current?.destroy();
+      commissionChartRef.current?.destroy();
       earningsChartRef.current = null;
       statusChartRef.current = null;
-      feeChartRef.current = null;
+      commissionChartRef.current = null;
     };
-  }, [data, isAr]);
+  }, [data, commissionPercent, t, locale]);
 
   if (loading) return <DashboardSkeleton kpiCount={4} />;
 
   const kpis = data?.kpis || {
+    tailorRevenue: 0,
+    tailorGross: 0,
+    motdCommission: 0,
     designFees: 0,
     tailoringFees: 0,
     orderCount: 0,
     activeDesigns: 0,
     inProgress: 0,
   };
-
-  const showTailoringFee =
-    data?.tailoringFeeEnabled ?? kpis.tailoringFees > 0;
+  const tailorGross = kpis.tailorGross ?? 0;
+  const motdCommissionTotal = kpis.motdCommission ?? 0;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -438,7 +438,7 @@ export default function TailorDashboardPage() {
             {t("title", { name: user?.name || "" })}
           </h1>
           <p className="mt-2 [font-family:var(--font-body)] text-[14px] text-[var(--dash-muted)]">
-            {showTailoringFee ? t("description") : t("descriptionNoTailoring")}
+            {t("description")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -456,36 +456,41 @@ export default function TailorDashboardPage() {
             onClick={() => fetchDashboard(true)}
             className="inline-flex items-center gap-2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-2 text-xs text-[var(--dash-ink)]"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+            />
             {t("refresh")}
           </button>
         </div>
       </div>
 
-      <div
-        className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${
-          showTailoringFee ? "xl:grid-cols-4" : "xl:grid-cols-3"
-        }`}
-      >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          icon={Sparkles}
-          label={t("kpiDesignFees")}
-          value={formatCurrency(kpis.designFees)}
+          icon={DollarSign}
+          label={t("kpiRevenue")}
+          value={formatCurrency(kpis.tailorRevenue)}
+          subValue={
+            tailorGross > 0
+              ? `${t("kpiGross")}: ${formatCurrency(tailorGross)}`
+              : undefined
+          }
           delay={0}
         />
-        {showTailoringFee && (
-          <StatCard
-            icon={DollarSign}
-            label={t("kpiTailoringFees")}
-            value={formatCurrency(kpis.tailoringFees)}
-            delay={0.05}
-          />
-        )}
         <StatCard
           icon={ShoppingBag}
           label={t("kpiOrders")}
           value={String(kpis.orderCount)}
-          subValue={`${kpis.activeDesigns} ${t("activeDesigns")}`}
+          subValue={
+            motdCommissionTotal > 0
+              ? `${t("kpiCommission")} (${commissionPercent}%): ${formatCurrency(motdCommissionTotal)}`
+              : undefined
+          }
+          delay={0.05}
+        />
+        <StatCard
+          icon={Scissors}
+          label={t("kpiDesigns")}
+          value={String(kpis.activeDesigns)}
           delay={0.1}
         />
         <StatCard
@@ -513,37 +518,28 @@ export default function TailorDashboardPage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <ChartCard
           title={t("chartEarnings")}
-          subtitle={
-            showTailoringFee
-              ? t("chartEarningsSub")
-              : t("chartEarningsSubDesignOnly")
-          }
+          subtitle={t("chartEarningsSub")}
+          className="lg:col-span-2"
           delay={0.1}
         >
           <div className="h-64">
             <canvas id="tailor-earnings-chart" />
           </div>
         </ChartCard>
-        <div
-          className={`grid grid-cols-1 gap-4 ${
-            showTailoringFee ? "sm:grid-cols-2" : ""
-          }`}
-        >
+        <div className="space-y-4">
+          <ChartCard title={t("chartCommission")} delay={0.12}>
+            <div className="mx-auto h-40 max-w-[200px]">
+              <canvas id="tailor-commission-chart" />
+            </div>
+          </ChartCard>
           <ChartCard title={t("chartStatus")} delay={0.15}>
-            <div className="mx-auto h-56 max-w-[200px]">
+            <div className="mx-auto h-40 max-w-[200px]">
               <canvas id="tailor-status-chart" />
             </div>
           </ChartCard>
-          {showTailoringFee && (
-            <ChartCard title={t("chartFeeSplit")} delay={0.2}>
-              <div className="mx-auto h-56 max-w-[200px]">
-                <canvas id="tailor-fee-chart" />
-              </div>
-            </ChartCard>
-          )}
         </div>
       </div>
 
@@ -562,7 +558,7 @@ export default function TailorDashboardPage() {
               {t("pricingTitle")}
             </h3>
             <p className="mt-1 text-xs text-[var(--dash-muted)]">
-              {showTailoringFee ? t("pricingDesc") : t("pricingDescDesignOnly")}
+              {t("pricingDesc")}
             </p>
           </div>
           <div className="relative w-full max-w-xs">
@@ -583,7 +579,10 @@ export default function TailorDashboardPage() {
           </div>
         ) : filteredPricingOrders.length === 0 ? (
           <div className="flex flex-col items-center py-12 text-center">
-            <PackageSearch className="mb-3 h-12 w-12 text-[var(--dash-border)]" strokeWidth={1} />
+            <PackageSearch
+              className="mb-3 h-12 w-12 text-[var(--dash-border)]"
+              strokeWidth={1}
+            />
             <p className="text-xs text-[var(--dash-muted)]">{t("noOrders")}</p>
           </div>
         ) : (
@@ -593,48 +592,55 @@ export default function TailorDashboardPage() {
                 <tr>
                   <th className="px-3 py-2">{t("colOrder")}</th>
                   <th className="px-3 py-2">{t("colDate")}</th>
-                  <th className="px-3 py-2 text-right">{t("colDesignFee")}</th>
-                  {showTailoringFee && (
-                    <th className="px-3 py-2 text-right">{t("colTailoringFee")}</th>
-                  )}
+                  <th className="px-3 py-2 text-right">{t("colGross")}</th>
+                  <th className="px-3 py-2 text-right">
+                    {t("colMotdCommission", { percent: commissionPercent })}
+                  </th>
+                  <th className="px-3 py-2 text-right">{t("colYourPayout")}</th>
                   <th className="px-3 py-2">{t("colStatus")}</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredPricingOrders.map((order) => (
-                  <tr
-                    key={order._id}
-                    className="border-b border-[var(--dash-border)] hover:bg-[var(--dash-bg)]"
-                  >
-                    <td className="px-3 py-2.5">
-                      <p className="font-medium text-[var(--dash-ink)]">
-                        #{order._id.slice(-6)}
-                      </p>
-                      <p className="text-[10px]">
-                        {readPartnerName(
-                          typeof order.userId === "object" ? order.userId : null,
-                          "—",
-                        )}
-                      </p>
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      {formatOrderDateLocal(order.createdAt)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-medium text-[var(--dash-ink)]">
-                      {formatCurrency(getTailorFee(order))}
-                    </td>
-                    {showTailoringFee && (
-                      <td className="px-3 py-2.5 text-right text-[var(--dash-ink)]">
-                        {formatCurrency(getTailoringFee(order))}
+                {filteredPricingOrders.map((order) => {
+                  const breakdown = getTailorBreakdown(order);
+                  return (
+                    <tr
+                      key={order._id}
+                      className="border-b border-[var(--dash-border)] hover:bg-[var(--dash-bg)]"
+                    >
+                      <td className="px-3 py-2.5">
+                        <p className="font-medium text-[var(--dash-ink)]">
+                          #{order._id.slice(-6)}
+                        </p>
+                        <p className="text-[10px]">
+                          {readPartnerName(
+                            typeof order.userId === "object"
+                              ? order.userId
+                              : null,
+                            "—",
+                          )}
+                        </p>
                       </td>
-                    )}
-                    <td className="px-3 py-2.5 capitalize">
-                      <span className="rounded-md bg-[var(--dash-bg)] px-2 py-0.5 text-[10px] text-[var(--dash-ink)]">
-                        {(order.status || "").replace(/_/g, " ")}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        {formatOrderDateLocal(order.createdAt)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-medium text-[var(--dash-ink)]">
+                        {formatCurrency(breakdown.gross)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-[var(--dash-muted)]">
+                        −{formatCurrency(breakdown.commission)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-[var(--dash-ink)]">
+                        {formatCurrency(breakdown.net)}
+                      </td>
+                      <td className="px-3 py-2.5 capitalize">
+                        <span className="rounded-md bg-[var(--dash-bg)] px-2 py-0.5 text-[10px] text-[var(--dash-ink)]">
+                          {(order.status || "").replace(/_/g, " ")}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

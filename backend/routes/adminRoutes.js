@@ -1583,7 +1583,8 @@ adminRouter.patch(
 // ==========================================
 
 // GET /api/admin/orders/retail
-// List retail orders with optional filters: status, from, to, customer (userId or name/email)
+// List all retail orders (ready-made, add-ons, and fabric-by-meter) with optional
+// filters: status, from, to, customer (userId, name/email, or guest shipping/contact).
 adminRouter.get(
   "/orders/retail",
   expressAsyncHandler(async (req, res) => {
@@ -1621,35 +1622,29 @@ adminRouter.get(
       if (mongoose.Types.ObjectId.isValid(customerQuery)) {
         filter.userId = customerQuery;
       } else {
+        const escaped = customerQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const textMatcher = { $regex: escaped, $options: "i" };
+
         const matchingUsers = await User.find({
-          $or: [
-            { name: { $regex: customerQuery, $options: "i" } },
-            { email: { $regex: customerQuery, $options: "i" } },
-          ],
+          $or: [{ name: textMatcher }, { email: textMatcher }],
         }).select("_id");
 
         const userIds = matchingUsers.map((user) => user._id);
-
-        if (userIds.length === 0) {
-          res.send({
-            items: [],
-            total: 0,
-            page: pageNum,
-            totalPages: 0,
-          });
-          return;
+        const customerOr = [
+          { "shippingAddress.fullName": textMatcher },
+          { contactEmail: textMatcher },
+        ];
+        if (userIds.length > 0) {
+          customerOr.unshift({ userId: { $in: userIds } });
         }
 
-        filter.userId = { $in: userIds };
+        filter.$or = customerOr;
       }
     }
 
-    const adminProducts = await ReadyMadeProduct.find({
-      $or: [{ ownerName: "MOTD Admin" }, { ownerName: { $exists: false } }],
-    }).select("_id");
-    const adminProductIds = adminProducts.map((p) => p._id);
-    filter["orderItems.productId"] = { $in: adminProductIds };
-
+    // Admin sees all retail orders: fabric-store and platform ready-made,
+    // add-ons, and fabric-by-meter. Do not scope to MOTD Admin–owned IDs only —
+    // that hid fabric-shop ready-made / add-on checkouts.
     const [orders, total] = await Promise.all([
       RetailOrder.find(filter)
         .populate("userId", "name email phone")
@@ -2332,7 +2327,8 @@ adminRouter.get(
       settings = await PlatformSettings.create({
         defaultDeliveryFee: 30,
         defaultTailoringFee: 150,
-        platformFee: 0,
+        motdCommissionFromTailor: 12,
+        motdCommissionFromFabricStore: 15,
 
         currency: "AED",
       });
@@ -2358,7 +2354,8 @@ adminRouter.put(
       defaultDeliveryFee,
       perParcelDeliveryFee,
       defaultTailoringFee,
-      platformFee,
+      motdCommissionFromTailor,
+      motdCommissionFromFabricStore,
       vatRate,
       currency,
       returnDeductionPercent,
@@ -2393,12 +2390,26 @@ adminRouter.put(
       return;
     }
     if (
-      platformFee !== undefined &&
-      (typeof platformFee !== "number" || platformFee < 0)
+      motdCommissionFromTailor !== undefined &&
+      (typeof motdCommissionFromTailor !== "number" ||
+        motdCommissionFromTailor < 0 ||
+        motdCommissionFromTailor > 100)
     ) {
       res.status(400).send({
         message:
-          "Platform fee must be a valid number greater than or equal to 0",
+          "MOTD commission from tailor must be a valid percentage between 0 and 100",
+      });
+      return;
+    }
+    if (
+      motdCommissionFromFabricStore !== undefined &&
+      (typeof motdCommissionFromFabricStore !== "number" ||
+        motdCommissionFromFabricStore < 0 ||
+        motdCommissionFromFabricStore > 100)
+    ) {
+      res.status(400).send({
+        message:
+          "MOTD commission from fabric store must be a valid percentage between 0 and 100",
       });
       return;
     }
@@ -2476,7 +2487,10 @@ adminRouter.put(
     }
     if (defaultTailoringFee !== undefined)
       settings.defaultTailoringFee = defaultTailoringFee;
-    if (platformFee !== undefined) settings.platformFee = platformFee;
+    if (motdCommissionFromTailor !== undefined)
+      settings.motdCommissionFromTailor = motdCommissionFromTailor;
+    if (motdCommissionFromFabricStore !== undefined)
+      settings.motdCommissionFromFabricStore = motdCommissionFromFabricStore;
     if (vatRate !== undefined) settings.vatRate = vatRate;
     if (returnDeductionPercent !== undefined)
       settings.returnDeductionPercent = returnDeductionPercent;
