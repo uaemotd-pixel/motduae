@@ -58,18 +58,110 @@ export function toShipaPhone(phone) {
   return digits;
 }
 
+/**
+ * Shipa V2 `origin.city` / `destination.city` must match their ARE city list.
+ * Neighborhoods (Al Quoz, Deira, …) are not valid and belong on the street.
+ */
+export const SHIPA_UAE_CITIES = Object.freeze([
+  "Dubai",
+  "Abu Dhabi",
+  "Al Ain",
+  "Ajman",
+  "Fujairah",
+  "Ras Al Khaimah",
+  "Sharjah",
+  "Umm Al Quwain",
+]);
+
+const SHIPA_CITY_ALIASES = Object.freeze({
+  dubai: "Dubai",
+  dxb: "Dubai",
+  دبي: "Dubai",
+  "abu dhabi": "Abu Dhabi",
+  abudhabi: "Abu Dhabi",
+  "abu-dhabi": "Abu Dhabi",
+  "أبو ظبي": "Abu Dhabi",
+  أبوظبي: "Abu Dhabi",
+  "al ain": "Al Ain",
+  alain: "Al Ain",
+  "al-ain": "Al Ain",
+  العين: "Al Ain",
+  ajman: "Ajman",
+  عجمان: "Ajman",
+  fujairah: "Fujairah",
+  الفجيرة: "Fujairah",
+  "ras al khaimah": "Ras Al Khaimah",
+  "ras al-khaimah": "Ras Al Khaimah",
+  rasalkhaimah: "Ras Al Khaimah",
+  rak: "Ras Al Khaimah",
+  "رأس الخيمة": "Ras Al Khaimah",
+  sharjah: "Sharjah",
+  الشارقة: "Sharjah",
+  "umm al quwain": "Umm Al Quwain",
+  "umm al-quwain": "Umm Al Quwain",
+  ummalquwain: "Umm Al Quwain",
+  uaq: "Umm Al Quwain",
+  "أم القيوين": "Umm Al Quwain",
+});
+
+const SHIPA_CITY_PREFIXES = Object.freeze(
+  [
+    ["umm al quwain", "Umm Al Quwain"],
+    ["ras al khaimah", "Ras Al Khaimah"],
+    ["abu dhabi", "Abu Dhabi"],
+    ["al ain", "Al Ain"],
+    ["fujairah", "Fujairah"],
+    ["sharjah", "Sharjah"],
+    ["ajman", "Ajman"],
+    ["dubai", "Dubai"],
+  ],
+);
+
+function normalizeCityKey(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u064B-\u065F]/g, "")
+    .replace(/[_./,-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+/** Map a free-text city or emirate to a Shipa ARE city, or "". */
+export function mapToShipaUaeCity(value) {
+  const key = normalizeCityKey(value);
+  if (!key) return "";
+  if (SHIPA_CITY_ALIASES[key]) return SHIPA_CITY_ALIASES[key];
+  for (const [alias, city] of SHIPA_CITY_PREFIXES) {
+    if (key === alias || key.startsWith(`${alias} `)) return city;
+  }
+  return "";
+}
+
 export function toShipaCity(address = {}) {
-  const city = String(address.city || "").trim();
-  if (city) return city;
-  return String(address.emirate || "").trim();
+  return (
+    mapToShipaUaeCity(address.city) ||
+    mapToShipaUaeCity(address.emirate) ||
+    ""
+  );
 }
 
 export function toShipaStreet(address = {}) {
-  return [address.line1, address.line2, address.street, address.building]
+  const parts = [address.line1, address.line2, address.street, address.building]
     .map((part) => String(part || "").trim())
-    .filter(Boolean)
-    .join(", ")
-    .slice(0, 1000);
+    .filter(Boolean);
+  const rawCity = String(address.city || "").trim();
+  const mappedCity = mapToShipaUaeCity(rawCity);
+  const cityIsExactShipaName =
+    mappedCity &&
+    normalizeCityKey(rawCity) === normalizeCityKey(mappedCity);
+  if (rawCity && !cityIsExactShipaName) {
+    const joined = parts.join(", ").toLowerCase();
+    if (!joined.includes(rawCity.toLowerCase())) {
+      parts.push(rawCity);
+    }
+  }
+  return parts.join(", ").slice(0, 1000);
 }
 
 export function toShipaParty(address = {}) {
@@ -116,12 +208,12 @@ export function toShipaV2OrderBody(payload) {
 
   if (!origin.contactNo || !origin.city) {
     throw new Error(
-      "Shipa V2 origin requires contact phone and city/emirate",
+      "Shipa V2 origin requires a phone and a UAE city Shipa recognizes (use emirate, not a neighborhood)",
     );
   }
   if (!destination.contactNo || !destination.city) {
     throw new Error(
-      "Shipa V2 destination requires contact phone and city/emirate",
+      "Shipa V2 destination requires a phone and a UAE city Shipa recognizes (use emirate, not a neighborhood)",
     );
   }
 
