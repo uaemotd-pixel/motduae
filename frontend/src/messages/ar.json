@@ -839,7 +839,9 @@
       "hideMeasurements": "إخفاء التفاصيل",
       "showMeasurements": "عرض التفاصيل",
       "updateSuccess": "تم تحديث حالة الطلب بنجاح",
-      "updateFailed": "فشل تحديث حالة الطلب"
+      "updateFailed": "فشل تحديث حالة الطلب",
+      "fromLabel": "من تاريخ",
+      "toLabel": "إلى تاريخ"
     }
   },
   "TailorPortal": {
@@ -874,7 +876,9 @@
       "updateFailed": "فشل تحديث حالة الطلب",
       "measurements": "المقاسات",
       "hideMeasurements": "إخفاء المقاسات",
-      "showMeasurements": "عرض المقاسات"
+      "showMeasurements": "عرض المقاسات",
+      "fromLabel": "من تاريخ",
+      "toLabel": "إلى تاريخ"
     },
     "pending": {
       "eyebrow": "بوابة الخياط",
