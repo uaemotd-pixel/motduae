@@ -29,6 +29,7 @@ import {
 import type { Locale } from "@/i18n/routing";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
 import { isWithinLocalDateRange } from "@/lib/dateRange";
+import { splitFabricCommission } from "@/lib/fabricCommission";
 
 interface OrderUser {
   _id: string;
@@ -58,11 +59,17 @@ interface Order {
   createdAt: string;
   shipments?: CustomOrderShipmentSummary[];
   fabricMeters: number;
+  shippingPrice?: number;
+  parcelCount?: number;
+  perParcelFee?: number | null;
   pricing: {
     total: number;
     currency: string;
     fabricCost: number;
     fabricPricePerMeter: number;
+    deliveryFee?: number;
+    parcelCount?: number;
+    perParcelFee?: number | null;
   };
 }
 
@@ -99,6 +106,22 @@ function readPartnerName(
   return value.name || fallback;
 }
 
+function formatParcelDeliveryNote(
+  locale: string,
+  parcelCount?: number | null,
+  perParcelFee?: number | null,
+  formatCurrencyFn: (amount: number, currency?: string) => string = (n) =>
+    String(n),
+  currency = "AED",
+): string | null {
+  const count = Number(parcelCount) || 0;
+  const fee = Number(perParcelFee);
+  if (count <= 0 || !Number.isFinite(fee) || fee < 0) return null;
+  return locale === "ar"
+    ? `${count} طرود × ${formatCurrencyFn(fee, currency)} لكل طرد`
+    : `${count} parcels × ${formatCurrencyFn(fee, currency)} each`;
+}
+
 export default function FabricOrdersPage() {
   const params = useParams();
   const locale = (params.locale as Locale) || "en";
@@ -121,6 +144,7 @@ export default function FabricOrdersPage() {
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterFrom, setFilterFrom] = useState<string>("");
   const [filterTo, setFilterTo] = useState<string>("");
+  const [commissionPercent, setCommissionPercent] = useState(15);
 
   const statusLabel = (status: string) => {
     if (isCustomOrderStatus(status)) {
@@ -133,14 +157,34 @@ export default function FabricOrdersPage() {
     setLoading(true);
     setError(null);
     try {
+      const settingsPromise = api
+        .get<{ motdCommissionFromFabricStore?: number }>("/api/orders/settings")
+        .catch(() => null);
+
       if (activeTab === "custom") {
-        const res = await api.get<{ success: boolean; items: Order[] }>(
-          "/api/fabric/orders",
-        );
-        setOrders(res.items || []);
+        const [ordersRes, settingsRes] = await Promise.all([
+          api.get<{ success: boolean; items: Order[] }>("/api/fabric/orders"),
+          settingsPromise,
+        ]);
+        setOrders(ordersRes.items || []);
+        if (
+          typeof settingsRes?.motdCommissionFromFabricStore === "number" &&
+          Number.isFinite(settingsRes.motdCommissionFromFabricStore)
+        ) {
+          setCommissionPercent(settingsRes.motdCommissionFromFabricStore);
+        }
       } else {
-        const res = await api.get<any[]>("/api/fabric/orders/retail");
+        const [res, settingsRes] = await Promise.all([
+          api.get<any[]>("/api/fabric/orders/retail"),
+          settingsPromise,
+        ]);
         setOrders(res || []);
+        if (
+          typeof settingsRes?.motdCommissionFromFabricStore === "number" &&
+          Number.isFinite(settingsRes.motdCommissionFromFabricStore)
+        ) {
+          setCommissionPercent(settingsRes.motdCommissionFromFabricStore);
+        }
       }
     } catch (err) {
       setError(getApiErrorMessage(err, t("loadError")));
@@ -337,7 +381,7 @@ export default function FabricOrdersPage() {
             setFilterTo("");
           }}
         >
-          {locale === "ar" ? "ملابس جاهزة" : "Ready Made Orders"}
+          {locale === "ar" ? "طلبات التجزئة" : "Retail Orders"}
         </button>
       </div>
 
@@ -451,6 +495,20 @@ export default function FabricOrdersPage() {
 
             if (activeTab === "retail") {
               const retailOrder = order as any;
+              const fabricOnlyItems =
+                retailOrder.orderItems?.filter(
+                  (item: any) => item.size === "Per Meter",
+                ) || [];
+              const fabricGross = fabricOnlyItems.reduce(
+                (sum: number, item: any) =>
+                  sum + (Number(item.price) || 0) * (Number(item.quantity) || 0),
+                0,
+              );
+              const fabricBreakdown =
+                fabricGross > 0
+                  ? splitFabricCommission(fabricGross, commissionPercent)
+                  : null;
+
               return (
                 <div
                   key={retailOrder._id}
@@ -484,23 +542,42 @@ export default function FabricOrdersPage() {
                         {locale === "ar" ? "المنتجات المطلوبة" : "Ordered Items"}
                       </p>
                       <div className="flex flex-col gap-3">
-                        {retailOrder.orderItems?.map((item: any, idx: number) => (
-                          <div key={idx} className="flex items-center gap-3 bg-gray-50/50 p-2 rounded-xl border border-gray-100/50">
-                            {item.image && (
-                              <img
-                                src={item.image}
-                                alt={item.name}
-                                className="w-10 h-10 object-cover rounded-lg border border-gray-200 shrink-0"
-                              />
-                            )}
-                            <div>
-                              <p className="text-xs font-semibold text-black [font-family:var(--font-body)]">{item.name}</p>
-                              <p className="text-[10px] text-gray-400 mt-0.5 [font-family:var(--font-body)]">
-                                {locale === "ar" ? "المقاس: " : "Size: "}{item.size} | {locale === "ar" ? "الكمية: " : "Qty: "}{item.quantity} | {formatCurrency(item.price)}
-                              </p>
+                        {retailOrder.orderItems?.map((item: any, idx: number) => {
+                          const isFabricOnly = item.size === "Per Meter";
+                          return (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-3 bg-gray-50/50 p-2 rounded-xl border border-gray-100/50"
+                            >
+                              {item.image && (
+                                <img
+                                  src={item.image}
+                                  alt={item.name}
+                                  className="w-10 h-10 object-cover rounded-lg border border-gray-200 shrink-0"
+                                />
+                              )}
+                              <div>
+                                <p className="text-xs font-semibold text-black [font-family:var(--font-body)]">
+                                  {item.name}
+                                  {isFabricOnly && (
+                                    <span className="ml-1.5 text-[10px] font-normal text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">
+                                      {locale === "ar"
+                                        ? "قماش بالمتر"
+                                        : "Fabric / m"}
+                                    </span>
+                                  )}
+                                </p>
+                                <p className="text-[10px] text-gray-400 mt-0.5 [font-family:var(--font-body)]">
+                                  {isFabricOnly
+                                    ? locale === "ar"
+                                      ? `الكمية: ${item.quantity} م | ${formatCurrency(item.price)} / م`
+                                      : `Qty: ${item.quantity} m | ${formatCurrency(item.price)} / m`
+                                    : `${locale === "ar" ? "المقاس: " : "Size: "}${item.size} | ${locale === "ar" ? "الكمية: " : "Qty: "}${item.quantity} | ${formatCurrency(item.price)}`}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -532,6 +609,52 @@ export default function FabricOrdersPage() {
                           retailOrder.currency || "AED",
                         )}
                       </p>
+                      {(retailOrder.shippingPrice || 0) > 0 && (
+                        <div className="mt-2 space-y-0.5 text-[10px] text-gray-500 [font-family:var(--font-body)]">
+                          <p>
+                            {locale === "ar"
+                              ? "رسوم توصيل الطرود: "
+                              : "Parcel delivery fee: "}
+                            {formatCurrency(
+                              retailOrder.shippingPrice || 0,
+                              retailOrder.currency || "AED",
+                            )}
+                          </p>
+                          {(() => {
+                            const note = formatParcelDeliveryNote(
+                              locale,
+                              retailOrder.parcelCount,
+                              retailOrder.perParcelFee,
+                              formatCurrency,
+                              retailOrder.currency || "AED",
+                            );
+                            return note ? <p>{note}</p> : null;
+                          })()}
+                        </div>
+                      )}
+                      {fabricBreakdown && (
+                        <div className="mt-2 space-y-0.5 text-[10px] text-gray-500 [font-family:var(--font-body)]">
+                          <p>
+                            {locale === "ar"
+                              ? `عمولة MOTD (${commissionPercent}%): `
+                              : `MOTD commission (${commissionPercent}%): `}
+                            −
+                            {formatCurrency(
+                              fabricBreakdown.commission,
+                              retailOrder.currency || "AED",
+                            )}
+                          </p>
+                          <p className="font-medium text-black">
+                            {locale === "ar"
+                              ? "صافي مستحقاتك: "
+                              : "Your payout: "}
+                            {formatCurrency(
+                              fabricBreakdown.net,
+                              retailOrder.currency || "AED",
+                            )}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -568,7 +691,6 @@ export default function FabricOrdersPage() {
                     )}
                   </div>
 
-                  {/* Footer bar showing Order ID */}
                   <div className="p-4 border-t border-gray-100 bg-gray-50/70 text-xs text-gray-500">
                     {locale === "ar" ? "الرقم التعريفي للطلب:" : "Order ID:"}{" "}
                     <span className="font-mono text-black font-medium">
@@ -693,15 +815,52 @@ export default function FabricOrdersPage() {
                     <p className="text-xs text-gray-400 uppercase tracking-wider mb-1 [font-family:var(--font-ui)]">
                       {t("total")}
                     </p>
-                    <p className="font-medium text-black text-sm [font-family:var(--font-body)]">
-                      {formatCurrency(
+                    {(() => {
+                      const breakdown = splitFabricCommission(
                         order.pricing.fabricCost || 0,
-                        order.pricing.currency || "AED",
-                      )}
-                    </p>
-                    <p className="text-2xs text-gray-400 [font-family:var(--font-body)]">
-                      {locale === "ar" ? "سعر القماش فقط" : "Fabric cost only"}
-                    </p>
+                        commissionPercent,
+                      );
+                      const currency = order.pricing.currency || "AED";
+                      const deliveryFee = order.pricing.deliveryFee || 0;
+                      const parcelNote = formatParcelDeliveryNote(
+                        locale,
+                        order.pricing.parcelCount ?? order.parcelCount,
+                        order.pricing.perParcelFee ?? order.perParcelFee,
+                        formatCurrency,
+                        currency,
+                      );
+                      return (
+                        <>
+                          <p className="font-medium text-black text-sm [font-family:var(--font-body)]">
+                            {formatCurrency(breakdown.net, currency)}
+                          </p>
+                          <p className="text-2xs text-gray-400 [font-family:var(--font-body)]">
+                            {locale === "ar"
+                              ? "صافي مستحقاتك بعد العمولة"
+                              : "Your payout after commission"}
+                          </p>
+                          <div className="mt-2 space-y-0.5 text-[10px] text-gray-500 [font-family:var(--font-body)]">
+                            {deliveryFee > 0 && (
+                              <>
+                                <p>
+                                  {locale === "ar"
+                                    ? "رسوم توصيل الطرود: "
+                                    : "Parcel delivery fee: "}
+                                  {formatCurrency(deliveryFee, currency)}
+                                </p>
+                                {parcelNote && <p>{parcelNote}</p>}
+                              </>
+                            )}
+                            <p>
+                              {locale === "ar"
+                                ? `عمولة MOTD (${commissionPercent}%): `
+                                : `MOTD commission (${commissionPercent}%): `}
+                              −{formatCurrency(breakdown.commission, currency)}
+                            </p>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -771,7 +930,7 @@ export default function FabricOrdersPage() {
                         <p className="text-3xs text-gray-400 uppercase font-medium">
                           {locale === "ar"
                             ? "إجمالي تكلفة القماش"
-                            : "Total Fabric Payout"}
+                            : "Total Fabric Fee"}
                         </p>
                         <p className="text-sm font-semibold font-mono text-black mt-0.5">
                           {formatCurrency(
@@ -779,6 +938,47 @@ export default function FabricOrdersPage() {
                             order.pricing.currency || "AED",
                           )}
                         </p>
+                      </div>
+                      <div className="bg-white p-3 border border-gray-100 rounded-lg sm:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {(() => {
+                          const breakdown = splitFabricCommission(
+                            order.pricing.fabricCost || 0,
+                            commissionPercent,
+                          );
+                          const currency = order.pricing.currency || "AED";
+                          return (
+                            <>
+                              <div>
+                                <p className="text-3xs text-gray-400 uppercase font-medium">
+                                  {locale === "ar" ? "إجمالي" : "Gross"}
+                                </p>
+                                <p className="text-sm font-semibold font-mono text-black mt-0.5">
+                                  {formatCurrency(breakdown.gross, currency)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-3xs text-gray-400 uppercase font-medium">
+                                  {locale === "ar"
+                                    ? `عمولة MOTD (${commissionPercent}%)`
+                                    : `MOTD commission (${commissionPercent}%)`}
+                                </p>
+                                <p className="text-sm font-semibold font-mono text-black mt-0.5">
+                                  −{formatCurrency(breakdown.commission, currency)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-3xs text-gray-400 uppercase font-medium">
+                                  {locale === "ar"
+                                    ? "صافي مستحقاتك"
+                                    : "Your payout"}
+                                </p>
+                                <p className="text-sm font-semibold font-mono text-black mt-0.5">
+                                  {formatCurrency(breakdown.net, currency)}
+                                </p>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}

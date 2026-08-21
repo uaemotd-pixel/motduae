@@ -314,7 +314,7 @@ export default function AdminRetailOrdersPage() {
     [filterCustomer, filterStatus, filterFrom, filterTo, limit],
   );
 
-  // Debounced filter changes
+  // Debounced filter / initial load (single source of truth — avoids double fetch)
   useEffect(() => {
     if (filterTimeoutRef.current) {
       clearTimeout(filterTimeoutRef.current);
@@ -327,12 +327,23 @@ export default function AdminRetailOrdersPage() {
         clearTimeout(filterTimeoutRef.current);
       }
     };
-  }, [filterCustomer, filterStatus, filterFrom, filterTo]);
+  }, [fetchOrders]);
 
-  // Initial load
-  useEffect(() => {
-    fetchOrders(1);
-  }, []);
+  const handleFromChange = (value: string) => {
+    setFilterFrom(value);
+    // Keep range valid: if From moves past To, clamp To forward.
+    if (value && filterTo && value > filterTo) {
+      setFilterTo(value);
+    }
+  };
+
+  const handleToChange = (value: string) => {
+    setFilterTo(value);
+    // Keep range valid: if To moves before From, clamp From backward.
+    if (value && filterFrom && value < filterFrom) {
+      setFilterFrom(value);
+    }
+  };
 
   const handleStatusChange = async (
     orderId: string,
@@ -528,7 +539,8 @@ export default function AdminRetailOrdersPage() {
             <input
               type="date"
               value={filterFrom}
-              onChange={(e) => setFilterFrom(e.target.value)}
+              max={filterTo || undefined}
+              onChange={(e) => handleFromChange(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition hover:cursor-pointer"
             />
           </div>
@@ -542,7 +554,9 @@ export default function AdminRetailOrdersPage() {
             <input
               type="date"
               value={filterTo}
-              onChange={(e) => setFilterTo(e.target.value)}
+              min={filterFrom || undefined}
+              max={getTodayString()}
+              onChange={(e) => handleToChange(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition hover:cursor-pointer"
             />
           </div>

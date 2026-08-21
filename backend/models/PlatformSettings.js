@@ -38,10 +38,18 @@ const platformSettingsSchema = new mongoose.Schema(
       min: 0,
       required: true,
     },
-    platformFee: {
+    motdCommissionFromTailor: {
       type: Number,
-      default: 0,
+      default: 12,
       min: 0,
+      max: 100,
+      required: true,
+    },
+    motdCommissionFromFabricStore: {
+      type: Number,
+      default: 15,
+      min: 0,
+      max: 100,
       required: true,
     },
     vatRate: {
