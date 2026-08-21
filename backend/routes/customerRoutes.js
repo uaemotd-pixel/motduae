@@ -248,36 +248,37 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
     if (addresses && Array.isArray(addresses) && addresses.length > 0) {
       const newAddresses = [];
 
-      addresses.forEach((addr, index) => {
-        const isDefault = index === 0;
-        if (addr._id) {
-          const existingAddr = customer.addresses.id(addr._id);
-          if (existingAddr) {
-            Object.assign(existingAddr, {
-              fullName: addr.fullName || customer.name,
-              phone: addr.phone || customer.phone,
-              emirate: addr.emirate,
-              city: addr.city,
-              street: addr.street || "",
-              building: addr.building || "",
-              postalCode: addr.postalCode || "",
-              isDefault: isDefault,
-            });
-            newAddresses.push(existingAddr);
-            return;
-          }
+      for (let index = 0; index < addresses.length; index++) {
+        const addr = addresses[index];
+        const emirate = normalizeEmirate(addr.emirate);
+        if (!emirate) {
+          return res.status(400).json({
+            error: "Valid UAE emirate is required for each address",
+          });
         }
-        newAddresses.push({
+
+        const isDefault = index === 0;
+        const mapped = {
           fullName: addr.fullName || customer.name,
           phone: addr.phone || customer.phone,
-          emirate: addr.emirate,
+          emirate,
           city: addr.city,
           street: addr.street || "",
           building: addr.building || "",
           postalCode: addr.postalCode || "",
-          isDefault: isDefault,
-        });
-      });
+          isDefault,
+        };
+
+        if (addr._id) {
+          const existingAddr = customer.addresses.id(addr._id);
+          if (existingAddr) {
+            Object.assign(existingAddr, mapped);
+            newAddresses.push(existingAddr);
+            continue;
+          }
+        }
+        newAddresses.push(mapped);
+      }
 
       customer.addresses = newAddresses;
 

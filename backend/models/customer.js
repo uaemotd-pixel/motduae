@@ -57,8 +57,12 @@ const savedUserSubSchema = new mongoose.Schema({
       emirate: {
         type: String,
         trim: true,
-        enum: {
-          values: UAE_EMIRATES.map((e) => e.value),
+        validate: {
+          validator(value) {
+            // Family-member address is optional; empty must not fail enum
+            if (value == null || value === "") return true;
+            return UAE_EMIRATES.some((e) => e.value === value);
+          },
           message: "{VALUE} is not an official UAE emirate",
         },
       },
@@ -67,8 +71,8 @@ const savedUserSubSchema = new mongoose.Schema({
       building: { type: String, trim: true },
       postalCode: { type: String, trim: true },
     },
-    required: false, // ← ADD THIS
-    default: undefined, // ← ADD THIS
+    required: false,
+    default: undefined,
   },
   dob: { type: Date },
   age: { type: Number, default: null },
@@ -129,6 +133,37 @@ customerSchema.index(
   { userId: 1, deletedAt: 1 },
   { unique: true, partialFilterExpression: { deletedAt: null } },
 );
+
+const hasSavedUserAddressData = (address) => {
+  if (!address || typeof address !== "object") return false;
+  return !!(
+    address.fullName?.trim?.() ||
+    address.phone?.trim?.() ||
+    address.emirate?.trim?.() ||
+    address.city?.trim?.() ||
+    address.street?.trim?.() ||
+    address.building?.trim?.() ||
+    address.postalCode?.trim?.()
+  );
+};
+
+// Runs before validation so empty family-member emirates cannot block
+// unrelated saves (e.g. updating the customer's primary address).
+customerSchema.pre("validate", function (next) {
+  if (this.savedUsers?.length) {
+    this.savedUsers.forEach((member) => {
+      if (!member.address) return;
+      if (!hasSavedUserAddressData(member.address)) {
+        member.address = undefined;
+        return;
+      }
+      if (!member.address.emirate?.trim?.()) {
+        member.address.emirate = undefined;
+      }
+    });
+  }
+  next();
+});
 
 customerSchema.pre("save", function (next) {
   if (this.addresses?.length) {
