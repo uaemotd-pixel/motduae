@@ -22,7 +22,7 @@ import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 const COLOR_OPTIONS = colors;
 
 const sanitizeName = (value: string) =>
-  value.replace(/[^a-zA-Z\u0600-\u06FF\s\-']/g, "");
+  value.replace(/[^a-zA-Z0-9\u0600-\u06FF\s\-']/g, "");
 
 export default function EditReadyMadePage() {
   const { user } = useAuth();

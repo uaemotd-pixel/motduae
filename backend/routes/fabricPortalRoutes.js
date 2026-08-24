@@ -25,8 +25,22 @@ import {
 } from "../utils/shopPickupAddress.js";
 import { hasActiveFabricShipments } from "../services/shipmentService.js";
 import { getTimeframeWindow } from "../utils/dateRange.js";
+import PlatformSettings from "../models/PlatformSettings.js";
+import { splitMotdCommission } from "../services/pricingService.js";
 
 const fabricPortalRouter = express.Router();
+
+const DEFAULT_FABRIC_COMMISSION_PERCENT = 15;
+
+const resolveFabricCommissionPercent = (settings) => {
+  if (
+    typeof settings?.motdCommissionFromFabricStore === "number" &&
+    Number.isFinite(settings.motdCommissionFromFabricStore)
+  ) {
+    return Math.min(100, Math.max(0, settings.motdCommissionFromFabricStore));
+  }
+  return DEFAULT_FABRIC_COMMISSION_PERCENT;
+};
 
 const SHOP_FIELDS = [
   "name",
@@ -824,7 +838,8 @@ fabricPortalRouter.get(
   }),
 );
 
-// GET /api/fabric/orders/retail — get all retail orders containing products owned by this fabric store
+// GET /api/fabric/orders/retail — retail orders for this store:
+// ready-made, add-ons, and fabric-by-meter (productId = Fabric._id, size = "Per Meter")
 fabricPortalRouter.get(
   "/orders/retail",
   expressAsyncHandler(async (req, res) => {
@@ -836,14 +851,31 @@ fabricPortalRouter.get(
       return;
     }
 
-    // Find all ready-made products owned by this fabric store
-    const storeProducts = await ReadyMadeProduct.find({
-      $or: [{ fabricShopId: shop._id }, { ownerName: shop.name }],
-    }).select("_id");
-    const storeProductIds = storeProducts.map((p) => p._id);
+    const [storeProducts, storeFabrics, storeAddons] = await Promise.all([
+      ReadyMadeProduct.find({
+        $or: [{ fabricShopId: shop._id }, { ownerName: shop.name }],
+      }).select("_id"),
+      Fabric.find({
+        $or: [{ listedByStore: req.user._id }, { fabricShopId: shop._id }],
+      }).select("_id"),
+      AddOn.find({
+        $or: [{ fabricShopId: shop._id }, { ownerName: shop.name }],
+      }).select("_id"),
+    ]);
+
+    const storeItemIds = [
+      ...storeProducts.map((p) => p._id),
+      ...storeFabrics.map((f) => f._id),
+      ...storeAddons.map((a) => a._id),
+    ];
+
+    if (storeItemIds.length === 0) {
+      res.json([]);
+      return;
+    }
 
     const orders = await RetailOrder.find({
-      "orderItems.productId": { $in: storeProductIds },
+      "orderItems.productId": { $in: storeItemIds },
     })
       .populate("userId", "name email phone")
       .populate("orderItems.productId", "thumbnailImage images")
@@ -1484,22 +1516,62 @@ fabricPortalRouter.get(
     const { start, end } = getTimeframeWindow(timeframe);
 
     const shop = await findOwnShop(req.user._id);
-    const storeFabricIds = await Fabric.find({
-      listedByStore: req.user._id,
-    }).select("_id stockInMeters isActive name");
-    const storeFabricIdValues = storeFabricIds.map((f) => f._id);
+    const settings = await PlatformSettings.findOne({}).lean();
+    const commissionPercent = resolveFabricCommissionPercent(settings);
 
-    const storeAddonIds = shop
-      ? await AddOn.find({
-          $or: [{ fabricShopId: shop._id }, { ownerName: shop.name }],
-        }).select("_id")
-      : [];
+    const ownerUserId = req.user._id;
+    const ownerUserIdStr = ownerUserId.toString();
+    const shopIdStr = shop?._id?.toString?.() || "";
+
+    const [storeFabricIds, storeProducts, storeAddonIds] = await Promise.all([
+      Fabric.find({
+        $or: [
+          { listedByStore: ownerUserId },
+          ...(shop ? [{ fabricShopId: shop._id }] : []),
+        ],
+      }).select("_id stockInMeters isActive name isVariantOf"),
+      shop
+        ? ReadyMadeProduct.find({
+            $or: [
+              { fabricShopId: shop._id, ownerName: { $ne: "MOTD Admin" } },
+              { ownerName: shop.name },
+            ],
+          }).select("_id isActive availableFabricStock")
+        : Promise.resolve([]),
+      shop
+        ? AddOn.find({
+            $or: [
+              { fabricShopId: shop._id, ownerName: { $ne: "MOTD Admin" } },
+              { ownerName: shop.name },
+            ],
+          }).select("_id isActive stock")
+        : Promise.resolve([]),
+    ]);
+
+    const storeFabricIdValues = storeFabricIds.map((f) => f._id);
+    const storeFabricIdSet = new Set(
+      storeFabricIdValues.map((id) => id.toString()),
+    );
+    const storeProductIdSet = new Set(
+      storeProducts.map((p) => p._id.toString()),
+    );
     const storeAddonIdValues = storeAddonIds.map((a) => a._id);
+    const storeAddonIdSet = new Set(
+      storeAddonIdValues.map((id) => id.toString()),
+    );
+    const storeRetailItemIds = [
+      ...storeFabricIdValues,
+      ...storeProducts.map((p) => p._id),
+      ...storeAddonIdValues,
+    ];
 
     const primaryMatch = {
       $or: [
-        { fabricStoreId: req.user._id },
-        { "items.fabricStoreId": req.user._id },
+        { fabricStoreId: ownerUserId },
+        { "items.fabricStoreId": ownerUserId },
+        ...(shopIdStr
+          ? [{ fabricStoreId: shop._id }, { "items.fabricStoreId": shop._id }]
+          : []),
         ...(storeAddonIdValues.length
           ? [{ "addons.addonId": { $in: storeAddonIdValues } }]
           : []),
@@ -1517,105 +1589,194 @@ fabricPortalRouter.get(
       ? { $or: [primaryMatch, legacyMatch] }
       : primaryMatch;
 
-    const ownerUserId = req.user._id;
-    const shopIdStr = shop?._id?.toString?.() || "";
-
-    const ordersInWindow = await CustomOrder.find({
-      ...orderMatch,
-      createdAt: { $gte: start, $lte: end },
-    })
-      .populate("userId", "name email")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    const allScopedOrders = await CustomOrder.find(orderMatch)
-      .populate("userId", "name email")
-      .sort({ createdAt: -1 })
-      .limit(8)
-      .lean();
-
-    const sumFabricFee = (order) => {
-      if (order.items && order.items.length > 0) {
-        return order.items
-          .filter((item) => {
-            const sid =
-              item.fabricStoreId?._id?.toString?.() ||
-              item.fabricStoreId?.toString?.() ||
-              "";
-            return (
-              sid === ownerUserId.toString() || (shopIdStr && sid === shopIdStr)
-            );
-          })
-          .reduce((sum, item) => sum + (item.pricing?.fabricCost || 0), 0);
+    const isStoreOwnedItem = (item) => {
+      const sid =
+        item.fabricStoreId?._id?.toString?.() ||
+        item.fabricStoreId?.toString?.() ||
+        "";
+      if (sid && (sid === ownerUserIdStr || (shopIdStr && sid === shopIdStr))) {
+        return true;
       }
-      return order.pricing?.fabricCost || 0;
+      const fabricId =
+        item.fabricId?._id?.toString?.() || item.fabricId?.toString?.() || "";
+      return Boolean(fabricId && storeFabricIdSet.has(fabricId));
     };
 
-    const sumMeters = (order) => {
+    const sumCustomFabricFee = (order) => {
       if (order.items && order.items.length > 0) {
         return order.items
-          .filter((item) => {
-            const sid =
-              item.fabricStoreId?._id?.toString?.() ||
-              item.fabricStoreId?.toString?.() ||
-              "";
-            return (
-              sid === ownerUserId.toString() || (shopIdStr && sid === shopIdStr)
-            );
-          })
+          .filter(isStoreOwnedItem)
+          .reduce((sum, item) => sum + (item.pricing?.fabricCost || 0), 0);
+      }
+      const rootSid =
+        order.fabricStoreId?._id?.toString?.() ||
+        order.fabricStoreId?.toString?.() ||
+        "";
+      const rootFabricId =
+        order.fabricId?._id?.toString?.() || order.fabricId?.toString?.() || "";
+      if (
+        rootSid === ownerUserIdStr ||
+        (shopIdStr && rootSid === shopIdStr) ||
+        (rootFabricId && storeFabricIdSet.has(rootFabricId))
+      ) {
+        return order.pricing?.fabricCost || 0;
+      }
+      return 0;
+    };
+
+    const sumCustomMeters = (order) => {
+      if (order.items && order.items.length > 0) {
+        return order.items
+          .filter(isStoreOwnedItem)
           .reduce(
             (sum, item) =>
               sum + (item.pricing?.fabricMeters || item.fabricMeters || 0),
             0,
           );
       }
-      return order.pricing?.fabricMeters || order.fabricMeters || 0;
+      return sumCustomFabricFee(order) > 0
+        ? order.pricing?.fabricMeters || order.fabricMeters || 0
+        : 0;
     };
 
+    // Retail lines belonging to this store: fabric-by-meter, ready-made, and add-ons.
+    const isStoreRetailItem = (item) => {
+      const pid =
+        item.productId?._id?.toString?.() ||
+        item.productId?.toString?.() ||
+        "";
+      if (!pid) return false;
+      if (item.size === "Per Meter" && storeFabricIdSet.has(pid)) return true;
+      if (storeProductIdSet.has(pid) || storeAddonIdSet.has(pid)) return true;
+      return false;
+    };
+
+    const sumRetailFabricFee = (order) =>
+      (order.orderItems || [])
+        .filter(isStoreRetailItem)
+        .reduce(
+          (sum, item) =>
+            sum + (Number(item.price) || 0) * (Number(item.quantity) || 0),
+          0,
+        );
+
+    const sumRetailMeters = (order) =>
+      (order.orderItems || [])
+        .filter((item) => {
+          const pid =
+            item.productId?._id?.toString?.() ||
+            item.productId?.toString?.() ||
+            "";
+          return item.size === "Per Meter" && pid && storeFabricIdSet.has(pid);
+        })
+        .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+
+    const [customInWindow, retailInWindow, recentCustom, recentRetail] =
+      await Promise.all([
+        CustomOrder.find({
+          ...orderMatch,
+          createdAt: { $gte: start, $lte: end },
+        })
+          .populate("userId", "name email")
+          .sort({ createdAt: -1 })
+          .lean(),
+        storeRetailItemIds.length
+          ? RetailOrder.find({
+              "orderItems.productId": { $in: storeRetailItemIds },
+              createdAt: { $gte: start, $lte: end },
+            })
+              .populate("userId", "name email")
+              .sort({ createdAt: -1 })
+              .lean()
+          : Promise.resolve([]),
+        CustomOrder.find(orderMatch)
+          .populate("userId", "name email")
+          .sort({ createdAt: -1 })
+          .limit(12)
+          .lean(),
+        storeRetailItemIds.length
+          ? RetailOrder.find({
+              "orderItems.productId": { $in: storeRetailItemIds },
+            })
+              .populate("userId", "name email")
+              .sort({ createdAt: -1 })
+              .limit(12)
+              .lean()
+          : Promise.resolve([]),
+      ]);
+
+    let fabricGross = 0;
+    let motdCommission = 0;
     let fabricRevenue = 0;
     let metersSold = 0;
     const statusMap = new Map();
     const fabricRevenueMap = new Map();
 
-    for (const order of ordersInWindow) {
-      const fee = sumFabricFee(order);
-      fabricRevenue += fee;
-      metersSold += sumMeters(order);
+    for (const order of customInWindow) {
+      const breakdown = splitMotdCommission(
+        sumCustomFabricFee(order),
+        commissionPercent,
+      );
+      fabricGross += breakdown.gross;
+      motdCommission += breakdown.commission;
+      fabricRevenue += breakdown.net;
+      metersSold += sumCustomMeters(order);
       const st = order.status || "unknown";
       statusMap.set(st, (statusMap.get(st) || 0) + 1);
 
       if (order.items && order.items.length > 0) {
         for (const item of order.items) {
-          const sid =
-            item.fabricStoreId?._id?.toString?.() ||
-            item.fabricStoreId?.toString?.() ||
-            "";
-          if (
-            sid !== ownerUserId.toString() &&
-            !(shopIdStr && sid === shopIdStr)
-          ) {
-            continue;
-          }
+          if (!isStoreOwnedItem(item)) continue;
           const name = item.fabricSnapshot?.name || "Unknown fabric";
-          const cost = item.pricing?.fabricCost || 0;
+          const itemSplit = splitMotdCommission(
+            item.pricing?.fabricCost || 0,
+            commissionPercent,
+          );
           const prev = fabricRevenueMap.get(name) || { value: 0, count: 0 };
           fabricRevenueMap.set(name, {
-            value: prev.value + cost,
+            value: prev.value + itemSplit.net,
             count: prev.count + 1,
           });
         }
-      } else if (order.fabricSnapshot?.name) {
+      } else if (order.fabricSnapshot?.name && sumCustomFabricFee(order) > 0) {
         const name = order.fabricSnapshot.name;
-        const cost = order.pricing?.fabricCost || 0;
+        const itemSplit = splitMotdCommission(
+          order.pricing?.fabricCost || 0,
+          commissionPercent,
+        );
         const prev = fabricRevenueMap.get(name) || { value: 0, count: 0 };
         fabricRevenueMap.set(name, {
-          value: prev.value + cost,
+          value: prev.value + itemSplit.net,
           count: prev.count + 1,
         });
       }
     }
 
-    // Monthly fabric revenue (last 6 months)
+    for (const order of retailInWindow) {
+      const gross = sumRetailFabricFee(order);
+      if (gross <= 0) continue;
+      const breakdown = splitMotdCommission(gross, commissionPercent);
+      fabricGross += breakdown.gross;
+      motdCommission += breakdown.commission;
+      fabricRevenue += breakdown.net;
+      metersSold += sumRetailMeters(order);
+      const st = order.status || "unknown";
+      statusMap.set(st, (statusMap.get(st) || 0) + 1);
+
+      for (const item of order.orderItems || []) {
+        if (!isStoreRetailItem(item)) continue;
+        const name = item.name || "Unknown item";
+        const itemGross =
+          (Number(item.price) || 0) * (Number(item.quantity) || 0);
+        const itemSplit = splitMotdCommission(itemGross, commissionPercent);
+        const prev = fabricRevenueMap.get(name) || { value: 0, count: 0 };
+        fabricRevenueMap.set(name, {
+          value: prev.value + itemSplit.net,
+          count: prev.count + 1,
+        });
+      }
+    }
+
     const monthEnd = new Date();
     const monthStarts = [];
     for (let i = 5; i >= 0; i -= 1) {
@@ -1626,16 +1787,40 @@ fabricPortalRouter.get(
       monthStarts.push(d);
     }
     const rangeStart = monthStarts[0];
-    const monthlyOrders = await CustomOrder.find({
-      ...orderMatch,
-      createdAt: { $gte: rangeStart, $lte: end },
-    }).lean();
+
+    const [monthlyCustom, monthlyRetail] = await Promise.all([
+      CustomOrder.find({
+        ...orderMatch,
+        createdAt: { $gte: rangeStart, $lte: end },
+      }).lean(),
+      storeRetailItemIds.length
+        ? RetailOrder.find({
+            "orderItems.productId": { $in: storeRetailItemIds },
+            createdAt: { $gte: rangeStart, $lte: end },
+          }).lean()
+        : Promise.resolve([]),
+    ]);
 
     const monthlyMap = new Map();
-    for (const order of monthlyOrders) {
+    for (const order of monthlyCustom) {
       const d = new Date(order.createdAt);
       const key = `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
-      monthlyMap.set(key, (monthlyMap.get(key) || 0) + sumFabricFee(order));
+      monthlyMap.set(
+        key,
+        (monthlyMap.get(key) || 0) +
+          splitMotdCommission(sumCustomFabricFee(order), commissionPercent).net,
+      );
+    }
+    for (const order of monthlyRetail) {
+      const d = new Date(order.createdAt);
+      const key = `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
+      const gross = sumRetailFabricFee(order);
+      if (gross <= 0) continue;
+      monthlyMap.set(
+        key,
+        (monthlyMap.get(key) || 0) +
+          splitMotdCommission(gross, commissionPercent).net,
+      );
     }
 
     const monthlyData = monthStarts.map((d) => ({
@@ -1645,12 +1830,34 @@ fabricPortalRouter.get(
     }));
 
     const LOW_STOCK = 10;
-    const activeSkus = storeFabricIds.filter(
-      (f) => f.isActive !== false,
+    // Match catalog pages: parent fabrics only (variants are not separate listings),
+    // plus ready-made and add-ons.
+    const isParentFabric = (f) => !f.isVariantOf;
+    const activeFabricSkus = storeFabricIds.filter(
+      (f) => f.isActive !== false && isParentFabric(f),
     ).length;
-    const lowStock = storeFabricIds.filter(
-      (f) => (f.stockInMeters || 0) <= LOW_STOCK && f.isActive !== false,
+    const activeReadyMadeSkus = storeProducts.filter(
+      (p) => p.isActive !== false,
     ).length;
+    const activeAddonSkus = storeAddonIds.filter(
+      (a) => a.isActive !== false,
+    ).length;
+    const activeSkus =
+      activeFabricSkus + activeReadyMadeSkus + activeAddonSkus;
+    const lowStock =
+      storeFabricIds.filter(
+        (f) =>
+          isParentFabric(f) &&
+          (f.stockInMeters || 0) <= LOW_STOCK &&
+          f.isActive !== false,
+      ).length +
+      storeProducts.filter(
+        (p) =>
+          (p.availableFabricStock || 0) <= LOW_STOCK && p.isActive !== false,
+      ).length +
+      storeAddonIds.filter(
+        (a) => (a.stock || 0) <= LOW_STOCK && a.isActive !== false,
+      ).length;
 
     const topFabrics = Array.from(fabricRevenueMap.entries())
       .map(([name, data], i) => ({
@@ -1666,30 +1873,86 @@ fabricPortalRouter.get(
       .map(([status, count]) => ({ status, count }))
       .sort((a, b) => b.count - a.count);
 
-    const recentOrders = allScopedOrders.map((o) => ({
-      id: o._id.toString(),
-      amount: sumFabricFee(o),
-      status: o.status,
-      date: o.createdAt ? new Date(o.createdAt).toISOString() : "",
-      type: "custom",
-    }));
+    const recentOrders = [
+      ...recentCustom.map((o) => {
+        const breakdown = splitMotdCommission(
+          sumCustomFabricFee(o),
+          commissionPercent,
+        );
+        return {
+          id: o._id.toString(),
+          amount: breakdown.net,
+          status: o.status,
+          date: o.createdAt ? new Date(o.createdAt).toISOString() : "",
+          type: "custom",
+        };
+      }),
+      ...recentRetail.map((o) => {
+        const breakdown = splitMotdCommission(
+          sumRetailFabricFee(o),
+          commissionPercent,
+        );
+        return {
+          id: o._id.toString(),
+          amount: breakdown.net,
+          status: o.status,
+          date: o.createdAt ? new Date(o.createdAt).toISOString() : "",
+          type: "retail",
+        };
+      }),
+    ]
+      .filter((o) => o.amount > 0)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 8);
+
+    const pricingOrders = [
+      ...recentCustom.map((o) => ({
+        ...o,
+        kind: "custom",
+        fabricFeeGross: sumCustomFabricFee(o),
+      })),
+      ...recentRetail.map((o) => ({
+        ...o,
+        kind: "retail",
+        fabricFeeGross: sumRetailFabricFee(o),
+      })),
+    ]
+      .filter((o) => o.fabricFeeGross > 0)
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
+      .slice(0, 20);
+
+    const orderCount =
+      customInWindow.length +
+      retailInWindow.filter((o) => sumRetailFabricFee(o) > 0).length;
 
     res.json({
       success: true,
       currency: "AED",
-      fabricShopId: ownerUserId,
+      fabricShopId: ownerUserIdStr,
+      commissionPercent,
+      generatedAt: new Date().toISOString(),
       kpis: {
-        fabricRevenue,
-        orderCount: ordersInWindow.length,
-        metersSold,
+        fabricRevenue: Number(fabricRevenue.toFixed(2)),
+        fabricGross: Number(fabricGross.toFixed(2)),
+        motdCommission: Number(motdCommission.toFixed(2)),
+        orderCount,
+        metersSold: Number(metersSold.toFixed(2)),
         activeSkus,
         lowStock,
+      },
+      feeSplit: {
+        fabricGross: Number(fabricGross.toFixed(2)),
+        motdCommission: Number(motdCommission.toFixed(2)),
+        fabricNet: Number(fabricRevenue.toFixed(2)),
       },
       monthlyData,
       statusBreakdown,
       topFabrics,
       recentOrders,
-      pricingOrders: allScopedOrders,
+      pricingOrders,
     });
   }),
 );
