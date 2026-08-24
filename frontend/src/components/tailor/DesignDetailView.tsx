@@ -13,6 +13,9 @@ import { ImageModal } from "@/components/shared/ImageModal";
 import ZoomImageEffect from "@/components/shared/ZoomImageEffect";
 import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import { useWishlist } from "@/context/WishlistContext";
+import { useCustomOrder } from "@/context/CustomOrderContext";
+import { buildCustomOrderHrefFromDesign } from "@/lib/customOrder";
+import { Share2 } from "lucide-react";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "hand-embroidered": "#8B6B4D",
@@ -22,7 +25,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   khous: "#4A3A2A",
   beaded: "#6B2A5A",
 };
-import { Share2 } from "lucide-react";
 
 export interface TailorShopInfo {
   _id: string;
@@ -80,6 +82,7 @@ export default function DesignDetailView({
 }: DesignDetailViewProps) {
   const isAr = locale === "ar";
   const { unit, formatLength } = useMeasurementUnit();
+  const { selectSingleDesign, setFirstStep } = useCustomOrder();
   const { name, description, category } = getDesignDisplayFields(
     design,
     locale,
@@ -231,7 +234,37 @@ export default function DesignDetailView({
     : [resolveDesignImage(undefined)];
   const [activeImage, setActiveImage] = useState(0);
 
-  const customOrderHref = `/custom-order/tailor?tailorSlug=${encodeURIComponent(design.tailorShop.slug)}&designSlug=${encodeURIComponent(design.slug)}`;
+  const customOrderHref = buildCustomOrderHrefFromDesign(
+    design.slug,
+    design.tailorShop.slug,
+  );
+
+  const handleSelectForCustomOrder = () => {
+    selectSingleDesign({
+      _id: design._id,
+      slug: design.slug,
+      name: design.name,
+      nameAr: design.nameAr,
+      category: design.category,
+      basePrice: design.basePrice,
+      priceType: design.priceType,
+      tailoringFee: design.tailoringFee,
+      estimatedMeters: design.estimatedMeters,
+      estimatedDays: design.estimatedDays,
+      image: resolveDesignImage(design.images?.[0]),
+      tailor: {
+        _id: design.tailorShop._id,
+        slug: design.tailorShop.slug,
+        name: design.tailorShop.name,
+        nameAr: design.tailorShop.nameAr,
+        logo: design.tailorShop.logo,
+        coverImage: design.tailorShop.coverImage,
+        city: design.tailorShop.city,
+        location: design.tailorShop.location,
+      },
+    });
+    setFirstStep("tailor");
+  };
 
   const tailorShopName = isAr
     ? design.tailorShop.nameAr || design.tailorShop.name
@@ -511,6 +544,7 @@ export default function DesignDetailView({
               >
                 <Link
                   href={customOrderHref}
+                  onClick={handleSelectForCustomOrder}
                   className="block w-full py-3 sm:py-4 px-4 sm:px-6 bg-black text-white text-center text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.22em] uppercase hover:bg-[#1A1A1A] transition-colors"
                 >
                   {labels.selectForCustomOrder}
