@@ -184,5 +184,5 @@ export function buildCustomOrderDesignHref(
     tailorSlug,
     designSlug,
   });
-  return `/custom-order/tailor?${params.toString()}`;
+  return `/custom-order/fabric?${params.toString()}`;
 }

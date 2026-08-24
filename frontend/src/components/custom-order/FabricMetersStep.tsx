@@ -1,28 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useCustomOrder } from "@/context/CustomOrderContext";
 import {
   areInitialStepsComplete,
-  buildAutoLineItem,
   CUSTOM_ORDER_TOTAL_STEPS,
   getBackPathFromMeters,
   getCustomOrderResumePath,
   getCustomOrderStepNumber,
-  getLineItemPairKey,
   getSuggestedMetersForDesign,
   isLineItemMetersValid,
   isMetersStepComplete,
-  type CustomOrderLineItem,
   useOwnFabric,
   WARA_TO_METERS,
   type FabricUnit,
 } from "@/lib/customOrder";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
-import ImageOptionSelect from "@/components/custom-order/ImageOptionSelect";
 import { CustomOrderStepSkeleton } from "@/components/ui/Skeleton";
 
 export default function FabricMetersStep() {
@@ -34,16 +30,11 @@ export default function FabricMetersStep() {
   const {
     draft,
     isHydrated,
-    addLineItem,
     updateLineItemMeters,
-    removeLineItem,
     syncAutoLineItems,
     updateLineItemUnit,
   } = useCustomOrder();
   const usingOwnFabric = useOwnFabric(draft);
-
-  const [addDesignId, setAddDesignId] = useState("");
-  const [addFabricId, setAddFabricId] = useState("");
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -67,63 +58,7 @@ export default function FabricMetersStep() {
   const stepNumber = getCustomOrderStepNumber("meters", draft.firstStep);
   const backPath = getBackPathFromMeters(draft);
   const backLabel =
-    draft.firstStep === "tailor"
-      ? usingOwnFabric
-        ? t("backToTailor")
-        : t("backToFabric")
-      : t("backToTailor");
-
-  const needsManualPairing =
-    draft.lineItems.length === 0 &&
-    draft.selectedDesigns.length > 1 &&
-    draft.selectedFabrics.length > 1;
-
-  const existingPairKeys = useMemo(
-    () =>
-      new Set(
-        draft.lineItems.map((item) =>
-          getLineItemPairKey(item.design._id, item.fabric?._id ?? null),
-        ),
-      ),
-    [draft.lineItems],
-  );
-
-  const availablePairs = useMemo(() => {
-    const pairs: CustomOrderLineItem[] = [];
-
-    for (const design of draft.selectedDesigns) {
-      if (usingOwnFabric) {
-        const key = getLineItemPairKey(design._id, null);
-        if (!existingPairKeys.has(key)) {
-          pairs.push(buildAutoLineItem(design, null));
-        }
-        continue;
-      }
-
-      for (const fabric of draft.selectedFabrics) {
-        const key = getLineItemPairKey(design._id, fabric._id);
-        if (!existingPairKeys.has(key)) {
-          pairs.push(buildAutoLineItem(design, fabric));
-        }
-      }
-    }
-
-    return pairs;
-  }, [
-    draft.selectedDesigns,
-    draft.selectedFabrics,
-    existingPairKeys,
-    usingOwnFabric,
-  ]);
-
-  useEffect(() => {
-    if (availablePairs.length === 0) return;
-    const first = availablePairs[0];
-    setAddDesignId((current) => current || first.design._id);
-    if (!usingOwnFabric) {
-      setAddFabricId((current) => current || first.fabric?._id || "");
-    }
-  }, [availablePairs, usingOwnFabric]);
+    draft.firstStep === "tailor" ? t("backToFabric") : t("backToTailor");
 
   const handleMetersChange = (itemId: string, value: string) => {
     if (value.trim() === "") {
@@ -157,23 +92,6 @@ export default function FabricMetersStep() {
     updateLineItemMeters(itemId, converted);
   };
 
-  const handleAddItem = () => {
-    const design = draft.selectedDesigns.find(
-      (entry) => entry._id === addDesignId,
-    );
-    const fabric = usingOwnFabric
-      ? null
-      : (draft.selectedFabrics.find((entry) => entry._id === addFabricId) ??
-        null);
-
-    if (!design) return;
-    if (!usingOwnFabric && !fabric) return;
-
-    addLineItem(buildAutoLineItem(design, fabric));
-    setAddDesignId("");
-    setAddFabricId("");
-  };
-
   const getDisplayName = (name?: string, nameAr?: string) =>
     (locale === "ar" ? nameAr || name : name) || "—";
 
@@ -184,55 +102,13 @@ export default function FabricMetersStep() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
       <ConfiguratorStepHeader
-        title={t("titleMulti")}
-        description={t("descriptionMulti")}
+        title={t("title")}
+        description={t("description")}
         stepLabel={t("stepLabel", {
           step: stepNumber,
           total: CUSTOM_ORDER_TOTAL_STEPS,
         })}
       />
-
-      {availablePairs.length > 0 && (
-        <div className="border border-(--color-border) bg-white p-6 mb-8 max-w-2xl">
-          <h3 className="[font-family:var(--font-display)] text-[18px] mb-4">
-            {t("addItemTitle")}
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <ImageOptionSelect
-              label={t("selectDesign")}
-              placeholder={t("selectDesignPlaceholder")}
-              value={addDesignId}
-              onChange={setAddDesignId}
-              options={draft.selectedDesigns.map((design) => ({
-                id: design._id,
-                label: getDisplayName(design.name, design.nameAr),
-                image: design.image,
-              }))}
-            />
-            {!usingOwnFabric && (
-              <ImageOptionSelect
-                label={t("selectFabric")}
-                placeholder={t("selectFabricPlaceholder")}
-                value={addFabricId}
-                onChange={setAddFabricId}
-                options={draft.selectedFabrics.map((fabric) => ({
-                  id: fabric._id,
-                  label: getDisplayName(fabric.name, fabric.nameAr),
-                  image: fabric.image,
-                }))}
-              />
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={handleAddItem}
-            disabled={!addDesignId || (!usingOwnFabric && !addFabricId)}
-            className="px-6 py-2.5 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 [font-family:var(--font-ui)]"
-          >
-            {t("addItem")}
-          </button>
-        </div>
-      )}
 
       {(draft.selectedFabrics.length > 0 ||
         draft.selectedDesigns.length > 0) && (
@@ -275,14 +151,6 @@ export default function FabricMetersStep() {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {needsManualPairing && draft.lineItems.length === 0 && (
-        <div className="border border-(--color-border) bg-white p-6 mb-8">
-          <p className="[font-family:var(--font-body)] text-[14px] text-(--color-grey-muted)">
-            {t("pairingHint")}
-          </p>
         </div>
       )}
 
@@ -332,15 +200,6 @@ export default function FabricMetersStep() {
                       {getSuggestedMetersForDesign(item.design)} {t("meters")}
                     </p>
                   </div>
-                  {draft.lineItems.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => removeLineItem(item.id)}
-                      className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) border-b border-(--color-grey-muted) pb-0.5 hover:opacity-50 self-start hover:cursor-pointer"
-                    >
-                      {t("removeItem")}
-                    </button>
-                  )}
                 </div>
 
                 <label className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2">

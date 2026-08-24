@@ -10,9 +10,9 @@ import {
     CUSTOM_ORDER_TOTAL_STEPS,
     getCustomOrderStepNumber,
     getNextPathAfterTailor,
-    isFabricStepComplete,
     isTailorStepComplete,
     toCustomOrderDesignSelection,
+    toCustomOrderFabricSelection,
     toCustomOrderSelectedDesign,
     toCustomOrderTailorSelection,
 } from "@/lib/customOrder";
@@ -22,6 +22,7 @@ import {
     getDesignDisplayFields,
     resolveDesignImage,
 } from "@/lib/tailors";
+import { type FabricListItem } from "@/lib/fabrics";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 import { CustomOrderStepSkeleton, ProductGridSkeleton } from "@/components/ui/Skeleton";
 
@@ -32,18 +33,24 @@ export default function TailorDesignSelectionStep() {
     const params = useParams();
     const locale = params.locale === "ar" ? "ar" : "en";
     const designSlugParam = searchParams.get("designSlug");
+    const fabricSlugParam = searchParams.get("fabricSlug");
 
-    const { draft, isHydrated, toggleDesign, selectSingleDesign, claimFirstStep, setFabricSource, useOwnFabric: usingOwnFabric, setUseOwnFabric } =
+    const { draft, isHydrated, toggleDesign, selectSingleDesign, selectSingleFabric, claimFirstStep, setFirstStep, setFabricSource, useOwnFabric: usingOwnFabric, setUseOwnFabric } =
         useCustomOrder();
 
     const [designs, setDesigns] = useState<TailorDesignListItem[]>([]);
     const [loadingDesigns, setLoadingDesigns] = useState(true);
     const [designsError, setDesignsError] = useState<string | null>(null);
     const [prefilledSlug, setPrefilledSlug] = useState<string | null>(null);
+    const [prefilledFabricSlug, setPrefilledFabricSlug] = useState<string | null>(null);
 
     useEffect(() => {
         if (!isHydrated) return;
-        claimFirstStep("tailor");
+        if (fabricSlugParam) {
+            setFirstStep("fabric");
+        } else {
+            claimFirstStep("tailor");
+        }
         if (draft.selectedFabrics.length > 0 && !draft.fabricSource) {
             setFabricSource("storefront");
         }
@@ -52,7 +59,9 @@ export default function TailorDesignSelectionStep() {
         }
     }, [
         isHydrated,
+        fabricSlugParam,
         claimFirstStep,
+        setFirstStep,
         draft.selectedFabrics.length,
         draft.fabricSource,
         draft.firstStep,
@@ -106,6 +115,44 @@ export default function TailorDesignSelectionStep() {
     ]);
 
     useEffect(() => {
+        if (!isHydrated) return;
+        if (!fabricSlugParam) {
+            setPrefilledFabricSlug(null);
+        }
+    }, [isHydrated, fabricSlugParam]);
+
+    useEffect(() => {
+        if (!isHydrated || !fabricSlugParam || prefilledFabricSlug === fabricSlugParam) {
+            return;
+        }
+
+        const prefillFabric = async () => {
+            try {
+                const data = await api.get<{ success: boolean; item: FabricListItem }>(
+                    `/api/fabrics/${fabricSlugParam}`,
+                );
+
+                if (data?.success && data.item) {
+                    setFabricSource("storefront");
+                    selectSingleFabric(toCustomOrderFabricSelection(data.item));
+                }
+            } catch (err) {
+                console.error("[Fabric Prefill Error]:", err);
+            } finally {
+                setPrefilledFabricSlug(fabricSlugParam);
+            }
+        };
+
+        prefillFabric();
+    }, [
+        fabricSlugParam,
+        isHydrated,
+        prefilledFabricSlug,
+        selectSingleFabric,
+        setFabricSource,
+    ]);
+
+    useEffect(() => {
         const fetchAllDesigns = async () => {
             try {
                 setLoadingDesigns(true);
@@ -138,13 +185,10 @@ export default function TailorDesignSelectionStep() {
     const selectedCount = draft.selectedDesigns.length;
     const canContinue = isTailorStepComplete(draft);
     const stepNumber = getCustomOrderStepNumber("tailor", draft.firstStep);
-    const isDesignFirst = draft.firstStep === "tailor";
-    const showOwnFabricOption = isDesignFirst;
-    const fabricStepDone = isFabricStepComplete(draft);
-    const continueLabel =
-        fabricStepDone || (showOwnFabricOption && usingOwnFabric)
-            ? t("continueToMeters")
-            : t("continueToFabric");
+    const nextPath = getNextPathAfterTailor(draft);
+    const continueLabel = nextPath.includes("/meters")
+        ? t("continueToMeters")
+        : t("continueToFabric");
     const showBackToFabric = draft.firstStep === "fabric";
 
     const handleToggleDesign = (item: TailorDesignListItem) => {
@@ -152,17 +196,6 @@ export default function TailorDesignSelectionStep() {
         if (selected) {
             toggleDesign(selected);
         }
-    };
-
-    const handleUseOwnFabric = () => {
-        setUseOwnFabric(true);
-        if (isTailorStepComplete(draft)) {
-            router.push(getNextPathAfterTailor({ ...draft, fabricSource: "self" }));
-        }
-    };
-
-    const handleUsePlatformFabric = () => {
-        setUseOwnFabric(false);
     };
 
     const handleContinue = () => {
@@ -178,7 +211,7 @@ export default function TailorDesignSelectionStep() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
             <ConfiguratorStepHeader
                 title={t("title")}
-                description={t("descriptionMulti")}
+                description={t("description")}
                 stepLabel={t("stepLabel", {
                     step: stepNumber,
                     total: CUSTOM_ORDER_TOTAL_STEPS,
@@ -188,7 +221,7 @@ export default function TailorDesignSelectionStep() {
             {draft.selectedFabrics.length > 0 && (
                 <div className="mb-6 border border-(--color-border) bg-white p-4 sm:p-6">
                     <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
-                        {t("crossStepFabrics", { count: draft.selectedFabrics.length })}
+                        {t("crossStepFabrics")}
                     </p>
                     <div className="flex flex-wrap gap-2">
                         {draft.selectedFabrics.map((fabric) => {
@@ -238,24 +271,6 @@ export default function TailorDesignSelectionStep() {
                             );
                         })}
                     </div>
-                </div>
-            )}
-
-            {showOwnFabricOption && usingOwnFabric && (
-                <div className="mb-8 border border-(--color-border) bg-white p-6 sm:p-8">
-                    <h3 className="[font-family:var(--font-display)] text-[20px] mb-3">
-                        {t("ownFabricConfirmedTitle")}
-                    </h3>
-                    <p className="[font-family:var(--font-body)] text-[14px] leading-relaxed text-(--color-grey-muted) max-w-2xl mb-4">
-                        {t("ownFabricConfirmedDescription")}
-                    </p>
-                    <button
-                        type="button"
-                        onClick={handleUsePlatformFabric}
-                        className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition"
-                    >
-                        {t("usePlatformFabricInstead")}
-                    </button>
                 </div>
             )}
 
@@ -366,16 +381,6 @@ export default function TailorDesignSelectionStep() {
                     >
                         {t("browseTailors")}
                     </Link>
-
-                    {showOwnFabricOption && !usingOwnFabric && (
-                        <button
-                            type="button"
-                            onClick={handleUseOwnFabric}
-                            className="px-8 py-3 border border-black text-black text-[10px] tracking-[0.22em] uppercase hover:bg-black hover:text-white transition [font-family:var(--font-ui)]"
-                        >
-                            {t("useOwnFabric")}
-                        </button>
-                    )}
 
                     <button
                         type="button"

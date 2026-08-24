@@ -59,6 +59,7 @@ type CustomOrderContextType = {
   updateDeliveryAddress: (address: Partial<CustomOrderDeliveryAddress>) => void;
   resetOrder: (firstStep?: CustomOrderFirstStep | null) => void;
   claimFirstStep: (step: CustomOrderFirstStep) => void;
+  setFirstStep: (step: CustomOrderFirstStep) => void;
   getPreviewPayload: () => CustomOrderPreviewPayload | null;
   syncAutoLineItems: () => void;
   updateLineItemUnit: (itemId: string, unit: FabricUnit) => void;
@@ -378,6 +379,12 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setFirstStep = useCallback((step: CustomOrderFirstStep) => {
+    setDraft((prev) =>
+      prev.firstStep === step ? prev : { ...prev, firstStep: step },
+    );
+  }, []);
+
   const getPreviewPayload = useCallback(
     () => buildCustomOrderPreviewPayload(draft),
     [draft],
@@ -418,6 +425,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       updateDeliveryAddress,
       resetOrder,
       claimFirstStep,
+      setFirstStep,
       getPreviewPayload,
       syncAutoLineItems,
       updateLineItemUnit,
@@ -444,6 +452,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       updateDeliveryAddress,
       resetOrder,
       claimFirstStep,
+      setFirstStep,
       getPreviewPayload,
       syncAutoLineItems,
       updateLineItemUnit,
