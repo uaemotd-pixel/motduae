@@ -55,9 +55,68 @@ import {
   applyCreatedAtFilter,
   getTimeframeWindow,
 } from "../utils/dateRange.js";
+import { splitMotdCommission } from "../services/pricingService.js";
 
 const adminRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
+const DEFAULT_TAILOR_COMMISSION_PERCENT = 12;
+const DEFAULT_FABRIC_COMMISSION_PERCENT = 15;
+
+function resolveCommissionPercent(value, fallback) {
+  return typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= 100
+    ? value
+    : fallback;
+}
+
+/** Admin-wide custom tailor gross = design + tailoring fees. */
+function sumCustomTailorGross(order) {
+  if (order.items && order.items.length > 0) {
+    return order.items.reduce(
+      (sum, item) =>
+        sum +
+        (Number(item.pricing?.designBase) || 0) +
+        (Number(item.pricing?.tailoringFee) || 0),
+      0,
+    );
+  }
+  return (
+    (Number(order.pricing?.designBase) || 0) +
+    (Number(order.pricing?.tailoringFee) || 0)
+  );
+}
+
+/** Admin-wide custom fabric gross = fabric cost lines. */
+function sumCustomFabricGross(order) {
+  if (order.items && order.items.length > 0) {
+    return order.items.reduce(
+      (sum, item) => sum + (Number(item.pricing?.fabricCost) || 0),
+      0,
+    );
+  }
+  return Number(order.pricing?.fabricCost) || 0;
+}
+
+/** Admin-wide retail fabric-store gross = line totals (ready-made / add-ons / fabric). */
+function sumRetailFabricGross(order) {
+  return (order.orderItems || []).reduce(
+    (sum, item) =>
+      sum + (Number(item.price) || 0) * (Number(item.quantity) || 0),
+    0,
+  );
+}
+
+/** Custom order shipping amount owed to the courier / shipping company. */
+function sumCustomShippingGross(order) {
+  return Number(order.pricing?.deliveryFee) || 0;
+}
+
+/** Retail order shipping amount owed to the courier / shipping company. */
+function sumRetailShippingGross(order) {
+  return Number(order.shippingPrice) || 0;
+}
 
 function optionalObjectId(value) {
   if (value === undefined) return undefined;
@@ -1648,7 +1707,14 @@ adminRouter.get(
     const [orders, total] = await Promise.all([
       RetailOrder.find(filter)
         .populate("userId", "name email phone")
-        .populate("orderItems.productId", "thumbnailImage images")
+        .populate({
+          path: "orderItems.productId",
+          select: "thumbnailImage images fabricShopId",
+          populate: {
+            path: "fabricShopId",
+            select: "name nameAr phone city location pickupAddress ownerId",
+          },
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum),
@@ -1656,7 +1722,24 @@ adminRouter.get(
     ]);
 
     res.send({
-      items: orders.map((order) => attachPackReadiness(order, "retail")),
+      items: orders.map((order) => {
+        const packed = attachPackReadiness(order, "retail");
+        const shops = [];
+        const seen = new Set();
+        for (const item of packed.orderItems || []) {
+          const shop = item.productId?.fabricShopId;
+          if (!shop || typeof shop !== "object") continue;
+          const id = String(shop._id || "");
+          if (!id || seen.has(id)) continue;
+          seen.add(id);
+          shops.push(shop);
+        }
+        return {
+          ...packed,
+          fabricStoreId: shops[0] || packed.fabricStoreId || null,
+          fabricStores: shops,
+        };
+      }),
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum),
@@ -1729,18 +1812,88 @@ adminRouter.get(
   expressAsyncHandler(async (req, res) => {
     const orders = await CustomOrder.find({})
       .populate("userId", "name email phone")
-      .populate("tailorShopId", "name nameAr location city logo coverImage")
-      .populate(
-        "items.tailorShopId",
-        "name nameAr location city logo coverImage",
-      )
+      .populate({
+        path: "tailorShopId",
+        select: "name nameAr location city phone pickupAddress ownerId",
+        populate: { path: "ownerId", select: "name email phone" },
+      })
+      .populate({
+        path: "items.tailorShopId",
+        select: "name nameAr location city phone pickupAddress ownerId",
+        populate: { path: "ownerId", select: "name email phone" },
+      })
+      .populate("fabricStoreId", "name email phone")
+      .populate("items.fabricStoreId", "name email phone")
       .populate("designId", "images")
       .populate("items.designId", "images")
       .populate("fabricId", "images")
       .populate("items.fabricId", "images")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    res.send(orders.map((order) => attachPackReadiness(order, "custom")));
+    const fabricOwnerIds = new Set();
+    for (const order of orders) {
+      const rootId =
+        order.fabricStoreId?._id?.toString?.() ||
+        order.fabricStoreId?.toString?.() ||
+        "";
+      if (rootId) fabricOwnerIds.add(rootId);
+      for (const item of order.items || []) {
+        const itemId =
+          item.fabricStoreId?._id?.toString?.() ||
+          item.fabricStoreId?.toString?.() ||
+          "";
+        if (itemId) fabricOwnerIds.add(itemId);
+      }
+    }
+
+    const fabricShops =
+      fabricOwnerIds.size > 0
+        ? await FabricShop.find({
+            ownerId: { $in: [...fabricOwnerIds] },
+          })
+            .select("name nameAr ownerId phone city location pickupAddress")
+            .lean()
+        : [];
+    const fabricShopByOwner = new Map(
+      fabricShops.map((shop) => [String(shop.ownerId), shop]),
+    );
+
+    const withFabricShopNames = orders.map((order) => {
+      const attachShopName = (storeRef) => {
+        if (!storeRef || typeof storeRef !== "object") return storeRef;
+        const ownerId = storeRef._id?.toString?.() || String(storeRef._id || "");
+        const shop = fabricShopByOwner.get(ownerId);
+        if (!shop) return storeRef;
+        return {
+          ...storeRef,
+          name: shop.name || storeRef.name,
+          nameAr: shop.nameAr || storeRef.nameAr || "",
+          shopName: shop.name,
+          shopId: shop._id,
+          phone: shop.phone || storeRef.phone || "",
+          city: shop.city || "",
+          location: shop.location || "",
+          pickupAddress: shop.pickupAddress || null,
+          ownerName: storeRef.name || "",
+          ownerEmail: storeRef.email || "",
+          ownerPhone: storeRef.phone || "",
+        };
+      };
+
+      return {
+        ...order,
+        fabricStoreId: attachShopName(order.fabricStoreId),
+        items: (order.items || []).map((item) => ({
+          ...item,
+          fabricStoreId: attachShopName(item.fabricStoreId),
+        })),
+      };
+    });
+
+    res.send(
+      withFabricShopNames.map((order) => attachPackReadiness(order, "custom")),
+    );
   }),
 );
 
@@ -2274,6 +2427,58 @@ adminRouter.get(
       meta: `${row.count || 0} orders`,
     }));
 
+    // Partner shares admin must send (net after MOTD commission), scoped to timeframe.
+    const [platformSettings, customShareOrders, retailShareOrders] =
+      await Promise.all([
+        PlatformSettings.findOne({}).lean(),
+        CustomOrder.find({ createdAt: { $gte: start, $lte: end } })
+          .select("items pricing")
+          .lean(),
+        RetailOrder.find({ createdAt: { $gte: start, $lte: end } })
+          .select("orderItems shippingPrice")
+          .lean(),
+      ]);
+
+    const tailorCommissionPercent = resolveCommissionPercent(
+      platformSettings?.motdCommissionFromTailor,
+      DEFAULT_TAILOR_COMMISSION_PERCENT,
+    );
+    const fabricCommissionPercent = resolveCommissionPercent(
+      platformSettings?.motdCommissionFromFabricStore,
+      DEFAULT_FABRIC_COMMISSION_PERCENT,
+    );
+
+    let tailorGrossTotal = 0;
+    let fabricGrossCustomTotal = 0;
+    let shippingCustomTotal = 0;
+    for (const order of customShareOrders) {
+      tailorGrossTotal += sumCustomTailorGross(order);
+      fabricGrossCustomTotal += sumCustomFabricGross(order);
+      shippingCustomTotal += sumCustomShippingGross(order);
+    }
+
+    let fabricGrossRetailTotal = 0;
+    let shippingRetailTotal = 0;
+    for (const order of retailShareOrders) {
+      fabricGrossRetailTotal += sumRetailFabricGross(order);
+      shippingRetailTotal += sumRetailShippingGross(order);
+    }
+
+    const tailorShare = splitMotdCommission(
+      tailorGrossTotal,
+      tailorCommissionPercent,
+    );
+    const fabricStoreShare = splitMotdCommission(
+      fabricGrossCustomTotal + fabricGrossRetailTotal,
+      fabricCommissionPercent,
+    );
+    const shippingTotal = Number(
+      (shippingCustomTotal + shippingRetailTotal).toFixed(2),
+    );
+    const motdKeeps = Number(
+      (tailorShare.commission + fabricStoreShare.commission).toFixed(2),
+    );
+
     res.send({
       retail: {
         orderCount: retailNowResult.orderCount,
@@ -2312,6 +2517,30 @@ adminRouter.get(
       topFabrics,
       topProducts,
       topTailors,
+      partnerShares: {
+        tailor: {
+          gross: tailorShare.gross,
+          commission: tailorShare.commission,
+          net: tailorShare.net,
+          percent: tailorShare.percent,
+        },
+        fabricStore: {
+          gross: fabricStoreShare.gross,
+          commission: fabricStoreShare.commission,
+          net: fabricStoreShare.net,
+          percent: fabricStoreShare.percent,
+          customGross: Number(fabricGrossCustomTotal.toFixed(2)),
+          retailGross: Number(fabricGrossRetailTotal.toFixed(2)),
+        },
+        shipping: {
+          gross: shippingTotal,
+          net: shippingTotal,
+          customGross: Number(shippingCustomTotal.toFixed(2)),
+          retailGross: Number(shippingRetailTotal.toFixed(2)),
+        },
+        motdKeeps,
+        motdEarnings: motdKeeps,
+      },
     });
   }),
 );
