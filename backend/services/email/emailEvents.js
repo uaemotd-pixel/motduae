@@ -6,6 +6,8 @@ export const EMAIL_EVENTS = {
   /** @deprecated use AUTH_OTP — kept so old EmailLog queries still match if needed */
   AUTH_EMAIL_OTP: "auth.otp",
   OPS_CONTACT: "ops.contact",
+  ORDER_RETAIL_PLACED: "order.retail.placed",
+  ORDER_CUSTOM_PLACED: "order.custom.placed",
 };
 
 export function buildDedupeKey(event, parts = []) {

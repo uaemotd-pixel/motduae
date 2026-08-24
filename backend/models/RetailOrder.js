@@ -171,6 +171,10 @@ const retailOrderSchema = new mongoose.Schema(
     packedAt: { type: Date, default: null },
     stripePaymentIntentId: { type: String, default: null, trim: true },
     deliveredAt: { type: Date, default: null },
+    publicTrackingToken: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,
@@ -188,6 +192,13 @@ retailOrderSchema.index(
     partialFilterExpression: {
       stripePaymentIntentId: { $type: "string", $gt: "" },
     },
+  },
+);
+retailOrderSchema.index(
+  { publicTrackingToken: 1 },
+  {
+    unique: true,
+    sparse: true,
   },
 );
 

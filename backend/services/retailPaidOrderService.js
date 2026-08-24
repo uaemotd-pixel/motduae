@@ -9,6 +9,11 @@ import {
 } from "./notificationService.js";
 import { verifyStripePaymentIntent } from "./stripeService.js";
 import { createConfirmedRetailShipments } from "./shipmentService.js";
+import {
+  createPublicTrackingToken,
+  isPublicTrackingTokenCollision,
+} from "./publicTrackingToken.js";
+import { sendPaidOrderPlacedEmail } from "./orderPlacedEmail.js";
 
 export async function findRetailOrderByPaymentIntent(paymentIntentId) {
   if (!paymentIntentId) return null;
@@ -21,6 +26,21 @@ async function attachRetailShipments(order, userId) {
     changedBy: userId || null,
   });
   return result?.order || order;
+}
+
+async function createRetailOrderWithTrackingToken(fields) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await RetailOrder.create({
+        ...fields,
+        publicTrackingToken: createPublicTrackingToken(),
+      });
+    } catch (error) {
+      if (isPublicTrackingTokenCollision(error) && attempt === 0) continue;
+      throw error;
+    }
+  }
+  throw new Error("Failed to persist retail order tracking token");
 }
 
 /**
@@ -64,35 +84,36 @@ export async function createPaidRetailOrder({
   await deductRetailProductStock(orderItems);
 
   const confirmedAt = new Date();
+  const orderFields = {
+    userId,
+    orderItems: prepared.finalOrderItems,
+    shippingAddress,
+    contactEmail: String(contactEmail || "").toLowerCase().trim(),
+    paymentMethod,
+    itemsPrice: prepared.itemsPrice,
+    shippingPrice: prepared.shippingPrice,
+    parcelCount: prepared.parcelCount ?? 0,
+    perParcelFee: prepared.perParcelFee ?? null,
+    deliveryBreakdown: prepared.deliveryBreakdown ?? [],
+    vatRate: prepared.vatRate,
+    vatAmount: prepared.vatAmount,
+    totalPrice: prepared.totalPrice,
+    status: "confirmed",
+    statusHistory: [
+      {
+        status: "confirmed",
+        note: "Order confirmed",
+        changedAt: confirmedAt,
+        changedBy: userId,
+      },
+    ],
+    isPaid: true,
+    paidAt: confirmedAt,
+    stripePaymentIntentId: paymentIntentId,
+  };
   let order;
   try {
-    order = await RetailOrder.create({
-      userId,
-      orderItems: prepared.finalOrderItems,
-      shippingAddress,
-      contactEmail: String(contactEmail || "").toLowerCase().trim(),
-      paymentMethod,
-      itemsPrice: prepared.itemsPrice,
-      shippingPrice: prepared.shippingPrice,
-      parcelCount: prepared.parcelCount ?? 0,
-      perParcelFee: prepared.perParcelFee ?? null,
-      deliveryBreakdown: prepared.deliveryBreakdown ?? [],
-      vatRate: prepared.vatRate,
-      vatAmount: prepared.vatAmount,
-      totalPrice: prepared.totalPrice,
-      status: "confirmed",
-      statusHistory: [
-        {
-          status: "confirmed",
-          note: "Order confirmed",
-          changedAt: confirmedAt,
-          changedBy: userId,
-        },
-      ],
-      isPaid: true,
-      paidAt: confirmedAt,
-      stripePaymentIntentId: paymentIntentId,
-    });
+    order = await createRetailOrderWithTrackingToken(orderFields);
   } catch (error) {
     // Concurrent webhook + client create — unique index wins
     if (error?.code === 11000) {
@@ -114,6 +135,11 @@ export async function createPaidRetailOrder({
 
   await notifyRetailOrderPlacedAdmin(order, userId, message);
   await notifyRetailOrderPlacedCustomer(order, userId);
+  await sendPaidOrderPlacedEmail({
+    order,
+    userId,
+    orderType: "retail",
+  });
 
   const withShipments = await attachRetailShipments(order, userId);
   return { order: withShipments, created: true };

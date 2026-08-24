@@ -58,7 +58,7 @@ export default async function LocaleLayout({ children, params }: Props) {
 
     return (
         <html lang={locale} dir={dir} suppressHydrationWarning>
-            <body className="bg-[#FFFDF9] text-[#000000]" suppressHydrationWarning>
+            <body className="bg-white text-[#000000]" suppressHydrationWarning>
                 <NextIntlClientProvider messages={messages} locale={locale}>
                     <AuthGoogleProvider>
                         <AuthProvider>

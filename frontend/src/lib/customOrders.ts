@@ -48,6 +48,8 @@ export interface CustomOrderLineItemSummary {
   fabric: CustomOrderFabricSummary | null;
   fabricMeters: number;
   tailorShop: CustomOrderTailorSummary | null;
+  tailorStatus?: CustomOrderStatus;
+  awaitingRestOfOrder?: boolean;
 }
 
 export interface CustomOrderListItem {
@@ -124,6 +126,15 @@ export interface CustomOrderDetail {
   shipments?: CustomOrderShipmentSummary[];
 }
 
+export type PublicDeliveryAddress = {
+  fullName: string;
+  line1: string;
+  line2: string;
+  city: string;
+  emirate: string;
+  postalCode: string;
+};
+
 // lib/customOrders.ts
 export type RetailOrderListItem = {
   id: string;
@@ -153,6 +164,17 @@ export type RetailOrderListItem = {
     designImage?: string;
     designSlug?: string;
   }>;
+};
+
+export type PublicCustomTrackOrder = CustomOrderListItem & {
+  statusHistory: CustomOrderStatusHistoryEntry[];
+  shipments: CustomOrderShipmentSummary[];
+  hasReturnItems: boolean;
+  deliveryAddress: PublicDeliveryAddress | null;
+};
+
+export type PublicRetailTrackOrder = RetailOrderListItem & {
+  deliveryAddress: PublicDeliveryAddress | null;
 };
 
 export const CUSTOM_ORDER_BASE_STATUSES = CUSTOM_ORDER_STATUSES.slice(
@@ -336,6 +358,17 @@ export function getOrderItemsSummary(
   order: Pick<CustomOrderListItem, "items" | "itemCount">,
 ): CustomOrderLineItemSummary[] {
   return order.items?.length ? order.items : [];
+}
+
+export function hasMultipleTailors(
+  items: CustomOrderLineItemSummary[] | null | undefined,
+): boolean {
+  const ids = new Set(
+    (items || [])
+      .map((item) => item.tailorShop?._id)
+      .filter((id): id is string => Boolean(id)),
+  );
+  return ids.size > 1;
 }
 
 export function getOrderHeadline(

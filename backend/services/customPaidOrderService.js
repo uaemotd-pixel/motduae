@@ -16,6 +16,11 @@ import {
 } from "./notificationService.js";
 import { verifyStripePaymentIntent } from "./stripeService.js";
 import { createConfirmedCustomShipments } from "./shipmentService.js";
+import {
+  createPublicTrackingToken,
+  isPublicTrackingTokenCollision,
+} from "./publicTrackingToken.js";
+import { sendPaidOrderPlacedEmail } from "./orderPlacedEmail.js";
 
 const isApprovedTailorOwner = (owner) =>
   owner?.role === "tailor" && owner?.approvalStatus === "approved";
@@ -368,6 +373,21 @@ async function attachInboundShipments(order, userId) {
   return result?.order || order;
 }
 
+async function createCustomOrderWithTrackingToken(fields) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await CustomOrder.create({
+        ...fields,
+        publicTrackingToken: createPublicTrackingToken(),
+      });
+    } catch (error) {
+      if (isPublicTrackingTokenCollision(error) && attempt === 0) continue;
+      throw error;
+    }
+  }
+  throw new Error("Failed to persist custom order tracking token");
+}
+
 export async function createPaidCustomOrder({
   userId,
   userName = "Customer",
@@ -461,7 +481,7 @@ export async function createPaidCustomOrder({
         applyAddonsToCustomOrderPricing(pricing, addonsCost),
       );
 
-      order = await CustomOrder.create({
+      order = await createCustomOrderWithTrackingToken({
         userId,
         fabricSource: orderInput.fabricSource,
         ...legacyFields,
@@ -523,7 +543,7 @@ export async function createPaidCustomOrder({
           ? normalizedPickupAddress || deliveryAddr
           : null;
 
-      order = await CustomOrder.create({
+      order = await createCustomOrderWithTrackingToken({
         userId,
         fabricSource: orderInput.fabricSource,
         fabricId: fabric?._id ?? null,
@@ -584,6 +604,11 @@ export async function createPaidCustomOrder({
 
   await notifyCustomOrderPlacedAdmin(order, userId, message);
   await notifyCustomOrderPlacedCustomer(order, userId);
+  await sendPaidOrderPlacedEmail({
+    order,
+    userId,
+    orderType: "custom",
+  });
 
   const withShipments = await attachInboundShipments(order, userId);
   return { order: withShipments, created: true };

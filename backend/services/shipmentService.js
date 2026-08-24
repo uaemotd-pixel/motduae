@@ -50,7 +50,11 @@ const SHIPA_STATUS_MAP = Object.freeze({
 
 function idStr(value) {
   if (value == null) return null;
-  return String(value);
+  if (typeof value === "object" && value._id != null) {
+    return String(value._id);
+  }
+  const str = String(value);
+  return str === "[object Object]" ? null : str;
 }
 
 function asObjectId(value) {
@@ -538,6 +542,21 @@ export function presentCustomOrderForTailor(order, tailorShopId) {
     ...payload,
     tailorStatus,
     awaitingOtherTailors:
+      tailorStatus === "ready" &&
+      orderStatus !== "ready" &&
+      !TAILOR_ORDER_WIDE_STATUSES.has(orderStatus),
+  };
+}
+
+/** Customer/public view of one tailor's piece — same split as #107, customer copy. */
+export function getCustomerPieceProgress(order, tailorShopId) {
+  const payload =
+    order && typeof order.toObject === "function" ? order.toObject() : order;
+  const tailorStatus = getTailorFacingStatus(payload, tailorShopId);
+  const orderStatus = payload?.status || "pending";
+  return {
+    tailorStatus,
+    awaitingRestOfOrder:
       tailorStatus === "ready" &&
       orderStatus !== "ready" &&
       !TAILOR_ORDER_WIDE_STATUSES.has(orderStatus),

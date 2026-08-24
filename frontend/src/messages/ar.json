@@ -228,7 +228,10 @@
     "okButton": "حسناً",
     "postalCode": "الرمز البريدي",
     "optional": "اختياري",
-    "unknownDesign": "تفصيل المخوّر"
+    "unknownDesign": "تفصيل المخوّر",
+    "trackCta": "تتبّع طلبك",
+    "copyLink": "نسخ الرابط",
+    "copied": "تم النسخ"
   },
   "CustomOrderReview": {
     "pricingNotReady": {
@@ -1563,6 +1566,20 @@
       "title": "اللوجستيات",
       "show": "عرض اللوجستيات",
       "hide": "إخفاء اللوجستيات"
+    },
+    "track": {
+      "title": "تتبّع طلبك",
+      "description": "تابع حالة هذا الطلب. يبقى الرابط كما هو مع تقدّم الحالة.",
+      "refresh": "تحديث الحالة",
+      "invalid": "رابط التتبع غير صالح.",
+      "error": "تعذر تحميل هذا الطلب.",
+      "courierEmpty": "تظهر تفاصيل البريد هنا بعد تجهيز الطلب للشحن.",
+      "pieceReadyWaiting": "هذه القطعة جاهزة. بانتظار بقية طلبك.",
+      "deliveryAddress": "عنوان التوصيل",
+      "progress": "تقدّم الطلب",
+      "copyLink": "نسخ الرابط",
+      "copied": "تم النسخ",
+      "trackCta": "تتبّع طلبك"
     }
   },
   "Footer": {

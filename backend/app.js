@@ -11,6 +11,7 @@ import fabricRoutes from "./routes/fabricRoutes.js";
 import addOnRoutes from "./routes/addOnRoutes.js";
 import tailorRoutes from "./routes/tailorRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
+import orderPublicTrackRoutes from "./routes/orderPublicTrackRoutes.js";
 import adminRouter from "./routes/adminRoutes.js";
 import tailorPortalRoutes from "./routes/tailorPortalRoutes.js";
 import fabricPortalRoutes from "./routes/fabricPortalRoutes.js";
@@ -71,6 +72,7 @@ app.use("/api/addons", addOnRoutes);
 app.use("/api/tailors", tailorRoutes);
 app.use("/api/tailor", isAuth, isApprovedTailor, tailorPortalRoutes);
 app.use("/api/fabric", isAuth, isApprovedFabricStore, fabricPortalRoutes);
+app.use("/api/orders/track", orderPublicTrackRoutes);
 app.use("/api/orders", orderRoutes);
 // Expose order routes under admin namespace as well so admin UI can call
 // /api/admin/orders/custom/:id/return-accept and /return-reject
