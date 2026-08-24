@@ -13,7 +13,10 @@ import {
     getNextPathAfterFabric,
     isFabricStepComplete,
     isTailorStepComplete,
+    toCustomOrderDesignSelection,
     toCustomOrderFabricSelection,
+    toCustomOrderSelectedDesign,
+    toCustomOrderTailorSelection,
 } from "@/lib/customOrder";
 import {
     FABRIC_FILTER_OPTIONS,
@@ -24,6 +27,9 @@ import {
     formatPricePerMeter,
     getFabricDisplayFields,
 } from "@/lib/fabrics";
+import {
+    type TailorDesignListItem,
+} from "@/lib/tailors";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 import { CustomOrderStepSkeleton, ProductGridSkeleton } from "@/components/ui/Skeleton";
 import { resolveMediaUrl } from "@/lib/media";
@@ -35,6 +41,7 @@ export default function FabricSelectionStep() {
     const params = useParams();
     const locale = params.locale === "ar" ? "ar" : "en";
     const fabricSlug = searchParams.get("fabricSlug");
+    const designSlug = searchParams.get("designSlug");
 
     const {
         draft,
@@ -42,9 +49,11 @@ export default function FabricSelectionStep() {
         useOwnFabric,
         toggleFabric,
         selectSingleFabric,
+        selectSingleDesign,
         setFabricSource,
+        setUseOwnFabric,
         claimFirstStep,
-        resetOrder,
+        setFirstStep,
     } = useCustomOrder();
 
     const [fabrics, setFabrics] = useState<FabricListItem[]>([]);
@@ -52,6 +61,7 @@ export default function FabricSelectionStep() {
     const [error, setError] = useState<string | null>(null);
     const [selectedFilter, setSelectedFilter] = useState<FabricFilter>("all");
     const [prefilledSlug, setPrefilledSlug] = useState<string | null>(null);
+    const [prefilledDesignSlug, setPrefilledDesignSlug] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchFabrics = async () => {
@@ -83,24 +93,70 @@ export default function FabricSelectionStep() {
 
     useEffect(() => {
         if (!isHydrated) return;
-        claimFirstStep("fabric");
+        if (designSlug) {
+            setFirstStep("tailor");
+        } else {
+            claimFirstStep("fabric");
+        }
         if (draft.selectedFabrics.length > 0 && !draft.fabricSource) {
             setFabricSource("storefront");
         }
+        if (draft.firstStep === "fabric" && useOwnFabric) {
+            setUseOwnFabric(false);
+        }
     }, [
         isHydrated,
+        designSlug,
         claimFirstStep,
+        setFirstStep,
         draft.selectedFabrics.length,
         draft.fabricSource,
+        draft.firstStep,
+        useOwnFabric,
         setFabricSource,
+        setUseOwnFabric,
     ]);
 
     useEffect(() => {
         if (!isHydrated) return;
-        if (!fabricSlug) {
-            setPrefilledSlug(null);
+        if (!designSlug) {
+            setPrefilledDesignSlug(null);
         }
-    }, [isHydrated, fabricSlug]);
+    }, [isHydrated, designSlug]);
+
+    useEffect(() => {
+        if (!isHydrated || !designSlug || prefilledDesignSlug === designSlug) return;
+
+        const prefillDesign = async () => {
+            try {
+                const designData = await api.get<{
+                    success: boolean;
+                    item: TailorDesignListItem & {
+                        tailorShop?: Parameters<typeof toCustomOrderTailorSelection>[0];
+                    };
+                }>(`/api/tailors/designs/${designSlug}`);
+
+                if (!designData?.success || !designData.item) return;
+
+                const selected = designData.item.tailorShop
+                    ? {
+                          ...toCustomOrderDesignSelection(designData.item),
+                          tailor: toCustomOrderTailorSelection(designData.item.tailorShop),
+                      }
+                    : toCustomOrderSelectedDesign(designData.item);
+
+                if (selected) {
+                    selectSingleDesign(selected);
+                }
+            } catch (err) {
+                console.error("[Design Prefill Error]:", err);
+            } finally {
+                setPrefilledDesignSlug(designSlug);
+            }
+        };
+
+        prefillDesign();
+    }, [designSlug, isHydrated, prefilledDesignSlug, selectSingleDesign]);
 
     useEffect(() => {
         if (!isHydrated || !fabricSlug || prefilledSlug === fabricSlug) return;
@@ -136,12 +192,12 @@ export default function FabricSelectionStep() {
         (f) => f.stockInMeters !== undefined && f.stockInMeters <= 0
     );
     const stepNumber = getCustomOrderStepNumber("fabric", draft.firstStep);
-    const continueLabel = draft.firstStep === "fabric"
-        ? t("continueToTailor")
-        : useOwnFabric || isTailorStepComplete(draft)
-          ? t("continueToMeters")
-          : t("continueToTailor");
+    const nextPath = getNextPathAfterFabric(draft);
+    const continueLabel = nextPath.includes("/meters")
+        ? t("continueToMeters")
+        : t("continueToTailor");
     const showBackToTailor = draft.firstStep === "tailor";
+    const showOwnFabricOption = draft.firstStep === "tailor";
 
     const handleToggleFabric = (item: FabricListItem) => {
         setFabricSource("storefront");
@@ -162,6 +218,19 @@ export default function FabricSelectionStep() {
         router.push(getNextPathAfterFabric(draft));
     };
 
+    const handleUseOwnFabric = () => {
+        setUseOwnFabric(true);
+        if (isTailorStepComplete(draft)) {
+            router.push(
+                getNextPathAfterFabric({ ...draft, fabricSource: "self" }),
+            );
+        }
+    };
+
+    const handleUsePlatformFabric = () => {
+        setUseOwnFabric(false);
+    };
+
     if (!isHydrated) {
         return <CustomOrderStepSkeleton />;
     }
@@ -170,7 +239,11 @@ export default function FabricSelectionStep() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
             <ConfiguratorStepHeader
                 title={t("title")}
-                description={t("descriptionMulti")}
+                description={
+                    showOwnFabricOption
+                        ? t("descriptionAfterDesign")
+                        : t("description")
+                }
                 stepLabel={t("stepLabel", {
                     step: stepNumber,
                     total: CUSTOM_ORDER_TOTAL_STEPS,
@@ -180,7 +253,7 @@ export default function FabricSelectionStep() {
             {draft.selectedDesigns.length > 0 && (
                 <div className="mb-6 border border-(--color-border) bg-white p-4 sm:p-6">
                     <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
-                        {t("crossStepDesigns", { count: draft.selectedDesigns.length })}
+                        {t("crossStepDesigns")}
                     </p>
                     <div className="flex flex-wrap gap-2">
                         {draft.selectedDesigns.map((design) => {
@@ -233,6 +306,24 @@ export default function FabricSelectionStep() {
                             );
                         })}
                     </div>
+                </div>
+            )}
+
+            {showOwnFabricOption && useOwnFabric && (
+                <div className="mb-8 border border-(--color-border) bg-white p-6 sm:p-8">
+                    <h3 className="[font-family:var(--font-display)] text-[20px] mb-3">
+                        {t("ownFabricConfirmedTitle")}
+                    </h3>
+                    <p className="[font-family:var(--font-body)] text-[14px] leading-relaxed text-(--color-grey-muted) max-w-2xl mb-4">
+                        {t("ownFabricConfirmedDescription")}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={handleUsePlatformFabric}
+                        className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition"
+                    >
+                        {t("usePlatformFabricInstead")}
+                    </button>
                 </div>
             )}
 
@@ -364,14 +455,26 @@ export default function FabricSelectionStep() {
                     </Link>
                 )}
 
-                <button
-                    type="button"
-                    onClick={handleContinue}
-                    disabled={!canContinue}
-                    className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)]"
-                >
-                    {continueLabel}
-                </button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:ml-auto">
+                    {showOwnFabricOption && !useOwnFabric && (
+                        <button
+                            type="button"
+                            onClick={handleUseOwnFabric}
+                            className="px-8 py-3 border border-black text-black text-[10px] tracking-[0.22em] uppercase hover:bg-black hover:text-white transition [font-family:var(--font-ui)]"
+                        >
+                            {t("useOwnFabric")}
+                        </button>
+                    )}
+
+                    <button
+                        type="button"
+                        onClick={handleContinue}
+                        disabled={!canContinue}
+                        className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)]"
+                    >
+                        {continueLabel}
+                    </button>
+                </div>
             </div>
         </div>
     );

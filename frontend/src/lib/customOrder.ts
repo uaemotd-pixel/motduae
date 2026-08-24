@@ -228,26 +228,35 @@ export function getCustomOrderStepNumber(
 }
 
 export function getNextPathAfterFabric(draft: CustomOrderDraft): string {
-  if (draft.firstStep === "fabric") return "/custom-order/tailor";
-  if (draft.fabricSource === "self") return "/custom-order/meters";
-  if (isTailorStepComplete(draft)) return "/custom-order/meters";
+  if (isTailorStepComplete(draft)) {
+    return "/custom-order/meters";
+  }
   return "/custom-order/tailor";
 }
 
 export function getNextPathAfterTailor(draft: CustomOrderDraft): string {
-  if (draft.firstStep === "tailor") {
-    if (draft.fabricSource === "self") return "/custom-order/meters";
-    return "/custom-order/fabric";
+  if (draft.fabricSource === "self" || isFabricStepComplete(draft)) {
+    return "/custom-order/meters";
   }
-  if (isFabricStepComplete(draft)) return "/custom-order/meters";
   return "/custom-order/fabric";
+}
+
+export function buildCustomOrderHrefFromDesign(
+  designSlug: string,
+  tailorSlug?: string,
+): string {
+  const params = new URLSearchParams({ designSlug });
+  if (tailorSlug) params.set("tailorSlug", tailorSlug);
+  return `/custom-order/fabric?${params.toString()}`;
+}
+
+export function buildCustomOrderHrefFromFabric(fabricSlug: string): string {
+  return `/custom-order/tailor?fabricSlug=${encodeURIComponent(fabricSlug)}`;
 }
 
 export function getBackPathFromMeters(draft: CustomOrderDraft): string {
   if (draft.firstStep === "tailor") {
-    return draft.fabricSource === "self"
-      ? "/custom-order/tailor"
-      : "/custom-order/fabric";
+    return "/custom-order/fabric";
   }
   return "/custom-order/tailor";
 }
@@ -522,9 +531,10 @@ export function normalizeCustomOrderDraft(value: unknown): CustomOrderDraft {
     fabricSource:
       fabricSource ??
       (migrated.selectedFabrics.length > 0 ? "storefront" : null),
-    selectedFabrics: fabricSource === "self" ? [] : migrated.selectedFabrics,
-    selectedDesigns: migrated.selectedDesigns,
-    lineItems: migrated.lineItems,
+    selectedFabrics:
+      fabricSource === "self" ? [] : migrated.selectedFabrics.slice(0, 1),
+    selectedDesigns: migrated.selectedDesigns.slice(0, 1),
+    lineItems: migrated.lineItems.slice(0, 1),
     measurements: normalizeMeasurements(draft.measurements),
     deliveryAddress: normalizeDeliveryAddress(draft.deliveryAddress),
     addonIds: Array.isArray(draft.addonIds) ? (draft.addonIds as string[]) : [],
@@ -687,7 +697,7 @@ export function buildAutoLineItem(
   };
 }
 
-/** Auto-pair when one side has a single selection; skip N×N to avoid cartesian explosion. */
+/** One design + one fabric (or own fabric) per order. */
 export function buildAutoLineItemsFromSelections(
   selectedFabrics: CustomOrderFabricSelection[],
   selectedDesigns: CustomOrderSelectedDesign[],
@@ -695,23 +705,15 @@ export function buildAutoLineItemsFromSelections(
 ): CustomOrderLineItem[] {
   if (selectedDesigns.length === 0) return [];
 
+  const design = selectedDesigns[0];
   const usingOwnFabric = fabricSource === "self";
-  if (!usingOwnFabric && selectedFabrics.length === 0) return [];
-
-  if (selectedDesigns.length === 1) {
-    const design = selectedDesigns[0];
-    if (usingOwnFabric) {
-      return [buildAutoLineItem(design, null)];
-    }
-    return selectedFabrics.map((fabric) => buildAutoLineItem(design, fabric));
+  if (usingOwnFabric) {
+    return [buildAutoLineItem(design, null)];
   }
 
-  if (usingOwnFabric || selectedFabrics.length === 1) {
-    const fabric = usingOwnFabric ? null : selectedFabrics[0];
-    return selectedDesigns.map((design) => buildAutoLineItem(design, fabric));
-  }
-
-  return [];
+  const fabric = selectedFabrics[0];
+  if (!fabric) return [];
+  return [buildAutoLineItem(design, fabric)];
 }
 
 export function buildCustomOrderPreviewPayload(
@@ -789,10 +791,8 @@ export function toggleFabricInList(
   fabric: CustomOrderFabricSelection,
 ): CustomOrderFabricSelection[] {
   const exists = fabrics.some((entry) => entry._id === fabric._id);
-  if (exists) {
-    return fabrics.filter((entry) => entry._id !== fabric._id);
-  }
-  return [...fabrics, fabric];
+  if (exists) return [];
+  return [fabric];
 }
 
 export function toggleDesignInList(
@@ -800,10 +800,8 @@ export function toggleDesignInList(
   design: CustomOrderSelectedDesign,
 ): CustomOrderSelectedDesign[] {
   const exists = designs.some((entry) => entry._id === design._id);
-  if (exists) {
-    return designs.filter((entry) => entry._id !== design._id);
-  }
-  return [...designs, design];
+  if (exists) return [];
+  return [design];
 }
 
 export function pruneLineItemsForSelections(

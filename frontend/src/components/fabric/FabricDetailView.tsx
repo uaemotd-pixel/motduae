@@ -21,6 +21,11 @@ import { resolveMediaUrl } from "@/lib/media";
 import ZoomImageEffect from "../shared/ZoomImageEffect";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
+import { useCustomOrder } from "@/context/CustomOrderContext";
+import {
+  toCustomOrderFabricSelection,
+  buildCustomOrderHrefFromFabric,
+} from "@/lib/customOrder";
 import colors from "../shared/colors";
 
 type FabricDetailViewProps = {
@@ -48,6 +53,7 @@ export default function FabricDetailView({
   const { unit, formatLength } = useMeasurementUnit();
   const router = useRouter();
   const { addItem: addToCart } = useCart();
+  const { selectSingleFabric, setFirstStep } = useCustomOrder();
   const {
     wishItems,
     addItem: addToWishlist,
@@ -219,7 +225,12 @@ export default function FabricDetailView({
     : [resolveMediaUrl(undefined)];
   const [activeImage, setActiveImage] = useState(0);
 
-  const customOrderHref = `/custom-order/fabric?fabricSlug=${encodeURIComponent(fabric.slug)}`;
+  const customOrderHref = buildCustomOrderHrefFromFabric(fabric.slug);
+
+  const handleSelectForCustomOrder = () => {
+    selectSingleFabric(toCustomOrderFabricSelection(fabric));
+    setFirstStep("fabric");
+  };
 
   const getStickyClass = () => {
     if (!isLargeScreen) return "";
@@ -511,6 +522,7 @@ export default function FabricDetailView({
               >
                 <Link
                   href={customOrderHref}
+                  onClick={handleSelectForCustomOrder}
                   className="block w-full py-3 sm:py-4 px-4 sm:px-6 bg-black text-white text-center text-xs sm:text-sm tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition-colors hover:cursor-pointer"
                 >
                   {labels.selectForCustomOrder}
