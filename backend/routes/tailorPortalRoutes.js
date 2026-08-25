@@ -63,7 +63,12 @@ async function getTailorSettlement(shop) {
 
   const [payouts, credits] = await Promise.all([
     PartnerPayout.find(match).select("amount orders deletedAt").lean(),
-    PartnerPayoutCredit.find(match).select("amount").lean(),
+    PartnerPayoutCredit.find({
+      ...match,
+      "orders.0": { $exists: true },
+    })
+      .select("amount orders")
+      .lean(),
   ]);
 
   let paidTotal = 0;
@@ -87,6 +92,18 @@ async function getTailorSettlement(shop) {
 
   for (const credit of credits) {
     paidTotal += Number(credit.amount) || 0;
+    for (const order of credit.orders || []) {
+      const orderId = String(order.orderId || "");
+      if (!orderId) continue;
+      paidByOrderId.set(
+        orderId,
+        Number(
+          (
+            (paidByOrderId.get(orderId) || 0) + (Number(order.amount) || 0)
+          ).toFixed(2),
+        ),
+      );
+    }
   }
 
   return {
