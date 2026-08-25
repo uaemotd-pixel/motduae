@@ -1,9 +1,29 @@
 import mongoose from "mongoose";
-import { PARTNER_PAYOUT_KINDS } from "./PartnerPayout.js";
+import { PARTNER_PAYOUT_KINDS, ORDER_TYPES } from "./PartnerPayout.js";
+
+const partnerPayoutCreditOrderSchema = new mongoose.Schema(
+  {
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+    orderType: {
+      type: String,
+      enum: ORDER_TYPES,
+      required: true,
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+  },
+  { _id: false },
+);
 
 /**
  * Keeps partner paid balances after a Transaction History row is hard-deleted.
- * Credits count toward paid totals but never appear in history.
+ * Prefer per-order `orders[]` so credits cannot cover future orders.
  */
 const partnerPayoutCreditSchema = new mongoose.Schema(
   {
@@ -38,6 +58,10 @@ const partnerPayoutCreditSchema = new mongoose.Schema(
       type: String,
       default: "AED",
       trim: true,
+    },
+    orders: {
+      type: [partnerPayoutCreditOrderSchema],
+      default: [],
     },
     sourcePayoutId: {
       type: mongoose.Schema.Types.ObjectId,

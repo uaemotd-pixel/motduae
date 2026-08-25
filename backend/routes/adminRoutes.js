@@ -3998,65 +3998,95 @@ adminRouter.get(
       $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
     };
 
-    const [items, payoutTotals, creditTotals] = await Promise.all([
+    // Legacy credits without order lines blanket-covered future payouts.
+    // Drop them so new orders are not auto-marked approved.
+    await PartnerPayoutCredit.deleteMany({
+      $or: [{ orders: { $exists: false } }, { orders: { $size: 0 } }],
+    });
+
+    const creditFilter = {
+      ...filter,
+      "orders.0": { $exists: true },
+    };
+
+    const [items, payouts, credits] = await Promise.all([
       PartnerPayout.find(historyFilter)
         .populate("releasedBy", "name email")
         .sort({ releasedAt: -1 })
         .limit(limitNum)
         .lean(),
-      PartnerPayout.aggregate([
-        ...(Object.keys(filter).length ? [{ $match: filter }] : []),
-        {
-          $group: {
-            _id: "$partnerKey",
-            paid: { $sum: "$amount" },
-            releaseCount: { $sum: 1 },
-            lastReleasedAt: { $max: "$releasedAt" },
-            partnerKind: { $first: "$partnerKind" },
-            partnerName: { $first: "$partnerName" },
-          },
-        },
-      ]),
-      PartnerPayoutCredit.aggregate([
-        ...(Object.keys(filter).length ? [{ $match: filter }] : []),
-        {
-          $group: {
-            _id: "$partnerKey",
-            paid: { $sum: "$amount" },
-            creditCount: { $sum: 1 },
-            partnerKind: { $first: "$partnerKind" },
-            partnerName: { $first: "$partnerName" },
-          },
-        },
-      ]),
+      PartnerPayout.find(filter).select("partnerKey partnerKind partnerName amount orders releasedAt").lean(),
+      PartnerPayoutCredit.find(creditFilter)
+        .select("partnerKey partnerKind partnerName amount orders")
+        .lean(),
     ]);
 
     const paidByPartnerKey = {};
-    for (const row of payoutTotals) {
-      paidByPartnerKey[row._id] = {
-        paid: Number(row.paid.toFixed(2)),
-        releaseCount: row.releaseCount,
-        lastReleasedAt: row.lastReleasedAt,
-        partnerKind: row.partnerKind,
-        partnerName: row.partnerName,
-      };
-    }
-    for (const row of creditTotals) {
-      const existing = paidByPartnerKey[row._id];
-      if (existing) {
-        existing.paid = Number((existing.paid + row.paid).toFixed(2));
-        if (!existing.partnerName && row.partnerName) {
-          existing.partnerName = row.partnerName;
-        }
-      } else {
-        paidByPartnerKey[row._id] = {
-          paid: Number(row.paid.toFixed(2)),
+
+    const ensurePartner = (doc) => {
+      const key = String(doc.partnerKey || "");
+      if (!key) return null;
+      if (!paidByPartnerKey[key]) {
+        paidByPartnerKey[key] = {
+          paid: 0,
           releaseCount: 0,
           lastReleasedAt: undefined,
-          partnerKind: row.partnerKind,
-          partnerName: row.partnerName,
+          partnerKind: doc.partnerKind,
+          partnerName: doc.partnerName || "",
+          byOrderId: {},
         };
       }
+      return paidByPartnerKey[key];
+    };
+
+    const addOrderAmounts = (bucket, orders) => {
+      for (const order of orders || []) {
+        const orderId = String(order.orderId || "");
+        if (!orderId) continue;
+        const amount = Number(order.amount) || 0;
+        if (amount <= 0) continue;
+        bucket.byOrderId[orderId] = Number(
+          ((bucket.byOrderId[orderId] || 0) + amount).toFixed(2),
+        );
+      }
+    };
+
+    for (const payout of payouts) {
+      const bucket = ensurePartner(payout);
+      if (!bucket) continue;
+      bucket.releaseCount += 1;
+      if (
+        payout.releasedAt &&
+        (!bucket.lastReleasedAt ||
+          new Date(payout.releasedAt) > new Date(bucket.lastReleasedAt))
+      ) {
+        bucket.lastReleasedAt = payout.releasedAt;
+      }
+      if (Array.isArray(payout.orders) && payout.orders.length > 0) {
+        addOrderAmounts(bucket, payout.orders);
+      } else {
+        // Fallback when a release has no order lines.
+        bucket.paid = Number(
+          (bucket.paid + (Number(payout.amount) || 0)).toFixed(2),
+        );
+      }
+    }
+
+    for (const credit of credits) {
+      const bucket = ensurePartner(credit);
+      if (!bucket) continue;
+      addOrderAmounts(bucket, credit.orders);
+      if (!bucket.partnerName && credit.partnerName) {
+        bucket.partnerName = credit.partnerName;
+      }
+    }
+
+    for (const bucket of Object.values(paidByPartnerKey)) {
+      const fromOrders = Object.values(bucket.byOrderId).reduce(
+        (sum, amount) => sum + (Number(amount) || 0),
+        0,
+      );
+      bucket.paid = Number((fromOrders + (Number(bucket.paid) || 0)).toFixed(2));
     }
 
     res.send({
@@ -4169,6 +4199,12 @@ adminRouter.delete(
       partnerName: payout.partnerName || "",
       amount: Number(Number(payout.amount).toFixed(2)),
       currency: payout.currency || "AED",
+      // Keep per-order attribution so future orders are not auto-settled.
+      orders: (payout.orders || []).map((order) => ({
+        orderId: order.orderId,
+        orderType: order.orderType,
+        amount: Number(order.amount) || 0,
+      })),
       sourcePayoutId: payout._id,
       deletedBy: req.user?._id || null,
     });

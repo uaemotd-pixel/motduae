@@ -33,6 +33,7 @@ interface PartnerPaidSummary {
   paid: number;
   releaseCount: number;
   lastReleasedAt?: string;
+  byOrderId?: Record<string, number>;
 }
 
 interface PartnerPayoutTransaction {
@@ -707,8 +708,32 @@ export default function AdminPaymentsPage() {
     return Array.from(map.values())
       .map((row) => {
         const paidSummary = paidByPartnerKey[row.key];
-        const paid = Number(paidSummary?.paid) || 0;
-        const remaining = Math.max(0, Number((row.due - paid).toFixed(2)));
+        const byOrderId = paidSummary?.byOrderId || {};
+        let paidFromOrders = 0;
+        let remainingFromOrders = 0;
+
+        for (const order of row.orders) {
+          const orderPaid = Math.min(
+            Number(order.amount) || 0,
+            Number(byOrderId[order.orderId]) || 0,
+          );
+          paidFromOrders += orderPaid;
+          remainingFromOrders += Math.max(
+            0,
+            Number(((Number(order.amount) || 0) - orderPaid).toFixed(2)),
+          );
+        }
+
+        // Prefer per-order settlement. Fall back to partner total only when
+        // no order-level paid rows exist (legacy releases without order lines).
+        const hasOrderAttribution = Object.keys(byOrderId).length > 0;
+        const paid = hasOrderAttribution
+          ? paidFromOrders
+          : Number(paidSummary?.paid) || 0;
+        const remaining = hasOrderAttribution
+          ? Number(remainingFromOrders.toFixed(2))
+          : Math.max(0, Number((row.due - paid).toFixed(2)));
+
         return {
           ...row,
           due: Number(row.due.toFixed(2)),
