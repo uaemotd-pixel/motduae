@@ -37,6 +37,11 @@ import {
   type NotificationCategory,
 } from "@/lib/notifications";
 import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  formatOrderDeliveryLines,
+  getOrderDeliveryAddress,
+  getOrderRecipientName,
+} from "@/lib/orderDelivery";
 
 function getApiErrMessage(err: unknown, fallback: string) {
   const msg = (err as ApiError)?.message;
@@ -121,8 +126,9 @@ export default function AdminNotificationsPage() {
         setLoadingOrdersForDropdown(true);
         try {
           const found = await api.get<any>(`/api/admin/orders/retail/${orderId}`);
-          if (found) {
-            setRetailOrderDetails((prev) => ({ ...prev, [orderId]: found }));
+          const order = found?.order || found;
+          if (order?._id || order?.orderItems) {
+            setRetailOrderDetails((prev) => ({ ...prev, [orderId]: order }));
           }
         } catch {
           // keep dropdown resilient
@@ -136,10 +142,11 @@ export default function AdminNotificationsPage() {
 
       setLoadingOrdersForDropdown(true);
       try {
-        const found = await api.get<any>(`/api/admin/orders/custom/${orderId}`);
-        if (found) {
-          setCustomOrderDetails((prev) => ({ ...prev, [orderId]: found }));
-        }
+          const found = await api.get<any>(`/api/admin/orders/custom/${orderId}`);
+          const order = found?.order || found;
+          if (order?._id || order?.customerDeliveryAddress || order?.status) {
+            setCustomOrderDetails((prev) => ({ ...prev, [orderId]: order }));
+          }
       } catch {
         // keep dropdown resilient
       } finally {
@@ -911,18 +918,47 @@ export default function AdminNotificationsPage() {
                                     </div>
                                   )}
 
-                                  {retailOrderDetails[n.orderId]?.userId
-                                    ?.name && (
-                                    <div className="flex items-center gap-2 text-sm">
-                                      <User className="w-3.5 h-3.5 text-gray-400" />
-                                      <span className="text-black">
-                                        {
-                                          retailOrderDetails[n.orderId].userId
-                                            .name
-                                        }
-                                      </span>
-                                    </div>
-                                  )}
+                                  {(() => {
+                                    const retailOrder =
+                                      retailOrderDetails[n.orderId];
+                                    const recipient = getOrderRecipientName(
+                                      retailOrder,
+                                      retailOrder?.userId?.name,
+                                      "",
+                                    );
+                                    const delivery =
+                                      getOrderDeliveryAddress(retailOrder);
+                                    const lines =
+                                      formatOrderDeliveryLines(delivery);
+                                    return (
+                                      <>
+                                        {recipient ? (
+                                          <div className="flex items-center gap-2 text-sm">
+                                            <User className="w-3.5 h-3.5 text-gray-400" />
+                                            <span className="text-black">
+                                              {recipient}
+                                            </span>
+                                          </div>
+                                        ) : null}
+                                        {delivery ? (
+                                          <div className="mt-2 pt-2 border-t border-gray-100">
+                                            <div className="flex items-center gap-2 text-xs font-medium text-gray-600 mb-1">
+                                              <Home className="w-3.5 h-3.5" />
+                                              Delivery address
+                                            </div>
+                                            <div className="text-xs text-gray-600 space-y-0.5">
+                                              {delivery.phone ? (
+                                                <p>{delivery.phone}</p>
+                                              ) : null}
+                                              {lines.map((line) => (
+                                                <p key={line}>{line}</p>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        ) : null}
+                                      </>
+                                    );
+                                  })()}
 
                                   {Array.isArray(
                                     retailOrderDetails[n.orderId]?.orderItems,
@@ -1008,68 +1044,51 @@ export default function AdminNotificationsPage() {
                                   </div>
                                 )}
 
-                                {customOrderDetails[n.orderId]?.customerId
-                                  ?.name && (
-                                  <div className="flex items-center gap-2 text-sm">
-                                    <User className="w-3.5 h-3.5 text-gray-400" />
-                                    <span className="text-black">
-                                      {
-                                        customOrderDetails[n.orderId].customerId
-                                          .name
-                                      }
-                                    </span>
-                                  </div>
-                                )}
-
-                                {customOrderDetails[n.orderId]
-                                  ?.customerDeliveryAddress && (
-                                  <div className="mt-2 pt-2 border-t border-gray-100">
-                                    <div className="flex items-center gap-2 text-xs font-medium text-gray-600 mb-1">
-                                      <Home className="w-3.5 h-3.5" />
-                                      Pickup Address
-                                    </div>
-                                    <div className="text-xs text-gray-600 space-y-0.5">
-                                      <p>
-                                        {
-                                          customOrderDetails[n.orderId]
-                                            .customerDeliveryAddress.fullName
-                                        }
-                                      </p>
-                                      <p>
-                                        {
-                                          customOrderDetails[n.orderId]
-                                            .customerDeliveryAddress.line1
-                                        }
-                                      </p>
-                                      {customOrderDetails[n.orderId]
-                                        .customerDeliveryAddress.line2 && (
-                                        <p>
-                                          {
-                                            customOrderDetails[n.orderId]
-                                              .customerDeliveryAddress.line2
-                                          }
-                                        </p>
-                                      )}
-                                      <p>
-                                        {
-                                          customOrderDetails[n.orderId]
-                                            .customerDeliveryAddress.city
-                                        }
-                                        ,{" "}
-                                        {
-                                          customOrderDetails[n.orderId]
-                                            .customerDeliveryAddress.emirate
-                                        }
-                                      </p>
-                                      <p className="text-gray-400">
-                                        {
-                                          customOrderDetails[n.orderId]
-                                            .customerDeliveryAddress.phone
-                                        }
-                                      </p>
-                                    </div>
-                                  </div>
-                                )}
+                                {(() => {
+                                  const customOrder =
+                                    customOrderDetails[n.orderId];
+                                  const accountName =
+                                    customOrder?.userId?.name ||
+                                    customOrder?.customerId?.name ||
+                                    "";
+                                  const recipient = getOrderRecipientName(
+                                    customOrder,
+                                    accountName,
+                                    "",
+                                  );
+                                  const delivery =
+                                    getOrderDeliveryAddress(customOrder);
+                                  const lines =
+                                    formatOrderDeliveryLines(delivery);
+                                  return (
+                                    <>
+                                      {recipient ? (
+                                        <div className="flex items-center gap-2 text-sm">
+                                          <User className="w-3.5 h-3.5 text-gray-400" />
+                                          <span className="text-black">
+                                            {recipient}
+                                          </span>
+                                        </div>
+                                      ) : null}
+                                      {delivery ? (
+                                        <div className="mt-2 pt-2 border-t border-gray-100">
+                                          <div className="flex items-center gap-2 text-xs font-medium text-gray-600 mb-1">
+                                            <Home className="w-3.5 h-3.5" />
+                                            Delivery address
+                                          </div>
+                                          <div className="text-xs text-gray-600 space-y-0.5">
+                                            {delivery.phone ? (
+                                              <p>{delivery.phone}</p>
+                                            ) : null}
+                                            {lines.map((line) => (
+                                              <p key={line}>{line}</p>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      ) : null}
+                                    </>
+                                  );
+                                })()}
                               </div>
                             ) : (
                               <p className="text-sm text-gray-500">

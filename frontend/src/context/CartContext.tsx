@@ -18,7 +18,10 @@ export type CartItem = {
 type CartContextType = {
   items: CartItem[];
   addItem: (
-    item: Omit<CartItem, "quantity" | "maxStock"> & { maxStock: number },
+    item: Omit<CartItem, "quantity" | "maxStock"> & {
+      maxStock: number;
+      quantity?: number;
+    },
   ) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
@@ -91,32 +94,36 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // ADD ITEM
   const addItem = (
-    item: Omit<CartItem, "quantity" | "maxStock"> & { maxStock: number },
+    item: Omit<CartItem, "quantity" | "maxStock"> & {
+      maxStock: number;
+      quantity?: number;
+    },
   ) => {
+    const addQty = Math.max(1, Number(item.quantity) || 1);
     setItems((prev) => {
       const existing = prev.find((p) => p.id === item.id);
 
       if (existing) {
-        // if maxStock undefined -> unlimited
         if (
-          existing.maxStock == null ||
-          existing.quantity < existing.maxStock
+          existing.maxStock != null &&
+          existing.quantity >= existing.maxStock
         ) {
-          // Schedule toast after state update (but ensure single)
-          setTimeout(() => {
-            showToast(
-              `${item.name} quantity increased to ${existing.quantity + 1}`,
-            );
-          }, 0);
-          return prev.map((p) =>
-            p.id === item.id ? { ...p, quantity: p.quantity + 1 } : p,
-          );
-        } else {
           setTimeout(() => {
             showToast(`Only ${existing.maxStock} in stock`, "error");
           }, 0);
           return prev;
         }
+
+        const nextQty =
+          existing.maxStock != null
+            ? Math.min(existing.quantity + addQty, existing.maxStock)
+            : existing.quantity + addQty;
+        setTimeout(() => {
+          showToast(`${item.name} quantity increased to ${nextQty}`);
+        }, 0);
+        return prev.map((p) =>
+          p.id === item.id ? { ...p, quantity: nextQty } : p,
+        );
       }
 
       setTimeout(() => {
@@ -126,9 +133,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const maxStock = Number.isFinite(parsed)
         ? Math.max(0, parsed)
         : undefined;
+      const initialQty =
+        maxStock != null ? Math.min(addQty, Math.max(1, maxStock)) : addQty;
       return [
         ...prev,
-        { ...item, quantity: 1, ...(maxStock != null ? { maxStock } : {}) },
+        {
+          id: item.id,
+          slug: item.slug,
+          name: item.name,
+          image: item.image,
+          price: item.price,
+          size: item.size,
+          quantity: initialQty,
+          ...(maxStock != null ? { maxStock } : {}),
+        },
       ];
     });
   };

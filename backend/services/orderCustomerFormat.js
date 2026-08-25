@@ -124,7 +124,7 @@ export function formatRetailOrderItems(orderItems = []) {
     let designImage = design.images?.[0] || product.thumbnailImage || "";
     let designSlug = design.slug || "";
 
-    if (item.size === "Per Meter") {
+    if (item.size === "Per Meter" || item.kind === "fabric") {
       fabricName = item.name;
       fabricNameAr = item.nameAr || "";
       fabricImage = item.image || "";

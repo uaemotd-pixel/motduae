@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { useAuth, needsEmailVerification } from "@/context/AuthContext";
 import { LayoutDashboard, LogOut, Menu, Scissors, Store, X, ShoppingBag, DollarSign, Edit } from "lucide-react";
 import logoBlack from "../../../public/PNG/Black/MOTD_Wordmark_Black.png";
@@ -22,7 +22,6 @@ type TailorPortalShellProps = {
 export default function TailorPortalShell({ children }: TailorPortalShellProps) {
     const t = useTranslations("TailorPortal");
     const { user, logout } = useAuth();
-    const router = useRouter();
     const pathname = usePathname();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [showChangeEmail, setShowChangeEmail] = useState(false);
@@ -149,8 +148,7 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
             <button
                 type="button"
                 onClick={() => {
-                    logout();
-                    router.push("/auth/login?redirect=/tailor");
+                    void logout("/auth/login?redirect=/tailor");
                 }}
                 className="flex items-center gap-3 px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-(--color-grey-muted) hover:text-black transition [font-family:var(--font-ui)] mt-4"
             >
