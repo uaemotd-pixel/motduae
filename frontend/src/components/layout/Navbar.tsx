@@ -8,7 +8,7 @@ import LocaleSwitcher from "../shared/LocaleSwitcher";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { getTranslation } from "@/lib/getTranslation";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useNotificationUnreadCount } from "@/hooks/useNotifications";
 import CustomerNotificationBell from "@/components/account/CustomerNotificationBell";
 
@@ -95,7 +95,6 @@ const LogOutIcon = ({ className }: { className?: string }) => (
 
 export function Navbar() {
   const params = useParams();
-  const router = useRouter();
   const localParams = params.locale as string;
   const isArabic = localParams === "ar";
   const t = getTranslation(localParams);
@@ -295,8 +294,7 @@ export function Navbar() {
           {user && user.isGuest ? (
             <button
               onClick={() => {
-                logout();
-                router.push("/auth/login");
+                void logout();
               }}
               className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center text-red-600 hover:cursor-pointer bg-transparent border-0"
               title={
@@ -386,8 +384,7 @@ export function Navbar() {
               <button
                 onClick={() => {
                   closeMenu();
-                  logout();
-                  router.push("/auth/login");
+                  void logout();
                 }}
                 className="flex flex-col items-center gap-1 group hover:opacity-50 transition text-red-600 hover:cursor-pointer bg-transparent border-0"
                 aria-label={localParams === "ar" ? "تسجيل الخروج" : "Sign Out"}

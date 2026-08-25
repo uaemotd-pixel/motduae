@@ -41,11 +41,14 @@ export function setAuthCookie(res, token) {
 }
 
 export function clearAuthCookie(res) {
+  const options = getAuthCookieOptions();
   res.clearCookie(AUTH_COOKIE_NAME, {
-    httpOnly: true,
-    secure: env.nodeEnv === "production",
-    sameSite: "lax",
-    path: "/",
+    httpOnly: options.httpOnly,
+    secure: options.secure,
+    sameSite: options.sameSite,
+    path: options.path,
+    expires: new Date(0),
+    maxAge: 0,
   });
 }
 

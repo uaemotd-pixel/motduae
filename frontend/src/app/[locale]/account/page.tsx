@@ -257,9 +257,8 @@ function AccountPageContent() {
   );
 
   const handleLogout = useCallback(() => {
-    logout();
-    router.push("/auth/login");
-  }, [logout, router]);
+    void logout();
+  }, [logout]);
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => !prev);

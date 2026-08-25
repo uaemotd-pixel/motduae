@@ -6,8 +6,12 @@ const addOnRoutes = express.Router();
 // GET /api/addons - Fetch active add-ons
 addOnRoutes.get("/", async (req, res) => {
   try {
-    const { page = 1, limit = 12 } = req.query;
+    const { page = 1, limit = 12, fabricShopId } = req.query;
     const filter = { isActive: true };
+
+    if (fabricShopId) {
+      filter.fabricShopId = fabricShopId;
+    }
 
     const skip = (Number(page) - 1) * Number(limit);
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { useAuth, needsEmailVerification } from "@/context/AuthContext";
 import {
   LayoutDashboard,
@@ -36,7 +36,6 @@ export default function FabricPortalShell({
 }: FabricPortalShellProps) {
   const t = useTranslations("FabricPortal");
   const { user, logout } = useAuth();
-  const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showChangeEmail, setShowChangeEmail] = useState(false);
@@ -170,8 +169,7 @@ export default function FabricPortalShell({
       <button
         type="button"
         onClick={() => {
-          logout();
-          router.push("/auth/login?redirect=/fabric");
+          void logout("/auth/login?redirect=/fabric");
         }}
         className="flex items-center gap-3 px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-(--color-grey-muted) hover:text-black transition [font-family:var(--font-ui)] mt-4"
       >

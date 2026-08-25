@@ -60,6 +60,8 @@ import {
   getTimeframeWindow,
 } from "../utils/dateRange.js";
 import { splitMotdCommission } from "../services/pricingService.js";
+import { hydrateRetailOrders } from "../services/retailOrderHydrate.js";
+import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
 
 const adminRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -245,9 +247,7 @@ adminRouter.get(
   expressAsyncHandler(async (req, res) => {
     const { search, status, page = 1, limit = 10 } = req.query;
 
-    const filter = {
-      $or: [{ ownerName: "MOTD Admin" }, { ownerName: { $exists: false } }],
-    };
+    const filter = {};
 
     // Search by name, fabricType, or tailorName
     if (search && typeof search === "string") {
@@ -373,15 +373,12 @@ adminRouter.post(
       isActive,
     } = req.body;
 
-    // Generate slug if not provided
-    let slug = req.body.slug?.trim();
-    if (!slug) {
-      const base = name || nameAr || "ready-made";
-      slug = base
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-    }
+    // Generate a unique slug so the same display name can exist more than once
+    const slug = await ensureUniqueSlug(
+      ReadyMadeProduct,
+      req.body.slug || name || nameAr,
+      { fallback: "ready-made" },
+    );
 
     const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);
     if (!pickupAddress) {
@@ -444,7 +441,12 @@ adminRouter.put(
     // --- Basic fields ---
     product.name = req.body.name ?? product.name;
     product.nameAr = req.body.nameAr ?? product.nameAr;
-    product.slug = req.body.slug ?? product.slug;
+    if (req.body.slug && req.body.slug !== product.slug) {
+      product.slug = await ensureUniqueSlug(ReadyMadeProduct, req.body.slug, {
+        excludeId: product._id,
+        fallback: "ready-made",
+      });
+    }
     product.code = req.body.code ?? product.code;
     product.description = req.body.description ?? product.description;
     product.descriptionAr = req.body.descriptionAr ?? product.descriptionAr;
@@ -675,17 +677,9 @@ adminRouter.post(
       return;
     }
 
-    const slug = shopName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)+/g, "");
-    const existingShop = await FabricShop.findOne({ slug });
-    if (existingShop) {
-      res.status(400).send({
-        message: "A store with this name already exists (slug taken)",
-      });
-      return;
-    }
+    const slug = await ensureUniqueSlug(FabricShop, shopName, {
+      fallback: "shop",
+    });
 
     const user = new User({
       name: name.trim(),
@@ -981,10 +975,14 @@ adminRouter.post(
       storePickupAddress.emirate = normalizedEmirate;
     }
 
+    const uniqueSlug = await ensureUniqueSlug(Fabric, slug || name, {
+      fallback: "fabric",
+    });
+
     const newFabric = new Fabric({
       name,
       nameAr,
-      slug,
+      slug: uniqueSlug,
       description,
       descriptionAr,
       images,
@@ -1004,35 +1002,14 @@ adminRouter.post(
 
     const createdFabric = await newFabric.save();
 
-    const generateUniqueSlug = async (name) => {
-      let base = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-      if (!base) base = "fabric";
-      let slugVal = base;
-      let counter = 1;
-      while (await Fabric.findOne({ slug: slugVal })) {
-        slugVal = `${base}-${counter}`;
-        counter++;
-      }
-      return slugVal;
-    };
-
     if (Array.isArray(req.body.variants)) {
       for (const variant of req.body.variants) {
         if (!variant.name || !variant.nameAr || !variant.material) continue;
-        let vSlug = variant.slug ? variant.slug.toLowerCase().trim() : "";
-        if (!vSlug) {
-          vSlug = await generateUniqueSlug(variant.name);
-        } else {
-          let originalSlug = vSlug;
-          let counter = 1;
-          while (await Fabric.findOne({ slug: vSlug })) {
-            vSlug = `${originalSlug}-${counter}`;
-            counter++;
-          }
-        }
+        const vSlug = await ensureUniqueSlug(
+          Fabric,
+          variant.slug || variant.name,
+          { fallback: "fabric" },
+        );
 
         await Fabric.create({
           name: variant.name,
@@ -1106,7 +1083,12 @@ adminRouter.put(
     // Update all fields
     fabric.name = req.body.name ?? fabric.name;
     fabric.nameAr = req.body.nameAr ?? fabric.nameAr;
-    fabric.slug = req.body.slug ?? fabric.slug;
+    if (req.body.slug && req.body.slug !== fabric.slug) {
+      fabric.slug = await ensureUniqueSlug(Fabric, req.body.slug, {
+        excludeId: fabric._id,
+        fallback: "fabric",
+      });
+    }
     fabric.description = req.body.description ?? fabric.description;
     fabric.descriptionAr = req.body.descriptionAr ?? fabric.descriptionAr;
     fabric.images = req.body.images ?? fabric.images;
@@ -1155,21 +1137,6 @@ adminRouter.put(
 
     const updatedFabric = await fabric.save();
 
-    const generateUniqueSlug = async (name) => {
-      let base = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-      if (!base) base = "fabric";
-      let slugVal = base;
-      let counter = 1;
-      while (await Fabric.findOne({ slug: slugVal })) {
-        slugVal = `${base}-${counter}`;
-        counter++;
-      }
-      return slugVal;
-    };
-
     if (Array.isArray(req.body.variants)) {
       const incomingIds = [];
       for (const variant of req.body.variants) {
@@ -1204,22 +1171,22 @@ adminRouter.put(
 
             existing.listedByStore = updatedFabric.listedByStore;
             existing.storePickupAddress = updatedFabric.storePickupAddress;
+            if (variant.slug && variant.slug !== existing.slug) {
+              existing.slug = await ensureUniqueSlug(Fabric, variant.slug, {
+                excludeId: existing._id,
+                fallback: "fabric",
+              });
+            }
 
             await existing.save();
           }
         } else {
           if (!variant.name || !variant.nameAr || !variant.material) continue;
-          let vSlug = variant.slug ? variant.slug.toLowerCase().trim() : "";
-          if (!vSlug) {
-            vSlug = await generateUniqueSlug(variant.name);
-          } else {
-            let originalSlug = vSlug;
-            let counter = 1;
-            while (await Fabric.findOne({ slug: vSlug })) {
-              vSlug = `${originalSlug}-${counter}`;
-              counter++;
-            }
-          }
+          const vSlug = await ensureUniqueSlug(
+            Fabric,
+            variant.slug || variant.name,
+            { fallback: "fabric" },
+          );
 
           const newV = await Fabric.create({
             name: variant.name,
@@ -1685,18 +1652,22 @@ adminRouter.patch(
 
 // GET /api/admin/orders/retail
 // List all retail orders (ready-made, add-ons, and fabric-by-meter) with optional
-// filters: status, from, to, customer (userId, name/email, or guest shipping/contact).
+// filters: status, from, to, customer, or orderId (direct lookup).
 adminRouter.get(
   "/orders/retail",
   expressAsyncHandler(async (req, res) => {
-    const { status, from, to, customer, page, limit } = req.query;
+    const { status, from, to, customer, page, limit, orderId } = req.query;
     const pageNum = parseInt(page) || 1;
     const limitNum = parseInt(limit) || 10;
     const skip = (pageNum - 1) * limitNum;
 
     const filter = {};
 
-    if (status) {
+    if (orderId && mongoose.Types.ObjectId.isValid(String(orderId))) {
+      filter._id = String(orderId);
+    }
+
+    if (!filter._id && status) {
       if (!RETAIL_ORDER_STATUSES.includes(status)) {
         res.status(400).send({
           message: `Invalid status. Allowed values: ${RETAIL_ORDER_STATUSES.join(", ")}`,
@@ -1706,7 +1677,7 @@ adminRouter.get(
       filter.status = status;
     }
 
-    if (from || to) {
+    if (!filter._id && (from || to)) {
       const parsed = applyCreatedAtFilter(from, to);
       if (parsed.error) {
         res.status(400).send({ message: parsed.error });
@@ -1717,7 +1688,7 @@ adminRouter.get(
       }
     }
 
-    if (customer) {
+    if (!filter._id && customer) {
       const customerQuery = String(customer).trim();
 
       if (mongoose.Types.ObjectId.isValid(customerQuery)) {
@@ -1749,39 +1720,16 @@ adminRouter.get(
     const [orders, total] = await Promise.all([
       RetailOrder.find(filter)
         .populate("userId", "name email phone")
-        .populate({
-          path: "orderItems.productId",
-          select: "thumbnailImage images fabricShopId",
-          populate: {
-            path: "fabricShopId",
-            select: "name nameAr phone city location pickupAddress ownerId",
-          },
-        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum),
       RetailOrder.countDocuments(filter),
     ]);
 
+    const hydrated = await hydrateRetailOrders(orders);
+
     res.send({
-      items: orders.map((order) => {
-        const packed = attachPackReadiness(order, "retail");
-        const shops = [];
-        const seen = new Set();
-        for (const item of packed.orderItems || []) {
-          const shop = item.productId?.fabricShopId;
-          if (!shop || typeof shop !== "object") continue;
-          const id = String(shop._id || "");
-          if (!id || seen.has(id)) continue;
-          seen.add(id);
-          shops.push(shop);
-        }
-        return {
-          ...packed,
-          fabricStoreId: shops[0] || packed.fabricStoreId || null,
-          fabricStores: shops,
-        };
-      }),
+      items: hydrated.map((order) => attachPackReadiness(order, "retail")),
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum),
@@ -2320,6 +2268,7 @@ adminRouter.get(
       topFabricsAgg,
       topProductsAgg,
       topTailorsAgg,
+      retailTopFabricsAgg,
     ] = await Promise.all([
       RetailOrder.aggregate([
         { $match: { createdAt: { $gte: start, $lte: end } } },
@@ -2383,6 +2332,12 @@ adminRouter.get(
         { $match: { createdAt: { $gte: start, $lte: end } } },
         { $unwind: "$orderItems" },
         {
+          $match: {
+            "orderItems.size": { $ne: "Per Meter" },
+            "orderItems.kind": { $ne: "fabric" },
+          },
+        },
+        {
           $group: {
             _id: {
               id: "$orderItems.productId",
@@ -2433,6 +2388,37 @@ adminRouter.get(
           },
         },
       ]),
+      RetailOrder.aggregate([
+        { $match: { createdAt: { $gte: start, $lte: end } } },
+        { $unwind: "$orderItems" },
+        {
+          $match: {
+            $or: [
+              { "orderItems.kind": "fabric" },
+              { "orderItems.size": "Per Meter" },
+            ],
+          },
+        },
+        {
+          $group: {
+            _id: "$orderItems.name",
+            revenue: {
+              $sum: {
+                $multiply: [
+                  "$orderItems.price",
+                  {
+                    $ifNull: [
+                      "$orderItems.quantityInMeters",
+                      "$orderItems.quantity",
+                    ],
+                  },
+                ],
+              },
+            },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
     ]);
 
     const statusMap = new Map();
@@ -2448,12 +2434,32 @@ adminRouter.get(
       .map(([status, count]) => ({ status, count }))
       .sort((a, b) => b.count - a.count);
 
-    const topFabrics = (topFabricsAgg || []).map((row, i) => ({
-      id: String(row._id || i),
-      name: row._id || "Unknown",
-      value: row.revenue || 0,
-      meta: `${row.count || 0} orders`,
-    }));
+    const fabricRevenueByName = new Map();
+    for (const row of topFabricsAgg || []) {
+      const name = row._id || "Unknown";
+      const prev = fabricRevenueByName.get(name) || { revenue: 0, count: 0 };
+      fabricRevenueByName.set(name, {
+        revenue: prev.revenue + (row.revenue || 0),
+        count: prev.count + (row.count || 0),
+      });
+    }
+    for (const row of retailTopFabricsAgg || []) {
+      const name = row._id || "Unknown";
+      const prev = fabricRevenueByName.get(name) || { revenue: 0, count: 0 };
+      fabricRevenueByName.set(name, {
+        revenue: prev.revenue + (row.revenue || 0),
+        count: prev.count + (row.count || 0),
+      });
+    }
+    const topFabrics = Array.from(fabricRevenueByName.entries())
+      .map(([name, row], i) => ({
+        id: name || String(i),
+        name,
+        value: row.revenue || 0,
+        meta: `${row.count || 0} orders`,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
 
     const topProducts = (topProductsAgg || []).map((row, i) => ({
       id: row._id?.id ? String(row._id.id) : String(i),
@@ -2961,20 +2967,11 @@ adminRouter.get(
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
 
-    const filter = {
-      $or: [{ ownerName: "MOTD Admin" }, { ownerName: { $exists: false } }],
-    };
+    const filter = {};
 
     if (search) {
-      filter.$and = [
-        {
-          $or: [
-            { name: { $regex: search, $options: "i" } },
-            { nameAr: { $regex: search, $options: "i" } },
-            { _id: { $regex: search, $options: "i" } },
-          ],
-        },
-      ];
+      const regex = { $regex: search, $options: "i" };
+      filter.$or = [{ name: regex }, { nameAr: regex }, { slug: regex }];
     }
 
     const [addons, total] = await Promise.all([
@@ -3023,12 +3020,11 @@ adminRouter.post(
       isActive,
     } = req.body;
 
-    const generatedSlug = slug
-      ? slug.toLowerCase().replace(/\s+/g, "-")
-      : name
-          .toLowerCase()
-          .replace(/\s+/g, "-")
-          .replace(/[^a-z0-9-]/g, "");
+    const generatedSlug = await ensureUniqueSlug(
+      AddOn,
+      slug || name || nameAr,
+      { fallback: "addon" },
+    );
 
     const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);
     if (!pickupAddress) {
@@ -3052,7 +3048,8 @@ adminRouter.post(
       tag,
       tagAr,
       isActive: isActive !== undefined ? isActive : true,
-      ownerName: req.body.ownerName || "MOTD Admin",
+      // Platform listings are owned by MOTD, not the signed-in admin's display name.
+      ownerName: "MOTD Admin",
       pickupAddress,
     });
 
@@ -3088,8 +3085,11 @@ adminRouter.put(
 
     addon.name = name ?? addon.name;
     addon.nameAr = nameAr ?? addon.nameAr;
-    if (slug) {
-      addon.slug = slug.toLowerCase().replace(/\s+/g, "-");
+    if (slug && slug !== addon.slug) {
+      addon.slug = await ensureUniqueSlug(AddOn, slug, {
+        excludeId: addon._id,
+        fallback: "addon",
+      });
     }
     addon.description = description ?? addon.description;
     addon.descriptionAr = descriptionAr ?? addon.descriptionAr;
@@ -3100,7 +3100,9 @@ adminRouter.put(
     addon.tag = tag ?? addon.tag;
     addon.tagAr = tagAr ?? addon.tagAr;
     addon.isActive = isActive !== undefined ? isActive : addon.isActive;
-    addon.ownerName = req.body.ownerName ?? addon.ownerName;
+    if (!addon.fabricShopId) {
+      addon.ownerName = "MOTD Admin";
+    }
 
     if (req.body.pickupAddress !== undefined) {
       const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);
