@@ -10,7 +10,7 @@ import {
   Search,
   PackageSearch,
   Loader2,
-  DollarSign,
+  Coins,
   ShoppingBag,
   Scissors,
   AlertTriangle,
@@ -34,7 +34,6 @@ import {
   chartGridColor,
   formatCompact,
 } from "@/components/dashboard/chartDefaults";
-import { splitFabricCommission } from "@/lib/fabricCommission";
 
 interface OrderUser {
   _id: string;
@@ -43,70 +42,40 @@ interface OrderUser {
   phone?: string;
 }
 
-interface CustomOrderItemPricing {
-  designBase: number;
-  fabricMeters: number;
-  fabricPricePerMeter: number;
-  fabricCost: number;
-  tailoringFee: number;
-  deliveryFee: number;
-  subtotal: number;
-  vatRate: number;
-  vatAmount: number;
-  total: number;
-  currency: string;
-}
-
-interface CustomOrderItem {
-  designSnapshot: { name: string; nameAr?: string };
-  fabricSnapshot?: { name: string; nameAr?: string } | null;
-  fabricStoreId?: { _id: string; name: string } | string;
-  pricing?: CustomOrderItemPricing;
-}
-
 interface Order {
   _id: string;
   userId: OrderUser | string | null;
   status: string;
   createdAt: string;
   kind?: "custom" | "retail";
-  fabricFeeGross?: number;
-  pricing?: {
-    total?: number;
-    currency?: string;
-    fabricCost?: number;
-  };
-  orderItems?: Array<{
-    name?: string;
-    size?: string;
-    price?: number;
-    quantity?: number;
-    productId?: string | { _id?: string };
-  }>;
-  items?: CustomOrderItem[];
+  payoutNet?: number;
+  payoutPaid?: number;
+  payoutPending?: number;
+  paymentStatus?: string;
 }
 
 interface FabricDashboardData {
   success: boolean;
   currency: string;
   fabricShopId?: string;
-  commissionPercent?: number;
   kpis: {
     fabricRevenue: number;
-    fabricGross?: number;
-    motdCommission?: number;
     orderCount: number;
     metersSold: number;
     activeSkus: number;
     lowStock: number;
-  };
-  feeSplit?: {
-    fabricGross: number;
-    motdCommission: number;
-    fabricNet: number;
+    paid?: number;
+    pending?: number;
+    netDue?: number;
   };
   monthlyData: Array<{ month: string; revenue: number }>;
   statusBreakdown: Array<{ status: string; count: number }>;
+  payout?: {
+    netDue: number;
+    paid: number;
+    pending: number;
+    status: "pending" | "approved" | null;
+  };
   topFabrics: Array<{ id: string; name: string; value: number; meta?: string }>;
   recentOrders: Array<{
     id: string;
@@ -132,7 +101,6 @@ export default function FabricDashboardPage() {
 
   const revenueChartRef = useRef<Chart | null>(null);
   const statusChartRef = useRef<Chart | null>(null);
-  const commissionChartRef = useRef<Chart | null>(null);
 
   const fetchDashboard = async (showRefresh = false) => {
     try {
@@ -160,44 +128,20 @@ export default function FabricDashboardPage() {
       currency: data?.currency || currency,
     }).format(amount);
 
-  const fabricShopId = data?.fabricShopId || null;
-  const commissionPercent = data?.commissionPercent ?? 15;
-
-  const getFabricGross = (order: Order) => {
-    // Prefer server-computed gross so custom + retail stay in sync.
-    if (typeof order.fabricFeeGross === "number" && Number.isFinite(order.fabricFeeGross)) {
-      return order.fabricFeeGross;
-    }
-
-    // Retail fallback: include ready-made / add-ons / fabric-by-meter lines.
-    // Prefer fabricFeeGross from the API (already scoped to this store).
-    if (order.kind === "retail" || (order.orderItems && order.orderItems.length > 0)) {
-      return (order.orderItems || []).reduce(
-        (sum, item) =>
-          sum + (Number(item.price) || 0) * (Number(item.quantity) || 0),
-        0,
-      );
-    }
-
-    if (!fabricShopId) return order.pricing?.fabricCost || 0;
-
-    if (order.items && order.items.length > 0) {
-      return order.items
-        .filter((item) => {
-          const itemStoreId =
-            typeof item.fabricStoreId === "object"
-              ? item.fabricStoreId?._id
-              : item.fabricStoreId;
-          return String(itemStoreId || "") === String(fabricShopId);
-        })
-        .reduce((sum, item) => sum + (item.pricing?.fabricCost || 0), 0);
-    }
-
-    return order.pricing?.fabricCost || 0;
+  const formatKpiCurrency = (amount: number) => {
+    const code = data?.currency || "AED";
+    const formatted = new Intl.NumberFormat(locale === "ar" ? "ar-AE" : "en-AE", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+    return `${code} ${formatted}`;
   };
 
-  const getFabricBreakdown = (order: Order) =>
-    splitFabricCommission(getFabricGross(order), commissionPercent);
+  /** Server sends net payout only — never reconstruct gross/commission in the browser. */
+  const getFabricPayout = (order: Order) =>
+    typeof order.payoutNet === "number" && Number.isFinite(order.payoutNet)
+      ? order.payoutNet
+      : 0;
 
   const readPartnerName = (
     value: { name?: string } | string | null | undefined,
@@ -219,8 +163,7 @@ export default function FabricDashboardPage() {
   const pricingOrders = data?.pricingOrders || [];
   const filteredPricingOrders = useMemo(() => {
     return pricingOrders.filter((order) => {
-      // Hide zero-value rows (no fabric payout for this store).
-      if (getFabricGross(order) <= 0) return false;
+      if (getFabricPayout(order) <= 0) return false;
 
       if (!pricingSearch.trim()) return true;
       const term = pricingSearch.toLowerCase();
@@ -239,26 +182,21 @@ export default function FabricDashboardPage() {
         order._id.toLowerCase().includes(term)
       );
     });
-  }, [pricingOrders, pricingSearch, fabricShopId, commissionPercent]);
+  }, [pricingOrders, pricingSearch]);
 
   useEffect(() => {
     if (!data) return;
 
     revenueChartRef.current?.destroy();
     statusChartRef.current?.destroy();
-    commissionChartRef.current?.destroy();
     revenueChartRef.current = null;
     statusChartRef.current = null;
-    commissionChartRef.current = null;
 
     const revenueCanvas = document.getElementById(
       "fabric-revenue-chart",
     ) as HTMLCanvasElement | null;
     const statusCanvas = document.getElementById(
       "fabric-status-chart",
-    ) as HTMLCanvasElement | null;
-    const commissionCanvas = document.getElementById(
-      "fabric-commission-chart",
     ) as HTMLCanvasElement | null;
     if (!revenueCanvas || !statusCanvas) return;
 
@@ -350,71 +288,30 @@ export default function FabricDashboardPage() {
     revenueChartRef.current = new Chart(revenueCanvas, revenueConfig);
     statusChartRef.current = new Chart(statusCanvas, statusConfig);
 
-    const feeSplit = data.feeSplit || {
-      fabricGross: data.kpis.fabricGross || 0,
-      motdCommission: data.kpis.motdCommission || 0,
-      fabricNet: data.kpis.fabricRevenue || 0,
-    };
-    if (commissionCanvas && feeSplit.fabricGross > 0) {
-      commissionChartRef.current = new Chart(commissionCanvas, {
-        type: "doughnut",
-        data: {
-          labels: [
-            t("chartPayoutLabel"),
-            t("colMotdCommission", { percent: commissionPercent }),
-          ],
-          datasets: [
-            {
-              data: [feeSplit.fabricNet, feeSplit.motdCommission],
-              backgroundColor: [
-                withAlpha(DASH_PALETTE.gold, 0.9),
-                withAlpha(DASH_PALETTE.charcoal, 0.85),
-              ],
-              borderColor: DASH_PALETTE.surface,
-              borderWidth: 3,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: "65%",
-          plugins: {
-            legend: { position: "bottom", labels: chartLegend.labels },
-            tooltip: {
-              ...chartTooltip,
-              callbacks: {
-                label: (ctx) => formatCurrency(Number(ctx.parsed)),
-              },
-            },
-          },
-        },
-      });
-    }
-
     return () => {
       revenueChartRef.current?.destroy();
       statusChartRef.current?.destroy();
-      commissionChartRef.current?.destroy();
       revenueChartRef.current = null;
       statusChartRef.current = null;
-      commissionChartRef.current = null;
     };
-  }, [data, commissionPercent, t, locale]);
+  }, [data, t, locale]);
 
-  if (loading) return <DashboardSkeleton kpiCount={4} />;
+  if (loading) return <DashboardSkeleton kpiCount={6} />;
 
   const kpis = data?.kpis || {
     fabricRevenue: 0,
-    fabricGross: 0,
-    motdCommission: 0,
     orderCount: 0,
     metersSold: 0,
     activeSkus: 0,
     lowStock: 0,
+    paid: 0,
+    pending: 0,
+    netDue: 0,
   };
-  const fabricGross = kpis.fabricGross ?? 0;
-  const motdCommissionTotal = kpis.motdCommission ?? 0;
+  const payoutPaid = data?.payout?.paid ?? kpis.paid ?? 0;
+  const payoutPending = data?.payout?.pending ?? kpis.pending ?? 0;
+  const totalEarnings =
+    data?.payout?.netDue ?? kpis.netDue ?? payoutPaid + payoutPending;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -451,28 +348,43 @@ export default function FabricDashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <StatCard
-          icon={DollarSign}
-          label={t("kpiRevenue")}
-          value={formatCurrency(kpis.fabricRevenue)}
-          subValue={
-            fabricGross > 0
-              ? `${t("kpiGross")}: ${formatCurrency(fabricGross)}`
-              : undefined
-          }
+          icon={Coins}
+          label={t("kpiTotalEarnings")}
+          value={formatKpiCurrency(totalEarnings)}
+          subValue={t("kpiTotalEarningsSub")}
+          compact
           delay={0}
+        />
+        <StatCard
+          icon={Coins}
+          label={t("kpiPaid")}
+          value={formatKpiCurrency(payoutPaid)}
+          subValue={
+            totalEarnings > 0 && payoutPending <= 0
+              ? t("kpiPaidInFull")
+              : t("kpiPaidSub")
+          }
+          compact
+          delay={0.05}
+        />
+        <StatCard
+          icon={Coins}
+          label={t("kpiPending")}
+          value={formatKpiCurrency(payoutPending)}
+          subValue={
+            payoutPending > 0 ? t("kpiPendingSub") : t("kpiPendingNone")
+          }
+          compact
+          delay={0.1}
         />
         <StatCard
           icon={ShoppingBag}
           label={t("kpiOrders")}
           value={String(kpis.orderCount)}
-          subValue={
-            motdCommissionTotal > 0
-              ? `${t("kpiCommission")} (${commissionPercent}%): ${formatCurrency(motdCommissionTotal)}`
-              : undefined
-          }
-          delay={0.05}
+          compact
+          delay={0.15}
         />
         <StatCard
           icon={Scissors}
@@ -483,13 +395,15 @@ export default function FabricDashboardPage() {
               ? `${kpis.metersSold.toFixed(1)} ${t("metersSold")}`
               : undefined
           }
-          delay={0.1}
+          compact
+          delay={0.2}
         />
         <StatCard
           icon={AlertTriangle}
           label={t("kpiLowStock")}
           value={String(kpis.lowStock)}
-          delay={0.15}
+          compact
+          delay={0.25}
         />
       </div>
 
@@ -521,18 +435,11 @@ export default function FabricDashboardPage() {
             <canvas id="fabric-revenue-chart" />
           </div>
         </ChartCard>
-        <div className="space-y-4">
-          <ChartCard title={t("chartCommission")} delay={0.12}>
-            <div className="mx-auto h-40 max-w-[200px]">
-              <canvas id="fabric-commission-chart" />
-            </div>
-          </ChartCard>
-          <ChartCard title={t("chartStatus")} delay={0.15}>
-            <div className="mx-auto h-40 max-w-[200px]">
-              <canvas id="fabric-status-chart" />
-            </div>
-          </ChartCard>
-        </div>
+        <ChartCard title={t("chartStatus")} delay={0.15}>
+          <div className="mx-auto h-64 max-w-[240px]">
+            <canvas id="fabric-status-chart" />
+          </div>
+        </ChartCard>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -556,7 +463,7 @@ export default function FabricDashboardPage() {
         <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="[font-family:var(--font-display)] text-lg text-[var(--dash-ink)] flex items-center gap-2">
-              <DollarSign className="h-4 w-4" strokeWidth={1.5} />
+              <Coins className="h-4 w-4" strokeWidth={1.5} />
               {t("pricingTitle")}
             </h3>
             <p className="mt-1 text-xs text-[var(--dash-muted)]">
@@ -591,17 +498,17 @@ export default function FabricDashboardPage() {
                 <tr>
                   <th className="px-3 py-2">{t("colOrder")}</th>
                   <th className="px-3 py-2">{t("colDate")}</th>
-                  <th className="px-3 py-2 text-right">{t("colFabricFee")}</th>
-                  <th className="px-3 py-2 text-right">
-                    {t("colMotdCommission", { percent: commissionPercent })}
-                  </th>
                   <th className="px-3 py-2 text-right">{t("colYourPayout")}</th>
                   <th className="px-3 py-2">{t("colStatus")}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredPricingOrders.map((order) => {
-                  const breakdown = getFabricBreakdown(order);
+                  const statusLabel = (
+                    order.paymentStatus ||
+                    order.status ||
+                    ""
+                  ).replace(/_/g, " ");
                   return (
                     <tr
                       key={order._id}
@@ -623,18 +530,12 @@ export default function FabricDashboardPage() {
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         {formatOrderDateLocal(order.createdAt)}
                       </td>
-                      <td className="px-3 py-2.5 text-right font-medium text-[var(--dash-ink)]">
-                        {formatCurrency(breakdown.gross)}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-[var(--dash-muted)]">
-                        −{formatCurrency(breakdown.commission)}
-                      </td>
                       <td className="px-3 py-2.5 text-right font-semibold text-[var(--dash-ink)]">
-                        {formatCurrency(breakdown.net)}
+                        {formatCurrency(getFabricPayout(order))}
                       </td>
                       <td className="px-3 py-2.5 capitalize">
                         <span className="rounded-md bg-[var(--dash-bg)] px-2 py-0.5 text-[10px] text-[var(--dash-ink)]">
-                          {(order.status || "").replace(/_/g, " ")}
+                          {statusLabel}
                         </span>
                       </td>
                     </tr>

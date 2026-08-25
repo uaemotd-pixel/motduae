@@ -10,7 +10,7 @@ import {
   Search,
   PackageSearch,
   Loader2,
-  DollarSign,
+  Coins,
   ShoppingBag,
   Scissors,
   Activity,
@@ -32,7 +32,6 @@ import {
   chartGridColor,
   formatCompact,
 } from "@/components/dashboard/chartDefaults";
-import { splitFabricCommission } from "@/lib/fabricCommission";
 
 interface OrderUser {
   _id: string;
@@ -74,40 +73,36 @@ interface Order {
     designBase: number;
   };
   items?: CustomOrderItem[];
-  designFeeGross?: number;
-  tailoringFeeGross?: number;
-  tailorFeeGross?: number;
+  payoutNet?: number;
+  payoutPaid?: number;
+  payoutPending?: number;
+  paymentStatus?: string;
 }
 
 interface TailorDashboardData {
   success: boolean;
   currency: string;
   tailorShopId?: string | null;
-  commissionPercent?: number;
   tailoringFeeEnabled?: boolean;
   kpis: {
     tailorRevenue: number;
-    tailorGross?: number;
-    motdCommission?: number;
-    designFees: number;
-    tailoringFees: number;
     orderCount: number;
     activeDesigns: number;
     inProgress: number;
+    paid?: number;
+    pending?: number;
+    netDue?: number;
   };
   monthlyData: Array<{
     month: string;
-    design: number;
-    tailoring: number;
     revenue: number;
   }>;
   statusBreakdown: Array<{ status: string; count: number }>;
-  feeSplit?: {
-    tailorGross: number;
-    motdCommission: number;
-    tailorNet: number;
-    designFees: number;
-    tailoringFees: number;
+  payout?: {
+    netDue: number;
+    paid: number;
+    pending: number;
+    status: "pending" | "approved" | null;
   };
   recentOrders: Array<{
     id: string;
@@ -125,7 +120,9 @@ export default function TailorDashboardPage() {
   const params = useParams();
   const locale = (params.locale as Locale) || "en";
 
-  const [timeframe, setTimeframe] = useState<"week" | "month" | "year">("month");
+  const [timeframe, setTimeframe] = useState<"week" | "month" | "year">(
+    "month",
+  );
   const [data, setData] = useState<TailorDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [pricingSearch, setPricingSearch] = useState("");
@@ -133,7 +130,6 @@ export default function TailorDashboardPage() {
 
   const earningsChartRef = useRef<Chart | null>(null);
   const statusChartRef = useRef<Chart | null>(null);
-  const commissionChartRef = useRef<Chart | null>(null);
 
   const fetchDashboard = async (showRefresh = false) => {
     try {
@@ -161,48 +157,20 @@ export default function TailorDashboardPage() {
       currency: data?.currency || currency,
     }).format(amount);
 
-  const tailorShopId = data?.tailorShopId ? String(data.tailorShopId) : null;
-  const commissionPercent = data?.commissionPercent ?? 12;
-
-  const getTailorGross = (order: Order) => {
-    if (typeof order.tailorFeeGross === "number" && Number.isFinite(order.tailorFeeGross)) {
-      return order.tailorFeeGross;
-    }
-
-    if (!tailorShopId) return 0;
-
-    if (order.items && order.items.length > 0) {
-      return order.items
-        .filter((item) => {
-          const itemShopId =
-            typeof item.tailorShopId === "object"
-              ? item.tailorShopId?._id
-              : item.tailorShopId;
-          return String(itemShopId || "") === tailorShopId;
-        })
-        .reduce(
-          (sum, item) =>
-            sum +
-            (item.pricing?.designBase || 0) +
-            (item.pricing?.tailoringFee || 0),
-          0,
-        );
-    }
-
-    const orderShopId =
-      typeof order.tailorShopId === "object"
-        ? order.tailorShopId?._id
-        : order.tailorShopId;
-    if (String(orderShopId || "") === tailorShopId) {
-      return (
-        (order.pricing?.designBase || 0) + (order.pricing?.tailoringFee || 0)
-      );
-    }
-    return 0;
+  const formatKpiCurrency = (amount: number) => {
+    const code = data?.currency || "AED";
+    const formatted = new Intl.NumberFormat(locale === "ar" ? "ar-AE" : "en-AE", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+    return `${code} ${formatted}`;
   };
 
-  const getTailorBreakdown = (order: Order) =>
-    splitFabricCommission(getTailorGross(order), commissionPercent);
+  /** Server sends net payout only — never reconstruct gross/commission in the browser. */
+  const getTailorPayout = (order: Order) =>
+    typeof order.payoutNet === "number" && Number.isFinite(order.payoutNet)
+      ? order.payoutNet
+      : 0;
 
   const readPartnerName = (
     value: { name?: string } | string | null | undefined,
@@ -224,7 +192,7 @@ export default function TailorDashboardPage() {
   const pricingOrders = data?.pricingOrders || [];
   const filteredPricingOrders = useMemo(() => {
     return pricingOrders.filter((order) => {
-      if (getTailorGross(order) <= 0) return false;
+      if (getTailorPayout(order) <= 0) return false;
 
       if (!pricingSearch.trim()) return true;
       const term = pricingSearch.toLowerCase();
@@ -241,26 +209,21 @@ export default function TailorDashboardPage() {
         order._id.toLowerCase().includes(term)
       );
     });
-  }, [pricingOrders, pricingSearch, tailorShopId, commissionPercent]);
+  }, [pricingOrders, pricingSearch]);
 
   useEffect(() => {
     if (!data) return;
 
     earningsChartRef.current?.destroy();
     statusChartRef.current?.destroy();
-    commissionChartRef.current?.destroy();
     earningsChartRef.current = null;
     statusChartRef.current = null;
-    commissionChartRef.current = null;
 
     const earningsCanvas = document.getElementById(
       "tailor-earnings-chart",
     ) as HTMLCanvasElement | null;
     const statusCanvas = document.getElementById(
       "tailor-status-chart",
-    ) as HTMLCanvasElement | null;
-    const commissionCanvas = document.getElementById(
-      "tailor-commission-chart",
     ) as HTMLCanvasElement | null;
     if (!earningsCanvas || !statusCanvas) return;
 
@@ -357,75 +320,29 @@ export default function TailorDashboardPage() {
     earningsChartRef.current = new Chart(earningsCanvas, earningsConfig);
     statusChartRef.current = new Chart(statusCanvas, statusConfig);
 
-    const feeSplit = data.feeSplit || {
-      tailorGross: data.kpis.tailorGross || 0,
-      motdCommission: data.kpis.motdCommission || 0,
-      tailorNet: data.kpis.tailorRevenue || 0,
-      designFees: data.kpis.designFees || 0,
-      tailoringFees: data.kpis.tailoringFees || 0,
-    };
-
-    if (commissionCanvas && feeSplit.tailorGross > 0) {
-      commissionChartRef.current = new Chart(commissionCanvas, {
-        type: "doughnut",
-        data: {
-          labels: [
-            t("chartPayoutLabel"),
-            t("colMotdCommission", { percent: commissionPercent }),
-          ],
-          datasets: [
-            {
-              data: [feeSplit.tailorNet, feeSplit.motdCommission],
-              backgroundColor: [
-                withAlpha(DASH_PALETTE.gold, 0.9),
-                withAlpha(DASH_PALETTE.charcoal, 0.85),
-              ],
-              borderColor: DASH_PALETTE.surface,
-              borderWidth: 3,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: "65%",
-          plugins: {
-            legend: { position: "bottom", labels: chartLegend.labels },
-            tooltip: {
-              ...chartTooltip,
-              callbacks: {
-                label: (ctx) => formatCurrency(Number(ctx.parsed)),
-              },
-            },
-          },
-        },
-      });
-    }
-
     return () => {
       earningsChartRef.current?.destroy();
       statusChartRef.current?.destroy();
-      commissionChartRef.current?.destroy();
       earningsChartRef.current = null;
       statusChartRef.current = null;
-      commissionChartRef.current = null;
     };
-  }, [data, commissionPercent, t, locale]);
+  }, [data, t, locale]);
 
-  if (loading) return <DashboardSkeleton kpiCount={4} />;
+  if (loading) return <DashboardSkeleton kpiCount={6} />;
 
   const kpis = data?.kpis || {
     tailorRevenue: 0,
-    tailorGross: 0,
-    motdCommission: 0,
-    designFees: 0,
-    tailoringFees: 0,
     orderCount: 0,
     activeDesigns: 0,
     inProgress: 0,
+    paid: 0,
+    pending: 0,
+    netDue: 0,
   };
-  const tailorGross = kpis.tailorGross ?? 0;
-  const motdCommissionTotal = kpis.motdCommission ?? 0;
+  const payoutPaid = data?.payout?.paid ?? kpis.paid ?? 0;
+  const payoutPending = data?.payout?.pending ?? kpis.pending ?? 0;
+  const totalEarnings =
+    data?.payout?.netDue ?? kpis.netDue ?? payoutPaid + payoutPending;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -464,40 +381,57 @@ export default function TailorDashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <StatCard
-          icon={DollarSign}
-          label={t("kpiRevenue")}
-          value={formatCurrency(kpis.tailorRevenue)}
-          subValue={
-            tailorGross > 0
-              ? `${t("kpiGross")}: ${formatCurrency(tailorGross)}`
-              : undefined
-          }
+          icon={Coins}
+          label={t("kpiTotalEarnings")}
+          value={formatKpiCurrency(totalEarnings)}
+          subValue={t("kpiTotalEarningsSub")}
+          compact
           delay={0}
+        />
+        <StatCard
+          icon={Coins}
+          label={t("kpiPaid")}
+          value={formatKpiCurrency(payoutPaid)}
+          subValue={
+            totalEarnings > 0 && payoutPending <= 0
+              ? t("kpiPaidInFull")
+              : t("kpiPaidSub")
+          }
+          compact
+          delay={0.05}
+        />
+        <StatCard
+          icon={Coins}
+          label={t("kpiPending")}
+          value={formatKpiCurrency(payoutPending)}
+          subValue={
+            payoutPending > 0 ? t("kpiPendingSub") : t("kpiPendingNone")
+          }
+          compact
+          delay={0.1}
         />
         <StatCard
           icon={ShoppingBag}
           label={t("kpiOrders")}
           value={String(kpis.orderCount)}
-          subValue={
-            motdCommissionTotal > 0
-              ? `${t("kpiCommission")} (${commissionPercent}%): ${formatCurrency(motdCommissionTotal)}`
-              : undefined
-          }
-          delay={0.05}
+          compact
+          delay={0.15}
         />
         <StatCard
           icon={Scissors}
           label={t("kpiDesigns")}
           value={String(kpis.activeDesigns)}
-          delay={0.1}
+          compact
+          delay={0.2}
         />
         <StatCard
           icon={Activity}
           label={t("kpiInProgress")}
           value={String(kpis.inProgress)}
-          delay={0.15}
+          compact
+          delay={0.25}
         />
       </div>
 
@@ -529,18 +463,11 @@ export default function TailorDashboardPage() {
             <canvas id="tailor-earnings-chart" />
           </div>
         </ChartCard>
-        <div className="space-y-4">
-          <ChartCard title={t("chartCommission")} delay={0.12}>
-            <div className="mx-auto h-40 max-w-[200px]">
-              <canvas id="tailor-commission-chart" />
-            </div>
-          </ChartCard>
-          <ChartCard title={t("chartStatus")} delay={0.15}>
-            <div className="mx-auto h-40 max-w-[200px]">
-              <canvas id="tailor-status-chart" />
-            </div>
-          </ChartCard>
-        </div>
+        <ChartCard title={t("chartStatus")} delay={0.15}>
+          <div className="mx-auto h-64 max-w-[240px]">
+            <canvas id="tailor-status-chart" />
+          </div>
+        </ChartCard>
       </div>
 
       <ActivityFeed
@@ -554,7 +481,7 @@ export default function TailorDashboardPage() {
         <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="[font-family:var(--font-display)] text-lg text-[var(--dash-ink)] flex items-center gap-2">
-              <DollarSign className="h-4 w-4" strokeWidth={1.5} />
+              <Coins className="h-4 w-4" strokeWidth={1.5} />
               {t("pricingTitle")}
             </h3>
             <p className="mt-1 text-xs text-[var(--dash-muted)]">
@@ -592,17 +519,17 @@ export default function TailorDashboardPage() {
                 <tr>
                   <th className="px-3 py-2">{t("colOrder")}</th>
                   <th className="px-3 py-2">{t("colDate")}</th>
-                  <th className="px-3 py-2 text-right">{t("colGross")}</th>
-                  <th className="px-3 py-2 text-right">
-                    {t("colMotdCommission", { percent: commissionPercent })}
-                  </th>
                   <th className="px-3 py-2 text-right">{t("colYourPayout")}</th>
                   <th className="px-3 py-2">{t("colStatus")}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredPricingOrders.map((order) => {
-                  const breakdown = getTailorBreakdown(order);
+                  const statusLabel = (
+                    order.paymentStatus ||
+                    order.status ||
+                    ""
+                  ).replace(/_/g, " ");
                   return (
                     <tr
                       key={order._id}
@@ -624,18 +551,12 @@ export default function TailorDashboardPage() {
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         {formatOrderDateLocal(order.createdAt)}
                       </td>
-                      <td className="px-3 py-2.5 text-right font-medium text-[var(--dash-ink)]">
-                        {formatCurrency(breakdown.gross)}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-[var(--dash-muted)]">
-                        −{formatCurrency(breakdown.commission)}
-                      </td>
                       <td className="px-3 py-2.5 text-right font-semibold text-[var(--dash-ink)]">
-                        {formatCurrency(breakdown.net)}
+                        {formatCurrency(getTailorPayout(order))}
                       </td>
                       <td className="px-3 py-2.5 capitalize">
                         <span className="rounded-md bg-[var(--dash-bg)] px-2 py-0.5 text-[10px] text-[var(--dash-ink)]">
-                          {(order.status || "").replace(/_/g, " ")}
+                          {statusLabel}
                         </span>
                       </td>
                     </tr>
