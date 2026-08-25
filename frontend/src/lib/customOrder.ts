@@ -28,6 +28,7 @@ export interface CustomOrderFabricSelection {
   pricePerMeter: number;
   image?: string;
   stockInMeters?: number;
+  fabricShopId?: string;
 }
 
 export interface CustomOrderTailorSelection {
@@ -548,6 +549,13 @@ export function useOwnFabric(draft: CustomOrderDraft): boolean {
 export function toCustomOrderFabricSelection(
   item: FabricListItem,
 ): CustomOrderFabricSelection {
+  const storeId =
+    typeof item.listedByStore === "object" && item.listedByStore
+      ? item.listedByStore._id
+      : typeof item.listedByStore === "string"
+        ? item.listedByStore
+        : undefined;
+
   return {
     _id: item._id,
     slug: item.slug,
@@ -557,6 +565,7 @@ export function toCustomOrderFabricSelection(
     pricePerMeter: item.pricePerMeter,
     image: resolveFabricImage(item.images?.[0]),
     stockInMeters: item.stockInMeters,
+    fabricShopId: storeId,
   };
 }
 

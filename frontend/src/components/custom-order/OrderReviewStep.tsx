@@ -62,11 +62,18 @@ export default function OrderReviewStep() {
   const [loadingAddons, setLoadingAddons] = useState(false);
   const [showAllAddons, setShowAllAddons] = useState(false);
 
+  const selectedFabricShopId = useMemo(() => {
+    if (draft.fabricSource === "storefront" && draft.selectedFabrics?.[0]) {
+      return draft.selectedFabrics[0].fabricShopId;
+    }
+    return null;
+  }, [draft.fabricSource, draft.selectedFabrics]);
+
   useEffect(() => {
     const fetchAddons = async () => {
       try {
         setLoadingAddons(true);
-        const data = await api.get<{ success: boolean; items: any[] }>("/api/addons");
+        const data = await api.get<{ success: boolean; items: any[] }>("/api/addons?limit=100");
         if (data && data.success) {
           setAddons(data.items || []);
         }
@@ -78,6 +85,23 @@ export default function OrderReviewStep() {
     };
     fetchAddons();
   }, []);
+
+  const selectedStoreAddons = useMemo(() => {
+    if (!selectedFabricShopId) return [];
+    return addons.filter((a) => a.fabricShopId === selectedFabricShopId);
+  }, [addons, selectedFabricShopId]);
+
+  const otherStoreAddons = useMemo(() => {
+    if (!selectedFabricShopId) return addons;
+    return addons.filter((a) => a.fabricShopId !== selectedFabricShopId);
+  }, [addons, selectedFabricShopId]);
+
+  const displayedAddons = useMemo(() => {
+    if (!selectedFabricShopId || showAllAddons) {
+      return [...selectedStoreAddons, ...otherStoreAddons];
+    }
+    return selectedStoreAddons;
+  }, [showAllAddons, selectedFabricShopId, selectedStoreAddons, otherStoreAddons]);
 
   const selectedAddonsCost = useMemo(() => {
     return addons
@@ -360,7 +384,7 @@ export default function OrderReviewStep() {
               ) : (
                 <>
                   <div className="space-y-3">
-                    {(showAllAddons ? addons : addons.slice(0, 5)).map((addon) => {
+                    {displayedAddons.map((addon) => {
                       const isSelected = draft.addonIds?.includes(addon._id);
                       const name = locale === "ar" ? addon.nameAr || addon.name : addon.name;
                       return (
@@ -398,15 +422,15 @@ export default function OrderReviewStep() {
                     })}
                   </div>
 
-                  {addons.length > 5 && (
+                  {selectedFabricShopId && otherStoreAddons.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setShowAllAddons(!showAllAddons)}
-                      className="w-full text-center py-2 text-[10px] font-ui uppercase tracking-[0.2em] text-(--color-grey-muted) hover:text-black transition mt-2 hover:cursor-pointer"
+                      className="w-full text-center py-2.5 text-[10px] font-ui uppercase tracking-[0.2em] border border-dashed border-gray-200 bg-gray-50/50 hover:bg-gray-50 text-gray-500 hover:text-black transition mt-2 hover:cursor-pointer rounded-lg"
                     >
                       {showAllAddons
                         ? (locale === "ar" ? "عرض أقل" : "Show Less")
-                        : (locale === "ar" ? `عرض المزيد (+${addons.length - 5})` : `Show More (+${addons.length - 5})`)}
+                        : (locale === "ar" ? `عرض إضافات المتاجر الأخرى (+${otherStoreAddons.length})` : `Show other stores' add-ons (+${otherStoreAddons.length})`)}
                     </button>
                   )}
                 </>
