@@ -296,21 +296,11 @@ export default function TailorOrdersPage() {
   // Client-side filtering logic
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      // 1. Customer name/email/phone filter
+      // 1. Order ID filter
       if (filterCustomer.trim()) {
         const term = filterCustomer.toLowerCase();
-        const user = getOrderUser(order.userId);
-        const customerName = readPartnerName(user, "").toLowerCase();
-        const customerEmail = resolveOrderDisplayEmail(order).toLowerCase();
-        const customerPhone = (user?.phone || "").toLowerCase();
         const orderId = order._id.toLowerCase();
-
-        if (
-          !customerName.includes(term) &&
-          !customerEmail.includes(term) &&
-          !customerPhone.includes(term) &&
-          !orderId.includes(term)
-        ) {
+        if (!orderId.includes(term)) {
           return false;
         }
       }
@@ -386,8 +376,8 @@ export default function TailorOrdersPage() {
               type="text"
               placeholder={
                 locale === "ar"
-                  ? "البحث باسم العميل، الهاتف، البريد..."
-                  : "Search customer, phone, email..."
+                  ? "البحث بالرقم التعريفي للطلب..."
+                  : "Search by Order ID..."
               }
               value={filterCustomer}
               onChange={(e) => setFilterCustomer(e.target.value)}
@@ -460,16 +450,6 @@ export default function TailorOrdersPage() {
             const previousStatus = getPreviousCustomOrderStatus(displayStatus);
             const user = getOrderUser(order.userId);
             const isGuest = isGuestOrderUser(order.userId);
-            const customerName = isGuest && (order as any).customerDeliveryAddress?.fullName
-              ? (order as any).customerDeliveryAddress.fullName
-              : readPartnerName(
-                  user,
-                  locale === "ar" ? "عميل غير معروف" : "Unknown Customer",
-                );
-            const customerEmail = resolveOrderDisplayEmail(order);
-            const customerPhone = isGuest
-              ? (order as any).customerDeliveryAddress?.phone || ""
-              : (user?.phone || "");
             const fabricName =
               order.fabricSnapshot?.name ||
               (locale === "ar" ? "قماش خاص" : "Self Fabric");
@@ -502,20 +482,8 @@ export default function TailorOrdersPage() {
                     </p>
                     <p className="font-medium text-sm text-black flex items-center gap-1.5">
                       <User className="w-3.5 h-3.5 text-gray-400" />
-                      {customerName}
+                      {locale === "ar" ? "العميل" : "Customer"}
                     </p>
-                    {customerPhone && (
-                      <p className="text-xs text-black font-semibold font-mono mt-1 flex items-center gap-1.5 bg-[#FFFDF9] border border-amber-100 px-2 py-0.5 rounded w-max">
-                        <Phone className="w-3 h-3 text-amber-600 shrink-0" />
-                        {customerPhone}
-                      </p>
-                    )}
-                    {customerEmail && (
-                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
-                        <Mail className="w-3 h-3 text-gray-400 shrink-0" />
-                        {customerEmail}
-                      </p>
-                    )}
                   </div>
 
                   <div>

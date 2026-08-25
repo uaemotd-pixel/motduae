@@ -943,9 +943,9 @@
       "noRecent": "لا توجد طلبات حديثة",
       "pricingTitle": "مستحقات الطلبات",
       "pricingDesc": "مبلغ مستحقاتك وحالة الدفع لكل طلب.",
-      "searchPlaceholder": "البحث عن عميل أو طلب...",
+      "searchPlaceholder": "البحث بالرقم التعريفي للطلب...",
       "noOrders": "لا توجد طلبات متطابقة.",
-      "colOrder": "الطلب / العميل",
+      "colOrder": "الطلب",
       "colDate": "التاريخ",
       "colYourPayout": "صافي مستحقاتك",
       "colStatus": "الحالة"
