@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
@@ -30,6 +30,8 @@ import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
 import { isWithinLocalDateRange } from "@/lib/dateRange";
+import OrderRecipientDetails from "@/components/admin/OrderRecipientDetails";
+import type { OrderDeliveryAddress } from "@/lib/orderDelivery";
 
 interface OrderUser {
   _id: string;
@@ -103,6 +105,7 @@ interface Order {
   }>;
   packedAt?: string | null;
   packReadiness?: PackReadiness;
+  customerDeliveryAddress?: OrderDeliveryAddress | null;
 }
 
 const TOAST_BASE = {
@@ -151,10 +154,12 @@ function readPartnerName(
 
 export default function AdminCustomOrdersPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const locale = (params.locale as Locale) || "en";
   const t = useTranslations("Admin.OrdersCustom");
   const tStatus = useTranslations("OrdersPage.custom.statuses");
   const tLogistics = useTranslations("OrdersPage.logistics");
+  const orderIdFromUrl = searchParams.get("orderId");
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,12 +189,16 @@ export default function AdminCustomOrdersPage() {
     return `${d.getFullYear()}-${month}-01`;
   };
 
-  const [filterCustomer, setFilterCustomer] = useState<string>("");
+  const [filterCustomer, setFilterCustomer] = useState<string>(
+    orderIdFromUrl || "",
+  );
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterFrom, setFilterFrom] = useState<string>(
-    getFirstDayOfMonthString(),
+    orderIdFromUrl ? "" : getFirstDayOfMonthString(),
   );
-  const [filterTo, setFilterTo] = useState<string>(getTodayString());
+  const [filterTo, setFilterTo] = useState<string>(
+    orderIdFromUrl ? "" : getTodayString(),
+  );
   const [expandedLogistics, setExpandedLogistics] = useState<
     Record<string, boolean>
   >({});
@@ -234,6 +243,11 @@ export default function AdminCustomOrdersPage() {
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  useEffect(() => {
+    if (!orderIdFromUrl || loading) return;
+    setExpandedLogistics((prev) => ({ ...prev, [orderIdFromUrl]: true }));
+  }, [orderIdFromUrl, loading]);
 
   const handleStatusChange = async (
     order: Order,
@@ -288,6 +302,9 @@ export default function AdminCustomOrdersPage() {
           typeof order.userId === "object" ? order.userId : null,
           "",
         ).toLowerCase();
+        const recipientName = String(
+          order.customerDeliveryAddress?.fullName || "",
+        ).toLowerCase();
         const customerEmail = (
           (typeof order.userId === "object" && order.userId?.email) ||
           ""
@@ -296,6 +313,7 @@ export default function AdminCustomOrdersPage() {
 
         if (
           !customerName.includes(term) &&
+          !recipientName.includes(term) &&
           !customerEmail.includes(term) &&
           !orderId.includes(term)
         ) {
@@ -536,13 +554,10 @@ export default function AdminCustomOrdersPage() {
           {paginatedOrders.map((order) => {
             const isUpdating = updatingOrderId === order._id;
             const isGuest = isGuestOrderUser(order.userId);
-            const customerName =
-              isGuest && (order as any).customerDeliveryAddress?.fullName
-                ? (order as any).customerDeliveryAddress.fullName
-                : readPartnerName(
-                    typeof order.userId === "object" ? order.userId : null,
-                    t("unknownCustomer"),
-                  );
+            const accountName = readPartnerName(
+              typeof order.userId === "object" ? order.userId : null,
+              "",
+            );
             const customerEmail = resolveOrderDisplayEmail(order);
 
             const tailorName = readPartnerName(
@@ -589,24 +604,17 @@ export default function AdminCustomOrdersPage() {
                     <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">
                       {t("columns.customer")}
                     </p>
-                    <p className="font-medium text-sm text-black">
-                      {customerName}
-                    </p>
+                    <OrderRecipientDetails
+                      order={order}
+                      accountName={isGuest ? "" : accountName}
+                      fallbackName={t("unknownCustomer")}
+                      locale={locale}
+                    />
                     {customerEmail && (
-                      <p className="text-xs text-gray-500">{customerEmail}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {customerEmail}
+                      </p>
                     )}
-                    {isGuest
-                      ? (order as any).customerDeliveryAddress?.phone && (
-                          <p className="text-xs text-gray-500 font-mono mt-0.5">
-                            {(order as any).customerDeliveryAddress.phone}
-                          </p>
-                        )
-                      : typeof order.userId === "object" &&
-                        order.userId?.phone && (
-                          <p className="text-xs text-gray-500 font-mono mt-0.5">
-                            {order.userId.phone}
-                          </p>
-                        )}
                   </div>
 
                   <div className="md:col-span-2 space-y-3">

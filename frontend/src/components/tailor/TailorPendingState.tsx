@@ -1,18 +1,16 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 export default function TailorPendingState() {
     const t = useTranslations("TailorPortal.pending");
     const tPortal = useTranslations("TailorPortal");
     const { logout } = useAuth();
-    const router = useRouter();
 
     const handleLogout = () => {
-        logout();
-        router.push("/auth/login?redirect=/tailor");
+        void logout("/auth/login?redirect=/tailor");
     };
 
     return (

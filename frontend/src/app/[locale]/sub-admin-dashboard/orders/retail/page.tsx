@@ -17,6 +17,8 @@ import PermissionGuard from "@/lib/auth/PermissionGuard";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
 import { localDayEndISO, localDayStartISO } from "@/lib/dateRange";
+import OrderRecipientDetails from "@/components/admin/OrderRecipientDetails";
+import type { OrderDeliveryAddress } from "@/lib/orderDelivery";
 
 type RetailOrder = {
   _id: string;
@@ -37,6 +39,7 @@ type RetailOrder = {
   currency: string;
   status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
   createdAt: string;
+  shippingAddress?: OrderDeliveryAddress | null;
 };
 
 const RETAIL_ORDER_STATUSES: RetailOrder["status"][] = [
@@ -221,8 +224,9 @@ export default function AdminRetailOrdersPage() {
       if (filterTo) queryParams.append("to", localDayEndISO(filterTo));
 
       const url = `/api/admin/orders/retail${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
-      const data = await api.get<RetailOrder[]>(url);
-      setOrders(data);
+      const data = await api.get<any>(url);
+      const items = Array.isArray(data) ? data : data?.items || [];
+      setOrders(items);
     } catch (err: any) {
       console.error("Retail orders fetch error:", err);
       setError(getApiErrorMessage(err, t.errorTitle));
@@ -475,27 +479,15 @@ export default function AdminRetailOrdersPage() {
                       <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">
                         {t.columns.customer}
                       </p>
-                      <p className="font-medium text-sm text-black">
-                        {isGuest
-                          ? (order as any).shippingAddress?.fullName || t.unknownCustomer
-                          : order.userId?.name || t.unknownCustomer}
-                      </p>
+                      <OrderRecipientDetails
+                        order={order}
+                        accountName={isGuest ? "" : order.userId?.name || ""}
+                        fallbackName={t.unknownCustomer}
+                        locale={locale}
+                      />
                       {customerEmail ? (
-                        <p className="text-xs text-gray-500">{customerEmail}</p>
+                        <p className="text-xs text-gray-500 mt-1">{customerEmail}</p>
                       ) : null}
-                      {isGuest ? (
-                        (order as any).shippingAddress?.phone && (
-                          <p className="text-xs text-gray-500 font-mono mt-0.5">
-                            {(order as any).shippingAddress.phone}
-                          </p>
-                        )
-                      ) : (
-                        order.userId?.phone && (
-                          <p className="text-xs text-gray-500 font-mono mt-0.5">
-                            {order.userId.phone}
-                          </p>
-                        )
-                      )}
                     </div>
 
                     <div>

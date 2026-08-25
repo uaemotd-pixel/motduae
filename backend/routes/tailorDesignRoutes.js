@@ -5,6 +5,7 @@ import Design from "../models/Design.js";
 import TailorShop from "../models/TailorShop.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { deleteTailorDesignUpload } from "../utils/uploads.js";
+import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
 
 const tailorDesignRouter = express.Router();
 
@@ -272,17 +273,10 @@ tailorDesignRouter.post(
       return;
     }
 
-    const slugTaken = await Design.findOne({
-      tailorShopId: shop._id,
-      slug: data.slug,
+    data.slug = await ensureUniqueSlug(Design, data.slug || data.name, {
+      extraFilter: { tailorShopId: shop._id },
+      fallback: "design",
     });
-    if (slugTaken) {
-      res.status(409).json({
-        success: false,
-        message: "Design slug already exists for this shop",
-      });
-      return;
-    }
 
     const design = await Design.create({
       ...data,
@@ -325,17 +319,11 @@ tailorDesignRouter.put(
     }
 
     if (data.slug && data.slug !== design.slug) {
-      const slugTaken = await Design.findOne({
-        tailorShopId: shop._id,
-        slug: data.slug,
+      data.slug = await ensureUniqueSlug(Design, data.slug, {
+        excludeId: design._id,
+        extraFilter: { tailorShopId: shop._id },
+        fallback: "design",
       });
-      if (slugTaken) {
-        res.status(409).json({
-          success: false,
-          message: "Design slug already exists for this shop",
-        });
-        return;
-      }
     }
 
     const previousImages = [...(design.images || [])];

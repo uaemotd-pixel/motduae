@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import {
   PackageSearch,
@@ -29,6 +29,8 @@ import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
 import { localDayEndISO, localDayStartISO } from "@/lib/dateRange";
+import OrderRecipientDetails from "@/components/admin/OrderRecipientDetails";
+import type { OrderDeliveryAddress } from "@/lib/orderDelivery";
 
 type RetailOrder = {
   _id: string;
@@ -59,6 +61,7 @@ type RetailOrder = {
   shipments?: CustomOrderShipmentSummary[];
   packedAt?: string | null;
   packReadiness?: PackReadiness;
+  shippingAddress?: OrderDeliveryAddress | null;
 };
 
 interface ApiResponse {
@@ -225,9 +228,11 @@ const translations = {
 
 export default function AdminRetailOrdersPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const locale = ((params?.locale as string) || "en") as Locale;
   const t =
     translations[locale as keyof typeof translations] || translations.en;
+  const orderIdFromUrl = searchParams.get("orderId");
 
   const [orders, setOrders] = useState<RetailOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -257,9 +262,11 @@ export default function AdminRetailOrdersPage() {
   const [filterCustomer, setFilterCustomer] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterFrom, setFilterFrom] = useState<string>(
-    getFirstDayOfMonthString(),
+    orderIdFromUrl ? "" : getFirstDayOfMonthString(),
   );
-  const [filterTo, setFilterTo] = useState<string>(getTodayString());
+  const [filterTo, setFilterTo] = useState<string>(
+    orderIdFromUrl ? "" : getTodayString(),
+  );
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
   const [expandedLogistics, setExpandedLogistics] = useState<
@@ -289,11 +296,15 @@ export default function AdminRetailOrdersPage() {
         const queryParams = new URLSearchParams();
         queryParams.append("page", page.toString());
         queryParams.append("limit", l.toString());
-        if (filterStatus) queryParams.append("status", filterStatus);
-        if (filterCustomer.trim())
-          queryParams.append("customer", filterCustomer.trim());
-        if (filterFrom) queryParams.append("from", localDayStartISO(filterFrom));
-        if (filterTo) queryParams.append("to", localDayEndISO(filterTo));
+        if (orderIdFromUrl) {
+          queryParams.append("orderId", orderIdFromUrl);
+        } else {
+          if (filterStatus) queryParams.append("status", filterStatus);
+          if (filterCustomer.trim())
+            queryParams.append("customer", filterCustomer.trim());
+          if (filterFrom) queryParams.append("from", localDayStartISO(filterFrom));
+          if (filterTo) queryParams.append("to", localDayEndISO(filterTo));
+        }
 
         const url = `/api/admin/orders/retail?${queryParams.toString()}`;
         const data = await api.get<ApiResponse>(url);
@@ -311,7 +322,7 @@ export default function AdminRetailOrdersPage() {
         setLoading(false);
       }
     },
-    [filterCustomer, filterStatus, filterFrom, filterTo, limit],
+    [filterCustomer, filterStatus, filterFrom, filterTo, limit, orderIdFromUrl],
   );
 
   // Debounced filter / initial load (single source of truth — avoids double fetch)
@@ -328,6 +339,11 @@ export default function AdminRetailOrdersPage() {
       }
     };
   }, [fetchOrders]);
+
+  useEffect(() => {
+    if (!orderIdFromUrl || loading) return;
+    setExpandedLogistics((prev) => ({ ...prev, [orderIdFromUrl]: true }));
+  }, [orderIdFromUrl, loading]);
 
   const handleFromChange = (value: string) => {
     setFilterFrom(value);
@@ -601,26 +617,19 @@ export default function AdminRetailOrdersPage() {
                     <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">
                       {t.columns.customer}
                     </p>
-                    <p className="font-medium text-sm text-black">
-                      {isGuest
-                        ? (order as any).shippingAddress?.fullName ||
-                          t.unknownCustomer
-                        : order.userId?.name || t.unknownCustomer}
-                    </p>
+                    <OrderRecipientDetails
+                      order={order}
+                      accountName={
+                        isGuest ? "" : order.userId?.name || ""
+                      }
+                      fallbackName={t.unknownCustomer}
+                      locale={locale}
+                    />
                     {customerEmail ? (
-                      <p className="text-xs text-gray-500">{customerEmail}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {customerEmail}
+                      </p>
                     ) : null}
-                    {isGuest
-                      ? (order as any).shippingAddress?.phone && (
-                          <p className="text-xs text-gray-500 font-mono mt-0.5">
-                            {(order as any).shippingAddress.phone}
-                          </p>
-                        )
-                      : order.userId?.phone && (
-                          <p className="text-xs text-gray-500 font-mono mt-0.5">
-                            {order.userId.phone}
-                          </p>
-                        )}
                   </div>
 
                   <div>

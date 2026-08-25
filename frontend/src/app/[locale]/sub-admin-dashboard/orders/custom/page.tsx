@@ -21,6 +21,8 @@ import PermissionGuard from "@/lib/auth/PermissionGuard";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
 import { isWithinLocalDateRange } from "@/lib/dateRange";
+import OrderRecipientDetails from "@/components/admin/OrderRecipientDetails";
+import type { OrderDeliveryAddress } from "@/lib/orderDelivery";
 
 interface OrderUser {
   _id: string;
@@ -49,6 +51,7 @@ interface Order {
     price: number;
     thumbnailImage: string;
   }>;
+  customerDeliveryAddress?: OrderDeliveryAddress | null;
 }
 
 const TOAST_BASE = {
@@ -199,6 +202,9 @@ export default function AdminCustomOrdersPage() {
           typeof order.userId === "object" ? order.userId : null,
           "",
         ).toLowerCase();
+        const recipientName = String(
+          order.customerDeliveryAddress?.fullName || "",
+        ).toLowerCase();
         const customerEmail = (
           (typeof order.userId === "object" && order.userId?.email) ||
           ""
@@ -207,6 +213,7 @@ export default function AdminCustomOrdersPage() {
 
         if (
           !customerName.includes(term) &&
+          !recipientName.includes(term) &&
           !customerEmail.includes(term) &&
           !orderId.includes(term)
         ) {
@@ -389,12 +396,10 @@ export default function AdminCustomOrdersPage() {
               const nextStatus = getNextCustomOrderStatus(order.status);
               const previousStatus = getPreviousCustomOrderStatus(order.status);
               const isGuest = isGuestOrderUser(order.userId);
-              const customerName = isGuest && (order as any).customerDeliveryAddress?.fullName
-                ? (order as any).customerDeliveryAddress.fullName
-                : readPartnerName(
-                    typeof order.userId === "object" ? order.userId : null,
-                    t("unknownCustomer"),
-                  );
+              const accountName = readPartnerName(
+                typeof order.userId === "object" ? order.userId : null,
+                "",
+              );
               const customerEmail = resolveOrderDisplayEmail(order);
               const tailorName = readPartnerName(
                 typeof order.tailorShopId === "object"
@@ -416,25 +421,14 @@ export default function AdminCustomOrdersPage() {
                       <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">
                         {t("columns.customer")}
                       </p>
-                      <p className="font-medium text-sm text-black">
-                        {customerName}
-                      </p>
+                      <OrderRecipientDetails
+                        order={order}
+                        accountName={isGuest ? "" : accountName}
+                        fallbackName={t("unknownCustomer")}
+                        locale={locale}
+                      />
                       {customerEmail && (
-                        <p className="text-xs text-gray-500">{customerEmail}</p>
-                      )}
-                      {isGuest ? (
-                        (order as any).customerDeliveryAddress?.phone && (
-                          <p className="text-xs text-gray-500 font-mono mt-0.5">
-                            {(order as any).customerDeliveryAddress.phone}
-                          </p>
-                        )
-                      ) : (
-                        typeof order.userId === "object" &&
-                        order.userId?.phone && (
-                          <p className="text-xs text-gray-500 font-mono mt-0.5">
-                            {order.userId.phone}
-                          </p>
-                        )
+                        <p className="text-xs text-gray-500 mt-1">{customerEmail}</p>
                       )}
                     </div>
 

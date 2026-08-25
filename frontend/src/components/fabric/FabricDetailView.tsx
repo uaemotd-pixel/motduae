@@ -95,6 +95,7 @@ export default function FabricDetailView({
       price: fabric.pricePerMeter,
       size: "Per Meter",
       maxStock: fabric.stockInMeters,
+      quantity,
     });
   };
 

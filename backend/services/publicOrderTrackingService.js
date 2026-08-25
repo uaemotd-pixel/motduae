@@ -9,6 +9,7 @@ import {
 } from "./orderCustomerFormat.js";
 import { getCustomerPieceProgress } from "./shipmentService.js";
 import { isPublicTrackingToken } from "./publicTrackingToken.js";
+import { hydrateRetailOrders } from "./retailOrderHydrate.js";
 
 const CUSTOM_POPULATE = [
   { path: "tailorShopId", select: "name nameAr slug" },
@@ -18,16 +19,6 @@ const CUSTOM_POPULATE = [
   { path: "items.designId", select: "images" },
   { path: "items.fabricId", select: "images" },
 ];
-
-const RETAIL_POPULATE = {
-  path: "orderItems.productId",
-  select:
-    "name nameAr thumbnailImage fabricType fabricTypeAr fabricId designId",
-  populate: [
-    { path: "fabricId", select: "name nameAr images slug" },
-    { path: "designId", select: "name nameAr images slug" },
-  ],
-};
 
 function formatPublicCustomOrder(order) {
   const listItem = formatCustomOrderListItem(order);
@@ -76,16 +67,15 @@ export async function getPublicOrderByTrackingToken(token) {
     };
   }
 
-  const retail = await RetailOrder.findOne({ publicTrackingToken: token })
-    .select(
-      "createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments shippingAddress",
-    )
-    .populate(RETAIL_POPULATE);
+  const retail = await RetailOrder.findOne({ publicTrackingToken: token }).select(
+    "createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments shippingAddress",
+  );
 
   if (retail) {
+    const hydrated = await hydrateRetailOrders(retail);
     return {
       orderType: "retail",
-      order: formatPublicRetailOrder(retail),
+      order: formatPublicRetailOrder(hydrated),
     };
   }
 
