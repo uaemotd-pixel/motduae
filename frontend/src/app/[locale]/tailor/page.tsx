@@ -192,22 +192,9 @@ export default function TailorDashboardPage() {
   const pricingOrders = data?.pricingOrders || [];
   const filteredPricingOrders = useMemo(() => {
     return pricingOrders.filter((order) => {
-      if (getTailorPayout(order) <= 0) return false;
-
       if (!pricingSearch.trim()) return true;
       const term = pricingSearch.toLowerCase();
-      const customerName = readPartnerName(
-        typeof order.userId === "object" ? order.userId : null,
-        "",
-      ).toLowerCase();
-      const customerEmail = (
-        typeof order.userId === "object" ? order.userId.email || "" : ""
-      ).toLowerCase();
-      return (
-        customerName.includes(term) ||
-        customerEmail.includes(term) ||
-        order._id.toLowerCase().includes(term)
-      );
+      return order._id.toLowerCase().includes(term);
     });
   }, [pricingOrders, pricingSearch]);
 
@@ -538,14 +525,6 @@ export default function TailorDashboardPage() {
                       <td className="px-3 py-2.5">
                         <p className="font-medium text-[var(--dash-ink)]">
                           #{order._id.slice(-6)}
-                        </p>
-                        <p className="text-[10px]">
-                          {readPartnerName(
-                            typeof order.userId === "object"
-                              ? order.userId
-                              : null,
-                            "—",
-                          )}
                         </p>
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">

@@ -826,9 +826,9 @@
       "noRecent": "No recent orders",
       "pricingTitle": "Order payouts",
       "pricingDesc": "Your payout amount and payment status per order.",
-      "searchPlaceholder": "Search customer or order...",
+      "searchPlaceholder": "Search by Order ID...",
       "noOrders": "No orders found matching filters.",
-      "colOrder": "Order / Customer",
+      "colOrder": "Order",
       "colDate": "Date",
       "colYourPayout": "Your payout",
       "colStatus": "Status"
