@@ -262,20 +262,20 @@ export function getPriorityStyles(priority: NotificationPriority): string {
 
 export function getAdminDeepLinkHref(
   notification: NotificationItem,
-  locale: string,
+  locale?: string,
 ): { href: string; label: string } | null {
-  const type = notification.type.toLowerCase();
+  const type = (notification.type || "").toLowerCase();
 
   if (type === "user_tailor_registered" && notification.tailorId) {
     return {
-      href: `/${locale}/admin/tailors`,
+      href: "/admin/tailors",
       label: "Approve tailor",
     };
   }
 
   if (type === "user_fabric_store_registered") {
     return {
-      href: `/${locale}/admin/partners`,
+      href: "/admin/partners",
       label: "Review fabric store",
     };
   }
@@ -286,7 +286,7 @@ export function getAdminDeepLinkHref(
   ) {
     const userId = notification.customerUserId || notification.createdBy;
     return {
-      href: `/${locale}/admin/customers?search=${encodeURIComponent(userId!)}`,
+      href: `/admin/customers?search=${encodeURIComponent(userId!)}`,
       label: "View customer",
     };
   }
@@ -402,21 +402,24 @@ export function getOrderDetailHref(
   notification: NotificationItem,
   _locale?: string,
 ): string | null {
-  if (!notification.orderId) return null;
+  const orderId = notification.orderId || notification.order_id;
+  if (!orderId) return null;
 
+  const type = (notification.type || "").toLowerCase();
   const isRetail =
-    notification.orderType === "retail" ||
-    notification.type.startsWith("retail_");
+    notification.orderType === "retail" || type.startsWith("retail_");
+
+  const encodedId = encodeURIComponent(String(orderId));
 
   if (notification.audience === "customer" || !notification.audience) {
     const orderType = isRetail ? "retail" : "custom";
-    return `/account?tab=orders&orderId=${encodeURIComponent(notification.orderId)}&orderType=${orderType}`;
+    return `/account?tab=orders&orderId=${encodedId}&orderType=${orderType}`;
   }
 
-  const locale = _locale || "en";
+  // next-intl Link prefixes the locale; do not include it in the path.
   return isRetail
-    ? `/${locale}/admin/orders?type=retail`
-    : `/${locale}/admin/orders?type=custom`;
+    ? `/admin/orders/retail?orderId=${encodedId}`
+    : `/admin/orders/custom?orderId=${encodedId}`;
 }
 
 export function getReviewHref(): string {

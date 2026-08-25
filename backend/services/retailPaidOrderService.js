@@ -81,7 +81,7 @@ export async function createPaidRetailOrder({
     expectedAmountAed: prepared.totalPrice,
   });
 
-  await deductRetailProductStock(orderItems);
+  await deductRetailProductStock(prepared.finalOrderItems);
 
   const confirmedAt = new Date();
   const orderFields = {

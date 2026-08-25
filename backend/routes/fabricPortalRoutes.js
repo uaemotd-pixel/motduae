@@ -29,6 +29,8 @@ import PlatformSettings from "../models/PlatformSettings.js";
 import { splitMotdCommission } from "../services/pricingService.js";
 import PartnerPayout from "../models/PartnerPayout.js";
 import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
+import { hydrateRetailOrders } from "../services/retailOrderHydrate.js";
+import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
 
 const fabricPortalRouter = express.Router();
 
@@ -309,13 +311,9 @@ fabricPortalRouter.post(
       return;
     }
 
-    const slugTaken = await FabricShop.findOne({ slug: data.slug });
-    if (slugTaken) {
-      res
-        .status(409)
-        .json({ success: false, message: "Shop slug is already in use" });
-      return;
-    }
+    data.slug = await ensureUniqueSlug(FabricShop, data.slug || data.name, {
+      fallback: "shop",
+    });
 
     const shop = await FabricShop.create({
       ...data,
@@ -346,13 +344,10 @@ fabricPortalRouter.put(
     }
 
     if (data.slug && data.slug !== shop.slug) {
-      const slugTaken = await FabricShop.findOne({ slug: data.slug });
-      if (slugTaken) {
-        res
-          .status(409)
-          .json({ success: false, message: "Shop slug is already in use" });
-        return;
-      }
+      data.slug = await ensureUniqueSlug(FabricShop, data.slug, {
+        excludeId: shop._id,
+        fallback: "shop",
+      });
     }
 
     const nextPickupAddress =
@@ -512,14 +507,13 @@ fabricPortalRouter.post(
     if (
       !name ||
       !nameAr ||
-      !slug ||
       !material ||
       pricePerMeter === undefined ||
       pricePerMeter === null
     ) {
       res.status(400).json({
         success: false,
-        message: "name, nameAr, slug, material, and pricePerMeter are required",
+        message: "name, nameAr, material, and pricePerMeter are required",
       });
       return;
     }
@@ -531,19 +525,15 @@ fabricPortalRouter.post(
       return;
     }
 
-    const slugTaken = await Fabric.findOne({ slug: slug.toLowerCase() });
-    if (slugTaken) {
-      res
-        .status(409)
-        .json({ success: false, message: "Fabric slug is already in use" });
-      return;
-    }
+    const uniqueSlug = await ensureUniqueSlug(Fabric, slug || name, {
+      fallback: "fabric",
+    });
 
     const shopPickup = shop.pickupAddress || {};
     const fabric = await Fabric.create({
       name,
       nameAr,
-      slug: slug.toLowerCase(),
+      slug: uniqueSlug,
       description: description || "",
       descriptionAr: descriptionAr || "",
       images,
@@ -579,35 +569,14 @@ fabricPortalRouter.post(
       isActive: isActive !== undefined ? isActive : true,
     });
 
-    const generateUniqueSlug = async (name) => {
-      let base = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-      if (!base) base = "fabric";
-      let slugVal = base;
-      let counter = 1;
-      while (await Fabric.findOne({ slug: slugVal })) {
-        slugVal = `${base}-${counter}`;
-        counter++;
-      }
-      return slugVal;
-    };
-
     if (Array.isArray(req.body.variants)) {
       for (const variant of req.body.variants) {
         if (!variant.name || !variant.nameAr || !variant.material) continue;
-        let vSlug = variant.slug ? variant.slug.toLowerCase().trim() : "";
-        if (!vSlug) {
-          vSlug = await generateUniqueSlug(variant.name);
-        } else {
-          let originalSlug = vSlug;
-          let counter = 1;
-          while (await Fabric.findOne({ slug: vSlug })) {
-            vSlug = `${originalSlug}-${counter}`;
-            counter++;
-          }
-        }
+        const vSlug = await ensureUniqueSlug(
+          Fabric,
+          variant.slug || variant.name,
+          { fallback: "fabric" },
+        );
 
         await Fabric.create({
           name: variant.name,
@@ -691,14 +660,10 @@ fabricPortalRouter.put(
     }
 
     if (slug && slug.toLowerCase() !== fabric.slug) {
-      const slugTaken = await Fabric.findOne({ slug: slug.toLowerCase() });
-      if (slugTaken) {
-        res
-          .status(409)
-          .json({ success: false, message: "Fabric slug is already in use" });
-        return;
-      }
-      fabric.slug = slug.toLowerCase();
+      fabric.slug = await ensureUniqueSlug(Fabric, slug, {
+        excludeId: fabric._id,
+        fallback: "fabric",
+      });
     }
 
     if (name) fabric.name = name;
@@ -741,21 +706,6 @@ fabricPortalRouter.put(
 
     const updatedFabric = await fabric.save();
 
-    const generateUniqueSlug = async (name) => {
-      let base = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-      if (!base) base = "fabric";
-      let slugVal = base;
-      let counter = 1;
-      while (await Fabric.findOne({ slug: slugVal })) {
-        slugVal = `${base}-${counter}`;
-        counter++;
-      }
-      return slugVal;
-    };
-
     if (Array.isArray(req.body.variants)) {
       const incomingIds = [];
       for (const variant of req.body.variants) {
@@ -768,6 +718,12 @@ fabricPortalRouter.put(
           if (existing) {
             if (variant.name) existing.name = variant.name;
             if (variant.nameAr) existing.nameAr = variant.nameAr;
+            if (variant.slug && variant.slug.toLowerCase() !== existing.slug) {
+              existing.slug = await ensureUniqueSlug(Fabric, variant.slug, {
+                excludeId: existing._id,
+                fallback: "fabric",
+              });
+            }
             if (variant.description !== undefined)
               existing.description = variant.description;
             if (variant.descriptionAr !== undefined)
@@ -796,17 +752,11 @@ fabricPortalRouter.put(
           }
         } else {
           if (!variant.name || !variant.nameAr || !variant.material) continue;
-          let vSlug = variant.slug ? variant.slug.toLowerCase().trim() : "";
-          if (!vSlug) {
-            vSlug = await generateUniqueSlug(variant.name);
-          } else {
-            let originalSlug = vSlug;
-            let counter = 1;
-            while (await Fabric.findOne({ slug: vSlug })) {
-              vSlug = `${originalSlug}-${counter}`;
-              counter++;
-            }
-          }
+          const vSlug = await ensureUniqueSlug(
+            Fabric,
+            variant.slug || variant.name,
+            { fallback: "fabric" },
+          );
 
           const newV = await Fabric.create({
             name: variant.name,
@@ -958,10 +908,10 @@ fabricPortalRouter.get(
       "orderItems.productId": { $in: storeItemIds },
     })
       .populate("userId", "name email phone")
-      .populate("orderItems.productId", "thumbnailImage images")
       .sort({ createdAt: -1 });
 
-    res.json(orders);
+    const hydrated = await hydrateRetailOrders(orders);
+    res.json(hydrated);
   }),
 );
 
@@ -1171,14 +1121,11 @@ fabricPortalRouter.post(
       isActive,
     } = req.body;
 
-    let slug = req.body.slug?.trim();
-    if (!slug) {
-      const base = name || nameAr || "ready-made";
-      slug = base
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-    }
+    const slug = await ensureUniqueSlug(
+      ReadyMadeProduct,
+      req.body.slug || name || nameAr,
+      { fallback: "ready-made" },
+    );
 
     const newProduct = new ReadyMadeProduct({
       name,
@@ -1251,7 +1198,12 @@ fabricPortalRouter.put(
 
     product.name = req.body.name ?? product.name;
     product.nameAr = req.body.nameAr ?? product.nameAr;
-    product.slug = req.body.slug ?? product.slug;
+    if (req.body.slug && req.body.slug !== product.slug) {
+      product.slug = await ensureUniqueSlug(ReadyMadeProduct, req.body.slug, {
+        excludeId: product._id,
+        fallback: "ready-made",
+      });
+    }
     product.code = req.body.code ?? product.code;
     product.description = req.body.description ?? product.description;
     product.descriptionAr = req.body.descriptionAr ?? product.descriptionAr;
@@ -1413,14 +1365,9 @@ fabricPortalRouter.post(
       isActive,
     } = req.body;
 
-    let slug = req.body.slug?.trim();
-    if (!slug) {
-      const base = name || nameAr || "addon";
-      slug = base
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-    }
+    const slug = await ensureUniqueSlug(AddOn, req.body.slug || name || nameAr, {
+      fallback: "addon",
+    });
 
     const addon = new AddOn({
       name,
@@ -1494,7 +1441,12 @@ fabricPortalRouter.put(
 
     addon.name = name ?? addon.name;
     addon.nameAr = nameAr ?? addon.nameAr;
-    addon.slug = slug ?? addon.slug;
+    if (slug && slug !== addon.slug) {
+      addon.slug = await ensureUniqueSlug(AddOn, slug, {
+        excludeId: addon._id,
+        fallback: "addon",
+      });
+    }
     addon.description = description ?? addon.description;
     addon.descriptionAr = descriptionAr ?? addon.descriptionAr;
     addon.price = price ?? addon.price;

@@ -17,20 +17,35 @@ const RETAIL_ORDER_STATUSES = [
 
 const PAYMENT_METHODS = ["apple_pay", "card"];
 
+const RETAIL_ITEM_KINDS = ["readyMade", "addon", "fabric"];
+
 const orderItemSchema = new mongoose.Schema(
   {
+    // Mixed catalog: ready-made, add-on, or fabric-by-the-meter. Do not set a
+    // single `ref` here — populate(ReadyMadeProduct) nulls fabric/add-on IDs.
     productId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "ReadyMadeProduct",
       required: true,
+    },
+    kind: {
+      type: String,
+      enum: RETAIL_ITEM_KINDS,
+      default: "readyMade",
+      trim: true,
+    },
+    fabricShopId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "FabricShop",
+      default: null,
     },
     name: { type: String, required: true, trim: true },
     nameAr: { type: String, default: "", trim: true },
-    slug: { type: String, required: true, trim: true },
+    slug: { type: String, default: "", trim: true },
     image: { type: String, default: "", trim: true },
     size: { type: String, required: true, trim: true },
     price: { type: Number, required: true, min: 0 },
-    quantity: { type: Number, required: true, min: 1 },
+    quantity: { type: Number, required: true, min: 0.01 },
+    quantityInMeters: { type: Number, default: null, min: 0 },
   },
   { _id: false },
 );
@@ -205,4 +220,4 @@ retailOrderSchema.index(
 const RetailOrder = mongoose.model("RetailOrder", retailOrderSchema);
 
 export default RetailOrder;
-export { ORDER_TYPE, RETAIL_ORDER_STATUSES, PAYMENT_METHODS };
+export { ORDER_TYPE, RETAIL_ORDER_STATUSES, PAYMENT_METHODS, RETAIL_ITEM_KINDS };

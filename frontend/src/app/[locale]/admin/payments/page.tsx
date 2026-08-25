@@ -381,9 +381,10 @@ export default function AdminPaymentsPage() {
         : null;
     const retailFabricShops = [
       ...(Array.isArray(order.fabricStores) ? order.fabricStores : []),
-      ...(order.orderItems || []).map(
-        (item: any) => item.productId?.fabricShopId,
-      ),
+      ...(order.orderItems || []).flatMap((item: any) => [
+        item.productId?.fabricShopId,
+        item.fabricShopId,
+      ]),
     ].filter((shop: any) => shop && typeof shop === "object");
 
     const fabricStore = firstObject(

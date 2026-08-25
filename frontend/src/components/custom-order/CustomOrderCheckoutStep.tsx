@@ -50,6 +50,11 @@ import {
   isValidEmirate,
   normalizeEmirate,
 } from "@/lib/uaeAddress";
+import {
+  buildCheckoutAddressOptions,
+  findCheckoutAddressOption,
+  type FamilyMember,
+} from "@/lib/checkoutAddresses";
 
 type CustomerAddress = {
   _id?: string;
@@ -74,6 +79,7 @@ type CustomerProfile = {
   profilePic?: string;
   gender?: string;
   addresses?: CustomerAddress[];
+  savedUsers?: FamilyMember[];
   defaultAddressId?: string;
 };
 
@@ -322,14 +328,12 @@ export default function CustomOrderCheckoutStep() {
         const data = await api.get<CustomerProfile>("/api/customer/profile");
         setCustomerProfile(data);
 
-        const addresses = data.addresses || [];
-        if (addresses.length > 0) {
+        const options = buildCheckoutAddressOptions(data, locale);
+        if (options.length > 0) {
           const defaultAddr =
-            addresses.find((a) => a.isDefault) || addresses[0];
-          setSelectedAddressId(defaultAddr._id || "");
-          const normalizedPhone = normalizeUaePhone(
-            defaultAddr.phone || data.phone || "",
-          );
+            options.find((option) => option.isDefault) || options[0];
+          setSelectedAddressId(defaultAddr.id);
+          const normalizedPhone = normalizeUaePhone(defaultAddr.phone || "");
           updateDeliveryAddress({
             fullName: defaultAddr.fullName || data.name || "",
             phone: normalizedPhone,
@@ -339,9 +343,7 @@ export default function CustomOrderCheckoutStep() {
             line2: defaultAddr.building || "",
             postalCode: defaultAddr.postalCode || "",
           });
-          setContactEmail(
-            data.email || user?.email || defaultAddr.email || "",
-          );
+          setContactEmail(data.email || user?.email || "");
         } else {
           const normalizedPhone = normalizeUaePhone(data.phone || "");
           updateDeliveryAddress({
@@ -362,10 +364,11 @@ export default function CustomOrderCheckoutStep() {
     fetchCustomerOrMemberAddress();
   }, [isAuthenticated, updateDeliveryAddress, user]);
 
+  const addressOptions = buildCheckoutAddressOptions(customerProfile, locale);
+
   // --- Address selection handler ---
   const handleAddressSelect = (addressId: string) => {
-    if (!customerProfile?.addresses) return;
-    const address = customerProfile.addresses.find((a) => a._id === addressId);
+    const address = findCheckoutAddressOption(addressOptions, addressId);
     if (!address) return;
 
     setSelectedAddressId(addressId);
@@ -379,9 +382,7 @@ export default function CustomOrderCheckoutStep() {
       line2: address.building || "",
       postalCode: address.postalCode || "",
     });
-    setContactEmail(
-      address.email || customerProfile.email || user?.email || "",
-    );
+    setContactEmail(customerProfile?.email || user?.email || "");
 
     setErrors({});
     if (submitError) setSubmitError(null);
@@ -809,32 +810,51 @@ export default function CustomOrderCheckoutStep() {
                   {t("deliveryTitle")}
                 </h2>
 
-                {/* Address Dropdown */}
-                {customerProfile?.addresses &&
-                  customerProfile.addresses.length > 0 && (
+                {addressOptions.length > 0 && (
                     <div className="mb-6 p-3 bg-gray-50/80 rounded-lg border border-gray-200/60">
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/50 uppercase tracking-[0.2em] block mb-2">
-                        Select Address
+                        {locale === "ar" ? "اختر العنوان" : "Select Address"}
                       </label>
                       <select
                         value={selectedAddressId}
                         onChange={(e) => handleAddressSelect(e.target.value)}
                         className="w-full h-11 md:h-12 bg-white border border-gray-200/80 rounded-md px-3 text-[15px] md:text-[16px] font-body-md transition-all focus:border-black/40 focus:outline-none focus:ring-0 text-black"
                       >
-                        {customerProfile.addresses.map((addr, index) => (
-                          <option
-                            key={addr._id || index}
-                            value={addr._id || ""}
+                        {addressOptions.some((option) => option.group === "profile") ? (
+                          <optgroup
+                            label={locale === "ar" ? "عناويني" : "My addresses"}
                           >
-                            {addr.fullName} - {addr.city}{" "}
-                            {addr.isDefault ? "(Default)" : ""}
-                          </option>
-                        ))}
+                            {addressOptions
+                              .filter((option) => option.group === "profile")
+                              .map((option) => (
+                                <option key={option.id} value={option.id}>
+                                  {option.label}
+                                </option>
+                              ))}
+                          </optgroup>
+                        ) : null}
+                        {addressOptions.some((option) => option.group === "family") ? (
+                          <optgroup
+                            label={
+                              locale === "ar"
+                                ? "أفراد العائلة"
+                                : "Family members"
+                            }
+                          >
+                            {addressOptions
+                              .filter((option) => option.group === "family")
+                              .map((option) => (
+                                <option key={option.id} value={option.id}>
+                                  {option.label}
+                                </option>
+                              ))}
+                          </optgroup>
+                        ) : null}
                       </select>
                       <p className="text-[11px] text-gray-400 mt-1.5">
                         {locale === "ar"
-                          ? "اختر عنوانك للشحن"
-                          : "Select your shipping address"}
+                          ? "اختر عنوانك أو عنوان أحد أفراد العائلة للشحن"
+                          : "Select your address or a family member address"}
                       </p>
                     </div>
                   )}
