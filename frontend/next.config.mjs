@@ -18,6 +18,25 @@ const nextConfig = {
         },
       }
     : {}),
+  async redirects() {
+    return [
+      {
+        source: "/:locale/sub-admin-dashboard",
+        destination: "/:locale/admin",
+        permanent: true,
+      },
+      {
+        source: "/:locale/sub-admin-dashboard/dashboard",
+        destination: "/:locale/admin",
+        permanent: true,
+      },
+      {
+        source: "/:locale/sub-admin-dashboard/:path*",
+        destination: "/:locale/admin/:path*",
+        permanent: true,
+      },
+    ];
+  },
   async rewrites() {
     // In development, proxy /api and /uploads from the Next.js dev server
     // (:3000) to the standalone Express backend (:5000). In production the
