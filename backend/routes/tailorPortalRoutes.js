@@ -22,6 +22,7 @@ import { getTimeframeWindow } from "../utils/dateRange.js";
 import { splitMotdCommission } from "../services/pricingService.js";
 import PartnerPayout from "../models/PartnerPayout.js";
 import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
+import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
 
 const tailorPortalRouter = express.Router();
 
@@ -348,14 +349,9 @@ tailorPortalRouter.post(
       return;
     }
 
-    const slugTaken = await TailorShop.findOne({ slug: data.slug });
-    if (slugTaken) {
-      res.status(409).json({
-        success: false,
-        message: "Shop slug is already in use",
-      });
-      return;
-    }
+    data.slug = await ensureUniqueSlug(TailorShop, data.slug || data.name, {
+      fallback: "shop",
+    });
 
     const shop = await TailorShop.create({
       ...data,
@@ -401,14 +397,10 @@ tailorPortalRouter.put(
     }
 
     if (data.slug && data.slug !== shop.slug) {
-      const slugTaken = await TailorShop.findOne({ slug: data.slug });
-      if (slugTaken) {
-        res.status(409).json({
-          success: false,
-          message: "Shop slug is already in use",
-        });
-        return;
-      }
+      data.slug = await ensureUniqueSlug(TailorShop, data.slug, {
+        excludeId: shop._id,
+        fallback: "shop",
+      });
     }
 
     const nextPickupAddress =

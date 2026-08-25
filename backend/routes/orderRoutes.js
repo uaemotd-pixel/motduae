@@ -34,6 +34,7 @@ import {
 } from "../services/pricingService.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { prepareRetailOrder } from "../services/retailOrderService.js";
+import { hydrateRetailOrders } from "../services/retailOrderHydrate.js";
 import { isStripeConfigured } from "../services/stripeService.js";
 import {
   fulfillPaidCheckout,
@@ -620,10 +621,9 @@ orderRoutes.get("/custom/:id", isAuth, async (req, res) => {
       });
     }
 
-    const order = await CustomOrder.findById(id).populate(
-      "tailorShopId",
-      "name nameAr slug logo city",
-    );
+    const order = await CustomOrder.findById(id)
+      .populate("userId", "name email phone")
+      .populate("tailorShopId", "name nameAr slug logo city");
 
     if (!order) {
       return res.status(404).json({
@@ -768,20 +768,12 @@ orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
   try {
     const orders = await RetailOrder.find({ userId: req.user._id })
       .sort({ createdAt: -1 })
-      .populate({
-        path: "orderItems.productId",
-        select:
-          "name nameAr thumbnailImage fabricType fabricTypeAr fabricId designId",
-        populate: [
-          { path: "fabricId", select: "name nameAr images slug" },
-          { path: "designId", select: "name nameAr images slug" },
-        ],
-      })
       .select(
         "_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments",
       );
 
-    const formatted = orders.map((order) => formatRetailOrderListItem(order));
+    const hydrated = await hydrateRetailOrders(orders);
+    const formatted = hydrated.map((order) => formatRetailOrderListItem(order));
 
     res.json({ success: true, orders: formatted });
   } catch (error) {
@@ -805,7 +797,10 @@ orderRoutes.get("/retail/:id", isAuth, async (req, res) => {
       });
     }
 
-    const order = await RetailOrder.findById(id);
+    const order = await RetailOrder.findById(id).populate(
+      "userId",
+      "name email phone",
+    );
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -821,9 +816,11 @@ orderRoutes.get("/retail/:id", isAuth, async (req, res) => {
       });
     }
 
+    const hydrated = await hydrateRetailOrders(order);
+
     res.json({
       success: true,
-      order,
+      order: hydrated,
     });
   } catch (error) {
     console.error("GET /retail/:id error:", error);

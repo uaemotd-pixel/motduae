@@ -49,6 +49,11 @@ import {
   getEmirateEn,
   getEmirateAr,
 } from "@/lib/uaeAddress";
+import {
+  buildCheckoutAddressOptions,
+  findCheckoutAddressOption,
+  type FamilyMember,
+} from "@/lib/checkoutAddresses";
 
 type CustomerAddress = {
   _id?: string;
@@ -73,6 +78,7 @@ type CustomerProfile = {
   profilePic?: string;
   gender?: string;
   addresses?: CustomerAddress[];
+  savedUsers?: FamilyMember[];
   defaultAddressId?: string;
 };
 
@@ -389,6 +395,7 @@ function CheckoutPageContent() {
           productId: string;
           size: string;
           quantity: number;
+          measurementUnit?: string;
         }> = [];
 
         if (isBuyNow && buyNowItemsArray && buyNowItemsArray.length > 0) {
@@ -396,6 +403,7 @@ function CheckoutPageContent() {
             productId: item.id,
             size: item.size || "",
             quantity: item.quantity || 1,
+            ...(item.size === "Per Meter" ? { measurementUnit } : {}),
           }));
         } else if (isBuyNow && buyNowProductId) {
           itemsToPreview = [
@@ -403,6 +411,9 @@ function CheckoutPageContent() {
               productId: buyNowProductId,
               size: buyNowSize,
               quantity: buyNowQuantity,
+              ...(buyNowSize === "Per Meter"
+                ? { measurementUnit }
+                : {}),
             },
           ];
         } else {
@@ -410,6 +421,7 @@ function CheckoutPageContent() {
             productId: item.id,
             size: item.size || "",
             quantity: item.quantity || 1,
+            ...(item.size === "Per Meter" ? { measurementUnit } : {}),
           }));
         }
 
@@ -443,6 +455,7 @@ function CheckoutPageContent() {
     buyNowQuantity,
     buyNowItemsArray,
     items,
+    measurementUnit,
   ]);
 
   // --- Build display items with server prices ---
@@ -523,21 +536,21 @@ function CheckoutPageContent() {
         const data = await api.get<CustomerProfile>("/api/customer/profile");
         setCustomerProfile(data);
 
-        const addresses = data.addresses || [];
-        if (addresses.length > 0) {
-          const defaultAddr =
-            addresses.find((a) => a.isDefault) || addresses[0];
-          setSelectedAddressId(defaultAddr._id || "");
+        const options = buildCheckoutAddressOptions(data, localeParams);
+        if (options.length > 0) {
+          const defaultOption =
+            options.find((option) => option.isDefault) || options[0];
+          setSelectedAddressId(defaultOption.id);
           setFormData((prev) => ({
             ...prev,
-            fullName: defaultAddr.fullName || data.name || "",
+            fullName: defaultOption.fullName || data.name || "",
             email: data.email || user?.email || prev.email || "",
-            phone: normalizeUaePhone(defaultAddr.phone || ""),
-            emirate: defaultAddr.emirate || "",
-            city: defaultAddr.city || "",
-            street: defaultAddr.street || "",
-            building: defaultAddr.building || "",
-            postalCode: defaultAddr.postalCode || "",
+            phone: normalizeUaePhone(defaultOption.phone || ""),
+            emirate: defaultOption.emirate || "",
+            city: defaultOption.city || "",
+            street: defaultOption.street || "",
+            building: defaultOption.building || "",
+            postalCode: defaultOption.postalCode || "",
           }));
         } else {
           const normalizedPhone = normalizeUaePhone(data.phone || "");
@@ -562,22 +575,21 @@ function CheckoutPageContent() {
     fetchCustomerProfile();
   }, [isAuthenticated, user]);
 
+  const addressOptions = buildCheckoutAddressOptions(
+    customerProfile,
+    localeParams,
+  );
+
   // --- Address selection handler ---
   const handleAddressSelect = (addressId: string) => {
-    if (!customerProfile?.addresses) return;
-    const address = customerProfile.addresses.find((a) => a._id === addressId);
+    const address = findCheckoutAddressOption(addressOptions, addressId);
     if (!address) return;
 
     setSelectedAddressId(addressId);
     setFormData((prev) => ({
       ...prev,
       fullName: address.fullName || "",
-      email:
-        address.email ||
-        customerProfile.email ||
-        user?.email ||
-        prev.email ||
-        "",
+      email: customerProfile?.email || user?.email || prev.email || "",
       phone: normalizeUaePhone(address.phone || ""),
       emirate: address.emirate || "",
       city: address.city || "",
@@ -729,6 +741,7 @@ function CheckoutPageContent() {
       productId: item.id,
       size: item.size,
       quantity: item.quantity,
+      ...(item.size === "Per Meter" ? { measurementUnit } : {}),
     }));
 
     const isArabic = localeParams === "ar";
@@ -1023,32 +1036,53 @@ function CheckoutPageContent() {
                     {t.checkout.deliveryDetails}
                   </h2>
 
-                  {/* Address Dropdown */}
-                  {customerProfile?.addresses &&
-                    customerProfile.addresses.length > 0 && (
+                  {addressOptions.length > 0 && (
                       <div className="mb-6 p-3 bg-gray-50/80 rounded-lg border border-gray-200/60">
                         <label className="font-label-sm text-[11px] md:text-[12px] text-black/50 uppercase tracking-[0.2em] block mb-2">
-                          Select Address
+                          {locale === "ar" ? "اختر العنوان" : "Select Address"}
                         </label>
                         <select
                           value={selectedAddressId}
                           onChange={(e) => handleAddressSelect(e.target.value)}
                           className="w-full h-11 md:h-12 bg-white border border-gray-200/80 rounded-md px-3 text-[15px] md:text-[16px] font-body-md transition-all focus:border-black/40 focus:outline-none focus:ring-0 text-black"
                         >
-                          {customerProfile.addresses.map((addr, index) => (
-                            <option
-                              key={addr._id || index}
-                              value={addr._id || ""}
+                          {addressOptions.some((option) => option.group === "profile") ? (
+                            <optgroup
+                              label={
+                                locale === "ar" ? "عناويني" : "My addresses"
+                              }
                             >
-                              {addr.fullName} - {addr.city}{" "}
-                              {addr.isDefault ? "(Default)" : ""}
-                            </option>
-                          ))}
+                              {addressOptions
+                                .filter((option) => option.group === "profile")
+                                .map((option) => (
+                                  <option key={option.id} value={option.id}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                            </optgroup>
+                          ) : null}
+                          {addressOptions.some((option) => option.group === "family") ? (
+                            <optgroup
+                              label={
+                                locale === "ar"
+                                  ? "أفراد العائلة"
+                                  : "Family members"
+                              }
+                            >
+                              {addressOptions
+                                .filter((option) => option.group === "family")
+                                .map((option) => (
+                                  <option key={option.id} value={option.id}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                            </optgroup>
+                          ) : null}
                         </select>
                         <p className="text-[11px] text-gray-400 mt-1.5">
                           {locale === "ar"
-                            ? "اختر عنوانك للشحن"
-                            : "Select your shipping address"}
+                            ? "اختر عنوانك أو عنوان أحد أفراد العائلة للشحن"
+                            : "Select your address or a family member address"}
                         </p>
                       </div>
                     )}

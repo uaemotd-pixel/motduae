@@ -5,6 +5,8 @@ import {
     useContext,
     useState,
     useEffect,
+    useCallback,
+    useRef,
     ReactNode,
 } from 'react';
 
@@ -91,12 +93,21 @@ interface AuthContextType {
     registerTailor: (name: string, email: string, password: string) => Promise<User>;
     registerFabricStore: (name: string, email: string, password: string) => Promise<User>;
     forgotPassword: (email: string) => Promise<string>;
-    logout: () => Promise<void>;
+    logout: (redirectTo?: string) => Promise<void>;
     applyUserResponse: (response: ApiUserResponse) => User;
     isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function resolveLogoutLocation(redirectTo: string): string {
+    if (typeof window === "undefined") return redirectTo;
+    const segment = window.location.pathname.split("/")[1];
+    const locale = segment === "ar" || segment === "en" ? segment : "en";
+    const path = redirectTo.startsWith("/") ? redirectTo : `/${redirectTo}`;
+    if (path === `/${locale}` || path.startsWith(`/${locale}/`)) return path;
+    return `/${locale}${path}`;
+}
 
 interface AuthProviderProps {
     children: ReactNode;
@@ -105,6 +116,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const loggedOutRef = useRef(false);
 
     useEffect(() => {
         const loadUser = async () => {
@@ -112,12 +124,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
             try {
                 const profile = await api.get<ApiUserResponse>('/api/users/profile');
+                if (loggedOutRef.current) return;
                 setUser(mapApiUser(profile));
             } catch (error) {
                 if ((error as any)?.status !== 401) {
                     console.error('Failed to load user profile:', (error as any)?.message || error);
                 }
-                setUser(null);
+                if (!loggedOutRef.current) {
+                    setUser(null);
+                }
             } finally {
                 setIsLoading(false);
             }
@@ -127,6 +142,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }, []);
 
     const persistSession = (response: ApiUserResponse) => {
+        loggedOutRef.current = false;
         const mappedUser = mapApiUser(response);
         setUser(mappedUser);
         return mappedUser;
@@ -196,14 +212,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return persistSession(response);
     };
 
-    const logout = async () => {
-        try {
-            await api.post('/api/users/logout');
-        } catch {
-            // Clear local session even if the API call fails
-        }
+    const logout = useCallback(async (redirectTo = "/auth/login") => {
+        loggedOutRef.current = true;
         setUser(null);
-    };
+        clearLegacyAuthToken();
+        try {
+            await api.post("/api/users/logout");
+        } catch {
+            // Local session is already cleared.
+        }
+        if (typeof window !== "undefined") {
+            window.location.replace(resolveLogoutLocation(redirectTo));
+        }
+    }, []);
 
     const value: AuthContextType = {
         user,

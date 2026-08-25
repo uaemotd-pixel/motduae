@@ -1,18 +1,16 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 export default function FabricPendingState() {
     const t = useTranslations("FabricPortal.pending");
     const tPortal = useTranslations("FabricPortal");
     const { logout } = useAuth();
-    const router = useRouter();
 
     const handleLogout = () => {
-        logout();
-        router.push("/auth/login?redirect=/fabric");
+        void logout("/auth/login?redirect=/fabric");
     };
 
     return (

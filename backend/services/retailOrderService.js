@@ -1,12 +1,33 @@
 import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
 import AddOn from "../models/AddOn.js";
 import Fabric from "../models/Fabric.js";
+import FabricShop from "../models/FabricShop.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { planRetailOrderParcels } from "./parcelPlanService.js";
 import { getPerParcelDeliveryFee } from "./pricingService.js";
 
 // Conversion constant: 1 wara (also spelled "wara") = 0.9144 meters
 const WARA_TO_METERS = 0.9144;
+
+function fallbackSlug(product) {
+  if (product?.slug) return product.slug;
+  return String(product?.name || "item")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
+}
+
+async function resolveLineFabricShopId(product) {
+  if (product?.fabricShopId) return product.fabricShopId;
+  if (product?.listedByStore) {
+    const shop = await FabricShop.findOne({ ownerId: product.listedByStore }).select(
+      "_id",
+    );
+    return shop?._id || null;
+  }
+  return null;
+}
 
 export async function prepareRetailOrder(orderItems) {
   if (!orderItems || orderItems.length === 0) {
@@ -89,17 +110,20 @@ export async function prepareRetailOrder(orderItems) {
       sizeLabel = product.metersPerFabric;
     }
 
+    const kind = isFabric ? "fabric" : isAddon ? "addon" : "readyMade";
+    const fabricShopId = await resolveLineFabricShopId(product);
+
     finalOrderItems.push({
       productId: product._id,
+      kind,
+      fabricShopId,
       name: product.name,
-      nameAr: product.nameAr,
-      slug: product.slug,
+      nameAr: product.nameAr || "",
+      slug: fallbackSlug(product),
       image: isAddon ? product.thumbnailImage || "" : product.images?.[0] || "",
       size: sizeLabel,
       price: finalPrice,
       quantity,
-      // record converted fabric meters when applicable so downstream
-      // consumers (and stock deduction) can operate on meters.
       ...(isFabric ? { quantityInMeters: quantityForStockCheck } : {}),
     });
 
@@ -140,39 +164,46 @@ export async function prepareRetailOrder(orderItems) {
 export async function deductRetailProductStock(orderItems) {
   for (const item of orderItems) {
     const requestedQty = item.quantity || 1;
+    const isFabricLine =
+      item.kind === "fabric" || item.size === "Per Meter";
 
-    // First try to decrement ready-made availableFabricStock (whole-item counts)
-    // using the raw requested quantity (no conversion).
-    let updated = await ReadyMadeProduct.findOneAndUpdate(
-      { _id: item.productId, availableFabricStock: { $gte: requestedQty } },
-      { $inc: { availableFabricStock: -requestedQty } },
-      { new: true },
-    );
-
-    // If not updated, try AddOn stock (also whole counts)
-    if (!updated) {
-      updated = await AddOn.findOneAndUpdate(
-        { _id: item.productId, stock: { $gte: requestedQty } },
-        { $inc: { stock: -requestedQty } },
+    if (!isFabricLine) {
+      let updated = await ReadyMadeProduct.findOneAndUpdate(
+        { _id: item.productId, availableFabricStock: { $gte: requestedQty } },
+        { $inc: { availableFabricStock: -requestedQty } },
         { new: true },
       );
-    }
 
-    // If still not updated, try Fabric stock (stored in meters).
-    if (!updated) {
-      // If the client provided a measurement unit (e.g., 'wara'), convert
-      // the requested quantity to meters before attempting the decrement.
-      let qtyForFabric = requestedQty;
-      if (item.measurementUnit === "wara") {
-        qtyForFabric = requestedQty * WARA_TO_METERS;
+      if (!updated) {
+        updated = await AddOn.findOneAndUpdate(
+          { _id: item.productId, stock: { $gte: requestedQty } },
+          { $inc: { stock: -requestedQty } },
+          { new: true },
+        );
       }
 
-      updated = await Fabric.findOneAndUpdate(
-        { _id: item.productId, stockInMeters: { $gte: qtyForFabric } },
-        { $inc: { stockInMeters: -qtyForFabric } },
-        { new: true },
-      );
+      if (!updated) {
+        throw new Error(`Insufficient stock for product: ${item.productId}`);
+      }
+      continue;
     }
+
+    let qtyForFabric =
+      typeof item.quantityInMeters === "number" && item.quantityInMeters > 0
+        ? item.quantityInMeters
+        : requestedQty;
+    if (
+      item.measurementUnit === "wara" &&
+      !(typeof item.quantityInMeters === "number" && item.quantityInMeters > 0)
+    ) {
+      qtyForFabric = requestedQty * WARA_TO_METERS;
+    }
+
+    const updated = await Fabric.findOneAndUpdate(
+      { _id: item.productId, stockInMeters: { $gte: qtyForFabric } },
+      { $inc: { stockInMeters: -qtyForFabric } },
+      { new: true },
+    );
 
     if (!updated) {
       throw new Error(`Insufficient stock for product: ${item.productId}`);
