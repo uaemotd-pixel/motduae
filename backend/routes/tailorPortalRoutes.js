@@ -839,7 +839,9 @@ tailorPortalRouter.get(
         status: payoutStatus,
       },
       recentOrders,
-      pricingOrders,
+      pricingOrders: allScopedOrders.map((o) =>
+        presentCustomOrderForTailor(o, shopId),
+      ),
     });
   }),
 );

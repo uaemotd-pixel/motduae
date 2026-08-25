@@ -536,6 +536,26 @@ export function getTailorFacingStatus(order, tailorShopId) {
 export function presentCustomOrderForTailor(order, tailorShopId) {
   const payload =
     order && typeof order.toObject === "function" ? order.toObject() : order;
+
+  // Sanitize customer details for tailors
+  if (payload.userId) {
+    payload.userId = {
+      _id: payload.userId._id || payload.userId,
+      name: "Customer",
+    };
+  }
+  delete payload.customerDeliveryAddress;
+  delete payload.contactEmail;
+  delete payload.pickupAddress;
+  if (Array.isArray(payload.shipments)) {
+    payload.shipments = payload.shipments.map((s) => {
+      const sanitized = { ...s };
+      delete sanitized.pickupAddress;
+      delete sanitized.dropoffAddress;
+      return sanitized;
+    });
+  }
+
   const tailorStatus = getTailorFacingStatus(payload, tailorShopId);
   const orderStatus = payload?.status;
   return {
