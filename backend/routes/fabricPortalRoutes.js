@@ -27,6 +27,8 @@ import { hasActiveFabricShipments } from "../services/shipmentService.js";
 import { getTimeframeWindow } from "../utils/dateRange.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { splitMotdCommission } from "../services/pricingService.js";
+import PartnerPayout from "../models/PartnerPayout.js";
+import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
 
 const fabricPortalRouter = express.Router();
 
@@ -41,6 +43,67 @@ const resolveFabricCommissionPercent = (settings) => {
   }
   return DEFAULT_FABRIC_COMMISSION_PERCENT;
 };
+
+function normalizePartnerLabel(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\u0600-\u06ff]+/gi, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/** Paid totals for this fabric store from admin PartnerPayout releases. */
+async function getFabricSettlement(shop, ownerUserId) {
+  const ownerIdStr = String(ownerUserId);
+  const partnerIds = [ownerIdStr];
+  const keys = [`fabric:${ownerIdStr}`];
+
+  if (shop) {
+    const shopId = String(shop._id);
+    partnerIds.push(shopId);
+    keys.push(`fabric:${shopId}`);
+    const nameNorm = normalizePartnerLabel(shop.name);
+    if (nameNorm) keys.push(`fabric:name:${nameNorm}`);
+  }
+
+  const match = {
+    partnerKind: "fabric",
+    $or: [{ partnerId: { $in: partnerIds } }, { partnerKey: { $in: keys } }],
+  };
+
+  const [payouts, credits] = await Promise.all([
+    PartnerPayout.find(match).select("amount orders deletedAt").lean(),
+    PartnerPayoutCredit.find(match).select("amount").lean(),
+  ]);
+
+  let paidTotal = 0;
+  const paidByOrderId = new Map();
+
+  for (const payout of payouts) {
+    paidTotal += Number(payout.amount) || 0;
+    for (const order of payout.orders || []) {
+      const orderId = String(order.orderId || "");
+      if (!orderId) continue;
+      paidByOrderId.set(
+        orderId,
+        Number(
+          (
+            (paidByOrderId.get(orderId) || 0) + (Number(order.amount) || 0)
+          ).toFixed(2),
+        ),
+      );
+    }
+  }
+
+  for (const credit of credits) {
+    paidTotal += Number(credit.amount) || 0;
+  }
+
+  return {
+    paidTotal: Number(paidTotal.toFixed(2)),
+    paidByOrderId,
+  };
+}
 
 const SHOP_FIELDS = [
   "name",
@@ -1671,7 +1734,7 @@ fabricPortalRouter.get(
         })
         .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
-    const [customInWindow, retailInWindow, recentCustom, recentRetail] =
+    const [customInWindow, retailInWindow, recentCustom, recentRetail, settlement] =
       await Promise.all([
         CustomOrder.find({
           ...orderMatch,
@@ -1703,10 +1766,9 @@ fabricPortalRouter.get(
               .limit(12)
               .lean()
           : Promise.resolve([]),
+        getFabricSettlement(shop, ownerUserId),
       ]);
 
-    let fabricGross = 0;
-    let motdCommission = 0;
     let fabricRevenue = 0;
     let metersSold = 0;
     const statusMap = new Map();
@@ -1717,8 +1779,6 @@ fabricPortalRouter.get(
         sumCustomFabricFee(order),
         commissionPercent,
       );
-      fabricGross += breakdown.gross;
-      motdCommission += breakdown.commission;
       fabricRevenue += breakdown.net;
       metersSold += sumCustomMeters(order);
       const st = order.status || "unknown";
@@ -1756,8 +1816,6 @@ fabricPortalRouter.get(
       const gross = sumRetailFabricFee(order);
       if (gross <= 0) continue;
       const breakdown = splitMotdCommission(gross, commissionPercent);
-      fabricGross += breakdown.gross;
-      motdCommission += breakdown.commission;
       fabricRevenue += breakdown.net;
       metersSold += sumRetailMeters(order);
       const st = order.status || "unknown";
@@ -1873,51 +1931,95 @@ fabricPortalRouter.get(
       .map(([status, count]) => ({ status, count }))
       .sort((a, b) => b.count - a.count);
 
+    const mapRecentOrder = (order, net, type) => {
+      const orderId = order._id.toString();
+      const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
+      const pendingForOrder = Math.max(
+        0,
+        Number((net - paidForOrder).toFixed(2)),
+      );
+      const paymentStatus =
+        net <= 0
+          ? order.status
+          : pendingForOrder <= 0
+            ? "paid"
+            : paidForOrder > 0
+              ? "partially_paid"
+              : "pending_payment";
+      return {
+        id: orderId,
+        amount: net,
+        status: paymentStatus,
+        date: order.createdAt ? new Date(order.createdAt).toISOString() : "",
+        type,
+      };
+    };
+
     const recentOrders = [
       ...recentCustom.map((o) => {
-        const breakdown = splitMotdCommission(
+        const net = splitMotdCommission(
           sumCustomFabricFee(o),
           commissionPercent,
-        );
-        return {
-          id: o._id.toString(),
-          amount: breakdown.net,
-          status: o.status,
-          date: o.createdAt ? new Date(o.createdAt).toISOString() : "",
-          type: "custom",
-        };
+        ).net;
+        return mapRecentOrder(o, net, "custom");
       }),
       ...recentRetail.map((o) => {
-        const breakdown = splitMotdCommission(
+        const net = splitMotdCommission(
           sumRetailFabricFee(o),
           commissionPercent,
-        );
-        return {
-          id: o._id.toString(),
-          amount: breakdown.net,
-          status: o.status,
-          date: o.createdAt ? new Date(o.createdAt).toISOString() : "",
-          type: "retail",
-        };
+        ).net;
+        return mapRecentOrder(o, net, "retail");
       }),
     ]
       .filter((o) => o.amount > 0)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 8);
 
+    const mapPricingOrder = (order, net, kind) => {
+      const orderId = order._id.toString();
+      const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
+      const pendingForOrder = Math.max(
+        0,
+        Number((net - paidForOrder).toFixed(2)),
+      );
+      const paymentStatus =
+        net <= 0
+          ? "pending"
+          : pendingForOrder <= 0
+            ? "paid"
+            : paidForOrder > 0
+              ? "partially_paid"
+              : "pending_payment";
+      return {
+        _id: order._id,
+        userId: order.userId,
+        createdAt: order.createdAt,
+        status: order.status,
+        kind,
+        payoutNet: net,
+        payoutPaid: paidForOrder,
+        payoutPending: pendingForOrder,
+        paymentStatus,
+      };
+    };
+
     const pricingOrders = [
-      ...recentCustom.map((o) => ({
-        ...o,
-        kind: "custom",
-        fabricFeeGross: sumCustomFabricFee(o),
-      })),
-      ...recentRetail.map((o) => ({
-        ...o,
-        kind: "retail",
-        fabricFeeGross: sumRetailFabricFee(o),
-      })),
+      ...recentCustom.map((o) =>
+        mapPricingOrder(
+          o,
+          splitMotdCommission(sumCustomFabricFee(o), commissionPercent).net,
+          "custom",
+        ),
+      ),
+      ...recentRetail.map((o) =>
+        mapPricingOrder(
+          o,
+          splitMotdCommission(sumRetailFabricFee(o), commissionPercent).net,
+          "retail",
+        ),
+      ),
     ]
-      .filter((o) => o.fabricFeeGross > 0)
+      .filter((o) => o.payoutNet > 0)
       .sort(
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -1928,28 +2030,64 @@ fabricPortalRouter.get(
       customInWindow.length +
       retailInWindow.filter((o) => sumRetailFabricFee(o) > 0).length;
 
+    let paidInWindow = 0;
+    for (const order of customInWindow) {
+      const orderId = String(order._id);
+      const net = splitMotdCommission(
+        sumCustomFabricFee(order),
+        commissionPercent,
+      ).net;
+      if (net > 0) {
+        paidInWindow += Number(settlement.paidByOrderId.get(orderId)) || 0;
+      }
+    }
+    for (const order of retailInWindow) {
+      const gross = sumRetailFabricFee(order);
+      if (gross <= 0) continue;
+      const orderId = String(order._id);
+      paidInWindow += Number(settlement.paidByOrderId.get(orderId)) || 0;
+    }
+    if (paidInWindow <= 0 && settlement.paidTotal > 0 && fabricRevenue > 0) {
+      paidInWindow = Math.min(settlement.paidTotal, fabricRevenue);
+    }
+    paidInWindow = Number(Math.min(paidInWindow, fabricRevenue).toFixed(2));
+    const pendingInWindow = Math.max(
+      0,
+      Number((fabricRevenue - paidInWindow).toFixed(2)),
+    );
+    const payoutStatus =
+      fabricRevenue <= 0
+        ? null
+        : pendingInWindow > 0
+          ? "pending"
+          : "approved";
+    const kpiPayoutValue =
+      pendingInWindow > 0 ? pendingInWindow : paidInWindow;
+
     res.json({
       success: true,
       currency: "AED",
-      fabricShopId: ownerUserIdStr,
-      commissionPercent,
+      fabricShopId: shop?._id?.toString?.() || ownerUserIdStr,
+      // Intentionally omit commissionPercent / MOTD earnings from fabric clients.
       generatedAt: new Date().toISOString(),
       kpis: {
-        fabricRevenue: Number(fabricRevenue.toFixed(2)),
-        fabricGross: Number(fabricGross.toFixed(2)),
-        motdCommission: Number(motdCommission.toFixed(2)),
+        fabricRevenue: Number(kpiPayoutValue.toFixed(2)),
         orderCount,
         metersSold: Number(metersSold.toFixed(2)),
         activeSkus,
         lowStock,
-      },
-      feeSplit: {
-        fabricGross: Number(fabricGross.toFixed(2)),
-        motdCommission: Number(motdCommission.toFixed(2)),
-        fabricNet: Number(fabricRevenue.toFixed(2)),
+        paid: paidInWindow,
+        pending: pendingInWindow,
+        netDue: Number(fabricRevenue.toFixed(2)),
       },
       monthlyData,
       statusBreakdown,
+      payout: {
+        netDue: Number(fabricRevenue.toFixed(2)),
+        paid: paidInWindow,
+        pending: pendingInWindow,
+        status: payoutStatus,
+      },
       topFabrics,
       recentOrders,
       pricingOrders,

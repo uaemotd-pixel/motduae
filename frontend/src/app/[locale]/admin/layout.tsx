@@ -30,7 +30,8 @@ import {
   Layers,
   Palette,
   Leaf,
-  Tags
+  Tags,
+  Wallet,
 } from "lucide-react";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 
@@ -100,6 +101,7 @@ export default function AdminLayout({
 
   const navItems = [
     { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+    { label: "Payments", href: "/admin/payments", icon: Wallet },
     { label: "Customers", href: "/admin/customers", icon: UserRoundPlus },
     { label: "Ready-Made", href: "/admin/ready-made", icon: Shirt },
     { label: "Fabrics", href: "/admin/fabrics", icon: Scissors },

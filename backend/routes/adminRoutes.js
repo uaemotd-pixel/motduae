@@ -28,6 +28,10 @@ import Material from "../models/Material.js";
 import Pattern from "../models/Pattern.js";
 import Season from "../models/Season.js";
 import Tag from "../models/Tag.js";
+import PartnerPayout, {
+  PARTNER_PAYOUT_KINDS,
+} from "../models/PartnerPayout.js";
+import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
 import {
   uploadSingleAddOnImageMiddleware,
   processAddOnImage,
@@ -109,13 +113,51 @@ function sumRetailFabricGross(order) {
 }
 
 /** Custom order shipping amount owed to the courier / shipping company. */
+function sumDeliveryBreakdownFees(breakdown) {
+  if (!Array.isArray(breakdown) || breakdown.length === 0) return null;
+  const sum = breakdown.reduce((total, line) => {
+    if (line?.billable === false) return total;
+    return total + (Number(line?.fee) || 0);
+  }, 0);
+  return Number(sum.toFixed(2));
+}
+
+function sumOrderShippingGross(order, { retail = false } = {}) {
+  const breakdown = retail
+    ? order?.deliveryBreakdown
+    : order?.pricing?.deliveryBreakdown;
+  const fromBreakdown = sumDeliveryBreakdownFees(breakdown);
+  if (fromBreakdown != null) return fromBreakdown;
+
+  const parcelCount = Number(
+    retail ? order?.parcelCount : order?.pricing?.parcelCount,
+  );
+  const perParcel = Number(
+    retail ? order?.perParcelFee : order?.pricing?.perParcelFee,
+  );
+  if (
+    Number.isFinite(parcelCount) &&
+    parcelCount > 0 &&
+    Number.isFinite(perParcel) &&
+    perParcel >= 0
+  ) {
+    return Number((parcelCount * perParcel).toFixed(2));
+  }
+
+  if (retail) {
+    return Number(order?.shippingPrice) || 0;
+  }
+  return Number(order?.pricing?.deliveryFee) || 0;
+}
+
+/** Custom order shipping amount owed to the courier / shipping company. */
 function sumCustomShippingGross(order) {
-  return Number(order.pricing?.deliveryFee) || 0;
+  return sumOrderShippingGross(order, { retail: false });
 }
 
 /** Retail order shipping amount owed to the courier / shipping company. */
 function sumRetailShippingGross(order) {
-  return Number(order.shippingPrice) || 0;
+  return sumOrderShippingGross(order, { retail: true });
 }
 
 function optionalObjectId(value) {
@@ -2432,10 +2474,12 @@ adminRouter.get(
       await Promise.all([
         PlatformSettings.findOne({}).lean(),
         CustomOrder.find({ createdAt: { $gte: start, $lte: end } })
-          .select("items pricing")
+          .select("items pricing isPaid status")
           .lean(),
         RetailOrder.find({ createdAt: { $gte: start, $lte: end } })
-          .select("orderItems shippingPrice")
+          .select(
+            "orderItems shippingPrice parcelCount perParcelFee deliveryBreakdown isPaid status",
+          )
           .lean(),
       ]);
 
@@ -2452,6 +2496,10 @@ adminRouter.get(
     let fabricGrossCustomTotal = 0;
     let shippingCustomTotal = 0;
     for (const order of customShareOrders) {
+      if (order.isPaid === false) continue;
+      if (order.status === "cancelled" || order.status === "refund_processed") {
+        continue;
+      }
       tailorGrossTotal += sumCustomTailorGross(order);
       fabricGrossCustomTotal += sumCustomFabricGross(order);
       shippingCustomTotal += sumCustomShippingGross(order);
@@ -2460,6 +2508,8 @@ adminRouter.get(
     let fabricGrossRetailTotal = 0;
     let shippingRetailTotal = 0;
     for (const order of retailShareOrders) {
+      if (order.isPaid === false) continue;
+      if (order.status === "cancelled") continue;
       fabricGrossRetailTotal += sumRetailFabricGross(order);
       shippingRetailTotal += sumRetailShippingGross(order);
     }
@@ -3916,6 +3966,215 @@ adminRouter.delete(
     }
     await tag.deleteOne();
     res.send({ message: "Tag deleted successfully" });
+  }),
+);
+
+// ==========================================
+// Partner payouts (collective payment releases)
+// ==========================================
+
+// GET /api/admin/partner-payouts
+// Returns release history + paid totals grouped by partnerKey.
+adminRouter.get(
+  "/partner-payouts",
+  expressAsyncHandler(async (req, res) => {
+    const { partnerKey, partnerKind, limit } = req.query;
+    const filter = {};
+    if (partnerKey && typeof partnerKey === "string") {
+      filter.partnerKey = partnerKey.trim();
+    }
+    if (
+      partnerKind &&
+      typeof partnerKind === "string" &&
+      PARTNER_PAYOUT_KINDS.includes(partnerKind)
+    ) {
+      filter.partnerKind = partnerKind;
+    }
+
+    const limitNum = Math.min(Math.max(Number(limit) || 200, 1), 500);
+    // Exclude legacy soft-deleted rows from history (if any remain).
+    const historyFilter = {
+      ...filter,
+      $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+    };
+
+    const [items, payoutTotals, creditTotals] = await Promise.all([
+      PartnerPayout.find(historyFilter)
+        .populate("releasedBy", "name email")
+        .sort({ releasedAt: -1 })
+        .limit(limitNum)
+        .lean(),
+      PartnerPayout.aggregate([
+        ...(Object.keys(filter).length ? [{ $match: filter }] : []),
+        {
+          $group: {
+            _id: "$partnerKey",
+            paid: { $sum: "$amount" },
+            releaseCount: { $sum: 1 },
+            lastReleasedAt: { $max: "$releasedAt" },
+            partnerKind: { $first: "$partnerKind" },
+            partnerName: { $first: "$partnerName" },
+          },
+        },
+      ]),
+      PartnerPayoutCredit.aggregate([
+        ...(Object.keys(filter).length ? [{ $match: filter }] : []),
+        {
+          $group: {
+            _id: "$partnerKey",
+            paid: { $sum: "$amount" },
+            creditCount: { $sum: 1 },
+            partnerKind: { $first: "$partnerKind" },
+            partnerName: { $first: "$partnerName" },
+          },
+        },
+      ]),
+    ]);
+
+    const paidByPartnerKey = {};
+    for (const row of payoutTotals) {
+      paidByPartnerKey[row._id] = {
+        paid: Number(row.paid.toFixed(2)),
+        releaseCount: row.releaseCount,
+        lastReleasedAt: row.lastReleasedAt,
+        partnerKind: row.partnerKind,
+        partnerName: row.partnerName,
+      };
+    }
+    for (const row of creditTotals) {
+      const existing = paidByPartnerKey[row._id];
+      if (existing) {
+        existing.paid = Number((existing.paid + row.paid).toFixed(2));
+        if (!existing.partnerName && row.partnerName) {
+          existing.partnerName = row.partnerName;
+        }
+      } else {
+        paidByPartnerKey[row._id] = {
+          paid: Number(row.paid.toFixed(2)),
+          releaseCount: 0,
+          lastReleasedAt: undefined,
+          partnerKind: row.partnerKind,
+          partnerName: row.partnerName,
+        };
+      }
+    }
+
+    res.send({
+      items,
+      paidByPartnerKey,
+    });
+  }),
+);
+
+// POST /api/admin/partner-payouts
+// Record a collective payment release to a partner.
+adminRouter.post(
+  "/partner-payouts",
+  expressAsyncHandler(async (req, res) => {
+    const {
+      partnerKey,
+      partnerKind,
+      partnerId,
+      partnerName,
+      payeeName,
+      amount,
+      currency,
+      orders,
+      note,
+    } = req.body || {};
+
+    if (!partnerKey || typeof partnerKey !== "string") {
+      res.status(400).send({ message: "partnerKey is required" });
+      return;
+    }
+    if (!PARTNER_PAYOUT_KINDS.includes(partnerKind)) {
+      res.status(400).send({
+        message: `partnerKind must be one of: ${PARTNER_PAYOUT_KINDS.join(", ")}`,
+      });
+      return;
+    }
+    if (!partnerName || typeof partnerName !== "string") {
+      res.status(400).send({ message: "partnerName is required" });
+      return;
+    }
+
+    const amountNum = Number(amount);
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      res.status(400).send({ message: "amount must be a positive number" });
+      return;
+    }
+
+    const orderDocs = Array.isArray(orders)
+      ? orders
+          .map((o) => ({
+            orderId: o?.orderId,
+            orderType:
+              o?.orderType === "retail" || o?.channel === "retail"
+                ? "retail"
+                : "custom",
+            amount: Number(o?.amount) || 0,
+          }))
+          .filter(
+            (o) =>
+              o.orderId &&
+              mongoose.Types.ObjectId.isValid(String(o.orderId)) &&
+              o.amount >= 0,
+          )
+      : [];
+
+    const payout = await PartnerPayout.create({
+      partnerKey: partnerKey.trim(),
+      partnerKind,
+      partnerId: partnerId ? String(partnerId).trim() : "",
+      partnerName: partnerName.trim(),
+      payeeName: payeeName ? String(payeeName).trim() : "",
+      amount: Number(amountNum.toFixed(2)),
+      currency: currency ? String(currency).trim() : "AED",
+      orders: orderDocs,
+      note: note ? String(note).trim() : "",
+      releasedBy: req.user._id,
+      releasedAt: new Date(),
+    });
+
+    const populated = await PartnerPayout.findById(payout._id)
+      .populate("releasedBy", "name email")
+      .lean();
+
+    res.status(201).send(populated);
+  }),
+);
+
+// DELETE /api/admin/partner-payouts/:id
+// Hard-delete the transaction from MongoDB.
+// A settlement credit keeps the amount paid so it does not return as unpaid.
+adminRouter.delete(
+  "/partner-payouts/:id",
+  expressAsyncHandler(async (req, res) => {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(String(id))) {
+      res.status(400).send({ message: "Invalid payout id" });
+      return;
+    }
+
+    const payout = await PartnerPayout.findById(id);
+    if (!payout) {
+      res.status(404).send({ message: "Transaction not found" });
+      return;
+    }
+
+    await PartnerPayoutCredit.create({
+      partnerKey: payout.partnerKey,
+      partnerKind: payout.partnerKind,
+      partnerId: payout.partnerId || "",
+      partnerName: payout.partnerName || "",
+      amount: Number(Number(payout.amount).toFixed(2)),
+      currency: payout.currency || "AED",
+      sourcePayoutId: payout._id,
+      deletedBy: req.user?._id || null,
+    });
+
+    await payout.deleteOne();
+    res.send({ message: "Transaction deleted", id: String(id) });
   }),
 );
 
