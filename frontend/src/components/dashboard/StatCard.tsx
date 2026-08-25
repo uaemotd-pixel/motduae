@@ -10,6 +10,7 @@ type StatCardProps = {
   subValue?: string;
   trend?: number;
   delay?: number;
+  compact?: boolean;
 };
 
 export default function StatCard({
@@ -19,6 +20,7 @@ export default function StatCard({
   subValue,
   trend,
   delay = 0,
+  compact = false,
 }: StatCardProps) {
   const trendUp = typeof trend === "number" ? trend >= 0 : undefined;
 
@@ -27,7 +29,9 @@ export default function StatCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: "easeOut" }}
-      className="relative flex h-full overflow-hidden rounded-[var(--dash-radius)] border border-[var(--dash-border)] bg-[var(--dash-surface)] p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5"
+      className={`relative flex h-full overflow-hidden rounded-[var(--dash-radius)] border border-[var(--dash-border)] bg-[var(--dash-surface)] shadow-sm transition-shadow hover:shadow-md ${
+        compact ? "p-3 sm:p-3.5" : "p-4 sm:p-5"
+      }`}
     >
       <div className="absolute inset-y-0 left-0 w-1 bg-[var(--dash-gold)]" />
       <div className="flex w-full items-start justify-between gap-2 pl-2">
@@ -39,18 +43,24 @@ export default function StatCard({
             {label}
           </p>
           <p
-            className="mt-2 break-words text-2xl font-light leading-snug text-[var(--dash-ink)]"
+            className={`mt-2 font-light leading-snug text-[var(--dash-ink)] ${
+              compact
+                ? "truncate whitespace-nowrap text-[13px] tabular-nums sm:text-sm"
+                : "break-words text-2xl"
+            }`}
             title={value}
           >
             {value}
           </p>
           <p
-            className="mt-1 line-clamp-2 min-h-[2.5rem] text-xs leading-snug text-[var(--dash-muted)]"
+            className={`mt-1 line-clamp-2 text-xs leading-snug text-[var(--dash-muted)] ${
+              compact ? "min-h-[2rem]" : "min-h-[2.5rem]"
+            }`}
             title={subValue}
           >
             {subValue || "\u00A0"}
           </p>
-          <div className="mt-2 flex min-h-[1.25rem] items-center">
+          <div className={`flex min-h-[1.25rem] items-center ${compact ? "mt-1" : "mt-2"}`}>
             {typeof trend === "number" ? (
               <div
                 className={`inline-flex items-center gap-1 text-xs font-medium ${
@@ -69,8 +79,12 @@ export default function StatCard({
             ) : null}
           </div>
         </div>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--dash-charcoal)] text-white">
-          <Icon className="h-4 w-4" strokeWidth={1.5} />
+        <div
+          className={`flex shrink-0 items-center justify-center rounded-xl bg-[var(--dash-charcoal)] text-white ${
+            compact ? "h-8 w-8" : "h-9 w-9"
+          }`}
+        >
+          <Icon className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} strokeWidth={1.5} />
         </div>
       </div>
     </motion.div>

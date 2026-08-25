@@ -20,6 +20,8 @@ import {
 import { markCustomTailorReady, presentCustomOrderForTailor } from "../services/shipmentService.js";
 import { getTimeframeWindow } from "../utils/dateRange.js";
 import { splitMotdCommission } from "../services/pricingService.js";
+import PartnerPayout from "../models/PartnerPayout.js";
+import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
 
 const tailorPortalRouter = express.Router();
 
@@ -35,6 +37,63 @@ const resolveTailorCommissionPercent = (settings) => {
   }
   return DEFAULT_TAILOR_COMMISSION_PERCENT;
 };
+
+function normalizePartnerLabel(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\u0600-\u06ff]+/gi, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Paid totals for this tailor shop from admin PartnerPayout releases
+ * (plus settlement credits after history deletes).
+ */
+async function getTailorSettlement(shop) {
+  const shopId = String(shop._id);
+  const nameNorm = normalizePartnerLabel(shop.name);
+  const keys = [`tailor:${shopId}`];
+  if (nameNorm) keys.push(`tailor:name:${nameNorm}`);
+
+  const match = {
+    partnerKind: "tailor",
+    $or: [{ partnerId: shopId }, { partnerKey: { $in: keys } }],
+  };
+
+  const [payouts, credits] = await Promise.all([
+    PartnerPayout.find(match).select("amount orders deletedAt").lean(),
+    PartnerPayoutCredit.find(match).select("amount").lean(),
+  ]);
+
+  let paidTotal = 0;
+  const paidByOrderId = new Map();
+
+  for (const payout of payouts) {
+    paidTotal += Number(payout.amount) || 0;
+    for (const order of payout.orders || []) {
+      const orderId = String(order.orderId || "");
+      if (!orderId) continue;
+      paidByOrderId.set(
+        orderId,
+        Number(
+          (
+            (paidByOrderId.get(orderId) || 0) + (Number(order.amount) || 0)
+          ).toFixed(2),
+        ),
+      );
+    }
+  }
+
+  for (const credit of credits) {
+    paidTotal += Number(credit.amount) || 0;
+  }
+
+  return {
+    paidTotal: Number(paidTotal.toFixed(2)),
+    paidByOrderId,
+  };
+}
 
 const SHOP_FIELDS = [
   "name",
@@ -497,26 +556,22 @@ tailorPortalRouter.get(
         success: true,
         currency: "AED",
         tailorShopId: null,
-        commissionPercent,
         tailoringFeeEnabled: defaultTailoringFee > 0,
         kpis: {
           tailorRevenue: 0,
-          tailorGross: 0,
-          motdCommission: 0,
-          designFees: 0,
-          tailoringFees: 0,
           orderCount: 0,
           activeDesigns: 0,
           inProgress: 0,
+          paid: 0,
+          pending: 0,
         },
         monthlyData: [],
         statusBreakdown: [],
-        feeSplit: {
-          tailorGross: 0,
-          motdCommission: 0,
-          tailorNet: 0,
-          designFees: 0,
-          tailoringFees: 0,
+        payout: {
+          netDue: 0,
+          paid: 0,
+          pending: 0,
+          status: null,
         },
         recentOrders: [],
         pricingOrders: [],
@@ -530,7 +585,7 @@ tailorPortalRouter.get(
       $or: [{ tailorShopId: shopId }, { "items.tailorShopId": shopId }],
     };
 
-    const [ordersInWindow, recentScopedOrders, activeDesigns] =
+    const [ordersInWindow, recentScopedOrders, activeDesigns, settlement] =
       await Promise.all([
         CustomOrder.find({
           ...orderMatch,
@@ -545,6 +600,7 @@ tailorPortalRouter.get(
           .limit(20)
           .lean(),
         Design.countDocuments({ tailorShopId: shopId, isActive: true }),
+        getTailorSettlement(shop),
       ]);
 
     const isShopItem = (item) => {
@@ -584,10 +640,7 @@ tailorPortalRouter.get(
     // Tailor gross for custom stitching = design + tailoring fees for this shop.
     const getTailorGross = (order) => getDesignFee(order) + getTailoringFee(order);
 
-    let designFees = 0;
     let tailoringFees = 0;
-    let tailorGross = 0;
-    let motdCommission = 0;
     let tailorRevenue = 0;
     const statusMap = new Map();
     const IN_PROGRESS = new Set([
@@ -606,10 +659,7 @@ tailorPortalRouter.get(
       const gross = design + tailoring;
       const breakdown = splitMotdCommission(gross, commissionPercent);
 
-      designFees += design;
       tailoringFees += tailoring;
-      tailorGross += breakdown.gross;
-      motdCommission += breakdown.commission;
       tailorRevenue += breakdown.net;
 
       const st = order.status || "unknown";
@@ -663,8 +713,6 @@ tailorPortalRouter.get(
       };
       return {
         month: d.toLocaleString("en-US", { month: "short" }),
-        design: Number(row.design.toFixed(2)),
-        tailoring: Number(row.tailoring.toFixed(2)),
         revenue: Number(row.revenue.toFixed(2)),
       };
     });
@@ -679,10 +727,24 @@ tailorPortalRouter.get(
           getTailorGross(o),
           commissionPercent,
         );
+        const orderId = o._id.toString();
+        const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
+        const pendingForOrder = Math.max(
+          0,
+          Number((breakdown.net - paidForOrder).toFixed(2)),
+        );
+        const paymentStatus =
+          breakdown.net <= 0
+            ? o.status
+            : pendingForOrder <= 0
+              ? "paid"
+              : paidForOrder > 0
+                ? "partially_paid"
+                : "pending_payment";
         return {
-          id: o._id.toString(),
+          id: orderId,
           amount: breakdown.net,
-          status: o.status,
+          status: paymentStatus,
           date: o.createdAt ? new Date(o.createdAt).toISOString() : "",
           type: "custom",
         };
@@ -695,15 +757,61 @@ tailorPortalRouter.get(
         const designFee = getDesignFee(o);
         const tailoringFee = getTailoringFee(o);
         const gross = designFee + tailoringFee;
+        const breakdown = splitMotdCommission(gross, commissionPercent);
+        const orderId = o._id.toString();
+        const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
+        const pendingForOrder = Math.max(
+          0,
+          Number((breakdown.net - paidForOrder).toFixed(2)),
+        );
+        const paymentStatus =
+          breakdown.net <= 0
+            ? "pending"
+            : pendingForOrder <= 0
+              ? "paid"
+              : paidForOrder > 0
+                ? "partially_paid"
+                : "pending_payment";
+        // Lean payload — no gross/commission fields for tailor privacy.
         return {
-          ...o,
-          designFeeGross: designFee,
-          tailoringFeeGross: tailoringFee,
-          tailorFeeGross: gross,
+          _id: o._id,
+          userId: o.userId,
+          createdAt: o.createdAt,
+          status: o.status,
+          payoutNet: breakdown.net,
+          payoutPaid: paidForOrder,
+          payoutPending: pendingForOrder,
+          paymentStatus,
         };
       })
-      .filter((o) => o.tailorFeeGross > 0)
+      .filter((o) => o.payoutNet > 0)
       .slice(0, 20);
+
+    // Attribute admin releases to orders in this timeframe when order ids are known.
+    let paidInWindow = 0;
+    for (const order of ordersInWindow) {
+      const orderId = String(order._id);
+      paidInWindow += Number(settlement.paidByOrderId.get(orderId)) || 0;
+    }
+    // If releases have no per-order rows, fall back to shop-level paid capped by window net.
+    if (paidInWindow <= 0 && settlement.paidTotal > 0 && tailorRevenue > 0) {
+      paidInWindow = Math.min(settlement.paidTotal, tailorRevenue);
+    }
+    paidInWindow = Number(Math.min(paidInWindow, tailorRevenue).toFixed(2));
+    const pendingInWindow = Math.max(
+      0,
+      Number((tailorRevenue - paidInWindow).toFixed(2)),
+    );
+    const payoutStatus =
+      tailorRevenue <= 0
+        ? null
+        : pendingInWindow > 0
+          ? "pending"
+          : "approved";
+
+    // KPI "Your payout": still owed when pending, otherwise amount already paid.
+    const kpiPayoutValue =
+      pendingInWindow > 0 ? pendingInWindow : paidInWindow;
 
     const tailoringFeeEnabled = defaultTailoringFee > 0 || tailoringFees > 0;
 
@@ -711,26 +819,24 @@ tailorPortalRouter.get(
       success: true,
       currency: "AED",
       tailorShopId: shopId,
-      commissionPercent,
+      // Intentionally omit commissionPercent / MOTD earnings from tailor clients.
       tailoringFeeEnabled,
       kpis: {
-        tailorRevenue: Number(tailorRevenue.toFixed(2)),
-        tailorGross: Number(tailorGross.toFixed(2)),
-        motdCommission: Number(motdCommission.toFixed(2)),
-        designFees: Number(designFees.toFixed(2)),
-        tailoringFees: Number(tailoringFees.toFixed(2)),
+        tailorRevenue: Number(kpiPayoutValue.toFixed(2)),
         orderCount: ordersInWindow.length,
         activeDesigns,
         inProgress,
+        paid: paidInWindow,
+        pending: pendingInWindow,
+        netDue: Number(tailorRevenue.toFixed(2)),
       },
       monthlyData,
       statusBreakdown,
-      feeSplit: {
-        tailorGross: Number(tailorGross.toFixed(2)),
-        motdCommission: Number(motdCommission.toFixed(2)),
-        tailorNet: Number(tailorRevenue.toFixed(2)),
-        designFees: Number(designFees.toFixed(2)),
-        tailoringFees: Number(tailoringFees.toFixed(2)),
+      payout: {
+        netDue: Number(tailorRevenue.toFixed(2)),
+        paid: paidInWindow,
+        pending: pendingInWindow,
+        status: payoutStatus,
       },
       recentOrders,
       pricingOrders,
