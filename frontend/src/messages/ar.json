@@ -270,7 +270,9 @@
     "backToMeasurements": "العودة إلى القياسات",
     "editOrder": "تعديل اختيار القماش",
     "continue": "متابعة إلى الدفع",
-    "meters": "م"
+    "meters": "م",
+    "showMoreAddons": "عرض المزيد (+{count})",
+    "showLessAddons": "عرض أقل"
   },
   "CustomOrderMeasurements": {
     "stepLabel": "الخطوة {step} من {total}",
