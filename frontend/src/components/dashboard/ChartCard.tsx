@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
+import { DASH_ACCENTS, type DashAccent } from "./palette";
 
 type ChartCardProps = {
   title: string;
@@ -10,6 +11,7 @@ type ChartCardProps = {
   className?: string;
   delay?: number;
   action?: ReactNode;
+  accent?: DashAccent;
 };
 
 export default function ChartCard({
@@ -19,17 +21,30 @@ export default function ChartCard({
   className = "",
   delay = 0,
   action,
+  accent = "ink",
 }: ChartCardProps) {
+  const tone = DASH_ACCENTS[accent] ?? DASH_ACCENTS.ink;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay, ease: "easeOut" }}
-      className={`rounded-[var(--dash-radius)] border border-[var(--dash-border)] bg-[var(--dash-surface)] p-5 shadow-sm sm:p-6 ${className}`}
+      className={`relative overflow-hidden rounded-[var(--dash-radius)] border border-[var(--dash-border)] bg-[var(--dash-surface)] p-5 shadow-sm sm:p-6 ${className}`}
     >
+      <div
+        className="absolute inset-x-0 top-0 h-1"
+        style={{
+          background: `linear-gradient(90deg, ${tone.hex}, ${tone.soft})`,
+        }}
+      />
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h3 className="[font-family:var(--font-display)] text-lg text-[var(--dash-ink)]">
+          <h3 className="[font-family:var(--font-display)] flex items-center gap-2 text-lg text-[var(--dash-ink)]">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ backgroundColor: tone.hex }}
+            />
             {title}
           </h3>
           {subtitle && (
