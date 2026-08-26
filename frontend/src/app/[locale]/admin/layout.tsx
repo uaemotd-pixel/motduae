@@ -179,7 +179,7 @@ export default function AdminLayout({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-(--dash-charcoal-deep) p-6 sm:p-8">
+      <div className="min-h-screen bg-white p-6 sm:p-8">
         <DashboardPanelSkeleton />
       </div>
     );
@@ -337,7 +337,7 @@ export default function AdminLayout({
   );
 
   return (
-    <div className="relative min-h-screen bg-(--dash-charcoal-deep) text-white">
+    <div className="relative min-h-screen bg-white">
       <aside
         data-sidebar
         className="fixed left-0 top-0 z-20 hidden h-full w-72 flex-col overflow-y-auto border-r border-white/10 bg-(--dash-charcoal) p-6 lg:flex"
@@ -371,7 +371,7 @@ export default function AdminLayout({
         </div>
       </aside>
       <main
-        className="admin-canvas min-h-screen p-4 pb-16 text-(--dash-ink) transition-all duration-300 xs:p-6 sm:p-8 md:p-10 lg:ml-72"
+        className="admin-canvas min-h-screen bg-white p-4 pb-16 text-black transition-all duration-300 xs:p-6 sm:p-8 md:p-10 lg:ml-72"
       >
         <button
           onClick={() => setIsSidebarOpen(true)}

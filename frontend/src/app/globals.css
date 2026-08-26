@@ -57,7 +57,7 @@
   --radius: 0px;
 
   /* Dashboard surfaces (admin / fabric / tailor portals) — black / white brand */
-  --dash-bg: var(--color-off-white);
+  --dash-bg: var(--color-white);
   --dash-surface: var(--color-white);
   --dash-ink: var(--color-black);
   --dash-muted: var(--color-grey-muted);
@@ -224,8 +224,5 @@ body {
 }
 
 .admin-canvas {
-  background-color: var(--dash-bg);
-  background-image:
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(15, 118, 110, 0.06), transparent 50%),
-    radial-gradient(ellipse 50% 30% at 0% 100%, rgba(79, 70, 229, 0.04), transparent 45%);
+  background-color: #ffffff;
 }
