@@ -223,7 +223,7 @@ function AccountPageContent() {
         router.replace("/auth/login");
       } else {
         const role = user.role.toLowerCase();
-        if (role === "admin") {
+        if (role === "admin" || role === "sub-admin") {
           router.replace("/admin");
         } else if (role === "tailor") {
           router.replace("/tailor");

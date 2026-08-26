@@ -19,6 +19,7 @@ import {
   getEmirateEn,
   getEmirateAr,
 } from "@/lib/uaeAddress";
+import { ADMIN_PERM_LABELS } from "@/lib/auth/adminAccess";
 
 interface SubAdminForm {
   name: string;
@@ -40,6 +41,9 @@ interface SubAdminForm {
     orders: boolean;
     partners: boolean;
     settings: boolean;
+    payments: boolean;
+    addons: boolean;
+    notifications: boolean;
   };
 }
 
@@ -73,6 +77,9 @@ export default function CreateSubAdminPage() {
       orders: false,
       partners: false,
       settings: false,
+      payments: false,
+      addons: false,
+      notifications: false,
     },
   });
 
@@ -418,7 +425,10 @@ export default function CreateSubAdminPage() {
                     }
                     className="accent-black w-4 h-4"
                   />
-                  <span className="text-sm capitalize">{key}</span>
+                  <span className="text-sm">
+                    {ADMIN_PERM_LABELS[key as keyof typeof ADMIN_PERM_LABELS] ||
+                      key}
+                  </span>
                 </label>
               ))}
             </div>

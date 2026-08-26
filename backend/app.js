@@ -18,8 +18,10 @@ import fabricPortalRoutes from "./routes/fabricPortalRoutes.js";
 import {
   isAuth,
   isAdmin,
+  isFullAdmin,
   isApprovedTailor,
   isApprovedFabricStore,
+  enforceStaffPerm,
 } from "./middleware/auth.js";
 import { notFound, errorHandler } from "./middleware/errorHandler.js";
 import customerRouter from "./routes/customerRoutes.js";
@@ -76,14 +78,14 @@ app.use("/api/orders/track", orderPublicTrackRoutes);
 app.use("/api/orders", orderRoutes);
 // Expose order routes under admin namespace as well so admin UI can call
 // /api/admin/orders/custom/:id/return-accept and /return-reject
-app.use("/api/admin/orders", isAuth, isAdmin, orderRoutes);
+app.use("/api/admin/orders", isAuth, isAdmin, enforceStaffPerm, orderRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/checkout", checkoutRoutes);
-app.use("/api/admin", isAuth, isAdmin, adminRouter);
-app.use("/api/admin", isAuth, isAdmin, notificationRouter);
+app.use("/api/admin", isAuth, isAdmin, enforceStaffPerm, adminRouter);
+app.use("/api/admin", isAuth, isAdmin, enforceStaffPerm, notificationRouter);
 app.use("/api/customer", customerRouter);
 app.use("/api/customer", customerNotificationRouter);
-app.use("/api/subadmins", isAuth, subAdminRouter);
+app.use("/api/subadmins", isAuth, isFullAdmin, subAdminRouter);
 app.use("/api/filters", filterRoutes);
 app.use(notFound);
 app.use(errorHandler);
