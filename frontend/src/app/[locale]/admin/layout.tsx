@@ -246,7 +246,7 @@ export default function AdminLayout({
               {item.label}
               {item.href === "/admin/notifications" &&
                 unreadNotificationCount > 0 && (
-                  <span className="min-w-5 h-5 px-1 rounded-full bg-white text-black text-[11px] font-semibold flex items-center justify-center shadow-sm">
+                  <span className="min-w-5 h-5 px-1 rounded-full bg-[var(--dash-danger)] text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
                     {unreadNotificationCount > 99
                       ? "99+"
                       : unreadNotificationCount}
@@ -340,7 +340,7 @@ export default function AdminLayout({
     <div className="relative min-h-screen bg-(--dash-charcoal-deep) text-white">
       <aside
         data-sidebar
-        className="fixed left-0 top-0 w-72 h-full border-r border-white/10 flex-col p-6 bg-(--dash-charcoal) z-20 overflow-y-auto hidden lg:flex"
+        className="fixed left-0 top-0 z-20 hidden h-full w-72 flex-col overflow-y-auto border-r border-white/10 bg-(--dash-charcoal) p-6 lg:flex"
       >
         <SidebarContent />
       </aside>
@@ -355,27 +355,27 @@ export default function AdminLayout({
       />
       <aside
         data-sidebar
-        className={`fixed left-0 top-0 w-72 h-full bg-(--dash-charcoal) border-r border-white/10 flex flex-col p-6 z-40 transition-transform duration-300 ease-in-out lg:hidden overflow-y-auto ${
+        className={`fixed left-0 top-0 z-40 flex h-full w-72 flex-col overflow-y-auto border-r border-white/10 bg-(--dash-charcoal) p-6 transition-transform duration-300 ease-in-out lg:hidden ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <button
           onClick={() => setIsSidebarOpen(false)}
-          className="absolute top-4 right-4 p-2 text-white/70 hover:text-white lg:hidden"
+          className="absolute top-4 right-4 z-10 p-2 text-white/70 hover:text-white lg:hidden"
           aria-label="Close menu"
         >
           <X className="w-5 h-5" />
         </button>
-        <div className="mt-8">
+        <div className="relative mt-8">
           <SidebarContent />
         </div>
       </aside>
       <main
-        className={`min-h-screen bg-(--dash-bg) text-(--dash-ink) p-4 xs:p-6 sm:p-8 md:p-10 pb-16 transition-all duration-300 lg:ml-72`}
+        className="admin-canvas min-h-screen p-4 pb-16 text-(--dash-ink) transition-all duration-300 xs:p-6 sm:p-8 md:p-10 lg:ml-72"
       >
         <button
           onClick={() => setIsSidebarOpen(true)}
-          className="lg:hidden fixed top-4 left-4 z-20 p-2 bg-black rounded-md shadow-md hover:bg-(--dash-charcoal-deep) transition"
+          className="lg:hidden fixed top-4 left-4 z-20 rounded-md bg-black p-2 shadow-md transition hover:bg-(--dash-charcoal-deep)"
           aria-label="Open menu"
         >
           <Menu className="w-5 h-5 text-white" />

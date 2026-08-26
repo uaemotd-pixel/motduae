@@ -50,8 +50,8 @@ export default function ActivityFeed({
               key={`${item.id}-${i}`}
               className="flex items-center gap-3 border-b border-[var(--dash-border)] py-3 last:border-0"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--dash-bg)]">
-                <div className="h-2 w-2 rounded-full bg-[var(--dash-gold)]" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100">
+                <div className="h-2 w-2 rounded-full bg-black" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-[var(--dash-ink)]">

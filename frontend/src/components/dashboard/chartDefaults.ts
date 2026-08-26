@@ -1,10 +1,10 @@
 import { DASH_PALETTE, withAlpha } from "./palette";
 
 export const chartTooltip = {
-  backgroundColor: "rgba(255, 252, 247, 0.96)",
-  titleColor: DASH_PALETTE.charcoalDeep,
-  bodyColor: DASH_PALETTE.charcoal,
-  borderColor: DASH_PALETTE.sandDeep,
+  backgroundColor: "rgba(0, 0, 0, 0.92)",
+  titleColor: "#FFFFFF",
+  bodyColor: "#E8E8E4",
+  borderColor: "#2A2A2A",
   borderWidth: 1,
   padding: 12,
   cornerRadius: 8,

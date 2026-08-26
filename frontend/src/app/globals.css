@@ -56,8 +56,8 @@
   /* Radius — brand is zero-radius */
   --radius: 0px;
 
-  /* Dashboard surfaces (admin / fabric / tailor portals) — brand palette */
-  --dash-bg: var(--color-white);
+  /* Dashboard surfaces (admin / fabric / tailor portals) — black / white brand */
+  --dash-bg: var(--color-off-white);
   --dash-surface: var(--color-white);
   --dash-ink: var(--color-black);
   --dash-muted: var(--color-grey-muted);
@@ -66,9 +66,12 @@
   --dash-gold-soft: var(--color-white);
   --dash-charcoal: var(--color-black);
   --dash-charcoal-deep: var(--color-near-black);
-  --dash-success: #3f7d5a;
-  --dash-danger: #b54a3f;
-  --dash-radius: 12px;
+  --dash-success: #2f9e6b;
+  --dash-danger: #d64545;
+  --dash-warning: #d97706;
+  --dash-info: #0284c7;
+  --dash-teal: #0f766e;
+  --dash-radius: 14px;
 
   /* Spacing */
   --space-4: 4px;
@@ -218,4 +221,11 @@ body {
 
 [data-sidebar]::-webkit-scrollbar {
   display: none !important; /* Chrome, Safari, Opera */
+}
+
+.admin-canvas {
+  background-color: var(--dash-bg);
+  background-image:
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(15, 118, 110, 0.06), transparent 50%),
+    radial-gradient(ellipse 50% 30% at 0% 100%, rgba(79, 70, 229, 0.04), transparent 45%);
 }

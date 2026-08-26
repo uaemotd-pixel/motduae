@@ -54,7 +54,7 @@ export default function AdminNotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="relative p-2 rounded-full bg-white border border-gray-200 hover:bg-gray-50 transition shadow-sm"
+        className="relative rounded-full border border-gray-200 bg-white p-2 shadow-sm transition hover:bg-gray-50"
         aria-label={tn("bellLabel")}
       >
         <Bell className="w-4 h-4 text-gray-700" />
