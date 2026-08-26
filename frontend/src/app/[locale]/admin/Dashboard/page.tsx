@@ -12,7 +12,9 @@ import {
   AlertTriangle,
   Store,
   RefreshCw,
+  ArrowRight,
 } from "lucide-react";
+import { Link } from "@/i18n/navigation";
 import LocaleSwitcher from "@/components/shared/LocaleSwitcher";
 import Chart from "chart.js/auto";
 import type { ChartConfiguration } from "chart.js";
@@ -161,13 +163,13 @@ export default function AdminDashboardPage() {
           {
             label: "Retail",
             data: monthlyData.map((d) => d.retail || 0),
-            borderColor: DASH_PALETTE.gold,
+            borderColor: DASH_PALETTE.charcoal,
             backgroundColor: (ctx) => {
               const { ctx: c, chartArea } = ctx.chart;
               if (!chartArea) return "transparent";
               const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-              g.addColorStop(0, withAlpha(DASH_PALETTE.gold, 0.35));
-              g.addColorStop(1, withAlpha(DASH_PALETTE.gold, 0));
+              g.addColorStop(0, withAlpha(DASH_PALETTE.charcoal, 0.28));
+              g.addColorStop(1, withAlpha(DASH_PALETTE.charcoal, 0));
               return g;
             },
             borderWidth: 2.5,
@@ -175,31 +177,30 @@ export default function AdminDashboardPage() {
             pointRadius: 3,
             pointHoverRadius: 6,
             pointBackgroundColor: DASH_PALETTE.surface,
-            pointBorderColor: DASH_PALETTE.gold,
+            pointBorderColor: DASH_PALETTE.charcoal,
             pointBorderWidth: 2,
             fill: true,
           },
           {
             label: "Custom",
             data: monthlyData.map((d) => d.custom || 0),
-            borderColor: DASH_PALETTE.charcoal,
+            borderColor: DASH_PALETTE.teal,
             backgroundColor: (ctx) => {
               const { ctx: c, chartArea } = ctx.chart;
               if (!chartArea) return "transparent";
               const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-              g.addColorStop(0, withAlpha(DASH_PALETTE.charcoal, 0.2));
-              g.addColorStop(1, withAlpha(DASH_PALETTE.charcoal, 0));
+              g.addColorStop(0, withAlpha(DASH_PALETTE.teal, 0.32));
+              g.addColorStop(1, withAlpha(DASH_PALETTE.teal, 0));
               return g;
             },
-            borderWidth: 2,
+            borderWidth: 2.5,
             tension: 0.4,
             pointRadius: 3,
             pointHoverRadius: 6,
             pointBackgroundColor: DASH_PALETTE.surface,
-            pointBorderColor: DASH_PALETTE.charcoal,
+            pointBorderColor: DASH_PALETTE.teal,
             pointBorderWidth: 2,
             fill: true,
-            borderDash: [5, 4],
           },
         ],
       },
@@ -250,7 +251,8 @@ export default function AdminDashboardPage() {
             data: monthlyOrders.length
               ? monthlyOrders.map((d) => d.retail || 0)
               : [stats.retail.orderCount],
-            backgroundColor: withAlpha(DASH_PALETTE.gold, 0.85),
+            backgroundColor: withAlpha(DASH_PALETTE.charcoal, 0.9),
+            hoverBackgroundColor: DASH_PALETTE.charcoal,
             borderRadius: 6,
             borderSkipped: false,
           },
@@ -259,7 +261,8 @@ export default function AdminDashboardPage() {
             data: monthlyOrders.length
               ? monthlyOrders.map((d) => d.custom || 0)
               : [stats.custom.orderCount],
-            backgroundColor: withAlpha(DASH_PALETTE.charcoal, 0.8),
+            backgroundColor: withAlpha(DASH_PALETTE.teal, 0.88),
+            hoverBackgroundColor: DASH_PALETTE.teal,
             borderRadius: 6,
             borderSkipped: false,
           },
@@ -322,10 +325,7 @@ export default function AdminDashboardPage() {
         datasets: [
           {
             data: [stats.retail.orderCount, stats.custom.orderCount],
-            backgroundColor: [
-              withAlpha(DASH_PALETTE.gold, 0.9),
-              withAlpha(DASH_PALETTE.charcoal, 0.85),
-            ],
+            backgroundColor: [DASH_PALETTE.charcoal, DASH_PALETTE.teal],
             borderColor: DASH_PALETTE.surface,
             borderWidth: 3,
           },
@@ -373,7 +373,7 @@ export default function AdminDashboardPage() {
           <button
             type="button"
             onClick={() => fetchStats()}
-            className="mt-6 rounded-xl bg-[var(--dash-charcoal)] px-6 py-2 text-sm text-white transition hover:opacity-90"
+            className="mt-6 rounded-xl bg-black px-6 py-2 text-sm text-white transition hover:opacity-90"
           >
             Try again
           </button>
@@ -390,6 +390,14 @@ export default function AdminDashboardPage() {
   const aov =
     stats.aov ?? (totalOrders > 0 ? totalRevenue / totalOrders : 0);
   const avgGrowth = ((retail.growth ?? 0) + (custom.growth ?? 0)) / 2;
+
+  const pendingTotal = stats.partners?.pendingTotal ?? 0;
+  const lowStockTotal = stats.inventory?.lowTotal ?? 0;
+  const pendingHref =
+    (stats.partners?.pendingTailors ?? 0) >=
+    (stats.partners?.pendingFabricStores ?? 0)
+      ? "/admin/tailors"
+      : "/admin/partners";
 
   return (
     <div className="space-y-6">
@@ -418,7 +426,7 @@ export default function AdminDashboardPage() {
             type="button"
             onClick={() => fetchStats(true)}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-2 text-xs text-[var(--dash-ink)] transition hover:border-[var(--dash-gold)]"
+            className="inline-flex items-center gap-2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-2 text-xs text-[var(--dash-ink)] transition hover:border-black hover:bg-black hover:text-white"
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
@@ -438,6 +446,7 @@ export default function AdminDashboardPage() {
           trend={avgGrowth}
           compact
           delay={0}
+          accent="ink"
         />
         <StatCard
           icon={ShoppingBag}
@@ -447,6 +456,7 @@ export default function AdminDashboardPage() {
           trend={retail.growth}
           compact
           delay={0.05}
+          accent="teal"
         />
         <StatCard
           icon={Package}
@@ -455,6 +465,7 @@ export default function AdminDashboardPage() {
           subValue="Across all channels"
           compact
           delay={0.1}
+          accent="indigo"
         />
         <StatCard
           icon={Users}
@@ -463,24 +474,74 @@ export default function AdminDashboardPage() {
           subValue={`${stats.customers?.newThisMonth ?? 0} new this month`}
           compact
           delay={0.15}
+          accent="sky"
         />
         <StatCard
           icon={Store}
           label="Pending Approvals"
-          value={String(stats.partners?.pendingTotal ?? 0)}
+          value={String(pendingTotal)}
           subValue={`${stats.partners?.pendingTailors ?? 0} tailor · ${stats.partners?.pendingFabricStores ?? 0} fabric`}
           compact
           delay={0.2}
+          accent="amber"
         />
         <StatCard
           icon={AlertTriangle}
           label="Low Stock"
-          value={String(stats.inventory?.lowTotal ?? 0)}
+          value={String(lowStockTotal)}
           subValue={`${stats.inventory?.lowFabrics ?? 0} fabrics · ${stats.inventory?.lowReadyMade ?? 0} ready`}
           compact
           delay={0.25}
+          accent="rose"
         />
       </div>
+
+      {(pendingTotal > 0 || lowStockTotal > 0) && (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {pendingTotal > 0 && (
+            <Link
+              href={pendingHref}
+              className="group flex items-center justify-between gap-3 rounded-[var(--dash-radius)] border border-amber-200 bg-amber-50 px-4 py-3 transition hover:border-amber-300 hover:bg-amber-100/80"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700">
+                  <Store className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-amber-900">
+                    {pendingTotal} pending approval{pendingTotal === 1 ? "" : "s"}
+                  </p>
+                  <p className="text-xs text-amber-700/80">
+                    Review tailor and fabric-store applications
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-amber-700 transition group-hover:translate-x-0.5" />
+            </Link>
+          )}
+          {lowStockTotal > 0 && (
+            <Link
+              href="/admin/fabrics"
+              className="group flex items-center justify-between gap-3 rounded-[var(--dash-radius)] border border-rose-200 bg-rose-50 px-4 py-3 transition hover:border-rose-300 hover:bg-rose-100/80"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/15 text-rose-700">
+                  <AlertTriangle className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-rose-900">
+                    {lowStockTotal} low-stock item{lowStockTotal === 1 ? "" : "s"}
+                  </p>
+                  <p className="text-xs text-rose-700/80">
+                    Restock fabrics and ready-made pieces
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-rose-700 transition group-hover:translate-x-0.5" />
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Charts row 1 */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -488,6 +549,7 @@ export default function AdminDashboardPage() {
           title="Revenue Trend"
           subtitle="Retail vs custom — last 6 months"
           delay={0.1}
+          accent="ink"
         >
           <div className="h-72">
             <canvas id="admin-revenue-chart" />
@@ -497,6 +559,7 @@ export default function AdminDashboardPage() {
           title="Order Volume"
           subtitle="Monthly order counts by channel"
           delay={0.15}
+          accent="teal"
         >
           <div className="h-72">
             <canvas id="admin-orders-chart" />
@@ -506,12 +569,22 @@ export default function AdminDashboardPage() {
 
       {/* Charts row 2 */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <ChartCard title="Order Status" subtitle="Current period mix" delay={0.18}>
+        <ChartCard
+          title="Order Status"
+          subtitle="Current period mix"
+          delay={0.18}
+          accent="indigo"
+        >
           <div className="mx-auto h-64 max-w-xs">
             <canvas id="admin-status-chart" />
           </div>
         </ChartCard>
-        <ChartCard title="Channel Mix" subtitle="Retail vs custom share" delay={0.22}>
+        <ChartCard
+          title="Channel Mix"
+          subtitle="Retail vs custom share"
+          delay={0.22}
+          accent="sky"
+        >
           <div className="mx-auto h-64 max-w-xs">
             <canvas id="admin-channel-chart" />
           </div>
@@ -525,21 +598,23 @@ export default function AdminDashboardPage() {
           items={stats.topFabrics || []}
           formatValue={formatCurrency}
           delay={0.12}
+          accent="ink"
         />
         <RankList
           title="Top Ready-Made"
           items={stats.topProducts || []}
           formatValue={formatCurrency}
           delay={0.16}
+          accent="teal"
         />
         <RankList
           title="Top Tailors"
           items={stats.topTailors || []}
           formatValue={formatCurrency}
           delay={0.2}
+          accent="indigo"
         />
       </div>
-
     </div>
   );
 }

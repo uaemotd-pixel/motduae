@@ -1,4 +1,4 @@
-/** Chart / UI palette aligned with brand dashboard CSS tokens */
+/** Chart / UI palette — black/white brand with functional data colors */
 export const DASH_PALETTE = {
   gold: "#000000",
   goldSoft: "#FFFFFF",
@@ -9,10 +9,53 @@ export const DASH_PALETTE = {
   sandDeep: "#E8E8E4",
   muted: "#5A5A56",
   surface: "#FFFFFF",
-  success: "#3F7D5A",
-  danger: "#B54A3F",
-  series: ["#000000", "#1A1A1A", "#5A5A56", "#A8A29A", "#E8E8E4", "#57534E"],
+  success: "#2F9E6B",
+  danger: "#D64545",
+  teal: "#0F766E",
+  indigo: "#4F46E5",
+  sky: "#0284C7",
+  amber: "#D97706",
+  rose: "#E11D48",
+  series: ["#111111", "#0F766E", "#4F46E5", "#0284C7", "#D97706", "#E11D48"],
 } as const;
+
+export type DashAccent = "ink" | "teal" | "indigo" | "sky" | "amber" | "rose";
+
+export const DASH_ACCENTS: Record<
+  DashAccent,
+  { hex: string; soft: string; shadow: string }
+> = {
+  ink: {
+    hex: "#111111",
+    soft: "#F3F3F1",
+    shadow: "0 14px 28px -10px rgba(0, 0, 0, 0.16)",
+  },
+  teal: {
+    hex: "#0F766E",
+    soft: "#D9F2EE",
+    shadow: "0 14px 28px -10px rgba(15, 118, 110, 0.28)",
+  },
+  indigo: {
+    hex: "#4F46E5",
+    soft: "#E0E0FB",
+    shadow: "0 14px 28px -10px rgba(79, 70, 229, 0.24)",
+  },
+  sky: {
+    hex: "#0284C7",
+    soft: "#D6EEF9",
+    shadow: "0 14px 28px -10px rgba(2, 132, 199, 0.24)",
+  },
+  amber: {
+    hex: "#D97706",
+    soft: "#FBEAD2",
+    shadow: "0 14px 28px -10px rgba(217, 119, 6, 0.28)",
+  },
+  rose: {
+    hex: "#E11D48",
+    soft: "#FBD5DC",
+    shadow: "0 14px 28px -10px rgba(225, 29, 72, 0.24)",
+  },
+};
 
 export function withAlpha(hex: string, alpha: number): string {
   const h = hex.replace("#", "");
