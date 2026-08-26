@@ -32,6 +32,9 @@ const SubAdminSchema = new mongoose.Schema({
     orders: { type: Boolean, default: false },
     partners: { type: Boolean, default: false },
     settings: { type: Boolean, default: false },
+    payments: { type: Boolean, default: false },
+    addons: { type: Boolean, default: false },
+    notifications: { type: Boolean, default: false },
   },
   createdAt: { type: Date, default: Date.now },
 });

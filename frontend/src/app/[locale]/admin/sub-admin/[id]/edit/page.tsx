@@ -21,14 +21,12 @@ import {
   getEmirateAr,
 } from "@/lib/uaeAddress";
 
-type PermKey =
-  | "customers"
-  | "fabrics"
-  | "readyMade"
-  | "tailors"
-  | "orders"
-  | "partners"
-  | "settings";
+import {
+  ADMIN_PERM_LABELS,
+  type AdminPermKey,
+} from "@/lib/auth/adminAccess";
+
+type PermKey = AdminPermKey;
 
 interface SubAdminForm {
   name: string;
@@ -65,18 +63,13 @@ const defaultForm: SubAdminForm = {
     orders: false,
     partners: false,
     settings: false,
+    payments: false,
+    addons: false,
+    notifications: false,
   },
 };
 
-const permLabels: Record<PermKey, string> = {
-  customers: "Modify Customers",
-  fabrics: "Modify Fabrics",
-  readyMade: "Modify Ready‑Made",
-  tailors: "Modify Tailors",
-  orders: "Modify Orders",
-  partners: "Modify Partners",
-  settings: "Modify Settings",
-};
+const permLabels: Record<PermKey, string> = ADMIN_PERM_LABELS;
 
 export default function EditSubAdminPage() {
   const router = useRouter();
@@ -120,7 +113,7 @@ export default function EditSubAdminPage() {
           street: data.address?.street || "",
           building: data.address?.building || "",
           postalCode: data.address?.postalCode || "",
-          perms: data.perms || defaultForm.perms,
+          perms: { ...defaultForm.perms, ...(data.perms || {}) },
         });
       } catch (err) {
         toast.error("Failed to load sub-admin");

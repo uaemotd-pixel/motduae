@@ -5,7 +5,6 @@ import { routing } from "@/i18n/routing";
 // Trailing slash / $ avoid blocking public /tailors and /fabrics routes.
 const PRIVATE_PATHS = [
   "/admin",
-  "/sub-admin-dashboard",
   "/account",
   "/auth",
   "/checkout",

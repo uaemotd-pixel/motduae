@@ -2,6 +2,11 @@
 "use client";
 import { useAuth } from "@/context/AuthContext";
 import { Lock } from "lucide-react";
+import {
+  hasAdminPerm,
+  isFullAdmin,
+  type AdminPermKey,
+} from "@/lib/auth/adminAccess";
 
 export default function PermissionGuard({
   children,
@@ -12,8 +17,18 @@ export default function PermissionGuard({
 }) {
   const { user } = useAuth();
   if (!user) return null;
-  if (user.role === "admin") return <>{children}</>;
-  if (user.perms && user.perms[requiredPerm] === true) return <>{children}</>;
+
+  if (requiredPerm === "subAdmins") {
+    if (isFullAdmin(user)) return <>{children}</>;
+  } else if (hasAdminPerm(user, requiredPerm as AdminPermKey)) {
+    return <>{children}</>;
+  } else if (
+    !requiredPerm &&
+    (user.role === "admin" || user.role === "sub-admin")
+  ) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="flex items-center justify-center p-4 min-h-[calc(100dvh-10rem)]">
       <div className="py-10 relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-white/20 backdrop-blur-xl border border-white/30 shadow-2xl">
@@ -26,8 +41,8 @@ export default function PermissionGuard({
             Access Restricted
           </h3>
           <p className="text-sm text-black/60 mt-2 max-w-sm">
-            You don't have permission to view this section. Please contact your
-            administrator.
+            You don&apos;t have permission to view this section. Please contact
+            your administrator.
           </p>
         </div>
       </div>

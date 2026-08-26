@@ -117,7 +117,7 @@ export function Navbar() {
     if (!user) return "/auth/login";
     if (user.isGuest) return undefined;
     if (user.role.toLowerCase() === "admin") return "/admin";
-    if (user.role.toLowerCase() === "sub-admin") return "/sub-admin-dashboard";
+    if (user.role.toLowerCase() === "sub-admin") return "/admin";
     if (user.role.toLowerCase() === "tailor") return "/tailor";
     if (user.role.toLowerCase() === "fabric_store") return "/fabric";
     return "/account";
