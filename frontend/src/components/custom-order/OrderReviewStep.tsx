@@ -25,6 +25,8 @@ import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHe
 import { CustomOrderStepSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { resolveMediaUrl } from "@/lib/media";
 
+const INITIAL_VISIBLE_ADDONS = 4;
+
 function hasAnyMeasurements(measurements: CustomOrderMeasurements): boolean {
   return CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS.some(
     (field) => measurements[field] !== null,
@@ -61,6 +63,7 @@ export default function OrderReviewStep() {
   const [addons, setAddons] = useState<any[]>([]);
   const [loadingAddons, setLoadingAddons] = useState(false);
   const [showAllAddons, setShowAllAddons] = useState(false);
+  const [showMoreAddons, setShowMoreAddons] = useState(false);
 
   const selectedFabricShopId = useMemo(() => {
     if (draft.fabricSource === "storefront" && draft.selectedFabrics?.[0]) {
@@ -96,12 +99,30 @@ export default function OrderReviewStep() {
     return addons.filter((a) => a.fabricShopId !== selectedFabricShopId);
   }, [addons, selectedFabricShopId]);
 
-  const displayedAddons = useMemo(() => {
+  const availableAddons = useMemo(() => {
     if (!selectedFabricShopId || showAllAddons) {
       return [...selectedStoreAddons, ...otherStoreAddons];
     }
     return selectedStoreAddons;
   }, [showAllAddons, selectedFabricShopId, selectedStoreAddons, otherStoreAddons]);
+
+  const displayedAddons = useMemo(() => {
+    const selectedIds = new Set(draft.addonIds || []);
+    const selected = availableAddons.filter((a) => selectedIds.has(a._id));
+    const rest = availableAddons.filter((a) => !selectedIds.has(a._id));
+    const ordered = [...selected, ...rest];
+    const minVisible = Math.max(INITIAL_VISIBLE_ADDONS, selected.length);
+
+    if (showMoreAddons || ordered.length <= minVisible) {
+      return ordered;
+    }
+    return ordered.slice(0, minVisible);
+  }, [availableAddons, showMoreAddons, draft.addonIds]);
+
+  const hiddenAddonCount = Math.max(
+    0,
+    availableAddons.length - displayedAddons.length,
+  );
 
   const selectedAddonsCost = useMemo(() => {
     return addons
@@ -422,6 +443,19 @@ export default function OrderReviewStep() {
                     })}
                   </div>
 
+                  {(hiddenAddonCount > 0 || showMoreAddons) &&
+                    availableAddons.length > INITIAL_VISIBLE_ADDONS && (
+                    <button
+                      type="button"
+                      onClick={() => setShowMoreAddons((prev) => !prev)}
+                      className="w-full text-center py-2.5 text-[10px] font-ui uppercase tracking-[0.2em] border border-dashed border-gray-200 bg-gray-50/50 hover:bg-gray-50 text-gray-500 hover:text-black transition mt-2 hover:cursor-pointer rounded-lg"
+                    >
+                      {showMoreAddons
+                        ? t("showLessAddons")
+                        : t("showMoreAddons", { count: hiddenAddonCount })}
+                    </button>
+                  )}
+
                   {selectedFabricShopId && otherStoreAddons.length > 0 && (
                     <button
                       type="button"
@@ -429,7 +463,7 @@ export default function OrderReviewStep() {
                       className="w-full text-center py-2.5 text-[10px] font-ui uppercase tracking-[0.2em] border border-dashed border-gray-200 bg-gray-50/50 hover:bg-gray-50 text-gray-500 hover:text-black transition mt-2 hover:cursor-pointer rounded-lg"
                     >
                       {showAllAddons
-                        ? (locale === "ar" ? "عرض أقل" : "Show Less")
+                        ? (locale === "ar" ? "إخفاء إضافات المتاجر الأخرى" : "Hide other stores' add-ons")
                         : (locale === "ar" ? `عرض إضافات المتاجر الأخرى (+${otherStoreAddons.length})` : `Show other stores' add-ons (+${otherStoreAddons.length})`)}
                     </button>
                   )}
