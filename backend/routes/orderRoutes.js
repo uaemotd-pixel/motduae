@@ -65,8 +65,20 @@ const isStripePaymentMethod = (method) =>
 const isApprovedTailorOwner = (owner) =>
   owner?.role === "tailor" && owner?.approvalStatus === "approved";
 
-const isSameUserId = (left, right) =>
-  Boolean(left) && Boolean(right) && String(left) === String(right);
+const toIdString = (value) => {
+  if (value == null || value === "") return "";
+  if (typeof value === "object" && value._id != null) {
+    return String(value._id);
+  }
+  const asString = String(value);
+  return asString === "[object Object]" ? "" : asString;
+};
+
+const isSameUserId = (left, right) => {
+  const leftId = toIdString(left);
+  const rightId = toIdString(right);
+  return Boolean(leftId) && Boolean(rightId) && leftId === rightId;
+};
 
 const canAccessOrder = (order, user) =>
   Boolean(user?.isAdmin) || isSameUserId(order?.userId, user?._id);
