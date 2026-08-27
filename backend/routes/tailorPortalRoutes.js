@@ -23,6 +23,9 @@ import { splitMotdCommission } from "../services/pricingService.js";
 import PartnerPayout from "../models/PartnerPayout.js";
 import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
 import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
+import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
+import { createNotification } from "../services/notificationService.js";
+import { computeTailorUnpaidBreakdown } from "../services/tailorPayoutRequestService.js";
 
 const tailorPortalRouter = express.Router();
 
@@ -796,17 +799,21 @@ tailorPortalRouter.get(
       .filter((o) => o.payoutNet > 0)
       .slice(0, 20);
 
-    // Attribute admin releases to orders in this timeframe when order ids are known.
+    // Attribute admin releases only via per-order settlement rows.
+    // Do NOT fall back to shop-level paidTotal — that wrongly marks the
+    // current timeframe as paid from historical/unattributed releases.
     let paidInWindow = 0;
     for (const order of ordersInWindow) {
       const orderId = String(order._id);
-      paidInWindow += Number(settlement.paidByOrderId.get(orderId)) || 0;
+      const net = splitMotdCommission(
+        getTailorGross(order),
+        commissionPercent,
+      ).net;
+      if (net <= 0) continue;
+      const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
+      paidInWindow += Math.min(paidForOrder, net);
     }
-    // If releases have no per-order rows, fall back to shop-level paid capped by window net.
-    if (paidInWindow <= 0 && settlement.paidTotal > 0 && tailorRevenue > 0) {
-      paidInWindow = Math.min(settlement.paidTotal, tailorRevenue);
-    }
-    paidInWindow = Number(Math.min(paidInWindow, tailorRevenue).toFixed(2));
+    paidInWindow = Number(paidInWindow.toFixed(2));
     const pendingInWindow = Math.max(
       0,
       Number((tailorRevenue - paidInWindow).toFixed(2)),
@@ -848,10 +855,179 @@ tailorPortalRouter.get(
         status: payoutStatus,
       },
       recentOrders,
-      pricingOrders: allScopedOrders.map((o) =>
-        presentCustomOrderForTailor(o, shopId),
-      ),
+      pricingOrders,
     });
+  }),
+);
+
+// ==========================================
+// GET /api/tailor/payout-requests
+// ==========================================
+tailorPortalRouter.get(
+  "/payout-requests",
+  expressAsyncHandler(async (req, res) => {
+    const breakdown = await computeTailorUnpaidBreakdown(req.user._id);
+
+    // Heal stale pending requests after a manual admin release (no request approve).
+    if (breakdown.pendingRequest && breakdown.amount <= 0) {
+      await PartnerPayoutRequest.updateMany(
+        {
+          partnerKind: "tailor",
+          status: "pending",
+          $or: [
+            { partnerKey: breakdown.identity.partnerKey },
+            { requestedBy: req.user._id },
+          ],
+        },
+        {
+          $set: {
+            status: "approved",
+            reviewedAt: new Date(),
+            adminNote: "Fulfilled by payment release",
+          },
+        },
+      );
+      breakdown.pendingRequest = null;
+    }
+
+    const items = await PartnerPayoutRequest.find({
+      partnerKind: "tailor",
+      $or: [
+        { requestedBy: req.user._id },
+        { partnerKey: breakdown.identity.partnerKey },
+      ],
+    })
+      .sort({ requestedAt: -1 })
+      .limit(50)
+      .lean();
+
+    res.json({
+      success: true,
+      currency: "AED",
+      unpaidAmount: breakdown.amount,
+      unpaidOrderCount: breakdown.orders.length,
+      pendingRequest: breakdown.pendingRequest,
+      identity: breakdown.identity,
+      items,
+    });
+  }),
+);
+
+// ==========================================
+// POST /api/tailor/payout-requests
+// ==========================================
+tailorPortalRouter.post(
+  "/payout-requests",
+  expressAsyncHandler(async (req, res) => {
+    const note =
+      typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 500) : "";
+
+    const breakdown = await computeTailorUnpaidBreakdown(req.user._id);
+
+    if (!breakdown.shop) {
+      res.status(400).send({
+        message: "Create your tailor shop before requesting a payout.",
+      });
+      return;
+    }
+
+    if (breakdown.pendingRequest) {
+      res.status(409).send({
+        message:
+          "You already have a pending payout request. Wait for MOTD to review it.",
+        pendingRequest: breakdown.pendingRequest,
+      });
+      return;
+    }
+
+    if (breakdown.amount <= 0 || breakdown.orders.length === 0) {
+      res.status(400).send({
+        message: "No unpaid payout balance available to request.",
+      });
+      return;
+    }
+
+    const { identity } = breakdown;
+    const requestDoc = await PartnerPayoutRequest.create({
+      partnerKey: identity.partnerKey,
+      partnerKind: "tailor",
+      partnerId: identity.partnerId,
+      partnerName: identity.partnerName,
+      payeeName: identity.payeeName,
+      amount: breakdown.amount,
+      currency: "AED",
+      orders: breakdown.orders.map((o) => ({
+        orderId: o.orderId,
+        orderType: o.orderType,
+        amount: o.amount,
+      })),
+      status: "pending",
+      note,
+      requestedBy: req.user._id,
+      requestedAt: new Date(),
+    });
+
+    const amountLabel = new Intl.NumberFormat("en-AE", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(breakdown.amount);
+
+    await createNotification({
+      type: "tailor_payout_requested",
+      title: `Payout request — ${identity.partnerName}`,
+      message: `${identity.partnerName} requested AED ${amountLabel} for ${breakdown.orders.length} order${
+        breakdown.orders.length === 1 ? "" : "s"
+      }. Review it in Payments.`,
+      audience: "admin",
+      createdBy: req.user._id,
+      dedupeKey: `admin:tailor_payout_requested:${requestDoc._id}`,
+    });
+
+    res.status(201).json({
+      success: true,
+      request: requestDoc,
+    });
+  }),
+);
+
+// ==========================================
+// DELETE /api/tailor/payout-requests/:id
+// ==========================================
+tailorPortalRouter.delete(
+  "/payout-requests/:id",
+  expressAsyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const requestDoc = await PartnerPayoutRequest.findById(id);
+    if (!requestDoc) {
+      res.status(404).send({ message: "Payout request not found" });
+      return;
+    }
+
+    if (requestDoc.partnerKind !== "tailor") {
+      res.status(403).send({ message: "Not allowed to delete this request" });
+      return;
+    }
+
+    const breakdown = await computeTailorUnpaidBreakdown(req.user._id);
+    const isOwn =
+      requestDoc.partnerKey === breakdown.identity.partnerKey ||
+      String(requestDoc.requestedBy) === String(req.user._id);
+
+    if (!isOwn) {
+      res.status(403).send({ message: "Not allowed to delete this request" });
+      return;
+    }
+
+    if (requestDoc.status === "pending") {
+      res.status(400).send({
+        message:
+          "Pending requests cannot be deleted. Wait for MOTD to review them.",
+      });
+      return;
+    }
+
+    await requestDoc.deleteOne();
+    res.send({ success: true, message: "Request deleted", id: String(id) });
   }),
 );
 

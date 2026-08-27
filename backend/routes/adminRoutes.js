@@ -32,6 +32,8 @@ import PartnerPayout, {
   PARTNER_PAYOUT_KINDS,
 } from "../models/PartnerPayout.js";
 import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
+import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
+import { createNotification } from "../services/notificationService.js";
 import {
   uploadSingleAddOnImageMiddleware,
   processAddOnImage,
@@ -2503,7 +2505,12 @@ adminRouter.get(
     let shippingCustomTotal = 0;
     for (const order of customShareOrders) {
       if (order.isPaid === false) continue;
-      if (order.status === "cancelled" || order.status === "refund_processed") {
+      if (
+        order.status === "cancelled" ||
+        order.status === "return_requested" ||
+        order.status === "return_approved" ||
+        order.status === "refund_processed"
+      ) {
         continue;
       }
       tailorGrossTotal += sumCustomTailorGross(order);
@@ -4168,11 +4175,54 @@ adminRouter.post(
       releasedAt: new Date(),
     });
 
+    // Manual "Release payment" fulfills any open partner request for this payee.
+    // Without this, tailor/fabric/admin keep showing a pending payout request.
+    const pendingRequests = await PartnerPayoutRequest.find({
+      partnerKind,
+      status: "pending",
+      $or: [
+        { partnerKey: payout.partnerKey },
+        ...(payout.partnerId
+          ? [{ partnerId: String(payout.partnerId) }]
+          : []),
+      ],
+    });
+
+    for (const requestDoc of pendingRequests) {
+      requestDoc.status = "approved";
+      requestDoc.reviewedBy = req.user._id;
+      requestDoc.reviewedAt = new Date();
+      requestDoc.payoutId = payout._id;
+      requestDoc.adminNote =
+        requestDoc.adminNote || "Fulfilled by payment release";
+      await requestDoc.save();
+
+      if (requestDoc.requestedBy) {
+        const amountLabel = new Intl.NumberFormat("en-AE", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(Number(requestDoc.amount) || amountNum);
+        const kind = requestDoc.partnerKind === "tailor" ? "tailor" : "fabric";
+        await createNotification({
+          type: `${kind}_payout_approved`,
+          title: "Payout approved",
+          message: `MOTD released your payout of AED ${amountLabel}.`,
+          audience: "customer",
+          recipientUserId: requestDoc.requestedBy,
+          createdBy: req.user._id,
+          dedupeKey: `${kind}:payout_approved:${requestDoc._id}`,
+        }).catch(() => null);
+      }
+    }
+
     const populated = await PartnerPayout.findById(payout._id)
       .populate("releasedBy", "name email")
       .lean();
 
-    res.status(201).send(populated);
+    res.status(201).send({
+      ...populated,
+      fulfilledRequestCount: pendingRequests.length,
+    });
   }),
 );
 
@@ -4213,6 +4263,260 @@ adminRouter.delete(
 
     await payout.deleteOne();
     res.send({ message: "Transaction deleted", id: String(id) });
+  }),
+);
+
+// ==========================================
+// Partner payout REQUESTS (fabric-initiated)
+// ==========================================
+
+// GET /api/admin/payout-requests
+adminRouter.get(
+  "/payout-requests",
+  expressAsyncHandler(async (req, res) => {
+    const { status, partnerKind, limit } = req.query;
+    const filter = {};
+    if (
+      status &&
+      typeof status === "string" &&
+      ["pending", "approved", "rejected", "cancelled"].includes(status)
+    ) {
+      filter.status = status;
+    }
+    if (
+      partnerKind &&
+      typeof partnerKind === "string" &&
+      PARTNER_PAYOUT_KINDS.includes(partnerKind)
+    ) {
+      filter.partnerKind = partnerKind;
+    }
+
+    // Heal pending requests already fulfilled by a manual "Release payment".
+    const stalePending = await PartnerPayoutRequest.find({
+      status: "pending",
+      ...(filter.partnerKind ? { partnerKind: filter.partnerKind } : {}),
+    }).limit(200);
+
+    for (const requestDoc of stalePending) {
+      const match = {
+        partnerKind: requestDoc.partnerKind,
+        $or: [
+          { partnerKey: requestDoc.partnerKey },
+          ...(requestDoc.partnerId
+            ? [{ partnerId: String(requestDoc.partnerId) }]
+            : []),
+        ],
+        releasedAt: { $gte: requestDoc.requestedAt || requestDoc.createdAt },
+      };
+      const laterRelease = await PartnerPayout.findOne(match)
+        .sort({ releasedAt: -1 })
+        .select("_id releasedAt")
+        .lean();
+      if (!laterRelease) continue;
+      requestDoc.status = "approved";
+      requestDoc.payoutId = laterRelease._id;
+      requestDoc.reviewedAt = laterRelease.releasedAt || new Date();
+      requestDoc.adminNote =
+        requestDoc.adminNote || "Fulfilled by payment release";
+      await requestDoc.save();
+    }
+
+    const limitNum = Math.min(Math.max(Number(limit) || 100, 1), 300);
+    const items = await PartnerPayoutRequest.find(filter)
+      .populate("requestedBy", "name email")
+      .populate("reviewedBy", "name email")
+      .sort({
+        status: 1,
+        requestedAt: -1,
+      })
+      .limit(limitNum)
+      .lean();
+
+    const pendingCount = await PartnerPayoutRequest.countDocuments({
+      status: "pending",
+      ...(filter.partnerKind ? { partnerKind: filter.partnerKind } : {}),
+    });
+
+    res.send({ items, pendingCount });
+  }),
+);
+
+// POST /api/admin/payout-requests/:id/approve
+adminRouter.post(
+  "/payout-requests/:id/approve",
+  expressAsyncHandler(async (req, res) => {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(String(id))) {
+      res.status(400).send({ message: "Invalid request id" });
+      return;
+    }
+
+    const requestDoc = await PartnerPayoutRequest.findById(id);
+    if (!requestDoc) {
+      res.status(404).send({ message: "Payout request not found" });
+      return;
+    }
+    if (requestDoc.status !== "pending") {
+      res.status(400).send({
+        message: `Request is already ${requestDoc.status}`,
+      });
+      return;
+    }
+
+    const amountNum = Number(requestDoc.amount);
+    if (!Number.isFinite(amountNum) || amountNum <= 0) {
+      res.status(400).send({ message: "Request has an invalid amount" });
+      return;
+    }
+
+    const orderDocs = (requestDoc.orders || [])
+      .map((o) => ({
+        orderId: o.orderId,
+        orderType: o.orderType === "retail" ? "retail" : "custom",
+        amount: Number(o.amount) || 0,
+      }))
+      .filter((o) => o.orderId && o.amount >= 0);
+
+    const payout = await PartnerPayout.create({
+      partnerKey: requestDoc.partnerKey,
+      partnerKind: requestDoc.partnerKind,
+      partnerId: requestDoc.partnerId || "",
+      partnerName: requestDoc.partnerName,
+      payeeName: requestDoc.payeeName || "",
+      amount: Number(amountNum.toFixed(2)),
+      currency: requestDoc.currency || "AED",
+      orders: orderDocs,
+      note: requestDoc.note
+        ? `Approved request: ${requestDoc.note}`
+        : `Approved ${requestDoc.partnerKind} payout request`,
+      releasedBy: req.user._id,
+      releasedAt: new Date(),
+    });
+
+    requestDoc.status = "approved";
+    requestDoc.reviewedBy = req.user._id;
+    requestDoc.reviewedAt = new Date();
+    requestDoc.payoutId = payout._id;
+    requestDoc.adminNote =
+      typeof req.body?.adminNote === "string"
+        ? req.body.adminNote.trim().slice(0, 500)
+        : "";
+    await requestDoc.save();
+
+    if (requestDoc.requestedBy) {
+      const amountLabel = new Intl.NumberFormat("en-AE", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(amountNum);
+      const kind = requestDoc.partnerKind === "tailor" ? "tailor" : "fabric";
+      await createNotification({
+        type: `${kind}_payout_approved`,
+        title: "Payout approved",
+        message: `MOTD approved your payout request of AED ${amountLabel}.`,
+        audience: "customer",
+        recipientUserId: requestDoc.requestedBy,
+        createdBy: req.user._id,
+        dedupeKey: `${kind}:payout_approved:${requestDoc._id}`,
+      }).catch(() => null);
+    }
+
+    const populated = await PartnerPayoutRequest.findById(requestDoc._id)
+      .populate("requestedBy", "name email")
+      .populate("reviewedBy", "name email")
+      .lean();
+
+    res.send({
+      success: true,
+      request: populated,
+      payoutId: payout._id,
+    });
+  }),
+);
+
+// POST /api/admin/payout-requests/:id/reject
+adminRouter.post(
+  "/payout-requests/:id/reject",
+  expressAsyncHandler(async (req, res) => {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(String(id))) {
+      res.status(400).send({ message: "Invalid request id" });
+      return;
+    }
+
+    const requestDoc = await PartnerPayoutRequest.findById(id);
+    if (!requestDoc) {
+      res.status(404).send({ message: "Payout request not found" });
+      return;
+    }
+    if (requestDoc.status !== "pending") {
+      res.status(400).send({
+        message: `Request is already ${requestDoc.status}`,
+      });
+      return;
+    }
+
+    const adminNote =
+      typeof req.body?.adminNote === "string"
+        ? req.body.adminNote.trim().slice(0, 500)
+        : "";
+
+    requestDoc.status = "rejected";
+    requestDoc.reviewedBy = req.user._id;
+    requestDoc.reviewedAt = new Date();
+    requestDoc.adminNote = adminNote;
+    await requestDoc.save();
+
+    if (requestDoc.requestedBy) {
+      const kind = requestDoc.partnerKind === "tailor" ? "tailor" : "fabric";
+      await createNotification({
+        type: `${kind}_payout_rejected`,
+        title: "Payout request declined",
+        message: adminNote
+          ? `MOTD declined your payout request: ${adminNote}`
+          : "MOTD declined your payout request.",
+        audience: "customer",
+        recipientUserId: requestDoc.requestedBy,
+        createdBy: req.user._id,
+        dedupeKey: `${kind}:payout_rejected:${requestDoc._id}`,
+      }).catch(() => null);
+    }
+
+    const populated = await PartnerPayoutRequest.findById(requestDoc._id)
+      .populate("requestedBy", "name email")
+      .populate("reviewedBy", "name email")
+      .lean();
+
+    res.send({ success: true, request: populated });
+  }),
+);
+
+// DELETE /api/admin/payout-requests/:id
+// Remove a reviewed (approved/rejected/cancelled) request from history.
+adminRouter.delete(
+  "/payout-requests/:id",
+  expressAsyncHandler(async (req, res) => {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(String(id))) {
+      res.status(400).send({ message: "Invalid request id" });
+      return;
+    }
+
+    const requestDoc = await PartnerPayoutRequest.findById(id);
+    if (!requestDoc) {
+      res.status(404).send({ message: "Payout request not found" });
+      return;
+    }
+
+    if (requestDoc.status === "pending") {
+      res.status(400).send({
+        message:
+          "Pending requests cannot be deleted. Approve or reject them first.",
+      });
+      return;
+    }
+
+    await requestDoc.deleteOne();
+    res.send({ message: "Request deleted", id: String(id) });
   }),
 );
 

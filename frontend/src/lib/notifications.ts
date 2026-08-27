@@ -210,6 +210,12 @@ export function getNotificationTypeLabel(type: string, t?: (key: string) => stri
     retail_status_cancelled: "Order cancelled",
     custom_review_prompt: "Leave a review",
     retail_review_prompt: "Leave a review",
+    fabric_payout_requested: "Fabric payout request",
+    fabric_payout_approved: "Payout approved",
+    fabric_payout_rejected: "Payout declined",
+    tailor_payout_requested: "Tailor payout request",
+    tailor_payout_approved: "Payout approved",
+    tailor_payout_rejected: "Payout declined",
   };
 
   return labels[key] || type || "Notification";
@@ -217,6 +223,7 @@ export function getNotificationTypeLabel(type: string, t?: (key: string) => stri
 
 export function getNotificationCategory(type: string): NotificationCategory {
   const key = type.toLowerCase();
+  if (key.includes("payout")) return "partners";
   if (key.includes("return")) return "returns";
   if (key.includes("order")) return "orders";
   if (key === "user_customer_registered" || key === "customer_registered") {
@@ -236,6 +243,7 @@ export function getNotificationPriority(
     if (isNotificationAging(notification.createdAt, 2)) return "urgent";
     return "high";
   }
+  if (type.includes("payout")) return "high";
   if (type.includes("order_placed") || type.includes("return")) return "high";
   if (type.includes("registered")) return "normal";
   return "low";

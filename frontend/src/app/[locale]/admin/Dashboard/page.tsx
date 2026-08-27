@@ -7,7 +7,7 @@ import {
   ShoppingBag,
   Package,
   Activity,
-  DollarSign,
+  Banknote,
   Users,
   AlertTriangle,
   Store,
@@ -60,9 +60,24 @@ interface DashboardStats {
     lowAddons: number;
     lowTotal: number;
   };
-  topFabrics?: Array<{ id: string; name: string; value: number; meta?: string }>;
-  topProducts?: Array<{ id: string; name: string; value: number; meta?: string }>;
-  topTailors?: Array<{ id: string; name: string; value: number; meta?: string }>;
+  topFabrics?: Array<{
+    id: string;
+    name: string;
+    value: number;
+    meta?: string;
+  }>;
+  topProducts?: Array<{
+    id: string;
+    name: string;
+    value: number;
+    meta?: string;
+  }>;
+  topTailors?: Array<{
+    id: string;
+    name: string;
+    value: number;
+    meta?: string;
+  }>;
 }
 
 export default function AdminDashboardPage() {
@@ -70,7 +85,9 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeframe, setTimeframe] = useState<"week" | "month" | "year">("month");
+  const [timeframe, setTimeframe] = useState<"week" | "month" | "year">(
+    "month",
+  );
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const revenueChartRef = useRef<Chart | null>(null);
@@ -167,7 +184,12 @@ export default function AdminDashboardPage() {
             backgroundColor: (ctx) => {
               const { ctx: c, chartArea } = ctx.chart;
               if (!chartArea) return "transparent";
-              const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+              const g = c.createLinearGradient(
+                0,
+                chartArea.top,
+                0,
+                chartArea.bottom,
+              );
               g.addColorStop(0, withAlpha(DASH_PALETTE.charcoal, 0.28));
               g.addColorStop(1, withAlpha(DASH_PALETTE.charcoal, 0));
               return g;
@@ -188,7 +210,12 @@ export default function AdminDashboardPage() {
             backgroundColor: (ctx) => {
               const { ctx: c, chartArea } = ctx.chart;
               if (!chartArea) return "transparent";
-              const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+              const g = c.createLinearGradient(
+                0,
+                chartArea.top,
+                0,
+                chartArea.bottom,
+              );
               g.addColorStop(0, withAlpha(DASH_PALETTE.teal, 0.32));
               g.addColorStop(1, withAlpha(DASH_PALETTE.teal, 0));
               return g;
@@ -283,7 +310,11 @@ export default function AdminDashboardPage() {
           },
           y: {
             beginAtZero: true,
-            ticks: { color: DASH_PALETTE.muted, font: { size: 11 }, stepSize: 1 },
+            ticks: {
+              color: DASH_PALETTE.muted,
+              font: { size: 11 },
+              stepSize: 1,
+            },
             grid: { color: chartGridColor },
             border: { color: DASH_PALETTE.sandDeep },
           },
@@ -366,10 +397,12 @@ export default function AdminDashboardPage() {
   if (error) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="max-w-md rounded-[var(--dash-radius)] border border-[var(--dash-border)] bg-[var(--dash-surface)] p-8 text-center shadow-sm">
-          <Activity className="mx-auto mb-4 h-12 w-12 text-[var(--dash-muted)]" />
-          <p className="text-xl text-[var(--dash-ink)]">Unable to load dashboard</p>
-          <p className="mt-2 text-sm text-[var(--dash-muted)]">{error}</p>
+        <div className="max-w-md rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) p-8 text-center shadow-sm">
+          <Activity className="mx-auto mb-4 h-12 w-12 text-(--dash-muted)" />
+          <p className="text-xl text-(--dash-ink)">
+            Unable to load dashboard
+          </p>
+          <p className="mt-2 text-sm text-(--dash-muted)">{error}</p>
           <button
             type="button"
             onClick={() => fetchStats()}
@@ -387,8 +420,7 @@ export default function AdminDashboardPage() {
   const { retail, custom } = stats;
   const totalOrders = retail.orderCount + custom.orderCount;
   const totalRevenue = retail.revenue + custom.revenue;
-  const aov =
-    stats.aov ?? (totalOrders > 0 ? totalRevenue / totalOrders : 0);
+  const aov = stats.aov ?? (totalOrders > 0 ? totalRevenue / totalOrders : 0);
   const avgGrowth = ((retail.growth ?? 0) + (custom.growth ?? 0)) / 2;
 
   const pendingTotal = stats.partners?.pendingTotal ?? 0;
@@ -404,13 +436,13 @@ export default function AdminDashboardPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-[var(--dash-muted)]">
+          <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-(--dash-muted)">
             Operations overview
           </p>
-          <h1 className="[font-family:var(--font-display)] mt-1 text-3xl text-[var(--dash-ink)] sm:text-4xl">
+          <h1 className="[font-family:var(--font-display)] mt-1 text-3xl text-(--dash-ink) sm:text-4xl">
             Welcome{user?.name ? `, ${user.name}` : ""}
           </h1>
-          <p className="mt-1 text-sm text-[var(--dash-muted)]">
+          <p className="mt-1 text-sm text-(--dash-muted)">
             {new Date().toLocaleDateString("en-US", {
               weekday: "long",
               year: "numeric",
@@ -426,7 +458,7 @@ export default function AdminDashboardPage() {
             type="button"
             onClick={() => fetchStats(true)}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-2 text-xs text-[var(--dash-ink)] transition hover:border-black hover:bg-black hover:text-white"
+            className="inline-flex items-center gap-2 rounded-xl border border-(--dash-border) bg-(--dash-surface) px-3 py-2 text-xs text-(--dash-ink) transition hover:border-black hover:bg-black hover:text-white"
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
@@ -439,7 +471,7 @@ export default function AdminDashboardPage() {
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <StatCard
-          icon={DollarSign}
+          icon={Banknote}
           label="Total Revenue"
           value={formatKpiCurrency(totalRevenue)}
           subValue={`Retail ${formatKpiCurrency(retail.revenue)}`}
@@ -501,7 +533,7 @@ export default function AdminDashboardPage() {
           {pendingTotal > 0 && (
             <Link
               href={pendingHref}
-              className="group flex items-center justify-between gap-3 rounded-[var(--dash-radius)] border border-amber-200 bg-amber-50 px-4 py-3 transition hover:border-amber-300 hover:bg-amber-100/80"
+              className="group flex items-center justify-between gap-3 rounded-(--dash-radius) border border-amber-200 bg-amber-50 px-4 py-3 transition hover:border-amber-300 hover:bg-amber-100/80"
             >
               <div className="flex items-center gap-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700">
@@ -509,7 +541,8 @@ export default function AdminDashboardPage() {
                 </span>
                 <div>
                   <p className="text-sm font-medium text-amber-900">
-                    {pendingTotal} pending approval{pendingTotal === 1 ? "" : "s"}
+                    {pendingTotal} pending approval
+                    {pendingTotal === 1 ? "" : "s"}
                   </p>
                   <p className="text-xs text-amber-700/80">
                     Review tailor and fabric-store applications
@@ -522,7 +555,7 @@ export default function AdminDashboardPage() {
           {lowStockTotal > 0 && (
             <Link
               href="/admin/fabrics"
-              className="group flex items-center justify-between gap-3 rounded-[var(--dash-radius)] border border-rose-200 bg-rose-50 px-4 py-3 transition hover:border-rose-300 hover:bg-rose-100/80"
+              className="group flex items-center justify-between gap-3 rounded-(--dash-radius) border border-rose-200 bg-rose-50 px-4 py-3 transition hover:border-rose-300 hover:bg-rose-100/80"
             >
               <div className="flex items-center gap-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/15 text-rose-700">
@@ -530,7 +563,8 @@ export default function AdminDashboardPage() {
                 </span>
                 <div>
                   <p className="text-sm font-medium text-rose-900">
-                    {lowStockTotal} low-stock item{lowStockTotal === 1 ? "" : "s"}
+                    {lowStockTotal} low-stock item
+                    {lowStockTotal === 1 ? "" : "s"}
                   </p>
                   <p className="text-xs text-rose-700/80">
                     Restock fabrics and ready-made pieces
