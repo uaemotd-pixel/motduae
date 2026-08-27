@@ -827,7 +827,9 @@
         "slugInvalid": "يجب أن يحتوي الاسم اللطيف للرابط على أحرف صغيرة وأرقام وواصلات فقط.",
         "imagesRequired": "يلزم إضافة صورة واحدة على الأقل.",
         "pricePerMeterInvalid": "يرجى إدخال سعر صحيح.",
-        "stockInMetersInvalid": "يرجى إدخال كمية مخزون صحيحة."
+        "stockInMetersInvalid": "يرجى إدخال كمية مخزون صحيحة.",
+        "colorRequired": "يلزم تحديد لون واحد على الأقل.",
+        "stockInMetersRequired": "كمية المخزون مطلوبة."
       },
       "successCreated": "تم إنشاء القماش بنجاح.",
       "successUpdated": "تم تحديث القماش بنجاح.",

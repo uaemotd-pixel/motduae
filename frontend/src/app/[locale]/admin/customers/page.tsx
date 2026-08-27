@@ -19,6 +19,7 @@ import {
   Calendar,
   Maximize2,
   MoreVertical,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ImageModal } from "@/components/shared/ImageModal";
@@ -142,6 +143,7 @@ export default function AdminCustomersPage() {
   const menuRef = useRef<HTMLDivElement>(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
+  const [detailsCustomer, setDetailsCustomer] = useState<Customer | null>(null);
   const isInitialLoad = useRef(true);
   const [limit, setLimit] = useState(10);
 
@@ -505,7 +507,7 @@ export default function AdminCustomersPage() {
             >
               <button
                 onClick={() => {
-                  toast.success(`Viewing details for "${menuCustomer.name}"`);
+                  setDetailsCustomer(menuCustomer);
                   setMenuPosition(null);
                   setMenuCustomer(null);
                   setMenuAnchor(null);
@@ -787,6 +789,121 @@ export default function AdminCustomersPage() {
           itemsPerPageOptions={[5, 10, 20, 50, 100]}
           totalItems={stats?.totalCustomers ?? 0}
         />
+      )}
+
+      {/* Customer Details Modal */}
+      {detailsCustomer && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={(e) => e.target === e.currentTarget && setDetailsCustomer(null)}
+        >
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100 overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+              <h3 className="text-base font-medium text-black">
+                Customer Profile Details
+              </h3>
+              <button
+                onClick={() => setDetailsCustomer(null)}
+                className="text-gray-400 hover:text-black transition cursor-pointer p-1 border-0 bg-transparent"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Avatar Section */}
+              <div className="flex flex-col items-center gap-3">
+                {detailsCustomer.profilePic ? (
+                  <div
+                    className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 cursor-pointer shadow-inner group"
+                    onClick={() => handleImageClick(detailsCustomer.profilePic || "")}
+                  >
+                    <img
+                      src={detailsCustomer.profilePic}
+                      alt={detailsCustomer.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Maximize2 className="w-5 h-5 text-white" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shadow-inner">
+                    <User className="w-12 h-12 text-gray-400" />
+                  </div>
+                )}
+                <h4 className="text-lg font-medium text-black">
+                  {detailsCustomer.name}
+                </h4>
+                <StatusBadge isActive={detailsCustomer.isActive} />
+              </div>
+
+              {/* Data Fields */}
+              <div className="space-y-4 border-t border-gray-100 pt-5">
+                <div className="flex items-start gap-3">
+                  <Mail className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                      Email Address
+                    </p>
+                    <p className="text-sm font-medium text-black break-all">
+                      {detailsCustomer.email}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <Phone className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                      Phone Number
+                    </p>
+                    <p className="text-sm font-medium text-black font-mono">
+                      {detailsCustomer.phone || "—"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <VenusAndMars className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                      Gender
+                    </p>
+                    <p className="text-sm font-medium text-black capitalize">
+                      {detailsCustomer.gender || "—"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                      Registration Date
+                    </p>
+                    <p className="text-sm font-medium text-black">
+                      {formatDate(detailsCustomer.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setDetailsCustomer(null)}
+                className="px-5 py-2 text-xs font-medium text-white bg-black hover:bg-gray-800 rounded-lg transition cursor-pointer border-0"
+              >
+                Close Details
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <ImageModal
