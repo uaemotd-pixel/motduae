@@ -16,7 +16,7 @@ const fabricShopSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     nameAr: { type: String, required: true, trim: true },
-    slug: { type: String, required: true, unique: true, trim: true, lowercase: true },
+    slug: { type: String, trim: true, lowercase: true },
     description: { type: String, default: "", trim: true },
     descriptionAr: { type: String, default: "", trim: true },
     logo: { type: String, default: "", trim: true },
@@ -55,6 +55,14 @@ const fabricShopSchema = new mongoose.Schema(
 
 fabricShopSchema.index({ isActive: 1, city: 1 });
 fabricShopSchema.index({ ownerId: 1 });
+fabricShopSchema.index(
+  { slug: 1 },
+  {
+    unique: true,
+    name: "slug_unique_when_set",
+    partialFilterExpression: { slug: { $type: "string", $gt: "" } },
+  },
+);
 
 const FabricShop = mongoose.model("FabricShop", fabricShopSchema);
 

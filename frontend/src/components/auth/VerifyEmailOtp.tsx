@@ -59,6 +59,7 @@ export default function VerifyEmailOtp({
   const { user, applyUserResponse } = useAuth();
   const isPartner =
     user?.role === "tailor" || user?.role === "fabric_store";
+  const isPartnerSubmit = mode === "partner-submit";
   const isEmailChange = mode === "email-change";
   const isGuestCheckout = mode === "guest-checkout";
 
@@ -234,6 +235,8 @@ export default function VerifyEmailOtp({
             ? t.changeTitle
             : mode === "guest-checkout"
               ? t.guestCheckoutTitle
+              : isPartnerSubmit
+                ? t.partnerSubmitTitle
               : t.title;
 
   const showDigits =
@@ -463,7 +466,7 @@ export default function VerifyEmailOtp({
               </form>
             )}
 
-            {(isEmailChange || isGuestCheckout) &&
+            {(isEmailChange || isGuestCheckout || isPartnerSubmit) &&
             phase !== "verifying" &&
             phase !== "verified" ? (
               <button
@@ -477,6 +480,7 @@ export default function VerifyEmailOtp({
             ) : null}
 
             {!isEmailChange &&
+            !isPartnerSubmit &&
             (mode === "signup" ||
               mode === "checkout" ||
               mode === "account") &&

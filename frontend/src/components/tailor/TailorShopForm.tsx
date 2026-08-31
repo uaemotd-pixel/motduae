@@ -111,7 +111,7 @@ export default function TailorShopForm() {
           setShop(existingShop);
           const form = tailorShopToForm(existingShop);
           setFormData(form);
-          setSlugTouched(true);
+          setSlugTouched(Boolean(form.slug?.trim()));
         } else {
           setShop(null);
           setFormData(emptyTailorShopForm());
@@ -151,7 +151,7 @@ export default function TailorShopForm() {
     setFormData((prev) => {
       const next = { ...prev, [field]: val };
 
-      if (field === "name" && isCreateMode && !slugTouched) {
+      if (field === "name" && !slugTouched) {
         next.slug = slugifyShopName(val);
       }
 

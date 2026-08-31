@@ -6,7 +6,8 @@ export type VerifyEmailMode =
   | "checkout"
   | "account"
   | "email-change"
-  | "guest-checkout";
+  | "guest-checkout"
+  | "partner-submit";
 
 /** Build absolute-path OTP URL; caller supplies `next` (path + query, no locale). */
 export function buildVerifyEmailHref(opts: {
@@ -16,6 +17,26 @@ export function buildVerifyEmailHref(opts: {
 }): string {
   const next = opts.next.startsWith("/") ? opts.next : `/${opts.next}`;
   return `/${opts.locale}/auth/verify-email?mode=${opts.mode}&next=${encodeURIComponent(next)}`;
+}
+
+export function partnerApplyPath(role: string | undefined): string {
+  return role === "fabric_store" ? "/fabric/apply" : "/tailor/apply";
+}
+
+/** Only allow the apply form path for partner-submit OTP return. */
+export function sanitizePartnerSubmitNext(
+  next: string | null | undefined,
+  role: string | undefined,
+): string {
+  const fallback = partnerApplyPath(role);
+  if (!next) return fallback;
+  const raw = next.startsWith("/") ? next : `/${next}`;
+  if (raw.startsWith("//") || raw.includes("://")) return fallback;
+  const path = raw.split("?")[0];
+  if (role === "fabric_store" && path === "/fabric/apply") return "/fabric/apply";
+  if (role === "tailor" && path === "/tailor/apply") return "/tailor/apply";
+  if (path === "/fabric/apply" || path === "/tailor/apply") return path;
+  return fallback;
 }
 
 export type SendOtpResponse = {

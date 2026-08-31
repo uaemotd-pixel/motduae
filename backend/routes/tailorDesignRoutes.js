@@ -6,6 +6,7 @@ import TailorShop from "../models/TailorShop.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { deleteTailorDesignUpload } from "../utils/uploads.js";
 import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
+import { respondIfShopNotReady } from "../utils/shopReady.js";
 
 const tailorDesignRouter = express.Router();
 
@@ -252,6 +253,7 @@ tailorDesignRouter.post(
   expressAsyncHandler(async (req, res) => {
     const shop = await resolveOwnShop(req, res);
     if (!shop) return;
+    if (respondIfShopNotReady(shop, res)) return;
 
     const data = pickDesignFields(req.body);
 

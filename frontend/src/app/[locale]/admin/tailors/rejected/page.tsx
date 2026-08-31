@@ -3,13 +3,12 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
+import { Link } from "@/i18n/navigation";
 import toast from "react-hot-toast";
 import {
   RefreshCw,
   CheckCircle,
-  Clock,
   AlertCircle,
-  Loader2,
   Mail,
   Calendar,
   User,
@@ -27,84 +26,6 @@ interface RejectedUser {
   rejectionNote?: string;
 }
 
-// ---------- Approval Modal ----------
-interface ApprovalModalProps {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  confirmLabel: string;
-  cancelLabel: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  showNote?: boolean;
-  noteValue?: string;
-  onNoteChange?: (value: string) => void;
-  notePlaceholder?: string;
-}
-
-function ApprovalModal({
-  isOpen,
-  title,
-  message,
-  confirmLabel,
-  cancelLabel,
-  onConfirm,
-  onCancel,
-  showNote = false,
-  noteValue = "",
-  onNoteChange,
-  notePlaceholder = "Optional reason...",
-}: ApprovalModalProps) {
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) onCancel();
-    };
-    if (isOpen) document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onCancel]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onCancel()}
-    >
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100">
-        <div className="p-6">
-          <h3 className="text-lg font-medium text-black">{title}</h3>
-          <p className="mt-2 text-sm text-gray-600">{message}</p>
-          {showNote && (
-            <div className="mt-4">
-              <textarea
-                value={noteValue}
-                onChange={(e) => onNoteChange?.(e.target.value)}
-                placeholder={notePlaceholder}
-                rows={3}
-                className="w-full px-3 py-2 text-sm text-black bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-black transition resize-none"
-              />
-            </div>
-          )}
-          <div className="mt-6 flex justify-end gap-3">
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer"
-            >
-              {cancelLabel}
-            </button>
-            <button
-              onClick={onConfirm}
-              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 transition hover:cursor-pointer"
-            >
-              {confirmLabel}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function RejectedTailorsPage() {
   const params = useParams();
   const locale = params.locale as string;
@@ -112,13 +33,6 @@ export default function RejectedTailorsPage() {
   const [rejected, setRejected] = useState<RejectedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
-
-  // Approval modal state
-  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
-  const [selectedTailor, setSelectedTailor] = useState<RejectedUser | null>(
-    null,
-  );
 
   const fetchRejected = async () => {
     setLoading(true);
@@ -139,35 +53,6 @@ export default function RejectedTailorsPage() {
   useEffect(() => {
     fetchRejected();
   }, []);
-
-  const openApproveModal = (tailor: RejectedUser) => {
-    setSelectedTailor(tailor);
-    setApprovalModalOpen(true);
-  };
-
-  const closeApproveModal = () => {
-    setApprovalModalOpen(false);
-    setSelectedTailor(null);
-  };
-
-  const executeApprove = async () => {
-    if (!selectedTailor) return;
-    const { _id, name } = selectedTailor;
-
-    setActionInProgress(_id);
-    closeApproveModal();
-
-    try {
-      await api.patch(`/api/admin/tailors/${_id}/approve`);
-      toast.success(`Tailor "${name}" approved successfully`);
-      setRejected((prev) => prev.filter((t) => t._id !== _id));
-    } catch (err) {
-      toast.error(getApiErrorMessage(err, "Approval failed"));
-      fetchRejected();
-    } finally {
-      setActionInProgress(null);
-    }
-  };
 
   const formatDate = (date: string) => {
     const d = new Date(date);
@@ -209,17 +94,6 @@ export default function RejectedTailorsPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6 px-3 sm:px-0">
-      {/* Approval Modal */}
-      <ApprovalModal
-        isOpen={approvalModalOpen}
-        title={`Approve "${selectedTailor?.name || "Tailor"}"`}
-        message="This tailor will be able to create a shop and designs."
-        confirmLabel="Approve"
-        cancelLabel="Cancel"
-        onConfirm={executeApprove}
-        onCancel={closeApproveModal}
-      />
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
@@ -284,7 +158,6 @@ export default function RejectedTailorsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {rejected.map((tailor) => {
-                    const busy = actionInProgress === tailor._id;
                     return (
                       <tr
                         key={tailor._id}
@@ -303,18 +176,13 @@ export default function RejectedTailorsPage() {
                           {formatDate(tailor.createdAt)}
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                          <button
-                            onClick={() => openApproveModal(tailor)}
-                            disabled={busy}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition disabled:opacity-50 hover:cursor-pointer"
+                          <Link
+                            href={`/admin/tailors/${tailor._id}/application`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-50 text-black border border-gray-200 hover:bg-gray-100 transition"
                           >
-                            {busy ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <CheckCircle className="w-3.5 h-3.5" />
-                            )}
-                            {busy ? "Approving..." : "Approve"}
-                          </button>
+                            <FileText className="w-3.5 h-3.5" />
+                            View
+                          </Link>
                         </td>
                       </tr>
                     );
@@ -327,7 +195,6 @@ export default function RejectedTailorsPage() {
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3 sm:space-y-4">
             {rejected.map((tailor) => {
-              const busy = actionInProgress === tailor._id;
               return (
                 <div
                   key={tailor._id}
@@ -369,18 +236,13 @@ export default function RejectedTailorsPage() {
                       </span>
                     </div>
                     <div className="pt-2 sm:pt-3">
-                      <button
-                        onClick={() => openApproveModal(tailor)}
-                        disabled={busy}
-                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition disabled:opacity-50 hover:cursor-pointer"
+                      <Link
+                        href={`/admin/tailors/${tailor._id}/application`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-50 text-black border border-gray-200"
                       >
-                        {busy ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <CheckCircle className="w-3.5 h-3.5" />
-                        )}
-                        {busy ? "Approving..." : "Approve it"}
-                      </button>
+                        <FileText className="w-3.5 h-3.5" />
+                        View
+                      </Link>
                     </div>
                   </div>
                 </div>

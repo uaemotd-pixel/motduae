@@ -1,4 +1,5 @@
 import { api, type ApiError } from "@/lib/api/client";
+import { isShopIncompleteError } from "@/lib/shopProfile";
 
 export const FABRIC_MATERIALS = ["chiffon", "silk velvet", "tana linen cotton"] as const;
 export type FabricMaterial = (typeof FABRIC_MATERIALS)[number];
@@ -234,7 +235,8 @@ export async function deleteFabricItem(id: string): Promise<void> {
 }
 
 export function isShopMissingError(error: unknown): boolean {
-  return (error as ApiError)?.status === 404;
+  if ((error as ApiError)?.status === 404) return true;
+  return isShopIncompleteError(error);
 }
 
 export function getFabricAgeFieldErrors(
