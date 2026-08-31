@@ -730,7 +730,9 @@
         "slugInvalid": "Slug must use lowercase letters, numbers, and hyphens only.",
         "imagesRequired": "At least one image is required.",
         "pricePerMeterInvalid": "Please enter a valid price.",
-        "stockInMetersInvalid": "Please enter a valid stock amount."
+        "stockInMetersInvalid": "Please enter a valid stock amount.",
+        "colorRequired": "At least one color option is required.",
+        "stockInMetersRequired": "Stock quantity is required."
       },
       "successCreated": "Fabric created successfully.",
       "successUpdated": "Fabric updated successfully.",

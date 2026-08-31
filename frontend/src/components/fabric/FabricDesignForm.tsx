@@ -418,9 +418,17 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     if (isNaN(priceNum) || priceNum <= 0) {
       errors.pricePerMeter = t("validation.pricePerMeterInvalid");
     }
-    const stockNum = Number(formData.stockInMeters);
-    if (isNaN(stockNum) || stockNum < 0) {
-      errors.stockInMeters = t("validation.stockInMetersInvalid");
+    const stockStr = String(formData.stockInMeters ?? "").trim();
+    if (stockStr === "") {
+      errors.stockInMeters = t("validation.stockInMetersRequired");
+    } else {
+      const stockNum = Number(formData.stockInMeters);
+      if (isNaN(stockNum) || stockNum < 0) {
+        errors.stockInMeters = t("validation.stockInMetersInvalid");
+      }
+    }
+    if (!formData.colors || formData.colors.length === 0) {
+      errors.colors = t("validation.colorRequired");
     }
     Object.assign(errors, getFabricAgeFieldErrors(formData));
 
@@ -464,11 +472,21 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
             "validation.pricePerMeterInvalid",
           );
         }
-        const sNum = Number(v.stockInMeters);
-        if (isNaN(sNum) || sNum < 0) {
+        const sStr = String(v.stockInMeters ?? "").trim();
+        if (sStr === "") {
           errors[`${prefix}.stockInMeters`] = t(
-            "validation.stockInMetersInvalid",
+            "validation.stockInMetersRequired",
           );
+        } else {
+          const sNum = Number(v.stockInMeters);
+          if (isNaN(sNum) || sNum < 0) {
+            errors[`${prefix}.stockInMeters`] = t(
+              "validation.stockInMetersInvalid",
+            );
+          }
+        }
+        if (!v.colors || v.colors.length === 0) {
+          errors[`${prefix}.colors`] = t("validation.colorRequired");
         }
       });
     }

@@ -22,7 +22,11 @@ import {
   Edit,
   Trash2,
   Image as ImageIcon,
+  X,
+  Maximize2,
+  Calendar,
 } from "lucide-react";
+import { resolveMediaUrl } from "@/lib/media";
 import FormField from "@/components/admin/FormField";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
@@ -388,6 +392,7 @@ export default function AdminPartnersPage() {
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
+  const [detailsItem, setDetailsItem] = useState<FabricRow | null>(null);
 
   // pop up image function
   const handleImageClick = (imageUrl: string) => {
@@ -757,7 +762,7 @@ export default function AdminPartnersPage() {
             >
               <button
                 onClick={() => {
-                  toast.success(`Viewing details for "${menuItem.name}"`);
+                  setDetailsItem(menuItem);
                   setMenuPosition(null);
                   setMenuItem(null);
                 }}
@@ -1043,6 +1048,158 @@ export default function AdminPartnersPage() {
           itemsPerPageOptions={[5, 10, 20, 50, 100]}
           totalItems={totalItems}
         />
+      )}
+
+      {/* Partner Details Modal */}
+      {detailsItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={(e) => e.target === e.currentTarget && setDetailsItem(null)}
+        >
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+              <h3 className="text-base font-medium text-black">
+                Fabric Store Profile Details
+              </h3>
+              <button
+                onClick={() => setDetailsItem(null)}
+                className="text-gray-400 hover:text-black transition cursor-pointer p-1 border-0 bg-transparent"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Logo / Shop Info Header */}
+              <div className="flex flex-col items-center gap-3">
+                {detailsItem.logo ? (
+                  <div
+                    className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 cursor-pointer shadow-inner group"
+                    onClick={() => handleImageClick(resolveMediaUrl(detailsItem.logo) || "")}
+                  >
+                    <img
+                      src={resolveMediaUrl(detailsItem.logo) || "/placeholder.png"}
+                      alt={detailsItem.shopName || detailsItem.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Maximize2 className="w-5 h-5 text-white" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shadow-inner">
+                    <Store className="w-12 h-12 text-gray-400" />
+                  </div>
+                )}
+                <h4 className="text-lg font-medium text-black">
+                  {detailsItem.shopName || "Unnamed Store"}
+                </h4>
+                
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-medium border ${
+                      detailsItem.isActive
+                        ? "bg-white text-black border-black/30"
+                        : "bg-gray-100 text-gray-500 border-gray-200"
+                    }`}
+                  >
+                    {detailsItem.isActive ? "Active" : "Inactive"}
+                  </span>
+                  
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-medium capitalize border ${
+                      detailsItem.type === "approved"
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : detailsItem.type === "pending"
+                          ? "bg-yellow-50 text-yellow-700 border-yellow-250"
+                          : "bg-red-50 text-red-700 border-red-200"
+                    }`}
+                  >
+                    {detailsItem.type}
+                  </span>
+                </div>
+              </div>
+
+              {/* Fields */}
+              <div className="space-y-4 border-t border-gray-100 pt-5">
+                <div className="flex items-start gap-3">
+                  <Store className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                      Store Name
+                    </p>
+                    <p className="text-sm font-medium text-black">
+                      {detailsItem.shopName || "—"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <Users className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                      Owner Name
+                    </p>
+                    <p className="text-sm font-medium text-black">
+                      {detailsItem.name}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <Clock className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                      Owner Email
+                    </p>
+                    <p className="text-sm font-medium text-black break-all">
+                      {detailsItem.email}
+                    </p>
+                  </div>
+                </div>
+
+                {detailsItem.phone && (
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                    <div className="text-left">
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                        Owner Phone
+                      </p>
+                      <p className="text-sm font-medium text-black font-mono">
+                        {detailsItem.phone}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                      Registration Date
+                    </p>
+                    <p className="text-sm font-medium text-black">
+                      {formatDate(detailsItem.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setDetailsItem(null)}
+                className="px-5 py-2 text-xs font-medium text-white bg-black hover:bg-gray-800 rounded-lg transition cursor-pointer border-0"
+              >
+                Close Details
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <ImageModal

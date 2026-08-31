@@ -1309,7 +1309,7 @@ export default function CustomOrderCheckoutStep() {
         isOpen={showSuccess}
         onClose={() => {
           setShowSuccess(false);
-          router.push("/account/userAccount?tab=orders");
+          router.push("/");
         }}
         title={t("successTitle")}
         message={t("successMessage")}
