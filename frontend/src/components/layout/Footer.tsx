@@ -9,7 +9,9 @@ const QUICK_LINKS = [
   { key: "tailors", href: "/tailors" },
   { key: "customDesign", href: "/custom-order/fabric" },
   { key: "aboutUs", href: "/#about" },
-  { key: "contact", href: "/#about" },
+  { key: "joinOurCommunity", href: "/partners" },
+  { key: "motdGuide", href: "/motd-guide" },
+  { key: "contactUs", href: "/contact-us" },
 ] as const;
 
 const CUSTOMER_LINKS = [

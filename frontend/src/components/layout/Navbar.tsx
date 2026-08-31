@@ -16,18 +16,12 @@ const NAV_LINKS = [
   { key: "designs", href: "/designs/designShop" },
   { key: "fabrics", href: "/fabrics/fabricStore" },
   { key: "brands", href: "/tailors" },
-  { key: "joinOurCommunity", href: "/#join-our-community" },
-  { key: "motdGuide", href: "/motd-guide" },
-  { key: "contactUs", href: "/contact-us" },
 ] as const;
 
 const MOBILE_NAV_LINKS = [
   { key: "designs", href: "/#designs" },
   { key: "fabrics", href: "/fabrics/fabricStore" },
   { key: "brands", href: "/tailors" },
-  { key: "joinOurCommunity", href: "/#join-our-community" },
-  { key: "motdGuide", href: "/motd-guide" },
-  { key: "contactUs", href: "/contact-us" },
 ] as const;
 
 // SVG Icons (unchanged)
@@ -99,8 +93,10 @@ export function Navbar() {
   const isArabic = localParams === "ar";
   const t = getTranslation(localParams);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLLIElement>(null);
   const { user, isLoading, logout } = useAuth();
   const accountLabel = user ? t.navbar.actions.account : t.navbar.actions.login;
   const { items } = useCart();
@@ -158,6 +154,7 @@ export function Navbar() {
   }, [mobileOpen]);
 
   const closeMenu = useCallback(() => {
+    setDropdownOpen(false);
     if (mobileOpen) {
       if (menuRef.current) {
         menuRef.current.style.opacity = "0";
@@ -186,10 +183,17 @@ export function Navbar() {
       ) {
         closeMenu();
       }
+      if (
+        dropdownOpen &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setDropdownOpen(false);
+      }
     };
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
-  }, [mobileOpen, closeMenu]);
+  }, [mobileOpen, closeMenu, dropdownOpen]);
 
   // Handle Escape key
   useEffect(() => {
@@ -249,6 +253,43 @@ export function Navbar() {
               </Link>
             </li>
           ))}
+          <li className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className={`${desktopNavLinkClass} flex items-center gap-1 bg-transparent border-0 p-0 hover:cursor-pointer`}
+            >
+              <span>{isArabic ? "جاهز للطلب" : "Ready to Order"}</span>
+              <svg
+                className={`w-3 h-3 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            {dropdownOpen && (
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-44 bg-white border border-(--color-border) rounded-lg shadow-lg py-2.5 z-50 flex flex-col text-center">
+                <Link
+                  href="/#designs"
+                  onClick={() => setDropdownOpen(false)}
+                  className="px-4 py-2 text-[10px] uppercase tracking-[0.14em] text-black hover:bg-[#FAF9F6] transition font-medium"
+                >
+                  {isArabic ? "مخوّر" : "Mukhawar"}
+                </Link>
+                <Link
+                  href="/#ready-made"
+                  onClick={() => setDropdownOpen(false)}
+                  className="px-4 py-2 text-[10px] uppercase tracking-[0.14em] text-black hover:bg-[#FAF9F6] transition border-t border-[#FAF9F6] font-medium"
+                >
+                  {isArabic ? "جاهز للارتداء" : "Ready to Wear"}
+                </Link>
+              </div>
+            )}
+          </li>
         </ul>
 
         {/* RIGHT ICONS */}
@@ -372,6 +413,53 @@ export function Navbar() {
                 </Link>
               </li>
             ))}
+            <li className="flex flex-col">
+              <button
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className={`${mobileNavLinkClass} flex items-center gap-1.5 bg-transparent border-0 p-0 text-left rtl:text-right hover:cursor-pointer`}
+              >
+                <span>{isArabic ? "جاهز للطلب" : "Ready to Order"}</span>
+                <svg
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+              {dropdownOpen && (
+                <ul className="pl-4 pr-4 mt-2 flex flex-col gap-2 list-none border-l border-(--color-border) rtl:border-l-0 rtl:border-r rtl:border-(--color-border)">
+                  <li>
+                    <Link
+                      href="/#designs"
+                      className={`${mobileNavLinkClass} text-[10px] text-black/70`}
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        closeMenu();
+                      }}
+                    >
+                      {isArabic ? "مخوّر" : "Mukhawar"}
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/#ready-made"
+                      className={`${mobileNavLinkClass} text-[10px] text-black/70`}
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        closeMenu();
+                      }}
+                    >
+                      {isArabic ? "جاهز للارتداء" : "Ready to Wear"}
+                    </Link>
+                  </li>
+                </ul>
+              )}
+            </li>
           </ul>
 
           {/* Mobile bottom icons grid */}

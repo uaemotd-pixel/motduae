@@ -1682,7 +1682,10 @@
       "tailors": "Tailors",
       "customDesign": "Custom Design",
       "aboutUs": "About Us",
-      "contact": "Contact"
+      "contact": "Contact",
+      "joinOurCommunity": "Join Our Community",
+      "motdGuide": "The MOTD Guide",
+      "contactUs": "Contact Us"
     },
     "customerLinks": {
       "trackOrder": "Track Order",
