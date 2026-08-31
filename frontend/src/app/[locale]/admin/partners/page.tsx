@@ -562,14 +562,14 @@ export default function AdminPartnersPage() {
     setToggleModalOpen(false);
 
     try {
-      await api.patch(`/api/admin/fabric-shops/${shopId}/deactivate`, {
+      await api.patch(`/api/admin/partners/fabric-stores/${shopId}/deactivate`, {
         isActive: newStatus,
       });
 
       await fetchData(currentPage);
-      toast.success(`Shop "${shopName}" ${actionVerb}`);
+      toast.success(newStatus ? "Shop Reactivated" : "Shop Deactivated");
     } catch (err) {
-      toast.error(getApiErrorMessage(err, `Failed to ${actionVerb} shop`));
+      toast.error(getApiErrorMessage(err, newStatus ? "Failed to reactivate shop" : "Failed to deactivate shop"));
     } finally {
       setActionInProgress(null);
       setPendingToggle(null);
