@@ -7,7 +7,6 @@ import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
 import ImageUpload from "@/components/admin/ImageUpload";
 import toast from "react-hot-toast";
-import { useAuth } from "@/context/AuthContext";
 import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddressFields";
 import { pickupAddressErrors } from "@/lib/readyMadeAdmin";
 import {
@@ -44,9 +43,7 @@ interface AddOnFormData {
 
 type FilterItem = { name: string; nameAr: string; _id: string };
 
-export default function FabricEditAddOnPage() {
-  const { user } = useAuth();
-  const userName = user?.name || "";
+export default function AdminEditAddOnPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
@@ -159,7 +156,7 @@ export default function FabricEditAddOnPage() {
       try {
         setLoading(true);
         const data = await api.get<Record<string, unknown>>(
-          `/api/fabric/addons/${id}`,
+          `/api/admin/addons/${id}`,
         );
         if (data) {
           const gallery =
@@ -290,12 +287,11 @@ export default function FabricEditAddOnPage() {
       const payload = {
         ...formData,
         images: cleanImages,
-        ownerName: userName,
       };
 
-      await api.put(`/api/fabric/addons/${id}`, payload);
+      await api.put(`/api/admin/addons/${id}`, payload);
       toast.success("Add-on updated successfully");
-      router.push("/fabric/addons");
+      router.push("/admin/addons");
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, "Failed to update addon"));
       toast.error(getApiErrorMessage(err, "Failed to update addon"));
@@ -870,7 +866,7 @@ export default function FabricEditAddOnPage() {
                   uploadingLabel="Uploading..."
                   uploadFailedLabel="Upload failed"
                   removeLabel="Remove"
-                  uploadEndpoint="/api/fabric/uploads/addons"
+                  uploadEndpoint="/api/admin/uploads/addons"
                 />
                 {formData.images.length > 1 && (
                   <button

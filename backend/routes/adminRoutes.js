@@ -3133,6 +3133,16 @@ adminRouter.get(
   }),
 );
 
+function normalizeAddOnImages(images) {
+  const cleaned = Array.isArray(images)
+    ? images.map((img) => String(img || "").trim()).filter(Boolean)
+    : [];
+  return {
+    images: cleaned,
+    thumbnailImage: cleaned[0] || "",
+  };
+}
+
 // POST /api/admin/addons
 adminRouter.post(
   "/addons",
@@ -3140,23 +3150,34 @@ adminRouter.post(
     const {
       name,
       nameAr,
-      slug,
       description,
       descriptionAr,
       price,
       stock,
-      thumbnailImage,
       images,
       tag,
       tagAr,
+      material,
+      materialAr,
+      design,
+      designAr,
+      season,
+      seasonAr,
+      colors,
       isActive,
     } = req.body;
 
-    const generatedSlug = await ensureUniqueSlug(
-      AddOn,
-      slug || name || nameAr,
-      { fallback: "addon" },
-    );
+    const { images: normalizedImages, thumbnailImage } =
+      normalizeAddOnImages(images);
+
+    if (!thumbnailImage) {
+      res.status(400).send({ message: "At least one image is required" });
+      return;
+    }
+
+    const generatedSlug = await ensureUniqueSlug(AddOn, name || nameAr, {
+      fallback: "addon",
+    });
 
     const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);
     if (!pickupAddress) {
@@ -3176,9 +3197,16 @@ adminRouter.post(
       price,
       stock,
       thumbnailImage,
-      images,
+      images: normalizedImages,
       tag,
       tagAr,
+      material,
+      materialAr,
+      design,
+      designAr,
+      season,
+      seasonAr,
+      colors: Array.isArray(colors) ? colors : [],
       isActive: isActive !== undefined ? isActive : true,
       // Platform listings are owned by MOTD, not the signed-in admin's display name.
       ownerName: "MOTD Admin",
@@ -3203,34 +3231,50 @@ adminRouter.put(
     const {
       name,
       nameAr,
-      slug,
       description,
       descriptionAr,
       price,
       stock,
-      thumbnailImage,
       images,
       tag,
       tagAr,
+      material,
+      materialAr,
+      design,
+      designAr,
+      season,
+      seasonAr,
+      colors,
       isActive,
     } = req.body;
 
     addon.name = name ?? addon.name;
     addon.nameAr = nameAr ?? addon.nameAr;
-    if (slug && slug !== addon.slug) {
-      addon.slug = await ensureUniqueSlug(AddOn, slug, {
-        excludeId: addon._id,
-        fallback: "addon",
-      });
-    }
     addon.description = description ?? addon.description;
     addon.descriptionAr = descriptionAr ?? addon.descriptionAr;
     addon.price = price ?? addon.price;
     addon.stock = stock ?? addon.stock;
-    addon.thumbnailImage = thumbnailImage ?? addon.thumbnailImage;
-    addon.images = images ?? addon.images;
+    if (images !== undefined) {
+      const { images: normalizedImages, thumbnailImage } =
+        normalizeAddOnImages(images);
+      if (!thumbnailImage) {
+        res.status(400).send({ message: "At least one image is required" });
+        return;
+      }
+      addon.images = normalizedImages;
+      addon.thumbnailImage = thumbnailImage;
+    }
     addon.tag = tag ?? addon.tag;
     addon.tagAr = tagAr ?? addon.tagAr;
+    addon.material = material ?? addon.material;
+    addon.materialAr = materialAr ?? addon.materialAr;
+    addon.design = design ?? addon.design;
+    addon.designAr = designAr ?? addon.designAr;
+    addon.season = season ?? addon.season;
+    addon.seasonAr = seasonAr ?? addon.seasonAr;
+    if (colors !== undefined) {
+      addon.colors = Array.isArray(colors) ? colors : [];
+    }
     addon.isActive = isActive !== undefined ? isActive : addon.isActive;
     if (!addon.fabricShopId) {
       addon.ownerName = "MOTD Admin";

@@ -35,6 +35,13 @@ addOnRoutes.get("/", async (req, res) => {
       thumbnailImage: p.thumbnailImage,
       tag: p.tag,
       tagAr: p.tagAr,
+      material: p.material,
+      materialAr: p.materialAr,
+      design: p.design,
+      designAr: p.designAr,
+      season: p.season,
+      seasonAr: p.seasonAr,
+      colors: p.colors,
       isActive: p.isActive,
     }));
 

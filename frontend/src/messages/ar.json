@@ -1314,6 +1314,7 @@
       "sections": {
         "identity": "هوية التصميم",
         "about": "الوصف",
+        "attributes": "التصنيف",
         "pricing": "التسعير ومدة التنفيذ",
         "images": "الصور"
       },
@@ -1322,6 +1323,10 @@
         "nameAr": "اسم التصميم (عربي)",
         "slug": "رابط URL",
         "category": "الفئة",
+        "material": "الخامة (إنجليزي / عربي)",
+        "season": "الموسم (إنجليزي / عربي)",
+        "pattern": "النقشة (إنجليزي / عربي)",
+        "tag": "الوسم (إنجليزي / عربي)",
         "description": "الوصف (إنجليزي)",
         "descriptionAr": "الوصف (عربي)",
         "basePrice": "السعر الأساسي (درهم)",
@@ -1336,6 +1341,15 @@
       },
       "hints": {
         "slug": "أحرف إنجليزية صغيرة وأرقام وشرطات فقط."
+      },
+      "filters": {
+        "loading": "جاري التحميل...",
+        "empty": "لا توجد خيارات",
+        "selectMaterial": "اختر الخامة",
+        "selectSeason": "اختر الموسم",
+        "selectPattern": "اختر النقشة",
+        "selectTag": "اختر الوسم (اختياري)",
+        "selectCategory": "اختر الفئة"
       },
       "categories": {
         "hand-embroidered": "شغل يد",

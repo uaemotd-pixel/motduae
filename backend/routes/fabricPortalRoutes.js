@@ -1344,6 +1344,16 @@ fabricPortalRouter.get(
 );
 
 // POST /api/fabric/addons
+function normalizeAddOnImages(images) {
+  const cleaned = Array.isArray(images)
+    ? images.map((img) => String(img || "").trim()).filter(Boolean)
+    : [];
+  return {
+    images: cleaned,
+    thumbnailImage: cleaned[0] || "",
+  };
+}
+
 fabricPortalRouter.post(
   "/addons",
   expressAsyncHandler(async (req, res) => {
@@ -1357,14 +1367,31 @@ fabricPortalRouter.post(
       descriptionAr,
       price,
       stock,
-      thumbnailImage,
       images,
       tag,
       tagAr,
+      material,
+      materialAr,
+      design,
+      designAr,
+      season,
+      seasonAr,
+      colors,
       isActive,
     } = req.body;
 
-    const slug = await ensureUniqueSlug(AddOn, req.body.slug || name || nameAr, {
+    const { images: normalizedImages, thumbnailImage } =
+      normalizeAddOnImages(images);
+
+    if (!thumbnailImage) {
+      res.status(400).json({
+        success: false,
+        message: "At least one image is required",
+      });
+      return;
+    }
+
+    const slug = await ensureUniqueSlug(AddOn, name || nameAr, {
       fallback: "addon",
     });
 
@@ -1377,9 +1404,16 @@ fabricPortalRouter.post(
       price,
       stock,
       thumbnailImage,
-      images: Array.isArray(images) ? images : [],
+      images: normalizedImages,
       tag,
       tagAr,
+      material,
+      materialAr,
+      design,
+      designAr,
+      season,
+      seasonAr,
+      colors: Array.isArray(colors) ? colors : [],
       isActive: isActive !== undefined ? isActive : true,
       fabricShopId: shop._id,
       ownerName: req.body.ownerName || shop.name,
@@ -1426,34 +1460,53 @@ fabricPortalRouter.put(
     const {
       name,
       nameAr,
-      slug,
       description,
       descriptionAr,
       price,
       stock,
-      thumbnailImage,
       images,
       tag,
       tagAr,
+      material,
+      materialAr,
+      design,
+      designAr,
+      season,
+      seasonAr,
+      colors,
       isActive,
     } = req.body;
 
     addon.name = name ?? addon.name;
     addon.nameAr = nameAr ?? addon.nameAr;
-    if (slug && slug !== addon.slug) {
-      addon.slug = await ensureUniqueSlug(AddOn, slug, {
-        excludeId: addon._id,
-        fallback: "addon",
-      });
-    }
     addon.description = description ?? addon.description;
     addon.descriptionAr = descriptionAr ?? addon.descriptionAr;
     addon.price = price ?? addon.price;
     addon.stock = stock ?? addon.stock;
-    addon.thumbnailImage = thumbnailImage ?? addon.thumbnailImage;
-    addon.images = images ?? addon.images;
+    if (images !== undefined) {
+      const { images: normalizedImages, thumbnailImage } =
+        normalizeAddOnImages(images);
+      if (!thumbnailImage) {
+        res.status(400).json({
+          success: false,
+          message: "At least one image is required",
+        });
+        return;
+      }
+      addon.images = normalizedImages;
+      addon.thumbnailImage = thumbnailImage;
+    }
     addon.tag = tag ?? addon.tag;
     addon.tagAr = tagAr ?? addon.tagAr;
+    addon.material = material ?? addon.material;
+    addon.materialAr = materialAr ?? addon.materialAr;
+    addon.design = design ?? addon.design;
+    addon.designAr = designAr ?? addon.designAr;
+    addon.season = season ?? addon.season;
+    addon.seasonAr = seasonAr ?? addon.seasonAr;
+    if (colors !== undefined) {
+      addon.colors = Array.isArray(colors) ? colors : [];
+    }
     addon.isActive = isActive !== undefined ? isActive : addon.isActive;
     addon.ownerName = req.body.ownerName ?? addon.ownerName;
 

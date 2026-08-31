@@ -1197,6 +1197,7 @@
       "sections": {
         "identity": "Design identity",
         "about": "Description",
+        "attributes": "Classification",
         "pricing": "Pricing & lead time",
         "images": "Images"
       },
@@ -1205,6 +1206,10 @@
         "nameAr": "Design name (Arabic)",
         "slug": "URL slug",
         "category": "Category",
+        "material": "Material (ENG / AR)",
+        "season": "Season (ENG / AR)",
+        "pattern": "Pattern (ENG / AR)",
+        "tag": "Tag (ENG / AR)",
         "description": "Description (English)",
         "descriptionAr": "Description (Arabic)",
         "basePrice": "Base price (AED)",
@@ -1219,6 +1224,15 @@
       },
       "hints": {
         "slug": "Lowercase letters, numbers, and hyphens only."
+      },
+      "filters": {
+        "loading": "Loading...",
+        "empty": "No options found",
+        "selectMaterial": "Select material",
+        "selectSeason": "Select season",
+        "selectPattern": "Select pattern",
+        "selectTag": "Select tag (optional)",
+        "selectCategory": "Select category"
       },
       "categories": {
         "hand-embroidered": "Hand Embroidered",

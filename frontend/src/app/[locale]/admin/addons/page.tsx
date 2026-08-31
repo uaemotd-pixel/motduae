@@ -14,7 +14,6 @@ import {
   Search,
   RefreshCw,
   MoreVertical,
-  Eye,
   Image as ImageIcon,
   Package,
 } from "lucide-react";
@@ -333,17 +332,6 @@ export default function AdminAddOnsPage() {
               transition={{ duration: 0.15, ease: "easeOut" }}
               className="w-fit min-w-30 sm:min-w-35 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:cursor-pointer"
             >
-              <Link
-                href={`/admin/addons/${menuItem._id}`}
-                onClick={() => {
-                  setMenuPosition(null);
-                  setMenuItem(null);
-                }}
-                className="w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2.5 text-xs sm:text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer whitespace-nowrap"
-              >
-                <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                <span>Details</span>
-              </Link>
               <Link
                 href={`/admin/addons/${menuItem._id}/edit`}
                 onClick={() => {
