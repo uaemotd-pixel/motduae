@@ -73,6 +73,10 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
     rejectionNote: { type: String, default: "", trim: true },
+    approvalNote: { type: String, default: "", trim: true },
+    applicationSubmittedAt: { type: Date, default: undefined },
+    applicationConfirmedAt: { type: Date, default: undefined },
+    requestNumber: { type: String, trim: true, default: undefined },
     isActive: { type: Boolean, default: true, required: true },
     isAdmin: { type: Boolean, default: false, required: true },
   },
@@ -82,7 +86,9 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ role: 1, approvalStatus: 1 });
+userSchema.index({ role: 1, approvalStatus: 1, applicationSubmittedAt: 1 });
 userSchema.index({ pendingEmail: 1 }, { unique: true, sparse: true });
+userSchema.index({ requestNumber: 1 }, { unique: true, sparse: true });
 
 userSchema.pre("validate", function requireCustomerPhone(next) {
   if (

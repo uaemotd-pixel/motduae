@@ -20,6 +20,7 @@ import {
   Mail,
   Calendar,
   User,
+  Eye,
 } from "lucide-react";
 import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
@@ -84,84 +85,7 @@ function ToggleModal({
   );
 }
 
-// ---------- Modal for Approve/Reject (with optional note) ----------
-interface ApprovalModalProps {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  confirmLabel: string;
-  cancelLabel: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  showNote?: boolean;
-  noteValue?: string;
-  onNoteChange?: (value: string) => void;
-  notePlaceholder?: string;
-}
-
-function ApprovalModal({
-  isOpen,
-  title,
-  message,
-  confirmLabel,
-  cancelLabel,
-  onConfirm,
-  onCancel,
-  showNote = false,
-  noteValue = "",
-  onNoteChange,
-  notePlaceholder = "Optional reason...",
-}: ApprovalModalProps) {
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) onCancel();
-    };
-    if (isOpen) document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onCancel]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onCancel()}
-    >
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100">
-        <div className="p-6">
-          <h3 className="text-lg font-medium text-black">{title}</h3>
-          <p className="mt-2 text-sm text-gray-600">{message}</p>
-          {showNote && (
-            <div className="mt-4">
-              <textarea
-                value={noteValue}
-                onChange={(e) => onNoteChange?.(e.target.value)}
-                placeholder={notePlaceholder}
-                rows={3}
-                required
-                className="w-full px-3 py-2 text-sm text-black bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-black transition resize-none"
-              />
-            </div>
-          )}
-          <div className="mt-6 flex justify-end gap-3">
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer"
-            >
-              {cancelLabel}
-            </button>
-            <button
-              onClick={onConfirm}
-              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 transition hover:cursor-pointer"
-            >
-              {confirmLabel}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// ---------- Types ----------
 
 // ---------- Types ----------
 interface ApprovedTailor {
@@ -175,6 +99,7 @@ interface ApprovedTailor {
     email: string;
     approvalStatus: string;
     profilePic?: string;
+    requestNumber?: string;
   };
   createdAt: string;
 }
@@ -186,6 +111,7 @@ interface ApprovedUser {
   createdAt: string;
   approvalStatus: "approved";
   profilePic?: string;
+  requestNumber?: string;
 }
 
 interface RejectedUser {
@@ -195,6 +121,7 @@ interface RejectedUser {
   createdAt: string;
   approvalStatus: "rejected";
   profilePic?: string;
+  requestNumber?: string;
 }
 
 type TailorRow = {
@@ -210,7 +137,16 @@ type TailorRow = {
   ownerId?: ApprovedTailor["ownerId"];
   logo?: string;
   profilePic?: string;
+  requestNumber?: string;
 };
+
+function tailorApplicationHref(row: {
+  id: string;
+  ownerId?: { _id: string } | null;
+}) {
+  const userId = row.ownerId?._id || row.id;
+  return `/admin/tailors/${userId}/application`;
+}
 
 export default function AdminTailorsPage() {
   const params = useParams();
@@ -237,15 +173,6 @@ export default function AdminTailorsPage() {
     currentStatus: boolean;
   } | null>(null);
 
-  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
-  const [approvalAction, setApprovalAction] = useState<
-    "approve" | "reject" | null
-  >(null);
-  const [selectedPending, setSelectedPending] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
-  const [rejectNote, setRejectNote] = useState("");
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
@@ -377,6 +304,7 @@ export default function AdminTailorsPage() {
         ownerId: shop.ownerId,
         logo: shop.logo || shop.ownerId?.profilePic,
         profilePic: shop.ownerId?.profilePic,
+        requestNumber: shop.ownerId?.requestNumber || "",
       }));
 
       const approvedUserRows: TailorRow[] = approvedUsers
@@ -390,6 +318,7 @@ export default function AdminTailorsPage() {
           shopName: null,
           isActive: false,
           profilePic: user.profilePic,
+          requestNumber: user.requestNumber || "",
         }));
 
       const pendingRows: TailorRow[] = pending.map((user) => ({
@@ -401,6 +330,7 @@ export default function AdminTailorsPage() {
         phone: user.phone || "",
         address: user.address || "",
         profilePic: user.profilePic,
+        requestNumber: user.requestNumber || "",
       }));
 
       const rejectedRows: TailorRow[] = rejectedUsers.map((user) => ({
@@ -412,6 +342,7 @@ export default function AdminTailorsPage() {
         shopName: null,
         isActive: false,
         profilePic: user.profilePic,
+        requestNumber: user.requestNumber || "",
       }));
 
       const combined = [
@@ -497,77 +428,6 @@ export default function AdminTailorsPage() {
     setPendingToggle(null);
   };
 
-  const openApprovalModal = (
-    action: "approve" | "reject",
-    tailorId: string,
-    tailorName: string,
-  ) => {
-    setApprovalAction(action);
-    setSelectedPending({ id: tailorId, name: tailorName });
-    setRejectNote("");
-    setApprovalModalOpen(true);
-  };
-
-  const closeApprovalModal = () => {
-    setApprovalModalOpen(false);
-    setApprovalAction(null);
-    setSelectedPending(null);
-    setRejectNote("");
-  };
-
-  const executeApproval = async () => {
-    if (!selectedPending || !approvalAction) return;
-    const { id, name } = selectedPending;
-
-    setActionInProgress(id);
-    closeApprovalModal();
-
-    try {
-      if (approvalAction === "approve") {
-        await api.patch(`/api/admin/tailors/${id}/approve`);
-        toast.success(`Tailor "${name}" approved`);
-        setRows((prev) =>
-          prev.map((row) =>
-            row.id === id
-              ? { ...row, type: "approved", shopName: null, isActive: false }
-              : row,
-          ),
-        );
-        setStats((prev) => ({
-          ...prev,
-          approved: prev.approved + 1,
-          pending: prev.pending - 1,
-        }));
-      } else {
-        await api.patch(`/api/admin/tailors/${id}/reject`, {
-          rejectionNote: rejectNote,
-          note: rejectNote,
-        });
-        toast.success(`Tailor "${name}" rejected`);
-        setRows((prev) =>
-          prev.map((row) =>
-            row.id === id ? { ...row, type: "rejected" } : row,
-          ),
-        );
-        setStats((prev) => ({
-          ...prev,
-          rejected: prev.rejected + 1,
-          pending: prev.pending - 1,
-        }));
-      }
-    } catch (err) {
-      toast.error(
-        getApiErrorMessage(
-          err,
-          approvalAction === "approve" ? "Approval failed" : "Rejection failed",
-        ),
-      );
-      fetchData();
-    } finally {
-      setActionInProgress(null);
-    }
-  };
-
   // ---------- Filter & formatting ----------
   const filteredRows = useMemo(() => {
     if (!searchTerm.trim()) return rows;
@@ -576,7 +436,13 @@ export default function AdminTailorsPage() {
       const name = row.name?.toLowerCase() || "";
       const email = row.email?.toLowerCase() || "";
       const shop = row.shopName?.toLowerCase() || "";
-      return name.includes(term) || email.includes(term) || shop.includes(term);
+      const requestNumber = row.requestNumber?.toLowerCase() || "";
+      return (
+        name.includes(term) ||
+        email.includes(term) ||
+        shop.includes(term) ||
+        requestNumber.includes(term)
+      );
     });
   }, [rows, searchTerm]);
 
@@ -690,28 +556,6 @@ export default function AdminTailorsPage() {
         onCancel={cancelToggle}
       />
 
-      <ApprovalModal
-        isOpen={approvalModalOpen}
-        title={
-          approvalAction === "approve"
-            ? `Approve "${selectedPending?.name || "Tailor"}"`
-            : `Reject "${selectedPending?.name || "Tailor"}"`
-        }
-        message={
-          approvalAction === "approve"
-            ? "This tailor will be able to create a shop and designs."
-            : "Explain a reason of rejection *"
-        }
-        confirmLabel={approvalAction === "approve" ? "Approve" : "Reject"}
-        cancelLabel="Cancel"
-        onConfirm={executeApproval}
-        onCancel={closeApprovalModal}
-        showNote={approvalAction === "reject"}
-        noteValue={rejectNote}
-        onNoteChange={setRejectNote}
-        notePlaceholder="Rejection reason..."
-      />
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
@@ -769,7 +613,7 @@ export default function AdminTailorsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by name, email, or shop name..."
+            placeholder="Search by name, email, shop name, or request number..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
@@ -853,11 +697,7 @@ export default function AdminTailorsPage() {
                       );
                     }
 
-                    const actions = isRejected ? (
-                      <span className="text-xs text-gray-400 italic">
-                        No actions
-                      </span>
-                    ) : (
+                    const actions = (
                       <button
                         onClick={(e) => handleMenuOpen(e, row)}
                         disabled={busy}
@@ -882,7 +722,12 @@ export default function AdminTailorsPage() {
                           </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {row.email}
+                          <div>{row.email}</div>
+                          {row.requestNumber ? (
+                            <div className="text-[10px] uppercase tracking-wider text-gray-400 mt-0.5">
+                              {row.requestNumber}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                           {isPending ? (
@@ -952,7 +797,7 @@ export default function AdminTailorsPage() {
                 );
               }
 
-              const actions = isRejected ? null : (
+              const actions = (
                 <button
                   onClick={(e) => handleMenuOpen(e, row)}
                   disabled={busy}
@@ -986,6 +831,11 @@ export default function AdminTailorsPage() {
                       <Mail className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                       <span className="truncate">{row.email}</span>
                     </div>
+                    {row.requestNumber ? (
+                      <div className="text-[10px] uppercase tracking-wider text-gray-400">
+                        {row.requestNumber}
+                      </div>
+                    ) : null}
                     <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 min-w-0">
                       <Users className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                       <span className="truncate">
@@ -1041,30 +891,14 @@ export default function AdminTailorsPage() {
               transition={{ duration: 0.15, ease: "easeOut" }}
               className="w-fit min-w-30 sm:min-w-35 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"
             >
-              {menuItem.type === "pending" && (
-                <>
-                  <button
-                    onClick={() => {
-                      closeMenu();
-                      openApprovalModal("approve", menuItem.id, menuItem.name);
-                    }}
-                    className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-green-700 hover:bg-green-100 transition-colors text-left hover:cursor-pointer whitespace-nowrap"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                    <span>Approve</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      closeMenu();
-                      openApprovalModal("reject", menuItem.id, menuItem.name);
-                    }}
-                    className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-red-600 hover:bg-red-100 transition-colors text-left hover:cursor-pointer whitespace-nowrap"
-                  >
-                    <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                    <span>Reject</span>
-                  </button>
-                </>
-              )}
+              <Link
+                href={tailorApplicationHref(menuItem)}
+                onClick={closeMenu}
+                className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer whitespace-nowrap"
+              >
+                <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span>View</span>
+              </Link>
               {menuItem.type === "approved" && (
                 <button
                   onClick={() => {

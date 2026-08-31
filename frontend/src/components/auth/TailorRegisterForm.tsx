@@ -51,7 +51,9 @@ export default function TailorRegisterForm() {
                 typeof window !== "undefined"
                     ? window.location.pathname.split("/")[1] || "en"
                     : "en";
-            window.location.replace(`/${locale}/auth/verify-email`);
+            window.location.replace(
+                `/${locale}/auth/verify-email?next=${encodeURIComponent("/tailor/apply")}`,
+            );
         } catch (err: unknown) {
             const message =
                 err && typeof err === "object" && "message" in err
@@ -149,10 +151,10 @@ export default function TailorRegisterForm() {
                                     {t("successStatus")}
                                 </p>
                                 <Link
-                                    href="/"
+                                    href="/tailor/apply"
                                     className="inline-block px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition [font-family:var(--font-ui)]"
                                 >
-                                    {t("goHome")}
+                                    {t("continueApply")}
                                 </Link>
                             </div>
                         ) : (

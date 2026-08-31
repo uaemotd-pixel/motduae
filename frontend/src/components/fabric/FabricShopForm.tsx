@@ -105,7 +105,7 @@ export default function FabricShopForm() {
             form.phone = normalizeUaePhone(form.phone);
           }
           setFormData(form);
-          setSlugTouched(true);
+          setSlugTouched(Boolean(form.slug?.trim()));
         } else {
           setShop(null);
           setFormData(emptyFabricShopForm());
@@ -148,7 +148,7 @@ export default function FabricShopForm() {
     setFormData((prev) => {
       const next = { ...prev, [field]: val };
 
-      if (field === "name" && isCreateMode && !slugTouched) {
+      if (field === "name" && !slugTouched) {
         next.slug = slugifyShopName(val);
       }
 

@@ -150,6 +150,8 @@ const TYPE_I18N_KEYS: Record<string, string> = {
   customer_registered: "userCustomerRegistered",
   user_tailor_registered: "userTailorRegistered",
   user_fabric_store_registered: "userFabricStoreRegistered",
+  user_tailor_application_resubmitted: "userTailorApplicationResubmitted",
+  user_fabric_store_application_resubmitted: "userFabricStoreApplicationResubmitted",
   retail_order_placed: "retailOrderPlaced",
   custom_order_placed: "customOrderPlaced",
   custom_order_received: "customOrderReceived",
@@ -193,6 +195,8 @@ export function getNotificationTypeLabel(type: string, t?: (key: string) => stri
     customer_registered: "New customer registered",
     user_tailor_registered: "New tailor registered",
     user_fabric_store_registered: "New fabric store registered",
+    user_tailor_application_resubmitted: "Tailor application resubmitted",
+    user_fabric_store_application_resubmitted: "Fabric store application resubmitted",
     retail_order_placed: "New ready-made order",
     custom_order_placed: "New custom order",
     custom_order_received: "Order received",
@@ -238,6 +242,12 @@ export function getNotificationCategory(type: string): NotificationCategory {
   if (key === "user_tailor_registered" || key === "user_fabric_store_registered") {
     return "partners";
   }
+  if (
+    key === "user_tailor_application_resubmitted" ||
+    key === "user_fabric_store_application_resubmitted"
+  ) {
+    return "partners";
+  }
   return "all";
 }
 
@@ -251,7 +261,7 @@ export function getNotificationPriority(
   }
   if (type.includes("payout")) return "high";
   if (type.includes("order_placed") || type.includes("return")) return "high";
-  if (type.includes("registered")) return "normal";
+  if (type.includes("registered") || type.includes("resubmitted")) return "normal";
   return "low";
 }
 
@@ -287,10 +297,27 @@ export function getAdminDeepLinkHref(
     };
   }
 
+  if (type === "user_tailor_application_resubmitted" && notification.tailorId) {
+    return {
+      href: `/admin/tailors/${notification.tailorId}/application`,
+      label: "View application",
+    };
+  }
+
   if (type === "user_fabric_store_registered") {
     return {
       href: "/admin/partners",
       label: "Review fabric store",
+    };
+  }
+
+  if (type === "user_fabric_store_application_resubmitted") {
+    const userId = notification.createdBy;
+    return {
+      href: userId
+        ? `/admin/partners/${userId}/application`
+        : "/admin/partners",
+      label: "View application",
     };
   }
 

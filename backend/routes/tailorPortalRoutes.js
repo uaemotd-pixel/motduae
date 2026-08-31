@@ -26,6 +26,7 @@ import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
 import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
 import { createNotification } from "../services/notificationService.js";
 import { computeTailorUnpaidBreakdown } from "../services/tailorPayoutRequestService.js";
+import { isShopProfileComplete, isValidShopSlug } from "../utils/shopReady.js";
 
 const tailorPortalRouter = express.Router();
 
@@ -133,7 +134,7 @@ const formatShop = (shop) => ({
   _id: shop._id,
   name: shop.name,
   nameAr: shop.nameAr,
-  slug: shop.slug,
+  slug: shop.slug || "",
   description: shop.description,
   descriptionAr: shop.descriptionAr,
   logo: shop.logo,
@@ -155,6 +156,7 @@ const formatShop = (shop) => ({
   reviewCount: shop.reviewCount,
   ownerId: shop.ownerId,
   isActive: shop.isActive,
+  profileComplete: isShopProfileComplete(shop),
   createdAt: shop.createdAt,
   updatedAt: shop.updatedAt,
 });
@@ -395,6 +397,14 @@ tailorPortalRouter.put(
       res.status(400).json({
         success: false,
         message: validationError,
+      });
+      return;
+    }
+
+    if (!isValidShopSlug(data.slug !== undefined ? data.slug : shop.slug)) {
+      res.status(400).json({
+        success: false,
+        message: "slug is required",
       });
       return;
     }

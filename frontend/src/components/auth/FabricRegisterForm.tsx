@@ -41,7 +41,9 @@ export default function FabricRegisterForm() {
                 typeof window !== "undefined"
                     ? window.location.pathname.split("/")[1] || "en"
                     : "en";
-            window.location.replace(`/${locale}/auth/verify-email`);
+            window.location.replace(
+                `/${locale}/auth/verify-email?next=${encodeURIComponent("/fabric/apply")}`,
+            );
         } catch (err: unknown) {
             const message =
                 (err as ApiError)?.message ||
@@ -137,10 +139,10 @@ export default function FabricRegisterForm() {
                                     {t("successStatus")}
                                 </p>
                                 <Link
-                                    href="/"
+                                    href="/fabric/apply"
                                     className="inline-block px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition [font-family:var(--font-ui)]"
                                 >
-                                    {t("goHome")}
+                                    {t("continueApply")}
                                 </Link>
                             </div>
                         ) : (

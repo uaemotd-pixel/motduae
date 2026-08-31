@@ -30,3 +30,4 @@ backend/uploads/**
 .vercel
 .agents/
 config.bat
+.cursor/

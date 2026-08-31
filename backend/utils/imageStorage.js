@@ -71,6 +71,33 @@ export async function processAndStoreImage(
   return saveImageBuffer(folder, filename, buffer);
 }
 
+export async function saveRawUpload(
+  folder,
+  filename,
+  buffer,
+  contentType = "application/octet-stream",
+) {
+  const publicPath = toPublicUploadPath(folder, filename);
+
+  if (isBlobStorageEnabled()) {
+    const { put } = await loadBlobSdk();
+    await put(toBlobPath(folder, filename), buffer, {
+      access: "private",
+      contentType,
+      addRandomSuffix: false,
+      ...getBlobAuthOptions(),
+    });
+    return publicPath;
+  }
+
+  assertUploadStorageReady();
+
+  const localPath = getLocalUploadPath(folder, filename);
+  await fs.mkdir(path.dirname(localPath), { recursive: true });
+  await fs.writeFile(localPath, buffer);
+  return publicPath;
+}
+
 export async function deleteStoredUpload(publicPath) {
   const blobPath = publicPathToBlobPath(publicPath);
   if (!blobPath) {

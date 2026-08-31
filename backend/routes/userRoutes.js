@@ -29,7 +29,6 @@ import {
   maskEmail,
   hasPendingEmailChange,
 } from "../services/emailVerification/emailVerificationService.js";
-import { markPartnerSubmittedAfterEmailVerify } from "../services/emailVerification/partnerSubmission.js";
 import {
   startEmailChange,
   issueChangeOtp,
@@ -60,6 +59,7 @@ import {
   contactLimiter,
   newsletterLimiter,
 } from "../middleware/rateLimiter.js";
+import partnerApplicationRouter from "./partnerApplicationRoutes.js";
 
 const userRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -120,6 +120,9 @@ const sendUserResponse = (res, user, claims = {}) => {
     authProvider: user.authProvider,
     hasPassword: Boolean(user.password),
     emailVerified: isEmailVerified(user),
+    applicationSubmittedAt: user.applicationSubmittedAt || null,
+    requestNumber: user.requestNumber || "",
+    rejectionNote: user.rejectionNote || "",
     isGuest,
     guestContactEmail: isGuest ? guestClaims.guestContactEmail || null : null,
     guestPendingEmail: isGuest ? guestClaims.guestPendingEmail || null : null,
@@ -208,6 +211,9 @@ userRouter.get(
       authProvider: user.authProvider,
       hasPassword: Boolean(user.password),
       emailVerified: isEmailVerified(user),
+      applicationSubmittedAt: user.applicationSubmittedAt || null,
+      requestNumber: user.requestNumber || "",
+      rejectionNote: user.rejectionNote || "",
       perms,
       isGuest,
       guestContactEmail: isGuest ? guestClaims.guestContactEmail || null : null,
@@ -294,6 +300,9 @@ userRouter.post(
       authProvider: user.authProvider,
       hasPassword: Boolean(user.password),
       emailVerified: isEmailVerified(user),
+      applicationSubmittedAt: user.applicationSubmittedAt || null,
+      requestNumber: user.requestNumber || "",
+      rejectionNote: user.rejectionNote || "",
       perms,
       isGuest,
       guestContactEmail: null,
@@ -414,8 +423,6 @@ userRouter.post(
           name: user.name,
           userId: user._id,
         });
-      } else if (PARTNER_ROLES.has(registerRole)) {
-        await markPartnerSubmittedAfterEmailVerify(user);
       }
 
       sendUserResponse(res, user);
@@ -954,8 +961,6 @@ userRouter.post(
         name: user.name,
         userId: user._id,
       });
-    } else if (PARTNER_ROLES.has(user.role)) {
-      await markPartnerSubmittedAfterEmailVerify(user);
     }
 
     sendUserResponse(res, user);
@@ -1194,5 +1199,7 @@ userRouter.post(
     });
   }),
 );
+
+userRouter.use("/application", partnerApplicationRouter);
 
 export default userRouter;
