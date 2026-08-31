@@ -1448,7 +1448,7 @@ function CheckoutPageContent() {
         isOpen={showSuccessModal}
         onClose={() => {
           setShowSuccessModal(false);
-          router.push(`/${locale}#ready-made`);
+          router.push(`/${locale}`);
         }}
         title={t.checkout.successTitle}
         message={t.checkout.successMessage}
