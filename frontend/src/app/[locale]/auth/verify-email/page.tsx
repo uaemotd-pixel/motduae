@@ -15,6 +15,7 @@ import {
   cancelEmailChangeRequest,
   fetchGuestContactStatus,
   fetchVerificationStatus,
+  sanitizePartnerSubmitNext,
 } from "@/lib/auth/emailVerification";
 
 const ACCOUNT_DEFAULT_NEXT = "/account?tab=profile";
@@ -24,6 +25,7 @@ function resolveMode(raw: string | null): VerifyEmailMode {
   if (raw === "account") return "account";
   if (raw === "email-change") return "email-change";
   if (raw === "guest-checkout") return "guest-checkout";
+  if (raw === "partner-submit") return "partner-submit";
   return "signup";
 }
 
@@ -89,6 +91,11 @@ function VerifyEmailPageContent() {
     // Already verified on entry only — after OTP success, VerifyEmailOtp handles redirect
     if (!needsEmailVerification(user) && !heldVerifyUi.current) {
       redirected.current = true;
+      if (mode === "partner-submit") {
+        const applyPath = sanitizePartnerSubmitNext(nextParam, user.role);
+        goToNextOrDefault(locale, applyPath, applyPath);
+        return;
+      }
       if (mode === "account") {
         goToAccount(locale, nextParam);
         return;
@@ -229,18 +236,25 @@ function VerifyEmailPageContent() {
   }
 
   if (heldVerifyUi.current || needsEmailVerification(user)) {
+    const partnerApply = sanitizePartnerSubmitNext(nextParam, user.role);
     return (
       <VerifyEmailOtp
         locale={locale}
         mode={mode}
         nextPath={
-          mode === "account"
-            ? nextParam || ACCOUNT_DEFAULT_NEXT
-            : nextParam
-              ? getPostLoginPath(user, nextParam)
-              : null
+          mode === "partner-submit"
+            ? partnerApply
+            : mode === "account"
+              ? nextParam || ACCOUNT_DEFAULT_NEXT
+              : nextParam
+                ? getPostLoginPath(user, nextParam)
+                : null
         }
         onSkip={() => {
+          if (mode === "partner-submit") {
+            goToNextOrDefault(locale, partnerApply, partnerApply);
+            return;
+          }
           if (mode === "checkout") {
             if (nextParam) {
               goToNextOrDefault(locale, nextParam, "/checkout");
@@ -256,6 +270,10 @@ function VerifyEmailPageContent() {
           navigateAfterLogin(user, nextParam, locale);
         }}
         onVerified={() => {
+          if (mode === "partner-submit") {
+            goToNextOrDefault(locale, partnerApply, partnerApply);
+            return;
+          }
           if (mode === "account") {
             goToAccount(locale, nextParam);
             return;

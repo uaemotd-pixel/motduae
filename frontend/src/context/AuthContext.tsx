@@ -30,6 +30,9 @@ interface ApiUserResponse {
     isGuest?: boolean;
     guestContactEmail?: string | null;
     guestPendingEmail?: string | null;
+    applicationSubmittedAt?: string | null;
+    requestNumber?: string | null;
+    rejectionNote?: string;
 }
 
 export interface User {
@@ -49,6 +52,9 @@ export interface User {
     isGuest?: boolean;
     guestContactEmail?: string | null;
     guestPendingEmail?: string | null;
+    applicationSubmittedAt?: string | null;
+    requestNumber?: string | null;
+    rejectionNote?: string;
 }
 
 export type GoogleAuthRole = "customer" | "tailor" | "fabric_store";
@@ -80,6 +86,9 @@ function mapApiUser(data: ApiUserResponse): User {
         isGuest: data.isGuest,
         guestContactEmail: data.guestContactEmail || null,
         guestPendingEmail: data.guestPendingEmail || null,
+        applicationSubmittedAt: data.applicationSubmittedAt || null,
+        requestNumber: data.requestNumber || "",
+        rejectionNote: data.rejectionNote || "",
     };
 }
 

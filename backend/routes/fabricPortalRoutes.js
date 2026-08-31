@@ -34,6 +34,11 @@ import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
 import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
 import { createNotification } from "../services/notificationService.js";
 import { computeFabricUnpaidBreakdown } from "../services/fabricPayoutRequestService.js";
+import {
+  isShopProfileComplete,
+  isValidShopSlug,
+  respondIfShopNotReady,
+} from "../utils/shopReady.js";
 
 const fabricPortalRouter = express.Router();
 
@@ -144,7 +149,7 @@ const formatShop = (shop) => ({
   _id: shop._id,
   name: shop.name,
   nameAr: shop.nameAr,
-  slug: shop.slug,
+  slug: shop.slug || "",
   description: shop.description,
   descriptionAr: shop.descriptionAr,
   logo: shop.logo,
@@ -166,6 +171,7 @@ const formatShop = (shop) => ({
   reviewCount: shop.reviewCount,
   ownerId: shop.ownerId,
   isActive: shop.isActive,
+  profileComplete: isShopProfileComplete(shop),
   createdAt: shop.createdAt,
   updatedAt: shop.updatedAt,
 });
@@ -346,6 +352,11 @@ fabricPortalRouter.put(
       return;
     }
 
+    if (!isValidShopSlug(data.slug !== undefined ? data.slug : shop.slug)) {
+      res.status(400).json({ success: false, message: "slug is required" });
+      return;
+    }
+
     if (data.slug && data.slug !== shop.slug) {
       data.slug = await ensureUniqueSlug(FabricShop, data.slug, {
         excludeId: shop._id,
@@ -469,12 +480,7 @@ fabricPortalRouter.post(
   "/fabrics",
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
-    if (!shop) {
-      res
-        .status(404)
-        .json({ success: false, message: "Fabric shop not found" });
-      return;
-    }
+    if (respondIfShopNotReady(shop, res)) return;
 
     const {
       name,
@@ -1091,12 +1097,7 @@ fabricPortalRouter.post(
   "/ready-made",
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
-    if (!shop) {
-      res
-        .status(404)
-        .json({ success: false, message: "Fabric shop not found" });
-      return;
-    }
+    if (respondIfShopNotReady(shop, res)) return;
 
     const {
       name,
@@ -1347,12 +1348,7 @@ fabricPortalRouter.post(
   "/addons",
   expressAsyncHandler(async (req, res) => {
     const shop = await findOwnShop(req.user._id);
-    if (!shop) {
-      res
-        .status(404)
-        .json({ success: false, message: "Fabric shop not found" });
-      return;
-    }
+    if (respondIfShopNotReady(shop, res)) return;
 
     const {
       name,

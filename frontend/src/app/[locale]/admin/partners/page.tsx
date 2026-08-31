@@ -6,13 +6,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
+import { Link } from "@/i18n/navigation";
 import {
   Users,
   AlertCircle,
   Search,
   RefreshCw,
-  CheckCircle,
-  XCircle,
   Clock,
   Loader2,
   Store,
@@ -44,6 +43,7 @@ interface FabricRow {
   isActive: boolean;
   phone?: string;
   logo?: string;
+  requestNumber?: string;
 }
 
 interface ApprovedShop {
@@ -119,79 +119,6 @@ function ToggleModal({
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100 p-6 animate-in fade-in zoom-in duration-200">
         <h3 className="text-lg font-medium text-black">{title}</h3>
         <p className="mt-2 text-sm text-gray-600 leading-relaxed">{message}</p>
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 transition hover:cursor-pointer"
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface ApprovalModalProps {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  confirmLabel: string;
-  cancelLabel: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  showNote?: boolean;
-  noteValue?: string;
-  onNoteChange?: (val: string) => void;
-  notePlaceholder?: string;
-}
-
-function ApprovalModal({
-  isOpen,
-  title,
-  message,
-  confirmLabel,
-  cancelLabel,
-  onConfirm,
-  onCancel,
-  showNote = false,
-  noteValue = "",
-  onNoteChange,
-  notePlaceholder = "Write something...",
-}: ApprovalModalProps) {
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) onCancel();
-    };
-    if (isOpen) document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onCancel]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100 p-6 animate-in fade-in zoom-in duration-200">
-        <h3 className="text-lg font-medium text-black">{title}</h3>
-        <p className="mt-2 text-sm text-gray-600 leading-relaxed">{message}</p>
-
-        {showNote && onNoteChange && (
-          <div className="mt-4">
-            <textarea
-              className="w-full min-h-25 border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:border-black resize-y"
-              placeholder={notePlaceholder}
-              value={noteValue}
-              onChange={(e) => onNoteChange(e.target.value)}
-            />
-          </div>
-        )}
-
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onCancel}
@@ -380,15 +307,6 @@ export default function AdminPartnersPage() {
     currentStatus: boolean;
   } | null>(null);
 
-  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
-  const [approvalAction, setApprovalAction] = useState<
-    "approve" | "reject" | null
-  >(null);
-  const [selectedPending, setSelectedPending] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
-  const [rejectNote, setRejectNote] = useState("");
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
@@ -581,55 +499,6 @@ export default function AdminPartnersPage() {
     setPendingToggle(null);
   };
 
-  const openApprovalModal = (
-    action: "approve" | "reject",
-    storeId: string,
-    storeName: string,
-  ) => {
-    setMenuPosition(null);
-    setMenuItem(null);
-    setApprovalAction(action);
-    setSelectedPending({ id: storeId, name: storeName });
-    setRejectNote("");
-    setApprovalModalOpen(true);
-  };
-
-  const closeApprovalModal = () => {
-    setApprovalModalOpen(false);
-    setApprovalAction(null);
-    setSelectedPending(null);
-    setRejectNote("");
-  };
-
-  const executeApproval = async () => {
-    if (!selectedPending || !approvalAction) return;
-    const { id, name } = selectedPending;
-
-    setActionInProgress(id);
-    closeApprovalModal();
-
-    try {
-      if (approvalAction === "approve") {
-        await api.patch(`/api/admin/fabric-stores/${id}/approve`);
-        toast.success(`Fabric store "${name}" approved`);
-        await fetchData(currentPage);
-      } else {
-        await api.patch(`/api/admin/fabric-stores/${id}/reject`, {
-          rejectionNote: rejectNote,
-          note: rejectNote,
-        });
-        toast.success(`Fabric store "${name}" rejected`);
-        await fetchData(currentPage);
-      }
-    } catch (err) {
-      toast.error(
-        getApiErrorMessage(err, `Failed to ${approvalAction} partner`),
-      );
-    } finally {
-      setActionInProgress(null);
-    }
-  };
-
   const handlePageChange = (page: number) => {
     fetchData(page, undefined, activeTab, false);
   };
@@ -712,28 +581,6 @@ export default function AdminPartnersPage() {
         onCancel={cancelToggle}
       />
 
-      <ApprovalModal
-        isOpen={approvalModalOpen}
-        title={
-          approvalAction === "approve"
-            ? `Approve "${selectedPending?.name || "Fabric Store"}"`
-            : `Reject "${selectedPending?.name || "Fabric Store"}"`
-        }
-        message={
-          approvalAction === "approve"
-            ? "This store will be able to set up their shop profile and list fabrics."
-            : "Explain a reason of rejection *"
-        }
-        confirmLabel={approvalAction === "approve" ? "Approve" : "Reject"}
-        cancelLabel="Cancel"
-        onConfirm={executeApproval}
-        onCancel={closeApprovalModal}
-        showNote={approvalAction === "reject"}
-        noteValue={rejectNote}
-        onNoteChange={setRejectNote}
-        notePlaceholder="Rejection reason..."
-      />
-
       <PartnerFormModal
         isOpen={formModalOpen}
         onClose={() => setFormModalOpen(false)}
@@ -760,7 +607,19 @@ export default function AdminPartnersPage() {
               transition={{ duration: 0.15, ease: "easeOut" }}
               className="w-fit bg-white rounded-xl shadow-lg border border-gray-200 py-1 overflow-hidden"
             >
+              <Link
+                href={`/admin/partners/${menuItem.id}/application`}
+                onClick={() => {
+                  setMenuPosition(null);
+                  setMenuItem(null);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer"
+              >
+                <Eye className="w-4 h-4 shrink-0" />
+                <span>View</span>
+              </Link>
               <button
+                type="button"
                 onClick={() => {
                   setDetailsItem(menuItem);
                   setMenuPosition(null);
@@ -768,42 +627,9 @@ export default function AdminPartnersPage() {
                 }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer"
               >
-                <Eye className="w-4 h-4 shrink-0" />
+                <Users className="w-4 h-4 shrink-0" />
                 <span>Details</span>
               </button>
-              {menuItem.type === "pending" && (
-                <>
-                  <button
-                    onClick={() => {
-                      openApprovalModal("approve", menuItem.id, menuItem.name);
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-green-700 hover:bg-green-50 transition-colors text-left"
-                  >
-                    <CheckCircle className="w-4 h-4 shrink-0" />
-                    <span>Approve</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      openApprovalModal("reject", menuItem.id, menuItem.name);
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left"
-                  >
-                    <XCircle className="w-4 h-4 shrink-0" />
-                    <span>Reject</span>
-                  </button>
-                </>
-              )}
-              {menuItem.type === "rejected" && (
-                <button
-                  onClick={() => {
-                    openApprovalModal("approve", menuItem.id, menuItem.name);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-green-700 hover:bg-green-50 transition-colors text-left"
-                >
-                  <CheckCircle className="w-4 h-4 shrink-0" />
-                  <span>Approve</span>
-                </button>
-              )}
               {menuItem.type === "approved" && (
                 <button
                   onClick={() => {
@@ -915,7 +741,7 @@ export default function AdminPartnersPage() {
         <input
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search by name, email, or shop..."
+          placeholder="Search by name, email, shop, or request number..."
           className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-black"
         />
       </div>
@@ -996,7 +822,12 @@ export default function AdminPartnersPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {row.email}
+                        <div>{row.email}</div>
+                        {row.requestNumber ? (
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            {row.requestNumber}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm capitalize">
                         {row.type}

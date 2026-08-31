@@ -42,7 +42,7 @@ export const isAuth = async (req, res, next) => {
   try {
     const decode = jwt.verify(token, env.jwtSecret);
     const user = await User.findById(decode._id).select(
-      "name email role isAdmin isActive approvalStatus emailVerified",
+      "name email role isAdmin isActive approvalStatus emailVerified applicationSubmittedAt requestNumber rejectionNote",
     );
 
     if (!user) {
@@ -67,6 +67,9 @@ export const isAuth = async (req, res, next) => {
       role: user.role,
       isAdmin: user.isAdmin,
       approvalStatus: user.approvalStatus,
+      applicationSubmittedAt: user.applicationSubmittedAt || null,
+      requestNumber: user.requestNumber || "",
+      rejectionNote: user.rejectionNote || "",
       emailVerified: isEmailVerified(user),
       isGuest,
       guestContactEmail: isGuest

@@ -1,13 +1,23 @@
 import type { ReactNode } from "react";
+import "./globals.css";
 
 type Props = {
   children: ReactNode;
 };
 
-// Required for root `not-found.tsx`. Do not render <html>/<body> here —
-// `[locale]/layout.tsx` owns the document so `lang` and `dir` can follow
-// the active locale. A second document tree hydrates as
-// <html> inside <body>.
+// Next.js 16 requires <html> and <body> on the root layout.
+// Locale-specific lang/dir is applied on the client by RTLProvider.
 export default function RootLayout({ children }: Props) {
-  return children;
+  return (
+    <html lang="en" dir="ltr" suppressHydrationWarning>
+      <body className="bg-white text-[#000000]" suppressHydrationWarning>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=location.pathname.split("/").filter(Boolean)[0];var l=s==="ar"?"ar":"en";document.documentElement.lang=l;document.documentElement.dir=l==="ar"?"rtl":"ltr";}catch(e){}})();`,
+          }}
+        />
+        {children}
+      </body>
+    </html>
+  );
 }

@@ -9,7 +9,6 @@ import { buildStaticPageMetadata, SITE_NAME, getSiteUrl } from "@/lib/seo";
 import AnalyticsProvider from "@/components/analytics/AnalyticsProvider";
 import CookieConsentBanner from "@/components/analytics/CookieConsentBanner";
 
-import "../globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { AuthGoogleProvider } from "@/components/auth/AuthGoogleProvider";
 import { CartProvider } from "@/context/CartContext";
@@ -54,67 +53,61 @@ export default async function LocaleLayout({ children, params }: Props) {
     setRequestLocale(locale);
     const messages = await getMessages();
 
-    const dir = locale === "ar" ? "rtl" : "ltr";
-
     return (
-        <html lang={locale} dir={dir} suppressHydrationWarning>
-            <body className="bg-white text-[#000000]" suppressHydrationWarning>
-                <NextIntlClientProvider messages={messages} locale={locale}>
-                    <AuthGoogleProvider>
-                        <AuthProvider>
-                            <CartProvider>
-                                <WishlistProvider>
-                                    <CustomOrderProvider>
-                                        <RTLProvider>
-                                            <LenisProvider>
-                                                {children}
-                                                <AnalyticsProvider />
-                                                <CookieConsentBanner />
-                                            </LenisProvider>
-                                        </RTLProvider>
-                                        <Toaster
-                                            position="top-right"
-                                            toastOptions={{
-                                                style: {
-                                                    fontFamily: "var(--font-body)",
-                                                    fontSize: "12px",
-                                                    letterSpacing: "0.24em",
-                                                    textTransform: "uppercase",
-                                                    borderRadius: "8px",
-                                                    padding: "12px 18px",
-                                                    boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-                                                },
-                                                success: {
-                                                    style: {
-                                                        background: "#f0fdf4",
-                                                        color: "#166534",
-                                                        border: "1px solid #86efac",
-                                                    },
-                                                    iconTheme: {
-                                                        primary: "#16a34a",
-                                                        secondary: "#ffffff",
-                                                    },
-                                                },
-                                                error: {
-                                                    style: {
-                                                        background: "#fef2f2",
-                                                        color: "#991b1b",
-                                                        border: "1px solid #fca5a5",
-                                                    },
-                                                    iconTheme: {
-                                                        primary: "#dc2626",
-                                                        secondary: "#ffffff",
-                                                    },
-                                                },
-                                            }}
-                                        />
-                                    </CustomOrderProvider>
-                                </WishlistProvider>
-                            </CartProvider>
-                        </AuthProvider>
-                    </AuthGoogleProvider>
-                </NextIntlClientProvider>
-            </body>
-        </html>
+        <NextIntlClientProvider messages={messages} locale={locale}>
+            <AuthGoogleProvider>
+                <AuthProvider>
+                    <CartProvider>
+                        <WishlistProvider>
+                            <CustomOrderProvider>
+                                <RTLProvider>
+                                    <LenisProvider>
+                                        {children}
+                                        <AnalyticsProvider />
+                                        <CookieConsentBanner />
+                                    </LenisProvider>
+                                </RTLProvider>
+                                <Toaster
+                                    position="top-right"
+                                    toastOptions={{
+                                        style: {
+                                            fontFamily: "var(--font-body)",
+                                            fontSize: "12px",
+                                            letterSpacing: "0.24em",
+                                            textTransform: "uppercase",
+                                            borderRadius: "8px",
+                                            padding: "12px 18px",
+                                            boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+                                        },
+                                        success: {
+                                            style: {
+                                                background: "#f0fdf4",
+                                                color: "#166534",
+                                                border: "1px solid #86efac",
+                                            },
+                                            iconTheme: {
+                                                primary: "#16a34a",
+                                                secondary: "#ffffff",
+                                            },
+                                        },
+                                        error: {
+                                            style: {
+                                                background: "#fef2f2",
+                                                color: "#991b1b",
+                                                border: "1px solid #fca5a5",
+                                            },
+                                            iconTheme: {
+                                                primary: "#dc2626",
+                                                secondary: "#ffffff",
+                                            },
+                                        },
+                                    }}
+                                />
+                            </CustomOrderProvider>
+                        </WishlistProvider>
+                    </CartProvider>
+                </AuthProvider>
+            </AuthGoogleProvider>
+        </NextIntlClientProvider>
     );
 }

@@ -44,6 +44,17 @@ import {
   notifyRetailStatusChange,
 } from "../services/notificationService.js";
 import {
+  getAdminApplication,
+} from "../services/partnerApplication/partnerApplicationService.js";
+import { seedShopFromApplication } from "../services/partnerApplication/seedShopFromApplication.js";
+import {
+  PartnerApplicationError,
+  assertPartnerDecisionAllowed,
+  submittedPendingFilter,
+  hideUnsubmittedPendingClause,
+} from "../services/partnerApplication/policy.js";
+import { partnerUserSearchOr } from "../services/partnerApplication/requestNumber.js";
+import {
   normalizeEmirate,
   UAE_EMIRATES,
   isValidEmirate,
@@ -589,22 +600,30 @@ adminRouter.get(
 
     // Build filter for users with fabric_store role
     const filter = { role: "fabric_store" };
+    const and = [];
 
     // Type filter
     if (type === "approved") {
       filter.approvalStatus = "approved";
     } else if (type === "pending") {
       filter.approvalStatus = "pending";
+      filter.applicationSubmittedAt = { $exists: true, $ne: null };
     } else if (type === "rejected") {
       filter.approvalStatus = "rejected";
+    } else {
+      and.push(hideUnsubmittedPendingClause());
     }
 
     // Search filter
     if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-      ];
+      const searchOr = partnerUserSearchOr(search);
+      if (searchOr) {
+        and.push(searchOr);
+      }
+    }
+
+    if (and.length) {
+      filter.$and = and;
     }
 
     // Get total count for pagination
@@ -628,6 +647,7 @@ adminRouter.get(
       isActive: user.isActive || false,
       phone: user.phone || "",
       logo: user.profilePic || null,
+      requestNumber: user.requestNumber || "",
     }));
 
     res.send({
@@ -646,7 +666,7 @@ adminRouter.get(
     const [total, approved, pending, rejected] = await Promise.all([
       User.countDocuments({ role: "fabric_store" }),
       User.countDocuments({ role: "fabric_store", approvalStatus: "approved" }),
-      User.countDocuments({ role: "fabric_store", approvalStatus: "pending" }),
+      User.countDocuments(submittedPendingFilter("fabric_store")),
       User.countDocuments({ role: "fabric_store", approvalStatus: "rejected" }),
     ]);
 
@@ -1243,10 +1263,7 @@ adminRouter.delete(
 adminRouter.get(
   "/tailors/pending",
   expressAsyncHandler(async (req, res) => {
-    const pendingTailors = await User.find({
-      role: "tailor",
-      approvalStatus: "pending",
-    })
+    const pendingTailors = await User.find(submittedPendingFilter("tailor"))
       .select("-password")
       .sort({ createdAt: -1 });
 
@@ -1273,27 +1290,63 @@ adminRouter.get(
   }),
 );
 
+adminRouter.get(
+  "/tailors/:id/application",
+  expressAsyncHandler(async (req, res) => {
+    try {
+      const payload = await getAdminApplication(req.params.id, "tailor");
+      res.send(payload);
+    } catch (error) {
+      if (error instanceof PartnerApplicationError) {
+        res.status(error.status).send({
+          code: error.code,
+          message: error.message,
+        });
+        return;
+      }
+      throw error;
+    }
+  }),
+);
+
 // PATCH /api/admin/tailors/:id/approve
-// Set approvalStatus: approved
+// Set approvalStatus: approved — pending or rejected only
 adminRouter.patch(
   "/tailors/:id/approve",
   expressAsyncHandler(async (req, res) => {
     const tailor = await User.findById(req.params.id);
 
     if (tailor && tailor.role === "tailor") {
-      tailor.approvalStatus = "approved";
-      tailor.rejectionNote = "";
-      const updatedTailor = await tailor.save();
-      res.send({
-        message: "Tailor approved successfully",
-        user: {
-          _id: updatedTailor._id,
-          name: updatedTailor.name,
-          email: updatedTailor.email,
-          approvalStatus: updatedTailor.approvalStatus,
-          rejectionNote: updatedTailor.rejectionNote,
-        },
-      });
+      try {
+        assertPartnerDecisionAllowed(tailor);
+        const rawNote = req.body?.approvalNote ?? req.body?.note;
+        const approvalNote = typeof rawNote === "string" ? rawNote.trim() : "";
+        await seedShopFromApplication(tailor);
+        tailor.approvalStatus = "approved";
+        tailor.rejectionNote = "";
+        tailor.approvalNote = approvalNote;
+        const updatedTailor = await tailor.save();
+        res.send({
+          message: "Tailor approved successfully",
+          user: {
+            _id: updatedTailor._id,
+            name: updatedTailor.name,
+            email: updatedTailor.email,
+            approvalStatus: updatedTailor.approvalStatus,
+            rejectionNote: updatedTailor.rejectionNote,
+            approvalNote: updatedTailor.approvalNote,
+          },
+        });
+      } catch (error) {
+        if (error instanceof PartnerApplicationError) {
+          res.status(error.status).send({
+            code: error.code,
+            message: error.message,
+          });
+          return;
+        }
+        throw error;
+      }
     } else {
       res
         .status(404)
@@ -1303,29 +1356,49 @@ adminRouter.patch(
 );
 
 // PATCH /api/admin/tailors/:id/reject
-// Set approvalStatus: rejected
+// Set approvalStatus: rejected — pending or rejected only (never after approve)
 adminRouter.patch(
   "/tailors/:id/reject",
   expressAsyncHandler(async (req, res) => {
     const tailor = await User.findById(req.params.id);
 
     if (tailor && tailor.role === "tailor") {
-      const rawNote = req.body?.note ?? req.body?.rejectionNote;
-      const rejectionNote = typeof rawNote === "string" ? rawNote.trim() : "";
+      try {
+        assertPartnerDecisionAllowed(tailor);
+        const rawNote = req.body?.note ?? req.body?.rejectionNote;
+        const rejectionNote = typeof rawNote === "string" ? rawNote.trim() : "";
+        if (!rejectionNote) {
+          res.status(400).send({
+            code: "REJECTION_NOTE_REQUIRED",
+            message: "A rejection note is required",
+          });
+          return;
+        }
 
-      tailor.approvalStatus = "rejected";
-      tailor.rejectionNote = rejectionNote;
-      const updatedTailor = await tailor.save();
-      res.send({
-        message: "Tailor rejected",
-        user: {
-          _id: updatedTailor._id,
-          name: updatedTailor.name,
-          email: updatedTailor.email,
-          approvalStatus: updatedTailor.approvalStatus,
-          rejectionNote: updatedTailor.rejectionNote,
-        },
-      });
+        tailor.approvalStatus = "rejected";
+        tailor.rejectionNote = rejectionNote;
+        tailor.approvalNote = "";
+        const updatedTailor = await tailor.save();
+        res.send({
+          message: "Tailor rejected",
+          user: {
+            _id: updatedTailor._id,
+            name: updatedTailor.name,
+            email: updatedTailor.email,
+            approvalStatus: updatedTailor.approvalStatus,
+            rejectionNote: updatedTailor.rejectionNote,
+          },
+        });
+      } catch (error) {
+        if (error instanceof PartnerApplicationError) {
+          res.status(error.status).send({
+            code: error.code,
+            message: error.message,
+          });
+          return;
+        }
+        throw error;
+      }
     } else {
       res
         .status(404)
@@ -1356,10 +1429,9 @@ adminRouter.get(
 adminRouter.get(
   "/fabric-stores/pending",
   expressAsyncHandler(async (req, res) => {
-    const pendingStores = await User.find({
-      role: "fabric_store",
-      approvalStatus: "pending",
-    })
+    const pendingStores = await User.find(
+      submittedPendingFilter("fabric_store"),
+    )
       .select("-password")
       .sort({ createdAt: -1 });
 
@@ -1384,25 +1456,61 @@ adminRouter.get(
   }),
 );
 
+adminRouter.get(
+  "/fabric-stores/:id/application",
+  expressAsyncHandler(async (req, res) => {
+    try {
+      const payload = await getAdminApplication(req.params.id, "fabric_store");
+      res.send(payload);
+    } catch (error) {
+      if (error instanceof PartnerApplicationError) {
+        res.status(error.status).send({
+          code: error.code,
+          message: error.message,
+        });
+        return;
+      }
+      throw error;
+    }
+  }),
+);
+
 adminRouter.patch(
   "/fabric-stores/:id/approve",
   expressAsyncHandler(async (req, res) => {
     const store = await User.findById(req.params.id);
 
     if (store && store.role === "fabric_store") {
-      store.approvalStatus = "approved";
-      store.rejectionNote = "";
-      const updatedStore = await store.save();
-      res.send({
-        message: "Fabric store approved successfully",
-        user: {
-          _id: updatedStore._id,
-          name: updatedStore.name,
-          email: updatedStore.email,
-          approvalStatus: updatedStore.approvalStatus,
-          rejectionNote: updatedStore.rejectionNote,
-        },
-      });
+      try {
+        assertPartnerDecisionAllowed(store);
+        const rawNote = req.body?.approvalNote ?? req.body?.note;
+        const approvalNote = typeof rawNote === "string" ? rawNote.trim() : "";
+        await seedShopFromApplication(store);
+        store.approvalStatus = "approved";
+        store.rejectionNote = "";
+        store.approvalNote = approvalNote;
+        const updatedStore = await store.save();
+        res.send({
+          message: "Fabric store approved successfully",
+          user: {
+            _id: updatedStore._id,
+            name: updatedStore.name,
+            email: updatedStore.email,
+            approvalStatus: updatedStore.approvalStatus,
+            rejectionNote: updatedStore.rejectionNote,
+            approvalNote: updatedStore.approvalNote,
+          },
+        });
+      } catch (error) {
+        if (error instanceof PartnerApplicationError) {
+          res.status(error.status).send({
+            code: error.code,
+            message: error.message,
+          });
+          return;
+        }
+        throw error;
+      }
     } else {
       res
         .status(404)
@@ -1417,22 +1525,42 @@ adminRouter.patch(
     const store = await User.findById(req.params.id);
 
     if (store && store.role === "fabric_store") {
-      const rawNote = req.body?.note ?? req.body?.rejectionNote;
-      const rejectionNote = typeof rawNote === "string" ? rawNote.trim() : "";
+      try {
+        assertPartnerDecisionAllowed(store);
+        const rawNote = req.body?.note ?? req.body?.rejectionNote;
+        const rejectionNote = typeof rawNote === "string" ? rawNote.trim() : "";
+        if (!rejectionNote) {
+          res.status(400).send({
+            code: "REJECTION_NOTE_REQUIRED",
+            message: "A rejection note is required",
+          });
+          return;
+        }
 
-      store.approvalStatus = "rejected";
-      store.rejectionNote = rejectionNote;
-      const updatedStore = await store.save();
-      res.send({
-        message: "Fabric store rejected",
-        user: {
-          _id: updatedStore._id,
-          name: updatedStore.name,
-          email: updatedStore.email,
-          approvalStatus: updatedStore.approvalStatus,
-          rejectionNote: updatedStore.rejectionNote,
-        },
-      });
+        store.approvalStatus = "rejected";
+        store.rejectionNote = rejectionNote;
+        store.approvalNote = "";
+        const updatedStore = await store.save();
+        res.send({
+          message: "Fabric store rejected",
+          user: {
+            _id: updatedStore._id,
+            name: updatedStore.name,
+            email: updatedStore.email,
+            approvalStatus: updatedStore.approvalStatus,
+            rejectionNote: updatedStore.rejectionNote,
+          },
+        });
+      } catch (error) {
+        if (error instanceof PartnerApplicationError) {
+          res.status(error.status).send({
+            code: error.code,
+            message: error.message,
+          });
+          return;
+        }
+        throw error;
+      }
     } else {
       res
         .status(404)
@@ -1464,7 +1592,7 @@ adminRouter.get(
 
 const tailorShopOwnerPopulate = {
   path: "ownerId",
-  select: "name email approvalStatus",
+  select: "name email approvalStatus requestNumber",
   match: { approvalStatus: "approved" },
 };
 
@@ -1544,7 +1672,7 @@ adminRouter.get(
     // Get all tailors data for stats
     const [allShops, pendingUsers, rejectedUsers] = await Promise.all([
       TailorShop.find({}).populate(tailorShopOwnerPopulate),
-      User.find({ approvalStatus: "pending", role: "tailor" }),
+      User.find(submittedPendingFilter("tailor")),
       User.find({ approvalStatus: "rejected", role: "tailor" }),
     ]);
 
@@ -2286,11 +2414,8 @@ adminRouter.get(
         role: "customer",
         createdAt: { $gte: monthStartCustomers },
       }),
-      User.countDocuments({ role: "tailor", approvalStatus: "pending" }),
-      User.countDocuments({
-        role: "fabric_store",
-        approvalStatus: "pending",
-      }),
+      User.countDocuments(submittedPendingFilter("tailor")),
+      User.countDocuments(submittedPendingFilter("fabric_store")),
       TailorShop.countDocuments({ isActive: true }),
       FabricShop.countDocuments({ isActive: true }),
       Fabric.countDocuments({

@@ -3,6 +3,7 @@ import TailorShop from "../models/TailorShop.js";
 import Design from "../models/Design.js";
 import User from "../models/User.js";
 import Category from "../models/Category.js";
+import { publicShopSlugFilter } from "../utils/shopReady.js";
 
 const tailorRoutes = express.Router();
 
@@ -41,6 +42,7 @@ tailorRoutes.get("/", async (req, res) => {
     const filter = {
       isActive: true,
       ownerId: { $in: approvedOwnerIds },
+      ...publicShopSlugFilter(),
     };
 
     const pageNumber = Math.max(Number(page) || 1, 1);
@@ -135,6 +137,7 @@ tailorRoutes.get("/designs/all", async (req, res) => {
     const approvedShops = await TailorShop.find({
       isActive: true,
       ownerId: { $in: approvedOwnerIds },
+      ...publicShopSlugFilter(),
     }).select("_id slug name nameAr");
 
     const shopIds = approvedShops.map((s) => s._id);

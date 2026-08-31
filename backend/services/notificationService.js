@@ -10,7 +10,12 @@ export const NOTIFICATION_CATEGORIES = {
   orders: ["custom_order_placed", "retail_order_placed"],
   returns: ["custom_return_requested"],
   registrations: ["user_customer_registered", "customer_registered"],
-  partners: ["user_tailor_registered", "user_fabric_store_registered"],
+  partners: [
+    "user_tailor_registered",
+    "user_fabric_store_registered",
+    "user_tailor_application_resubmitted",
+    "user_fabric_store_application_resubmitted",
+  ],
 };
 
 const CUSTOMER_STATUS_TYPES = {

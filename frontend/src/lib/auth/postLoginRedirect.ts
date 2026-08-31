@@ -40,8 +40,12 @@ export function getPostLoginPath(
   }
 
   if (role === "admin" || role === "sub-admin") return "/admin";
-  if (role === "tailor") return "/tailor";
-  if (role === "fabric_store") return "/fabric";
+  if (role === "tailor") {
+    return user.applicationSubmittedAt ? "/tailor" : "/tailor/apply";
+  }
+  if (role === "fabric_store") {
+    return user.applicationSubmittedAt ? "/fabric" : "/fabric/apply";
+  }
   return "/";
 }
 
