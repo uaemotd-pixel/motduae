@@ -14,19 +14,149 @@ import {
   designToForm,
   emptyTailorDesignForm,
   fetchDefaultTailoringFee,
-  fetchTailorDesign,
   fetchDesignCategories,
+  fetchDesignMaterials,
+  fetchDesignPatterns,
+  fetchDesignSeasons,
+  fetchDesignTags,
+  fetchTailorDesign,
   isShopMissingError,
   slugifyDesignName,
   updateTailorDesign,
   type DesignCategoryOption,
+  type DesignFilterOption,
   type TailorDesignFormData,
 } from "@/lib/tailorDesigns";
+import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 
 const INPUT_CLASS =
-  "w-full py-1 border-b border-gray-300 focus:border-black outline-none bg-transparent";
-const TEXTAREA_CLASS =
-  "w-full py-1 border-b border-gray-300 focus:border-black outline-none bg-transparent resize-none overflow-hidden min-h-[2.5rem]";
+  "w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm bg-transparent";
+
+type DropdownOption = { value: string; en: string; ar: string };
+
+function FilterSelectTrigger({
+  value,
+  placeholder,
+  displayValue,
+  onClick,
+}: {
+  value: string;
+  placeholder: string;
+  displayValue: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent text-xs sm:text-sm flex items-center justify-between hover:cursor-pointer transition-colors"
+    >
+      <span
+        className={`truncate pr-2 ${value ? "text-black" : "text-gray-400"}`}
+      >
+        {displayValue || placeholder}
+      </span>
+      <span className="text-gray-400 shrink-0">▾</span>
+    </button>
+  );
+}
+
+type BilingualFilterDropdownProps = {
+  label: string;
+  name: string;
+  required?: boolean;
+  error?: string;
+  value: string;
+  options: DropdownOption[];
+  loading: boolean;
+  loadingText: string;
+  emptyText: string;
+  placeholder: string;
+  clearLabel: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onSelect: (en: string, ar: string) => void;
+  onClear: () => void;
+};
+
+function BilingualFilterDropdown({
+  label,
+  name,
+  required,
+  error,
+  value,
+  options,
+  loading,
+  loadingText,
+  emptyText,
+  placeholder,
+  clearLabel,
+  isOpen,
+  onToggle,
+  onClose,
+  onSelect,
+  onClear,
+}: BilingualFilterDropdownProps) {
+  const selected = options.find((o) => o.value === value);
+  const displayValue = selected ? `${selected.en} / ${selected.ar}` : "";
+
+  return (
+    <FormField label={label} name={name} required={required} error={error}>
+      <AnimatedDropdown
+        isOpen={isOpen}
+        onClose={onClose}
+        trigger={
+          <FilterSelectTrigger
+            value={value}
+            placeholder={loading ? loadingText : placeholder}
+            displayValue={displayValue}
+            onClick={onToggle}
+          />
+        }
+        dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+        position="bottom-left"
+      >
+        {loading ? (
+          <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+            {loadingText}
+          </div>
+        ) : options.length === 0 ? (
+          <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+            {emptyText}
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                onClear();
+                onClose();
+              }}
+              className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm text-gray-400 hover:bg-gray-100 hover:cursor-pointer"
+            >
+              {clearLabel}
+            </button>
+            {options.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onSelect(opt.en, opt.ar);
+                  onClose();
+                }}
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+              >
+                <span>{opt.en} / </span>
+                <span>{opt.ar}</span>
+              </button>
+            ))}
+          </>
+        )}
+      </AnimatedDropdown>
+    </FormField>
+  );
+}
 
 type TailorDesignFormProps = {
   designId?: string;
@@ -53,21 +183,43 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     DesignCategoryOption[]
   >([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [materialOptions, setMaterialOptions] = useState<DesignFilterOption[]>(
+    [],
+  );
+  const [patternOptions, setPatternOptions] = useState<DesignFilterOption[]>(
+    [],
+  );
+  const [seasonOptions, setSeasonOptions] = useState<DesignFilterOption[]>([]);
+  const [tagOptions, setTagOptions] = useState<DesignFilterOption[]>([]);
+  const [materialsLoading, setMaterialsLoading] = useState(true);
+  const [patternsLoading, setPatternsLoading] = useState(true);
+  const [seasonsLoading, setSeasonsLoading] = useState(true);
+  const [tagsLoading, setTagsLoading] = useState(true);
+  const [openCategory, setOpenCategory] = useState(false);
+  const [openMaterial, setOpenMaterial] = useState(false);
+  const [openPattern, setOpenPattern] = useState(false);
+  const [openSeason, setOpenSeason] = useState(false);
+  const [openTag, setOpenTag] = useState(false);
   const formActionsRef = useRef<HTMLDivElement>(null);
   const previousImageCountRef = useRef(formData.images.length);
 
-  // Auto-resize textareas
-  const textareaRefs = useRef<{ [key: string]: HTMLTextAreaElement | null }>(
-    {},
-  );
-
-  const autoResize = (key: string) => {
-    const el = textareaRefs.current[key];
-    if (el) {
-      el.style.height = "auto";
-      el.style.height = el.scrollHeight + "px";
+  const handleNumberChange = (
+    field: "basePrice" | "tailoringFee" | "estimatedMeters" | "estimatedDays",
+    value: string,
+  ) => {
+    if (value === "") {
+      handleChange(field, 0);
+      return;
+    }
+    const num =
+      field === "estimatedDays" ? parseInt(value, 10) : parseFloat(value);
+    if (!Number.isNaN(num) && num >= 0) {
+      handleChange(field, num);
     }
   };
+
+  const getNumberDisplay = (value: number): string =>
+    value === 0 ? "" : String(value);
 
   useEffect(() => {
     // Fetch design categories + default tailoring fee from platform settings
@@ -76,9 +228,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
       try {
         const [cats, defaultTailoringFee] = await Promise.all([
           fetchDesignCategories(),
-          isEditMode
-            ? Promise.resolve(null)
-            : fetchDefaultTailoringFee(),
+          isEditMode ? Promise.resolve(null) : fetchDefaultTailoringFee(),
         ]);
         if (cancelled) return;
         setCategoryOptions(cats);
@@ -107,6 +257,41 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
       cancelled = true;
     };
   }, [isEditMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadFilters = async () => {
+      try {
+        const [materials, patterns, seasons, tags] = await Promise.all([
+          fetchDesignMaterials(),
+          fetchDesignPatterns(),
+          fetchDesignSeasons(),
+          fetchDesignTags(),
+        ]);
+        if (cancelled) return;
+        setMaterialOptions(materials);
+        setPatternOptions(patterns);
+        setSeasonOptions(seasons);
+        setTagOptions(tags);
+      } catch {
+        // fall back to empty lists
+      } finally {
+        if (!cancelled) {
+          setMaterialsLoading(false);
+          setPatternsLoading(false);
+          setSeasonsLoading(false);
+          setTagsLoading(false);
+        }
+      }
+    };
+
+    void loadFilters();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (formData.images.length > previousImageCountRef.current) {
@@ -169,6 +354,49 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
       setFieldErrors((prev) => ({ ...prev, [field as string]: undefined }));
     }
   };
+
+  const handleBilingualSelect = (
+    enField: keyof TailorDesignFormData,
+    arField: keyof TailorDesignFormData,
+    en: string,
+    ar: string,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      [enField]: en,
+      [arField]: ar,
+    }));
+    if (fieldErrors[enField as string]) {
+      setFieldErrors((prev) => ({ ...prev, [enField as string]: undefined }));
+    }
+  };
+
+  const clearBilingualSelect = (
+    enField: keyof TailorDesignFormData,
+    arField: keyof TailorDesignFormData,
+  ) => {
+    handleBilingualSelect(enField, arField, "", "");
+  };
+
+  const toDropdownOptions = (items: DesignFilterOption[]) =>
+    items.map((item) => ({
+      value: item.name,
+      en: item.name,
+      ar: item.nameAr || item.name,
+    }));
+
+  const materialDropdownOptions = toDropdownOptions(materialOptions);
+  const patternDropdownOptions = toDropdownOptions(patternOptions);
+  const seasonDropdownOptions = toDropdownOptions(seasonOptions);
+  const tagDropdownOptions = toDropdownOptions(tagOptions);
+  const categoryDropdownOptions = categoryOptions.map((cat) => ({
+    value: cat.name,
+    en: cat.name,
+    ar: cat.nameAr || cat.name,
+  }));
+
+  const filterLoadingText = t("filters.loading");
+  const filterEmptyText = t("filters.empty");
 
   const handleImageChange = (index: number, url: string) => {
     if (!url.trim() && formData.images.length > 1) {
@@ -304,156 +532,193 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="mb-8">
-        <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-3">
-          {t("eyebrow")}
-        </p>
-        <h1 className="[font-family:var(--font-display)] text-[32px] sm:text-[36px] text-black mb-3">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-0">
+      <div>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
           {isEditMode ? t("editTitle") : t("createTitle")}
         </h1>
-        <p className="[font-family:var(--font-body)] text-[14px] text-(--color-grey-muted)">
+        <p className="text-gray-500 text-xs sm:text-sm mt-1">
           {isEditMode ? t("editDescription") : t("createDescription")}
         </p>
       </div>
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-8"
+        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6"
       >
-        <section className="space-y-5">
-          <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
-            {t("sections.identity")}
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <FormField
-              label={t("fields.name")}
-              name="name"
-              required
-              error={fieldErrors.name}
-            >
-              <input
-                id="name"
-                type="text"
-                value={formData.name}
-                onChange={(e) => handleChange("name", e.target.value)}
-                className={INPUT_CLASS}
-              />
-            </FormField>
-
-            <FormField
-              label={t("fields.nameAr")}
-              name="nameAr"
-              required
-              error={fieldErrors.nameAr}
-            >
-              <input
-                id="nameAr"
-                type="text"
-                value={formData.nameAr}
-                onChange={(e) => handleChange("nameAr", e.target.value)}
-                dir="rtl"
-                className={INPUT_CLASS}
-              />
-            </FormField>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          <FormField
+            label={t("fields.name")}
+            name="name"
+            required
+            error={fieldErrors.name}
+          >
+            <input
+              id="name"
+              type="text"
+              value={formData.name}
+              onChange={(e) => handleChange("name", e.target.value)}
+              className={INPUT_CLASS}
+            />
+          </FormField>
 
           <FormField
-            label={t("fields.category")}
-            name="category"
+            label={t("fields.nameAr")}
+            name="nameAr"
             required
-            error={fieldErrors.category}
+            error={fieldErrors.nameAr}
           >
-            <select
-              id="category"
-              value={formData.category}
-              onChange={(e) => handleChange("category", e.target.value)}
-              className={INPUT_CLASS}
-              disabled={categoriesLoading}
-            >
-              {categoriesLoading ? (
-                <option value="">Loading...</option>
-              ) : categoryOptions.length === 0 ? (
-                <option value="">No categories available</option>
-              ) : (
-                <>
-                  <option value="" disabled className="text-gray-400">
-                    Select a category
-                  </option>
-                  {categoryOptions.map((cat) => (
-                    <option key={cat._id} value={cat.name}>
-                      {cat.nameAr ? `${cat.name} (${cat.nameAr})` : cat.name}
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
+            <input
+              id="nameAr"
+              type="text"
+              value={formData.nameAr}
+              onChange={(e) => handleChange("nameAr", e.target.value)}
+              dir="rtl"
+              className={`${INPUT_CLASS} text-right`}
+            />
           </FormField>
-        </section>
 
-        <section className="space-y-5">
-          <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
-            {t("sections.about")}
-          </h2>
+          <FormField
+            label={t("fields.description")}
+            name="description"
+            error={fieldErrors.description}
+          >
+            <input
+              id="description"
+              type="text"
+              value={formData.description}
+              onChange={(e) => handleChange("description", e.target.value)}
+              className={INPUT_CLASS}
+            />
+          </FormField>
 
-          {/* Both descriptions in one row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <FormField label={t("fields.description")} name="description">
-              <textarea
-                id="description"
-                ref={(el) => {
-                  textareaRefs.current["description"] = el;
-                  if (el) autoResize("description");
-                }}
-                value={formData.description}
-                onChange={(e) => {
-                  handleChange("description", e.target.value);
-                  autoResize("description");
-                }}
-                className={TEXTAREA_CLASS}
-                rows={1}
+          <FormField
+            label={t("fields.descriptionAr")}
+            name="descriptionAr"
+            error={fieldErrors.descriptionAr}
+          >
+            <input
+              id="descriptionAr"
+              type="text"
+              value={formData.descriptionAr}
+              onChange={(e) => handleChange("descriptionAr", e.target.value)}
+              dir="rtl"
+              className={`${INPUT_CLASS} text-right`}
+            />
+          </FormField>
+
+          <div className="md:col-span-2 rounded-xl space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+              <BilingualFilterDropdown
+                label={t("fields.category")}
+                name="category"
+                required
+                error={fieldErrors.category}
+                value={formData.category}
+                options={categoryDropdownOptions}
+                loading={categoriesLoading}
+                loadingText={filterLoadingText}
+                emptyText={filterEmptyText}
+                placeholder={t("filters.selectCategory")}
+                clearLabel={t("filters.selectCategory")}
+                isOpen={openCategory}
+                onToggle={() => setOpenCategory(!openCategory)}
+                onClose={() => setOpenCategory(false)}
+                onSelect={(en) => handleChange("category", en)}
+                onClear={() => handleChange("category", "")}
               />
-            </FormField>
-
-            <FormField label={t("fields.descriptionAr")} name="descriptionAr">
-              <textarea
-                id="descriptionAr"
-                ref={(el) => {
-                  textareaRefs.current["descriptionAr"] = el;
-                  if (el) autoResize("descriptionAr");
-                }}
-                value={formData.descriptionAr}
-                onChange={(e) => {
-                  handleChange("descriptionAr", e.target.value);
-                  autoResize("descriptionAr");
-                }}
-                dir="rtl"
-                className={TEXTAREA_CLASS}
-                rows={1}
+              <BilingualFilterDropdown
+                label={t("fields.material")}
+                name="material"
+                error={fieldErrors.material}
+                value={formData.material}
+                options={materialDropdownOptions}
+                loading={materialsLoading}
+                loadingText={filterLoadingText}
+                emptyText={filterEmptyText}
+                placeholder={t("filters.selectMaterial")}
+                clearLabel={t("filters.selectMaterial")}
+                isOpen={openMaterial}
+                onToggle={() => setOpenMaterial(!openMaterial)}
+                onClose={() => setOpenMaterial(false)}
+                onSelect={(en, ar) =>
+                  handleBilingualSelect("material", "materialAr", en, ar)
+                }
+                onClear={() => clearBilingualSelect("material", "materialAr")}
               />
-            </FormField>
+              <BilingualFilterDropdown
+                label={t("fields.pattern")}
+                name="pattern"
+                error={fieldErrors.pattern}
+                value={formData.pattern}
+                options={patternDropdownOptions}
+                loading={patternsLoading}
+                loadingText={filterLoadingText}
+                emptyText={filterEmptyText}
+                placeholder={t("filters.selectPattern")}
+                clearLabel={t("filters.selectPattern")}
+                isOpen={openPattern}
+                onToggle={() => setOpenPattern(!openPattern)}
+                onClose={() => setOpenPattern(false)}
+                onSelect={(en, ar) =>
+                  handleBilingualSelect("pattern", "patternAr", en, ar)
+                }
+                onClear={() => clearBilingualSelect("pattern", "patternAr")}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+              <BilingualFilterDropdown
+                label={t("fields.season")}
+                name="season"
+                error={fieldErrors.season}
+                value={formData.season}
+                options={seasonDropdownOptions}
+                loading={seasonsLoading}
+                loadingText={filterLoadingText}
+                emptyText={filterEmptyText}
+                placeholder={t("filters.selectSeason")}
+                clearLabel={t("filters.selectSeason")}
+                isOpen={openSeason}
+                onToggle={() => setOpenSeason(!openSeason)}
+                onClose={() => setOpenSeason(false)}
+                onSelect={(en, ar) =>
+                  handleBilingualSelect("season", "seasonAr", en, ar)
+                }
+                onClear={() => clearBilingualSelect("season", "seasonAr")}
+              />
+              <BilingualFilterDropdown
+                label={t("fields.tag")}
+                name="tag"
+                error={fieldErrors.tag}
+                value={formData.tag}
+                options={tagDropdownOptions}
+                loading={tagsLoading}
+                loadingText={filterLoadingText}
+                emptyText={filterEmptyText}
+                placeholder={t("filters.selectTag")}
+                clearLabel={t("filters.selectTag")}
+                isOpen={openTag}
+                onToggle={() => setOpenTag(!openTag)}
+                onClose={() => setOpenTag(false)}
+                onSelect={(en, ar) =>
+                  handleBilingualSelect("tag", "tagAr", en, ar)
+                }
+                onClear={() => clearBilingualSelect("tag", "tagAr")}
+              />
+            </div>
           </div>
-        </section>
 
-        <section className="space-y-5">
-          <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
-            {t("sections.pricing")}
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div className="sm:col-span-2">
-              <label className="block text-[10px] sm:text-xs uppercase tracking-widest text-gray-500 mb-2">
-                {t("fields.priceType")} *
-              </label>
-              <div className="flex gap-4">
+          <div className="md:col-span-2">
+            <FormField label={t("fields.priceType")} name="priceType" required>
+              <div className="flex gap-3 sm:gap-4">
                 <button
                   type="button"
                   onClick={() => handleChange("priceType", "fixed")}
-                  className={`flex-1 py-3 px-4 border text-[11px] uppercase tracking-wider transition-all rounded-lg text-center ${
+                  className={`flex-1 py-2 px-3 border-b-2 text-xs sm:text-sm transition-colors hover:cursor-pointer ${
                     formData.priceType === "fixed"
-                      ? "border-black bg-black text-white font-medium"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-black"
+                      ? "border-black text-black font-medium"
+                      : "border-gray-200 text-gray-500 hover:border-gray-400"
                   }`}
                 >
                   {t("fields.fixedPrice")}
@@ -461,172 +726,171 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
                 <button
                   type="button"
                   onClick={() => handleChange("priceType", "per_meter")}
-                  className={`flex-1 py-3 px-4 border text-[11px] uppercase tracking-wider transition-all rounded-lg text-center ${
+                  className={`flex-1 py-2 px-3 border-b-2 text-xs sm:text-sm transition-colors hover:cursor-pointer ${
                     formData.priceType === "per_meter"
-                      ? "border-black bg-black text-white font-medium"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-black"
+                      ? "border-black text-black font-medium"
+                      : "border-gray-200 text-gray-500 hover:border-gray-400"
                   }`}
                 >
                   {t("fields.perMeterPrice")}
                 </button>
               </div>
-            </div>
-
-            <FormField
-              label={
-                formData.priceType === "per_meter"
-                  ? t("fields.perMeterPrice")
-                  : t("fields.basePrice")
-              }
-              name="basePrice"
-              required
-              error={fieldErrors.basePrice}
-            >
-              <NumericInput
-                id="basePrice"
-                min={0}
-                step={1}
-                value={formData.basePrice}
-                onChange={(value) => handleChange("basePrice", value)}
-                className={INPUT_CLASS}
-              />
-            </FormField>
-
-            <FormField
-              label={t("fields.tailoringFee")}
-              name="tailoringFee"
-              required
-              error={fieldErrors.tailoringFee}
-            >
-              <NumericInput
-                id="tailoringFee"
-                min={0}
-                step={1}
-                value={formData.tailoringFee}
-                onChange={(value) => handleChange("tailoringFee", value)}
-                className={INPUT_CLASS}
-              />
-            </FormField>
-
-            <FormField
-              label={t("fields.estimatedMeters")}
-              name="estimatedMeters"
-              required
-              error={fieldErrors.estimatedMeters}
-            >
-              <input
-                id="estimatedMeters"
-                type="number"
-                min="0.1"
-                step="0.1"
-                value={formData.estimatedMeters}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  if (raw === "") {
-                    handleChange("estimatedMeters", 0);
-                    return;
-                  }
-                  const val = parseFloat(raw);
-                  if (!isNaN(val)) {
-                    handleChange("estimatedMeters", val);
-                  }
-                }}
-                className={INPUT_CLASS}
-              />
-            </FormField>
-
-            <FormField
-              label={t("fields.estimatedDays")}
-              name="estimatedDays"
-              required
-              error={fieldErrors.estimatedDays}
-            >
-              <input
-                id="estimatedDays"
-                type="number"
-                min="1"
-                step="1"
-                value={formData.estimatedDays}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  if (raw === "") {
-                    handleChange("estimatedDays", 0);
-                    return;
-                  }
-                  const val = parseInt(raw, 10);
-                  if (!isNaN(val)) {
-                    handleChange("estimatedDays", val);
-                  }
-                }}
-                className={INPUT_CLASS}
-              />
             </FormField>
           </div>
-        </section>
 
-        <section className="space-y-5">
-          <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
-            {t("sections.images")}
-          </h2>
+          <div className="md:col-span-2 space-y-4 sm:space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+              <FormField
+                label={
+                  formData.priceType === "per_meter"
+                    ? t("fields.perMeterPrice")
+                    : t("fields.basePrice")
+                }
+                name="basePrice"
+                required
+                error={fieldErrors.basePrice}
+              >
+                <NumericInput
+                  id="basePrice"
+                  min={0}
+                  step={1}
+                  value={formData.basePrice}
+                  onChange={(value) => handleChange("basePrice", value)}
+                  className={INPUT_CLASS}
+                />
+              </FormField>
 
-          {fieldErrors.images && (
-            <p className="text-xs text-red-500">{fieldErrors.images}</p>
-          )}
+              <FormField
+                label={t("fields.tailoringFee")}
+                name="tailoringFee"
+                required
+                error={fieldErrors.tailoringFee}
+              >
+                <NumericInput
+                  id="tailoringFee"
+                  min={0}
+                  step={1}
+                  value={formData.tailoringFee}
+                  onChange={(value) => handleChange("tailoringFee", value)}
+                  className={INPUT_CLASS}
+                />
+              </FormField>
+            </div>
 
-          <div className="space-y-4">
-            {formData.images.map((image, index) => (
-              <div key={index} className="border border-(--color-border) p-4">
-                <FormField
-                  label={t("fields.image", { number: index + 1 })}
-                  name={`image-${index}`}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+              <FormField
+                label={t("fields.estimatedMeters")}
+                name="estimatedMeters"
+                required
+                error={fieldErrors.estimatedMeters}
+              >
+                <input
+                  id="estimatedMeters"
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  value={getNumberDisplay(formData.estimatedMeters)}
+                  onChange={(e) =>
+                    handleNumberChange("estimatedMeters", e.target.value)
+                  }
+                  className={INPUT_CLASS}
+                />
+              </FormField>
+
+              <FormField
+                label={t("fields.estimatedDays")}
+                name="estimatedDays"
+                required
+                error={fieldErrors.estimatedDays}
+              >
+                <input
+                  id="estimatedDays"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={getNumberDisplay(formData.estimatedDays)}
+                  onChange={(e) =>
+                    handleNumberChange("estimatedDays", e.target.value)
+                  }
+                  className={INPUT_CLASS}
+                />
+              </FormField>
+            </div>
+          </div>
+
+          <div className="md:col-span-2">
+            <FormField label={t("fields.isActive")}>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={formData.isActive}
+                  onChange={(e) => handleChange("isActive", e.target.checked)}
+                  className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded text-black border-gray-300 focus:ring-black accent-black hover:cursor-pointer"
+                />
+                <label
+                  htmlFor="isActive"
+                  className="text-xs sm:text-sm text-gray-700 hover:cursor-pointer"
                 >
-                  <ImageUpload
-                    value={image}
-                    onChange={(url) => handleImageChange(index, url)}
-                    uploadEndpoint="/api/tailor/uploads/design-image"
-                    chooseFileLabel={t("upload.chooseFile")}
-                    uploadingLabel={t("upload.uploading")}
-                    uploadFailedLabel={t("upload.failed")}
-                    removeLabel={t("upload.remove")}
-                  />
-                </FormField>
+                  {t("fields.isActive")}
+                </label>
+              </div>
+            </FormField>
+          </div>
+
+          <div className="md:col-span-2">
+            <div className="mb-2 flex justify-between items-center">
+              <span className="font-label-sm text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
+                {t("sections.images")} (max 5) *
+              </span>
+              {formData.images.length < 5 && (
+                <button
+                  type="button"
+                  onClick={addImageField}
+                  className="text-[10px] sm:text-xs text-black underline hover:cursor-pointer"
+                >
+                  {t("addImage")}
+                </button>
+              )}
+            </div>
+            {fieldErrors.images && (
+              <p className="text-red-500 text-xs sm:text-sm mb-2">
+                {fieldErrors.images}
+              </p>
+            )}
+            {formData.images.map((image, index) => (
+              <div key={index} className="mb-4">
+                <ImageUpload
+                  value={image}
+                  onChange={(url) => handleImageChange(index, url)}
+                  uploadEndpoint="/api/tailor/uploads/design-image"
+                  chooseFileLabel={t("upload.chooseFile")}
+                  uploadingLabel={t("upload.uploading")}
+                  uploadFailedLabel={t("upload.failed")}
+                  removeLabel={t("upload.remove")}
+                />
+                {formData.images.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeImageField(index)}
+                    className="text-[10px] sm:text-xs text-red-500 mt-1 hover:cursor-pointer"
+                  >
+                    {t("removeImage")}
+                  </button>
+                )}
               </div>
             ))}
           </div>
-
-          {formData.images.length < 5 && (
-            <button
-              type="button"
-              onClick={addImageField}
-              className="text-[10px] uppercase tracking-[0.2em] text-black border-b border-black pb-0.5 [font-family:var(--font-ui)]"
-            >
-              {t("addImage")}
-            </button>
-          )}
-        </section>
-
-        <section>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formData.isActive}
-              onChange={(e) => handleChange("isActive", e.target.checked)}
-              className="w-4 h-4 accent-black"
-            />
-            <span className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.18em] text-black">
-              {t("fields.isActive")}
-            </span>
-          </label>
-        </section>
+        </div>
 
         <div
           ref={formActionsRef}
-          className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2"
+          className="flex flex-col-reverse sm:flex-row-reverse gap-2 sm:gap-3 pt-6 mt-4 border-t border-gray-100"
         >
           <button
             type="submit"
             disabled={submitting}
-            className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-50 [font-family:var(--font-ui)]"
+            className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50 hover:cursor-pointer text-sm"
           >
             {submitting
               ? t("saving")
@@ -636,7 +900,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
           </button>
           <Link
             href="/tailor/designs"
-            className="text-center px-8 py-3 border border-black text-black text-[10px] tracking-[0.22em] uppercase hover:bg-black hover:text-white transition [font-family:var(--font-ui)]"
+            className="w-full sm:w-auto px-4 sm:px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer text-sm text-center"
           >
             {t("cancel")}
           </Link>

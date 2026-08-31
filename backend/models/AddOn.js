@@ -58,6 +58,40 @@ const addOnSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    material: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    materialAr: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    design: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    designAr: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    season: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    seasonAr: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    colors: {
+      type: [String],
+      default: [],
+    },
     isActive: {
       type: Boolean,
       default: true,
