@@ -93,7 +93,6 @@ subAdminRouter.post("/", async (req, res) => {
       isAdmin: true,
     });
     await user.save();
-    console.log("Saved user:", user.toObject());
 
     res.status(201).json(excludePassword(subAdmin));
   } catch (err) {

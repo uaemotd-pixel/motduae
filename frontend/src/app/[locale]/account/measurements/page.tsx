@@ -187,14 +187,6 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
       const data = await api.get("/api/customer/family-members");
       const membersArray = data?.items ?? data?.savedUsers ?? [];
       setMembers(Array.isArray(membersArray) ? membersArray : []);
-      console.log("📋 Members loaded:", membersArray);
-      if (Array.isArray(membersArray) && membersArray.length > 0) {
-        console.log("🧾 First member for dropdown:", {
-          _id: membersArray[0]._id,
-          name: membersArray[0].name,
-          relationship: membersArray[0].relationship,
-        });
-      }
     } catch (error) {
       console.error("❌ Failed to fetch members:", error);
       setMembers([]);
@@ -335,7 +327,6 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
   };
 
   const handleMemberSelect = (memberId: string) => {
-    console.log("🧷 Selected member from dropdown:", memberId);
     setSelectedMemberId(memberId);
     setMemberDropdownOpen(false);
     setIsEditing(false);

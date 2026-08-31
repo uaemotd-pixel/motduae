@@ -291,8 +291,8 @@ export default function FabricDetailView({
                   src={images[activeImage]}
                   alt={fabric.name}
                   className="w-full h-auto"
-                  lensSize={150}
-                  zoomLevel={4}
+                  lensSize={185}
+                  zoomLevel={4.5}
                 />
               </motion.div>
 

@@ -173,6 +173,12 @@ const TYPE_I18N_KEYS: Record<string, string> = {
   retail_status_cancelled: "retailStatusCancelled",
   custom_review_prompt: "customReviewPrompt",
   retail_review_prompt: "retailReviewPrompt",
+  fabric_payout_requested: "fabricPayoutRequested",
+  fabric_payout_approved: "fabricPayoutApproved",
+  fabric_payout_rejected: "fabricPayoutRejected",
+  tailor_payout_requested: "tailorPayoutRequested",
+  tailor_payout_approved: "tailorPayoutApproved",
+  tailor_payout_rejected: "tailorPayoutRejected",
 };
 
 export function getNotificationTypeLabel(type: string, t?: (key: string) => string): string {

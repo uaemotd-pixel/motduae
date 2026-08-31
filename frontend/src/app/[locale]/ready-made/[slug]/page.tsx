@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { api } from "@/lib/api/client";
 import MainLayout from "../../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
@@ -13,7 +14,7 @@ import { resolveReadyMadeImage } from "@/lib/readyMade";
 import { getTranslation } from "@/lib/getTranslation";
 import ZoomImageEffect from "@/components/shared/ZoomImageEffect";
 import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
-import colors from "@/components/shared/colors";
+import colorPalette from "@/components/shared/colors";
 import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 
 const getColorHex = (colorName: string): string => {
@@ -22,15 +23,13 @@ const getColorHex = (colorName: string): string => {
     .toLowerCase();
   if (!normalized) return "#CCCCCC";
 
-  // If it's already a hex color, use it directly
   if (
     /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(normalized)
   ) {
     return normalized;
   }
 
-  // Match against value, English name, or Arabic name (case-insensitive)
-  const found = colors.find(
+  const found = colorPalette.find(
     (c) =>
       c.value.toLowerCase() === normalized ||
       c.en.toLowerCase() === normalized ||
@@ -55,6 +54,459 @@ const getTagStyles = (tagKey?: string) => {
   return TAG_COLORS[key] || { bg: "#1A1A1A", text: "#FFFFFF" };
 };
 
+type ReadyMadeDetailContentProps = {
+  product: any;
+  locale: string;
+  t: ReturnType<typeof getTranslation>["readyMade"]["detail"];
+  selectedImage: string;
+  onSelectImage: (url: string) => void;
+  quantity: number;
+  onQuantityChange: (updater: (q: number) => number) => void;
+  liked: boolean;
+  onToggleWishlist: () => void;
+  onAddToCart: () => void;
+  onBuyNow: () => void;
+};
+
+function ReadyMadeDetailContent({
+  product,
+  locale,
+  t,
+  selectedImage,
+  onSelectImage,
+  quantity,
+  onQuantityChange,
+  liked,
+  onToggleWishlist,
+  onAddToCart,
+  onBuyNow,
+}: ReadyMadeDetailContentProps) {
+  const { formatLength } = useMeasurementUnit();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const leftRef = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLDivElement>(null);
+  const [stickySide, setStickySide] = useState<"left" | "right" | null>(null);
+  const [isLargeScreen, setIsLargeScreen] = useState(false);
+
+  useEffect(() => {
+    const checkScreen = () => {
+      setIsLargeScreen(window.innerWidth >= 1024);
+    };
+    checkScreen();
+    window.addEventListener("resize", checkScreen);
+    return () => window.removeEventListener("resize", checkScreen);
+  }, []);
+
+  useEffect(() => {
+    if (!isLargeScreen || !leftRef.current || !rightRef.current) {
+      setStickySide(null);
+      return;
+    }
+
+    const checkHeights = () => {
+      const leftHeight = leftRef.current?.scrollHeight || 0;
+      const rightHeight = rightRef.current?.scrollHeight || 0;
+      const viewportHeight = window.innerHeight;
+      const topOffset = 96;
+      const maxHeight = viewportHeight - topOffset - 32;
+
+      const leftFits = leftHeight <= maxHeight;
+      const rightFits = rightHeight <= maxHeight;
+
+      if (leftFits && rightFits) {
+        setStickySide(null);
+        return;
+      }
+
+      if (!leftFits && rightFits) {
+        setStickySide("left");
+        return;
+      }
+
+      if (leftFits && !rightFits) {
+        setStickySide("right");
+        return;
+      }
+
+      if (leftHeight > rightHeight) {
+        setStickySide("left");
+      } else if (rightHeight > leftHeight) {
+        setStickySide("right");
+      } else {
+        setStickySide(null);
+      }
+    };
+
+    const timeoutId = setTimeout(checkHeights, 100);
+
+    const resizeObserver = new ResizeObserver(() => {
+      checkHeights();
+    });
+
+    if (leftRef.current) resizeObserver.observe(leftRef.current);
+    if (rightRef.current) resizeObserver.observe(rightRef.current);
+
+    window.addEventListener("resize", checkHeights);
+
+    return () => {
+      clearTimeout(timeoutId);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", checkHeights);
+    };
+  }, [isLargeScreen, product]);
+
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start start", "end start"],
+  });
+
+  const imageScale = useTransform(scrollYProgress, [0, 0.5], [1, 0.95]);
+  const imageOpacity = useTransform(scrollYProgress, [0, 0.6], [1, 0.85]);
+
+  const getStickyClass = useCallback(() => {
+    if (!isLargeScreen) return "";
+    if (stickySide === "left") return "lg:sticky lg:top-24";
+    if (stickySide === "right") return "lg:sticky lg:top-24";
+    return "";
+  }, [isLargeScreen, stickySide]);
+
+  const title = product.name;
+  const desc = product.description;
+  const images = product.images?.length ? product.images : ["/placeholder.png"];
+  const price = product.finalSellingPriceAED || 0;
+  const stock = product.availableFabricStock || 0;
+  const tag = product.tag;
+  const fabricType = product.fabricType;
+  const productColors = product.colors || [];
+  const size = product.metersPerFabric;
+  const tagStyles = getTagStyles(tag);
+
+  return (
+    <FadeInSection>
+      <div
+        ref={containerRef}
+        className="bg-(--bg-page) pt-8 xs:pt-10 sm:pt-12 pb-12 xs:pb-16 sm:pb-20 md:pb-24"
+      >
+        <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto max-w-7xl">
+          <nav className="mb-6 xs:mb-8">
+            <ol className="flex flex-wrap items-center gap-1.5 text-[10px] xs:text-[11px] [font-family:var(--font-ui)] uppercase tracking-[0.2em]">
+              <li>
+                <Link
+                  href="/"
+                  className="text-(--color-grey-muted) hover:text-black transition"
+                >
+                  Home
+                </Link>
+              </li>
+              <li className="text-(--color-grey-muted)">/</li>
+              <li>
+                <Link
+                  href={`/${locale}/#ready-made`}
+                  scroll={true}
+                  className="text-(--color-grey-muted) hover:text-black transition"
+                >
+                  Ready‑Made
+                </Link>
+              </li>
+              <li className="text-(--color-grey-muted)">/</li>
+              <li className="text-black truncate max-w-50 xs:max-w-none">
+                {title}
+              </li>
+            </ol>
+          </nav>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 xs:gap-10 md:gap-12 lg:gap-(--space-40)">
+            <div className="relative">
+              <motion.div
+                ref={leftRef}
+                style={
+                  stickySide === "left"
+                    ? { scale: imageScale, opacity: imageOpacity }
+                    : {}
+                }
+                className={`${getStickyClass()} space-y-4`}
+              >
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.1 }}
+                  className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group"
+                >
+                  <ZoomImageEffect
+                    key={selectedImage}
+                    src={selectedImage}
+                    alt={title}
+                    className="w-full h-auto"
+                    lensSize={185}
+                    zoomLevel={3.5}
+                  />
+                  {tag && (
+                    <div
+                      className="absolute top-3 left-3 z-10 px-2.5 py-1 text-xs font-medium rounded shadow-sm uppercase"
+                      style={{
+                        backgroundColor: tagStyles.bg,
+                        color: tagStyles.text,
+                      }}
+                    >
+                      {tag}
+                    </div>
+                  )}
+                </motion.div>
+                {images.length > 1 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.4, delay: 0.3 }}
+                    className="flex gap-2 overflow-x-auto pb-2"
+                  >
+                    {images.map((img: string, idx: number) => {
+                      const thumbUrl = resolveMediaUrl(img);
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => onSelectImage(thumbUrl)}
+                          className={`shrink-0 w-20 xs:w-24 h-20 xs:h-24 rounded-md overflow-hidden border-2 transition-all duration-200 ${
+                            selectedImage === thumbUrl
+                              ? "border-black"
+                              : "border-transparent opacity-60 hover:opacity-100"
+                          }`}
+                        >
+                          <img
+                            src={thumbUrl}
+                            alt={`Thumbnail ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </motion.div>
+            </div>
+
+            <div className="relative">
+              <motion.div
+                ref={rightRef}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className={`${getStickyClass()} flex flex-col`}
+              >
+                <div className="flex justify-between items-start gap-4 mb-2">
+                  <h1 className="[font-family:var(--font-display)] text-[28px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[44px] xl:text-[48px] font-normal leading-[1.1] tracking-[-0.01em] text-black">
+                    {title}
+                  </h1>
+                  <button
+                    onClick={onToggleWishlist}
+                    className="shrink-0 p-2 rounded-full hover:bg-black/5 transition-colors duration-200"
+                    aria-label="Add to wishlist"
+                  >
+                    <svg
+                      className={`w-6 h-6 transition-colors ${
+                        liked
+                          ? "fill-red-500 stroke-red-500"
+                          : "stroke-black fill-none"
+                      }`}
+                      viewBox="0 0 24 24"
+                      strokeWidth="1.5"
+                      stroke="currentColor"
+                      fill="none"
+                    >
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="border-b border-(--color-border) pb-4 mb-4">
+                  <p className="[font-family:var(--font-ui)] text-[20px] xs:text-[24px] sm:text-[28px] tracking-[0.24em] text-black">
+                    AED {price}
+                  </p>
+                </div>
+
+                <div className="flex flex-row gap-x-6 my-2">
+                  {fabricType && (
+                    <div className="flex-1">
+                      <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
+                        Fabric Type
+                      </span>
+                      <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
+                        {fabricType}
+                      </p>
+                    </div>
+                  )}
+                  {size && (
+                    <div className="flex-1">
+                      <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
+                        Size
+                      </span>
+                      <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
+                        {formatLength(Number(size))}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-6 my-2">
+                  {productColors.length > 0 && (
+                    <div>
+                      <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-2">
+                        Colors
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {productColors.map((c: string, idx: number) => (
+                          <span
+                            key={`${c}-${idx}`}
+                            className="w-6 h-6 rounded-full border border-black/85 shadow-sm"
+                            style={{ backgroundColor: getColorHex(c) }}
+                            aria-label={`Color ${c}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
+                      Availability
+                    </span>
+                    <p
+                      className={`[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] font-medium ${
+                        stock > 0 ? "text-green-700" : "text-red-600"
+                      }`}
+                    >
+                      {stock > 0 ? `In stock (${stock})` : "Out of stock"}
+                    </p>
+                  </div>
+                </div>
+
+                {desc && (
+                  <div className="my-6">
+                    <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-2">
+                      Description
+                    </span>
+                    <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] leading-relaxed text-(--color-grey-muted)">
+                      {desc}
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-2 pt-4 border-t border-(--color-border)">
+                  <div className="flex flex-col gap-4 mb-6">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() =>
+                            onQuantityChange((q) => Math.max(1, q - 1))
+                          }
+                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-transparent hover:cursor-pointer"
+                          disabled={stock < 1 || quantity <= 1}
+                        >
+                          <span className="text-lg">−</span>
+                        </button>
+                        <span className="w-8 text-center text-sm [font-family:var(--font-body)]">
+                          {quantity}
+                        </span>
+                        <button
+                          onClick={() =>
+                            onQuantityChange((q) => Math.min(stock, q + 1))
+                          }
+                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-transparent hover:cursor-pointer"
+                          disabled={stock < 1 || quantity >= stock}
+                        >
+                          <span className="text-lg">+</span>
+                        </button>
+                      </div>
+                      <button
+                        onClick={onBuyNow}
+                        disabled={stock < 1}
+                        className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
+                          stock < 1
+                            ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
+                            : "hover:bg-black hover:text-white"
+                        }`}
+                      >
+                        Buy Now
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={onAddToCart}
+                      disabled={stock < 1}
+                      className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
+                        stock < 1
+                          ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
+                          : "bg-black text-white hover:bg-white hover:text-black hover:border-black"
+                      }`}
+                    >
+                      Add to Cart
+                    </button>
+
+                    {(product.fabricId || product.designId) && (
+                      <div className="mt-2 pt-4 border-t border-(--color-border)">
+                        <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
+                          {t.madeWithHeading}
+                        </span>
+                        <p className="[font-family:var(--font-body)] text-[13px] xs:text-[14px] leading-relaxed text-(--color-grey-muted) mb-4">
+                          {t.madeWithDescription}
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {product.fabricId && product.fabricId.slug && (
+                            <Link
+                              href={`/${locale}/fabrics/${product.fabricId.slug}`}
+                              className="group border border-(--color-border) bg-[#FAFAF8] p-4 transition-all duration-300 hover:border-black hover:bg-white hover:cursor-pointer"
+                            >
+                              <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) block mb-1">
+                                {t.viewFabricLabel}
+                              </span>
+                              <span className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] text-black block mb-2">
+                                {locale === "ar"
+                                  ? product.fabricId.nameAr ||
+                                    product.fabricId.name
+                                  : product.fabricId.name}
+                              </span>
+                              <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.18em] text-black/70 group-hover:text-black inline-flex items-center gap-1">
+                                {t.viewDetails}
+                                <span aria-hidden="true">
+                                  {locale === "ar" ? "←" : "→"}
+                                </span>
+                              </span>
+                            </Link>
+                          )}
+                          {product.designId && product.designId.slug && (
+                            <Link
+                              href={`/${locale}/designs/${product.designId.slug}`}
+                              className="group border border-(--color-border) bg-[#FAFAF8] p-4 transition-all duration-300 hover:border-black hover:bg-white hover:cursor-pointer"
+                            >
+                              <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) block mb-1">
+                                {t.viewDesignLabel}
+                              </span>
+                              <span className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] text-black block mb-2">
+                                {locale === "ar"
+                                  ? product.designId.nameAr ||
+                                    product.designId.name
+                                  : product.designId.name}
+                              </span>
+                              <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.18em] text-black/70 group-hover:text-black inline-flex items-center gap-1">
+                                {t.viewDetails}
+                                <span aria-hidden="true">
+                                  {locale === "ar" ? "←" : "→"}
+                                </span>
+                              </span>
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </FadeInSection>
+  );
+}
+
 export default function ReadyMadeDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -74,7 +526,6 @@ export default function ReadyMadeDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] =
     useState<string>("/placeholder.png");
-  const { unit, formatLength } = useMeasurementUnit();
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -114,7 +565,7 @@ export default function ReadyMadeDetailPage() {
 
   const handleBuyNow = () => {
     if (!product) return;
-    const params = new URLSearchParams({
+    const checkoutParams = new URLSearchParams({
       productId: product._id,
       slug: product.slug,
       name: product.name,
@@ -122,12 +573,13 @@ export default function ReadyMadeDetailPage() {
       size: product.metersPerFabric || "",
       quantity: String(quantity),
     });
-    router.push(`/${locale}/checkout?buyNow=true&${params.toString()}`);
+    router.push(`/${locale}/checkout?buyNow=true&${checkoutParams.toString()}`);
   };
 
   const liked = product
     ? wishItems.some((item) => item.id === product._id)
     : false;
+
   const toggleWishlist = () => {
     if (!product) return;
     if (liked) {
@@ -201,312 +653,24 @@ export default function ReadyMadeDetailPage() {
     );
   }
 
-  if (!product) return null;
-
-  const title = product.name;
-  const desc = product.description;
-  const images = product.images?.length ? product.images : ["/placeholder.png"];
   const price = product.finalSellingPriceAED || 0;
   const stock = product.availableFabricStock || 0;
-  const tag = product.tag;
-  const fabricType = product.fabricType;
-  const colors = product.colors || [];
-  const size = product.metersPerFabric;
-  const tagStyles = getTagStyles(tag);
 
   return (
     <MainLayout>
-      <FadeInSection>
-        <div className="bg-(--bg-page) pt-8 xs:pt-10 sm:pt-12 pb-12 xs:pb-16 sm:pb-20 md:pb-24">
-          <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto max-w-7xl">
-            <nav className="mb-6 xs:mb-8">
-              <ol className="flex flex-wrap items-center gap-1.5 text-[10px] xs:text-[11px] [font-family:var(--font-ui)] uppercase tracking-[0.2em]">
-                <li>
-                  <Link
-                    href="/"
-                    className="text-(--color-grey-muted) hover:text-black transition"
-                  >
-                    Home
-                  </Link>
-                </li>
-                <li className="text-(--color-grey-muted)">/</li>
-                <li>
-                  <Link
-                    href={`/${locale}/#ready-made`}
-                    scroll={true}
-                    className="text-(--color-grey-muted) hover:text-black transition"
-                  >
-                    Ready‑Made
-                  </Link>
-                </li>
-                <li className="text-(--color-grey-muted)">/</li>
-                <li className="text-black truncate max-w-50 xs:max-w-none">
-                  {title}
-                </li>
-              </ol>
-            </nav>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 xs:gap-10 md:gap-12 lg:gap-(--space-40)">
-              {/* Left: Gallery */}
-              <div className="space-y-4">
-                <div className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group">
-                  <ZoomImageEffect
-                    key={selectedImage}
-                    src={selectedImage}
-                    alt={title}
-                    className="w-full h-auto"
-                    lensSize={150}
-                    zoomLevel={3}
-                  />
-                  {tag && (
-                    <div
-                      className="absolute top-3 left-3 z-10 px-2.5 py-1 text-xs font-medium rounded shadow-sm uppercase"
-                      style={{
-                        backgroundColor: tagStyles.bg,
-                        color: tagStyles.text,
-                      }}
-                    >
-                      {tag}
-                    </div>
-                  )}
-                </div>
-                {images.length > 1 && (
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {images.map((img: string, idx: number) => {
-                      const thumbUrl = resolveMediaUrl(img);
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => setSelectedImage(thumbUrl)}
-                          className={`shrink-0 w-20 xs:w-24 h-20 xs:h-24 rounded-md overflow-hidden border-2 transition-all duration-200 ${
-                            selectedImage === thumbUrl
-                              ? "border-black"
-                              : "border-transparent opacity-60 hover:opacity-100"
-                          }`}
-                        >
-                          <img
-                            src={thumbUrl}
-                            alt={`Thumbnail ${idx + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Right: Details */}
-              <div className="flex flex-col">
-                <div className="flex justify-between items-start gap-4 mb-2">
-                  <h1 className="[font-family:var(--font-display)] text-[28px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[44px] xl:text-[48px] font-normal leading-[1.1] tracking-[-0.01em] text-black">
-                    {title}
-                  </h1>
-                  <button
-                    onClick={toggleWishlist}
-                    className="shrink-0 p-2 rounded-full hover:bg-black/5 transition-colors duration-200"
-                    aria-label="Add to wishlist"
-                  >
-                    <svg
-                      className={`w-6 h-6 transition-colors ${
-                        liked
-                          ? "fill-red-500 stroke-red-500"
-                          : "stroke-black fill-none"
-                      }`}
-                      viewBox="0 0 24 24"
-                      strokeWidth="1.5"
-                      stroke="currentColor"
-                      fill="none"
-                    >
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="border-b border-(--color-border) pb-4 mb-4">
-                  <p className="[font-family:var(--font-ui)] text-[20px] xs:text-[24px] sm:text-[28px] tracking-[0.24em] text-black">
-                    AED {price}
-                  </p>
-                </div>
-
-                <div className="flex flex-row gap-x-6 my-2">
-                  {fabricType && (
-                    <div className="flex-1">
-                      <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
-                        Fabric Type
-                      </span>
-                      <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
-                        {fabricType}
-                      </p>
-                    </div>
-                  )}
-                  {size && (
-                    <div className="flex-1">
-                      <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
-                        Size
-                      </span>
-                      <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
-                        {formatLength(Number(size))}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-x-6 my-2">
-                  {colors.length > 0 && (
-                    <div>
-                      <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-2">
-                        Colors
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        {colors.map((c: string, idx: number) => (
-                          <span
-                            key={`${c}-${idx}`}
-                            className="w-6 h-6 rounded-full border border-black/85 shadow-sm"
-                            style={{ backgroundColor: getColorHex(c) }}
-                            aria-label={`Color ${c}`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <div>
-                    <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
-                      Availability
-                    </span>
-                    <p
-                      className={`[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] font-medium ${
-                        stock > 0 ? "text-green-700" : "text-red-600"
-                      }`}
-                    >
-                      {stock > 0 ? `In stock (${stock})` : "Out of stock"}
-                    </p>
-                  </div>
-                </div>
-
-                {desc && (
-                  <div className="my-6">
-                    <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-2">
-                      Description
-                    </span>
-                    <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] leading-relaxed text-(--color-grey-muted)">
-                      {desc}
-                    </p>
-                  </div>
-                )}
-
-                <div className="mt-2 pt-4 border-t border-(--color-border)">
-                  <div className="flex flex-col gap-4 mb-6">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-transparent hover:cursor-pointer"
-                          disabled={stock < 1 || quantity <= 1}
-                        >
-                          <span className="text-lg">−</span>
-                        </button>
-                        <span className="w-8 text-center text-sm [font-family:var(--font-body)]">
-                          {quantity}
-                        </span>
-                        <button
-                          onClick={() =>
-                            setQuantity((q) => Math.min(stock, q + 1))
-                          }
-                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-transparent hover:cursor-pointer"
-                          disabled={stock < 1 || quantity >= stock}
-                        >
-                          <span className="text-lg">+</span>
-                        </button>
-                      </div>
-                      <button
-                        onClick={handleBuyNow}
-                        disabled={stock < 1}
-                        className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
-                          stock < 1
-                            ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
-                            : "hover:bg-black hover:text-white"
-                        }`}
-                      >
-                        Buy Now
-                      </button>
-                    </div>
-
-                    <button
-                      onClick={handleAddToCart}
-                      disabled={stock < 1}
-                      className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
-                        stock < 1
-                          ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
-                          : "bg-black text-white hover:bg-white hover:text-black hover:border-black"
-                      }`}
-                    >
-                      Add to Cart
-                    </button>
-
-                    {(product.fabricId || product.designId) && (
-                      <div className="mt-2 pt-4 border-t border-(--color-border)">
-                        <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
-                          {t.madeWithHeading}
-                        </span>
-                        <p className="[font-family:var(--font-body)] text-[13px] xs:text-[14px] leading-relaxed text-(--color-grey-muted) mb-4">
-                          {t.madeWithDescription}
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {product.fabricId && product.fabricId.slug && (
-                            <Link
-                              href={`/${locale}/fabrics/${product.fabricId.slug}`}
-                              className="group border border-(--color-border) bg-[#FAFAF8] p-4 transition-all duration-300 hover:border-black hover:bg-white hover:cursor-pointer"
-                            >
-                              <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) block mb-1">
-                                {t.viewFabricLabel}
-                              </span>
-                              <span className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] text-black block mb-2">
-                                {locale === "ar"
-                                  ? product.fabricId.nameAr ||
-                                    product.fabricId.name
-                                  : product.fabricId.name}
-                              </span>
-                              <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.18em] text-black/70 group-hover:text-black inline-flex items-center gap-1">
-                                {t.viewDetails}
-                                <span aria-hidden="true">
-                                  {locale === "ar" ? "←" : "→"}
-                                </span>
-                              </span>
-                            </Link>
-                          )}
-                          {product.designId && product.designId.slug && (
-                            <Link
-                              href={`/${locale}/designs/${product.designId.slug}`}
-                              className="group border border-(--color-border) bg-[#FAFAF8] p-4 transition-all duration-300 hover:border-black hover:bg-white hover:cursor-pointer"
-                            >
-                              <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) block mb-1">
-                                {t.viewDesignLabel}
-                              </span>
-                              <span className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] text-black block mb-2">
-                                {locale === "ar"
-                                  ? product.designId.nameAr ||
-                                    product.designId.name
-                                  : product.designId.name}
-                              </span>
-                              <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.18em] text-black/70 group-hover:text-black inline-flex items-center gap-1">
-                                {t.viewDetails}
-                                <span aria-hidden="true">
-                                  {locale === "ar" ? "←" : "→"}
-                                </span>
-                              </span>
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </FadeInSection>
+      <ReadyMadeDetailContent
+        product={product}
+        locale={locale}
+        t={t}
+        selectedImage={selectedImage}
+        onSelectImage={setSelectedImage}
+        quantity={quantity}
+        onQuantityChange={setQuantity}
+        liked={liked}
+        onToggleWishlist={toggleWishlist}
+        onAddToCart={handleAddToCart}
+        onBuyNow={handleBuyNow}
+      />
 
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-(--color-border) p-4 shadow-lg z-30">
         <div className="flex gap-3">
