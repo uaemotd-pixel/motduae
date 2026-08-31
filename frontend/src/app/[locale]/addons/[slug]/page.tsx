@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { api } from "@/lib/api/client";
 import MainLayout from "@/app/[locale]/main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
@@ -27,6 +28,366 @@ const getTagStyles = (tagKey?: string) => {
   const key = tagKey.toLowerCase().trim();
   return TAG_COLORS[key] || { bg: "#1A1A1A", text: "#FFFFFF" };
 };
+
+type AddonDetailContentProps = {
+  addon: any;
+  locale: string;
+  isAr: boolean;
+  selectedImage: string;
+  onSelectImage: (url: string) => void;
+  quantity: number;
+  onQuantityChange: (updater: (q: number) => number) => void;
+  liked: boolean;
+  onToggleWishlist: () => void;
+  onAddToCart: () => void;
+  onBuyNow: () => void;
+};
+
+function AddonDetailContent({
+  addon,
+  locale,
+  isAr,
+  selectedImage,
+  onSelectImage,
+  quantity,
+  onQuantityChange,
+  liked,
+  onToggleWishlist,
+  onAddToCart,
+  onBuyNow,
+}: AddonDetailContentProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const leftRef = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLDivElement>(null);
+  const [stickySide, setStickySide] = useState<"left" | "right" | null>(null);
+  const [isLargeScreen, setIsLargeScreen] = useState(false);
+
+  useEffect(() => {
+    const checkScreen = () => {
+      setIsLargeScreen(window.innerWidth >= 1024);
+    };
+    checkScreen();
+    window.addEventListener("resize", checkScreen);
+    return () => window.removeEventListener("resize", checkScreen);
+  }, []);
+
+  useEffect(() => {
+    if (!isLargeScreen || !leftRef.current || !rightRef.current) {
+      setStickySide(null);
+      return;
+    }
+
+    const checkHeights = () => {
+      const leftHeight = leftRef.current?.scrollHeight || 0;
+      const rightHeight = rightRef.current?.scrollHeight || 0;
+      const viewportHeight = window.innerHeight;
+      const topOffset = 96;
+      const maxHeight = viewportHeight - topOffset - 32;
+
+      const leftFits = leftHeight <= maxHeight;
+      const rightFits = rightHeight <= maxHeight;
+
+      if (leftFits && rightFits) {
+        setStickySide(null);
+        return;
+      }
+
+      if (!leftFits && rightFits) {
+        setStickySide("left");
+        return;
+      }
+
+      if (leftFits && !rightFits) {
+        setStickySide("right");
+        return;
+      }
+
+      if (leftHeight > rightHeight) {
+        setStickySide("left");
+      } else if (rightHeight > leftHeight) {
+        setStickySide("right");
+      } else {
+        setStickySide(null);
+      }
+    };
+
+    const timeoutId = setTimeout(checkHeights, 100);
+
+    const resizeObserver = new ResizeObserver(() => {
+      checkHeights();
+    });
+
+    if (leftRef.current) resizeObserver.observe(leftRef.current);
+    if (rightRef.current) resizeObserver.observe(rightRef.current);
+
+    window.addEventListener("resize", checkHeights);
+
+    return () => {
+      clearTimeout(timeoutId);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", checkHeights);
+    };
+  }, [isLargeScreen, addon]);
+
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start start", "end start"],
+  });
+
+  const imageScale = useTransform(scrollYProgress, [0, 0.5], [1, 0.95]);
+  const imageOpacity = useTransform(scrollYProgress, [0, 0.6], [1, 0.85]);
+
+  const getStickyClass = useCallback(() => {
+    if (!isLargeScreen) return "";
+    if (stickySide === "left") return "lg:sticky lg:top-24";
+    if (stickySide === "right") return "lg:sticky lg:top-24";
+    return "";
+  }, [isLargeScreen, stickySide]);
+
+  const title = isAr ? addon.nameAr || addon.name : addon.name;
+  const desc = isAr
+    ? addon.descriptionAr || addon.description
+    : addon.description;
+  const images = addon.images?.length ? addon.images : [addon.thumbnailImage];
+  const price = addon.price;
+  const stock = addon.stock || 0;
+  const tag = isAr ? addon.tagAr || addon.tag : addon.tag;
+  const tagStyles = getTagStyles(addon.tag);
+
+  return (
+    <FadeInSection>
+      <div
+        ref={containerRef}
+        className="bg-(--bg-page) pt-8 xs:pt-10 sm:pt-12 pb-12 xs:pb-16 sm:pb-20 md:pb-24"
+      >
+        <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto max-w-7xl">
+          <nav className="mb-6 xs:mb-8">
+            <ol className="flex flex-wrap items-center gap-1.5 text-[10px] xs:text-[11px] [font-family:var(--font-ui)] uppercase tracking-[0.2em]">
+              <li>
+                <Link
+                  href="/"
+                  className="text-(--color-grey-muted) hover:text-black transition"
+                >
+                  {isAr ? "الرئيسية" : "Home"}
+                </Link>
+              </li>
+              <li className="text-(--color-grey-muted)">/</li>
+              <li>
+                <Link
+                  href={`/${locale}/#addons-section`}
+                  scroll={true}
+                  className="text-(--color-grey-muted) hover:text-black transition"
+                >
+                  {isAr ? "إكسسوارات" : "Add-Ons"}
+                </Link>
+              </li>
+              <li className="text-(--color-grey-muted)">/</li>
+              <li className="text-black truncate max-w-50 xs:max-w-none">
+                {title}
+              </li>
+            </ol>
+          </nav>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 xs:gap-10 md:gap-12 lg:gap-(--space-40)">
+            <div className="relative">
+              <motion.div
+                ref={leftRef}
+                style={
+                  stickySide === "left"
+                    ? { scale: imageScale, opacity: imageOpacity }
+                    : {}
+                }
+                className={`${getStickyClass()} space-y-4`}
+              >
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.1 }}
+                  className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group"
+                >
+                  <ZoomImageEffect
+                    key={selectedImage}
+                    src={selectedImage}
+                    alt={title}
+                    className="w-full h-auto"
+                    lensSize={185}
+                    zoomLevel={3.5}
+                  />
+                  {tag && (
+                    <div
+                      className="absolute top-3 left-3 z-10 px-2.5 py-1 text-xs font-medium rounded shadow-sm uppercase"
+                      style={{
+                        backgroundColor: tagStyles.bg,
+                        color: tagStyles.text,
+                      }}
+                    >
+                      {tag}
+                    </div>
+                  )}
+                </motion.div>
+                {images.length > 1 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.4, delay: 0.3 }}
+                    className="flex gap-2 overflow-x-auto pb-2"
+                  >
+                    {images.map((img: string, idx: number) => {
+                      const thumbUrl = resolveMediaUrl(img);
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => onSelectImage(thumbUrl)}
+                          className={`shrink-0 w-20 xs:w-24 h-20 xs:h-24 rounded-md overflow-hidden border-2 transition-all duration-200 ${
+                            selectedImage === thumbUrl
+                              ? "border-black"
+                              : "border-transparent opacity-60 hover:opacity-100"
+                          }`}
+                        >
+                          <img
+                            src={thumbUrl}
+                            alt={`Thumbnail ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </motion.div>
+            </div>
+
+            <div className="relative">
+              <motion.div
+                ref={rightRef}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className={`${getStickyClass()} flex flex-col`}
+              >
+                <div className="flex justify-between items-start gap-4 mb-2">
+                  <h1 className="[font-family:var(--font-display)] text-[28px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[44px] xl:text-[48px] font-normal leading-[1.1] tracking-[-0.01em] text-black">
+                    {title}
+                  </h1>
+                  <button
+                    onClick={onToggleWishlist}
+                    className="shrink-0 p-2 rounded-full hover:bg-black/5 transition-colors duration-200"
+                    aria-label="Add to wishlist"
+                  >
+                    <svg
+                      className={`w-6 h-6 transition-colors ${
+                        liked
+                          ? "fill-red-500 stroke-red-500"
+                          : "stroke-black fill-none"
+                      }`}
+                      viewBox="0 0 24 24"
+                      strokeWidth="1.5"
+                      stroke="currentColor"
+                      fill="none"
+                    >
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="border-b border-(--color-border) pb-4 mb-4">
+                  <p className="[font-family:var(--font-ui)] text-[20px] xs:text-[24px] sm:text-[28px] tracking-[0.24em] text-black">
+                    {price.toFixed(2)} {isAr ? "د.إ" : "AED"}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-6 my-2">
+                  <div>
+                    <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
+                      {isAr ? "المتوفر" : "Availability"}
+                    </span>
+                    <p
+                      className={`[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] font-medium ${
+                        stock > 0 ? "text-green-700" : "text-red-600"
+                      }`}
+                    >
+                      {stock > 0
+                        ? isAr
+                          ? `متوفر في المخزون (${stock})`
+                          : `In stock (${stock})`
+                        : isAr
+                          ? "نفذت الكمية"
+                          : "Out of stock"}
+                    </p>
+                  </div>
+                </div>
+
+                {desc && (
+                  <div className="my-6">
+                    <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-2">
+                      {isAr ? "الوصف" : "Description"}
+                    </span>
+                    <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] leading-relaxed text-(--color-grey-muted)">
+                      {desc}
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-2 pt-4 border-t border-(--color-border)">
+                  <div className="flex flex-col gap-4 mb-6">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() =>
+                            onQuantityChange((q) => Math.max(1, q - 1))
+                          }
+                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-transparent hover:cursor-pointer"
+                          disabled={stock < 1 || quantity <= 1}
+                        >
+                          <span className="text-lg">−</span>
+                        </button>
+                        <span className="w-8 text-center text-sm [font-family:var(--font-body)]">
+                          {quantity}
+                        </span>
+                        <button
+                          onClick={() =>
+                            onQuantityChange((q) => Math.min(stock, q + 1))
+                          }
+                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-transparent hover:cursor-pointer"
+                          disabled={stock < 1 || quantity >= stock}
+                        >
+                          <span className="text-lg">+</span>
+                        </button>
+                      </div>
+                      <button
+                        onClick={onBuyNow}
+                        disabled={stock < 1}
+                        className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
+                          stock < 1
+                            ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
+                            : "hover:bg-black hover:text-white"
+                        }`}
+                      >
+                        {isAr ? "شراء الآن" : "Buy Now"}
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={onAddToCart}
+                      disabled={stock < 1}
+                      className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
+                        stock < 1
+                          ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
+                          : "bg-black text-white hover:bg-white hover:text-black hover:border-black"
+                      }`}
+                    >
+                      {isAr ? "إضافة إلى السلة" : "Add to Cart"}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </FadeInSection>
+  );
+}
 
 export default function AddonDetailPage() {
   const params = useParams();
@@ -172,213 +533,21 @@ export default function AddonDetailPage() {
     );
   }
 
-  const title = isAr ? addon.nameAr || addon.name : addon.name;
-  const desc = isAr
-    ? addon.descriptionAr || addon.description
-    : addon.description;
-  const images = addon.images?.length ? addon.images : [addon.thumbnailImage];
-  const price = addon.price;
-  const stock = addon.stock || 0;
-  const tag = isAr ? addon.tagAr || addon.tag : addon.tag;
-  const tagStyles = getTagStyles(addon.tag);
-
   return (
     <MainLayout>
-      <FadeInSection>
-        <div className="bg-(--bg-page) pt-8 xs:pt-10 sm:pt-12 pb-12 xs:pb-16 sm:pb-20 md:pb-24">
-          <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto max-w-7xl">
-            <nav className="mb-6 xs:mb-8">
-              <ol className="flex flex-wrap items-center gap-1.5 text-[10px] xs:text-[11px] [font-family:var(--font-ui)] uppercase tracking-[0.2em]">
-                <li>
-                  <Link
-                    href="/"
-                    className="text-(--color-grey-muted) hover:text-black transition"
-                  >
-                    {isAr ? "الرئيسية" : "Home"}
-                  </Link>
-                </li>
-                <li className="text-(--color-grey-muted)">/</li>
-                <li>
-                  <Link
-                    href={`/${locale}/#addons-section`}
-                    scroll={true}
-                    className="text-(--color-grey-muted) hover:text-black transition"
-                  >
-                    {isAr ? "إكسسوارات" : "Add-Ons"}
-                  </Link>
-                </li>
-                <li className="text-(--color-grey-muted)">/</li>
-                <li className="text-black truncate max-w-50 xs:max-w-none">
-                  {title}
-                </li>
-              </ol>
-            </nav>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 xs:gap-10 md:gap-12 lg:gap-(--space-40)">
-              {/* Left: Gallery */}
-              <div className="space-y-4">
-                <div className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group">
-                  <ZoomImageEffect
-                    key={selectedImage}
-                    src={selectedImage}
-                    alt={title}
-                    className="w-full h-auto"
-                    lensSize={150}
-                    zoomLevel={3}
-                  />
-                  {tag && (
-                    <div
-                      className="absolute top-3 left-3 z-10 px-2.5 py-1 text-xs font-medium rounded shadow-sm uppercase"
-                      style={{
-                        backgroundColor: tagStyles.bg,
-                        color: tagStyles.text,
-                      }}
-                    >
-                      {tag}
-                    </div>
-                  )}
-                </div>
-                {images.length > 1 && (
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {images.map((img: string, idx: number) => {
-                      const thumbUrl = resolveMediaUrl(img);
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => setSelectedImage(thumbUrl)}
-                          className={`shrink-0 w-20 xs:w-24 h-20 xs:h-24 rounded-md overflow-hidden border-2 transition-all duration-200 ${selectedImage === thumbUrl
-                              ? "border-black"
-                              : "border-transparent opacity-60 hover:opacity-100"
-                            }`}
-                        >
-                          <img
-                            src={thumbUrl}
-                            alt={`Thumbnail ${idx + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Right: Details */}
-              <div className="flex flex-col">
-                <div className="flex justify-between items-start gap-4 mb-2">
-                  <h1 className="[font-family:var(--font-display)] text-[28px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[44px] xl:text-[48px] font-normal leading-[1.1] tracking-[-0.01em] text-black">
-                    {title}
-                  </h1>
-                  <button
-                    onClick={toggleWishlist}
-                    className="shrink-0 p-2 rounded-full hover:bg-black/5 transition-colors duration-200"
-                    aria-label="Add to wishlist"
-                  >
-                    <svg
-                      className={`w-6 h-6 transition-colors ${liked
-                          ? "fill-red-500 stroke-red-500"
-                          : "stroke-black fill-none"
-                        }`}
-                      viewBox="0 0 24 24"
-                      strokeWidth="1.5"
-                      stroke="currentColor"
-                      fill="none"
-                    >
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="border-b border-(--color-border) pb-4 mb-4">
-                  <p className="[font-family:var(--font-ui)] text-[20px] xs:text-[24px] sm:text-[28px] tracking-[0.24em] text-black">
-                    {price.toFixed(2)} {isAr ? "د.إ" : "AED"}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-x-6 my-2">
-                  <div>
-                    <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
-                      {isAr ? "المتوفر" : "Availability"}
-                    </span>
-                    <p
-                      className={`[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] font-medium ${stock > 0 ? "text-green-700" : "text-red-600"
-                        }`}
-                    >
-                      {stock > 0
-                        ? isAr
-                          ? `متوفر في المخزون (${stock})`
-                          : `In stock (${stock})`
-                        : isAr
-                          ? "نفذت الكمية"
-                          : "Out of stock"}
-                    </p>
-                  </div>
-                </div>
-
-                {desc && (
-                  <div className="my-6">
-                    <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-2">
-                      {isAr ? "الوصف" : "Description"}
-                    </span>
-                    <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] leading-relaxed text-(--color-grey-muted)">
-                      {desc}
-                    </p>
-                  </div>
-                )}
-
-                <div className="mt-2 pt-4 border-t border-(--color-border)">
-                  <div className="flex flex-col gap-4 mb-6">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-transparent hover:cursor-pointer"
-                          disabled={stock < 1 || quantity <= 1}
-                        >
-                          <span className="text-lg">−</span>
-                        </button>
-                        <span className="w-8 text-center text-sm [font-family:var(--font-body)]">
-                          {quantity}
-                        </span>
-                        <button
-                          onClick={() =>
-                            setQuantity((q) => Math.min(stock, q + 1))
-                          }
-                          className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:bg-transparent hover:cursor-pointer"
-                          disabled={stock < 1 || quantity >= stock}
-                        >
-                          <span className="text-lg">+</span>
-                        </button>
-                      </div>
-                      <button
-                        onClick={handleBuyNow}
-                        disabled={stock < 1}
-                        className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${stock < 1
-                            ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
-                            : "hover:bg-black hover:text-white"
-                          }`}
-                      >
-                        {isAr ? "شراء الآن" : "Buy Now"}
-                      </button>
-                    </div>
-
-                    <button
-                      onClick={handleAddToCart}
-                      disabled={stock < 1}
-                      className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${stock < 1
-                          ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
-                          : "bg-black text-white hover:bg-white hover:text-black hover:border-black"
-                        }`}
-                    >
-                      {isAr ? "إضافة إلى السلة" : "Add to Cart"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </FadeInSection>
+      <AddonDetailContent
+        addon={addon}
+        locale={locale}
+        isAr={isAr}
+        selectedImage={selectedImage}
+        onSelectImage={setSelectedImage}
+        quantity={quantity}
+        onQuantityChange={setQuantity}
+        liked={liked}
+        onToggleWishlist={toggleWishlist}
+        onAddToCart={handleAddToCart}
+        onBuyNow={handleBuyNow}
+      />
     </MainLayout>
   );
 }

@@ -33,7 +33,6 @@ export default function ShippingPartnerPage() {
             return;
         }
         setPhoneError("");
-        console.log("Submitted shipping partner request:", formData);
         setFormSubmitted(true);
     };
 

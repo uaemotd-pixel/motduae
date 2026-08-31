@@ -63,8 +63,6 @@ export default function EditFabricPage() {
         }
 
         setFormData(fromApiFabric(fabric));
-        console.log("Fabric API response:", fabric);
-        console.log("Parsed formData:", fromApiFabric(fabric));
       } catch (err: unknown) {
         setError(
           getApiErrorMessage(err, labels.adminFabrics.errors.load_failed),

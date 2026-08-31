@@ -563,9 +563,7 @@ function CheckoutPageContent() {
         }
         initialFillDone.current = true;
       } catch (err: any) {
-        if (err.status === 404) {
-          console.log("No customer profile found.");
-        } else {
+        if (err.status !== 404) {
           console.error("Failed to fetch customer profile:", err);
         }
       } finally {

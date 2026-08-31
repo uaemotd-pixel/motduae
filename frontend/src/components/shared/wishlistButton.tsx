@@ -27,8 +27,8 @@ export default function WishlistButton({
 
     try {
       toggleItem?.(item);
-    } catch (error) {
-      console.log(`Failed to update wishlist`);
+    } catch {
+      // Wishlist toggle failed silently in UI
     }
   };
 
