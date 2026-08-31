@@ -127,8 +127,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 if (loggedOutRef.current) return;
                 setUser(mapApiUser(profile));
             } catch (error) {
-                if ((error as any)?.status !== 401) {
-                    console.error('Failed to load user profile:', (error as any)?.message || error);
+                const status = (error as any)?.status;
+                const message = (error as any)?.message;
+                if (status !== 401 && status !== 403 && message !== "Account is deactivated") {
+                    console.error('Failed to load user profile:', message || error);
                 }
                 if (!loggedOutRef.current) {
                     setUser(null);
