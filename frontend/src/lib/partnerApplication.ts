@@ -149,6 +149,10 @@ export function isApplicationComplete(form: PartnerApplication, role: PartnerRol
   return Object.keys(collectRequiredFieldErrors(form, role)).length === 0;
 }
 
+function hydrateApplication(application: PartnerApplication): PartnerApplication;
+function hydrateApplication(
+  application: PartnerApplication | null | undefined,
+): PartnerApplication | null | undefined;
 function hydrateApplication(application: PartnerApplication | null | undefined) {
   if (!application) return application;
   const legacyArea = (application as { area?: string }).area;
@@ -164,7 +168,7 @@ function hydrateApplication(application: PartnerApplication | null | undefined) 
 }
 
 export async function fetchPartnerApplication() {
-  const res = await api.get<{ application: PartnerApplication }>(
+  const res = await api.get<{ application: PartnerApplication | null }>(
     "/api/users/application",
   );
   return hydrateApplication(res.application);

@@ -143,7 +143,7 @@ export default function PartnerApplicationForm({ role }: Props) {
     setSaving(true);
     try {
       const saved = await patchPartnerApplication(payloadFromForm());
-      setForm(saved);
+      if (saved) setForm(saved);
       toast.success(t("saved"), TOAST_BASE);
     } catch (err) {
       toast.error(getApiErrorMessage(err, t("loadError")), TOAST_BASE);
