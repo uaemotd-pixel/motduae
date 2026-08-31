@@ -467,7 +467,7 @@ export default function DesignDetailView({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.25 }}
-                className="grid grid-cols-2 gap-4 py-5 border-y border-(--color-border)"
+                className="grid grid-cols-3 gap-4 py-5 border-y border-(--color-border)"
               >
                 <div>
                   <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted)">
@@ -492,46 +492,6 @@ export default function DesignDetailView({
                   <p className="[font-family:var(--font-body)] text-base text-black mt-1 font-normal">
                     {design.estimatedDays} {labels.days}
                   </p>
-                </div>
-                <div>
-                  <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted)">
-                    {labels.city}
-                  </p>
-                  <p className="[font-family:var(--font-body)] text-base text-black mt-1 font-normal">
-                    {design.tailorShop.city || "—"}
-                  </p>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.35 }}
-                className="rounded-sm border border-(--color-border) bg-[#FAFAF8] p-4 sm:p-5 space-y-3"
-              >
-                <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted)">
-                  {labels.tailorTitle}
-                </p>
-                <div>
-                  <p className="[font-family:var(--font-display)] text-lg text-black font-normal">
-                    {tailorShopName}
-                  </p>
-                  <p className="[font-family:var(--font-body)] text-sm text-(--color-grey-muted) mt-1">
-                    {labels.partnerNote}
-                  </p>
-                </div>
-                <div>
-                  <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) mb-1">
-                    {labels.addressLabel}
-                  </p>
-                  <p className="[font-family:var(--font-body)] text-sm text-black leading-relaxed font-normal">
-                    {tailorShopAddress}
-                  </p>
-                  {design.tailorShop.phone?.trim() && (
-                    <p className="[font-family:var(--font-body)] text-sm text-(--color-grey-muted) mt-1 font-normal">
-                      {design.tailorShop.phone}
-                    </p>
-                  )}
                 </div>
               </motion.div>
 
