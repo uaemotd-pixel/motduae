@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useParams } from "next/navigation";
 import { Heart, Trash2, ArrowLeft, Eye, Maximize2 } from "lucide-react";
@@ -17,13 +17,6 @@ export default function WishlistPage() {
   const { wishItems, removeItem, clearWishlist } = useWishlist();
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
-
-  useEffect(() => {
-    console.log("Wishlist items:", wishItems);
-    wishItems.forEach((item) => {
-      console.log(`Item: ${item.name}, Type: ${item.type}, Slug: ${item.slug}`);
-    });
-  }, [wishItems]);
 
   const redirectToDetail = (item: WishlistItem) => {
     const slug = item.slug || item.id;

@@ -26,6 +26,7 @@ import {
 import PartnerChangeEmailCard from "@/components/auth/PartnerChangeEmailCard";
 import EmailChangePendingBanner from "@/components/auth/EmailChangePendingBanner";
 import { getTranslation } from "@/lib/getTranslation";
+import { useNotificationUnreadCount } from "@/hooks/useNotifications";
 
 type FabricPortalShellProps = {
   children: React.ReactNode;
@@ -44,6 +45,11 @@ export default function FabricPortalShell({
   const tVerify = getTranslation(locale).verifyEmail;
   const canChangeEmail = canChangeAccountEmail(user);
   const showVerify = needsEmailVerification(user) && !user?.isGuest;
+
+  const { count: unreadNotificationCount } = useNotificationUnreadCount(
+    "customer",
+    Boolean(user),
+  );
 
   useEffect(() => {
     setIsSidebarOpen(false);
@@ -156,11 +162,19 @@ export default function FabricPortalShell({
               className={`flex items-center gap-3 px-4 py-3 text-[11px] uppercase tracking-[0.18em] transition [font-family:var(--font-ui)] rounded-xl ${
                 isActive
                   ? "bg-black text-white"
-                  : "text-[var(--dash-ink)] hover:bg-[var(--dash-bg)]"
+                  : "text-(--dash-ink) hover:bg-(--dash-bg)"
               }`}
             >
               <Icon className="w-4 h-4" />
               {item.label}
+              {item.href === "/fabric/notifications" &&
+                unreadNotificationCount > 0 && (
+                  <span className="min-w-5 h-5 px-1 rounded-full bg-(--dash-danger) text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
+                    {unreadNotificationCount > 99
+                      ? "99+"
+                      : unreadNotificationCount}
+                  </span>
+                )}
             </Link>
           );
         })}
@@ -180,8 +194,8 @@ export default function FabricPortalShell({
   );
 
   return (
-    <div className="bg-[var(--dash-bg)] text-[var(--dash-ink)] lg:flex lg:h-dvh lg:overflow-hidden">
-      <aside className="fixed left-0 top-0 z-20 hidden h-dvh w-72 shrink-0 flex-col overflow-y-auto border-r border-[var(--dash-border)] bg-[var(--dash-surface)] p-6 lg:sticky lg:flex">
+    <div className="bg-(--dash-bg) text-(--dash-ink) lg:flex lg:h-dvh lg:overflow-hidden">
+      <aside className="fixed left-0 top-0 z-20 hidden h-dvh w-72 shrink-0 flex-col overflow-y-auto border-r border-(--dash-border) bg-(--dash-surface) p-6 lg:sticky lg:flex">
         <SidebarContent />
       </aside>
 
@@ -194,14 +208,14 @@ export default function FabricPortalShell({
         onClick={() => setIsSidebarOpen(false)}
       />
       <aside
-        className={`fixed left-0 top-0 z-40 flex h-dvh w-72 flex-col overflow-y-auto border-r border-[var(--dash-border)] bg-[var(--dash-surface)] p-6 transition-transform duration-300 ease-in-out lg:hidden ${
+        className={`fixed left-0 top-0 z-40 flex h-dvh w-72 flex-col overflow-y-auto border-r border-(--dash-border) bg-(--dash-surface) p-6 transition-transform duration-300 ease-in-out lg:hidden ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <button
           type="button"
           onClick={() => setIsSidebarOpen(false)}
-          className="absolute top-4 right-4 p-2 text-[var(--dash-muted)] hover:text-[var(--dash-ink)]"
+          className="absolute top-4 right-4 p-2 text-(--dash-muted) hover:text-(--dash-ink)"
           aria-label="Close menu"
         >
           <X className="w-5 h-5" />
@@ -215,7 +229,7 @@ export default function FabricPortalShell({
         <button
           type="button"
           onClick={() => setIsSidebarOpen(true)}
-          className="fixed top-4 left-4 z-20 bg-black p-2 text-white transition hover:bg-[var(--dash-charcoal-deep)] lg:hidden rounded-md"
+          className="fixed top-4 left-4 z-20 bg-black p-2 text-white transition hover:bg-(--dash-charcoal-deep) lg:hidden rounded-md"
           aria-label="Open menu"
         >
           <Menu className="w-5 h-5" />

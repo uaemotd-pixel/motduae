@@ -87,13 +87,9 @@ const ViewFabricDetails = ({ product }: FabricDetailsProps) => {
   const detailsRef = useRef(null);
   const detailsInView = useInView(detailsRef, { once: true, margin: "-100px" });
 
-  const handleAddToCart = () => {
-    console.log("Added to cart:", { ...product, quantity, selectedSize });
-  };
+  const handleAddToCart = () => {};
 
-  const handleRequestSample = () => {
-    console.log("Sample requested for:", product.name);
-  };
+  const handleRequestSample = () => {};
 
   const colorMap: Record<string, string> = {
     gold: "#C9A96E",
@@ -654,7 +650,6 @@ const ViewFabricDetails = ({ product }: FabricDetailsProps) => {
                       <button
                         onClick={(e) => {
                           e.preventDefault();
-                          console.log("Quick add:", item.name);
                         }}
                         className="bg-white text-black text-[10px] tracking-[0.15em] uppercase font-medium px-5 py-2 hover:bg-black hover:text-white transition-colors"
                       >

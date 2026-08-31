@@ -1,8 +1,6 @@
-// components/shared/ZoomImageEffect.tsx
-
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface ZoomImageEffectProps {
   src: string;
@@ -16,80 +14,152 @@ export default function ZoomImageEffect({
   src,
   alt = "Image",
   className = "w-full h-auto",
-  lensSize = 80,
-  zoomLevel = 2.5,
+  lensSize = 120,
+  zoomLevel = 3,
 }: ZoomImageEffectProps) {
   const [isHovering, setIsHovering] = useState(false);
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(
-    null,
-  );
-  const [imageDimensions, setImageDimensions] = useState({
-    width: 0,
-    height: 0,
-  });
-  const [isMounted, setIsMounted] = useState(false);
-
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const lensRef = useRef<HTMLDivElement>(null);
+  const zoomImgRef = useRef<HTMLImageElement>(null);
 
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  const updateLens = useCallback(
+    (clientX: number, clientY: number) => {
+      const img = imageRef.current;
+      const lens = lensRef.current;
+      const zoomImg = zoomImgRef.current;
+      if (!img || !lens || !zoomImg) return;
 
-  useEffect(() => {
-    if (imageRef.current && isMounted) {
-      const updateDimensions = () => {
-        const rect = imageRef.current?.getBoundingClientRect();
-        if (rect) {
-          setImageDimensions({ width: rect.width, height: rect.height });
-        }
-      };
-      updateDimensions();
-      window.addEventListener("resize", updateDimensions);
-      return () => window.removeEventListener("resize", updateDimensions);
-    }
-  }, [src, isMounted]);
+      const rect = img.getBoundingClientRect();
+      const natW = img.naturalWidth;
+      const natH = img.naturalHeight;
+      if (rect.width <= 0 || rect.height <= 0 || !natW || !natH) return;
+
+      const mx = clientX - rect.left;
+      const my = clientY - rect.top;
+
+      const ratioX = natW / rect.width;
+      const ratioY = natH / rect.height;
+      const effectiveZoom = Math.min(zoomLevel, ratioX, ratioY);
+      const atNativeResolution =
+        Math.abs(effectiveZoom - ratioX) < 0.001 &&
+        Math.abs(effectiveZoom - ratioY) < 0.001;
+
+      const lensX = Math.round(
+        Math.min(Math.max(mx - lensSize / 2, 0), rect.width - lensSize),
+      );
+      const lensY = Math.round(
+        Math.min(Math.max(my - lensSize / 2, 0), rect.height - lensSize),
+      );
+
+      let zoomW: number;
+      let zoomH: number;
+      let offsetX: number;
+      let offsetY: number;
+
+      if (atNativeResolution) {
+        zoomW = natW;
+        zoomH = natH;
+        offsetX = Math.round(
+          Math.min(
+            Math.max((mx / rect.width) * natW - lensSize / 2, 0),
+            natW - lensSize,
+          ),
+        );
+        offsetY = Math.round(
+          Math.min(
+            Math.max((my / rect.height) * natH - lensSize / 2, 0),
+            natH - lensSize,
+          ),
+        );
+      } else {
+        zoomW = Math.round(rect.width * effectiveZoom);
+        zoomH = Math.round(rect.height * effectiveZoom);
+        offsetX = Math.round(
+          Math.min(
+            Math.max(mx * effectiveZoom - lensSize / 2, 0),
+            zoomW - lensSize,
+          ),
+        );
+        offsetY = Math.round(
+          Math.min(
+            Math.max(my * effectiveZoom - lensSize / 2, 0),
+            zoomH - lensSize,
+          ),
+        );
+      }
+
+      lens.style.left = `${lensX}px`;
+      lens.style.top = `${lensY}px`;
+
+      zoomImg.style.width = `${zoomW}px`;
+      zoomImg.style.height = `${zoomH}px`;
+      zoomImg.style.left = `-${offsetX}px`;
+      zoomImg.style.top = `-${offsetY}px`;
+    },
+    [lensSize, zoomLevel],
+  );
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!imageRef.current || !containerRef.current || !isMounted) return;
-
-    const rect = imageRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const lensX = Math.min(
-      Math.max(x - lensSize / 2, 0),
-      imageDimensions.width - lensSize,
-    );
-    const lensY = Math.min(
-      Math.max(y - lensSize / 2, 0),
-      imageDimensions.height - lensSize,
-    );
-
-    setPosition({ x: lensX, y: lensY });
+    if (!isHovering) return;
+    updateLens(e.clientX, e.clientY);
   };
 
-  const handleMouseEnter = () => {
-    if (!isMounted) return;
+  const handleMouseEnter = (e: React.MouseEvent) => {
     setIsHovering(true);
+    requestAnimationFrame(() => updateLens(e.clientX, e.clientY));
   };
 
   const handleMouseLeave = () => {
     setIsHovering(false);
-    setPosition(null);
   };
 
-  const lensScale = 1.5;
-  const scaledLensSize = lensSize * lensScale;
+  const handleImageLoad = () => {
+    if (isHovering && imageRef.current && containerRef.current) {
+      const rect = imageRef.current.getBoundingClientRect();
+      const event = new MouseEvent("mousemove", {
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+      });
+      updateLens(event.clientX, event.clientY);
+    }
+  };
 
-  // CRITICAL: Only render after mount and with valid position
-  const shouldShowLens =
-    isMounted && isHovering && position !== null && imageDimensions.width > 0;
+  useEffect(() => {
+    const zoomImg = zoomImgRef.current;
+    if (!zoomImg) return;
+
+    const syncIntrinsicSize = () => {
+      const img = imageRef.current;
+      if (!img?.naturalWidth || !img.naturalHeight) return;
+      zoomImg.width = img.naturalWidth;
+      zoomImg.height = img.naturalHeight;
+    };
+
+    syncIntrinsicSize();
+    const img = imageRef.current;
+    img?.addEventListener("load", syncIntrinsicSize);
+    return () => img?.removeEventListener("load", syncIntrinsicSize);
+  }, [src]);
+
+  useEffect(() => {
+    const img = imageRef.current;
+    if (!img) return;
+
+    const observer = new ResizeObserver(() => {
+      if (!isHovering || !containerRef.current) return;
+      const rect = img.getBoundingClientRect();
+      updateLens(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    });
+
+    observer.observe(img);
+    return () => observer.disconnect();
+  }, [isHovering, src, updateLens]);
 
   return (
     <div
       ref={containerRef}
-      className="relative inline-block w-full"
+      className="relative inline-block w-full select-none cursor-crosshair"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onMouseMove={handleMouseMove}
@@ -100,25 +170,34 @@ export default function ZoomImageEffect({
         alt={alt}
         className={className}
         draggable={false}
+        onLoad={handleImageLoad}
       />
 
-      {shouldShowLens && (
-        <div
-          className="absolute border-2 border-white/80 rounded-full shadow-2xl pointer-events-none"
+      <div
+        ref={lensRef}
+        className="absolute overflow-hidden rounded-full border border-white pointer-events-none"
+        style={{
+          width: lensSize,
+          height: lensSize,
+          display: isHovering ? "block" : "none",
+          boxShadow: "0 0 20px rgba(0, 0, 0, 0.4)",
+        }}
+      >
+        <img
+          ref={zoomImgRef}
+          src={src}
+          alt=""
+          aria-hidden
+          draggable={false}
+          loading="eager"
+          fetchPriority="high"
+          className="absolute max-w-none max-h-none"
           style={{
-            width: scaledLensSize,
-            height: scaledLensSize,
-            left: position.x - (scaledLensSize - lensSize) / 2,
-            top: position.y - (scaledLensSize - lensSize) / 2,
-            backgroundImage: `url(${src})`,
-            backgroundSize: `${imageDimensions.width * zoomLevel}px ${imageDimensions.height * zoomLevel}px`,
-            backgroundPosition: `-${position.x * zoomLevel}px -${position.y * zoomLevel}px`,
-            backgroundRepeat: "no-repeat",
-            boxShadow: "0 0 30px rgba(0,0,0,0.5)",
-            borderColor: "rgba(255,255,255,0.9)",
+            left: 0,
+            top: 0,
           }}
         />
-      )}
+      </div>
     </div>
   );
 }

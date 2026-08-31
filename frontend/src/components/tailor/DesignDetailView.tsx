@@ -341,8 +341,8 @@ export default function DesignDetailView({
                     src={images[activeImage]}
                     alt={name}
                     className="w-full h-auto"
-                    lensSize={150}
-                    zoomLevel={4}
+                    lensSize={185}
+                    zoomLevel={4.5}
                   />
                 </div>
               </motion.div>
