@@ -18,6 +18,14 @@ const DESIGN_FIELDS = [
   "descriptionAr",
   "images",
   "category",
+  "material",
+  "materialAr",
+  "season",
+  "seasonAr",
+  "pattern",
+  "patternAr",
+  "tag",
+  "tagAr",
   "basePrice",
   "priceType",
   "tailoringFee",
@@ -36,6 +44,14 @@ const formatDesign = (design) => ({
   descriptionAr: design.descriptionAr,
   images: design.images,
   category: design.category,
+  material: design.material,
+  materialAr: design.materialAr,
+  season: design.season,
+  seasonAr: design.seasonAr,
+  pattern: design.pattern,
+  patternAr: design.patternAr,
+  tag: design.tag,
+  tagAr: design.tagAr,
   basePrice: design.basePrice,
   priceType: design.priceType,
   tailoringFee: design.tailoringFee,
@@ -82,6 +98,22 @@ const pickDesignFields = (body) => {
 
     if (field === "category") {
       data.category = String(body.category).trim();
+      continue;
+    }
+
+    if (
+      [
+        "material",
+        "materialAr",
+        "season",
+        "seasonAr",
+        "pattern",
+        "patternAr",
+        "tag",
+        "tagAr",
+      ].includes(field)
+    ) {
+      data[field] = String(body[field] ?? "").trim();
       continue;
     }
 

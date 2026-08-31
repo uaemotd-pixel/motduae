@@ -8,6 +8,12 @@ export interface DesignCategoryOption {
   isActive: boolean;
 }
 
+export interface DesignFilterOption {
+  _id: string;
+  name: string;
+  nameAr: string;
+}
+
 export interface TailorDesignProfile {
   _id: string;
   tailorShopId: string;
@@ -18,6 +24,14 @@ export interface TailorDesignProfile {
   descriptionAr: string;
   images: string[];
   category: string;
+  material: string;
+  materialAr: string;
+  season: string;
+  seasonAr: string;
+  pattern: string;
+  patternAr: string;
+  tag: string;
+  tagAr: string;
   basePrice: number;
   priceType?: "fixed" | "per_meter";
   tailoringFee: number;
@@ -36,6 +50,14 @@ export interface TailorDesignFormData {
   descriptionAr: string;
   images: string[];
   category: string;
+  material: string;
+  materialAr: string;
+  season: string;
+  seasonAr: string;
+  pattern: string;
+  patternAr: string;
+  tag: string;
+  tagAr: string;
   basePrice: number;
   priceType: "fixed" | "per_meter";
   tailoringFee: number;
@@ -71,6 +93,14 @@ export function emptyTailorDesignForm(
     descriptionAr: "",
     images: [""],
     category: "",
+    material: "",
+    materialAr: "",
+    season: "",
+    seasonAr: "",
+    pattern: "",
+    patternAr: "",
+    tag: "",
+    tagAr: "",
     basePrice: 0,
     priceType: "fixed",
     tailoringFee: defaultTailoringFee,
@@ -101,6 +131,14 @@ export function designToForm(
     descriptionAr: design.descriptionAr ?? "",
     images: design.images?.length ? [...design.images] : [""],
     category: design.category ?? "",
+    material: design.material ?? "",
+    materialAr: design.materialAr ?? "",
+    season: design.season ?? "",
+    seasonAr: design.seasonAr ?? "",
+    pattern: design.pattern ?? "",
+    patternAr: design.patternAr ?? "",
+    tag: design.tag ?? "",
+    tagAr: design.tagAr ?? "",
     basePrice: design.basePrice ?? 0,
     priceType: design.priceType ?? "fixed",
     tailoringFee: design.tailoringFee ?? DEFAULT_TAILORING_FEE,
@@ -122,6 +160,14 @@ export function toTailorDesignPayload(
     descriptionAr: form.descriptionAr.trim(),
     images: form.images.map((image) => image.trim()).filter(Boolean),
     category: form.category,
+    material: form.material.trim(),
+    materialAr: form.materialAr.trim(),
+    season: form.season.trim(),
+    seasonAr: form.seasonAr.trim(),
+    pattern: form.pattern.trim(),
+    patternAr: form.patternAr.trim(),
+    tag: form.tag.trim(),
+    tagAr: form.tagAr.trim(),
     basePrice: Number(form.basePrice),
     priceType: form.priceType,
     tailoringFee: Number(form.tailoringFee),
@@ -184,3 +230,19 @@ export async function fetchDesignCategories(): Promise<DesignCategoryOption[]> {
   const data = await api.get<DesignCategoryOption[]>("/api/filters/categories");
   return Array.isArray(data) ? data : [];
 }
+
+async function fetchFilterOptions(endpoint: string): Promise<DesignFilterOption[]> {
+  const data = await api.get<DesignFilterOption[]>(endpoint);
+  return Array.isArray(data) ? data : [];
+}
+
+export const fetchDesignMaterials = () =>
+  fetchFilterOptions("/api/filters/materials");
+
+export const fetchDesignPatterns = () =>
+  fetchFilterOptions("/api/filters/patterns");
+
+export const fetchDesignSeasons = () =>
+  fetchFilterOptions("/api/filters/seasons");
+
+export const fetchDesignTags = () => fetchFilterOptions("/api/filters/tags");

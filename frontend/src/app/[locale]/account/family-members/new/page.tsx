@@ -34,7 +34,6 @@ type FormData = {
   relationship: Relationship;
   customRelationship: string;
   phone: string;
-  email: string;
   dob: string;
   address: {
     fullName: string;
@@ -55,7 +54,6 @@ type FamilyMemberFormProps = {
     name: string;
     relationship: Relationship;
     phone: string;
-    email?: string;
     dob?: string | Date;
     profilePic?: string;
     address?: Partial<FormData["address"]>;
@@ -67,7 +65,6 @@ const DEFAULT_FORM: FormData = {
   relationship: "other",
   customRelationship: "",
   phone: "",
-  email: "",
   dob: "",
   address: {
     fullName: "",
@@ -146,7 +143,6 @@ export default function FamilyMembersForm({
         relationship: isKnown ? initialData.relationship : "other",
         customRelationship: isKnown ? "" : initialData.relationship || "",
         phone: normalizedPhone,
-        email: initialData.email || "",
         address: {
           fullName: initialData.address?.fullName || "",
           phone: normalizedAddrPhone,
@@ -314,7 +310,6 @@ export default function FamilyMembersForm({
         name: form.name.trim(),
         phone: normalizedPhone,
         relationship: relationshipValue,
-        email: form.email.trim() || undefined,
         dob: form.dob || undefined,
       };
 
@@ -500,17 +495,6 @@ export default function FamilyMembersForm({
                   />
                 </div>
               )}
-            </FormField>
-
-            <FormField label="Email" name="email">
-              <input
-                type="email"
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-                placeholder="example@email.com"
-              />
             </FormField>
 
             <FormField label="D.O.B" name="dob">
