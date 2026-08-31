@@ -18,6 +18,7 @@ import {
   Users,
   Star,
   PanelLeft,
+  LayoutDashboard,
 } from "lucide-react";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 import OrdersView from "@/components/orders/OrdersView";
@@ -26,12 +27,14 @@ import EditProfileForm from "./profile/edit/page";
 import FamilyMembersPage from "./family-members/page";
 import CustomerReviewsView from "@/components/reviews/CustomerReviewsView";
 import CustomerSettings from "@/components/account/CustomerSettings";
+import CustomerDashboard from "@/components/account/CustomerDashboard";
 import BrandLoader from "@/components/shared/BrandLoader";
 import MeasurementsForm from "./measurements/page";
 import CustomerNotificationPage from "./notification/page";
 import { useNotificationUnreadCount } from "@/hooks/useNotifications";
 
 const NAV_ITEMS = [
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "profile", label: "Profile", icon: User },
   { id: "orders", label: "Orders", icon: ShoppingBag },
   { id: "reviews", label: "My Reviews", icon: Star },
@@ -99,7 +102,8 @@ function AccountSidebar({
 
       <nav className="flex-1 space-y-1.5">
         {NAV_ITEMS.map((item) => {
-          if (isGuest && item.id !== "orders") return null;
+          if (isGuest && item.id !== "orders" && item.id !== "dashboard")
+            return null;
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           return (
@@ -189,7 +193,7 @@ function AccountPageContent() {
     needsEmailVerification(user) && !user?.isGuest;
 
   const [activeTab, setActiveTab] = useState<AccountTab>(
-    isAccountTab(tabFromUrl) ? tabFromUrl : "profile",
+    isAccountTab(tabFromUrl) ? tabFromUrl : "dashboard",
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -238,7 +242,11 @@ function AccountPageContent() {
 
   useEffect(() => {
     if (user?.isGuest) {
-      setActiveTab("orders");
+      if (!isAccountTab(tabFromUrl) || (tabFromUrl !== "orders" && tabFromUrl !== "dashboard")) {
+        setActiveTab("dashboard");
+      } else if (tabFromUrl !== activeTab) {
+        setActiveTab(tabFromUrl);
+      }
       return;
     }
     if (isAccountTab(tabFromUrl) && tabFromUrl !== activeTab) {
@@ -247,13 +255,16 @@ function AccountPageContent() {
   }, [tabFromUrl, activeTab, user]);
 
   const handleTabChange = useCallback(
-    (tab: AccountTab) => {
-      if (tab === activeTab) return;
+    (tab: AccountTab, extras?: { orderId?: string; orderType?: "custom" | "retail" }) => {
       setActiveTab(tab);
       setSidebarOpen(false);
-      router.replace(`${pathname}?tab=${tab}`, { scroll: false });
+      const params = new URLSearchParams();
+      params.set("tab", tab);
+      if (extras?.orderId) params.set("orderId", extras.orderId);
+      if (extras?.orderType) params.set("orderType", extras.orderType);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     },
-    [activeTab, pathname, router],
+    [pathname, router],
   );
 
   const handleLogout = useCallback(() => {
@@ -356,7 +367,7 @@ function AccountPageContent() {
               My Account
             </h1>
             <p className="text-gray-500 mt-2 sm:mt-3 font-['TT_Norms_Pro'] text-sm sm:text-base md:text-lg">
-              Manage your profile, orders, notifications &amp; settings
+              Manage your dashboard, profile, orders, notifications &amp; settings
             </p>
           </div>
 
@@ -386,6 +397,23 @@ function AccountPageContent() {
 
           <div className="relative">
             <AnimatePresence mode="wait">
+              {activeTab === "dashboard" && (
+                <motion.div
+                  key="dashboard"
+                  variants={pageVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={{ duration: 0.4 }}
+                >
+                  <CustomerDashboard
+                    userName={user.name || ""}
+                    isGuest={Boolean(user.isGuest)}
+                    onNavigate={handleTabChange}
+                  />
+                </motion.div>
+              )}
+
               {activeTab === "profile" && (
                 <motion.div
                   key="profile"

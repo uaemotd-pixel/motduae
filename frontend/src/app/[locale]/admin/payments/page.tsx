@@ -15,12 +15,17 @@ import {
   Phone,
   Mail,
   MapPin,
-  DollarSign,
+  Banknote,
   Trash2,
+  Check,
+  X,
+  type LucideIcon,
 } from "lucide-react";
 import LocaleSwitcher from "@/components/shared/LocaleSwitcher";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import TimeframePills from "@/components/dashboard/TimeframePills";
+import StatCard from "@/components/dashboard/StatCard";
+import { type DashAccent } from "@/components/dashboard/palette";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { splitFabricCommission } from "@/lib/fabricCommission";
 
@@ -106,6 +111,27 @@ type ReleaseConfirmRow = {
   orders: OrderBreakdownLine[];
 };
 
+interface FabricPayoutRequestItem {
+  _id: string;
+  partnerKey: string;
+  partnerKind: PartnerPayoutKind;
+  partnerName: string;
+  payeeName?: string;
+  amount: number;
+  currency?: string;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  note?: string;
+  adminNote?: string;
+  requestedAt?: string;
+  reviewedAt?: string;
+  orders?: Array<{
+    orderId: string;
+    orderType: string;
+    amount: number;
+  }>;
+  requestedBy?: { _id?: string; name?: string; email?: string } | string;
+}
+
 export default function AdminPaymentsPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,6 +159,23 @@ export default function AdminPaymentsPage() {
   const [deleteConfirmTx, setDeleteConfirmTx] =
     useState<PartnerPayoutTransaction | null>(null);
   const [deletingTxId, setDeletingTxId] = useState<string | null>(null);
+  const [payoutRequests, setPayoutRequests] = useState<
+    FabricPayoutRequestItem[]
+  >([]);
+  const [payoutRequestsPendingCount, setPayoutRequestsPendingCount] =
+    useState(0);
+  const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(
+    null,
+  );
+  const [approveConfirmRequest, setApproveConfirmRequest] =
+    useState<FabricPayoutRequestItem | null>(null);
+  const [rejectConfirmRequest, setRejectConfirmRequest] =
+    useState<FabricPayoutRequestItem | null>(null);
+  const [deleteConfirmRequest, setDeleteConfirmRequest] =
+    useState<FabricPayoutRequestItem | null>(null);
+  const [deletingRequestId, setDeletingRequestId] = useState<string | null>(
+    null,
+  );
 
   const fetchStats = async (
     mode: "initial" | "refresh" | "silent" = "initial",
@@ -207,8 +250,22 @@ export default function AdminPaymentsPage() {
     }
   };
 
+  const fetchPayoutRequests = async () => {
+    try {
+      const data = await api.get<{
+        items?: FabricPayoutRequestItem[];
+        pendingCount?: number;
+      }>("/api/admin/payout-requests");
+      setPayoutRequests(Array.isArray(data.items) ? data.items : []);
+      setPayoutRequestsPendingCount(Number(data.pendingCount) || 0);
+    } catch (err) {
+      console.error("Payout requests fetch error:", err);
+    }
+  };
+
   useEffect(() => {
     fetchPartnerPayouts();
+    fetchPayoutRequests();
   }, []);
 
   const refreshAll = async () => {
@@ -218,9 +275,57 @@ export default function AdminPaymentsPage() {
         fetchStats("silent"),
         fetchPricingOrders(),
         fetchPartnerPayouts(),
+        fetchPayoutRequests(),
       ]);
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const approvePayoutRequest = async (request: FabricPayoutRequestItem) => {
+    if (!request?._id || reviewingRequestId) return;
+    try {
+      setReviewingRequestId(request._id);
+      await api.post(`/api/admin/payout-requests/${request._id}/approve`, {});
+      setApproveConfirmRequest(null);
+      await Promise.all([fetchPayoutRequests(), fetchPartnerPayouts()]);
+    } catch (err: any) {
+      console.error("Approve payout request error:", err);
+      alert(err?.message || "Failed to approve payout request.");
+    } finally {
+      setReviewingRequestId(null);
+    }
+  };
+
+  const rejectPayoutRequest = async (request: FabricPayoutRequestItem) => {
+    if (!request?._id || reviewingRequestId) return;
+    try {
+      setReviewingRequestId(request._id);
+      await api.post(`/api/admin/payout-requests/${request._id}/reject`, {
+        adminNote: "Declined by admin",
+      });
+      setRejectConfirmRequest(null);
+      await fetchPayoutRequests();
+    } catch (err: any) {
+      console.error("Reject payout request error:", err);
+      alert(err?.message || "Failed to reject payout request.");
+    } finally {
+      setReviewingRequestId(null);
+    }
+  };
+
+  const deletePayoutRequest = async (request: FabricPayoutRequestItem) => {
+    if (!request?._id || deletingRequestId) return;
+    try {
+      setDeletingRequestId(request._id);
+      await api.delete(`/api/admin/payout-requests/${request._id}`);
+      setDeleteConfirmRequest(null);
+      await fetchPayoutRequests();
+    } catch (err: any) {
+      console.error("Delete payout request error:", err);
+      alert(err?.message || "Failed to delete payout request.");
+    } finally {
+      setDeletingRequestId(null);
     }
   };
 
@@ -879,20 +984,20 @@ export default function AdminPaymentsPage() {
       <Truck className="h-4 w-4" />
     );
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: stats?.currency || "AED",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+  const formatCurrency = (value: number) => {
+    const amount = new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(value);
+    return `AED ${amount}`;
+  };
 
   const formatKpiCurrency = (value: number) => {
     const amount = new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(value);
-    return `${stats?.currency || "AED"} ${amount}`;
+    return `AED ${amount}`;
   };
 
   const formatShippingLegLine = (line: any) => {
@@ -935,7 +1040,7 @@ export default function AdminPaymentsPage() {
       });
       if (expandedPartnerKey === row.key) setExpandedPartnerKey(null);
       setReleaseConfirmRow(null);
-      await fetchPartnerPayouts();
+      await Promise.all([fetchPartnerPayouts(), fetchPayoutRequests()]);
     } catch (err: any) {
       console.error("Release payment error:", err);
       alert(err?.message || "Failed to release payment. Please try again.");
@@ -1007,16 +1112,20 @@ export default function AdminPaymentsPage() {
     label: string;
     value: number;
     status: PayoutStatStatus | null;
-    icon: typeof DollarSign;
+    icon: LucideIcon;
     hint: string;
+    accent: DashAccent;
+    delay: number;
   }> = [
     {
       key: "total-earnings",
       label: "Total Earnings",
       value: earningsSummary.totalEarnings,
       status: null,
-      icon: DollarSign,
+      icon: Banknote,
       hint: "All order revenue",
+      accent: "ink",
+      delay: 0,
     },
     {
       key: "motd-profit",
@@ -1025,6 +1134,8 @@ export default function AdminPaymentsPage() {
       status: null,
       icon: Wallet,
       hint: "Commission kept by MOTD",
+      accent: "teal",
+      delay: 0.05,
     },
     {
       key: "pay-tailors",
@@ -1033,6 +1144,8 @@ export default function AdminPaymentsPage() {
       status: tailorPayCard.status,
       icon: Scissors,
       hint: tailorPayCard.hint,
+      accent: "indigo",
+      delay: 0.1,
     },
     {
       key: "pay-fabrics",
@@ -1041,6 +1154,8 @@ export default function AdminPaymentsPage() {
       status: fabricPayCard.status,
       icon: Store,
       hint: fabricPayCard.hint,
+      accent: "sky",
+      delay: 0.15,
     },
     {
       key: "pay-shipaa",
@@ -1049,6 +1164,8 @@ export default function AdminPaymentsPage() {
       status: shipaaPayCard.status,
       icon: Truck,
       hint: shipaaPayCard.hint,
+      accent: "amber",
+      delay: 0.2,
     },
   ];
 
@@ -1098,6 +1215,68 @@ export default function AdminPaymentsPage() {
         isDanger
       />
 
+      <ConfirmationModal
+        isOpen={!!approveConfirmRequest}
+        title="Approve payout request"
+        message={
+          approveConfirmRequest
+            ? `Approve ${formatCurrency(Number(approveConfirmRequest.amount) || 0)} for ${approveConfirmRequest.partnerName}? This will release the payment into Transaction History.`
+            : ""
+        }
+        confirmLabel={reviewingRequestId ? "Approving…" : "Approve & release"}
+        cancelLabel="Cancel"
+        onConfirm={() => {
+          if (approveConfirmRequest)
+            void approvePayoutRequest(approveConfirmRequest);
+        }}
+        onCancel={() => {
+          if (!reviewingRequestId) setApproveConfirmRequest(null);
+        }}
+        isLoading={!!reviewingRequestId}
+      />
+
+      <ConfirmationModal
+        isOpen={!!rejectConfirmRequest}
+        title="Reject payout request"
+        message={
+          rejectConfirmRequest
+            ? `Reject the ${formatCurrency(Number(rejectConfirmRequest.amount) || 0)} request from ${rejectConfirmRequest.partnerName}? They can submit a new request later.`
+            : ""
+        }
+        confirmLabel={reviewingRequestId ? "Rejecting…" : "Reject request"}
+        cancelLabel="Cancel"
+        onConfirm={() => {
+          if (rejectConfirmRequest)
+            void rejectPayoutRequest(rejectConfirmRequest);
+        }}
+        onCancel={() => {
+          if (!reviewingRequestId) setRejectConfirmRequest(null);
+        }}
+        isLoading={!!reviewingRequestId}
+        isDanger
+      />
+
+      <ConfirmationModal
+        isOpen={!!deleteConfirmRequest}
+        title="Delete request"
+        message={
+          deleteConfirmRequest
+            ? `Permanently delete the ${formatCurrency(Number(deleteConfirmRequest.amount) || 0)} ${deleteConfirmRequest.status} request from ${deleteConfirmRequest.partnerName} in Request History?`
+            : ""
+        }
+        confirmLabel={deletingRequestId ? "Deleting…" : "Delete"}
+        cancelLabel="Cancel"
+        onConfirm={() => {
+          if (deleteConfirmRequest)
+            void deletePayoutRequest(deleteConfirmRequest);
+        }}
+        onCancel={() => {
+          if (!deletingRequestId) setDeleteConfirmRequest(null);
+        }}
+        isLoading={!!deletingRequestId}
+        isDanger
+      />
+
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
@@ -1129,46 +1308,116 @@ export default function AdminPaymentsPage() {
         </div>
       </div>
 
-      {/* Summary totals — five compact cards in one row */}
-      <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5">
-        {summaryCards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <div
-              key={card.key}
-              className="min-w-0 rounded-xl border border-(--dash-border) bg-(--dash-surface) p-2 sm:p-3"
-            >
-              <div className="flex items-start justify-between gap-1">
-                <div className="flex min-w-0 items-center gap-1 text-[8px] uppercase tracking-[0.12em] text-(--dash-muted) sm:gap-1.5 sm:text-[10px] sm:tracking-[0.14em]">
-                  <Icon className="hidden h-3.5 w-3.5 shrink-0 sm:block" />
-                  <span className="truncate" title={card.label}>
-                    {card.label}
-                  </span>
-                </div>
-                {card.status ? (
-                  <span
-                    className={`shrink-0 rounded-full border px-1 py-0.5 text-[8px] font-medium uppercase tracking-wide sm:px-1.5 sm:text-[9px] ${statusBadgeClass(card.status)}`}
-                  >
-                    {card.status}
-                  </span>
-                ) : null}
-              </div>
-              <p
-                className="mt-1.5 truncate text-sm font-light text-(--dash-ink) sm:mt-2 sm:text-lg lg:text-xl"
-                title={formatKpiCurrency(card.value)}
-              >
-                {formatKpiCurrency(card.value)}
-              </p>
-              <p
-                className="mt-0.5 truncate text-[9px] text-(--dash-muted) sm:mt-1 sm:text-[10px] lg:text-xs"
-                title={card.hint}
-              >
-                {card.hint}
+      {/* Summary totals — same StatCard UI as /admin dashboard */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        {summaryCards.map((card) => (
+          <StatCard
+            key={card.key}
+            icon={card.icon}
+            label={card.label}
+            value={formatKpiCurrency(card.value)}
+            subValue={card.hint}
+            compact
+            delay={card.delay}
+            accent={card.accent}
+            badge={
+              card.status ? (
+                <span
+                  className={`rounded-full border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide ${statusBadgeClass(card.status)}`}
+                >
+                  {card.status}
+                </span>
+              ) : undefined
+            }
+          />
+        ))}
+      </div>
+
+      {/* Partner payout requests queue — only when pending exist */}
+      {payoutRequestsPendingCount > 0 ? (
+        <div className="rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) p-5 shadow-sm sm:p-6">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="[font-family:var(--font-display)] text-lg text-(--dash-ink)">
+                Partner payout requests
+              </h3>
+              <p className="mt-1 text-xs text-(--dash-muted)">
+                Pending requests from fabric stores and tailors. Approve or
+                reject — reviewed items move to Request History below.
               </p>
             </div>
-          );
-        })}
-      </div>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-amber-800">
+              {payoutRequestsPendingCount} pending
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {payoutRequests
+              .filter((r) => r.status === "pending")
+              .map((request) => {
+                const orderCount = Array.isArray(request.orders)
+                  ? request.orders.length
+                  : 0;
+                const isBusy = reviewingRequestId === request._id;
+                const KindIcon =
+                  request.partnerKind === "tailor" ? Scissors : Store;
+                return (
+                  <div
+                    key={request._id}
+                    className="flex flex-col gap-3 rounded-xl border border-(--dash-border) bg-white p-4 lg:flex-row lg:items-center lg:justify-between"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 rounded-md bg-(--dash-bg) px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-(--dash-muted)">
+                          <KindIcon className="h-3.5 w-3.5" />
+                          {partnerKindLabel(request.partnerKind)}
+                        </span>
+                        <p className="font-medium text-(--dash-ink)">
+                          {request.partnerName}
+                        </p>
+                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800">
+                          pending
+                        </span>
+                      </div>
+                      <p className="mt-2 text-[11px] text-(--dash-muted)">
+                        {formatCurrency(Number(request.amount) || 0)} ·{" "}
+                        {orderCount} order{orderCount === 1 ? "" : "s"}
+                        {request.requestedAt
+                          ? ` · ${new Date(request.requestedAt).toLocaleString()}`
+                          : ""}
+                      </p>
+                      {request.note ? (
+                        <p className="mt-1 text-[11px] text-(--dash-muted)">
+                          Note: {request.note}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={!!reviewingRequestId}
+                        onClick={() => setApproveConfirmRequest(request)}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-(--dash-charcoal) px-3 py-2 text-xs text-white transition hover:opacity-90 disabled:opacity-50"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        {isBusy ? "Working…" : "Approve"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!!reviewingRequestId}
+                        onClick={() => setRejectConfirmRequest(request)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 transition hover:bg-rose-100 disabled:opacity-50"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      ) : null}
 
       {/* Partner payouts with nested order breakdown */}
       <div className="rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) p-5 shadow-sm sm:p-6">
@@ -1478,6 +1727,108 @@ export default function AdminPaymentsPage() {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Request history — approved / rejected fabric requests */}
+      <div className="rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) p-5 shadow-sm sm:p-6">
+        <div className="mb-4">
+          <h3 className="[font-family:var(--font-display)] text-lg text-(--dash-ink)">
+            Request History
+          </h3>
+          <p className="mt-1 text-xs text-(--dash-muted)">
+            Approved and rejected partner payout requests. Delete removes the
+            record from this list only.
+          </p>
+        </div>
+
+        {payoutRequests.filter((r) => r.status !== "pending").length === 0 ? (
+          <p className="py-8 text-center text-xs text-(--dash-muted)">
+            No reviewed payout requests yet.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-(--dash-border)">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-(--dash-bg) text-[10px] uppercase tracking-[0.16em] text-(--dash-muted)">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Requested</th>
+                  <th className="px-4 py-3 font-medium">Reviewed</th>
+                  <th className="px-4 py-3 font-medium">Partner</th>
+                  <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="px-4 py-3 font-medium">Orders</th>
+                  <th className="px-4 py-3 font-medium">Amount</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payoutRequests
+                  .filter((r) => r.status !== "pending")
+                  .map((request) => {
+                    const orderCount = Array.isArray(request.orders)
+                      ? request.orders.length
+                      : 0;
+                    const isDeleting = deletingRequestId === request._id;
+                    return (
+                      <tr
+                        key={request._id}
+                        className="border-t border-(--dash-border) bg-white"
+                      >
+                        <td className="px-4 py-3 text-xs text-(--dash-ink)">
+                          {request.requestedAt
+                            ? new Date(request.requestedAt).toLocaleString()
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-(--dash-muted)">
+                          {request.reviewedAt
+                            ? new Date(request.reviewedAt).toLocaleString()
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-(--dash-muted)">
+                          {partnerKindLabel(request.partnerKind)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-(--dash-ink)">
+                            {request.partnerName}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-(--dash-muted)">
+                          {orderCount}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-(--dash-ink)">
+                          {formatCurrency(Number(request.amount) || 0)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                              request.status === "approved"
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                                : "border-rose-200 bg-rose-50 text-rose-800"
+                            }`}
+                          >
+                            {request.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            title="Delete request"
+                            aria-label={`Delete request for ${request.partnerName}`}
+                            disabled={!!deletingRequestId}
+                            onClick={() => setDeleteConfirmRequest(request)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                          >
+                            <Trash2
+                              className={`h-4 w-4 ${isDeleting ? "animate-pulse" : ""}`}
+                            />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>

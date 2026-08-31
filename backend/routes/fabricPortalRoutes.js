@@ -31,6 +31,9 @@ import PartnerPayout from "../models/PartnerPayout.js";
 import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
 import { hydrateRetailOrders } from "../services/retailOrderHydrate.js";
 import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
+import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
+import { createNotification } from "../services/notificationService.js";
+import { computeFabricUnpaidBreakdown } from "../services/fabricPayoutRequestService.js";
 
 const fabricPortalRouter = express.Router();
 
@@ -1999,6 +2002,9 @@ fabricPortalRouter.get(
       customInWindow.length +
       retailInWindow.filter((o) => sumRetailFabricFee(o) > 0).length;
 
+    // Attribute admin releases only via per-order settlement rows.
+    // Do NOT fall back to shop-level paidTotal — that wrongly marks the
+    // current timeframe as paid from historical/unattributed releases.
     let paidInWindow = 0;
     for (const order of customInWindow) {
       const orderId = String(order._id);
@@ -2006,20 +2012,20 @@ fabricPortalRouter.get(
         sumCustomFabricFee(order),
         commissionPercent,
       ).net;
-      if (net > 0) {
-        paidInWindow += Number(settlement.paidByOrderId.get(orderId)) || 0;
-      }
+      if (net <= 0) continue;
+      const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
+      paidInWindow += Math.min(paidForOrder, net);
     }
     for (const order of retailInWindow) {
       const gross = sumRetailFabricFee(order);
       if (gross <= 0) continue;
       const orderId = String(order._id);
-      paidInWindow += Number(settlement.paidByOrderId.get(orderId)) || 0;
+      const net = splitMotdCommission(gross, commissionPercent).net;
+      if (net <= 0) continue;
+      const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
+      paidInWindow += Math.min(paidForOrder, net);
     }
-    if (paidInWindow <= 0 && settlement.paidTotal > 0 && fabricRevenue > 0) {
-      paidInWindow = Math.min(settlement.paidTotal, fabricRevenue);
-    }
-    paidInWindow = Number(Math.min(paidInWindow, fabricRevenue).toFixed(2));
+    paidInWindow = Number(paidInWindow.toFixed(2));
     const pendingInWindow = Math.max(
       0,
       Number((fabricRevenue - paidInWindow).toFixed(2)),
@@ -2061,6 +2067,173 @@ fabricPortalRouter.get(
       recentOrders,
       pricingOrders,
     });
+  }),
+);
+
+// ==========================================
+// GET /api/fabric/payout-requests
+// List this store's payout requests + unpaid summary
+// ==========================================
+fabricPortalRouter.get(
+  "/payout-requests",
+  expressAsyncHandler(async (req, res) => {
+    const breakdown = await computeFabricUnpaidBreakdown(req.user._id);
+
+    // Heal stale pending requests after a manual admin release (no request approve).
+    if (breakdown.pendingRequest && breakdown.amount <= 0) {
+      await PartnerPayoutRequest.updateMany(
+        {
+          partnerKind: "fabric",
+          status: "pending",
+          $or: [
+            { partnerKey: breakdown.identity.partnerKey },
+            { requestedBy: req.user._id },
+          ],
+        },
+        {
+          $set: {
+            status: "approved",
+            reviewedAt: new Date(),
+            adminNote: "Fulfilled by payment release",
+          },
+        },
+      );
+      breakdown.pendingRequest = null;
+    }
+
+    const items = await PartnerPayoutRequest.find({
+      partnerKind: "fabric",
+      $or: [
+        { requestedBy: req.user._id },
+        { partnerKey: breakdown.identity.partnerKey },
+      ],
+    })
+      .sort({ requestedAt: -1 })
+      .limit(50)
+      .lean();
+
+    res.json({
+      success: true,
+      currency: "AED",
+      unpaidAmount: breakdown.amount,
+      unpaidOrderCount: breakdown.orders.length,
+      pendingRequest: breakdown.pendingRequest,
+      identity: breakdown.identity,
+      items,
+    });
+  }),
+);
+
+// ==========================================
+// POST /api/fabric/payout-requests
+// Fabric store requests payout for all unpaid orders
+// ==========================================
+fabricPortalRouter.post(
+  "/payout-requests",
+  expressAsyncHandler(async (req, res) => {
+    const note =
+      typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 500) : "";
+
+    const breakdown = await computeFabricUnpaidBreakdown(req.user._id);
+
+    if (breakdown.pendingRequest) {
+      res.status(409).send({
+        message:
+          "You already have a pending payout request. Wait for MOTD to review it.",
+        pendingRequest: breakdown.pendingRequest,
+      });
+      return;
+    }
+
+    if (breakdown.amount <= 0 || breakdown.orders.length === 0) {
+      res.status(400).send({
+        message: "No unpaid payout balance available to request.",
+      });
+      return;
+    }
+
+    const { identity } = breakdown;
+    const requestDoc = await PartnerPayoutRequest.create({
+      partnerKey: identity.partnerKey,
+      partnerKind: "fabric",
+      partnerId: identity.partnerId,
+      partnerName: identity.partnerName,
+      payeeName: identity.payeeName,
+      amount: breakdown.amount,
+      currency: "AED",
+      orders: breakdown.orders.map((o) => ({
+        orderId: o.orderId,
+        orderType: o.orderType,
+        amount: o.amount,
+      })),
+      status: "pending",
+      note,
+      requestedBy: req.user._id,
+      requestedAt: new Date(),
+    });
+
+    const amountLabel = new Intl.NumberFormat("en-AE", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(breakdown.amount);
+
+    await createNotification({
+      type: "fabric_payout_requested",
+      title: `Payout request — ${identity.partnerName}`,
+      message: `${identity.partnerName} requested AED ${amountLabel} for ${breakdown.orders.length} order${
+        breakdown.orders.length === 1 ? "" : "s"
+      }. Review it in Payments.`,
+      audience: "admin",
+      createdBy: req.user._id,
+      dedupeKey: `admin:fabric_payout_requested:${requestDoc._id}`,
+    });
+
+    res.status(201).json({
+      success: true,
+      request: requestDoc,
+    });
+  }),
+);
+
+// ==========================================
+// DELETE /api/fabric/payout-requests/:id
+// Remove own reviewed request from history
+// ==========================================
+fabricPortalRouter.delete(
+  "/payout-requests/:id",
+  expressAsyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const requestDoc = await PartnerPayoutRequest.findById(id);
+    if (!requestDoc) {
+      res.status(404).send({ message: "Payout request not found" });
+      return;
+    }
+
+    if (requestDoc.partnerKind !== "fabric") {
+      res.status(403).send({ message: "Not allowed to delete this request" });
+      return;
+    }
+
+    const breakdown = await computeFabricUnpaidBreakdown(req.user._id);
+    const isOwn =
+      requestDoc.partnerKey === breakdown.identity.partnerKey ||
+      String(requestDoc.requestedBy) === String(req.user._id);
+
+    if (!isOwn) {
+      res.status(403).send({ message: "Not allowed to delete this request" });
+      return;
+    }
+
+    if (requestDoc.status === "pending") {
+      res.status(400).send({
+        message:
+          "Pending requests cannot be deleted. Wait for MOTD to review them.",
+      });
+      return;
+    }
+
+    await requestDoc.deleteOne();
+    res.send({ success: true, message: "Request deleted", id: String(id) });
   }),
 );
 

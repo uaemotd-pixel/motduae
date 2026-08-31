@@ -141,6 +141,7 @@ export function resolveAdminApiPerm(path = "") {
   const matchPrefix = (prefix) => p === prefix || p.startsWith(`${prefix}/`);
 
   if (matchPrefix("/partner-payouts")) return "payments";
+  if (matchPrefix("/payout-requests")) return "payments";
   if (matchPrefix("/customers")) return "customers";
   if (matchPrefix("/ready-made")) return "readyMade";
   if (matchPrefix("/fabrics")) return "fabrics";

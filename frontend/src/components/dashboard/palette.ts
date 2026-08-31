@@ -16,7 +16,20 @@ export const DASH_PALETTE = {
   sky: "#0284C7",
   amber: "#D97706",
   rose: "#E11D48",
+  /** Brighter multi-series (use sparingly) */
   series: ["#111111", "#0F766E", "#4F46E5", "#0284C7", "#D97706", "#E11D48"],
+  /**
+   * Black/white–first series with a soft teal accent —
+   * for doughnut/pie charts that shouldn't look rainbow.
+   */
+  seriesMuted: [
+    "#111111",
+    "#2E2E2C",
+    "#555552",
+    "#0F766E",
+    "#8A8A86",
+    "#C4C4C0",
+  ],
 } as const;
 
 export type DashAccent = "ink" | "teal" | "indigo" | "sky" | "amber" | "rose";
