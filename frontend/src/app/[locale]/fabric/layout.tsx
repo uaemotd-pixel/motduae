@@ -11,6 +11,7 @@ import FabricRejectedState from "@/components/fabric/FabricRejectedState";
 import FabricPortalShell from "@/components/fabric/FabricPortalShell";
 import PartnerApplyChrome from "@/components/partner/PartnerApplyChrome";
 import { SectionLoadingSkeleton } from "@/components/ui/Skeleton";
+import { resolvePartnerPortalGate } from "@/lib/auth/partnerPortalGate";
 
 export default function FabricLayout({
   children,
@@ -24,8 +25,13 @@ export default function FabricLayout({
   const locale = params.locale === "ar" ? "ar" : "en";
   const { user, isLoading } = useAuth();
   const [isDeactivated, setIsDeactivated] = useState(false);
-  const submitted = Boolean(user?.applicationSubmittedAt);
-  const isApplyPath = pathname.includes("/fabric/apply");
+  const gate = resolvePartnerPortalGate({
+    portal: "fabric",
+    user,
+    pathname,
+    isDeactivated,
+  });
+  const redirectTo = gate.screen === "redirect" ? gate.to : null;
 
   useEffect(() => {
     if (isLoading) return;
@@ -41,8 +47,8 @@ export default function FabricLayout({
       return;
     }
 
-    if (user.approvalStatus === "pending" && !submitted && !isApplyPath) {
-      router.replace("/fabric/apply");
+    if (redirectTo) {
+      router.replace(redirectTo);
       return;
     }
 
@@ -66,9 +72,9 @@ export default function FabricLayout({
     };
 
     checkStatus();
-  }, [isLoading, locale, router, user, submitted, isApplyPath]);
+  }, [isLoading, locale, router, user, redirectTo]);
 
-  if (isLoading) {
+  if (isLoading || gate.screen === "redirect") {
     return (
       <div className="min-h-screen bg-white">
         <SectionLoadingSkeleton variant="dashboard" />
@@ -76,12 +82,11 @@ export default function FabricLayout({
     );
   }
 
-  if (!user || user.role !== "fabric_store") {
+  if (!user || user.role !== "fabric_store" || gate.screen === "empty") {
     return null;
   }
 
-  if (user.approvalStatus === "pending" && !submitted) {
-    if (!isApplyPath) return null;
+  if (gate.screen === "apply") {
     return (
       <PartnerApplyChrome
         logoutRedirect="/auth/login?redirect=/fabric"
@@ -92,26 +97,11 @@ export default function FabricLayout({
     );
   }
 
-  if (
-    user.approvalStatus === "pending" ||
-    user.isActive === false ||
-    isDeactivated
-  ) {
+  if (gate.screen === "wait") {
     return <FabricPendingState />;
   }
 
-  if (user.approvalStatus === "rejected" && isApplyPath) {
-    return (
-      <PartnerApplyChrome
-        logoutRedirect="/auth/login?redirect=/fabric"
-        logoutLabel={t("logout")}
-      >
-        {children}
-      </PartnerApplyChrome>
-    );
-  }
-
-  if (user.approvalStatus === "rejected") {
+  if (gate.screen === "rejected") {
     return <FabricRejectedState />;
   }
 
