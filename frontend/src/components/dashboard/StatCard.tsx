@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { ArrowDownRight, ArrowUpRight, type LucideIcon } from "lucide-react";
 import { DASH_ACCENTS, type DashAccent } from "./palette";
@@ -10,6 +11,8 @@ type StatCardProps = {
   value: string;
   subValue?: string;
   trend?: number;
+  /** Optional status / meta pill (e.g. pending / approved) */
+  badge?: ReactNode;
   delay?: number;
   compact?: boolean;
   accent?: DashAccent;
@@ -21,6 +24,7 @@ export default function StatCard({
   value,
   subValue,
   trend,
+  badge,
   delay = 0,
   compact = false,
   accent = "ink",
@@ -33,7 +37,7 @@ export default function StatCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: "easeOut" }}
-      className={`group relative flex h-full overflow-hidden rounded-[var(--dash-radius)] border border-[var(--dash-border)] bg-[var(--dash-surface)] shadow-sm transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 ${
+      className={`group relative flex h-full overflow-hidden rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) shadow-sm transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 ${
         compact ? "p-3 sm:p-3.5" : "p-4 sm:p-5"
       }`}
       onMouseEnter={(e) => {
@@ -56,36 +60,38 @@ export default function StatCard({
       <div className="relative flex w-full items-start justify-between gap-2 pl-2">
         <div className="flex min-w-0 flex-1 flex-col">
           <p
-            className="[font-family:var(--font-ui)] text-[10px] uppercase leading-4 tracking-[0.18em] text-[var(--dash-muted)]"
+            className="[font-family:var(--font-ui)] text-[10px] uppercase leading-4 tracking-[0.18em] text-(--dash-muted)"
             title={label}
           >
             {label}
           </p>
           <p
-            className={`mt-2 font-light leading-snug text-[var(--dash-ink)] ${
+            className={`mt-2 font-light leading-snug text-(--dash-ink) ${
               compact
                 ? "truncate whitespace-nowrap text-[13px] tabular-nums sm:text-sm"
-                : "break-words text-2xl"
+                : "wrap-break-word text-2xl"
             }`}
             title={value}
           >
             {value}
           </p>
           <p
-            className={`mt-1 line-clamp-2 text-xs leading-snug text-[var(--dash-muted)] ${
-              compact ? "min-h-[2rem]" : "min-h-[2.5rem]"
+            className={`mt-1 line-clamp-2 text-xs leading-snug text-(--dash-muted) ${
+              compact ? "min-h-8" : "min-h-10"
             }`}
             title={subValue}
           >
             {subValue || "\u00A0"}
           </p>
-          <div className={`flex min-h-[1.25rem] items-center ${compact ? "mt-1" : "mt-2"}`}>
+          <div
+            className={`flex min-h-5 items-center ${compact ? "mt-1" : "mt-2"}`}
+          >
             {typeof trend === "number" ? (
               <div
                 className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-medium ${
                   trendUp
-                    ? "bg-[var(--dash-success)]/12 text-[var(--dash-success)]"
-                    : "bg-[var(--dash-danger)]/12 text-[var(--dash-danger)]"
+                    ? "bg-(--dash-success)/12 text-(--dash-success)"
+                    : "bg-(--dash-danger)/12 text-(--dash-danger)"
                 }`}
               >
                 {trendUp ? (
@@ -95,6 +101,8 @@ export default function StatCard({
                 )}
                 {Math.abs(trend).toFixed(1)}%
               </div>
+            ) : badge ? (
+              badge
             ) : null}
           </div>
         </div>
@@ -104,7 +112,10 @@ export default function StatCard({
           }`}
           style={{ backgroundColor: tone.soft, color: tone.hex }}
         >
-          <Icon className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} strokeWidth={1.75} />
+          <Icon
+            className={compact ? "h-3.5 w-3.5" : "h-4 w-4"}
+            strokeWidth={1.75}
+          />
         </div>
       </div>
     </motion.div>
