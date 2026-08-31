@@ -1777,7 +1777,10 @@
       "tailors": "الخياطون",
       "customDesign": "تفصيل المخوّر",
       "aboutUs": "من نحن",
-      "contact": "اتصل بنا"
+      "contact": "اتصل بنا",
+      "joinOurCommunity": "انضم إلينا",
+      "motdGuide": "دليل MOTD",
+      "contactUs": "اتصل بنا"
     },
     "customerLinks": {
       "trackOrder": "تتبع الطلب",
