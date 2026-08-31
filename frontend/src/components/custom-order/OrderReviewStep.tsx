@@ -62,7 +62,9 @@ export default function OrderReviewStep() {
 
   const [addons, setAddons] = useState<any[]>([]);
   const [loadingAddons, setLoadingAddons] = useState(false);
+
   const [showAllAddons, setShowAllAddons] = useState(false);
+
   const [showMoreAddons, setShowMoreAddons] = useState(false);
 
   const selectedFabricShopId = useMemo(() => {
@@ -90,21 +92,59 @@ export default function OrderReviewStep() {
   }, []);
 
   const selectedStoreAddons = useMemo(() => {
-    if (!selectedFabricShopId) return [];
+    if (usingOwnFabric || !selectedFabricShopId) return [];
     return addons.filter((a) => a.fabricShopId === selectedFabricShopId);
-  }, [addons, selectedFabricShopId]);
+  }, [addons, selectedFabricShopId, usingOwnFabric]);
 
   const otherStoreAddons = useMemo(() => {
-    if (!selectedFabricShopId) return addons;
+    if (usingOwnFabric || !selectedFabricShopId) return addons;
     return addons.filter((a) => a.fabricShopId !== selectedFabricShopId);
-  }, [addons, selectedFabricShopId]);
+  }, [addons, selectedFabricShopId, usingOwnFabric]);
 
+  const availableAddons = useMemo(() => {
+    if (usingOwnFabric || !selectedFabricShopId) {
+      return addons;
+    }
+    return [...selectedStoreAddons, ...otherStoreAddons];
+  }, [addons, usingOwnFabric, selectedFabricShopId, selectedStoreAddons, otherStoreAddons]);
+
+  const displayedAddons = useMemo(() => {
+    const selectedIds = new Set(draft.addonIds || []);
+
+    if (usingOwnFabric || !selectedFabricShopId) {
+      const selected = addons.filter((a) => selectedIds.has(a._id));
+      const rest = addons.filter((a) => !selectedIds.has(a._id));
+      const ordered = [...selected, ...rest];
+      const minVisible = Math.max(5, selected.length);
+
+      if (showMoreAddons || ordered.length <= minVisible) {
+        return ordered;
+      }
+      return ordered.slice(0, minVisible);
+    } else {
+      const selectedOther = otherStoreAddons.filter((a) => selectedIds.has(a._id));
+      const unselectedOther = otherStoreAddons.filter((a) => !selectedIds.has(a._id));
+
+      if (showMoreAddons) {
+        return [...selectedStoreAddons, ...selectedOther, ...unselectedOther];
+      } else {
+        return [...selectedStoreAddons, ...selectedOther];
+      }
+    }
+  }, [addons, usingOwnFabric, selectedFabricShopId, selectedStoreAddons, otherStoreAddons, showMoreAddons, draft.addonIds]);
+
+  const hiddenAddonCount = useMemo(() => {
+    if (usingOwnFabric || !selectedFabricShopId) {
+      return Math.max(0, addons.length - displayedAddons.length);
+    } else {
+      const selectedIds = new Set(draft.addonIds || []);
+      const unselectedOther = otherStoreAddons.filter((a) => !selectedIds.has(a._id));
+      return showMoreAddons ? 0 : unselectedOther.length;
   const availableAddons = useMemo(() => {
     if (!selectedFabricShopId || showAllAddons) {
       return [...selectedStoreAddons, ...otherStoreAddons];
     }
-    return selectedStoreAddons;
-  }, [showAllAddons, selectedFabricShopId, selectedStoreAddons, otherStoreAddons]);
+  }, [addons.length, displayedAddons.length, usingOwnFabric, selectedFabricShopId, otherStoreAddons, showMoreAddons, draft.addonIds]);
 
   const displayedAddons = useMemo(() => {
     const selectedIds = new Set(draft.addonIds || []);
@@ -443,6 +483,10 @@ export default function OrderReviewStep() {
                     })}
                   </div>
 
+
+                  {/* Toggle Button */}
+                  {((usingOwnFabric || !selectedFabricShopId) ? addons.length > 5 : otherStoreAddons.length > 0) && (
+
                   {(hiddenAddonCount > 0 || showMoreAddons) &&
                     availableAddons.length > INITIAL_VISIBLE_ADDONS && (
                     <button
@@ -457,11 +501,21 @@ export default function OrderReviewStep() {
                   )}
 
                   {selectedFabricShopId && otherStoreAddons.length > 0 && (
+
                     <button
                       type="button"
-                      onClick={() => setShowAllAddons(!showAllAddons)}
+                      onClick={() => setShowMoreAddons((prev) => !prev)}
                       className="w-full text-center py-2.5 text-[10px] font-ui uppercase tracking-[0.2em] border border-dashed border-gray-200 bg-gray-50/50 hover:bg-gray-50 text-gray-500 hover:text-black transition mt-2 hover:cursor-pointer rounded-lg"
                     >
+
+                      {showMoreAddons
+                        ? t("showLessAddons")
+                        : (usingOwnFabric || !selectedFabricShopId)
+                          ? t("showMoreAddons", { count: hiddenAddonCount })
+                          : (locale === "ar"
+                              ? `عرض إضافات المتاجر الأخرى (+${hiddenAddonCount})`
+                              : `Show other stores' add-ons (+${hiddenAddonCount})`)
+                      }
                       {showAllAddons
                         ? (locale === "ar" ? "إخفاء إضافات المتاجر الأخرى" : "Hide other stores' add-ons")
                         : (locale === "ar" ? `عرض إضافات المتاجر الأخرى (+${otherStoreAddons.length})` : `Show other stores' add-ons (+${otherStoreAddons.length})`)}
