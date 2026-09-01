@@ -118,10 +118,12 @@ export function ReadyToWearSection() {
   }, [emblaApi]);
 
   useEffect(() => {
-    if (window.location.hash === "#ready-made") {
+    if (typeof window !== "undefined" && window.location.hash === "#ready-made") {
       const timer = setTimeout(() => {
         const element = document.getElementById("ready-made");
-        if (element) {
+        if ((window as any).lenis) {
+          (window as any).lenis.scrollTo(element || "#ready-made", { offset: -80, duration: 1.2 });
+        } else if (element) {
           element.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       }, 150);
@@ -204,7 +206,7 @@ export function ReadyToWearSection() {
 
   if (loading) {
     return (
-      <section id="ready-made" className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16">
+      <section id="ready-made" className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16 scroll-mt-20">
         <HomeSectionSkeleton showFilters={false} cardCount={4} />
       </section>
     );
@@ -231,7 +233,7 @@ export function ReadyToWearSection() {
   return (
     <section
       id="ready-made"
-      className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16"
+      className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16 scroll-mt-20"
     >
       {toastMessage && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-black text-white px-6 py-3 rounded-lg shadow-lg [font-family:var(--font-ui)] text-sm tracking-wide animate-fade-in-up">

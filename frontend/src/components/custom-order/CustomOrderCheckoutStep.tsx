@@ -127,6 +127,7 @@ export default function CustomOrderCheckoutStep() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const orderCompletedRef = useRef(false);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [trackingUrl, setTrackingUrl] = useState<string | null>(null);
   const [successOrderItems, setSuccessOrderItems] = useState<
@@ -291,7 +292,14 @@ export default function CustomOrderCheckoutStep() {
   }, [isLoading, isAuthenticated, isHydrated, locale, router]);
 
   useEffect(() => {
-    if (!isHydrated || isLoading || !isAuthenticated || showSuccess) return;
+    if (
+      !isHydrated ||
+      isLoading ||
+      !isAuthenticated ||
+      showSuccess ||
+      orderCompletedRef.current
+    )
+      return;
 
     if (!previewPayload) {
       router.push(getCustomOrderResumePath(draft));
@@ -631,6 +639,7 @@ export default function CustomOrderCheckoutStep() {
             t("unknownDesign"),
         })),
       );
+      orderCompletedRef.current = true;
       resetOrder();
       setShowSuccess(true);
     } catch (err: unknown) {
@@ -1309,7 +1318,7 @@ export default function CustomOrderCheckoutStep() {
         isOpen={showSuccess}
         onClose={() => {
           setShowSuccess(false);
-          router.push("/");
+          window.location.href = `/${locale}`;
         }}
         title={t("successTitle")}
         message={t("successMessage")}

@@ -240,6 +240,20 @@ export function TrendingSection() {
     }
   }, [filteredDesigns, emblaApi]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#designs") {
+      const timer = setTimeout(() => {
+        const element = document.getElementById("designs");
+        if ((window as any).lenis) {
+          (window as any).lenis.scrollTo(element || "#designs", { offset: -80, duration: 1.2 });
+        } else if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   const eyebrowClass = `[font-family:var(--font-ui)] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-2 xs:mb-3 flex items-center gap-2 xs:gap-3 ${
     isArabic
       ? "text-[14px] xs:text-[11px] sm:text-[12px] md:text-[11px] lg:text-[12px] xl:text-[14px]"
@@ -335,7 +349,7 @@ export function TrendingSection() {
     return (
       <section
         id="designs"
-        className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16"
+        className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16 scroll-mt-20"
       >
         <HomeSectionSkeleton showFilters cardCount={4} />
       </section>
@@ -363,7 +377,7 @@ export function TrendingSection() {
   return (
     <section
       id="designs"
-      className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16"
+      className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16 scroll-mt-20"
     >
       <div className="w-full px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) mx-auto">
         {/* Section Header */}

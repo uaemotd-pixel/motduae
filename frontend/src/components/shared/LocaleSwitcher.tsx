@@ -55,13 +55,13 @@ const LocaleSwitcher = () => {
         to-[#F2EEE8]
         shadow-sm
         hover:shadow-md
-        transition-all
+        transition-colors
+        transition-shadow
         duration-300
         cursor-pointer
       "
     >
       <motion.div
-        layout
         transition={{
           type: "spring",
           stiffness: 500,
