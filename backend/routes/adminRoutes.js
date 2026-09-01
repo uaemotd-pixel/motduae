@@ -47,6 +47,7 @@ import {
   getAdminApplication,
 } from "../services/partnerApplication/partnerApplicationService.js";
 import { seedShopFromApplication } from "../services/partnerApplication/seedShopFromApplication.js";
+import { mailAfterPartnerDecision } from "../services/partnerApplication/partnerApplicationMail.js";
 import {
   PartnerApplicationError,
   assertPartnerDecisionAllowed,
@@ -1326,6 +1327,7 @@ adminRouter.patch(
         tailor.rejectionNote = "";
         tailor.approvalNote = approvalNote;
         const updatedTailor = await tailor.save();
+        await mailAfterPartnerDecision(updatedTailor, "approved");
         res.send({
           message: "Tailor approved successfully",
           user: {
@@ -1379,6 +1381,10 @@ adminRouter.patch(
         tailor.rejectionNote = rejectionNote;
         tailor.approvalNote = "";
         const updatedTailor = await tailor.save();
+        await mailAfterPartnerDecision(updatedTailor, "rejected", {
+          rejectionNote,
+          rejectedAtMs: Date.now(),
+        });
         res.send({
           message: "Tailor rejected",
           user: {
@@ -1490,6 +1496,7 @@ adminRouter.patch(
         store.rejectionNote = "";
         store.approvalNote = approvalNote;
         const updatedStore = await store.save();
+        await mailAfterPartnerDecision(updatedStore, "approved");
         res.send({
           message: "Fabric store approved successfully",
           user: {
@@ -1541,6 +1548,10 @@ adminRouter.patch(
         store.rejectionNote = rejectionNote;
         store.approvalNote = "";
         const updatedStore = await store.save();
+        await mailAfterPartnerDecision(updatedStore, "rejected", {
+          rejectionNote,
+          rejectedAtMs: Date.now(),
+        });
         res.send({
           message: "Fabric store rejected",
           user: {

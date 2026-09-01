@@ -3,6 +3,7 @@ import User from "../../models/User.js";
 import TailorShop from "../../models/TailorShop.js";
 import FabricShop from "../../models/FabricShop.js";
 import { notifyPartnerApplicationSubmitted } from "../emailVerification/partnerSubmission.js";
+import { sendPartnerLifecycleEmail } from "./partnerApplicationMail.js";
 import {
   ABOUT_MAX_LENGTH,
   MAKE_TIMES,
@@ -352,6 +353,9 @@ export async function submitApplication(user) {
 
   await notifyPartnerApplicationSubmitted(owner, {
     resubmitted: isResubmit,
+    resubmitCount: Number(doc.resubmitCount) || 0,
+  });
+  await sendPartnerLifecycleEmail(owner, isResubmit ? "resubmitted" : "submitted", {
     resubmitCount: Number(doc.resubmitCount) || 0,
   });
 

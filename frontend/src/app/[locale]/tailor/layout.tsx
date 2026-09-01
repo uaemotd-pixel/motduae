@@ -10,6 +10,7 @@ import TailorRejectedState from "@/components/tailor/TailorRejectedState";
 import TailorPortalShell from "@/components/tailor/TailorPortalShell";
 import PartnerApplyChrome from "@/components/partner/PartnerApplyChrome";
 import { SectionLoadingSkeleton } from "@/components/ui/Skeleton";
+import { resolvePartnerPortalGate } from "@/lib/auth/partnerPortalGate";
 
 export default function TailorLayout({ children }: { children: React.ReactNode }) {
     const t = useTranslations("TailorPortal");
@@ -18,9 +19,12 @@ export default function TailorLayout({ children }: { children: React.ReactNode }
     const pathname = usePathname();
     const locale = params.locale === "ar" ? "ar" : "en";
     const { user, isLoading } = useAuth();
-
-    const submitted = Boolean(user?.applicationSubmittedAt);
-    const isApplyPath = pathname.includes("/tailor/apply");
+    const gate = resolvePartnerPortalGate({
+        portal: "tailor",
+        user,
+        pathname,
+    });
+    const redirectTo = gate.screen === "redirect" ? gate.to : null;
 
     useEffect(() => {
         if (isLoading) return;
@@ -36,12 +40,12 @@ export default function TailorLayout({ children }: { children: React.ReactNode }
             return;
         }
 
-        if (user.approvalStatus === "pending" && !submitted && !isApplyPath) {
-            router.replace("/tailor/apply");
+        if (redirectTo) {
+            router.replace(redirectTo);
         }
-    }, [isLoading, locale, router, user, submitted, isApplyPath]);
+    }, [isLoading, locale, router, user, redirectTo]);
 
-    if (isLoading) {
+    if (isLoading || gate.screen === "redirect") {
         return (
             <div className="min-h-screen bg-white">
                 <SectionLoadingSkeleton variant="dashboard" />
@@ -49,12 +53,11 @@ export default function TailorLayout({ children }: { children: React.ReactNode }
         );
     }
 
-    if (!user || user.role !== "tailor") {
+    if (!user || user.role !== "tailor" || gate.screen === "empty") {
         return null;
     }
 
-    if (user.approvalStatus === "pending" && !submitted) {
-        if (!isApplyPath) return null;
+    if (gate.screen === "apply") {
         return (
             <PartnerApplyChrome
                 logoutRedirect="/auth/login?redirect=/tailor"
@@ -65,22 +68,11 @@ export default function TailorLayout({ children }: { children: React.ReactNode }
         );
     }
 
-    if (user.approvalStatus === "pending") {
+    if (gate.screen === "wait") {
         return <TailorPendingState />;
     }
 
-    if (user.approvalStatus === "rejected" && isApplyPath) {
-        return (
-            <PartnerApplyChrome
-                logoutRedirect="/auth/login?redirect=/tailor"
-                logoutLabel={t("logout")}
-            >
-                {children}
-            </PartnerApplyChrome>
-        );
-    }
-
-    if (user.approvalStatus === "rejected") {
+    if (gate.screen === "rejected") {
         return <TailorRejectedState />;
     }
 

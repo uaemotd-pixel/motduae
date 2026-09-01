@@ -8,6 +8,10 @@ export const EMAIL_EVENTS = {
   OPS_CONTACT: "ops.contact",
   ORDER_RETAIL_PLACED: "order.retail.placed",
   ORDER_CUSTOM_PLACED: "order.custom.placed",
+  PARTNER_SUBMITTED: "partner.submitted",
+  PARTNER_RESUBMITTED: "partner.resubmitted",
+  PARTNER_APPROVED: "partner.approved",
+  PARTNER_REJECTED: "partner.rejected",
 };
 
 export function buildDedupeKey(event, parts = []) {
