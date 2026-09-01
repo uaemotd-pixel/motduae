@@ -43,6 +43,8 @@ addOnRoutes.get("/", async (req, res) => {
       seasonAr: p.seasonAr,
       colors: p.colors,
       isActive: p.isActive,
+      fabricShopId: p.fabricShopId ? String(p.fabricShopId) : null,
+      ownerName: p.ownerName || "MOTD Admin",
     }));
 
     res.json({

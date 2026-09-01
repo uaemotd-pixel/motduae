@@ -41,6 +41,7 @@ export interface FabricListItem {
   tagColor?: string;
   pricePerMeter: number;
   listedByStore?: string | FabricStoreInfo | null;
+  fabricShopId?: string | null;
   stockInMeters: number;
   fabricUnit: FabricUnitValue;
   pricePerUnit: number;
