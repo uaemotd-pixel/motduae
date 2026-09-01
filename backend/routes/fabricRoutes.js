@@ -32,6 +32,11 @@ const toListItem = (fabric) => ({
         }
       : null,
   stockInMeters: fabric.stockInMeters,
+  fabricShopId: fabric.fabricShopId
+    ? String(fabric.fabricShopId._id || fabric.fabricShopId)
+    : fabric.listedByStore
+      ? String(fabric.listedByStore._id || fabric.listedByStore)
+      : null,
   minAge: fabric.minAge,
   maxAge: fabric.maxAge,
 });
@@ -149,6 +154,11 @@ const toDetailItem = (fabric) => ({
           name: fabric.listedByStore.name,
           role: fabric.listedByStore.role,
         }
+      : null,
+  fabricShopId: fabric.fabricShopId
+    ? String(fabric.fabricShopId._id || fabric.fabricShopId)
+    : fabric.listedByStore
+      ? String(fabric.listedByStore._id || fabric.listedByStore)
       : null,
   createdAt: fabric.createdAt,
   updatedAt: fabric.updatedAt,
