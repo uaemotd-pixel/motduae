@@ -205,12 +205,29 @@ export function AddOnsSection() {
   }
 
   if (products.length === 0) {
-    return null;
+    return (
+      <section
+        className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16 scroll-mt-20"
+        id="addons-section"
+      >
+        <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto text-center">
+          <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-2 block">
+            {isAr ? "إضافات و إكسسوارات" : "Accessory Add-Ons"}
+          </span>
+          <h2 className="[font-family:var(--font-display)] text-[28px] md:text-[36px] font-normal text-black mb-4">
+            {isAr ? "إضافات مختارة" : "Featured Add-Ons"}
+          </h2>
+          <p className="text-sm text-(--color-grey-muted) [font-family:var(--font-body)]">
+            {isAr ? "لا توجد إضافات متاحة حالياً" : "No add-ons currently available"}
+          </p>
+        </div>
+      </section>
+    );
   }
 
   return (
     <section
-      className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16"
+      className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16 scroll-mt-20"
       id="addons-section"
     >
       <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto">
