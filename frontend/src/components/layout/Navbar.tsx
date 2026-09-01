@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { GlobalProgressBar } from "../shared/GlobalProgressBar";
 import { useAuth } from "@/context/AuthContext";
 import LocaleSwitcher from "../shared/LocaleSwitcher";
@@ -89,6 +89,8 @@ const LogOutIcon = ({ className }: { className?: string }) => (
 
 export function Navbar() {
   const params = useParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const localParams = params.locale as string;
   const isArabic = localParams === "ar";
   const t = getTranslation(localParams);
@@ -97,6 +99,40 @@ export function Navbar() {
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLLIElement>(null);
+
+  const handleScrollToSection = (e: React.MouseEvent, targetId: string) => {
+    e.preventDefault();
+    setDropdownOpen(false);
+    closeMenu();
+
+    const isHome =
+      pathname === "/" ||
+      pathname === "" ||
+      pathname === `/${localParams}` ||
+      pathname === `/${localParams}/`;
+    const targetElement = document.getElementById(targetId);
+
+    if (isHome && targetElement) {
+      if ((window as any).lenis) {
+        (window as any).lenis.scrollTo(targetElement, {
+          offset: -80,
+          duration: 1.2,
+        });
+      } else {
+        const navbarHeight = 80;
+        const elementPosition = targetElement.getBoundingClientRect().top;
+        const offsetPosition =
+          elementPosition + window.pageYOffset - navbarHeight;
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: "smooth",
+        });
+      }
+      window.history.pushState(null, "", `/#${targetId}`);
+    } else {
+      router.push(`/#${targetId}`);
+    }
+  };
   const { user, isLoading, logout } = useAuth();
   const accountLabel = user ? t.navbar.actions.account : t.navbar.actions.login;
   const { items } = useCart();
@@ -275,14 +311,14 @@ export function Navbar() {
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-44 bg-white border border-(--color-border) rounded-lg shadow-lg py-2.5 z-50 flex flex-col text-center">
                 <Link
                   href="/#designs"
-                  onClick={() => setDropdownOpen(false)}
+                  onClick={(e) => handleScrollToSection(e, "designs")}
                   className="px-4 py-2 text-[10px] uppercase tracking-[0.14em] text-black hover:bg-[#FAF9F6] transition font-medium"
                 >
                   {isArabic ? "مخوّر" : "Mukhawar"}
                 </Link>
                 <Link
                   href="/#ready-made"
-                  onClick={() => setDropdownOpen(false)}
+                  onClick={(e) => handleScrollToSection(e, "ready-made")}
                   className="px-4 py-2 text-[10px] uppercase tracking-[0.14em] text-black hover:bg-[#FAF9F6] transition border-t border-[#FAF9F6] font-medium"
                 >
                   {isArabic ? "جاهز للارتداء" : "Ready to Wear"}
@@ -437,10 +473,7 @@ export function Navbar() {
                     <Link
                       href="/#designs"
                       className={`${mobileNavLinkClass} text-[10px] text-black/70`}
-                      onClick={() => {
-                        setDropdownOpen(false);
-                        closeMenu();
-                      }}
+                      onClick={(e) => handleScrollToSection(e, "designs")}
                     >
                       {isArabic ? "مخوّر" : "Mukhawar"}
                     </Link>
@@ -449,10 +482,7 @@ export function Navbar() {
                     <Link
                       href="/#ready-made"
                       className={`${mobileNavLinkClass} text-[10px] text-black/70`}
-                      onClick={() => {
-                        setDropdownOpen(false);
-                        closeMenu();
-                      }}
+                      onClick={(e) => handleScrollToSection(e, "ready-made")}
                     >
                       {isArabic ? "جاهز للارتداء" : "Ready to Wear"}
                     </Link>

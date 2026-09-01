@@ -35,7 +35,39 @@ export default function LenisProvider({ children }: { children: React.ReactNode 
             autoResize: true,
         });
 
-        lenis.scrollTo(0, { immediate: true });
+        (window as any).lenis = lenis;
+
+        if (typeof window !== "undefined" && window.location.hash) {
+            const hash = window.location.hash;
+            const scrollToHash = () => {
+                try {
+                    const target = document.querySelector(hash);
+                    if (target) {
+                        lenis.scrollTo(target as HTMLElement, { offset: -80, duration: 1.2 });
+                    }
+                } catch {
+                    // Ignore invalid selector
+                }
+            };
+            setTimeout(scrollToHash, 150);
+            setTimeout(scrollToHash, 500);
+        } else {
+            lenis.scrollTo(0, { immediate: true });
+        }
+
+        const handleHashChange = () => {
+            if (typeof window !== "undefined" && window.location.hash) {
+                try {
+                    const target = document.querySelector(window.location.hash);
+                    if (target) {
+                        lenis.scrollTo(target as HTMLElement, { offset: -80, duration: 1.2 });
+                    }
+                } catch {
+                    // Ignore invalid selector
+                }
+            }
+        };
+        window.addEventListener("hashchange", handleHashChange);
 
         const resizeAfterPaint = () => {
             requestAnimationFrame(() => lenis.resize());
@@ -53,7 +85,9 @@ export default function LenisProvider({ children }: { children: React.ReactNode 
         return () => {
             window.removeEventListener("load", resizeAfterPaint);
             window.removeEventListener("resize", resizeAfterPaint);
+            window.removeEventListener("hashchange", handleHashChange);
             resizeTimeouts.forEach((id) => window.clearTimeout(id));
+            delete (window as any).lenis;
             lenis.destroy();
             resetScrollStyles();
         };
