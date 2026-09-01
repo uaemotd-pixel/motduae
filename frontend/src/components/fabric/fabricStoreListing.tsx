@@ -4,14 +4,15 @@ import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
+import { getFilterOptionLabel, formatFilterLabel, getProductTagLabel } from "@/lib/format";
 import {
   type FabricListItem,
-  formatMaterialLabel,
   getFabricDisplayFields,
   resolveFabricImage,
 } from "@/lib/fabrics";
 import { Share2, ChevronDown, ChevronUp } from "lucide-react";
 import FadeInSection from "@/components/shared/fadeInSection";
+import WishlistButton from "@/components/shared/wishlistButton";
 import colors from "../shared/colors";
 import { ProductGridSkeleton } from "@/components/ui/Skeleton";
 
@@ -20,6 +21,76 @@ interface FilterOption {
   name: string;
   nameAr?: string;
   isActive?: boolean;
+}
+
+interface FabricCatalogItem extends FabricListItem {
+  minAge?: number;
+  maxAge?: number;
+  materialAr?: string;
+  tagAr?: string;
+  pattern?: string;
+  patternAr?: string;
+  season?: string;
+  seasonAr?: string;
+}
+
+const PRICE_MAX = 100000;
+const AGE_MAX = 120;
+
+function fabricMatchesCategory(
+  fabric: FabricCatalogItem,
+  category: FilterOption,
+): boolean {
+  return fabric.material === category._id || fabric.material === category.name;
+}
+
+function fabricMatchesCatalogOption(
+  fabric: FabricCatalogItem,
+  option: FilterOption,
+  field: "material" | "pattern" | "season" | "tag",
+): boolean {
+  const values: Record<typeof field, { value?: string; valueAr?: string }> = {
+    material: { value: fabric.material, valueAr: fabric.materialAr },
+    pattern: { value: fabric.pattern, valueAr: fabric.patternAr },
+    season: { value: fabric.season, valueAr: fabric.seasonAr },
+    tag: { value: fabric.tag, valueAr: fabric.tagAr },
+  };
+  const { value, valueAr } = values[field];
+
+  if (!value && !valueAr) return false;
+
+  return (
+    option._id === value ||
+    option.name === value ||
+    (!!valueAr && (option.nameAr === valueAr || option.name === valueAr))
+  );
+}
+
+function fabricMatchesColorValue(
+  fabricColors: string[] | string | undefined,
+  colorVal: string,
+): boolean {
+  if (!fabricColors) return false;
+  const colorsArray = Array.isArray(fabricColors)
+    ? fabricColors
+    : [fabricColors];
+  return colorsArray.some((col) => {
+    const normalized = col.toLowerCase();
+    return (
+      normalized.includes(colorVal.toLowerCase()) ||
+      colorVal.toLowerCase().includes(normalized)
+    );
+  });
+}
+
+function fabricMatchesColorFilter(
+  fabricColors: string[] | string | undefined,
+  selectedColors: string[],
+): boolean {
+  if (selectedColors.length === 0) return true;
+  return selectedColors.some((colorVal) =>
+    fabricMatchesColorValue(fabricColors, colorVal),
+  );
 }
 
 interface FilterState {
@@ -31,6 +102,8 @@ interface FilterState {
   tags: string[];
   minPrice: number;
   maxPrice: number;
+  ageMin: number;
+  ageMax: number;
   inStockOnly: boolean;
 }
 
@@ -133,10 +206,12 @@ const ColorDropdown = ({
   selected,
   onChange,
   isAr,
+  colorCounts,
 }: {
   selected: string[];
   onChange: (value: string[]) => void;
   isAr: boolean;
+  colorCounts: Record<string, number>;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -220,14 +295,18 @@ const ColorDropdown = ({
             <button
               key={c.value}
               onClick={() => toggleColor(c.value)}
-              className={`w-full px-4 py-2.5 text-left text-[11px] tracking-[0.14em] flex items-center gap-3 hover:bg-[#EDE8E0] transition cursor-pointer ${selected.includes(c.value) ? "bg-[#EDE8E0]" : ""
-                }`}
+              className={`w-full px-4 py-2.5 text-left text-[11px] tracking-[0.14em] flex items-center gap-3 hover:bg-[#EDE8E0] transition cursor-pointer ${
+                selected.includes(c.value) ? "bg-[#EDE8E0]" : ""
+              }`}
             >
               <span
                 className="w-4 h-4 rounded-full shrink-0 border border-[#C8C4BC]"
                 style={{ backgroundColor: c.hex }}
               />
               <span className="flex-1">{isAr ? c.ar : c.en}</span>
+              <span className="text-[10px] text-[#8A8A80] font-mono">
+                ({colorCounts[c.value] ?? 0})
+              </span>
               {selected.includes(c.value) && (
                 <svg
                   className="w-4 h-4 text-black"
@@ -256,129 +335,76 @@ const ColorDropdown = ({
   );
 };
 
-const PriceRangeSlider = ({
-  minPrice,
-  maxPrice,
+const RangeSlider = ({
+  min,
+  max,
+  step = 1,
+  minValue,
+  maxValue,
   onMinChange,
   onMaxChange,
+  formatValue,
 }: {
-  minPrice: number;
-  maxPrice: number;
+  min: number;
+  max: number;
+  step?: number;
+  minValue: number;
+  maxValue: number;
   onMinChange: (value: number) => void;
   onMaxChange: (value: number) => void;
+  formatValue?: (value: number) => string;
 }) => {
-  const [localMin, setLocalMin] = useState(String(minPrice));
-  const [localMax, setLocalMax] = useState(String(maxPrice));
-  const minTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const format = formatValue ?? ((value: number) => String(value));
+  const span = max - min || 1;
+  const minPercent = ((minValue - min) / span) * 100;
+  const maxPercent = ((maxValue - min) / span) * 100;
 
-  useEffect(() => setLocalMin(String(minPrice)), [minPrice]);
-  useEffect(() => setLocalMax(String(maxPrice)), [maxPrice]);
-
-  useEffect(() => {
-    return () => {
-      if (minTimerRef.current) clearTimeout(minTimerRef.current);
-      if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
-    };
-  }, []);
-
-  const debouncedMinChange = (value: number) => {
-    if (minTimerRef.current) clearTimeout(minTimerRef.current);
-    minTimerRef.current = setTimeout(() => onMinChange(value), 300);
-  };
-
-  const debouncedMaxChange = (value: number) => {
-    if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
-    maxTimerRef.current = setTimeout(() => onMaxChange(value), 300);
-  };
-
-  const commitMin = (raw: string) => {
-    const parsed = raw === "" ? minPrice : Number(raw);
-    if (Number.isNaN(parsed)) {
-      setLocalMin(String(minPrice));
-      return;
-    }
-    const maxVal = Number(localMax);
-    const clamped = Math.min(
-      Math.max(0, parsed),
-      Number.isNaN(maxVal) ? 100000 : maxVal,
-      100000,
-    );
-    setLocalMin(String(clamped));
-    if (minTimerRef.current) clearTimeout(minTimerRef.current);
-    onMinChange(clamped);
-  };
-
-  const commitMax = (raw: string) => {
-    const parsed = raw === "" ? maxPrice : Number(raw);
-    if (Number.isNaN(parsed)) {
-      setLocalMax(String(maxPrice));
-      return;
-    }
-    const minVal = Number(localMin);
-    const clamped = Math.max(
-      Math.min(parsed, 100000),
-      Number.isNaN(minVal) ? 0 : minVal,
-    );
-    setLocalMax(String(clamped));
-    if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
-    onMaxChange(clamped);
-  };
+  const thumbClass =
+    "pointer-events-none absolute inset-0 w-full h-5 appearance-none bg-transparent [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:bg-transparent [&::-moz-range-track]:h-1 [&::-moz-range-track]:bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:mt-[-6px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-black [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-black [&::-moz-range-thumb]:cursor-pointer";
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between text-[13px] font-mono text-[#7A7A72]">
-        <span>AED 0</span>
-        <span>AED 100000</span>
+    <div className="space-y-3">
+      <div className="flex justify-between text-[11px] font-mono text-[#7A7A72]">
+        <span>{format(minValue)}</span>
+        <span>{format(maxValue)}</span>
       </div>
 
-      <div className="flex gap-2 pt-1">
-        <input
-          type="number"
-          min={0}
-          max={100000}
-          step={1}
-          value={localMin}
-          onChange={(e) => {
-            const raw = e.target.value;
-            setLocalMin(raw);
-            if (raw === "") return;
-            const val = Number(raw);
-            const maxVal = Number(localMax);
-            if (
-              !Number.isNaN(val) &&
-              val >= 0 &&
-              val <= 100000 &&
-              (Number.isNaN(maxVal) || val <= maxVal)
-            ) {
-              debouncedMinChange(val);
-            }
+      <div className="relative h-5">
+        <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#E4E0D8]" />
+        <div
+          className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-black"
+          style={{
+            left: `${minPercent}%`,
+            width: `${Math.max(maxPercent - minPercent, 0)}%`,
           }}
-          onBlur={() => commitMin(localMin)}
-          className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition cursor-pointer"
         />
         <input
-          type="number"
-          min={0}
-          max={100000}
-          step={1}
-          value={localMax}
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={minValue}
           onChange={(e) => {
-            const raw = e.target.value;
-            setLocalMax(raw);
-            if (raw === "") return;
-            const val = Number(raw);
-            const minVal = Number(localMin);
-            if (
-              !Number.isNaN(val) &&
-              val <= 100000 &&
-              (Number.isNaN(minVal) || val >= minVal)
-            ) {
-              debouncedMaxChange(val);
-            }
+            const next = Number(e.target.value);
+            if (Number.isNaN(next)) return;
+            onMinChange(Math.min(next, maxValue));
           }}
-          onBlur={() => commitMax(localMax)}
-          className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition cursor-pointer"
+          className={`${thumbClass} z-10`}
+          aria-label="Minimum value"
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={maxValue}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            if (Number.isNaN(next)) return;
+            onMaxChange(Math.max(next, minValue));
+          }}
+          className={`${thumbClass} z-20`}
+          aria-label="Maximum value"
         />
       </div>
     </div>
@@ -453,11 +479,12 @@ const Pagination = ({
           className={`
             min-w-10 h-10 px-2 flex items-center justify-center rounded-lg font-mono text-[13px] tracking-wide
             transition-all duration-200 cursor-pointer
-            ${page === currentPage
-              ? "bg-black text-white border-black"
-              : page === "..."
-                ? "border-transparent cursor-default text-[#8A8A80]"
-                : "border border-[#E4E0D8] bg-transparent text-black hover:border-black hover:bg-black hover:text-white"
+            ${
+              page === currentPage
+                ? "bg-black text-white border-black"
+                : page === "..."
+                  ? "border-transparent cursor-default text-[#8A8A80]"
+                  : "border border-[#E4E0D8] bg-transparent text-black hover:border-black hover:bg-black hover:text-white"
             }
           `}
         >
@@ -525,7 +552,7 @@ export default function FabricsCatalogPage() {
   );
 
   const [mounted, setMounted] = useState(false);
-  const [fabrics, setFabrics] = useState<FabricListItem[]>([]);
+  const [fabrics, setFabrics] = useState<FabricCatalogItem[]>([]);
   const [categories, setCategories] = useState<FilterOption[]>([]);
   const [materials, setMaterials] = useState<FilterOption[]>([]);
   const [patterns, setPatterns] = useState<FilterOption[]>([]);
@@ -544,7 +571,9 @@ export default function FabricsCatalogPage() {
     seasons: [],
     tags: [],
     minPrice: 0,
-    maxPrice: 100000,
+    maxPrice: PRICE_MAX,
+    ageMin: 0,
+    ageMax: AGE_MAX,
     inStockOnly: false,
   });
 
@@ -562,8 +591,8 @@ export default function FabricsCatalogPage() {
         setFetchError(null);
         const data = await api.get<{
           success: boolean;
-          items: FabricListItem[];
-        }>("/api/fabrics");
+          items: FabricCatalogItem[];
+        }>("/api/fabrics?limit=100");
 
         if (!data?.success) {
           throw new Error("Failed to load fabrics");
@@ -637,124 +666,167 @@ export default function FabricsCatalogPage() {
   const categoryOptions = useMemo(() => {
     return categories.map((cat) => ({
       id: cat._id,
-      label: isAr ? cat.nameAr || cat.name : cat.name,
-      count: fabrics.filter((f) => f.material === cat.name).length,
+      label: getFilterOptionLabel(cat, isAr),
+      count: fabrics.filter((fabric) => fabricMatchesCategory(fabric, cat))
+        .length,
     }));
   }, [categories, fabrics, isAr]);
 
-  const matchesColorFilter = (
-    fabricColors: string[] | string | undefined,
-    selectedColors: string[],
-  ) => {
-    if (selectedColors.length === 0) return true;
-    if (!fabricColors) return false;
-    const colorsArray = Array.isArray(fabricColors)
-      ? fabricColors
-      : [fabricColors];
-    return colorsArray.some((col) => {
-      const normalized = col.toLowerCase();
-      return selectedColors.some(
-        (value) => normalized.includes(value) || value.includes(normalized),
-      );
-    });
-  };
+  const materialOptions = useMemo(() => {
+    return materials.map((mat) => ({
+      id: mat._id,
+      label: getFilterOptionLabel(mat, isAr),
+      count: fabrics.filter((fabric) =>
+        fabricMatchesCatalogOption(fabric, mat, "material"),
+      ).length,
+    }));
+  }, [materials, fabrics, isAr]);
 
-  let filteredFabrics = fabrics.filter((item) => {
-    // Category filter
-    if (filters.categories.length > 0) {
-      if (!item.material) return false;
-      const isMatch = filters.categories.some(
-        (catId) =>
-          catId === item.material ||
-          categories.some((c) => c._id === catId && c.name === item.material),
-      );
-      if (!isMatch) return false;
-    }
+  const patternOptions = useMemo(() => {
+    return patterns.map((pat) => ({
+      id: pat._id,
+      label: getFilterOptionLabel(pat, isAr),
+      count: fabrics.filter((fabric) =>
+        fabricMatchesCatalogOption(fabric, pat, "pattern"),
+      ).length,
+    }));
+  }, [patterns, fabrics, isAr]);
 
-    // Color filter
-    if (!matchesColorFilter(item.color, filters.colors)) return false;
+  const seasonOptions = useMemo(() => {
+    return seasons.map((sea) => ({
+      id: sea._id,
+      label: getFilterOptionLabel(sea, isAr),
+      count: fabrics.filter((fabric) =>
+        fabricMatchesCatalogOption(fabric, sea, "season"),
+      ).length,
+    }));
+  }, [seasons, fabrics, isAr]);
 
-    // Material filter
-    if (filters.materials.length > 0) {
-      const itemMat = item.material;
-      if (!itemMat) return false;
-      const isMatch = filters.materials.some(
-        (matId) =>
-          matId === itemMat ||
-          materials.some((m) => m._id === matId && m.name === itemMat),
-      );
-      if (!isMatch) return false;
-    }
+  const tagOptions = useMemo(() => {
+    return tags.map((tag) => ({
+      id: tag._id,
+      label: getFilterOptionLabel(tag, isAr),
+      count: fabrics.filter((fabric) =>
+        fabricMatchesCatalogOption(fabric, tag, "tag"),
+      ).length,
+    }));
+  }, [tags, fabrics, isAr]);
 
-    // Pattern filter
-    if (filters.patterns.length > 0) {
-      const itemPat = (item as any).pattern;
-      if (!itemPat) return false;
-      const isMatch = filters.patterns.some(
-        (patId) =>
-          patId === itemPat ||
-          patterns.some((p) => p._id === patId && p.name === itemPat),
-      );
-      if (!isMatch) return false;
-    }
+  const colorCounts = useMemo(() => {
+    return colors.reduce<Record<string, number>>((acc, color) => {
+      acc[color.value] = fabrics.filter((fabric) =>
+        fabricMatchesColorValue(fabric.color, color.value),
+      ).length;
+      return acc;
+    }, {});
+  }, [fabrics]);
 
-    // Season filter
-    if (filters.seasons.length > 0) {
-      const itemSeason = (item as any).season;
-      if (!itemSeason) return false;
-      const isMatch = filters.seasons.some(
-        (seaId) =>
-          seaId === itemSeason ||
-          seasons.some((s) => s._id === seaId && s.name === itemSeason),
-      );
-      if (!isMatch) return false;
-    }
+  const getOptionLabel = useCallback(
+    (options: FilterOption[], id: string) => {
+      const found = options.find((option) => option._id === id);
+      if (found) return getFilterOptionLabel(found, isAr);
+      return formatFilterLabel(id);
+    },
+    [isAr],
+  );
 
-    // Tags filter
-    if (filters.tags.length > 0) {
-      const itemTags = (item as any).tags;
-      if (!itemTags || !Array.isArray(itemTags)) return false;
-      const hasTag = itemTags.some((t: string) =>
-        filters.tags.some(
-          (tagId) =>
-            tagId === t ||
-            tags.some((tag) => tag._id === tagId && tag.name === t),
-        ),
-      );
-      if (!hasTag) return false;
-    }
-
-    // Price filter
-    const price = item.pricePerMeter ?? 0;
-    if (price < filters.minPrice || price > filters.maxPrice) {
-      return false;
-    }
-
-    // Stock filter
-    if (filters.inStockOnly) {
-      if (item.stockInMeters === 0) {
-        return false;
+  const filteredFabrics = useMemo(() => {
+    let result = fabrics.filter((item) => {
+      if (filters.categories.length > 0) {
+        if (!item.material) return false;
+        const isMatch = filters.categories.some(
+          (catId) =>
+            catId === item.material ||
+            categories.some((c) => c._id === catId && c.name === item.material),
+        );
+        if (!isMatch) return false;
       }
-    }
-    return true;
-  });
 
-  switch (sortBy) {
-    case "price-low":
-      filteredFabrics.sort(
+      if (!fabricMatchesColorFilter(item.color, filters.colors)) return false;
+
+      if (filters.materials.length > 0) {
+        const itemMat = isAr ? item.materialAr || item.material : item.material;
+        if (!itemMat) return false;
+        const isMatch = filters.materials.some(
+          (matId) =>
+            matId === itemMat ||
+            materials.some((m) => m._id === matId && m.name === itemMat),
+        );
+        if (!isMatch) return false;
+      }
+
+      if (filters.patterns.length > 0) {
+        const itemPat = isAr ? item.patternAr || item.pattern : item.pattern;
+        if (!itemPat) return false;
+        const isMatch = filters.patterns.some(
+          (patId) =>
+            patId === itemPat ||
+            patterns.some((p) => p._id === patId && p.name === itemPat),
+        );
+        if (!isMatch) return false;
+      }
+
+      if (filters.seasons.length > 0) {
+        const itemSeason = isAr ? item.seasonAr || item.season : item.season;
+        if (!itemSeason) return false;
+        const isMatch = filters.seasons.some(
+          (seaId) =>
+            seaId === itemSeason ||
+            seasons.some((s) => s._id === seaId && s.name === itemSeason),
+        );
+        if (!isMatch) return false;
+      }
+
+      if (filters.tags.length > 0) {
+        const itemTag = isAr ? item.tagAr || item.tag : item.tag;
+        if (!itemTag) return false;
+        const isMatch = filters.tags.some(
+          (tagId) =>
+            tagId === itemTag ||
+            tags.some((tag) => tag._id === tagId && tag.name === itemTag),
+        );
+        if (!isMatch) return false;
+      }
+
+      const price = item.pricePerMeter ?? 0;
+      if (price < filters.minPrice || price > filters.maxPrice) return false;
+
+      const hasAgeFilter = filters.ageMin !== 0 || filters.ageMax !== AGE_MAX;
+      if (hasAgeFilter) {
+        const rangeMin = item.minAge ?? 0;
+        const rangeMax = item.maxAge ?? AGE_MAX;
+        if (rangeMax < filters.ageMin || rangeMin > filters.ageMax) {
+          return false;
+        }
+      }
+
+      if (filters.inStockOnly && item.stockInMeters === 0) return false;
+
+      return true;
+    });
+
+    if (sortBy === "price-low") {
+      result = [...result].sort(
         (a, b) => (a.pricePerMeter || 0) - (b.pricePerMeter || 0),
       );
-      break;
-    case "price-high":
-      filteredFabrics.sort(
+    } else if (sortBy === "price-high") {
+      result = [...result].sort(
         (a, b) => (b.pricePerMeter || 0) - (a.pricePerMeter || 0),
       );
-      break;
-    case "newest":
-    default:
-      filteredFabrics = [...filteredFabrics];
-      break;
-  }
+    }
+
+    return result;
+  }, [
+    fabrics,
+    filters,
+    categories,
+    materials,
+    patterns,
+    seasons,
+    tags,
+    isAr,
+    sortBy,
+  ]);
 
   const totalPages = Math.ceil(filteredFabrics.length / fabricsPerPage);
   const startIndex = (currentPage - 1) * fabricsPerPage;
@@ -770,7 +842,9 @@ export default function FabricsCatalogPage() {
     filters.seasons.length > 0 ||
     filters.tags.length > 0 ||
     filters.minPrice > 0 ||
-    filters.maxPrice < 100000 ||
+    filters.maxPrice < PRICE_MAX ||
+    filters.ageMin > 0 ||
+    filters.ageMax < AGE_MAX ||
     filters.inStockOnly;
 
   const toggleCategory = (id: string) => {
@@ -832,18 +906,41 @@ export default function FabricsCatalogPage() {
   };
 
   const setMinPrice = (value: number) => {
-    setFilters((prev) => ({
-      ...prev,
-      minPrice: value,
-    }));
+    setFilters((prev) => {
+      const clampedMin = Math.max(0, Math.min(PRICE_MAX, value));
+      const clampedMax = Math.max(
+        clampedMin,
+        Math.min(PRICE_MAX, prev.maxPrice),
+      );
+      return { ...prev, minPrice: clampedMin, maxPrice: clampedMax };
+    });
     setCurrentPage(1);
   };
 
   const setMaxPrice = (value: number) => {
-    setFilters((prev) => ({
-      ...prev,
-      maxPrice: value,
-    }));
+    setFilters((prev) => {
+      const clampedMax = Math.max(0, Math.min(PRICE_MAX, value));
+      const clampedMin = Math.min(clampedMax, Math.max(0, prev.minPrice));
+      return { ...prev, maxPrice: clampedMax, minPrice: clampedMin };
+    });
+    setCurrentPage(1);
+  };
+
+  const setAgeMin = (value: number) => {
+    setFilters((prev) => {
+      const clampedMin = Math.max(0, Math.min(AGE_MAX, value));
+      const clampedMax = Math.max(clampedMin, Math.min(AGE_MAX, prev.ageMax));
+      return { ...prev, ageMin: clampedMin, ageMax: clampedMax };
+    });
+    setCurrentPage(1);
+  };
+
+  const setAgeMax = (value: number) => {
+    setFilters((prev) => {
+      const clampedMax = Math.max(0, Math.min(AGE_MAX, value));
+      const clampedMin = Math.min(clampedMax, Math.max(0, prev.ageMin));
+      return { ...prev, ageMax: clampedMax, ageMin: clampedMin };
+    });
     setCurrentPage(1);
   };
 
@@ -861,7 +958,9 @@ export default function FabricsCatalogPage() {
       seasons: [],
       tags: [],
       minPrice: 0,
-      maxPrice: 100000,
+      maxPrice: PRICE_MAX,
+      ageMin: 0,
+      ageMax: AGE_MAX,
       inStockOnly: false,
     });
     setCurrentPage(1);
@@ -911,6 +1010,7 @@ export default function FabricsCatalogPage() {
           selected={filters.colors}
           onChange={setColorFilter}
           isAr={isAr}
+          colorCounts={colorCounts}
         />
       </div>
 
@@ -921,17 +1021,20 @@ export default function FabricsCatalogPage() {
           count={filters.materials.length}
         >
           <div className="flex flex-col gap-2">
-            {materials.map((mat) => (
+            {materialOptions.map((mat) => (
               <label
-                key={mat._id}
+                key={mat.id}
                 className="flex items-center gap-3 cursor-pointer group"
               >
                 <CustomCheckbox
-                  checked={filters.materials.includes(mat._id)}
-                  onChange={() => toggleMaterial(mat._id)}
+                  checked={filters.materials.includes(mat.id)}
+                  onChange={() => toggleMaterial(mat.id)}
                 />
                 <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
-                  {isAr ? mat.nameAr || mat.name : mat.name}
+                  {mat.label}
+                </span>
+                <span className="text-[10px] text-[#8A8A80] font-mono">
+                  ({mat.count})
                 </span>
               </label>
             ))}
@@ -946,17 +1049,20 @@ export default function FabricsCatalogPage() {
           count={filters.patterns.length}
         >
           <div className="flex flex-col gap-2">
-            {patterns.map((pat) => (
+            {patternOptions.map((pat) => (
               <label
-                key={pat._id}
+                key={pat.id}
                 className="flex items-center gap-3 cursor-pointer group"
               >
                 <CustomCheckbox
-                  checked={filters.patterns.includes(pat._id)}
-                  onChange={() => togglePattern(pat._id)}
+                  checked={filters.patterns.includes(pat.id)}
+                  onChange={() => togglePattern(pat.id)}
                 />
                 <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
-                  {isAr ? pat.nameAr || pat.name : pat.name}
+                  {pat.label}
+                </span>
+                <span className="text-[10px] text-[#8A8A80] font-mono">
+                  ({pat.count})
                 </span>
               </label>
             ))}
@@ -971,17 +1077,20 @@ export default function FabricsCatalogPage() {
           count={filters.seasons.length}
         >
           <div className="flex flex-col gap-2">
-            {seasons.map((sea) => (
+            {seasonOptions.map((sea) => (
               <label
-                key={sea._id}
+                key={sea.id}
                 className="flex items-center gap-3 cursor-pointer group"
               >
                 <CustomCheckbox
-                  checked={filters.seasons.includes(sea._id)}
-                  onChange={() => toggleSeason(sea._id)}
+                  checked={filters.seasons.includes(sea.id)}
+                  onChange={() => toggleSeason(sea.id)}
                 />
                 <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
-                  {isAr ? sea.nameAr || sea.name : sea.name}
+                  {sea.label}
+                </span>
+                <span className="text-[10px] text-[#8A8A80] font-mono">
+                  ({sea.count})
                 </span>
               </label>
             ))}
@@ -996,17 +1105,20 @@ export default function FabricsCatalogPage() {
           count={filters.tags.length}
         >
           <div className="flex flex-col gap-2">
-            {tags.map((tag) => (
+            {tagOptions.map((tag) => (
               <label
-                key={tag._id}
+                key={tag.id}
                 className="flex items-center gap-3 cursor-pointer group"
               >
                 <CustomCheckbox
-                  checked={filters.tags.includes(tag._id)}
-                  onChange={() => toggleTag(tag._id)}
+                  checked={filters.tags.includes(tag.id)}
+                  onChange={() => toggleTag(tag.id)}
                 />
                 <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
-                  {isAr ? tag.nameAr || tag.name : tag.name}
+                  {tag.label}
+                </span>
+                <span className="text-[10px] text-[#8A8A80] font-mono">
+                  ({tag.count})
                 </span>
               </label>
             ))}
@@ -1014,18 +1126,37 @@ export default function FabricsCatalogPage() {
         </CollapsibleFilter>
       )}
 
-      {/* Price Range - 7th */}
+      {/* Price Range */}
       <div className="border-b border-[#E4E0D8] pb-4">
         <FilterLabel>{isAr ? "نطاق السعر" : "Price Range"}</FilterLabel>
-        <PriceRangeSlider
-          minPrice={filters.minPrice}
-          maxPrice={filters.maxPrice}
+        <RangeSlider
+          min={0}
+          max={PRICE_MAX}
+          step={100}
+          minValue={filters.minPrice}
+          maxValue={filters.maxPrice}
           onMinChange={setMinPrice}
           onMaxChange={setMaxPrice}
+          formatValue={(value) => `AED ${value.toLocaleString()}`}
         />
       </div>
 
-      {/* Availability - 8th (last) */}
+      {/* Age Range */}
+      <div className="border-b border-[#E4E0D8] pb-4">
+        <FilterLabel>{isAr ? "الفئة العمرية" : "Age Range"}</FilterLabel>
+        <RangeSlider
+          min={0}
+          max={AGE_MAX}
+          step={1}
+          minValue={filters.ageMin}
+          maxValue={filters.ageMax}
+          onMinChange={setAgeMin}
+          onMaxChange={setAgeMax}
+          formatValue={(value) => (isAr ? `${value} سنة` : `${value} yrs`)}
+        />
+      </div>
+
+      {/* Availability */}
       <div className="border-b border-[#E4E0D8] pb-4">
         <FilterLabel>{isAr ? "المتوفر" : "Availability"}</FilterLabel>
         <label className="flex items-center gap-3 cursor-pointer group">
@@ -1108,14 +1239,15 @@ export default function FabricsCatalogPage() {
 
                 {hasActiveFilters && (
                   <div className="flex items-center gap-2 flex-wrap">
-                    {filters.categories.map((cat) => (
+                    {filters.categories.map((catId) => (
                       <span
-                        key={cat}
+                        key={catId}
                         className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
                       >
-                        {cat}
+                        {getOptionLabel(categories, catId)}
                         <button
-                          onClick={() => toggleCategory(cat)}
+                          type="button"
+                          onClick={() => toggleCategory(catId)}
                           className="hover:opacity-70 flex items-center justify-center cursor-pointer"
                         >
                           <svg
@@ -1147,15 +1279,14 @@ export default function FabricsCatalogPage() {
                               backgroundColor: colorObj?.hex || "#000",
                             }}
                           />
-                          {color}
+                          {isAr ? colorObj?.ar || color : colorObj?.en || color}
                           <button
-                            onClick={() => {
-                              setFilters((prev) => ({
-                                ...prev,
-                                colors: prev.colors.filter((c) => c !== color),
-                              }));
-                              setCurrentPage(1);
-                            }}
+                            type="button"
+                            onClick={() =>
+                              setColorFilter(
+                                filters.colors.filter((c) => c !== color),
+                              )
+                            }
                             className="hover:opacity-70 flex items-center justify-center cursor-pointer"
                           >
                             <svg
@@ -1175,14 +1306,152 @@ export default function FabricsCatalogPage() {
                         </span>
                       );
                     })}
-                    {(filters.minPrice > 0 || filters.maxPrice < 100000) && (
+                    {filters.materials.map((matId) => (
+                      <span
+                        key={matId}
+                        className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                      >
+                        {getOptionLabel(materials, matId)}
+                        <button
+                          type="button"
+                          onClick={() => toggleMaterial(matId)}
+                          className="hover:opacity-70 flex items-center justify-center cursor-pointer"
+                        >
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                    {filters.patterns.map((patId) => (
+                      <span
+                        key={patId}
+                        className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                      >
+                        {getOptionLabel(patterns, patId)}
+                        <button
+                          type="button"
+                          onClick={() => togglePattern(patId)}
+                          className="hover:opacity-70 flex items-center justify-center cursor-pointer"
+                        >
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                    {filters.seasons.map((seaId) => (
+                      <span
+                        key={seaId}
+                        className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                      >
+                        {getOptionLabel(seasons, seaId)}
+                        <button
+                          type="button"
+                          onClick={() => toggleSeason(seaId)}
+                          className="hover:opacity-70 flex items-center justify-center cursor-pointer"
+                        >
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                    {filters.tags.map((tagId) => (
+                      <span
+                        key={tagId}
+                        className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                      >
+                        {getOptionLabel(tags, tagId)}
+                        <button
+                          type="button"
+                          onClick={() => toggleTag(tagId)}
+                          className="hover:opacity-70 flex items-center justify-center cursor-pointer"
+                        >
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                    {(filters.minPrice > 0 || filters.maxPrice < PRICE_MAX) && (
                       <span className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full">
                         AED {filters.minPrice.toLocaleString()} - AED{" "}
                         {filters.maxPrice.toLocaleString()}
                         <button
+                          type="button"
                           onClick={() => {
                             setMinPrice(0);
-                            setMaxPrice(100000);
+                            setMaxPrice(PRICE_MAX);
+                          }}
+                          className="hover:opacity-70 flex items-center justify-center cursor-pointer"
+                        >
+                          <svg
+                            className="w-3 h-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </span>
+                    )}
+                    {(filters.ageMin > 0 || filters.ageMax < AGE_MAX) && (
+                      <span className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full">
+                        {isAr
+                          ? `${filters.ageMin}-${filters.ageMax} سنة`
+                          : `${filters.ageMin}-${filters.ageMax} yrs`}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAgeMin(0);
+                            setAgeMax(AGE_MAX);
                           }}
                           className="hover:opacity-70 flex items-center justify-center cursor-pointer"
                         >
@@ -1316,9 +1585,11 @@ export default function FabricsCatalogPage() {
                     const image = resolveFabricImage(
                       fabric.images ?? undefined,
                     );
-                    const material = fabric.material
-                      ? formatMaterialLabel(fabric.material, locale)
-                      : null;
+                    const tagLabel = getProductTagLabel(
+                      isAr ? fabric.tagAr || fabric.tag : fabric.tag,
+                      isAr,
+                      tags,
+                    );
                     const price = fabric.pricePerMeter ?? 0;
 
                     return (
@@ -1339,18 +1610,43 @@ export default function FabricsCatalogPage() {
 
                             <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-                            <button
-                              type="button"
-                              aria-label={isAr ? "مشاركة" : "Share"}
-                              onClick={async (e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                await handleShare(`/fabrics/${fabric.slug}`);
-                              }}
-                              className="absolute top-2 xs:top-3 right-2 z-20 p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform cursor-pointer"
-                            >
-                              <Share2 className="w-4 h-4 text-black" />
-                            </button>
+                            <span className="absolute top-1.5 left-1.5 z-10 px-1.5 py-px text-[8px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.14em] font-bold shadow-sm text-white bg-black max-w-[calc(100%-3.75rem)] truncate">
+                              {tagLabel}
+                            </span>
+
+                            <div className="absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5">
+                              <button
+                                type="button"
+                                aria-label={isAr ? "مشاركة" : "Share"}
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  await handleShare(`/fabrics/${fabric.slug}`);
+                                }}
+                                className="flex items-center justify-center w-6 h-6 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform cursor-pointer border-0 shrink-0"
+                              >
+                                <Share2 className="w-2.5 h-2.5 text-black" />
+                              </button>
+
+                              <WishlistButton
+                                item={{
+                                  id: fabric._id,
+                                  name: title,
+                                  image,
+                                  price,
+                                  slug: fabric.slug,
+                                  size: "Per Meter",
+                                  quantity: 1,
+                                  type: "fabric",
+                                  ...(Number.isFinite(fabric.stockInMeters)
+                                    ? { maxStock: fabric.stockInMeters }
+                                    : {}),
+                                }}
+                                inline
+                                className="flex items-center justify-center w-6 h-6 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 shrink-0 p-0"
+                                iconClassName="w-2.5 h-2.5"
+                              />
+                            </div>
                           </Link>
 
                           <Link
@@ -1401,12 +1697,10 @@ export default function FabricsCatalogPage() {
                               )}
                           </div>
 
-                          {material && (
-                            <p className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.24em] text-[#8A8A80] mb-2 font-normal">
-                              {isAr ? "المادة: " : "MATERIAL: "}
-                              {material.toUpperCase()}
-                            </p>
-                          )}
+                          <p className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.24em] text-[#8A8A80] mb-2 font-normal">
+                            {isAr ? "الوسم: " : "TAG: "}
+                            {tagLabel.toUpperCase()}
+                          </p>
 
                           <p className="[font-family:var(--font-body)] text-[12px] sm:text-[13px] leading-relaxed text-[#8A8A80] line-clamp-2 font-normal grow">
                             {description}

@@ -13,6 +13,7 @@ import {
   ReadyMadeListItem,
   resolveReadyMadeImage,
 } from "@/lib/readyMade";
+import { getProductTagLabel } from "@/lib/format";
 import WishlistButton from "@/components/shared/wishlistButton";
 import { ProductGridSkeleton } from "@/components/ui/Skeleton";
 
@@ -486,21 +487,6 @@ const Pagination = ({
 };
 
 export default function ReadyMadeCatalogPage() {
-  const colorMap: Record<string, string> = {
-    red: "#EF4444",
-    blue: "#3B82F6",
-    green: "#22C55E",
-    black: "#000000",
-    white: "#FFFFFF",
-    gold: "#F59E0B",
-    silver: "#9CA3AF",
-    ivory: "#F5F0E8",
-    sand: "#E8E4DC",
-    pink: "#B76E79",
-    copper: "#B87333",
-    gray: "#708090",
-  };
-
   const params = useParams();
   const locale = params.locale === "ar" ? "ar" : "en";
   const isAr = locale === "ar";
@@ -1349,77 +1335,21 @@ export default function ReadyMadeCatalogPage() {
                         locale,
                       );
                       const image = resolveReadyMadeImage(product.images?.[0]);
-                      const tag = isAr
-                        ? product.tagAr || product.tag
-                        : product.tag;
-                      const tagColor = product.tagColor;
+                      const tagLabel = getProductTagLabel(
+                        isAr ? product.tagAr || product.tag : product.tag,
+                        isAr,
+                        tags,
+                      );
                       const price = product.finalSellingPriceAED ?? 0;
                       const tailorName = isAr
                         ? product.tailorNameAr || product.tailorName
                         : product.tailorName;
-
-                      const bgColor = tagColor
-                        ? colorMap[tagColor] || "#000000"
-                        : "#000000";
-                      const textColor = ["white", "gold", "silver"].includes(
-                        tagColor || "",
-                      )
-                        ? "#000000"
-                        : "#FFFFFF";
 
                       return (
                         <div
                           key={product._id}
                           className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-500 flex flex-col h-full"
                         >
-                          {tag && (
-                            <span
-                              className="absolute top-4 left-4 z-10 px-2.5 xs:px-3 py-1 xs:py-1.25 text-[10px] xs:text-[12px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.24em] font-bold shadow-sm"
-                              style={{
-                                backgroundColor: bgColor,
-                                color: textColor,
-                              }}
-                            >
-                              {tag}
-                            </span>
-                          )}
-
-                          <div className="absolute top-2 right-2 z-20 flex items-center gap-1">
-                            <button
-                              type="button"
-                              aria-label={isAr ? "مشاركة" : "Share"}
-                              onClick={async (e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                await handleShare(
-                                  `/ready-made/${product.slug}`,
-                                );
-                              }}
-                              className="flex items-center justify-center w-6 h-6 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform cursor-pointer border-0 shrink-0"
-                            >
-                              <Share2 className="w-3 h-3 text-black" />
-                            </button>
-
-                            <WishlistButton
-                              item={{
-                                id: product._id,
-                                name: title,
-                                image: image,
-                                price: price,
-                                slug: product.slug,
-                                size: String(product.metersPerFabric ?? ""),
-                                type: "readyMade",
-                                quantity: 1,
-                                ...(Number.isFinite(
-                                  product.availableFabricStock,
-                                )
-                                  ? { maxStock: product.availableFabricStock }
-                                  : {}),
-                              }}
-                              className="relative! top-0! right-0! translate-x-0! [&>button]:w-6! [&>button]:h-6! [&>button]:min-w-0! [&>button]:min-h-0! [&>button]:p-0! [&>button]:m-0! [&>button]:bg-white/90! [&>button]:backdrop-blur-sm! [&>button]:shadow-sm! [&>button]:rounded-full!"
-                            />
-                          </div>
-
                           <div className="p-4 flex flex-col grow text-left">
                             <Link
                               href={`/ready-made/${product.slug}`}
@@ -1430,7 +1360,54 @@ export default function ReadyMadeCatalogPage() {
                                 alt={title}
                                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                               />
+
                               <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+                              {tagLabel && (
+                                <span className="absolute top-1.5 left-1.5 z-10 px-1.5 py-px text-[8px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.14em] font-bold shadow-sm text-white bg-black max-w-[calc(100%-3.75rem)] truncate">
+                                  {tagLabel}
+                                </span>
+                              )}
+
+                              <div className="absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5">
+                                <button
+                                  type="button"
+                                  aria-label={isAr ? "مشاركة" : "Share"}
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    await handleShare(
+                                      `/ready-made/${product.slug}`,
+                                    );
+                                  }}
+                                  className="flex items-center justify-center w-6 h-6 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform cursor-pointer border-0 shrink-0"
+                                >
+                                  <Share2 className="w-2.5 h-2.5 text-black" />
+                                </button>
+
+                                <WishlistButton
+                                  item={{
+                                    id: product._id,
+                                    name: title,
+                                    image: image,
+                                    price: price,
+                                    slug: product.slug,
+                                    size: String(product.metersPerFabric ?? ""),
+                                    type: "readyMade",
+                                    quantity: 1,
+                                    ...(Number.isFinite(
+                                      product.availableFabricStock,
+                                    )
+                                      ? {
+                                          maxStock: product.availableFabricStock,
+                                        }
+                                      : {}),
+                                  }}
+                                  inline
+                                  className="flex items-center justify-center w-6 h-6 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 shrink-0 p-0"
+                                  iconClassName="w-2.5 h-2.5"
+                                />
+                              </div>
                             </Link>
 
                             <Link
