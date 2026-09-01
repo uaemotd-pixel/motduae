@@ -1,4 +1,5 @@
 import type { Locale } from "@/i18n/routing";
+import { formatFilterLabel } from "@/lib/format";
 import { formatCurrency } from "@/lib/format";
 
 export type FabricMaterial = string;
@@ -167,10 +168,8 @@ export function filterFabricsByMaterial(
 }
 
 export function formatMaterialLabel(material: string, locale: Locale): string {
-  // Simple fallback: materials are now fetched dynamically from the API
-  // which provides name (English) and nameAr (Arabic) fields.
-  // This function can be used as a generic fallback if dynamic data isn't available.
-  return material;
+  void locale;
+  return formatFilterLabel(material);
 }
 
 export function formatPickupAddress(

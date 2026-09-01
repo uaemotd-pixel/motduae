@@ -1,5 +1,5 @@
 import type { Locale } from "@/i18n/routing";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatFilterLabel } from "@/lib/format";
 import { resolveFabricImage, WARA_TO_METERS } from "@/lib/fabrics";
 import { resolveMediaUrl } from "@/lib/media";
 
@@ -154,7 +154,7 @@ export function formatDesignCategory(category: string, locale: Locale): string {
   };
 
   const entry = labels[category as DesignCategory];
-  if (!entry) return category;
+  if (!entry) return formatFilterLabel(category);
   return locale === "ar" ? entry.ar : entry.en;
 }
 
