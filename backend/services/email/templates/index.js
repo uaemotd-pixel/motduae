@@ -3,6 +3,7 @@ import { passwordResetTemplate } from "./passwordReset.js";
 import { contactTemplate } from "./contact.js";
 import { otpTemplate } from "./emailOtp.js";
 import { orderPlacedTemplate } from "./orderPlaced.js";
+import { partnerApplicationTemplate } from "./partnerApplication.js";
 import { EMAIL_EVENTS } from "../emailEvents.js";
 
 const registry = {
@@ -12,6 +13,10 @@ const registry = {
   [EMAIL_EVENTS.OPS_CONTACT]: contactTemplate,
   [EMAIL_EVENTS.ORDER_RETAIL_PLACED]: orderPlacedTemplate,
   [EMAIL_EVENTS.ORDER_CUSTOM_PLACED]: orderPlacedTemplate,
+  [EMAIL_EVENTS.PARTNER_SUBMITTED]: partnerApplicationTemplate,
+  [EMAIL_EVENTS.PARTNER_RESUBMITTED]: partnerApplicationTemplate,
+  [EMAIL_EVENTS.PARTNER_APPROVED]: partnerApplicationTemplate,
+  [EMAIL_EVENTS.PARTNER_REJECTED]: partnerApplicationTemplate,
 };
 
 export function getTemplate(event) {

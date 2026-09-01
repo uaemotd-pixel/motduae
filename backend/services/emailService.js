@@ -130,3 +130,54 @@ export async function sendOrderPlacedEmail({
     },
   );
 }
+
+const PARTNER_APPLICATION_EVENTS = {
+  submitted: EMAIL_EVENTS.PARTNER_SUBMITTED,
+  resubmitted: EMAIL_EVENTS.PARTNER_RESUBMITTED,
+  approved: EMAIL_EVENTS.PARTNER_APPROVED,
+  rejected: EMAIL_EVENTS.PARTNER_REJECTED,
+};
+
+export async function sendPartnerApplicationEmail({
+  kind,
+  to,
+  name,
+  userId,
+  requestNumber,
+  role,
+  portalUrl,
+  rejectionNote,
+  resubmitCount,
+  rejectedAtMs,
+}) {
+  const event = PARTNER_APPLICATION_EVENTS[kind];
+  if (!event) {
+    throw new Error(`Unknown partner application email kind: ${kind}`);
+  }
+
+  const dedupeParts = [userId];
+  if (kind === "resubmitted") {
+    dedupeParts.push(resubmitCount);
+  } else if (kind === "rejected") {
+    dedupeParts.push(rejectedAtMs);
+  }
+
+  return send(
+    event,
+    {
+      kind,
+      to,
+      name,
+      userId,
+      requestNumber,
+      role,
+      portalUrl,
+      rejectionNote: kind === "rejected" ? rejectionNote : undefined,
+    },
+    {
+      to,
+      userId,
+      dedupeKey: buildDedupeKey(event, dedupeParts),
+    },
+  );
+}

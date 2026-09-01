@@ -23,6 +23,19 @@ function isAllowedRedirectForRole(url: string, role: string): boolean {
   return true;
 }
 
+function isPartnerApplyPath(path: string): boolean {
+  return (
+    path === "/tailor/apply" ||
+    path === "/fabric/apply" ||
+    path.startsWith("/tailor/apply/") ||
+    path.startsWith("/fabric/apply/")
+  );
+}
+
+function partnerDashboardPath(role: string): string {
+  return role === "fabric_store" ? "/fabric" : "/tailor";
+}
+
 export function getPostLoginPath(
   user: User,
   redirectUrl?: string | null,
@@ -36,14 +49,22 @@ export function getPostLoginPath(
     normalizedRedirect &&
     isAllowedRedirectForRole(normalizedRedirect, role)
   ) {
+    if (
+      user.approvalStatus === "approved" &&
+      isPartnerApplyPath(normalizedRedirect)
+    ) {
+      return partnerDashboardPath(role);
+    }
     return normalizedRedirect;
   }
 
   if (role === "admin" || role === "sub-admin") return "/admin";
   if (role === "tailor") {
+    if (user.approvalStatus === "approved") return "/tailor";
     return user.applicationSubmittedAt ? "/tailor" : "/tailor/apply";
   }
   if (role === "fabric_store") {
+    if (user.approvalStatus === "approved") return "/fabric";
     return user.applicationSubmittedAt ? "/fabric" : "/fabric/apply";
   }
   return "/";
