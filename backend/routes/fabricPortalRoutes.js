@@ -32,7 +32,10 @@ import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
 import { hydrateRetailOrders } from "../services/retailOrderHydrate.js";
 import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
 import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
-import { createNotification } from "../services/notificationService.js";
+import {
+  createNotification,
+  ensurePartnerPayoutReleasedNotification,
+} from "../services/notificationService.js";
 import { computeFabricUnpaidBreakdown } from "../services/fabricPayoutRequestService.js";
 import {
   isShopProfileComplete,
@@ -2130,23 +2133,33 @@ fabricPortalRouter.get(
 
     // Heal stale pending requests after a manual admin release (no request approve).
     if (breakdown.pendingRequest && breakdown.amount <= 0) {
-      await PartnerPayoutRequest.updateMany(
-        {
+      const staleRequests = await PartnerPayoutRequest.find({
+        partnerKind: "fabric",
+        status: "pending",
+        $or: [
+          { partnerKey: breakdown.identity.partnerKey },
+          { requestedBy: req.user._id },
+        ],
+      });
+
+      for (const requestDoc of staleRequests) {
+        requestDoc.status = "approved";
+        requestDoc.reviewedAt = new Date();
+        requestDoc.adminNote = "Fulfilled by payment release";
+        await requestDoc.save();
+
+        await ensurePartnerPayoutReleasedNotification({
           partnerKind: "fabric",
-          status: "pending",
-          $or: [
-            { partnerKey: breakdown.identity.partnerKey },
-            { requestedBy: req.user._id },
-          ],
-        },
-        {
-          $set: {
-            status: "approved",
-            reviewedAt: new Date(),
-            adminNote: "Fulfilled by payment release",
-          },
-        },
-      );
+          amount: requestDoc.amount,
+          partnerKey: requestDoc.partnerKey,
+          partnerId: requestDoc.partnerId,
+          recipientUserId: requestDoc.requestedBy || req.user._id,
+          requestId: requestDoc._id,
+          payoutId: requestDoc.payoutId,
+          approvedRequest: true,
+        });
+      }
+
       breakdown.pendingRequest = null;
     }
 

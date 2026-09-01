@@ -33,16 +33,18 @@ import PartnerPayout, {
 } from "../models/PartnerPayout.js";
 import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
 import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
-import { createNotification } from "../services/notificationService.js";
+import {
+  createNotification,
+  ensurePartnerPayoutReleasedNotification,
+  notifyCustomStatusChange,
+  notifyRetailStatusChange,
+  resolvePartnerOwnerUserId,
+} from "../services/notificationService.js";
 import {
   uploadSingleAddOnImageMiddleware,
   processAddOnImage,
 } from "../middleware/uploadAddOnImages.js";
 
-import {
-  notifyCustomStatusChange,
-  notifyRetailStatusChange,
-} from "../services/notificationService.js";
 import {
   getAdminApplication,
 } from "../services/partnerApplication/partnerApplicationService.js";
@@ -4356,8 +4358,8 @@ adminRouter.post(
     });
 
     // Manual "Release payment" fulfills any open partner request for this payee.
-    // Without this, tailor/fabric/admin keep showing a pending payout request.
-    const pendingRequests = await PartnerPayoutRequest.find({
+    // Match by partnerKey/partnerId, then fall back to the shop owner's user id.
+    let pendingRequests = await PartnerPayoutRequest.find({
       partnerKind,
       status: "pending",
       $or: [
@@ -4368,6 +4370,23 @@ adminRouter.post(
       ],
     });
 
+    if (pendingRequests.length === 0) {
+      const ownerUserId = await resolvePartnerOwnerUserId(
+        partnerKind,
+        payout.partnerKey,
+        payout.partnerId,
+      );
+      if (ownerUserId) {
+        pendingRequests = await PartnerPayoutRequest.find({
+          partnerKind,
+          status: "pending",
+          requestedBy: ownerUserId,
+        });
+      }
+    }
+
+    let recipientUserId = null;
+
     for (const requestDoc of pendingRequests) {
       requestDoc.status = "approved";
       requestDoc.reviewedBy = req.user._id;
@@ -4377,22 +4396,32 @@ adminRouter.post(
         requestDoc.adminNote || "Fulfilled by payment release";
       await requestDoc.save();
 
-      if (requestDoc.requestedBy) {
-        const amountLabel = new Intl.NumberFormat("en-AE", {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-        }).format(Number(requestDoc.amount) || amountNum);
-        const kind = requestDoc.partnerKind === "tailor" ? "tailor" : "fabric";
-        await createNotification({
-          type: `${kind}_payout_approved`,
-          title: "Payout approved",
-          message: `MOTD released your payout of AED ${amountLabel}.`,
-          audience: "customer",
-          recipientUserId: requestDoc.requestedBy,
-          createdBy: req.user._id,
-          dedupeKey: `${kind}:payout_approved:${requestDoc._id}`,
-        }).catch(() => null);
+      if (requestDoc.requestedBy && !recipientUserId) {
+        recipientUserId = requestDoc.requestedBy;
       }
+    }
+
+    if (!recipientUserId) {
+      recipientUserId = await resolvePartnerOwnerUserId(
+        partnerKind,
+        payout.partnerKey,
+        payout.partnerId,
+      );
+    }
+
+    if (recipientUserId) {
+      const fulfilledRequest = pendingRequests[0] || null;
+      await ensurePartnerPayoutReleasedNotification({
+        partnerKind,
+        amount: amountNum,
+        partnerKey: payout.partnerKey,
+        partnerId: payout.partnerId,
+        recipientUserId,
+        requestId: fulfilledRequest?._id,
+        payoutId: payout._id,
+        createdBy: req.user._id,
+        approvedRequest: Boolean(fulfilledRequest),
+      });
     }
 
     const populated = await PartnerPayout.findById(payout._id)
@@ -4499,6 +4528,18 @@ adminRouter.get(
       requestDoc.adminNote =
         requestDoc.adminNote || "Fulfilled by payment release";
       await requestDoc.save();
+
+      await ensurePartnerPayoutReleasedNotification({
+        partnerKind: requestDoc.partnerKind,
+        amount: requestDoc.amount,
+        partnerKey: requestDoc.partnerKey,
+        partnerId: requestDoc.partnerId,
+        recipientUserId: requestDoc.requestedBy,
+        requestId: requestDoc._id,
+        payoutId: laterRelease._id,
+        createdBy: req.user?._id || null,
+        approvedRequest: true,
+      });
     }
 
     const limitNum = Math.min(Math.max(Number(limit) || 100, 1), 300);
@@ -4583,21 +4624,26 @@ adminRouter.post(
         : "";
     await requestDoc.save();
 
-    if (requestDoc.requestedBy) {
-      const amountLabel = new Intl.NumberFormat("en-AE", {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }).format(amountNum);
-      const kind = requestDoc.partnerKind === "tailor" ? "tailor" : "fabric";
-      await createNotification({
-        type: `${kind}_payout_approved`,
-        title: "Payout approved",
-        message: `MOTD approved your payout request of AED ${amountLabel}.`,
-        audience: "customer",
-        recipientUserId: requestDoc.requestedBy,
+    const recipientUserId =
+      requestDoc.requestedBy ||
+      (await resolvePartnerOwnerUserId(
+        requestDoc.partnerKind,
+        requestDoc.partnerKey,
+        requestDoc.partnerId,
+      ));
+
+    if (recipientUserId) {
+      await ensurePartnerPayoutReleasedNotification({
+        partnerKind: requestDoc.partnerKind,
+        amount: amountNum,
+        partnerKey: requestDoc.partnerKey,
+        partnerId: requestDoc.partnerId,
+        recipientUserId,
+        requestId: requestDoc._id,
+        payoutId: payout._id,
         createdBy: req.user._id,
-        dedupeKey: `${kind}:payout_approved:${requestDoc._id}`,
-      }).catch(() => null);
+        approvedRequest: true,
+      });
     }
 
     const populated = await PartnerPayoutRequest.findById(requestDoc._id)
