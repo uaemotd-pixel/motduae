@@ -322,9 +322,10 @@ export function validateFabricForm(
       validation.price_required || "Please enter a valid price";
   }
 
+  const stockStr = String(form.stockInMeters ?? "").trim();
   const stockVal = Number(form.stockInMeters);
-  if (isNaN(stockVal) || stockVal < 0) {
-    errors.stockInMeters = "Please enter a valid stock amount";
+  if (stockStr === "" || isNaN(stockVal) || stockVal <= 0) {
+    errors.stockInMeters = "Please enter a valid stock amount (must be greater than 0)";
   }
 
   Object.assign(errors, getFabricAgeFieldErrors(form));
@@ -401,10 +402,11 @@ export function validateFabricForm(
         errors[`${prefix}.pricePerMeter`] =
           "Please enter a valid price for variant";
       }
+      const vStockStr = String(v.stockInMeters ?? "").trim();
       const vStock = Number(v.stockInMeters);
-      if (isNaN(vStock) || vStock < 0) {
+      if (vStockStr === "" || isNaN(vStock) || vStock <= 0) {
         errors[`${prefix}.stockInMeters`] =
-          "Please enter a valid stock for variant";
+          "Please enter a valid stock for variant (must be greater than 0)";
       }
       if (!v.images?.some((img) => img.trim())) {
         errors[`${prefix}.images`] =

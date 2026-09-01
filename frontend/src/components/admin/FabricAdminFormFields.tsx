@@ -511,7 +511,9 @@ export default function FabricAdminFormFields({
             type="number"
             step="0.01"
             min="0"
-            value={formData.stockInMeters}
+            value={
+              formData.stockInMeters === 0 ? "" : formData.stockInMeters
+            }
             onChange={(e) => onFieldChange("stockInMeters", e.target.value)}
             className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
             placeholder="100"

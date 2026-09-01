@@ -94,6 +94,10 @@
   /* Large Desktop */
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 html,
 body {
   font-family: var(--font-body);

@@ -988,6 +988,17 @@ adminRouter.post(
       return;
     }
 
+    if (
+      stockInMeters === undefined ||
+      stockInMeters === null ||
+      isNaN(Number(stockInMeters)) ||
+      Number(stockInMeters) <= 0
+    ) {
+      return res.status(400).send({
+        message: "Stock in meters must be greater than 0",
+      });
+    }
+
     // validate Emirate
     if (storePickupAddress?.emirate) {
       const normalizedEmirate = normalizeEmirate(storePickupAddress.emirate);

@@ -527,6 +527,19 @@ fabricPortalRouter.post(
       return;
     }
 
+    if (
+      stockInMeters === undefined ||
+      stockInMeters === null ||
+      isNaN(Number(stockInMeters)) ||
+      Number(stockInMeters) <= 0
+    ) {
+      res.status(400).json({
+        success: false,
+        message: "Stock in meters must be greater than 0",
+      });
+      return;
+    }
+
     if (!Array.isArray(images) || images.length === 0) {
       res
         .status(400)
