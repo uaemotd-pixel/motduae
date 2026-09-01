@@ -1,7 +1,11 @@
 import AdminNotification from "../models/AdminNotification.js";
 import CustomOrder from "../models/CustomOrder.js";
 import RetailOrder from "../models/RetailOrder.js";
+import TailorShop from "../models/TailorShop.js";
+import FabricShop from "../models/FabricShop.js";
+import mongoose from "mongoose";
 import { applyCreatedAtFilter } from "../utils/dateRange.js";
+import { normalizePartnerLabel } from "./fabricPayoutRequestService.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -15,6 +19,12 @@ export const NOTIFICATION_CATEGORIES = {
     "user_fabric_store_registered",
     "user_tailor_application_resubmitted",
     "user_fabric_store_application_resubmitted",
+    "tailor_payout_requested",
+    "fabric_payout_requested",
+    "tailor_payout_approved",
+    "fabric_payout_approved",
+    "tailor_payout_rejected",
+    "fabric_payout_rejected",
   ],
 };
 
@@ -401,6 +411,161 @@ export async function notifyRetailStatusChange(order, status, createdBy) {
   }
 
   return notification;
+}
+
+export function formatPayoutAmount(amount) {
+  return new Intl.NumberFormat("en-AE", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number(amount) || 0);
+}
+
+/**
+ * Resolve the shop owner's user id from a partner payout identity.
+ */
+export async function resolvePartnerOwnerUserId(
+  partnerKind,
+  partnerKey,
+  partnerId,
+) {
+  if (partnerKind === "tailor") {
+    if (partnerId && mongoose.Types.ObjectId.isValid(String(partnerId))) {
+      const shop = await TailorShop.findById(partnerId)
+        .select("ownerId")
+        .lean();
+      if (shop?.ownerId) return shop.ownerId;
+    }
+
+    const keyIdMatch = String(partnerKey || "").match(/^tailor:([a-f0-9]{24})$/i);
+    if (keyIdMatch) {
+      const shop = await TailorShop.findById(keyIdMatch[1])
+        .select("ownerId")
+        .lean();
+      if (shop?.ownerId) return shop.ownerId;
+    }
+
+    const nameMatch = String(partnerKey || "").match(/^tailor:name:(.+)$/i);
+    if (nameMatch) {
+      const norm = nameMatch[1].trim();
+      const shops = await TailorShop.find({}).select("name ownerId").lean();
+      for (const shop of shops) {
+        if (normalizePartnerLabel(shop.name) === norm) return shop.ownerId;
+      }
+    }
+
+    return null;
+  }
+
+  if (partnerKind === "fabric") {
+    if (partnerId && mongoose.Types.ObjectId.isValid(String(partnerId))) {
+      const shopById = await FabricShop.findById(partnerId)
+        .select("ownerId")
+        .lean();
+      if (shopById?.ownerId) return shopById.ownerId;
+
+      const shopByOwner = await FabricShop.findOne({ ownerId: partnerId })
+        .select("ownerId")
+        .lean();
+      if (shopByOwner?.ownerId) return shopByOwner.ownerId;
+    }
+
+    const keyIdMatch = String(partnerKey || "").match(/^fabric:([a-f0-9]{24})$/i);
+    if (keyIdMatch) {
+      const id = keyIdMatch[1];
+      const shopById = await FabricShop.findById(id).select("ownerId").lean();
+      if (shopById?.ownerId) return shopById.ownerId;
+
+      const shopByOwner = await FabricShop.findOne({ ownerId: id })
+        .select("ownerId")
+        .lean();
+      if (shopByOwner?.ownerId) return shopByOwner.ownerId;
+    }
+
+    const nameMatch = String(partnerKey || "").match(/^fabric:name:(.+)$/i);
+    if (nameMatch) {
+      const norm = nameMatch[1].trim();
+      const shops = await FabricShop.find({}).select("name ownerId").lean();
+      for (const shop of shops) {
+        if (normalizePartnerLabel(shop.name) === norm) return shop.ownerId;
+      }
+    }
+
+    return null;
+  }
+
+  return null;
+}
+
+export async function notifyPartnerPayoutReleased({
+  partnerKind,
+  amount,
+  recipientUserId,
+  createdBy = null,
+  dedupeKey,
+  message,
+}) {
+  if (!recipientUserId) return null;
+
+  const kind = partnerKind === "tailor" ? "tailor" : "fabric";
+  const amountLabel = formatPayoutAmount(amount);
+
+  return createNotification({
+    type: `${kind}_payout_approved`,
+    title: "Payout approved",
+    message: message || `MOTD released your payout of AED ${amountLabel}.`,
+    audience: "customer",
+    recipientUserId,
+    createdBy,
+    dedupeKey,
+  });
+}
+
+/**
+ * Notify the partner that a payout was released. Resolves owner when needed.
+ * Safe to call multiple times — dedupeKey prevents duplicates.
+ */
+export async function ensurePartnerPayoutReleasedNotification({
+  partnerKind,
+  amount,
+  partnerKey,
+  partnerId,
+  recipientUserId = null,
+  requestId = null,
+  payoutId = null,
+  createdBy = null,
+  approvedRequest = false,
+}) {
+  if (partnerKind !== "tailor" && partnerKind !== "fabric") {
+    return null;
+  }
+
+  const kind = partnerKind === "tailor" ? "tailor" : "fabric";
+  let userId = recipientUserId;
+
+  if (!userId) {
+    userId = await resolvePartnerOwnerUserId(partnerKind, partnerKey, partnerId);
+  }
+  if (!userId) return null;
+
+  const amountLabel = formatPayoutAmount(amount);
+  const message = approvedRequest
+    ? `MOTD approved your payout request of AED ${amountLabel}.`
+    : `MOTD released your payout of AED ${amountLabel}.`;
+
+  const dedupeKey = requestId
+    ? `${kind}:payout_approved:${requestId}`
+    : `${kind}:payout_released:${payoutId}`;
+
+  if (!requestId && !payoutId) return null;
+
+  return notifyPartnerPayoutReleased({
+    partnerKind,
+    amount,
+    recipientUserId: userId,
+    createdBy,
+    dedupeKey,
+    message,
+  }).catch(() => null);
 }
 
 function buildReturnEnrichment(order) {

@@ -321,6 +321,13 @@ export function getAdminDeepLinkHref(
     };
   }
 
+  if (type.includes("payout_requested")) {
+    return {
+      href: "/admin/payments",
+      label: "Review payout",
+    };
+  }
+
   if (
     (type === "user_customer_registered" || type === "customer_registered") &&
     (notification.customerUserId || notification.createdBy)
