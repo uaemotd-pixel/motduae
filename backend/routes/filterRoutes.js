@@ -5,6 +5,8 @@ import Material from "../models/Material.js";
 import Pattern from "../models/Pattern.js";
 import Season from "../models/Season.js";
 import Tag from "../models/Tag.js";
+import Cut from "../models/Cut.js";
+import { cutValueToMeters, metersToWar } from "../utils/fabricUnits.js";
 
 const filterRoutes = express.Router();
 
@@ -80,6 +82,33 @@ filterRoutes.get("/seasons", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch seasons",
+    });
+  }
+});
+
+// GET /api/filters/cuts
+filterRoutes.get("/cuts", async (req, res) => {
+  try {
+    const cuts = await Cut.find({ isActive: true })
+      .sort({ value: 1, name: 1 })
+      .select("name nameAr value unit isActive");
+
+    res.json(
+      cuts.map((cut) => {
+        const plain = cut.toObject();
+        const metersEquivalent = cutValueToMeters(plain.value, plain.unit);
+        return {
+          ...plain,
+          metersEquivalent,
+          warEquivalent: metersToWar(metersEquivalent),
+        };
+      }),
+    );
+  } catch (error) {
+    console.error("GET /api/filters/cuts error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch cuts",
     });
   }
 });

@@ -39,6 +39,7 @@ import {
   Palette,
   Leaf,
   Tags,
+  Ruler,
   Wallet,
 } from "lucide-react";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
@@ -193,6 +194,7 @@ export default function AdminLayout({
     { label: "General", href: "/admin/settings/general", icon: Settings },
     { label: "Categories", href: "/admin/settings/categories", icon: Tag },
     { label: "Materials", href: "/admin/settings/materials", icon: Layers },
+    { label: "Cuts", href: "/admin/settings/cuts", icon: Ruler },
     { label: "Patterns", href: "/admin/settings/patterns", icon: Palette },
     { label: "Seasons", href: "/admin/settings/seasons", icon: Leaf },
     { label: "Tags", href: "/admin/settings/tags", icon: Tags },

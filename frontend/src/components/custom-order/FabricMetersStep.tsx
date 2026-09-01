@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useCustomOrder } from "@/context/CustomOrderContext";
+import { api } from "@/lib/api/client";
 import {
   areInitialStepsComplete,
   CUSTOM_ORDER_TOTAL_STEPS,
@@ -15,11 +16,24 @@ import {
   isLineItemMetersValid,
   isMetersStepComplete,
   useOwnFabric,
-  WARA_TO_METERS,
-  type FabricUnit,
 } from "@/lib/customOrder";
+import {
+  convertToWar,
+  formatCutLabel,
+  WAR_TO_METER,
+  type CutUnit,
+  type FabricUnit,
+} from "@/lib/fabricUnits";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 import { CustomOrderStepSkeleton } from "@/components/ui/Skeleton";
+
+interface CutOption {
+  _id: string;
+  name: string;
+  nameAr?: string;
+  value: number;
+  unit: CutUnit;
+}
 
 export default function FabricMetersStep() {
   const t = useTranslations("CustomOrderMeters");
@@ -33,8 +47,28 @@ export default function FabricMetersStep() {
     updateLineItemMeters,
     syncAutoLineItems,
     updateLineItemUnit,
+    applyLineItemCut,
   } = useCustomOrder();
   const usingOwnFabric = useOwnFabric(draft);
+  const [cutOptions, setCutOptions] = useState<CutOption[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCuts = async () => {
+      try {
+        const data = await api.get<CutOption[]>("/api/filters/cuts");
+        if (!cancelled && Array.isArray(data)) {
+          setCutOptions(data);
+        }
+      } catch {
+        if (!cancelled) setCutOptions([]);
+      }
+    };
+    void loadCuts();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -82,10 +116,10 @@ export default function FabricMetersStep() {
     }
 
     let converted: number;
-    if (newUnit === "wara") {
-      converted = Number((item.fabricMeters / WARA_TO_METERS).toFixed(2));
+    if (newUnit === "war" || newUnit === "wara") {
+      converted = convertToWar(item.fabricMeters, item.fabricUnit);
     } else {
-      converted = Number((item.fabricMeters * WARA_TO_METERS).toFixed(2));
+      converted = Number((item.fabricMeters * WAR_TO_METER).toFixed(2));
     }
 
     updateLineItemUnit(itemId, newUnit);
@@ -170,14 +204,14 @@ export default function FabricMetersStep() {
             );
             const metersValue =
               item.fabricMeters !== null
-                ? item.fabricUnit === "wara"
-                  ? item.fabricMeters.toFixed(2)
-                  : item.fabricMeters.toFixed(2)
+                ? item.fabricMeters.toFixed(2)
                 : "";
             const isValid = isLineItemMetersValid(
               item.fabricMeters,
               item.fabricUnit,
             );
+            const cutName = (cut: CutOption) =>
+              locale === "ar" ? cut.nameAr || cut.name : cut.name;
 
             return (
               <div
@@ -205,20 +239,50 @@ export default function FabricMetersStep() {
                 <label className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2">
                   {t("inputLabel")}
                 </label>
+
+                {cutOptions.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {cutOptions.map((cut) => {
+                      const selected = item.cutId === cut._id;
+                      return (
+                        <button
+                          key={cut._id}
+                          type="button"
+                          onClick={() =>
+                            applyLineItemCut(item.id, {
+                              _id: cut._id,
+                              value: cut.value,
+                              unit: cut.unit,
+                            })
+                          }
+                          className={`px-3 py-2 border text-[10px] uppercase tracking-[0.16em] [font-family:var(--font-ui)] transition ${
+                            selected
+                              ? "bg-black text-white border-black"
+                              : "bg-white text-black border-(--color-border) hover:border-black"
+                          }`}
+                        >
+                          {cutName(cut)} ·{" "}
+                          {formatCutLabel(cut.value, cut.unit, locale)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-3 max-w-xs">
                   <input
                     type="number"
                     min={
-                      item.fabricUnit === "wara"
-                        ? Number((2 / WARA_TO_METERS).toFixed(2))
+                      item.fabricUnit === "war" || item.fabricUnit === "wara"
+                        ? Number((2 / WAR_TO_METER).toFixed(2))
                         : 2
                     }
                     max={
-                      item.fabricUnit === "wara"
-                        ? Number((7 / WARA_TO_METERS).toFixed(2))
+                      item.fabricUnit === "war" || item.fabricUnit === "wara"
+                        ? Number((7 / WAR_TO_METER).toFixed(2))
                         : 7
                     }
-                    step={item.fabricUnit === "wara" ? "0.01" : "0.01"}
+                    step="0.01"
                     inputMode="decimal"
                     value={metersValue}
                     onChange={(e) =>
@@ -236,7 +300,7 @@ export default function FabricMetersStep() {
                     className="border border-(--color-border) bg-white px-3 py-3 [font-family:var(--font-body)] text-[14px] shrink-0"
                   >
                     <option value="meters">Meters</option>
-                    <option value="wara">Wara</option>
+                    <option value="war">War</option>
                   </select>
                 </div>
                 {metersValue && !isValid && (

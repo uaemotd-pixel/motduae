@@ -97,6 +97,16 @@ const fabricSnapshotSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const cutSnapshotSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    nameAr: { type: String, default: "", trim: true },
+    value: { type: Number, required: true, min: 0 },
+    unit: { type: String, enum: ["war", "meter"], required: true },
+  },
+  { _id: false },
+);
+
 const designSnapshotSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -237,6 +247,15 @@ const customOrderItemSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 0,
+    },
+    cutId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Cut",
+      default: null,
+    },
+    cutSnapshot: {
+      type: cutSnapshotSchema,
+      default: null,
     },
     pricing: {
       type: pricingSchema,
