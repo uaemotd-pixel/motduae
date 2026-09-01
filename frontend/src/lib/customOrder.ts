@@ -9,6 +9,7 @@ import {
   normalizeFabricUnit,
   WAR_TO_METER,
   WARA_TO_METERS,
+  type FabricUnit,
 } from "@/lib/fabricUnits";
 
 export type { FabricUnit };
