@@ -24,6 +24,7 @@ function isValidId(value) {
 function inferKind(item, matchedKind) {
   if (item?.kind) return item.kind;
   if (matchedKind) return matchedKind;
+  if (item?.cutId) return "fabric";
   if (item?.size === "Per Meter") return "fabric";
   if (item?.size === "N/A") return "addon";
   return "readyMade";
