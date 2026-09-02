@@ -55,6 +55,10 @@ function getFabricActionHref(
     return { href: "/fabric", labelKey: "viewDashboard" };
   }
 
+  if (type === "fabric_order_placed" || type === "fabric_retail_order_placed") {
+    return { href: "/fabric/orders", labelKey: "viewOrder" };
+  }
+
   const orderId = notification.orderId || notification.order_id;
   if (orderId) {
     return { href: "/fabric/orders", labelKey: "viewOrder" };
@@ -467,7 +471,9 @@ export default function FabricNotificationPage() {
                       className="mt-3 rounded-xl bg-[#FDFAF5] border border-gray-100 overflow-hidden"
                     >
                       <div className="p-4 space-y-4 text-sm text-gray-700">
-                        {n.message ? <p>{n.message}</p> : null}
+                        {n.message ? (
+                          <p className="whitespace-pre-line">{n.message}</p>
+                        ) : null}
 
                         {!n.read && (
                           <div className="flex items-center gap-2">

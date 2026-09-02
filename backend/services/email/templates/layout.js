@@ -9,7 +9,7 @@
  */
 
 export const emailTheme = {
-  pageBg: "#FFFDF9",
+  pageBg: "#FFFFFF",
   surface: "#FFFFFF",
   ink: "#000000",
   nearBlack: "#1A1A1A",
