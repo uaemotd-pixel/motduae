@@ -220,7 +220,10 @@ function buildDesignSnapshot(design) {
     basePrice: design.basePrice,
     priceType: design.priceType || "fixed",
     tailoringFee: design.tailoringFee,
-    estimatedMeters: design.estimatedMeters,
+    estimatedMeters:
+      design.minCutSnapshot?.lengthInMeters ?? design.estimatedMeters,
+    minCutId: design.minCutId || null,
+    minCutSnapshot: design.minCutSnapshot || null,
   };
 }
 

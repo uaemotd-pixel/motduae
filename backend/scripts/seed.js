@@ -8,6 +8,7 @@ import Fabric from "../models/Fabric.js";
 import TailorShop from "../models/TailorShop.js";
 import FabricShop from "../models/FabricShop.js";
 import Design from "../models/Design.js";
+import Cut from "../models/Cut.js";
 import RetailOrder from "../models/RetailOrder.js";
 import CustomOrder from "../models/CustomOrder.js";
 import AddOn from "../models/AddOn.js";
@@ -20,6 +21,7 @@ const MODELS = [
   FabricShop,
   TailorShop,
   Design,
+  Cut,
   RetailOrder,
   CustomOrder,
   AddOn,
@@ -717,6 +719,23 @@ async function seedTailorShopsAndDesigns() {
 
   const [ayeshaShop, asmaShop] = shops;
 
+  let defaultCut = await Cut.findOne({ isActive: true });
+  if (!defaultCut) {
+    defaultCut = await Cut.create({
+      name: "Standard Cut",
+      nameAr: "قصة قياسية",
+      value: 3.5,
+      unit: "meter",
+      isActive: true,
+    });
+  }
+
+  const cutSnapshot = {
+    name: defaultCut.name,
+    nameAr: defaultCut.nameAr || "",
+    lengthInMeters: 3.5,
+  };
+
   const designs = await Design.insertMany([
     {
       tailorShopId: ayeshaShop._id,
@@ -734,6 +753,8 @@ async function seedTailorShopsAndDesigns() {
       category: "hand-embroidered",
       basePrice: 650,
       tailoringFee: defaultTailoringFee,
+      minCutId: defaultCut._id,
+      minCutSnapshot: cutSnapshot,
       estimatedMeters: 3.5,
       estimatedDays: 7,
       isActive: true,
@@ -754,6 +775,8 @@ async function seedTailorShopsAndDesigns() {
       category: "beaded",
       basePrice: 720,
       tailoringFee: defaultTailoringFee,
+      minCutId: defaultCut._id,
+      minCutSnapshot: cutSnapshot,
       estimatedMeters: 3.0,
       estimatedDays: 10,
       isActive: true,
@@ -774,6 +797,8 @@ async function seedTailorShopsAndDesigns() {
       category: "talli",
       basePrice: 890,
       tailoringFee: defaultTailoringFee + 25,
+      minCutId: defaultCut._id,
+      minCutSnapshot: cutSnapshot,
       estimatedMeters: 4.0,
       estimatedDays: 12,
       isActive: true,
@@ -793,6 +818,8 @@ async function seedTailorShopsAndDesigns() {
       category: "crystal-embellished",
       basePrice: 780,
       tailoringFee: defaultTailoringFee,
+      minCutId: defaultCut._id,
+      minCutSnapshot: cutSnapshot,
       estimatedMeters: 3.5,
       estimatedDays: 9,
       isActive: true,
@@ -813,6 +840,8 @@ async function seedTailorShopsAndDesigns() {
       category: "non-crystal",
       basePrice: 3200,
       tailoringFee: defaultTailoringFee + 100,
+      minCutId: defaultCut._id,
+      minCutSnapshot: cutSnapshot,
       estimatedMeters: 2.5,
       estimatedDays: 21,
       isActive: true,
@@ -833,6 +862,8 @@ async function seedTailorShopsAndDesigns() {
       category: "crystal-embellished",
       basePrice: 1450,
       tailoringFee: defaultTailoringFee + 50,
+      minCutId: defaultCut._id,
+      minCutSnapshot: cutSnapshot,
       estimatedMeters: 4.0,
       estimatedDays: 14,
       isActive: true,
@@ -853,6 +884,8 @@ async function seedTailorShopsAndDesigns() {
       category: "khous",
       basePrice: 980,
       tailoringFee: defaultTailoringFee,
+      minCutId: defaultCut._id,
+      minCutSnapshot: cutSnapshot,
       estimatedMeters: 3.5,
       estimatedDays: 10,
       isActive: true,

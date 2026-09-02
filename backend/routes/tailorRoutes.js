@@ -93,29 +93,55 @@ async function findApprovedShopBySlug(slug) {
   return shop;
 }
 
-const toDesignListItem = (design) => ({
-  _id: design._id,
-  slug: design.slug,
-  name: design.name,
-  nameAr: design.nameAr,
-  description: design.description,
-  descriptionAr: design.descriptionAr,
-  images: design.images,
-  category: design.category,
-  material: design.material,
-  materialAr: design.materialAr,
-  season: design.season,
-  seasonAr: design.seasonAr,
-  pattern: design.pattern,
-  patternAr: design.patternAr,
-  tag: design.tag,
-  tagAr: design.tagAr,
-  basePrice: design.basePrice,
-  priceType: design.priceType,
-  tailoringFee: design.tailoringFee,
-  estimatedMeters: design.estimatedMeters,
-  estimatedDays: design.estimatedDays,
-});
+const toDesignListItem = (design) => {
+  const minCutId = design.minCutId?._id || design.minCutId || null;
+  const lengthInMeters =
+    design.minCutSnapshot?.lengthInMeters ??
+    (design.estimatedMeters || 0);
+
+  const snapshot = design.minCutSnapshot?.name
+    ? {
+        name: design.minCutSnapshot.name,
+        nameAr: design.minCutSnapshot.nameAr || "",
+        lengthInMeters,
+      }
+    : design.minCutId &&
+        typeof design.minCutId === "object" &&
+        design.minCutId.name
+      ? {
+          name: design.minCutId.name,
+          nameAr: design.minCutId.nameAr || "",
+          lengthInMeters,
+        }
+      : null;
+
+  return {
+    _id: design._id,
+    slug: design.slug,
+    name: design.name,
+    nameAr: design.nameAr,
+    description: design.description,
+    descriptionAr: design.descriptionAr,
+    images: design.images,
+    category: design.category,
+    material: design.material,
+    materialAr: design.materialAr,
+    season: design.season,
+    seasonAr: design.seasonAr,
+    pattern: design.pattern,
+    patternAr: design.patternAr,
+    tag: design.tag,
+    tagAr: design.tagAr,
+    basePrice: design.basePrice,
+    priceType: design.priceType,
+    tailoringFee: design.tailoringFee,
+    minCutId,
+    minCutSnapshot: snapshot,
+    minCut: snapshot,
+    estimatedMeters: lengthInMeters,
+    estimatedDays: design.estimatedDays,
+  };
+};
 
 // GET /api/tailors/categories/designs — public endpoint to fetch design categories (no auth required)
 tailorRoutes.get("/categories/designs", async (req, res) => {
@@ -156,6 +182,7 @@ tailorRoutes.get("/designs/all", async (req, res) => {
 
     const query = {
       isActive: true,
+      minCutId: { $exists: true, $ne: null },
       tailorShopId: { $in: shopIds },
     };
 
@@ -203,6 +230,7 @@ tailorRoutes.get("/designs/:slug", async (req, res) => {
     const design = await Design.findOne({
       slug: slug.toLowerCase(),
       isActive: true,
+      minCutId: { $exists: true, $ne: null },
     })
       .populate("tailorShopId")
       .select("-__v");
@@ -278,6 +306,7 @@ tailorRoutes.get("/:slug/designs", async (req, res) => {
     const designs = await Design.find({
       tailorShopId: shop._id,
       isActive: true,
+      minCutId: { $exists: true, $ne: null },
     })
       .sort({ createdAt: -1 })
       .select("-__v");

@@ -70,6 +70,17 @@ export interface CustomOrderDesignSelection {
   basePrice: number;
   priceType?: "fixed" | "per_meter";
   tailoringFee: number;
+  minCutId?: string;
+  minCutSnapshot?: {
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+  };
+  minCut?: {
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+  };
   estimatedMeters: number;
   estimatedDays?: number;
   image?: string;
@@ -597,6 +608,7 @@ export function toCustomOrderTailorSelection(
 export function toCustomOrderDesignSelection(
   item: TailorDesignListItem,
 ): CustomOrderDesignSelection {
+  const cutSnapshot = item.minCutSnapshot || item.minCut;
   return {
     _id: item._id,
     slug: item.slug,
@@ -606,7 +618,10 @@ export function toCustomOrderDesignSelection(
     basePrice: item.basePrice,
     priceType: item.priceType,
     tailoringFee: item.tailoringFee,
-    estimatedMeters: item.estimatedMeters,
+    minCutId: item.minCutId,
+    minCutSnapshot: cutSnapshot,
+    minCut: cutSnapshot,
+    estimatedMeters: cutSnapshot?.lengthInMeters ?? item.estimatedMeters,
     estimatedDays: item.estimatedDays,
     image: resolveDesignImage(item.images?.[0]),
   };

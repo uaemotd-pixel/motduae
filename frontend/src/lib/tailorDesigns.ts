@@ -35,7 +35,18 @@ export interface TailorDesignProfile {
   basePrice: number;
   priceType?: "fixed" | "per_meter";
   tailoringFee: number;
-  estimatedMeters: number;
+  minCutId?: string;
+  minCutSnapshot?: {
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+  };
+  minCut?: {
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+  };
+  estimatedMeters?: number;
   estimatedDays: number;
   isActive: boolean;
   createdAt?: string;
@@ -61,7 +72,8 @@ export interface TailorDesignFormData {
   basePrice: number;
   priceType: "fixed" | "per_meter";
   tailoringFee: number;
-  estimatedMeters: number;
+  minCutId: string;
+  estimatedMeters?: number;
   estimatedDays: number;
   isActive: boolean;
 }
@@ -104,6 +116,7 @@ export function emptyTailorDesignForm(
     basePrice: 0,
     priceType: "fixed",
     tailoringFee: defaultTailoringFee,
+    minCutId: "",
     estimatedMeters: 3.5,
     estimatedDays: 7,
     isActive: true,
@@ -123,6 +136,13 @@ export function slugifyDesignName(name: string): string {
 export function designToForm(
   design: TailorDesignProfile,
 ): TailorDesignFormData {
+  const minCutId =
+    typeof design.minCutId === "object" && (design.minCutId as any)?._id
+      ? String((design.minCutId as any)._id)
+      : design.minCutId
+        ? String(design.minCutId)
+        : "";
+
   return {
     name: design.name ?? "",
     nameAr: design.nameAr ?? "",
@@ -142,7 +162,9 @@ export function designToForm(
     basePrice: design.basePrice ?? 0,
     priceType: design.priceType ?? "fixed",
     tailoringFee: design.tailoringFee ?? DEFAULT_TAILORING_FEE,
-    estimatedMeters: design.estimatedMeters ?? 3.5,
+    minCutId,
+    estimatedMeters:
+      design.minCutSnapshot?.lengthInMeters ?? design.estimatedMeters ?? 3.5,
     estimatedDays: design.estimatedDays ?? 7,
     isActive: design.isActive ?? true,
   };
@@ -171,7 +193,8 @@ export function toTailorDesignPayload(
     basePrice: Number(form.basePrice),
     priceType: form.priceType,
     tailoringFee: Number(form.tailoringFee),
-    estimatedMeters: Number(form.estimatedMeters),
+    minCutId: form.minCutId,
+    estimatedMeters: form.estimatedMeters ? Number(form.estimatedMeters) : undefined,
     estimatedDays: Number(form.estimatedDays),
     isActive: form.isActive,
   };
