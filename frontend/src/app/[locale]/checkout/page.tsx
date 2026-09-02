@@ -54,6 +54,7 @@ import {
   findCheckoutAddressOption,
   type FamilyMember,
 } from "@/lib/checkoutAddresses";
+import { parseFabricCutCartId } from "@/lib/fabrics";
 
 type CustomerAddress = {
   _id?: string;
@@ -400,7 +401,7 @@ function CheckoutPageContent() {
 
         if (isBuyNow && buyNowItemsArray && buyNowItemsArray.length > 0) {
           itemsToPreview = buyNowItemsArray.map((item) => ({
-            productId: item.id,
+            productId: parseFabricCutCartId(item.id).fabricId,
             size: item.size || "",
             quantity: item.quantity || 1,
             ...(item.size === "Per Meter" ? { measurementUnit } : {}),
@@ -418,7 +419,7 @@ function CheckoutPageContent() {
           ];
         } else {
           itemsToPreview = items.map((item) => ({
-            productId: item.id,
+            productId: parseFabricCutCartId(item.id).fabricId,
             size: item.size || "",
             quantity: item.quantity || 1,
             ...(item.size === "Per Meter" ? { measurementUnit } : {}),
@@ -736,7 +737,7 @@ function CheckoutPageContent() {
   // --- Build order payload (NO PRICE) ---
   const buildOrderPayload = () => {
     const orderItems = displayItems.map((item) => ({
-      productId: item.id,
+      productId: parseFabricCutCartId(item.id).fabricId,
       size: item.size,
       quantity: item.quantity,
       ...(item.size === "Per Meter" ? { measurementUnit } : {}),

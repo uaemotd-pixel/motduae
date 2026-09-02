@@ -1,5 +1,11 @@
 import { api, type ApiError } from "@/lib/api/client";
 import { isShopIncompleteError } from "@/lib/shopProfile";
+import {
+  createEmptyFabricCutRow,
+  mapApiCutsArray,
+  serializeFabricCuts,
+  type FabricCutFormEntry,
+} from "@/lib/createFabricAdmin";
 
 export const FABRIC_MATERIALS = ["chiffon", "silk velvet", "tana linen cotton"] as const;
 export type FabricMaterial = (typeof FABRIC_MATERIALS)[number];
@@ -25,8 +31,9 @@ export interface FabricProfile {
   colors: string[];
   tag: string;
   tagAr: string;
-  pricePerMeter: number;
-  stockInMeters: number;
+  cuts?: FabricCutFormEntry[];
+  pricePerMeter?: number;
+  stockInMeters?: number;
   minAge: number | null;
   maxAge: number | null;
   storePickupAddress?: PickupAddress;
@@ -56,8 +63,7 @@ export interface FabricFormData {
   colors: string[];
   tag: string;
   tagAr: string;
-  pricePerMeter: number;
-  stockInMeters: number;
+  cuts: FabricCutFormEntry[];
   minAge: number | null;
   maxAge: number | null;
   storePickupAddress: PickupAddress;
@@ -80,8 +86,7 @@ export function emptyFabricForm(): FabricFormData {
     colors: [],
     tag: "",
     tagAr: "",
-    pricePerMeter: 0,
-    stockInMeters: 0,
+    cuts: [createEmptyFabricCutRow()],
     minAge: null,
     maxAge: null,
     storePickupAddress: {
@@ -106,6 +111,7 @@ export function slugifyFabricName(name: string): string {
 }
 
 export function fabricToForm(fabric: FabricProfile): FabricFormData {
+  const mappedCuts = mapApiCutsArray(fabric.cuts);
   return {
     _id: fabric._id,
     name: fabric.name ?? "",
@@ -121,8 +127,7 @@ export function fabricToForm(fabric: FabricProfile): FabricFormData {
     colors: fabric.colors?.length ? [...fabric.colors] : [],
     tag: fabric.tag ?? "",
     tagAr: fabric.tagAr ?? "",
-    pricePerMeter: fabric.pricePerMeter ?? 0,
-    stockInMeters: fabric.stockInMeters ?? 0,
+    cuts: mappedCuts.length > 0 ? mappedCuts : [createEmptyFabricCutRow()],
     minAge:
       fabric.minAge !== undefined && fabric.minAge !== null
         ? Number(fabric.minAge)
@@ -161,8 +166,7 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
     colors: form.colors.map((c) => c.trim()).filter(Boolean),
     tag: form.tag.trim(),
     tagAr: form.tagAr.trim(),
-    pricePerMeter: Number(form.pricePerMeter),
-    stockInMeters: Number(form.stockInMeters),
+    cuts: serializeFabricCuts(form.cuts || []),
     minAge: form.minAge,
     maxAge: form.maxAge,
     storePickupAddress: {
@@ -173,7 +177,7 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
       phone: form.storePickupAddress.phone.trim(),
     },
     isActive: form.isActive,
-    variants: form.variants?.map(v => ({
+    variants: form.variants?.map((v) => ({
       _id: v._id,
       name: v.name.trim(),
       nameAr: v.nameAr.trim(),
@@ -186,10 +190,9 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
       colors: v.colors.map((c) => c.trim()).filter(Boolean),
       tag: v.tag.trim(),
       tagAr: v.tagAr.trim(),
-      pricePerMeter: Number(v.pricePerMeter),
-      stockInMeters: Number(v.stockInMeters),
+      cuts: serializeFabricCuts(v.cuts || []),
       isActive: v.isActive,
-    }))
+    })),
   };
 }
 
@@ -276,6 +279,14 @@ export function mapFabricApiErrorToFieldErrors(
       minAge: "Min age cannot exceed max age",
       maxAge: "Max age cannot be smaller than min age",
     };
+  }
+
+  if (trimmedMessage.includes("At least one cut")) {
+    return { cuts: trimmedMessage };
+  }
+
+  if (trimmedMessage.startsWith("Variant ")) {
+    return { cuts: trimmedMessage };
   }
 
   return {};

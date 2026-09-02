@@ -38,11 +38,26 @@ import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 
+interface FabricCutRow {
+  cutId: string;
+  price: number;
+  stock: number;
+  cut?: {
+    _id: string;
+    name: string;
+    nameAr?: string;
+    value: number;
+    unit: string;
+    lengthInMeters?: number;
+  } | null;
+}
+
 interface FabricItem {
   _id: string;
   name: string;
   material: string;
-  pricePerMeter: number;
+  cuts?: FabricCutRow[];
+  pricePerMeter?: number;
   images: string[];
   listedByStore: string | { _id: string; name: string };
   city: string;
@@ -64,6 +79,57 @@ interface ApiResponse {
   total: number;
   page: number;
   totalPages: number;
+}
+
+function getAdminCutLabel(
+  entry: FabricCutRow,
+  locale: string,
+): string {
+  const cut = entry.cut;
+  if (cut) {
+    const name =
+      locale === "ar" ? cut.nameAr || cut.name : cut.name;
+    if (name?.trim()) return name.trim();
+    return `${cut.value} ${cut.unit}`;
+  }
+  return entry.cutId;
+}
+
+function FabricCutsCell({
+  cuts,
+  locale,
+  stockLabel,
+}: {
+  cuts?: FabricCutRow[];
+  locale: string;
+  stockLabel: string;
+}) {
+  if (!cuts?.length) {
+    return <span className="text-gray-400">—</span>;
+  }
+
+  return (
+    <div className="space-y-1.5 max-w-xs">
+      {cuts.map((entry) => (
+        <div
+          key={entry.cutId}
+          className="text-xs text-gray-600 leading-snug"
+        >
+          <span className="font-medium text-black">
+            {getAdminCutLabel(entry, locale)}
+          </span>
+          <span className="text-gray-400 mx-1">·</span>
+          <span className="font-mono">
+            AED {Number(entry.price).toLocaleString()}
+          </span>
+          <span className="text-gray-400 mx-1">·</span>
+          <span>
+            {entry.stock} {stockLabel}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function AdminFabricsPage() {
@@ -598,8 +664,12 @@ export default function AdminFabricsPage() {
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {item.material}
                         </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                          AED {item.pricePerMeter.toLocaleString()}
+                        <td className="px-4 sm:px-6 py-4 text-sm text-gray-500">
+                          <FabricCutsCell
+                            cuts={item.cuts}
+                            locale={localeParam}
+                            stockLabel={t.adminFabrics.list.stock_label}
+                          />
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {getStoreDisplay(item.listedByStore)}
@@ -712,9 +782,14 @@ export default function AdminFabricsPage() {
                                           <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-600">
                                             {v.material}
                                           </td>
-                                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-600">
-                                            AED{" "}
-                                            {v.pricePerMeter.toLocaleString()}
+                                          <td className="px-3 sm:px-4 py-3 text-xs text-gray-600">
+                                            <FabricCutsCell
+                                              cuts={v.cuts}
+                                              locale={localeParam}
+                                              stockLabel={
+                                                t.adminFabrics.list.stock_label
+                                              }
+                                            />
                                           </td>
                                           <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-600">
                                             {getStoreDisplay(v.listedByStore)}
@@ -786,9 +861,15 @@ export default function AdminFabricsPage() {
                     <Tag className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                     <span className="truncate">{item.material || "—"}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
-                    <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                    <span>AED {item.pricePerMeter.toLocaleString()}</span>
+                  <div className="text-gray-600">
+                    <div className="flex items-start gap-1.5 sm:gap-2">
+                      <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 shrink-0 mt-0.5" />
+                      <FabricCutsCell
+                        cuts={item.cuts}
+                        locale={localeParam}
+                        stockLabel={t.adminFabrics.list.stock_label}
+                      />
+                    </div>
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
                     <Store className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
@@ -859,11 +940,18 @@ export default function AdminFabricsPage() {
                                 <MoreVertical className="w-4 h-4" />
                               </button>
                             </div>
-                            <div className="mt-1.5 grid grid-cols-2 gap-1 text-[10px] text-gray-600">
+                            <div className="mt-1.5 grid grid-cols-1 gap-1 text-[10px] text-gray-600">
                               <span>Material: {v.material}</span>
-                              <span>
-                                Price: AED {v.pricePerMeter.toLocaleString()}
-                              </span>
+                              <div className="flex items-start gap-1">
+                                <span className="shrink-0">Cuts:</span>
+                                <FabricCutsCell
+                                  cuts={v.cuts}
+                                  locale={localeParam}
+                                  stockLabel={
+                                    t.adminFabrics.list.stock_label
+                                  }
+                                />
+                              </div>
                               <span>
                                 Store: {getStoreDisplay(v.listedByStore)}
                               </span>

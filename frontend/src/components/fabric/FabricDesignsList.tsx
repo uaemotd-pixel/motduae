@@ -25,6 +25,66 @@ import {
 } from "lucide-react";
 import { ImageModal } from "../shared/ImageModal";
 
+type FabricCutRow = {
+  cutId: string;
+  price: number;
+  stock: number;
+  cut?: {
+    _id: string;
+    name: string;
+    nameAr?: string;
+    value: number;
+    unit: string;
+  } | null;
+};
+
+function getCutLabel(entry: FabricCutRow, locale: string): string {
+  const cut = entry.cut;
+  if (cut) {
+    const name = locale === "ar" ? cut.nameAr || cut.name : cut.name;
+    if (name?.trim()) return name.trim();
+    return `${cut.value} ${cut.unit}`;
+  }
+  return entry.cutId;
+}
+
+function FabricCutsCell({
+  cuts,
+  locale,
+  stockLabel,
+}: {
+  cuts?: FabricCutRow[];
+  locale: string;
+  stockLabel: string;
+}) {
+  if (!cuts?.length) {
+    return <span className="text-gray-400">—</span>;
+  }
+
+  return (
+    <div className="space-y-1.5 max-w-xs">
+      {cuts.map((entry) => (
+        <div
+          key={entry.cutId}
+          className="text-xs text-gray-600 leading-snug [font-family:var(--font-body)]"
+        >
+          <span className="font-medium text-black">
+            {getCutLabel(entry, locale)}
+          </span>
+          <span className="text-gray-400 mx-1">·</span>
+          <span className="font-mono">
+            AED {Number(entry.price).toLocaleString()}
+          </span>
+          <span className="text-gray-400 mx-1">·</span>
+          <span>
+            {entry.stock} {stockLabel}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Reuse Toast configurations
 const TOAST_BASE = {
   position: "top-right" as const,
@@ -283,10 +343,7 @@ export default function FabricDesignsList() {
                     {locale === "ar" ? "المادة" : "MATERIAL"}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                    {locale === "ar" ? "السعر / متر" : "PRICE / M"}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                    {locale === "ar" ? "المخزون" : "STOCK"}
+                    {locale === "ar" ? "القصات" : "CUTS"}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
                     {locale === "ar" ? "الحالة" : "STATUS"}
@@ -336,11 +393,12 @@ export default function FabricDesignsList() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 [font-family:var(--font-body)]">
                           {materialDisplay}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 [font-family:var(--font-body)]">
-                          AED {fabric.pricePerMeter.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 [font-family:var(--font-body)]">
-                          {fabric.stockInMeters.toLocaleString()} m
+                        <td className="px-6 py-4 text-sm text-gray-600 [font-family:var(--font-body)]">
+                          <FabricCutsCell
+                            cuts={fabric.cuts as FabricCutRow[] | undefined}
+                            locale={locale}
+                            stockLabel={locale === "ar" ? "قطعة" : "pcs"}
+                          />
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
@@ -400,7 +458,7 @@ export default function FabricDesignsList() {
                         fabric.variants &&
                         fabric.variants.length > 0 && (
                           <tr className="bg-[#FAF9F5]/45">
-                            <td colSpan={7} className="px-6 py-4">
+                            <td colSpan={6} className="px-6 py-4">
                               <div
                                 className={`space-y-2.5 ${locale === "ar" ? "pr-8 text-right" : "pl-8 text-left"}`}
                               >
@@ -422,14 +480,7 @@ export default function FabricDesignsList() {
                                             : "MATERIAL"}
                                         </th>
                                         <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                                          {locale === "ar"
-                                            ? "السعر / متر"
-                                            : "PRICE / M"}
-                                        </th>
-                                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                                          {locale === "ar"
-                                            ? "المخزون"
-                                            : "STOCK"}
+                                          {locale === "ar" ? "القصات" : "CUTS"}
                                         </th>
                                         <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
                                           {locale === "ar"
@@ -489,13 +540,20 @@ export default function FabricDesignsList() {
                                             <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600 [font-family:var(--font-body)]">
                                               {vMaterial}
                                             </td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600 [font-family:var(--font-body)]">
-                                              AED{" "}
-                                              {v.pricePerMeter.toLocaleString()}
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600 [font-family:var(--font-body)]">
-                                              {v.stockInMeters.toLocaleString()}{" "}
-                                              m
+                                            <td className="px-4 py-3 text-xs text-gray-600 [font-family:var(--font-body)]">
+                                              <FabricCutsCell
+                                                cuts={
+                                                  v.cuts as
+                                                    | FabricCutRow[]
+                                                    | undefined
+                                                }
+                                                locale={locale}
+                                                stockLabel={
+                                                  locale === "ar"
+                                                    ? "قطعة"
+                                                    : "pcs"
+                                                }
+                                              />
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap">
                                               <span

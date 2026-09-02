@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import CustomOrder from "../models/CustomOrder.js";
 import PendingCheckout from "../models/PendingCheckout.js";
+import Fabric from "../models/Fabric.js";
 
 function collectCutIdsFromPayload(payload) {
   const ids = [];
@@ -38,6 +39,16 @@ export async function getCutUsageMap(cutIds = []) {
   ]);
 
   for (const row of grouped) {
+    usage[String(row._id)] = (usage[String(row._id)] || 0) + row.count;
+  }
+
+  const fabricGrouped = await Fabric.aggregate([
+    { $unwind: "$cuts" },
+    { $match: { "cuts.cutId": { $in: objectIds } } },
+    { $group: { _id: "$cuts.cutId", count: { $sum: 1 } } },
+  ]);
+
+  for (const row of fabricGrouped) {
     usage[String(row._id)] = (usage[String(row._id)] || 0) + row.count;
   }
 

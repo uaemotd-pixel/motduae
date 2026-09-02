@@ -42,6 +42,10 @@ import {
   isValidShopSlug,
   respondIfShopNotReady,
 } from "../utils/shopReady.js";
+import {
+  enrichFabricWithCuts,
+  prepareFabricCutsInput,
+} from "../utils/fabricCuts.js";
 
 const fabricPortalRouter = express.Router();
 
@@ -450,9 +454,12 @@ fabricPortalRouter.get(
     const fabricsWithVariants = await Promise.all(
       fabrics.map(async (fabric) => {
         const variants = await Fabric.find({ isVariantOf: fabric._id });
-        const obj = fabric.toObject();
-        obj.variants = variants;
-        return obj;
+        const enrichedFabric = await enrichFabricWithCuts(fabric);
+        const enrichedVariants = await Promise.all(
+          variants.map((variant) => enrichFabricWithCuts(variant)),
+        );
+        enrichedFabric.variants = enrichedVariants;
+        return enrichedFabric;
       }),
     );
     res.json({ success: true, items: fabricsWithVariants });
@@ -472,8 +479,12 @@ fabricPortalRouter.get(
       return;
     }
     const variants = await Fabric.find({ isVariantOf: fabric._id });
-    const item = fabric.toObject();
-    item.variants = variants;
+    const enrichedFabric = await enrichFabricWithCuts(fabric);
+    const enrichedVariants = await Promise.all(
+      variants.map((variant) => enrichFabricWithCuts(variant)),
+    );
+    const item = enrichedFabric;
+    item.variants = enrichedVariants;
     res.json({ success: true, item });
   }),
 );
@@ -497,13 +508,18 @@ fabricPortalRouter.post(
       colors,
       tag,
       tagAr,
-      pricePerMeter,
-      stockInMeters,
+      cuts,
       minAge,
       maxAge,
       storePickupAddress,
       isActive,
     } = req.body;
+
+    const cutsResult = await prepareFabricCutsInput(cuts);
+    if (!cutsResult.ok) {
+      res.status(400).json({ success: false, message: cutsResult.message });
+      return;
+    }
 
     const normalizedMinAge = parseFabricAge(minAge);
     const normalizedMaxAge = parseFabricAge(maxAge);
@@ -519,13 +535,11 @@ fabricPortalRouter.post(
     if (
       !name ||
       !nameAr ||
-      !material ||
-      pricePerMeter === undefined ||
-      pricePerMeter === null
+      !material
     ) {
       res.status(400).json({
         success: false,
-        message: "name, nameAr, material, and pricePerMeter are required",
+        message: "name, nameAr, and material are required",
       });
       return;
     }
@@ -567,8 +581,7 @@ fabricPortalRouter.post(
       colors: colors || [],
       tag: tag || "",
       tagAr: tagAr || "",
-      pricePerMeter: Number(pricePerMeter),
-      stockInMeters: Number(stockInMeters || 0),
+      cuts: cutsResult.cuts,
       minAge: normalizedMinAge,
       maxAge: normalizedMaxAge,
       listedByStore: req.user._id,
@@ -603,6 +616,15 @@ fabricPortalRouter.post(
           { fallback: "fabric" },
         );
 
+        const variantCutsResult = await prepareFabricCutsInput(variant.cuts);
+        if (!variantCutsResult.ok) {
+          res.status(400).json({
+            success: false,
+            message: `Variant "${variant.name}": ${variantCutsResult.message}`,
+          });
+          return;
+        }
+
         await Fabric.create({
           name: variant.name,
           nameAr: variant.nameAr,
@@ -615,8 +637,7 @@ fabricPortalRouter.post(
           colors: variant.colors || [],
           tag: variant.tag || "",
           tagAr: variant.tagAr || "",
-          pricePerMeter: Number(variant.pricePerMeter),
-          stockInMeters: Number(variant.stockInMeters || 0),
+          cuts: variantCutsResult.cuts,
           minAge: fabric.minAge,
           maxAge: fabric.maxAge,
           listedByStore: fabric.listedByStore,
@@ -628,7 +649,10 @@ fabricPortalRouter.post(
       }
     }
 
-    res.status(201).json({ success: true, item: fabric });
+    res.status(201).json({
+      success: true,
+      item: await enrichFabricWithCuts(fabric),
+    });
   }),
 );
 
@@ -665,8 +689,7 @@ fabricPortalRouter.put(
       colors,
       tag,
       tagAr,
-      pricePerMeter,
-      stockInMeters,
+      cuts,
       minAge,
       maxAge,
       storePickupAddress,
@@ -701,10 +724,14 @@ fabricPortalRouter.put(
     if (colors) fabric.colors = colors;
     if (tag !== undefined) fabric.tag = tag;
     if (tagAr !== undefined) fabric.tagAr = tagAr;
-    if (pricePerMeter !== undefined)
-      fabric.pricePerMeter = Number(pricePerMeter);
-    if (stockInMeters !== undefined)
-      fabric.stockInMeters = Number(stockInMeters);
+    if (cuts !== undefined) {
+      const cutsResult = await prepareFabricCutsInput(cuts);
+      if (!cutsResult.ok) {
+        res.status(400).json({ success: false, message: cutsResult.message });
+        return;
+      }
+      fabric.cuts = cutsResult.cuts;
+    }
     fabric.minAge = nextMinAge;
     fabric.maxAge = nextMaxAge;
     if (isActive !== undefined) fabric.isActive = isActive;
@@ -760,10 +787,19 @@ fabricPortalRouter.put(
             if (variant.colors) existing.colors = variant.colors;
             if (variant.tag !== undefined) existing.tag = variant.tag;
             if (variant.tagAr !== undefined) existing.tagAr = variant.tagAr;
-            if (variant.pricePerMeter !== undefined)
-              existing.pricePerMeter = Number(variant.pricePerMeter);
-            if (variant.stockInMeters !== undefined)
-              existing.stockInMeters = Number(variant.stockInMeters);
+            if (variant.cuts !== undefined) {
+              const variantCutsResult = await prepareFabricCutsInput(
+                variant.cuts,
+              );
+              if (!variantCutsResult.ok) {
+                res.status(400).json({
+                  success: false,
+                  message: `Variant "${variant.name || existing.name}": ${variantCutsResult.message}`,
+                });
+                return;
+              }
+              existing.cuts = variantCutsResult.cuts;
+            }
             existing.minAge = updatedFabric.minAge;
             existing.maxAge = updatedFabric.maxAge;
             if (variant.isActive !== undefined)
@@ -783,6 +819,15 @@ fabricPortalRouter.put(
             { fallback: "fabric" },
           );
 
+          const variantCutsResult = await prepareFabricCutsInput(variant.cuts);
+          if (!variantCutsResult.ok) {
+            res.status(400).json({
+              success: false,
+              message: `Variant "${variant.name}": ${variantCutsResult.message}`,
+            });
+            return;
+          }
+
           const newV = await Fabric.create({
             name: variant.name,
             nameAr: variant.nameAr,
@@ -795,8 +840,7 @@ fabricPortalRouter.put(
             colors: variant.colors || [],
             tag: variant.tag || "",
             tagAr: variant.tagAr || "",
-            pricePerMeter: Number(variant.pricePerMeter),
-            stockInMeters: Number(variant.stockInMeters || 0),
+            cuts: variantCutsResult.cuts,
             minAge: updatedFabric.minAge,
             maxAge: updatedFabric.maxAge,
             listedByStore: updatedFabric.listedByStore,
@@ -815,7 +859,13 @@ fabricPortalRouter.put(
       });
     }
 
-    res.json({ success: true, item: updatedFabric });
+    const enrichedItem = await enrichFabricWithCuts(updatedFabric);
+    const variants = await Fabric.find({ isVariantOf: updatedFabric._id });
+    enrichedItem.variants = await Promise.all(
+      variants.map((variant) => enrichFabricWithCuts(variant)),
+    );
+
+    res.json({ success: true, item: enrichedItem });
   }),
 );
 

@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import FormField from "@/components/admin/FormField";
 import FabricImageUpload from "@/components/admin/FabricImageUpload";
 import StorePartnerPicker from "@/components/admin/StorePartnerPicker";
@@ -12,9 +12,12 @@ import colors from "@/components/shared/colors";
 import {
   FabricFormData,
   FabricVariantFormData,
+  FabricCutFormEntry,
   PickupAddress,
+  createEmptyFabricCutRow,
 } from "@/lib/createFabricAdmin";
 import { api } from "@/lib/api/client";
+import { formatCutLabel } from "@/lib/fabricUnits";
 import {
   isValidUaePhone,
   normalizeUaePhone,
@@ -29,6 +32,248 @@ import {
 } from "@/lib/uaeAddress";
 
 const COLOR_OPTIONS = colors;
+
+interface CatalogCut {
+  _id: string;
+  name: string;
+  nameAr?: string;
+  value: number;
+  unit: "war" | "meter";
+  metersEquivalent?: number;
+  lengthInMeters?: number;
+  isActive?: boolean;
+}
+
+export function FabricCutsEditor({
+  cuts,
+  catalogCuts,
+  errorPrefix,
+  fieldErrors,
+  onChange,
+  loading,
+  showTitle = true,
+}: {
+  cuts: FabricCutFormEntry[];
+  catalogCuts: CatalogCut[];
+  errorPrefix: string;
+  fieldErrors: Record<string, string>;
+  onChange: (cuts: FabricCutFormEntry[]) => void;
+  loading?: boolean;
+  showTitle?: boolean;
+}) {
+  const rows =
+    cuts.length > 0 ? cuts : [createEmptyFabricCutRow()];
+
+  const updateRows = (next: FabricCutFormEntry[]) => {
+    onChange(next.length > 0 ? next : [createEmptyFabricCutRow()]);
+  };
+
+  const updateField = (
+    index: number,
+    field: "price" | "stock",
+    value: string,
+  ) => {
+    const next = [...rows];
+    next[index] = { ...next[index], [field]: value };
+    updateRows(next);
+  };
+
+  const selectCut = (index: number, cutId: string) => {
+    const catalog = catalogCuts.find((c) => c._id === cutId);
+    const next = [...rows];
+    next[index] = {
+      ...next[index],
+      cutId,
+      cutName: catalog?.name,
+      cutNameAr: catalog?.nameAr,
+      cutValue: catalog?.value,
+      cutUnit: catalog?.unit,
+      lengthInMeters: catalog?.lengthInMeters ?? catalog?.metersEquivalent,
+    };
+    updateRows(next);
+  };
+
+  const addCutRow = () => {
+    updateRows([...rows, createEmptyFabricCutRow()]);
+  };
+
+  const removeCutRow = (index: number) => {
+    if (rows.length <= 1) return;
+    updateRows(rows.filter((_, i) => i !== index));
+  };
+
+  const usedCutIds = new Set(
+    rows.map((row) => row.cutId).filter((id) => id && id.trim() !== ""),
+  );
+
+  const canAddMore =
+    catalogCuts.length > 0 &&
+    rows.length < catalogCuts.length &&
+    catalogCuts.some((cut) => !usedCutIds.has(cut._id));
+
+  if (loading) {
+    return (
+      <p className="text-xs text-gray-500 py-2">Loading cuts catalog...</p>
+    );
+  }
+
+  if (catalogCuts.length === 0) {
+    return (
+      <p className="text-xs text-amber-700 py-2">
+        No active cuts found. Create cuts in Settings → Cuts first.
+      </p>
+    );
+  }
+
+  const rowInputClass =
+    "w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm bg-transparent";
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-4">
+        {showTitle ? (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">
+              Cuts — Price & Stock
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Select cut, set price per piece and stock.
+            </p>
+          </div>
+        ) : (
+          <div />
+        )}
+        {canAddMore && (
+          <button
+            type="button"
+            onClick={addCutRow}
+            className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-gray-700 hover:text-black border-b border-transparent hover:border-black pb-0.5 transition-colors shrink-0 hover:cursor-pointer"
+          >
+            Add More Cuts
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {fieldErrors[errorPrefix] && (
+        <p className="text-xs text-red-600">{fieldErrors[errorPrefix]}</p>
+      )}
+
+      <div className="space-y-4">
+        <AnimatePresence initial={false}>
+          {rows.map((entry, index) => {
+            const rowPrefix = `${errorPrefix}.${index}`;
+            const availableCuts = catalogCuts.filter(
+              (cut) =>
+                cut._id === entry.cutId || !usedCutIds.has(cut._id),
+            );
+
+            return (
+              <motion.div
+                key={`${errorPrefix}-cut-${index}`}
+                layout
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.15 }}
+                className="flex flex-col sm:flex-row sm:items-end gap-3 sm:gap-4"
+              >
+                <div className="flex-1 min-w-0">
+                  <label
+                    className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1"
+                  >
+                    Select cut
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={entry.cutId}
+                      onChange={(e) => selectCut(index, e.target.value)}
+                      className={`${rowInputClass} appearance-none pr-7`}
+                    >
+                      <option value="">Choose a cut...</option>
+                      {availableCuts.map((cut) => (
+                        <option key={cut._id} value={cut._id}>
+                          {cut.name} · {formatCutLabel(cut.value, cut.unit)}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
+                    />
+                  </div>
+                  {fieldErrors[`${rowPrefix}.cutId`] && (
+                    <p className="text-[10px] text-red-600 mt-1">
+                      {fieldErrors[`${rowPrefix}.cutId`]}
+                    </p>
+                  )}
+                </div>
+
+                <div className="w-full sm:w-28 shrink-0">
+                  <label
+                    className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1"
+                  >
+                    Price (AED)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={entry.price}
+                    onChange={(e) =>
+                      updateField(index, "price", e.target.value)
+                    }
+                    placeholder="450"
+                    className={rowInputClass}
+                  />
+                  {fieldErrors[`${rowPrefix}.price`] && (
+                    <p className="text-[10px] text-red-600 mt-1">
+                      {fieldErrors[`${rowPrefix}.price`]}
+                    </p>
+                  )}
+                </div>
+
+                <div className="w-full sm:w-28 shrink-0">
+                  <label
+                    className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1"
+                  >
+                    Stock
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={entry.stock}
+                    onChange={(e) =>
+                      updateField(index, "stock", e.target.value)
+                    }
+                    placeholder="25"
+                    className={rowInputClass}
+                  />
+                  {fieldErrors[`${rowPrefix}.stock`] && (
+                    <p className="text-[10px] text-red-600 mt-1">
+                      {fieldErrors[`${rowPrefix}.stock`]}
+                    </p>
+                  )}
+                </div>
+
+                {rows.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeCutRow(index)}
+                    className="p-2 text-gray-400 hover:text-red-600 transition-colors shrink-0 self-end hover:cursor-pointer"
+                    aria-label="Remove cut"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
 
 type FabricAdminFormFieldsProps = {
   formData: FabricFormData;
@@ -60,6 +305,8 @@ export default function FabricAdminFormFields({
     { name: string; nameAr: string; _id: string }[]
   >([]);
   const [tagsLoading, setTagsLoading] = useState(true);
+  const [catalogCuts, setCatalogCuts] = useState<CatalogCut[]>([]);
+  const [cutsLoading, setCutsLoading] = useState(true);
 
   const [openMaterial, setOpenMaterial] = useState(false);
   const [openTag, setOpenTag] = useState(false);
@@ -113,6 +360,34 @@ export default function FabricAdminFormFields({
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCuts = async () => {
+      try {
+        setCutsLoading(true);
+        const data = await api.get<CatalogCut[]>("/api/admin/cuts");
+        if (!cancelled && Array.isArray(data)) {
+          const activeCuts = data.filter((cut) => cut.isActive !== false);
+          setCatalogCuts(activeCuts);
+        }
+      } catch {
+        if (!cancelled) setCatalogCuts([]);
+      } finally {
+        if (!cancelled) setCutsLoading(false);
+      }
+    };
+    void fetchCuts();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (cutsLoading) return;
+    if (formData.cuts.length > 0) return;
+    onFieldChange("cuts", [createEmptyFabricCutRow()]);
+  }, [cutsLoading, formData.cuts.length, onFieldChange]);
+
   const selectedColors = Array.isArray(formData.colors) ? formData.colors : [];
 
   const toggleColor = (colorValue: string) => {
@@ -121,31 +396,6 @@ export default function FabricAdminFormFields({
       ? current.filter((c) => c !== colorValue)
       : [...current, colorValue];
     onFieldChange("colors", newSelected);
-  };
-
-  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    if (val === "") {
-      onFieldChange("pricePerMeter", val);
-      return;
-    }
-    if (/^\d*\.?\d*$/.test(val)) {
-      onFieldChange("pricePerMeter", val);
-    }
-  };
-
-  const handleStockChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    if (val === "") {
-      onFieldChange("stockInMeters", val);
-      return;
-    }
-    if (/^\d*\.?\d+$/.test(val) || /^\d+\.?\d*$/.test(val)) {
-      const num = Number(val);
-      if (!isNaN(num) && num >= 0) {
-        onFieldChange("stockInMeters", val);
-      }
-    }
   };
 
   const handlePhoneChange = (field: string, value: string) => {
@@ -482,44 +732,19 @@ export default function FabricAdminFormFields({
         </FormField>
       </div>
 
-      {/* Price, Stock, Min Age, Max Age - Row - UNIFIED STYLE */}
-      <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-        <FormField
-          label="Price/meter (AED)"
-          name="pricePerMeter"
-          required
-          error={fieldErrors.pricePerMeter}
-        >
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={formData.pricePerMeter}
-            onChange={(e) => onFieldChange("pricePerMeter", e.target.value)}
-            className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
-            placeholder="50"
-          />
-        </FormField>
+      {/* Cuts pricing & stock */}
+      <div className="md:col-span-2">
+        <FabricCutsEditor
+          cuts={formData.cuts}
+          catalogCuts={catalogCuts}
+          errorPrefix="cuts"
+          fieldErrors={fieldErrors}
+          loading={cutsLoading}
+          onChange={(cuts) => onFieldChange("cuts", cuts)}
+        />
+      </div>
 
-        <FormField
-          label="Stock (meters)"
-          name="stockInMeters"
-          required
-          error={fieldErrors.stockInMeters}
-        >
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={
-              formData.stockInMeters === 0 ? "" : formData.stockInMeters
-            }
-            onChange={(e) => onFieldChange("stockInMeters", e.target.value)}
-            className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
-            placeholder="100"
-          />
-        </FormField>
-
+      <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-2 gap-4 sm:gap-6">
         <FormField
           label="Min Age (years)"
           name="minAge"
@@ -780,8 +1005,7 @@ export default function FabricAdminFormFields({
                   colors: [],
                   tag: "",
                   tagAr: "",
-                  pricePerMeter: formData.pricePerMeter || 0,
-                  stockInMeters: 0,
+                  cuts: [createEmptyFabricCutRow()],
                   listedByStore: formData.listedByStore || "",
                   pickupAddress: formData.pickupAddress || {
                     emirate: "",
@@ -1054,67 +1278,24 @@ export default function FabricAdminFormFields({
                       </FormField>
                     </div>
 
-                    <FormField
-                      label="Price Per Meter (AED)"
-                      name={`${prefix}.pricePerMeter`}
-                      error={fieldErrors[`${prefix}.pricePerMeter`]}
-                      required
-                    >
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        step={0.1}
-                        value={
-                          variant.pricePerMeter === 0
-                            ? ""
-                            : variant.pricePerMeter
-                        }
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === "" || /^\d*\.?\d*$/.test(val)) {
-                            const nextVariants = [...(formData.variants || [])];
-                            nextVariants[index] = {
-                              ...nextVariants[index],
-                              pricePerMeter: val,
-                            };
-                            onFieldChange("variants", nextVariants);
-                          }
+                    <div className="md:col-span-2">
+                      <FabricCutsEditor
+                        cuts={variant.cuts || []}
+                        catalogCuts={catalogCuts}
+                        errorPrefix={`${prefix}.cuts`}
+                        fieldErrors={fieldErrors}
+                        loading={cutsLoading}
+                        showTitle={false}
+                        onChange={(cuts) => {
+                          const nextVariants = [...(formData.variants || [])];
+                          nextVariants[index] = {
+                            ...nextVariants[index],
+                            cuts,
+                          };
+                          onFieldChange("variants", nextVariants);
                         }}
-                        className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none bg-transparent text-xs sm:text-sm hover:cursor-text"
-                        placeholder="0.00"
                       />
-                    </FormField>
-
-                    <FormField
-                      label="Stock in Meters"
-                      name={`${prefix}.stockInMeters`}
-                      error={fieldErrors[`${prefix}.stockInMeters`]}
-                      required
-                    >
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        step={0.01}
-                        value={
-                          variant.stockInMeters === 0
-                            ? ""
-                            : variant.stockInMeters
-                        }
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === "" || /^\d*$/.test(val)) {
-                            const nextVariants = [...(formData.variants || [])];
-                            nextVariants[index] = {
-                              ...nextVariants[index],
-                              stockInMeters: val,
-                            };
-                            onFieldChange("variants", nextVariants);
-                          }
-                        }}
-                        className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none bg-transparent text-xs sm:text-sm hover:cursor-text"
-                        placeholder="e.g. 50"
-                      />
-                    </FormField>
+                    </div>
 
                     <FormField
                       label="Active Status"

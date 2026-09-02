@@ -7,14 +7,19 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "next/navigation";
 import type { Locale } from "@/i18n/routing";
+import { formatCurrency } from "@/lib/format";
 import {
   type FabricDetailItem,
   formatMaterialLabel,
-  formatPriceWithUnit,
-  formatStockDisplay,
+  formatFabricCutPrice,
+  formatFabricListingPrice,
+  getCutDisplayName,
+  getFabricCuts,
   getFabricDisplayFields,
+  buildFabricCutCartId,
+  buildInitialFabricCutSelections,
+  getSelectedFabricCutEntries,
 } from "@/lib/fabrics";
-import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import { Share2 } from "lucide-react";
 import StoreAttribution from "@/components/fabric/StoreAttribution";
 import { resolveMediaUrl } from "@/lib/media";
@@ -37,6 +42,7 @@ type FabricDetailViewProps = {
     color: string[];
     city: string;
     perMeter: string;
+    selectCut: string;
     selectForCustomOrder: string;
     storeTitle: string;
     pickupLabel: string;
@@ -50,8 +56,20 @@ export default function FabricDetailView({
   labels,
 }: FabricDetailViewProps) {
   const { title, description } = getFabricDisplayFields(fabric, locale);
-  const { unit, formatLength } = useMeasurementUnit();
   const router = useRouter();
+  const cuts = getFabricCuts(fabric);
+  const [cutSelections, setCutSelections] = useState<Record<string, number>>(
+    () => buildInitialFabricCutSelections(fabric),
+  );
+  const selectedCutEntries = getSelectedFabricCutEntries(
+    fabric,
+    cutSelections,
+  );
+  const hasSelection = selectedCutEntries.length > 0;
+  const selectedTotalPrice = selectedCutEntries.reduce(
+    (sum, entry) => sum + entry.price * (cutSelections[entry.cutId] ?? 0),
+    0,
+  );
   const { addItem: addToCart } = useCart();
   const { selectSingleFabric, setFirstStep } = useCustomOrder();
   const {
@@ -60,56 +78,122 @@ export default function FabricDetailView({
     removeItem: removeFromWishlist,
   } = useWishlist();
 
-  const [quantity, setQuantity] = useState(1);
+  const liked =
+    hasSelection &&
+    selectedCutEntries.every((entry) =>
+      wishItems.some(
+        (item) => item.id === buildFabricCutCartId(fabric._id, entry.cutId),
+      ),
+    );
+
+  useEffect(() => {
+    setCutSelections(buildInitialFabricCutSelections(fabric));
+  }, [fabric._id]);
+
+  const toggleCutSelection = (entry: (typeof cuts)[number]) => {
+    if (entry.stock <= 0) return;
+    setCutSelections((prev) => {
+      const next = { ...prev };
+      if ((next[entry.cutId] ?? 0) > 0) {
+        delete next[entry.cutId];
+      } else {
+        next[entry.cutId] = 1;
+      }
+      return next;
+    });
+  };
+
+  const updateCutQuantity = (
+    cutId: string,
+    quantity: number,
+    maxStock: number,
+  ) => {
+    setCutSelections((prev) => {
+      const next = { ...prev };
+      if (quantity <= 0) {
+        delete next[cutId];
+        return next;
+      }
+      next[cutId] = Math.min(maxStock, quantity);
+      return next;
+    });
+  };
+
+  const buildCartItemsFromSelection = () =>
+    selectedCutEntries.map((entry) => {
+      const cutLabel = getCutDisplayName(entry, locale);
+      const quantity = cutSelections[entry.cutId] ?? 1;
+      return {
+        id: buildFabricCutCartId(fabric._id, entry.cutId),
+        slug: fabric.slug,
+        name: `${title} — ${cutLabel}`,
+        image: resolveMediaUrl(fabric.images?.[0]) || "",
+        price: entry.price,
+        size: cutLabel,
+        maxStock: entry.stock,
+        quantity,
+      };
+    });
+
+  const toggleWishlist = () => {
+    if (!hasSelection) return;
+
+    if (liked) {
+      selectedCutEntries.forEach((entry) => {
+        removeFromWishlist(buildFabricCutCartId(fabric._id, entry.cutId));
+      });
+      return;
+    }
+
+    selectedCutEntries.forEach((entry) => {
+      const cutLabel = getCutDisplayName(entry, locale);
+      addToWishlist({
+        id: buildFabricCutCartId(fabric._id, entry.cutId),
+        slug: fabric.slug,
+        name: `${title} — ${cutLabel}`,
+        image: resolveMediaUrl(fabric.images?.[0]) || "",
+        price: entry.price,
+        size: cutLabel,
+        maxStock: entry.stock,
+        type: "fabric",
+      });
+    });
+  };
+
+  const handleAddToCart = () => {
+    if (!hasSelection) return;
+    buildCartItemsFromSelection().forEach((item) => addToCart(item));
+  };
+
+  const handleBuyNow = () => {
+    if (!hasSelection) return;
+    const cartItems = buildCartItemsFromSelection();
+
+    if (cartItems.length === 1) {
+      const item = cartItems[0];
+      const checkoutParams = new URLSearchParams({
+        productId: fabric._id,
+        slug: fabric.slug,
+        name: item.name,
+        image: item.image,
+        size: item.size,
+        quantity: String(item.quantity),
+        maxStock: String(item.maxStock),
+      });
+      router.push(
+        `/${locale}/checkout?buyNow=true&${checkoutParams.toString()}`,
+      );
+      return;
+    }
+
+    sessionStorage.setItem("checkoutItems", JSON.stringify(cartItems));
+    router.push(`/${locale}/checkout?buyNow=true&fromWishlistAll=true`);
+  };
   const containerRef = useRef<HTMLDivElement>(null);
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const [stickySide, setStickySide] = useState<"left" | "right" | null>(null);
   const [isLargeScreen, setIsLargeScreen] = useState(false);
-
-  const liked = wishItems.some((item) => item.id === fabric._id);
-
-  const toggleWishlist = () => {
-    if (liked) {
-      removeFromWishlist(fabric._id);
-    } else {
-      addToWishlist({
-        id: fabric._id,
-        slug: fabric.slug,
-        name: title,
-        image: resolveMediaUrl(fabric.images?.[0]) || "",
-        price: fabric.pricePerMeter,
-        size: "Per Meter",
-        maxStock: fabric.stockInMeters,
-        type: "fabric",
-      });
-    }
-  };
-
-  const handleAddToCart = () => {
-    addToCart({
-      id: fabric._id,
-      slug: fabric.slug,
-      name: title,
-      image: resolveMediaUrl(fabric.images?.[0]) || "",
-      price: fabric.pricePerMeter,
-      size: "Per Meter",
-      maxStock: fabric.stockInMeters,
-      quantity,
-    });
-  };
-
-  const handleBuyNow = () => {
-    const checkoutParams = new URLSearchParams({
-      productId: fabric._id,
-      slug: fabric.slug,
-      name: title,
-      image: resolveMediaUrl(fabric.images?.[0]) || "",
-      size: "Per Meter",
-      quantity: String(quantity),
-    });
-    router.push(`/${locale}/checkout?buyNow=true&${checkoutParams.toString()}`);
-  };
 
   useEffect(() => {
     const checkScreen = () => {
@@ -374,7 +458,18 @@ export default function FabricDetailView({
                   </button>
                 </div>
                 <p className="[font-family:var(--font-ui)] text-2xl text-black font-medium">
-                  {formatPriceWithUnit(fabric.pricePerMeter, unit, locale)}
+                  {selectedCutEntries.length === 0 &&
+                    formatFabricListingPrice(fabric, locale)}
+                  {selectedCutEntries.length === 1 &&
+                    formatFabricCutPrice(selectedCutEntries[0], locale)}
+                  {selectedCutEntries.length > 1 && (
+                    <>
+                      {locale === "ar"
+                        ? `${selectedCutEntries.length} قطع · `
+                        : `${selectedCutEntries.length} cuts · `}
+                      {formatCurrency(selectedTotalPrice, locale)}
+                    </>
+                  )}
                 </p>
               </motion.div>
 
@@ -542,86 +637,144 @@ export default function FabricDetailView({
                 </h3>
 
                 <div className="flex flex-col gap-4">
+                  {cuts.length > 0 && (
+                    <div>
+                      <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-3">
+                        {labels.selectCut}
+                      </span>
+                      <div className="space-y-0 divide-y divide-[#E4E0D8] border-y border-[#E4E0D8]">
+                        {cuts.map((entry) => {
+                          const cutLabel = getCutDisplayName(entry, locale);
+                          const isSelected = (cutSelections[entry.cutId] ?? 0) > 0;
+                          const quantity = cutSelections[entry.cutId] ?? 0;
+                          const isOutOfStock = entry.stock <= 0;
+
+                          return (
+                            <div
+                              key={entry.cutId}
+                              className={`py-4 ${isOutOfStock ? "opacity-50" : ""}`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  disabled={isOutOfStock}
+                                  onChange={() => toggleCutSelection(entry)}
+                                  className="mt-1 w-4 h-4 rounded border-gray-300 text-black focus:ring-black disabled:cursor-not-allowed"
+                                  aria-label={cutLabel}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span className="[font-family:var(--font-body)] text-sm font-medium text-black">
+                                      {cutLabel}
+                                    </span>
+                                    <span className="[font-family:var(--font-ui)] text-sm text-black">
+                                      {formatCurrency(entry.price, locale)}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      {isOutOfStock
+                                        ? locale === "ar"
+                                          ? "نفذت الكمية"
+                                          : "Out of stock"
+                                        : locale === "ar"
+                                          ? `${entry.stock} متوفر`
+                                          : `${entry.stock} in stock`}
+                                    </span>
+                                  </div>
+
+                                  {isSelected && (
+                                    <div className="flex items-center gap-3 mt-3">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          updateCutQuantity(
+                                            entry.cutId,
+                                            quantity - 1,
+                                            entry.stock,
+                                          )
+                                        }
+                                        className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
+                                        disabled={quantity <= 1}
+                                      >
+                                        <span className="text-lg">−</span>
+                                      </button>
+                                      <span className="w-8 text-center text-sm [font-family:var(--font-body)] text-black">
+                                        {quantity}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          updateCutQuantity(
+                                            entry.cutId,
+                                            quantity + 1,
+                                            entry.stock,
+                                          )
+                                        }
+                                        className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
+                                        disabled={quantity >= entry.stock}
+                                      >
+                                        <span className="text-lg">+</span>
+                                      </button>
+                                      <span className="text-[10px] text-gray-500 uppercase tracking-wider font-ui">
+                                        {cutLabel}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Availability */}
                   <div>
                     <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
-                      {locale === "ar" ? "المتوفر" : "Availability"}
+                      {locale === "ar" ? "المحدد" : "Selected"}
                     </span>
                     <p
-                      className={`[font-family:var(--font-body)] text-[14px] font-medium ${fabric.stockInMeters > 0
-                          ? "text-green-700"
-                          : "text-red-600"
-                        }`}
+                      className={`[font-family:var(--font-body)] text-[14px] font-medium ${
+                        hasSelection ? "text-green-700" : "text-gray-500"
+                      }`}
                     >
-                      {fabric.stockInMeters > 0
-                        ? `In stock (${formatStockDisplay(
-                          fabric.stockInMeters,
-                          unit,
-                        )})`
+                      {!hasSelection
+                        ? locale === "ar"
+                          ? "اختر قطعة واحدة أو أكثر"
+                          : "Select one or more cuts"
                         : locale === "ar"
-                          ? "نفذت الكمية"
-                          : "Out of stock"}
+                          ? `${selectedCutEntries.length} قطعة · ${formatCurrency(selectedTotalPrice, locale)}`
+                          : `${selectedCutEntries.length} cut${selectedCutEntries.length === 1 ? "" : "s"} · ${formatCurrency(selectedTotalPrice, locale)}`}
                     </p>
                   </div>
 
-                  {/* Quantity & Buy Now */}
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                        className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
-                        disabled={fabric.stockInMeters < 1 || quantity <= 1}
-                      >
-                        <span className="text-lg">−</span>
-                      </button>
-                      <span className="w-8 text-center text-sm [font-family:var(--font-body)] text-black">
-                        {quantity}
-                      </span>
-                      <button
-                        onClick={() =>
-                          setQuantity((q) =>
-                            Math.min(fabric.stockInMeters, q + 1),
-                          )
-                        }
-                        className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
-                        disabled={
-                          fabric.stockInMeters < 1 ||
-                          quantity >= fabric.stockInMeters
-                        }
-                      >
-                        <span className="text-lg">+</span>
-                      </button>
-                      <span className="text-[10px] text-gray-500 uppercase tracking-wider font-ui shrink-0">
-                        {unit === "wara"
-                          ? "Wara"
-                          : locale === "ar"
-                            ? "متر"
-                            : "Meters"}
-                      </span>
-                    </div>
+                  {/* Buy Now */}
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <button
                       onClick={handleBuyNow}
-                      disabled={fabric.stockInMeters < 1}
-                      className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${fabric.stockInMeters < 1
+                      disabled={!hasSelection}
+                      className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
+                        !hasSelection
                           ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
                           : "hover:bg-black hover:text-white"
-                        }`}
+                      }`}
                     >
                       {locale === "ar" ? "شراء الآن" : "Buy Now"}
                     </button>
-                  </div>
 
-                  {/* Add to Cart */}
-                  <button
-                    onClick={handleAddToCart}
-                    disabled={fabric.stockInMeters < 1}
-                    className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${fabric.stockInMeters < 1
-                        ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
-                        : "bg-black text-white hover:bg-white hover:text-black hover:border-black"
+                    <button
+                      onClick={handleAddToCart}
+                      disabled={!hasSelection}
+                      className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
+                        !hasSelection
+                          ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
+                          : "bg-black text-white hover:bg-white hover:text-black hover:border-black"
                       }`}
-                  >
-                    {locale === "ar" ? "إضافة إلى السلة" : "Add to Cart"}
-                  </button>
+                    >
+                      {locale === "ar" ? "إضافة إلى السلة" : "Add to Cart"}
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             </motion.div>
