@@ -52,6 +52,17 @@ export interface TailorDesignListItem {
   basePrice: number;
   priceType?: "fixed" | "per_meter";
   tailoringFee: number;
+  minCutId?: string;
+  minCutSnapshot?: {
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+  };
+  minCut?: {
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+  };
   estimatedMeters: number;
   estimatedDays: number;
   tailorSlug?: string;

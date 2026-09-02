@@ -3,10 +3,12 @@ import expressAsyncHandler from "express-async-handler";
 import mongoose from "mongoose";
 import Design from "../models/Design.js";
 import TailorShop from "../models/TailorShop.js";
+import Cut from "../models/Cut.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { deleteTailorDesignUpload } from "../utils/uploads.js";
 import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
 import { respondIfShopNotReady } from "../utils/shopReady.js";
+import { cutValueToMeters } from "../utils/fabricUnits.js";
 
 const tailorDesignRouter = express.Router();
 
@@ -29,6 +31,7 @@ const DESIGN_FIELDS = [
   "basePrice",
   "priceType",
   "tailoringFee",
+  "minCutId",
   "estimatedMeters",
   "estimatedDays",
   "isActive",
@@ -55,7 +58,11 @@ const formatDesign = (design) => ({
   basePrice: design.basePrice,
   priceType: design.priceType,
   tailoringFee: design.tailoringFee,
-  estimatedMeters: design.estimatedMeters,
+  minCutId: design.minCutId?._id || design.minCutId || null,
+  minCutSnapshot: design.minCutSnapshot || null,
+  minCut: design.minCutSnapshot || null,
+  estimatedMeters:
+    design.minCutSnapshot?.lengthInMeters ?? (design.estimatedMeters || 0),
   estimatedDays: design.estimatedDays,
   isActive: design.isActive,
   createdAt: design.createdAt,
@@ -93,6 +100,11 @@ const pickDesignFields = (body) => {
       data.images = Array.isArray(body.images)
         ? body.images.map((image) => String(image).trim()).filter(Boolean)
         : body.images;
+      continue;
+    }
+
+    if (field === "minCutId") {
+      data.minCutId = String(body.minCutId || "").trim();
       continue;
     }
 
@@ -156,7 +168,7 @@ const validateDesignPayload = (data, { requireCore = false } = {}) => {
       "category",
       "basePrice",
       "tailoringFee",
-      "estimatedMeters",
+      "minCutId",
     ];
 
     for (const field of required) {
@@ -171,6 +183,12 @@ const validateDesignPayload = (data, { requireCore = false } = {}) => {
 
     if (!Array.isArray(data.images) || data.images.length === 0) {
       return "At least one image is required";
+    }
+  }
+
+  if (data.minCutId !== undefined) {
+    if (!data.minCutId || !mongoose.Types.ObjectId.isValid(data.minCutId)) {
+      return "Valid minCutId is required";
     }
   }
 
@@ -199,12 +217,6 @@ const validateDesignPayload = (data, { requireCore = false } = {}) => {
   if (data.priceType !== undefined) {
     if (!["fixed", "per_meter"].includes(data.priceType)) {
       return "priceType must be either fixed or per_meter";
-    }
-  }
-
-  if (data.estimatedMeters !== undefined) {
-    if (!Number.isFinite(data.estimatedMeters) || data.estimatedMeters <= 0) {
-      return "estimatedMeters must be greater than 0";
     }
   }
 
@@ -307,6 +319,23 @@ tailorDesignRouter.post(
       return;
     }
 
+    const cut = await Cut.findOne({ _id: data.minCutId, isActive: true });
+    if (!cut) {
+      res.status(400).json({
+        success: false,
+        message: "Selected cut not found or is inactive",
+      });
+      return;
+    }
+    const lengthInMeters = cutValueToMeters(cut.value, cut.unit);
+    data.minCutId = cut._id;
+    data.minCutSnapshot = {
+      name: cut.name,
+      nameAr: cut.nameAr || "",
+      lengthInMeters,
+    };
+    data.estimatedMeters = lengthInMeters;
+
     data.slug = await ensureUniqueSlug(Design, data.slug || data.name, {
       extraFilter: { tailorShopId: shop._id },
       fallback: "design",
@@ -350,6 +379,25 @@ tailorDesignRouter.put(
         message: validationError,
       });
       return;
+    }
+
+    if (data.minCutId) {
+      const cut = await Cut.findOne({ _id: data.minCutId, isActive: true });
+      if (!cut) {
+        res.status(400).json({
+          success: false,
+          message: "Selected cut not found or is inactive",
+        });
+        return;
+      }
+      const lengthInMeters = cutValueToMeters(cut.value, cut.unit);
+      data.minCutId = cut._id;
+      data.minCutSnapshot = {
+        name: cut.name,
+        nameAr: cut.nameAr || "",
+        lengthInMeters,
+      };
+      data.estimatedMeters = lengthInMeters;
     }
 
     if (data.slug && data.slug !== design.slug) {

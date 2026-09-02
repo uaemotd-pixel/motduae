@@ -117,6 +117,16 @@ const designSnapshotSchema = new mongoose.Schema(
     priceType: { type: String, enum: ["fixed", "per_meter"], default: "fixed" },
     tailoringFee: { type: Number, required: true, min: 0 },
     estimatedMeters: { type: Number, min: 0, default: null },
+    minCutId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Cut",
+      default: null,
+    },
+    minCutSnapshot: {
+      name: { type: String, default: "" },
+      nameAr: { type: String, default: "" },
+      lengthInMeters: { type: Number, default: 0 },
+    },
   },
   { _id: false },
 );

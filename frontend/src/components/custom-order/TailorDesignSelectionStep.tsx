@@ -351,8 +351,10 @@ export default function TailorDesignSelectionStep() {
                                             {t("days")}
                                         </span>
                                         <span>
-                                            {t("estimatedMeters")}: {item.estimatedMeters}{" "}
-                                            {t("meters")}
+                                            {t("estimatedMeters")}:{" "}
+                                            {item.minCutSnapshot?.name
+                                                ? `${locale === "ar" ? item.minCutSnapshot.nameAr || item.minCutSnapshot.name : item.minCutSnapshot.name} (${item.minCutSnapshot.lengthInMeters} ${t("meters")})`
+                                                : `${item.estimatedMeters} ${t("meters")}`}
                                         </span>
                                     </div>
                                 </div>
