@@ -2,6 +2,24 @@ import type { FabricListItem } from "@/lib/fabrics";
 import { resolveFabricImage } from "@/lib/fabrics";
 import type { TailorDesignListItem, TailorShopListItem } from "@/lib/tailors";
 import { resolveDesignImage } from "@/lib/tailors";
+import {
+  convertToMeters,
+  convertToWar,
+  getDisplayUnit,
+  normalizeFabricUnit,
+  WAR_TO_METER,
+  WARA_TO_METERS,
+  type FabricUnit,
+} from "@/lib/fabricUnits";
+
+export type { FabricUnit };
+export {
+  convertToMeters,
+  convertToWar,
+  getDisplayUnit,
+  WAR_TO_METER,
+  WARA_TO_METERS,
+} from "@/lib/fabricUnits";
 
 export type FabricSource = "storefront" | "self";
 
@@ -60,8 +78,6 @@ export interface CustomOrderSelectedDesign extends CustomOrderDesignSelection {
   tailor: CustomOrderTailorSelection;
 }
 
-export type FabricUnit = "meters" | "wara";
-
 export interface CustomOrderLineItem {
   id: string;
   design: CustomOrderDesignSelection;
@@ -69,6 +85,7 @@ export interface CustomOrderLineItem {
   fabric: CustomOrderFabricSelection | null;
   fabricMeters: number | null;
   fabricUnit: FabricUnit;
+  cutId?: string | null;
 }
 
 export const CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS = [
@@ -130,6 +147,7 @@ export interface CustomOrderPreviewItemPayload {
   designId: string;
   fabricId?: string;
   fabricMeters: number;
+  cutId?: string;
 }
 
 export interface CustomOrderPreviewPayload {
@@ -358,32 +376,6 @@ function normalizeSelectedDesign(
   return { ...design, tailor };
 }
 
-export const WARA_TO_METERS = 0.9914;
-
-// lib/customOrder.ts
-
-export function convertToMeters(value: number, unit: FabricUnit): number {
-  let result: number;
-  if (unit === "wara") {
-    result = value * WARA_TO_METERS;
-  } else {
-    result = value;
-  }
-  return Number(result.toFixed(2)); // Round to 2 decimals
-}
-
-export function convertToWara(value: number): number {
-  return Number((value / WARA_TO_METERS).toFixed(2));
-}
-
-export function getDisplayUnit(unit: FabricUnit): string {
-  return unit === "wara" ? "Wara" : "Meters";
-}
-
-function normalizeFabricUnit(value: unknown): FabricUnit {
-  return value === "wara" ? "wara" : "meters";
-}
-
 function normalizeLineItem(value: unknown): CustomOrderLineItem | null {
   if (!value || typeof value !== "object") return null;
 
@@ -403,6 +395,7 @@ function normalizeLineItem(value: unknown): CustomOrderLineItem | null {
     fabric,
     fabricMeters: meters,
     fabricUnit: normalizeFabricUnit(item.fabricUnit),
+    cutId: typeof item.cutId === "string" ? item.cutId : null,
   };
 }
 
@@ -643,8 +636,8 @@ export function isLineItemMetersValid(
 
   const rounded = Number(meters.toFixed(2));
 
-  if (unit === "wara") {
-    const metersInMeters = rounded * WARA_TO_METERS;
+  if (unit === "war" || unit === "wara") {
+    const metersInMeters = rounded * WAR_TO_METER;
     return metersInMeters >= 2 && metersInMeters <= 7;
   }
 
@@ -742,8 +735,8 @@ export function buildCustomOrderPreviewPayload(
 
     // Convert to meters before sending to backend
     let metersInMeters = item.fabricMeters;
-    if (item.fabricUnit === "wara") {
-      metersInMeters = item.fabricMeters * WARA_TO_METERS;
+    if (item.fabricUnit === "war" || item.fabricUnit === "wara") {
+      metersInMeters = item.fabricMeters * WAR_TO_METER;
     }
     // Round to 2 decimal places
     metersInMeters = Number(metersInMeters.toFixed(2));
@@ -751,6 +744,7 @@ export function buildCustomOrderPreviewPayload(
     items.push({
       designId: item.design._id,
       fabricMeters: metersInMeters, // always in meters
+      ...(item.cutId ? { cutId: item.cutId } : {}),
       ...(draft.fabricSource === "storefront" && item.fabric
         ? { fabricId: item.fabric._id }
         : {}),

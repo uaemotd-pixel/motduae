@@ -159,7 +159,8 @@ export function resolveAdminApiPerm(path = "") {
     matchPrefix("/materials") ||
     matchPrefix("/patterns") ||
     matchPrefix("/seasons") ||
-    matchPrefix("/tags")
+    matchPrefix("/tags") ||
+    matchPrefix("/cuts")
   ) {
     return "settings";
   }

@@ -33,6 +33,7 @@ import {
   FabricUnit,
   isDraftEmpty,
 } from "@/lib/customOrder";
+import { fabricUnitFromCutUnit } from "@/lib/fabricUnits";
 import { useAuth } from "@/context/AuthContext";
 
 type CustomOrderContextType = {
@@ -63,6 +64,10 @@ type CustomOrderContextType = {
   getPreviewPayload: () => CustomOrderPreviewPayload | null;
   syncAutoLineItems: () => void;
   updateLineItemUnit: (itemId: string, unit: FabricUnit) => void;
+  applyLineItemCut: (
+    itemId: string,
+    cut: { _id: string; value: number; unit: "war" | "meter" },
+  ) => void;
   toggleAddon: (addonId: string) => void;
 };
 
@@ -255,7 +260,9 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       setDraft((prev) => ({
         ...prev,
         lineItems: prev.lineItems.map((item) =>
-          item.id === itemId ? { ...item, fabricMeters: meters } : item,
+          item.id === itemId
+            ? { ...item, fabricMeters: meters, cutId: null }
+            : item,
         ),
       }));
     },
@@ -338,10 +345,34 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     setDraft((prev) => ({
       ...prev,
       lineItems: prev.lineItems.map((item) =>
-        item.id === itemId ? { ...item, fabricUnit: unit } : item,
+        item.id === itemId
+          ? { ...item, fabricUnit: unit, cutId: null }
+          : item,
       ),
     }));
   };
+
+  const applyLineItemCut = useCallback(
+    (
+      itemId: string,
+      cut: { _id: string; value: number; unit: "war" | "meter" },
+    ) => {
+      setDraft((prev) => ({
+        ...prev,
+        lineItems: prev.lineItems.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                fabricMeters: cut.value,
+                fabricUnit: fabricUnitFromCutUnit(cut.unit),
+                cutId: cut._id,
+              }
+            : item,
+        ),
+      }));
+    },
+    [],
+  );
 
   const toggleAddon = useCallback((addonId: string) => {
     setDraft((prev) => {
@@ -429,6 +460,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       getPreviewPayload,
       syncAutoLineItems,
       updateLineItemUnit,
+      applyLineItemCut,
       toggleAddon,
     }),
     [
@@ -456,6 +488,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       getPreviewPayload,
       syncAutoLineItems,
       updateLineItemUnit,
+      applyLineItemCut,
       setAddPocketAction,
       setAddBottomWideFoldAction,
       toggleAddon,

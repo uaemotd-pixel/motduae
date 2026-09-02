@@ -15,6 +15,8 @@ import TailorShop from "../models/TailorShop.js";
 import { isAuth } from "../middleware/auth.js";
 import { requireEmailVerified } from "../middleware/requireEmailVerified.js";
 import AddOn from "../models/AddOn.js";
+import Cut from "../models/Cut.js";
+import { cutValueToMeters } from "../utils/fabricUnits.js";
 import {
   notifyCustomOrderPlacedAdmin,
   notifyCustomOrderPlacedCustomer,
@@ -96,6 +98,7 @@ function validateFabricOrderInput({
   fabricSource,
   fabricId,
   fabricMeters,
+  cutId,
 }) {
   if (!designId || !mongoose.Types.ObjectId.isValid(designId)) {
     throw new PricingValidationError("Valid designId is required");
@@ -127,6 +130,8 @@ function validateFabricOrderInput({
     fabricSource,
     fabricId: fabricSource === "storefront" ? fabricId : null,
     fabricMeters: parseFabricMeters(fabricMeters),
+    cutId:
+      cutId && mongoose.Types.ObjectId.isValid(cutId) ? cutId : null,
   };
 }
 
@@ -149,6 +154,7 @@ function validateMultiItemOrderInput({ fabricSource, items }) {
         fabricSource,
         fabricId: item.fabricId,
         fabricMeters: item.fabricMeters,
+        cutId: item.cutId,
       }),
     ),
   };
@@ -287,6 +293,42 @@ function buildDesignSnapshot(design) {
   };
 }
 
+function buildCutSnapshot(cut) {
+  return {
+    name: cut.name,
+    nameAr: cut.nameAr || "",
+    value: cut.value,
+    unit: cut.unit,
+  };
+}
+
+async function resolveCutForOrderItem(itemInput) {
+  if (!itemInput.cutId) {
+    return { cutId: null, cutSnapshot: null };
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(itemInput.cutId)) {
+    throw new PricingValidationError("Valid cutId is required when provided");
+  }
+
+  const cut = await Cut.findById(itemInput.cutId);
+  if (!cut || !cut.isActive) {
+    throw new PricingValidationError("cut not found or is inactive");
+  }
+
+  const expectedMeters = cutValueToMeters(cut.value, cut.unit);
+  if (Math.abs(expectedMeters - itemInput.fabricMeters) > 0.02) {
+    throw new PricingValidationError(
+      "fabricMeters does not match the selected cut",
+    );
+  }
+
+  return {
+    cutId: cut._id,
+    cutSnapshot: buildCutSnapshot(cut),
+  };
+}
+
 async function deductFabricStock(fabricId, meters) {
   const fabric = await Fabric.findOne({ _id: fabricId, isActive: true });
 
@@ -364,6 +406,7 @@ async function buildMultiItemOrderData(
       fabricStoreId: fabric?.listedByStore ?? null,
       fabricSnapshot: fabric ? buildFabricSnapshot(fabric) : null,
       fabricMeters: itemInput.fabricMeters,
+      ...(await resolveCutForOrderItem(itemInput)),
       pricing: itemPricings[index],
     });
   }
