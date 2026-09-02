@@ -1,6 +1,7 @@
 import express from "express";
 import Fabric from "../models/Fabric.js";
 import Material from "../models/Material.js";
+import { enrichFabricWithCuts } from "../utils/fabricCuts.js";
 
 const fabricRoutes = express.Router();
 
@@ -17,6 +18,7 @@ const toListItem = (fabric) => ({
   city: fabric.city,
   tag: fabric.tag,
   tagColor: fabric.tagColor,
+  cuts: fabric.cuts || [],
   pricePerMeter: fabric.pricePerMeter,
   listedByStore: fabric.fabricShopId
     ? {
@@ -107,13 +109,17 @@ fabricRoutes.get("/", async (req, res) => {
       Fabric.countDocuments(filter),
     ]);
 
+    const enriched = await Promise.all(
+      fabrics.map((fabric) => enrichFabricWithCuts(fabric)),
+    );
+
     res.json({
       success: true,
       page: pageNumber,
       limit: limitNumber,
       total,
       totalPages: Math.ceil(total / limitNumber) || 0,
-      items: fabrics.map(toListItem),
+      items: enriched.map(toListItem),
     });
   } catch (error) {
     console.error("GET /api/fabrics error:", error);
@@ -137,6 +143,7 @@ const toDetailItem = (fabric) => ({
   city: fabric.city,
   tag: fabric.tag,
   tagColor: fabric.tagColor,
+  cuts: fabric.cuts || [],
   pricePerMeter: fabric.pricePerMeter,
   stockInMeters: fabric.stockInMeters,
   minAge: fabric.minAge,
@@ -193,7 +200,8 @@ fabricRoutes.get("/:slug", async (req, res) => {
       isActive: true,
     }).select("_id name nameAr slug images colors material minAge maxAge");
 
-    const detailItem = toDetailItem(fabric);
+    const enrichedFabric = await enrichFabricWithCuts(fabric);
+    const detailItem = toDetailItem(enrichedFabric);
     detailItem.variations = variants.map(v => ({
       _id: v._id,
       slug: v.slug,

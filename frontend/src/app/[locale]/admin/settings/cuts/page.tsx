@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
 import {
-  Plus,
   Pencil,
   Trash2,
   Loader2,
@@ -47,17 +46,10 @@ interface ApiResponse {
   totalPages: number;
 }
 
-const toSlug = (str: string): string => {
-  return str
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
-};
-
-const toLowerPreserveSpaces = (str: string): string => {
-  return str.toLowerCase().trim();
-};
+function getNextCutNamePreview(totalCount: number): string {
+  if (totalCount <= 0) return "cut";
+  return `cut ${totalCount}`;
+}
 
 function getEquivalentLabel(cut: Cut): string {
   const meters =
@@ -74,24 +66,25 @@ export default function AdminSettingsCutsPage() {
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showModal, setShowModal] = useState(false);
   const [editingCut, setEditingCut] = useState<Cut | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [editValue, setEditValue] = useState("");
+  const [editUnit, setEditUnit] = useState<CutUnit>("meter");
+  const [editIsActive, setEditIsActive] = useState(true);
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [cutToDelete, setCutToDelete] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  const [createValue, setCreateValue] = useState("");
+  const [createUnit, setCreateUnit] = useState<CutUnit>("meter");
+  const [createIsActive, setCreateIsActive] = useState(true);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
-
-  const [formName, setFormName] = useState("");
-  const [formNameAr, setFormNameAr] = useState("");
-  const [formValue, setFormValue] = useState("");
-  const [formUnit, setFormUnit] = useState<CutUnit>("meter");
-  const [formIsActive, setFormIsActive] = useState(true);
 
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoad = useRef(true);
@@ -167,61 +160,72 @@ export default function AdminSettingsCutsPage() {
     void fetchCuts(1, newLimit);
   };
 
-  const openAddModal = () => {
-    setEditingCut(null);
-    setFormName("");
-    setFormNameAr("");
-    setFormValue("");
-    setFormUnit("meter");
-    setFormIsActive(true);
-    setShowModal(true);
-  };
-
   const openEditModal = (item: Cut) => {
     if (item.isInUse) {
       toast.error("This cut is in use and cannot be edited.");
       return;
     }
     setEditingCut(item);
-    setFormName(item.name);
-    setFormNameAr(item.nameAr || "");
-    setFormValue(String(item.value));
-    setFormUnit(item.unit);
-    setFormIsActive(item.isActive);
-    setShowModal(true);
+    setEditValue(String(item.value));
+    setEditUnit(item.unit);
+    setEditIsActive(item.isActive);
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const closeEditModal = () => {
+    setEditingCut(null);
+  };
+
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const numericValue = Number(formValue);
+    const numericValue = Number(createValue);
     if (!Number.isFinite(numericValue) || numericValue <= 0) {
       toast.error("Cut length must be greater than 0");
       return;
     }
 
-    setSubmitting(true);
-    const payload = {
-      name: toSlug(formName),
-      nameAr: toLowerPreserveSpaces(formNameAr),
-      value: numericValue,
-      unit: formUnit,
-      isActive: formIsActive,
-    };
-
+    setCreating(true);
     try {
-      if (editingCut) {
-        await api.put(`/api/admin/cuts/${editingCut._id}`, payload);
-        toast.success("Cut updated");
-      } else {
-        await api.post("/api/admin/cuts", payload);
-        toast.success("Cut created");
-      }
-      setShowModal(false);
-      void fetchCuts(editingCut ? currentPage : 1);
+      await api.post("/api/admin/cuts", {
+        value: numericValue,
+        unit: createUnit,
+        isActive: createIsActive,
+      });
+      toast.success("Cut created");
+      setCreateValue("");
+      setCreateUnit("meter");
+      setCreateIsActive(true);
+      void fetchCuts(1);
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to create cut"));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingCut) return;
+
+    const numericValue = Number(editValue);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      toast.error("Cut length must be greater than 0");
+      return;
+    }
+
+    setSubmittingEdit(true);
+    try {
+      await api.put(`/api/admin/cuts/${editingCut._id}`, {
+        value: numericValue,
+        unit: editUnit,
+        isActive: editIsActive,
+      });
+      toast.success("Cut updated");
+      closeEditModal();
+      void fetchCuts(currentPage);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to save cut"));
     } finally {
-      setSubmitting(false);
+      setSubmittingEdit(false);
     }
   };
 
@@ -283,13 +287,25 @@ export default function AdminSettingsCutsPage() {
     }
   };
 
-  const previewValue = Number(formValue);
-  const previewEquivalent =
-    Number.isFinite(previewValue) && previewValue > 0
-      ? formUnit === "war"
-        ? `≈ ${cutValueToMeters(previewValue, "war").toFixed(2)} meter`
-        : `≈ ${metersToWar(previewValue).toFixed(2)} war`
+  const createPreviewValue = Number(createValue);
+  const createPreviewEquivalent =
+    Number.isFinite(createPreviewValue) && createPreviewValue > 0
+      ? createUnit === "war"
+        ? `≈ ${cutValueToMeters(createPreviewValue, "war").toFixed(2)} meter`
+        : `≈ ${metersToWar(createPreviewValue).toFixed(2)} war`
       : null;
+
+  const editPreviewValue = Number(editValue);
+  const editPreviewEquivalent =
+    Number.isFinite(editPreviewValue) && editPreviewValue > 0
+      ? editUnit === "war"
+        ? `≈ ${cutValueToMeters(editPreviewValue, "war").toFixed(2)} meter`
+        : `≈ ${metersToWar(editPreviewValue).toFixed(2)} war`
+      : null;
+
+  const nextCutNamePreview = searchQuery.trim()
+    ? "auto-assigned on save"
+    : getNextCutNamePreview(totalItems);
 
   const formatDate = (d?: string) => {
     if (!d) return "";
@@ -317,28 +333,98 @@ export default function AdminSettingsCutsPage() {
                 Cuts
               </h1>
               <p className="text-gray-500 text-sm">
-                Manage predefined fabric cut lengths for custom orders (war and
-                meter)
+                Manage predefined fabric cut lengths (war and meter). Names are
+                auto-assigned: cut, cut 1, cut 2, …
               </p>
             </div>
           </div>
         </div>
-        <motion.button
-          type="button"
-          onClick={openAddModal}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-linear-to-r from-gray-900 to-gray-800 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:shadow-xl hover:shadow-gray-900/30 transition-all hover:cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          New Cut
-        </motion.button>
       </div>
 
       <div className="rounded-2xl border border-gray-100 bg-gray-50/80 px-4 py-3 text-sm text-gray-600">
         <span className="font-medium text-gray-800">Unit conversion:</span> 1
-        meter = 1.0936 war · 1 war = 0.9144 meter. Values are stored in the
-        unit you choose when creating a cut.
+        meter = 1.0936 war · 1 war = 0.9144 meter. The first cut is named{" "}
+        <span className="font-mono text-gray-800">cut</span>; additional cuts are{" "}
+        <span className="font-mono text-gray-800">cut 1</span>,{" "}
+        <span className="font-mono text-gray-800">cut 2</span>, and so on.
+      </div>
+
+      {/* Inline create form */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Add new cut</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Will be saved as:{" "}
+          <span className="font-mono font-medium text-gray-800">
+            {nextCutNamePreview}
+          </span>
+        </p>
+
+        <form
+          onSubmit={handleCreate}
+          className="flex flex-col lg:flex-row lg:items-end gap-4"
+        >
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5 uppercase tracking-wide">
+                Length <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="number"
+                required
+                min="0.01"
+                step="0.01"
+                value={createValue}
+                onChange={(e) => setCreateValue(e.target.value)}
+                placeholder="e.g. 3.5"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5 uppercase tracking-wide">
+                Unit <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={createUnit}
+                onChange={(e) => setCreateUnit(e.target.value as CutUnit)}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow bg-white"
+              >
+                <option value="meter">Meter</option>
+                <option value="war">War</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 lg:shrink-0">
+            <label
+              className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-100 cursor-pointer select-none"
+            >
+              <input
+                type="checkbox"
+                checked={createIsActive}
+                onChange={(e) => setCreateIsActive(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+              />
+              <span className="text-sm text-gray-700">Active</span>
+            </label>
+
+            <motion.button
+              type="submit"
+              disabled={creating}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="px-5 py-2.5 rounded-xl bg-linear-to-r from-gray-900 to-gray-800 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:shadow-xl transition-all disabled:opacity-50 hover:cursor-pointer inline-flex items-center justify-center gap-2 min-h-10.5"
+            >
+              {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {creating ? "Adding..." : "Add Cut"}
+            </motion.button>
+          </div>
+        </form>
+
+        {createPreviewEquivalent && (
+          <p className="text-sm text-gray-500 mt-3">
+            Equivalent: {createPreviewEquivalent}
+          </p>
+        )}
       </div>
 
       <div className="relative">
@@ -372,30 +458,18 @@ export default function AdminSettingsCutsPage() {
       {loading ? (
         <TableSkeleton rows={6} cols={3} className="rounded-2xl" />
       ) : cuts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-center py-20">
+        <div className="flex flex-col items-center justify-center text-center py-16">
           <div className="w-20 h-20 bg-linear-to-br from-gray-50 to-gray-100 rounded-3xl flex items-center justify-center mb-6 shadow-inner">
             <Ruler className="w-8 h-8 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-1">
             {searchQuery ? "No matching cuts" : "No cuts yet"}
           </h3>
-          <p className="text-sm text-gray-500 max-w-sm mb-6">
+          <p className="text-sm text-gray-500 max-w-sm">
             {searchQuery
               ? "Try a different search term or clear the filter."
-              : "Create your first cut preset for the custom order flow."}
+              : "Use the form above to add your first cut."}
           </p>
-          {!searchQuery && (
-            <motion.button
-              type="button"
-              onClick={openAddModal}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-linear-to-r from-gray-900 to-gray-800 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:shadow-xl transition-all hover:cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Create Cut
-            </motion.button>
-          )}
         </div>
       ) : (
         <div className="grid gap-3">
@@ -413,7 +487,7 @@ export default function AdminSettingsCutsPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3 flex-wrap">
-                      <h3 className="text-base font-semibold text-gray-900 group-hover:text-gray-700 transition-colors">
+                      <h3 className="text-base font-semibold text-gray-900 group-hover:text-gray-700 transition-colors font-mono">
                         {item.name}
                       </h3>
                       {item.nameAr && (
@@ -531,7 +605,7 @@ export default function AdminSettingsCutsPage() {
       )}
 
       <AnimatePresence>
-        {showModal && (
+        {editingCut && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -546,59 +620,32 @@ export default function AdminSettingsCutsPage() {
               className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
             >
               <div className="p-6 sm:p-8">
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center justify-between mb-6">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900">
-                      {editingCut ? "Edit Cut" : "New Cut"}
+                      Edit Cut
                     </h2>
                     <p className="text-sm text-gray-500 mt-0.5">
-                      {editingCut
-                        ? "Update the cut details below."
-                        : "Define a preset fabric length for custom orders."}
+                      <span className="font-mono font-medium text-gray-800">
+                        {editingCut.name}
+                      </span>
+                      {editingCut.nameAr && (
+                        <span dir="rtl" className="ml-2">
+                          ({editingCut.nameAr})
+                        </span>
+                      )}
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShowModal(false)}
+                    onClick={closeEditModal}
                     className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition hover:cursor-pointer"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Name <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={formName}
-                        onChange={(e) => setFormName(e.target.value)}
-                        placeholder="e.g. standard-thob"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow"
-                      />
-                      <p className="text-xs text-gray-400 mt-1">
-                        Will be saved as: {formName ? toSlug(formName) : "..."}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Name (Arabic)
-                      </label>
-                      <input
-                        type="text"
-                        value={formNameAr}
-                        onChange={(e) => setFormNameAr(e.target.value)}
-                        dir="rtl"
-                        placeholder="مثال: ثوب عادي"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow"
-                      />
-                    </div>
-                  </div>
-
+                <form onSubmit={handleEditSubmit} className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -609,8 +656,8 @@ export default function AdminSettingsCutsPage() {
                         required
                         min="0.01"
                         step="0.01"
-                        value={formValue}
-                        onChange={(e) => setFormValue(e.target.value)}
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
                         placeholder="e.g. 3.5"
                         className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow"
                       />
@@ -620,9 +667,9 @@ export default function AdminSettingsCutsPage() {
                         Unit <span className="text-red-400">*</span>
                       </label>
                       <select
-                        value={formUnit}
+                        value={editUnit}
                         onChange={(e) =>
-                          setFormUnit(e.target.value as CutUnit)
+                          setEditUnit(e.target.value as CutUnit)
                         }
                         className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow bg-white"
                       >
@@ -632,9 +679,9 @@ export default function AdminSettingsCutsPage() {
                     </div>
                   </div>
 
-                  {previewEquivalent && (
+                  {editPreviewEquivalent && (
                     <p className="text-sm text-gray-500 bg-gray-50 rounded-xl px-4 py-3">
-                      Equivalent: {previewEquivalent}
+                      Equivalent: {editPreviewEquivalent}
                     </p>
                   )}
 
@@ -642,8 +689,8 @@ export default function AdminSettingsCutsPage() {
                     <input
                       type="checkbox"
                       id="cutIsActive"
-                      checked={formIsActive}
-                      onChange={(e) => setFormIsActive(e.target.checked)}
+                      checked={editIsActive}
+                      onChange={(e) => setEditIsActive(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
                     />
                     <label
@@ -660,26 +707,22 @@ export default function AdminSettingsCutsPage() {
                   <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
                     <button
                       type="button"
-                      onClick={() => setShowModal(false)}
+                      onClick={closeEditModal}
                       className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition hover:cursor-pointer"
                     >
                       Cancel
                     </button>
                     <motion.button
                       type="submit"
-                      disabled={submitting}
+                      disabled={submittingEdit}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       className="px-5 py-2.5 rounded-xl bg-linear-to-r from-gray-900 to-gray-800 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:shadow-xl transition-all disabled:opacity-50 hover:cursor-pointer inline-flex items-center gap-2"
                     >
-                      {submitting && (
+                      {submittingEdit && (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       )}
-                      {submitting
-                        ? "Saving..."
-                        : editingCut
-                          ? "Update Cut"
-                          : "Create Cut"}
+                      {submittingEdit ? "Saving..." : "Update Cut"}
                     </motion.button>
                   </div>
                 </form>

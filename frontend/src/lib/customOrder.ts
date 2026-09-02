@@ -1,5 +1,5 @@
-import type { FabricListItem } from "@/lib/fabrics";
-import { resolveFabricImage } from "@/lib/fabrics";
+import type { FabricListItem, FabricCutEntry } from "@/lib/fabrics";
+import { resolveFabricImage, isFabricInStock } from "@/lib/fabrics";
 import type { TailorDesignListItem, TailorShopListItem } from "@/lib/tailors";
 import { resolveDesignImage } from "@/lib/tailors";
 import {
@@ -43,7 +43,8 @@ export interface CustomOrderFabricSelection {
   name: string;
   nameAr?: string;
   material?: string;
-  pricePerMeter: number;
+  pricePerMeter?: number;
+  cuts?: FabricCutEntry[];
   image?: string;
   stockInMeters?: number;
   fabricShopId?: string;
@@ -319,7 +320,12 @@ function normalizeFabric(value: unknown): CustomOrderFabricSelection | null {
     nameAr: fabric.nameAr,
     material: fabric.material,
     pricePerMeter: Number(fabric.pricePerMeter) || 0,
+    cuts: Array.isArray(fabric.cuts) ? fabric.cuts : undefined,
     image: fabric.image,
+    stockInMeters:
+      fabric.stockInMeters !== undefined
+        ? Number(fabric.stockInMeters)
+        : undefined,
   };
 }
 
@@ -557,6 +563,7 @@ export function toCustomOrderFabricSelection(
     nameAr: item.nameAr,
     material: item.material,
     pricePerMeter: item.pricePerMeter,
+    cuts: item.cuts,
     image: resolveFabricImage(item.images?.[0]),
     stockInMeters: item.stockInMeters,
     fabricShopId: storeId ? String(storeId) : undefined,
@@ -566,9 +573,7 @@ export function toCustomOrderFabricSelection(
 export function isFabricStepComplete(draft: CustomOrderDraft): boolean {
   if (draft.fabricSource === "self") return true;
   if (draft.fabricSource === "storefront" && draft.selectedFabrics.length > 0) {
-    const hasOutOfStock = draft.selectedFabrics.some(
-      (f) => f.stockInMeters !== undefined && f.stockInMeters <= 0,
-    );
+    const hasOutOfStock = draft.selectedFabrics.some((f) => !isFabricInStock(f));
     return !hasOutOfStock;
   }
   return false;

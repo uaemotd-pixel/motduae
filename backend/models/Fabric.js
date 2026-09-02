@@ -39,6 +39,28 @@ storePickupAddressSchema.virtual("emirateEn").get(function () {
   return found?.en || "";
 });
 
+const fabricCutSchema = new mongoose.Schema(
+  {
+    cutId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Cut",
+      required: true,
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    stock: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+    },
+  },
+  { _id: false },
+);
+
 const fabricSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -69,8 +91,16 @@ const fabricSchema = new mongoose.Schema(
     tag: { type: String, default: "", trim: true },
     tagAr: { type: String, default: "", trim: true },
     colors: { type: [String], default: [] },
-    pricePerMeter: { type: Number, required: true, min: 0 },
-    stockInMeters: { type: Number, required: true, default: 0, min: 0 },
+    cuts: {
+      type: [fabricCutSchema],
+      default: [],
+      validate: {
+        validator(cuts) {
+          return Array.isArray(cuts) && cuts.length > 0;
+        },
+        message: "At least one cut with price and stock is required",
+      },
+    },
     minAge: { type: Number, required: true, default: 0, min: 0 },
     maxAge: {
       type: Number,
@@ -112,6 +142,7 @@ const fabricSchema = new mongoose.Schema(
 fabricSchema.index({ isActive: 1, material: 1 });
 fabricSchema.index({ listedByStore: 1 });
 fabricSchema.index({ isVariantOf: 1 });
+fabricSchema.index({ "cuts.cutId": 1 });
 
 fabricSchema.pre("save", async function populateFabricShopId(next) {
   if (this.isVariantOf) {

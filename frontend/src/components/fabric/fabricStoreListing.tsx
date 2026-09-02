@@ -9,6 +9,11 @@ import {
   type FabricListItem,
   getFabricDisplayFields,
   resolveFabricImage,
+  formatFabricListingPrice,
+  getFabricDefaultCut,
+  getCutDisplayName,
+  getFabricMinListingPrice,
+  isFabricInStock,
 } from "@/lib/fabrics";
 import { Share2, ChevronDown, ChevronUp } from "lucide-react";
 import FadeInSection from "@/components/shared/fadeInSection";
@@ -788,7 +793,7 @@ export default function FabricsCatalogPage() {
         if (!isMatch) return false;
       }
 
-      const price = item.pricePerMeter ?? 0;
+      const price = getFabricMinListingPrice(item);
       if (price < filters.minPrice || price > filters.maxPrice) return false;
 
       const hasAgeFilter = filters.ageMin !== 0 || filters.ageMax !== AGE_MAX;
@@ -800,18 +805,18 @@ export default function FabricsCatalogPage() {
         }
       }
 
-      if (filters.inStockOnly && item.stockInMeters === 0) return false;
+      if (filters.inStockOnly && !isFabricInStock(item)) return false;
 
       return true;
     });
 
     if (sortBy === "price-low") {
       result = [...result].sort(
-        (a, b) => (a.pricePerMeter || 0) - (b.pricePerMeter || 0),
+        (a, b) => getFabricMinListingPrice(a) - getFabricMinListingPrice(b),
       );
     } else if (sortBy === "price-high") {
       result = [...result].sort(
-        (a, b) => (b.pricePerMeter || 0) - (a.pricePerMeter || 0),
+        (a, b) => getFabricMinListingPrice(b) - getFabricMinListingPrice(a),
       );
     }
 
@@ -1590,7 +1595,13 @@ export default function FabricsCatalogPage() {
                       isAr,
                       tags,
                     );
-                    const price = fabric.pricePerMeter ?? 0;
+                    const listingCut = getFabricDefaultCut(fabric);
+                    const price = listingCut?.price ?? getFabricMinListingPrice(fabric);
+                    const cutLabel = listingCut
+                      ? getCutDisplayName(listingCut, locale)
+                      : isAr
+                        ? "قطعة"
+                        : "cut";
 
                     return (
                       <div
@@ -1635,12 +1646,14 @@ export default function FabricsCatalogPage() {
                                   image,
                                   price,
                                   slug: fabric.slug,
-                                  size: "Per Meter",
+                                  size: cutLabel,
                                   quantity: 1,
                                   type: "fabric",
-                                  ...(Number.isFinite(fabric.stockInMeters)
-                                    ? { maxStock: fabric.stockInMeters }
-                                    : {}),
+                                  ...(listingCut
+                                    ? { maxStock: listingCut.stock }
+                                    : Number.isFinite(fabric.stockInMeters)
+                                      ? { maxStock: fabric.stockInMeters }
+                                      : {}),
                                 }}
                                 inline
                                 className="flex items-center justify-center w-6 h-6 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 shrink-0 p-0"
@@ -1659,7 +1672,7 @@ export default function FabricsCatalogPage() {
                           </Link>
 
                           <span className="[font-family:var(--font-ui)] text-[14px] sm:text-[15px] tracking-[0.08em] text-black font-normal mb-1">
-                            AED {price.toFixed(2)}
+                            {formatFabricListingPrice(fabric, locale)}
                           </span>
 
                           {/* Color swatches */}

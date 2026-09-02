@@ -11,14 +11,15 @@ import {
   type FabricFilter,
   type FabricListItem,
   filterFabricsByMaterial,
-  formatPriceWithUnit,
+  formatFabricListingPrice,
+  getFabricDefaultCut,
+  getCutDisplayName,
   getFabricDisplayFields,
 } from "@/lib/fabrics";
 import { resolveMediaUrl } from "@/lib/media";
 import { Share2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import WishlistButton from "../shared/wishlistButton";
-import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import { HomeSectionSkeleton } from "@/components/ui/Skeleton";
 
 async function copyToClipboard(text: string) {
@@ -63,8 +64,6 @@ export function PremiumFabrics() {
   const params = useParams();
 
   const locale = params.locale === "ar" ? "ar" : "en";
-  const { unit } = useMeasurementUnit();
-
   const [fabrics, setFabrics] = useState<FabricListItem[]>([]);
   const [materials, setMaterials] = useState<MaterialOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -373,6 +372,12 @@ export function PremiumFabrics() {
                     locale,
                   );
                   const hrefPath = `/fabrics/${item.slug}`;
+                  const listingCut = getFabricDefaultCut(item);
+                  const cutLabel = listingCut
+                    ? getCutDisplayName(listingCut, locale)
+                    : locale === "ar"
+                      ? "قطعة"
+                      : "cut";
 
                   return (
                     <div
@@ -413,14 +418,16 @@ export function PremiumFabrics() {
                                 id: item._id,
                                 name: title,
                                 image: imageUrl || "",
-                                price: item.pricePerMeter,
+                                price: listingCut?.price ?? item.pricePerMeter ?? 0,
                                 slug: item.slug,
-                                size: "Per Meter",
+                                size: cutLabel,
                                 quantity: 1,
                                 type: "fabric",
-                                ...(Number.isFinite(item.stockInMeters)
-                                  ? { maxStock: item.stockInMeters }
-                                  : {}),
+                                ...(listingCut
+                                  ? { maxStock: listingCut.stock }
+                                  : Number.isFinite(item.stockInMeters)
+                                    ? { maxStock: item.stockInMeters }
+                                    : {}),
                               }}
                             />
                           </div>
@@ -440,11 +447,7 @@ export function PremiumFabrics() {
                               {title}
                             </h3>
                             <span className="[font-family:var(--font-ui)] text-[12px] xs:text-[13px] sm:text-[14px] md:text-[13px] lg:text-[14px] xl:text-[15px] 2xl:text-[16px] tracking-[0.24em] text-black font-normal whitespace-nowrap">
-{formatPriceWithUnit(
-                                item.pricePerMeter,
-                                unit,
-                                locale,
-                              )}
+                              {formatFabricListingPrice(item, locale)}
                             </span>
                           </div>
 

@@ -1,6 +1,10 @@
 import type { Locale } from "@/i18n/routing";
 import { formatFilterLabel } from "@/lib/format";
 import { formatCurrency } from "@/lib/format";
+import {
+  formatCutLabel,
+  type CutUnit,
+} from "@/lib/fabricUnits";
 
 export type FabricMaterial = string;
 
@@ -26,6 +30,22 @@ export interface FabricPickupAddress {
   phone?: string;
 }
 
+export interface FabricCutMeta {
+  _id: string;
+  name: string;
+  nameAr?: string;
+  value: number;
+  unit: CutUnit;
+  lengthInMeters?: number;
+}
+
+export interface FabricCutEntry {
+  cutId: string;
+  price: number;
+  stock: number;
+  cut?: FabricCutMeta | null;
+}
+
 export interface FabricListItem {
   _id: string;
   slug: string;
@@ -39,12 +59,14 @@ export interface FabricListItem {
   city?: string;
   tag?: string;
   tagColor?: string;
-  pricePerMeter: number;
+  cuts?: FabricCutEntry[];
+  /** Computed legacy listing metric when cuts are present */
+  pricePerMeter?: number;
   listedByStore?: string | FabricStoreInfo | null;
   fabricShopId?: string | null;
-  stockInMeters: number;
-  fabricUnit: FabricUnitValue;
-  pricePerUnit: number;
+  stockInMeters?: number;
+  fabricUnit?: FabricUnitValue;
+  pricePerUnit?: number;
 }
 
 export interface FabricDetailItem extends FabricListItem {
@@ -158,6 +180,156 @@ export function formatStockDisplay(
     return `${wara.toFixed(2)} wara (${stockInMeters.toFixed(2)} m)`;
   }
   return `${stockInMeters.toFixed(2)} m`;
+}
+
+export function getFabricCuts(
+  item: Pick<FabricListItem, "cuts">,
+): FabricCutEntry[] {
+  return item.cuts ?? [];
+}
+
+export function isFabricInStock(
+  item: Pick<FabricListItem, "cuts" | "stockInMeters">,
+): boolean {
+  const cuts = getFabricCuts(item);
+  if (cuts.length > 0) {
+    return cuts.some((entry) => (entry.stock ?? 0) > 0);
+  }
+  return (item.stockInMeters ?? 0) > 0;
+}
+
+export function getFabricMinListingPrice(
+  item: Pick<FabricListItem, "cuts" | "pricePerMeter">,
+): number {
+  const cuts = getFabricCuts(item);
+  if (cuts.length > 0) {
+    return Math.min(...cuts.map((entry) => Number(entry.price) || 0));
+  }
+  return item.pricePerMeter ?? 0;
+}
+
+export function getFabricMinPriceCut(
+  item: Pick<FabricListItem, "cuts">,
+): FabricCutEntry | null {
+  const cuts = getFabricCuts(item);
+  if (!cuts.length) return null;
+  return cuts.reduce((min, entry) =>
+    Number(entry.price) < Number(min.price) ? entry : min,
+  );
+}
+
+/** First cut in catalog order — used for listing cards when multiple cuts exist. */
+export function getFabricPrimaryCut(
+  item: Pick<FabricListItem, "cuts">,
+): FabricCutEntry | null {
+  const cuts = getFabricCuts(item);
+  return cuts[0] ?? null;
+}
+
+export function getFabricDefaultCut(
+  item: Pick<FabricListItem, "cuts">,
+): FabricCutEntry | null {
+  return getFabricPrimaryCut(item);
+}
+
+export function getCutDisplayName(
+  entry: FabricCutEntry,
+  locale: Locale,
+): string {
+  const cut = entry.cut;
+  if (cut) {
+    const label = locale === "ar" ? cut.nameAr || cut.name : cut.name;
+    if (label?.trim()) return label.trim();
+    return formatCutLabel(cut.value, cut.unit, locale);
+  }
+  return locale === "ar" ? "قطعة" : "cut";
+}
+
+export function formatFabricCutPrice(
+  entry: FabricCutEntry,
+  locale: Locale,
+): string {
+  const name = getCutDisplayName(entry, locale);
+  return `${formatCurrency(Number(entry.price), locale)}/${name}`;
+}
+
+export function formatFabricListingPrice(
+  item: Pick<FabricListItem, "cuts" | "pricePerMeter">,
+  locale: Locale,
+): string {
+  const cuts = getFabricCuts(item);
+  if (cuts.length > 0) {
+    const primaryCut = getFabricPrimaryCut(item);
+    if (!primaryCut) return formatCurrency(0, locale);
+    const formatted = formatFabricCutPrice(primaryCut, locale);
+    if (cuts.length > 1) {
+      const prefix = locale === "ar" ? "من " : "From ";
+      return prefix + formatted;
+    }
+    return formatted;
+  }
+  return formatPricePerMeter(item.pricePerMeter ?? 0, locale);
+}
+
+export function formatFabricStockSummary(
+  item: Pick<FabricListItem, "cuts" | "stockInMeters">,
+  locale: Locale,
+): string {
+  const cuts = getFabricCuts(item);
+  if (cuts.length > 0) {
+    const inStock = cuts.filter((entry) => (entry.stock ?? 0) > 0);
+    if (inStock.length === 0) {
+      return locale === "ar" ? "نفذت الكمية" : "Out of stock";
+    }
+    const parts = inStock.map((entry) => {
+      const name = getCutDisplayName(entry, locale);
+      return `${entry.stock} ${name}`;
+    });
+    return parts.join(locale === "ar" ? "، " : ", ");
+  }
+
+  const stock = item.stockInMeters ?? 0;
+  if (stock <= 0) {
+    return locale === "ar" ? "نفذت الكمية" : "Out of stock";
+  }
+  return `${stock.toFixed(2)} m`;
+}
+
+export function buildFabricCutCartId(
+  fabricId: string,
+  cutId: string,
+): string {
+  return `${fabricId}::${cutId}`;
+}
+
+export function parseFabricCutCartId(cartId: string): {
+  fabricId: string;
+  cutId?: string;
+} {
+  const separatorIndex = cartId.indexOf("::");
+  if (separatorIndex === -1) {
+    return { fabricId: cartId };
+  }
+  return {
+    fabricId: cartId.slice(0, separatorIndex),
+    cutId: cartId.slice(separatorIndex + 2) || undefined,
+  };
+}
+
+export function buildInitialFabricCutSelections(
+  item: Pick<FabricListItem, "cuts">,
+): Record<string, number> {
+  const defaultCut = getFabricDefaultCut(item);
+  if (!defaultCut || defaultCut.stock <= 0) return {};
+  return { [defaultCut.cutId]: 1 };
+}
+
+export function getSelectedFabricCutEntries(
+  item: Pick<FabricListItem, "cuts">,
+  selections: Record<string, number>,
+): FabricCutEntry[] {
+  const cuts = getFabricCuts(item);
+  return cuts.filter((entry) => (selections[entry.cutId] ?? 0) > 0);
 }
 
 export function filterFabricsByMaterial(

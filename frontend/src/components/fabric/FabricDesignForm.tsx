@@ -8,6 +8,7 @@ import { ChevronDown } from "lucide-react";
 import { Link, useRouter } from "@/i18n/navigation";
 import FormField from "@/components/admin/FormField";
 import FabricImageUpload from "@/components/admin/FabricImageUpload";
+import { FabricCutsEditor } from "@/components/admin/FabricAdminFormFields";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import {
   fetchOwnFabricShop,
@@ -16,6 +17,11 @@ import {
 import { api } from "@/lib/api/client";
 import { UAE_EMIRATES } from "@/lib/uaeAddress";
 import { type PickupAddress } from "@/lib/createFabricAdmin";
+import {
+  createEmptyFabricCutRow,
+  validateFabricCuts,
+  type FabricCutFormEntry,
+} from "@/lib/createFabricAdmin";
 import {
   SLUG_PATTERN,
   createFabricItem,
@@ -40,6 +46,16 @@ type FabricDesignFormProps = {
 };
 
 type FieldKey = keyof FabricFormData;
+
+type CatalogCut = {
+  _id: string;
+  name: string;
+  nameAr?: string;
+  value: number;
+  unit: "war" | "meter";
+  metersEquivalent?: number;
+  lengthInMeters?: number;
+};
 
 const TOAST_BASE = {
   position: "top-right" as const,
@@ -107,6 +123,8 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     { name: string; nameAr: string; _id: string }[]
   >([]);
   const [tagsLoading, setTagsLoading] = useState(true);
+  const [catalogCuts, setCatalogCuts] = useState<CatalogCut[]>([]);
+  const [cutsLoading, setCutsLoading] = useState(true);
   const colorDropdownRef = useRef<HTMLDivElement>(null);
   const materialDropdownRef = useRef<HTMLDivElement>(null);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
@@ -174,6 +192,42 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCuts = async () => {
+      try {
+        setCutsLoading(true);
+        const data = await api.get<CatalogCut[]>("/api/filters/cuts");
+        if (!cancelled && Array.isArray(data)) {
+          setCatalogCuts(
+            data.map((cut) => ({
+              ...cut,
+              lengthInMeters: cut.lengthInMeters ?? cut.metersEquivalent,
+            })),
+          );
+        }
+      } catch {
+        if (!cancelled) setCatalogCuts([]);
+      } finally {
+        if (!cancelled) setCutsLoading(false);
+      }
+    };
+    void fetchCuts();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (cutsLoading) return;
+    if (formData.cuts.length === 0) {
+      setFormData((prev) => ({
+        ...prev,
+        cuts: [createEmptyFabricCutRow()],
+      }));
+    }
+  }, [cutsLoading, formData.cuts.length]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -337,8 +391,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
           colors: [],
           tag: "",
           tagAr: "",
-          pricePerMeter: prev.pricePerMeter,
-          stockInMeters: 0,
+          cuts: [createEmptyFabricCutRow()],
           storePickupAddress: prev.storePickupAddress,
           isActive: true,
         } satisfies FabricVariantFormData,
@@ -414,15 +467,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
       errors.materialAr = "Material (AR) is required";
     }
 
-    const priceNum = Number(formData.pricePerMeter);
-    if (isNaN(priceNum) || priceNum <= 0) {
-      errors.pricePerMeter = t("validation.pricePerMeterInvalid");
-    }
-    const stockStr = String(formData.stockInMeters ?? "").trim();
-    const stockNum = Number(formData.stockInMeters);
-    if (stockStr === "" || isNaN(stockNum) || stockNum <= 0) {
-      errors.stockInMeters = t("validation.stockInMetersRequired");
-    }
+    validateFabricCuts(formData.cuts || [], errors, "cuts");
     if (!formData.colors || formData.colors.length === 0) {
       errors.colors = t("validation.colorRequired");
     }
@@ -462,19 +507,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         if (!v.images.some((img) => img.trim())) {
           errors[`${prefix}.images`] = t("validation.imagesRequired");
         }
-        const pNum = Number(v.pricePerMeter);
-        if (isNaN(pNum) || pNum <= 0) {
-          errors[`${prefix}.pricePerMeter`] = t(
-            "validation.pricePerMeterInvalid",
-          );
-        }
-        const sStr = String(v.stockInMeters ?? "").trim();
-        const sNum = Number(v.stockInMeters);
-        if (sStr === "" || isNaN(sNum) || sNum <= 0) {
-          errors[`${prefix}.stockInMeters`] = t(
-            "validation.stockInMetersRequired",
-          );
-        }
+        validateFabricCuts(v.cuts || [], errors, `${prefix}.cuts`);
         if (!v.colors || v.colors.length === 0) {
           errors[`${prefix}.colors`] = t("validation.colorRequired");
         }
@@ -940,80 +973,20 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
             </FormField>
           </div>
 
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
-            {/* PRICE PER METER (AED) */}
-            <FormField
-              label="PRICE PER METER (AED)"
-              name="pricePerMeter"
-              error={fieldErrors.pricePerMeter}
-              required
-            >
-              <input
-                type="text"
-                inputMode="decimal"
-                value={
-                  formData.pricePerMeter === 0 ? "" : formData.pricePerMeter
-                }
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === "" || /^\d*\.?\d*$/.test(val)) {
-                    handleChange("pricePerMeter", val);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    const current = Number(formData.pricePerMeter) || 0;
-                    const next = parseFloat((current + 0.01).toFixed(2));
-                    handleChange("pricePerMeter", next);
-                  } else if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    const current = Number(formData.pricePerMeter) || 0;
-                    const next = Math.max(0, current - 0.01);
-                    handleChange("pricePerMeter", parseFloat(next.toFixed(2)));
-                  }
-                }}
-                className={`${INPUT_CLASS} hover:cursor-text`}
-                placeholder="0.00"
-              />
-            </FormField>
+          <div className="md:col-span-2">
+            <FabricCutsEditor
+              cuts={formData.cuts}
+              catalogCuts={catalogCuts}
+              errorPrefix="cuts"
+              fieldErrors={fieldErrors as Record<string, string>}
+              loading={cutsLoading}
+              onChange={(cuts: FabricCutFormEntry[]) =>
+                handleChange("cuts", cuts)
+              }
+            />
+          </div>
 
-            {/* STOCK IN METERS */}
-            <FormField
-              label="STOCK IN METERS"
-              name="stockInMeters"
-              error={fieldErrors.stockInMeters}
-              required
-            >
-              <input
-                type="text"
-                inputMode="numeric"
-                value={
-                  formData.stockInMeters === 0 ? "" : formData.stockInMeters
-                }
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === "" || /^\d*$/.test(val)) {
-                    handleChange("stockInMeters", val);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    const current = Number(formData.stockInMeters) || 0;
-                    handleChange("stockInMeters", current + 1);
-                  } else if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    const current = Number(formData.stockInMeters) || 0;
-                    const next = Math.max(0, current - 1);
-                    handleChange("stockInMeters", next);
-                  }
-                }}
-                className={`${INPUT_CLASS} hover:cursor-text`}
-                placeholder="e.g., 100"
-              />
-            </FormField>
-
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
             <FormField
               label="MIN AGE (YEARS)"
               name="minAge"
@@ -1536,57 +1509,19 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                         </FormField>
                       </div>
 
-                      {/* VARIANT PRICE */}
-                      <FormField
-                        label="Price Per Meter (AED)"
-                        name={`${prefix}.pricePerMeter`}
-                        error={fieldErrors[`${prefix}.pricePerMeter`]}
-                        required
-                      >
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={
-                            variant.pricePerMeter === 0
-                              ? ""
-                              : variant.pricePerMeter
+                      <div className="md:col-span-2">
+                        <FabricCutsEditor
+                          cuts={variant.cuts || []}
+                          catalogCuts={catalogCuts}
+                          errorPrefix={`${prefix}.cuts`}
+                          fieldErrors={fieldErrors as Record<string, string>}
+                          loading={cutsLoading}
+                          showTitle={false}
+                          onChange={(cuts: FabricCutFormEntry[]) =>
+                            handleVariantChange(index, "cuts", cuts)
                           }
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === "" || /^\d*\.?\d*$/.test(val)) {
-                              handleVariantChange(index, "pricePerMeter", val);
-                            }
-                          }}
-                          className={`${INPUT_CLASS} hover:cursor-text`}
-                          placeholder="0.00"
                         />
-                      </FormField>
-
-                      {/* VARIANT STOCK */}
-                      <FormField
-                        label="Stock in Meters"
-                        name={`${prefix}.stockInMeters`}
-                        error={fieldErrors[`${prefix}.stockInMeters`]}
-                        required
-                      >
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={
-                            variant.stockInMeters === 0
-                              ? ""
-                              : variant.stockInMeters
-                          }
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === "" || /^\d*$/.test(val)) {
-                              handleVariantChange(index, "stockInMeters", val);
-                            }
-                          }}
-                          className={`${INPUT_CLASS} hover:cursor-text`}
-                          placeholder="e.g. 50"
-                        />
-                      </FormField>
+                      </div>
 
                       {/* VARIANT ACTIVE STATUS */}
                       <FormField
