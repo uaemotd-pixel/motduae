@@ -28,6 +28,18 @@ import Material from "../models/Material.js";
 import Pattern from "../models/Pattern.js";
 import Season from "../models/Season.js";
 import Tag from "../models/Tag.js";
+import Cut from "../models/Cut.js";
+import {
+  getCutUsageCount,
+  getCutUsageMap,
+  isCutInUse,
+} from "../services/cutUsageService.js";
+import {
+  CUT_UNITS,
+  cutValueToMeters,
+  metersToWar,
+  normalizeCutUnit,
+} from "../utils/fabricUnits.js";
 import PartnerPayout, {
   PARTNER_PAYOUT_KINDS,
 } from "../models/PartnerPayout.js";
@@ -4168,6 +4180,208 @@ adminRouter.delete(
     }
     await tag.deleteOne();
     res.send({ message: "Tag deleted successfully" });
+  }),
+);
+
+// ==========================================
+// Admin Cuts CRUD — predefined fabric cut lengths
+// ==========================================
+
+function enrichCutDoc(cut, usageCount = 0) {
+  const plain = cut.toObject ? cut.toObject() : cut;
+  const metersEquivalent = cutValueToMeters(plain.value, plain.unit);
+  const warEquivalent = metersToWar(metersEquivalent);
+
+  return {
+    ...plain,
+    metersEquivalent,
+    warEquivalent,
+    usageCount,
+    isInUse: usageCount > 0,
+  };
+}
+
+// GET /api/admin/cuts?page=1&limit=10&search=...
+adminRouter.get(
+  "/cuts",
+  expressAsyncHandler(async (req, res) => {
+    const { search } = req.query;
+    const filter = {};
+
+    if (search && typeof search === "string" && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$or = [{ name: regex }, { nameAr: regex }];
+    }
+
+    const wantsPagination =
+      req.query.page !== undefined || req.query.limit !== undefined;
+
+    if (!wantsPagination) {
+      const cuts = await Cut.find(filter).sort({ value: 1, name: 1 });
+      const usageMap = await getCutUsageMap(cuts.map((cut) => String(cut._id)));
+      res.send(
+        cuts.map((cut) =>
+          enrichCutDoc(cut, usageMap[String(cut._id)] || 0),
+        ),
+      );
+      return;
+    }
+
+    const pageNumber = Math.max(Number(req.query.page) || 1, 1);
+    const limitNumber = Math.min(
+      Math.max(Number(req.query.limit) || 10, 1),
+      100,
+    );
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const [items, total] = await Promise.all([
+      Cut.find(filter).sort({ value: 1, name: 1 }).skip(skip).limit(limitNumber),
+      Cut.countDocuments(filter),
+    ]);
+
+    const usageMap = await getCutUsageMap(items.map((cut) => String(cut._id)));
+
+    res.send({
+      items: items.map((cut) =>
+        enrichCutDoc(cut, usageMap[String(cut._id)] || 0),
+      ),
+      total,
+      page: pageNumber,
+      totalPages: Math.ceil(total / limitNumber) || 0,
+    });
+  }),
+);
+
+// GET /api/admin/cuts/:id
+adminRouter.get(
+  "/cuts/:id",
+  expressAsyncHandler(async (req, res) => {
+    const cut = await Cut.findById(req.params.id);
+    if (!cut) {
+      res.status(404).send({ message: "Cut not found" });
+      return;
+    }
+    const usageCount = await getCutUsageCount(cut._id);
+    res.send(enrichCutDoc(cut, usageCount));
+  }),
+);
+
+// POST /api/admin/cuts
+adminRouter.post(
+  "/cuts",
+  expressAsyncHandler(async (req, res) => {
+    const { name, nameAr, value, unit, isActive } = req.body;
+
+    if (!name?.trim()) {
+      res.status(400).send({ message: "Cut name (English) is required" });
+      return;
+    }
+
+    const normalizedUnit = normalizeCutUnit(unit);
+    if (!normalizedUnit || !CUT_UNITS.includes(normalizedUnit)) {
+      res.status(400).send({
+        message: `Unit must be one of: ${CUT_UNITS.join(", ")}`,
+      });
+      return;
+    }
+
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      res.status(400).send({ message: "Cut length must be greater than 0" });
+      return;
+    }
+
+    const cut = new Cut({
+      name: name.trim(),
+      nameAr: nameAr?.trim() || "",
+      value: numericValue,
+      unit: normalizedUnit,
+      isActive: isActive !== undefined ? isActive : true,
+    });
+
+    const saved = await cut.save();
+    res.status(201).send(enrichCutDoc(saved, 0));
+  }),
+);
+
+// PUT /api/admin/cuts/:id
+adminRouter.put(
+  "/cuts/:id",
+  expressAsyncHandler(async (req, res) => {
+    const cut = await Cut.findById(req.params.id);
+    if (!cut) {
+      res.status(404).send({ message: "Cut not found" });
+      return;
+    }
+
+    if (await isCutInUse(cut._id)) {
+      res.status(409).send({
+        message:
+          "This cut is in use by orders and cannot be edited. Deactivate it instead or create a new cut.",
+      });
+      return;
+    }
+
+    const { name, nameAr, value, unit, isActive } = req.body;
+
+    if (name !== undefined) {
+      if (!name?.trim()) {
+        res.status(400).send({ message: "Cut name (English) is required" });
+        return;
+      }
+      cut.name = name.trim();
+    }
+
+    if (nameAr !== undefined) cut.nameAr = nameAr.trim();
+
+    if (unit !== undefined) {
+      const normalizedUnit = normalizeCutUnit(unit);
+      if (!normalizedUnit || !CUT_UNITS.includes(normalizedUnit)) {
+        res.status(400).send({
+          message: `Unit must be one of: ${CUT_UNITS.join(", ")}`,
+        });
+        return;
+      }
+      cut.unit = normalizedUnit;
+    }
+
+    if (value !== undefined) {
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue) || numericValue <= 0) {
+        res.status(400).send({ message: "Cut length must be greater than 0" });
+        return;
+      }
+      cut.value = numericValue;
+    }
+
+    if (isActive !== undefined) cut.isActive = isActive;
+
+    const updated = await cut.save();
+    const usageCount = await getCutUsageCount(updated._id);
+    res.send(enrichCutDoc(updated, usageCount));
+  }),
+);
+
+// DELETE /api/admin/cuts/:id
+adminRouter.delete(
+  "/cuts/:id",
+  expressAsyncHandler(async (req, res) => {
+    const cut = await Cut.findById(req.params.id);
+    if (!cut) {
+      res.status(404).send({ message: "Cut not found" });
+      return;
+    }
+
+    if (await isCutInUse(cut._id)) {
+      res.status(409).send({
+        message:
+          "This cut is in use by orders and cannot be deleted. Deactivate it instead.",
+      });
+      return;
+    }
+
+    await cut.deleteOne();
+    res.send({ message: "Cut deleted successfully" });
   }),
 );
 
