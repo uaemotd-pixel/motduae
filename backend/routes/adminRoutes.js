@@ -40,6 +40,7 @@ import {
   metersToWar,
   normalizeCutUnit,
 } from "../utils/fabricUnits.js";
+
 import {
   assertActiveCutsExist,
   enrichFabricWithCuts,
@@ -4333,7 +4334,6 @@ adminRouter.post(
   "/cuts",
   expressAsyncHandler(async (req, res) => {
     const { name, nameAr, value, unit, isActive } = req.body;
-
     const normalizedUnit = normalizeCutUnit(unit);
     if (!normalizedUnit || !CUT_UNITS.includes(normalizedUnit)) {
       res.status(400).send({
@@ -4391,7 +4391,6 @@ adminRouter.put(
       });
       return;
     }
-
     if (unit !== undefined) {
       const normalizedUnit = normalizeCutUnit(unit);
       if (!normalizedUnit || !CUT_UNITS.includes(normalizedUnit)) {
