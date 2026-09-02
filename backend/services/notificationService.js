@@ -146,6 +146,46 @@ function buildListFilters(query = {}) {
   return filters;
 }
 
+export const VENDOR_ORDER_NOTIFICATION_TYPES = [
+  "tailor_order_placed",
+  "fabric_order_placed",
+  "fabric_retail_order_placed",
+];
+
+export function isVendorOrderNotificationType(type) {
+  return VENDOR_ORDER_NOTIFICATION_TYPES.includes(String(type || ""));
+}
+
+export async function notifyVendorOrderPlaced({
+  type,
+  title,
+  message,
+  recipientUserId,
+  orderType,
+  orderId,
+  createdBy = null,
+  dedupeKey,
+} = {}) {
+  if (!isVendorOrderNotificationType(type)) {
+    throw new Error(`Unknown vendor order notification type: ${type}`);
+  }
+  if (!recipientUserId || !orderId) {
+    return null;
+  }
+
+  return createNotification({
+    type,
+    title,
+    message,
+    audience: "customer",
+    recipientUserId,
+    orderType,
+    orderId,
+    createdBy,
+    dedupeKey,
+  });
+}
+
 export async function createNotification({
   type,
   title,
@@ -650,6 +690,7 @@ export async function enrichCustomerNotifications(notifications) {
 
   for (const notification of notifications) {
     if (!notification.orderId) continue;
+    if (isVendorOrderNotificationType(notification.type)) continue;
 
     if (
       notification.orderType === "retail" ||
@@ -691,7 +732,7 @@ export async function enrichCustomerNotifications(notifications) {
   return notifications.map((notification) => {
     const base = { ...notification };
 
-    if (!notification.orderId) {
+    if (!notification.orderId || isVendorOrderNotificationType(notification.type)) {
       return { ...base, status: null, orderSummary: null };
     }
 
@@ -737,7 +778,16 @@ export function buildCustomerNotificationFilter(userId, orderIds, query = {}) {
   return {
     audience: "customer",
     ...buildListFilters(query),
-    $or: [{ recipientUserId: userId }, { orderId: { $in: orderIds } }],
+    $or: [
+      { recipientUserId: userId },
+      {
+        orderId: { $in: orderIds },
+        $or: [
+          { recipientUserId: { $exists: false } },
+          { recipientUserId: null },
+        ],
+      },
+    ],
   };
 }
 
@@ -785,11 +835,8 @@ export async function customerOwnsNotification(notification, userId) {
     return false;
   }
 
-  if (
-    notification.recipientUserId &&
-    notification.recipientUserId.toString() === userId.toString()
-  ) {
-    return true;
+  if (notification.recipientUserId) {
+    return notification.recipientUserId.toString() === userId.toString();
   }
 
   if (!notification.orderId) {

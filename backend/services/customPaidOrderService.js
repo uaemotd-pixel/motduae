@@ -21,6 +21,7 @@ import {
   isPublicTrackingTokenCollision,
 } from "./publicTrackingToken.js";
 import { sendPaidOrderPlacedEmail } from "./orderPlacedEmail.js";
+import { notifyPaidOrderVendors } from "./vendorOrderNotify.js";
 
 const isApprovedTailorOwner = (owner) =>
   owner?.role === "tailor" && owner?.approvalStatus === "approved";
@@ -398,6 +399,7 @@ export async function createPaidCustomOrder({
   const existing = await findCustomOrderByPaymentIntent(paymentIntentId);
   if (existing) {
     const withShipments = await attachInboundShipments(existing, userId);
+    await notifyPaidOrderVendors(withShipments, "custom");
     return { order: withShipments, created: false };
   }
 
@@ -579,6 +581,7 @@ export async function createPaidCustomOrder({
       const raced = await findCustomOrderByPaymentIntent(paymentIntentId);
       if (raced) {
         const withShipments = await attachInboundShipments(raced, userId);
+        await notifyPaidOrderVendors(withShipments, "custom");
         return { order: withShipments, created: false };
       }
     }
@@ -609,6 +612,7 @@ export async function createPaidCustomOrder({
     userId,
     orderType: "custom",
   });
+  await notifyPaidOrderVendors(order, "custom");
 
   const withShipments = await attachInboundShipments(order, userId);
   return { order: withShipments, created: true };
