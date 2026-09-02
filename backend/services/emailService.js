@@ -138,6 +138,49 @@ const PARTNER_APPLICATION_EVENTS = {
   rejected: EMAIL_EVENTS.PARTNER_REJECTED,
 };
 
+const VENDOR_ORDER_EVENTS = new Set([
+  EMAIL_EVENTS.ORDER_CUSTOM_PLACED_TAILOR,
+  EMAIL_EVENTS.ORDER_CUSTOM_PLACED_FABRIC,
+  EMAIL_EVENTS.ORDER_RETAIL_PLACED_FABRIC,
+]);
+
+export async function sendVendorOrderPlacedEmail({
+  event,
+  to,
+  name,
+  userId,
+  orderId,
+  orderType,
+  shortOrderId,
+  portalKind,
+  portalUrl,
+  lines,
+}) {
+  if (!VENDOR_ORDER_EVENTS.has(event)) {
+    throw new Error(`Unknown vendor order email event: ${event}`);
+  }
+
+  return send(
+    event,
+    {
+      to,
+      name,
+      shortOrderId,
+      portalKind,
+      orderType,
+      portalUrl,
+      lines,
+    },
+    {
+      to,
+      userId,
+      orderId,
+      orderType,
+      dedupeKey: buildDedupeKey(event, [orderId, userId]),
+    },
+  );
+}
+
 export async function sendPartnerApplicationEmail({
   kind,
   to,

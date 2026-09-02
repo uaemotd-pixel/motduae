@@ -1013,7 +1013,7 @@
       "refundAmount": "مبلغ الاسترداد",
       "orderStatus": "الحالة",
       "emptyTitle": "لا توجد إشعارات بعد",
-      "emptyDescription": "ستصلك هنا التحديثات عند الموافقة على طلبات المستحقات أو رفضها، وعند وجود تنبيهات مهمة عن متجرك.",
+      "emptyDescription": "ستصلك هنا التحديثات عند تقديم عميل لطلب من متجرك، وعند الموافقة على طلبات المستحقات أو رفضها، وعند وجود تنبيهات مهمة عن متجرك.",
       "types": {
         "fabricPayoutRequested": "طلب مستحقات",
         "fabricPayoutApproved": "تمت الموافقة على المستحقات",
@@ -1022,6 +1022,8 @@
         "retailOrderPlaced": "طلب ملابس جاهزة جديد",
         "customOrderReceived": "تم استلام الطلب",
         "retailOrderReceived": "تم استلام الطلب",
+        "fabricOrderPlaced": "طلب تفصيل جديد",
+        "fabricRetailOrderPlaced": "طلب متجر جديد",
         "default": "إشعار"
       }
     }
@@ -1092,13 +1094,14 @@
       "refundAmount": "مبلغ الاسترداد",
       "orderStatus": "الحالة",
       "emptyTitle": "لا توجد إشعارات بعد",
-      "emptyDescription": "ستصلك هنا التحديثات عند الموافقة على طلبات المستحقات أو رفضها، وعند وجود تنبيهات مهمة عن متجرك.",
+      "emptyDescription": "ستصلك هنا التحديثات عند تقديم عميل لطلب من متجرك، وعند الموافقة على طلبات المستحقات أو رفضها، وعند وجود تنبيهات مهمة عن متجرك.",
       "types": {
         "tailorPayoutRequested": "طلب مستحقات",
         "tailorPayoutApproved": "تمت الموافقة على المستحقات",
         "tailorPayoutRejected": "تم رفض المستحقات",
         "customOrderPlaced": "طلب تفصيل جديد",
         "customOrderReceived": "تم استلام الطلب",
+        "tailorOrderPlaced": "طلب تفصيل جديد",
         "default": "إشعار"
       }
     },

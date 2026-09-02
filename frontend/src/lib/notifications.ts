@@ -181,6 +181,9 @@ const TYPE_I18N_KEYS: Record<string, string> = {
   tailor_payout_requested: "tailorPayoutRequested",
   tailor_payout_approved: "tailorPayoutApproved",
   tailor_payout_rejected: "tailorPayoutRejected",
+  tailor_order_placed: "tailorOrderPlaced",
+  fabric_order_placed: "fabricOrderPlaced",
+  fabric_retail_order_placed: "fabricRetailOrderPlaced",
 };
 
 export function getNotificationTypeLabel(type: string, t?: (key: string) => string): string {
@@ -226,6 +229,9 @@ export function getNotificationTypeLabel(type: string, t?: (key: string) => stri
     tailor_payout_requested: "Tailor payout request",
     tailor_payout_approved: "Payout approved",
     tailor_payout_rejected: "Payout declined",
+    tailor_order_placed: "New custom order",
+    fabric_order_placed: "New custom order",
+    fabric_retail_order_placed: "New store order",
   };
 
   return labels[key] || type || "Notification";

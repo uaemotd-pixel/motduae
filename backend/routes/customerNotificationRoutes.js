@@ -108,13 +108,12 @@ customerNotificationRouter.post(
     }
 
     const orderIds = await getCustomerOrderIds(userId);
+    const filter = buildCustomerNotificationFilter(userId, orderIds);
 
     const result = await AdminNotification.updateMany(
       {
-        audience: "customer",
+        ...filter,
         read: false,
-        deletedAt: null,
-        $or: [{ recipientUserId: userId }, { orderId: { $in: orderIds } }],
       },
       { $set: { read: true, readAt: new Date() } },
     );

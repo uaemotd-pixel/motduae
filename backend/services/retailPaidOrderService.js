@@ -14,6 +14,7 @@ import {
   isPublicTrackingTokenCollision,
 } from "./publicTrackingToken.js";
 import { sendPaidOrderPlacedEmail } from "./orderPlacedEmail.js";
+import { notifyPaidOrderVendors } from "./vendorOrderNotify.js";
 
 export async function findRetailOrderByPaymentIntent(paymentIntentId) {
   if (!paymentIntentId) return null;
@@ -61,6 +62,7 @@ export async function createPaidRetailOrder({
   const existing = await findRetailOrderByPaymentIntent(paymentIntentId);
   if (existing) {
     const withShipments = await attachRetailShipments(existing, userId);
+    await notifyPaidOrderVendors(withShipments, "retail");
     return { order: withShipments, created: false };
   }
 
@@ -120,6 +122,7 @@ export async function createPaidRetailOrder({
       const raced = await findRetailOrderByPaymentIntent(paymentIntentId);
       if (raced) {
         const withShipments = await attachRetailShipments(raced, userId);
+        await notifyPaidOrderVendors(withShipments, "retail");
         return { order: withShipments, created: false };
       }
     }
@@ -140,6 +143,7 @@ export async function createPaidRetailOrder({
     userId,
     orderType: "retail",
   });
+  await notifyPaidOrderVendors(order, "retail");
 
   const withShipments = await attachRetailShipments(order, userId);
   return { order: withShipments, created: true };

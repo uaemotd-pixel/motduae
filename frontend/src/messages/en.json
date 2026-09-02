@@ -896,7 +896,7 @@
       "refundAmount": "Refund amount",
       "orderStatus": "Status",
       "emptyTitle": "No notifications yet",
-      "emptyDescription": "You'll receive updates here when payout requests are approved or declined, and when there are important alerts about your store.",
+      "emptyDescription": "You'll receive updates here when a customer places an order with your store, when payout requests are approved or declined, and when there are important alerts about your store.",
       "types": {
         "fabricPayoutRequested": "Payout requested",
         "fabricPayoutApproved": "Payout approved",
@@ -905,6 +905,8 @@
         "retailOrderPlaced": "New ready-made order",
         "customOrderReceived": "Order received",
         "retailOrderReceived": "Order received",
+        "fabricOrderPlaced": "New custom order",
+        "fabricRetailOrderPlaced": "New store order",
         "default": "Notification"
       }
     }
@@ -975,13 +977,14 @@
       "refundAmount": "Refund amount",
       "orderStatus": "Status",
       "emptyTitle": "No notifications yet",
-      "emptyDescription": "You'll receive updates here when payout requests are approved or declined, and when there are important alerts about your shop.",
+      "emptyDescription": "You'll receive updates here when a customer places an order with your shop, when payout requests are approved or declined, and when there are important alerts about your shop.",
       "types": {
         "tailorPayoutRequested": "Payout requested",
         "tailorPayoutApproved": "Payout approved",
         "tailorPayoutRejected": "Payout declined",
         "customOrderPlaced": "New custom order",
         "customOrderReceived": "Order received",
+        "tailorOrderPlaced": "New custom order",
         "default": "Notification"
       }
     },
