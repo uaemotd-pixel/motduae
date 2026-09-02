@@ -24,8 +24,9 @@ import {
     type FabricListItem,
     filterFabricsByMaterial,
     formatMaterialLabel,
-    formatPricePerMeter,
+    formatFabricListingPrice,
     getFabricDisplayFields,
+    isFabricInStock,
 } from "@/lib/fabrics";
 import {
     type TailorDesignListItem,
@@ -189,7 +190,7 @@ export default function FabricSelectionStep() {
     const selectedCount = draft.selectedFabrics.length;
     const canContinue = isFabricStepComplete(draft);
     const hasSelectedOutOfStock = draft.selectedFabrics.some(
-        (f) => f.stockInMeters !== undefined && f.stockInMeters <= 0
+        (f) => !isFabricInStock(f),
     );
     const stepNumber = getCustomOrderStepNumber("fabric", draft.firstStep);
     const nextPath = getNextPathAfterFabric(draft);
@@ -204,7 +205,7 @@ export default function FabricSelectionStep() {
         const isSelected = draft.selectedFabrics.some((f) => f._id === item._id);
         toggleFabric(toCustomOrderFabricSelection(item));
 
-        if (!isSelected && item.stockInMeters <= 0) {
+        if (!isSelected && !isFabricInStock(item)) {
             toast.error(
                 locale === "ar"
                     ? "هذا القماش غير متوفر في المخزن."
@@ -377,7 +378,7 @@ export default function FabricSelectionStep() {
                                 const isSelected = draft.selectedFabrics.some(
                                     (fabric) => fabric._id === item._id,
                                 );
-                                const isOutOfStock = item.stockInMeters <= 0;
+                                const isOutOfStock = !isFabricInStock(item);
 
                                 return (
                                     <button
@@ -411,7 +412,7 @@ export default function FabricSelectionStep() {
                                                 {location}
                                             </p>
                                             <p className="[font-family:var(--font-ui)] text-[11px] text-black">
-                                                {formatPricePerMeter(item.pricePerMeter, locale)}
+                                                {formatFabricListingPrice(item, locale)}
                                             </p>
                                             <p className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.16em] text-(--color-grey-muted) mt-1">
                                                 {formatMaterialLabel(item.material, locale)}

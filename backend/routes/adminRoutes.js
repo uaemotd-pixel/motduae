@@ -40,6 +40,11 @@ import {
   metersToWar,
   normalizeCutUnit,
 } from "../utils/fabricUnits.js";
+import {
+  assertActiveCutsExist,
+  enrichFabricWithCuts,
+  normalizeFabricCutsPayload,
+} from "../utils/fabricCuts.js";
 import PartnerPayout, {
   PARTNER_PAYOUT_KINDS,
 } from "../models/PartnerPayout.js";
@@ -865,6 +870,20 @@ function hasInvalidFabricAgeRange(minAge, maxAge) {
   return Number.isFinite(minAge) && Number.isFinite(maxAge) && maxAge < minAge;
 }
 
+async function prepareFabricCutsInput(cutsInput) {
+  const normalized = normalizeFabricCutsPayload(cutsInput);
+  if (!normalized.ok) {
+    return normalized;
+  }
+
+  const activeCheck = await assertActiveCutsExist(normalized.cuts);
+  if (!activeCheck.ok) {
+    return activeCheck;
+  }
+
+  return { ok: true, cuts: normalized.cuts };
+}
+
 // GET /api/admin/fabrics
 // Admin can view all fabrics in the catalog (including inactive)
 // Supports ?page=1&limit=10&search=...&status=available|sold
@@ -917,8 +936,10 @@ adminRouter.get(
         const variants = await Fabric.find({
           isVariantOf: fabric._id,
         }).populate("listedByStore", "name email");
-        const obj = fabric.toObject();
-        obj.variants = variants;
+        const obj = await enrichFabricWithCuts(fabric);
+        obj.variants = await Promise.all(
+          variants.map((variant) => enrichFabricWithCuts(variant)),
+        );
         if (obj.storePickupAddress?.emirate) {
           obj.storePickupAddress.emirate = normalizeEmirate(
             obj.storePickupAddress.emirate,
@@ -947,8 +968,10 @@ adminRouter.get(
       return res.status(404).send({ message: "Fabric not found" });
     }
     const variants = await Fabric.find({ isVariantOf: fabric._id });
-    const item = fabric.toObject();
-    item.variants = variants;
+    const item = await enrichFabricWithCuts(fabric);
+    item.variants = await Promise.all(
+      variants.map((variant) => enrichFabricWithCuts(variant)),
+    );
     // Add emirateAr to response
     if (item.storePickupAddress?.emirate) {
       const found = UAE_EMIRATES.find(
@@ -978,14 +1001,18 @@ adminRouter.post(
       colors,
       tag,
       tagAr,
-      pricePerMeter,
-      stockInMeters,
+      cuts,
       minAge,
       maxAge,
       listedByStore,
       storePickupAddress,
       isActive,
     } = req.body;
+
+    const cutsResult = await prepareFabricCutsInput(cuts);
+    if (!cutsResult.ok) {
+      return res.status(400).send({ message: cutsResult.message });
+    }
 
     const normalizedMinAge = parseFabricAge(minAge);
     const normalizedMaxAge = parseFabricAge(maxAge);
@@ -1039,8 +1066,7 @@ adminRouter.post(
       colors: colors || [],
       tag,
       tagAr: tagAr || "",
-      pricePerMeter,
-      stockInMeters: stockInMeters || 0,
+      cuts: cutsResult.cuts,
       minAge: normalizedMinAge,
       maxAge: normalizedMaxAge,
       listedByStore,
@@ -1053,6 +1079,14 @@ adminRouter.post(
     if (Array.isArray(req.body.variants)) {
       for (const variant of req.body.variants) {
         if (!variant.name || !variant.nameAr || !variant.material) continue;
+
+        const variantCutsResult = await prepareFabricCutsInput(variant.cuts);
+        if (!variantCutsResult.ok) {
+          return res.status(400).send({
+            message: `Variant "${variant.name}": ${variantCutsResult.message}`,
+          });
+        }
+
         const vSlug = await ensureUniqueSlug(
           Fabric,
           variant.slug || variant.name,
@@ -1071,8 +1105,7 @@ adminRouter.post(
           colors: variant.colors || [],
           tag: variant.tag || "",
           tagAr: variant.tagAr || "",
-          pricePerMeter: Number(variant.pricePerMeter),
-          stockInMeters: Number(variant.stockInMeters || 0),
+          cuts: variantCutsResult.cuts,
           minAge: createdFabric.minAge,
           maxAge: createdFabric.maxAge,
           listedByStore: createdFabric.listedByStore,
@@ -1083,7 +1116,7 @@ adminRouter.post(
       }
     }
 
-    res.status(201).send(createdFabric);
+    res.status(201).send(await enrichFabricWithCuts(createdFabric));
   }),
 );
 
@@ -1147,8 +1180,15 @@ adminRouter.put(
       : fabric.colors;
     fabric.tag = req.body.tag ?? fabric.tag;
     fabric.tagAr = req.body.tagAr ?? fabric.tagAr;
-    fabric.pricePerMeter = req.body.pricePerMeter ?? fabric.pricePerMeter;
-    fabric.stockInMeters = req.body.stockInMeters ?? fabric.stockInMeters;
+
+    if (req.body.cuts !== undefined) {
+      const cutsResult = await prepareFabricCutsInput(req.body.cuts);
+      if (!cutsResult.ok) {
+        return res.status(400).send({ message: cutsResult.message });
+      }
+      fabric.cuts = cutsResult.cuts;
+    }
+
     const nextMinAge = parseFabricAge(req.body.minAge, fabric.minAge);
     const nextMaxAge = parseFabricAge(req.body.maxAge, fabric.maxAge);
 
@@ -1208,10 +1248,17 @@ adminRouter.put(
             if (variant.colors) existing.colors = variant.colors;
             if (variant.tag !== undefined) existing.tag = variant.tag;
             if (variant.tagAr !== undefined) existing.tagAr = variant.tagAr;
-            if (variant.pricePerMeter !== undefined)
-              existing.pricePerMeter = Number(variant.pricePerMeter);
-            if (variant.stockInMeters !== undefined)
-              existing.stockInMeters = Number(variant.stockInMeters);
+            if (variant.cuts !== undefined) {
+              const variantCutsResult = await prepareFabricCutsInput(
+                variant.cuts,
+              );
+              if (!variantCutsResult.ok) {
+                return res.status(400).send({
+                  message: `Variant "${variant.name || existing.name}": ${variantCutsResult.message}`,
+                });
+              }
+              existing.cuts = variantCutsResult.cuts;
+            }
             existing.minAge = updatedFabric.minAge;
             existing.maxAge = updatedFabric.maxAge;
             if (variant.isActive !== undefined)
@@ -1230,6 +1277,14 @@ adminRouter.put(
           }
         } else {
           if (!variant.name || !variant.nameAr || !variant.material) continue;
+
+          const variantCutsResult = await prepareFabricCutsInput(variant.cuts);
+          if (!variantCutsResult.ok) {
+            return res.status(400).send({
+              message: `Variant "${variant.name}": ${variantCutsResult.message}`,
+            });
+          }
+
           const vSlug = await ensureUniqueSlug(
             Fabric,
             variant.slug || variant.name,
@@ -1248,8 +1303,7 @@ adminRouter.put(
             colors: variant.colors || [],
             tag: variant.tag || "",
             tagAr: variant.tagAr || "",
-            pricePerMeter: Number(variant.pricePerMeter),
-            stockInMeters: Number(variant.stockInMeters || 0),
+            cuts: variantCutsResult.cuts,
             minAge: updatedFabric.minAge,
             maxAge: updatedFabric.maxAge,
             listedByStore: updatedFabric.listedByStore,
@@ -1267,7 +1321,7 @@ adminRouter.put(
       });
     }
 
-    res.send(updatedFabric);
+    res.send(await enrichFabricWithCuts(updatedFabric));
   }),
 );
 
@@ -4187,6 +4241,14 @@ adminRouter.delete(
 // Admin Cuts CRUD — predefined fabric cut lengths
 // ==========================================
 
+async function getNextCutNames() {
+  const count = await Cut.countDocuments();
+  if (count === 0) {
+    return { name: "cut", nameAr: "قطعة" };
+  }
+  return { name: `cut ${count}`, nameAr: `قطعة ${count}` };
+}
+
 function enrichCutDoc(cut, usageCount = 0) {
   const plain = cut.toObject ? cut.toObject() : cut;
   const metersEquivalent = cutValueToMeters(plain.value, plain.unit);
@@ -4217,7 +4279,7 @@ adminRouter.get(
       req.query.page !== undefined || req.query.limit !== undefined;
 
     if (!wantsPagination) {
-      const cuts = await Cut.find(filter).sort({ value: 1, name: 1 });
+      const cuts = await Cut.find(filter).sort({ createdAt: 1 });
       const usageMap = await getCutUsageMap(cuts.map((cut) => String(cut._id)));
       res.send(
         cuts.map((cut) =>
@@ -4235,7 +4297,7 @@ adminRouter.get(
     const skip = (pageNumber - 1) * limitNumber;
 
     const [items, total] = await Promise.all([
-      Cut.find(filter).sort({ value: 1, name: 1 }).skip(skip).limit(limitNumber),
+      Cut.find(filter).sort({ createdAt: 1 }).skip(skip).limit(limitNumber),
       Cut.countDocuments(filter),
     ]);
 
@@ -4272,11 +4334,6 @@ adminRouter.post(
   expressAsyncHandler(async (req, res) => {
     const { name, nameAr, value, unit, isActive } = req.body;
 
-    if (!name?.trim()) {
-      res.status(400).send({ message: "Cut name (English) is required" });
-      return;
-    }
-
     const normalizedUnit = normalizeCutUnit(unit);
     if (!normalizedUnit || !CUT_UNITS.includes(normalizedUnit)) {
       res.status(400).send({
@@ -4291,9 +4348,13 @@ adminRouter.post(
       return;
     }
 
+    const autoNames = await getNextCutNames();
+    const cutName = name?.trim() || autoNames.name;
+    const cutNameAr = nameAr?.trim() || autoNames.nameAr;
+
     const cut = new Cut({
-      name: name.trim(),
-      nameAr: nameAr?.trim() || "",
+      name: cutName,
+      nameAr: cutNameAr,
       value: numericValue,
       unit: normalizedUnit,
       isActive: isActive !== undefined ? isActive : true,
@@ -4322,17 +4383,14 @@ adminRouter.put(
       return;
     }
 
-    const { name, nameAr, value, unit, isActive } = req.body;
+    const { value, unit, isActive, name, nameAr } = req.body;
 
-    if (name !== undefined) {
-      if (!name?.trim()) {
-        res.status(400).send({ message: "Cut name (English) is required" });
-        return;
-      }
-      cut.name = name.trim();
+    if (name !== undefined || nameAr !== undefined) {
+      res.status(400).send({
+        message: "Cut names are auto-assigned and cannot be changed",
+      });
+      return;
     }
-
-    if (nameAr !== undefined) cut.nameAr = nameAr.trim();
 
     if (unit !== undefined) {
       const normalizedUnit = normalizeCutUnit(unit);

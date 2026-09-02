@@ -142,6 +142,7 @@ export default function FabricDetailPage() {
             color: [t("color")],
             city: t("city"),
             perMeter: t("perMeter"),
+            selectCut: t("selectCut"),
             selectForCustomOrder: t("selectForCustomOrder"),
             storeTitle: t("storeTitle"),
             pickupLabel: t("pickupLabel"),

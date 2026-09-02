@@ -182,16 +182,47 @@ export default function FabricDetailsPage() {
               Overview
             </h2>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400">Price per meter</p>
-                <p className="text-xl font-light text-black mt-0.5">AED {fabric.pricePerMeter}</p>
-              </div>
-              
-              <div>
-                <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400">Available Stock</p>
-                <p className="text-xl font-light text-black mt-0.5">{fabric.stockInMeters} meters</p>
-              </div>
+            <div className="grid grid-cols-1 gap-4">
+              {fabric.cuts?.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-[11px] uppercase tracking-wider text-gray-400">
+                        <th className="pb-2 pr-4">Cut</th>
+                        <th className="pb-2 pr-4">Length</th>
+                        <th className="pb-2 pr-4">Price (AED)</th>
+                        <th className="pb-2">Stock</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fabric.cuts.map((cut) => (
+                        <tr key={cut.cutId} className="border-t border-gray-50">
+                          <td className="py-2 pr-4 font-medium">
+                            {cut.cutName || cut.cutId}
+                          </td>
+                          <td className="py-2 pr-4 text-gray-600">
+                            {cut.cutValue && cut.cutUnit
+                              ? `${cut.cutValue} ${cut.cutUnit}`
+                              : cut.lengthInMeters
+                                ? `${cut.lengthInMeters} m`
+                                : "—"}
+                          </td>
+                          <td className="py-2 pr-4">{cut.price}</td>
+                          <td className="py-2">{cut.stock}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No cut pricing configured.</p>
+              )}
+              {fabric.pricePerMeter != null && (
+                <p className="text-xs text-gray-400">
+                  Est. from cuts: AED {fabric.pricePerMeter}/m ·{" "}
+                  {fabric.stockInMeters ?? 0} m total stock equivalent
+                </p>
+              )}
             </div>
 
             <div className="border-t border-gray-50 pt-4">

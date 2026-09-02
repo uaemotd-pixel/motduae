@@ -7,6 +7,7 @@ import {
   getEmirateEn,
   getEmirateAr,
 } from "@/lib/uaeAddress";
+import type { CutUnit } from "@/lib/fabricUnits";
 
 export interface PickupAddress {
   emirate: string;
@@ -14,6 +15,17 @@ export interface PickupAddress {
   street: string;
   building: string;
   phone: string;
+}
+
+export interface FabricCutFormEntry {
+  cutId: string;
+  price: number | string;
+  stock: number | string;
+  cutName?: string;
+  cutNameAr?: string;
+  cutValue?: number;
+  cutUnit?: CutUnit;
+  lengthInMeters?: number;
 }
 
 export type FabricVariantFormData = Omit<FabricFormData, "minAge" | "maxAge">;
@@ -31,8 +43,10 @@ export interface FabricFormData {
   colors: string[];
   tag: string;
   tagAr: string;
-  pricePerMeter: number | string;
-  stockInMeters: number | string;
+  cuts: FabricCutFormEntry[];
+  /** Computed on API for listing/display — not sent on create */
+  pricePerMeter?: number;
+  stockInMeters?: number;
   minAge: number | null;
   maxAge: number | null;
   listedByStore: string;
@@ -54,8 +68,7 @@ export function defaultFabricForm(): FabricFormData {
     colors: [],
     tag: "",
     tagAr: "",
-    pricePerMeter: 0,
-    stockInMeters: 0,
+    cuts: [],
     minAge: null,
     maxAge: null,
     listedByStore: "",
@@ -69,6 +82,37 @@ export function defaultFabricForm(): FabricFormData {
     isActive: true,
     variants: [],
   };
+}
+
+export function createEmptyFabricCutRow(): FabricCutFormEntry {
+  return {
+    cutId: "",
+    price: "",
+    stock: "",
+  };
+}
+
+export function buildDefaultCutsFromCatalog(
+  catalog: Array<{
+    _id: string;
+    name: string;
+    nameAr?: string;
+    value: number;
+    unit: CutUnit;
+    lengthInMeters?: number;
+    metersEquivalent?: number;
+  }>,
+): FabricCutFormEntry[] {
+  return catalog.map((cut) => ({
+    cutId: cut._id,
+    price: "",
+    stock: 0,
+    cutName: cut.name,
+    cutNameAr: cut.nameAr,
+    cutValue: cut.value,
+    cutUnit: cut.unit,
+    lengthInMeters: cut.lengthInMeters ?? cut.metersEquivalent,
+  }));
 }
 
 function slugFromName(name: string): string {
@@ -92,6 +136,74 @@ function isDataUrl(value: string): boolean {
 
 function isValidObjectId(value: string): boolean {
   return /^[a-fA-F0-9]{24}$/.test(value);
+}
+
+function mapApiCutEntry(entry: Record<string, unknown>): FabricCutFormEntry | null {
+  const cutRef = entry.cut as Record<string, unknown> | undefined;
+  const rawCutId = entry.cutId;
+  const cutId =
+    typeof rawCutId === "object" &&
+    rawCutId !== null &&
+    "_id" in rawCutId &&
+    rawCutId._id
+      ? String(rawCutId._id)
+      : typeof rawCutId === "string"
+        ? rawCutId
+        : "";
+  if (!cutId) return null;
+
+  return {
+    cutId,
+    price: Number(entry.price) || "",
+    stock: Number(entry.stock) || 0,
+    cutName:
+      typeof cutRef?.name === "string"
+        ? cutRef.name
+        : typeof entry.cutName === "string"
+          ? entry.cutName
+          : undefined,
+    cutNameAr:
+      typeof cutRef?.nameAr === "string"
+        ? cutRef.nameAr
+        : typeof entry.cutNameAr === "string"
+          ? entry.cutNameAr
+          : undefined,
+    cutValue:
+      typeof cutRef?.value === "number"
+        ? cutRef.value
+        : typeof entry.cutValue === "number"
+          ? entry.cutValue
+          : undefined,
+    cutUnit:
+      cutRef?.unit === "war" || cutRef?.unit === "meter"
+        ? cutRef.unit
+        : entry.cutUnit === "war" || entry.cutUnit === "meter"
+          ? entry.cutUnit
+          : undefined,
+    lengthInMeters:
+      typeof cutRef?.lengthInMeters === "number"
+        ? cutRef.lengthInMeters
+        : typeof entry.lengthInMeters === "number"
+          ? entry.lengthInMeters
+          : undefined,
+  };
+}
+
+export function serializeFabricCuts(cuts: FabricCutFormEntry[]) {
+  return cuts
+    .map((entry) => ({
+      cutId: entry.cutId,
+      price: Number(Number(entry.price).toFixed(2)),
+      stock: Math.floor(Number(entry.stock) || 0),
+    }))
+    .filter(
+      (entry) =>
+        entry.cutId &&
+        Number.isFinite(entry.price) &&
+        entry.price > 0 &&
+        Number.isFinite(entry.stock) &&
+        entry.stock >= 0,
+    );
 }
 
 export function fromApiFabric(
@@ -119,8 +231,13 @@ export function fromApiFabric(
     : defaultForm.colors;
   const tag = typeof product.tag === "string" ? product.tag : "";
   const tagAr = typeof product.tagAr === "string" ? product.tagAr : "";
-  const pricePerMeter = Number(product.pricePerMeter) || 0;
-  const stockInMeters = Number(product.stockInMeters) || 0;
+  const cuts = Array.isArray(product.cuts)
+    ? product.cuts
+        .map((entry) =>
+          mapApiCutEntry(entry as Record<string, unknown>),
+        )
+        .filter((entry): entry is FabricCutFormEntry => entry !== null)
+    : defaultForm.cuts;
   const minAge =
     product.minAge !== undefined && product.minAge !== null
       ? Number(product.minAge)
@@ -161,7 +278,6 @@ export function fromApiFabric(
   const rawVariants = Array.isArray(product.variants) ? product.variants : [];
   const variants = rawVariants.map((v: any) => {
     const base = fromApiFabric(v);
-    // Remove minAge/maxAge from variants
     const { minAge: _, maxAge: __, ...variantWithoutAge } = base;
     return variantWithoutAge;
   });
@@ -179,8 +295,15 @@ export function fromApiFabric(
     colors,
     tag,
     tagAr,
-    pricePerMeter,
-    stockInMeters,
+    cuts,
+    pricePerMeter:
+      typeof product.pricePerMeter === "number"
+        ? product.pricePerMeter
+        : undefined,
+    stockInMeters:
+      typeof product.stockInMeters === "number"
+        ? product.stockInMeters
+        : undefined,
     minAge,
     maxAge,
     listedByStore,
@@ -195,9 +318,8 @@ export function toFabricApiPayload(
   options?: { includeIsActive?: boolean },
 ): Record<string, unknown> {
   const name = form.name.trim();
-
-  // Normalize emirate before sending
   const normalizedEmirate = normalizeEmirate(form.pickupAddress.emirate);
+  const serializedCuts = serializeFabricCuts(form.cuts || []);
 
   const payload: Record<string, unknown> = {
     name,
@@ -211,8 +333,7 @@ export function toFabricApiPayload(
     colors: form.colors,
     tag: form.tag,
     tagAr: form.tagAr.trim(),
-    pricePerMeter: Number(Number(form.pricePerMeter).toFixed(2)),
-    stockInMeters: Number(Number(form.stockInMeters).toFixed(2)),
+    cuts: serializedCuts,
     listedByStore: form.listedByStore.trim(),
     storePickupAddress: {
       emirate: normalizedEmirate,
@@ -234,8 +355,7 @@ export function toFabricApiPayload(
       colors: v.colors,
       tag: v.tag,
       tagAr: v.tagAr.trim(),
-      pricePerMeter: Number(Number(v.pricePerMeter).toFixed(2)),
-      stockInMeters: Number(Number(v.stockInMeters).toFixed(2)),
+      cuts: serializeFabricCuts(v.cuts || []),
       isActive: v.isActive,
       storePickupAddress: v.pickupAddress
         ? {
@@ -249,7 +369,6 @@ export function toFabricApiPayload(
     })),
   };
 
-  // Only include minAge/maxAge if not null
   if (form.minAge !== null && form.minAge !== undefined) {
     payload.minAge = Number(form.minAge);
   }
@@ -262,6 +381,51 @@ export function toFabricApiPayload(
   }
 
   return payload;
+}
+
+export function mapApiCutsArray(cuts: unknown): FabricCutFormEntry[] {
+  if (!Array.isArray(cuts)) return [];
+  return cuts
+    .map((entry) => mapApiCutEntry(entry as Record<string, unknown>))
+    .filter((entry): entry is FabricCutFormEntry => entry !== null);
+}
+
+export function validateFabricCuts(
+  cuts: FabricCutFormEntry[],
+  errors: Record<string, string>,
+  prefix = "cuts",
+) {
+  const validCuts = cuts.filter((entry) => {
+    const price = Number(entry.price);
+    return entry.cutId && Number.isFinite(price) && price > 0;
+  });
+
+  if (validCuts.length === 0) {
+    errors[prefix] = "At least one cut with a valid price is required";
+    return;
+  }
+
+  cuts.forEach((entry, index) => {
+    const price = Number(entry.price);
+    const stock = Number(entry.stock);
+    const rowPrefix = `${prefix}.${index}`;
+
+    if (!entry.cutId) {
+      errors[`${rowPrefix}.cutId`] = "Cut is required";
+    }
+
+    if (entry.price !== "" && entry.price !== undefined) {
+      if (!Number.isFinite(price) || price <= 0) {
+        errors[`${rowPrefix}.price`] = "Enter a valid price greater than 0";
+      }
+    }
+
+    if (entry.stock !== "" && entry.stock !== undefined) {
+      if (!Number.isFinite(stock) || stock < 0) {
+        errors[`${rowPrefix}.stock`] = "Stock must be 0 or greater";
+      }
+    }
+  });
 }
 
 export function validateFabricForm(
@@ -316,21 +480,10 @@ export function validateFabricForm(
       validation.store_partner_invalid || "Invalid store partner ID";
   }
 
-  const priceVal = Number(form.pricePerMeter);
-  if (isNaN(priceVal) || priceVal <= 0) {
-    errors.pricePerMeter =
-      validation.price_required || "Please enter a valid price";
-  }
-
-  const stockStr = String(form.stockInMeters ?? "").trim();
-  const stockVal = Number(form.stockInMeters);
-  if (stockStr === "" || isNaN(stockVal) || stockVal <= 0) {
-    errors.stockInMeters = "Please enter a valid stock amount (must be greater than 0)";
-  }
+  validateFabricCuts(form.cuts || [], errors, "cuts");
 
   Object.assign(errors, getFabricAgeFieldErrors(form));
 
-  // Pickup address validations using uaeAddress utilities
   if (!form.pickupAddress.emirate?.trim()) {
     errors["pickupAddress.emirate"] =
       validation.emirate_required || "Emirate is required";
@@ -339,7 +492,6 @@ export function validateFabricForm(
     if (!isValidEmirate(normalizedEmirate)) {
       errors["pickupAddress.emirate"] = "Valid UAE emirate required";
     } else {
-      // Normalize the emirate in form data
       form.pickupAddress.emirate = normalizedEmirate;
     }
   }
@@ -362,12 +514,10 @@ export function validateFabricForm(
       errors["pickupAddress.phone"] =
         "Invalid UAE phone. Must be +971 followed by 9 digits";
     } else {
-      // Normalize the phone in form data
       form.pickupAddress.phone = normalizedPhone;
     }
   }
 
-  // Images validation
   const hasImage = form.images.some((img) => img.trim() !== "");
   if (!hasImage) {
     errors.images =
@@ -397,23 +547,13 @@ export function validateFabricForm(
         errors[`${prefix}.materialAr`] =
           "Material (AR) is required for variant";
       }
-      const vPrice = Number(v.pricePerMeter);
-      if (isNaN(vPrice) || vPrice <= 0) {
-        errors[`${prefix}.pricePerMeter`] =
-          "Please enter a valid price for variant";
-      }
-      const vStockStr = String(v.stockInMeters ?? "").trim();
-      const vStock = Number(v.stockInMeters);
-      if (vStockStr === "" || isNaN(vStock) || vStock <= 0) {
-        errors[`${prefix}.stockInMeters`] =
-          "Please enter a valid stock for variant (must be greater than 0)";
-      }
+      validateFabricCuts(v.cuts || [], errors, `${prefix}.cuts`);
+
       if (!v.images?.some((img) => img.trim())) {
         errors[`${prefix}.images`] =
           "At least one image is required for variant";
       }
 
-      // Validate variant pickup address emirate
       if (v.pickupAddress?.emirate) {
         const normalizedVariantEmirate = normalizeEmirate(
           v.pickupAddress.emirate,
@@ -426,7 +566,6 @@ export function validateFabricForm(
         }
       }
 
-      // Validate variant pickup address phone
       if (v.pickupAddress?.phone) {
         const normalizedVariantPhone = normalizeUaePhone(
           v.pickupAddress.phone.trim(),
@@ -481,15 +620,17 @@ export function mapFabricApiErrorToFieldErrors(
     };
   }
 
+  if (trimmedMessage.includes("cut")) {
+    return { cuts: trimmedMessage };
+  }
+
   return {};
 }
 
-// Helper to get emirate display values
 export function getEmirateDisplay(emirate: string): string {
   return `${getEmirateEn(emirate)} / ${getEmirateAr(emirate)}`;
 }
 
-// Helper to get emirate options for dropdown
 export function getEmirateOptions() {
   return UAE_EMIRATES.map((e) => ({
     value: e.value,
