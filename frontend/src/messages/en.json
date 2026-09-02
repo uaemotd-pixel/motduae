@@ -1221,6 +1221,7 @@
         "fixedPrice": "Fixed price",
         "perMeterPrice": "Per meter price",
         "tailoringFee": "Tailoring fee (AED)",
+        "minCut": "Minimum Cut",
         "estimatedMeters": "Estimated fabric (meters)",
         "estimatedDays": "Estimated days",
         "isActive": "Visible to customers",
@@ -1236,6 +1237,7 @@
         "selectSeason": "Select season",
         "selectPattern": "Select pattern",
         "selectTag": "Select tag (optional)",
+        "selectMinCut": "Select minimum cut",
         "selectCategory": "Select category"
       },
       "categories": {
@@ -1260,6 +1262,7 @@
         "imagesRequired": "At least one image is required.",
         "basePriceInvalid": "Base price must be zero or greater.",
         "tailoringFeeInvalid": "Tailoring fee must be zero or greater.",
+        "minCutRequired": "Minimum cut is required.",
         "estimatedMetersInvalid": "Estimated meters must be greater than zero.",
         "estimatedDaysInvalid": "Estimated days must be at least 1."
       },

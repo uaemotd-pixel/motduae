@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
 import { Link, useRouter } from "@/i18n/navigation";
 import FormField from "@/components/admin/FormField";
 import ImageUpload from "@/components/admin/ImageUpload";
 import NumericInput from "@/components/tailor/NumericInput";
-import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
+import { api, getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import { ERROR_TOAST, SUCCESS_TOAST } from "@/lib/tailorPortalToast";
 import {
   createTailorDesign,
@@ -76,7 +76,7 @@ type BilingualFilterDropdownProps = {
   isOpen: boolean;
   onToggle: () => void;
   onClose: () => void;
-  onSelect: (en: string, ar: string) => void;
+  onSelect: (en: string, ar: string, value: string) => void;
   onClear: () => void;
 };
 
@@ -142,7 +142,7 @@ function BilingualFilterDropdown({
                 key={opt.value}
                 type="button"
                 onClick={() => {
-                  onSelect(opt.en, opt.ar);
+                  onSelect(opt.en, opt.ar, opt.value);
                   onClose();
                 }}
                 className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
@@ -191,20 +191,34 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
   );
   const [seasonOptions, setSeasonOptions] = useState<DesignFilterOption[]>([]);
   const [tagOptions, setTagOptions] = useState<DesignFilterOption[]>([]);
+  const [cutOptions, setCutOptions] = useState<
+    {
+      _id: string;
+      name: string;
+      nameAr?: string;
+      value: number;
+      unit: string;
+      isActive?: boolean;
+      metersEquivalent?: number;
+      lengthInMeters?: number;
+    }[]
+  >([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
   const [patternsLoading, setPatternsLoading] = useState(true);
   const [seasonsLoading, setSeasonsLoading] = useState(true);
   const [tagsLoading, setTagsLoading] = useState(true);
+  const [cutsLoading, setCutsLoading] = useState(true);
   const [openCategory, setOpenCategory] = useState(false);
   const [openMaterial, setOpenMaterial] = useState(false);
   const [openPattern, setOpenPattern] = useState(false);
   const [openSeason, setOpenSeason] = useState(false);
   const [openTag, setOpenTag] = useState(false);
+  const [openMinCut, setOpenMinCut] = useState(false);
   const formActionsRef = useRef<HTMLDivElement>(null);
   const previousImageCountRef = useRef(formData.images.length);
 
   const handleNumberChange = (
-    field: "basePrice" | "tailoringFee" | "estimatedMeters" | "estimatedDays",
+    field: "basePrice" | "tailoringFee" | "estimatedDays",
     value: string,
   ) => {
     if (value === "") {
@@ -263,17 +277,22 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
 
     const loadFilters = async () => {
       try {
-        const [materials, patterns, seasons, tags] = await Promise.all([
+        const [materials, patterns, seasons, tags, cuts] = await Promise.all([
           fetchDesignMaterials(),
           fetchDesignPatterns(),
           fetchDesignSeasons(),
           fetchDesignTags(),
+          api.get<any[]>("/api/filters/cuts").catch(() => []),
         ]);
         if (cancelled) return;
         setMaterialOptions(materials);
         setPatternOptions(patterns);
         setSeasonOptions(seasons);
         setTagOptions(tags);
+        const activeCuts = Array.isArray(cuts)
+          ? cuts.filter((c) => c.isActive !== false)
+          : [];
+        setCutOptions(activeCuts);
       } catch {
         // fall back to empty lists
       } finally {
@@ -282,6 +301,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
           setPatternsLoading(false);
           setSeasonsLoading(false);
           setTagsLoading(false);
+          setCutsLoading(false);
         }
       }
     };
@@ -394,6 +414,22 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     en: cat.name,
     ar: cat.nameAr || cat.name,
   }));
+  const cutDropdownOptions: DropdownOption[] = useMemo(
+    () =>
+      cutOptions.map((cut) => {
+        const meters = cut.metersEquivalent ?? cut.lengthInMeters ?? cut.value;
+        const unitLabelEn = cut.unit === "war" ? "war" : "m";
+        const unitLabelAr = cut.unit === "war" ? "وار" : "متر";
+        const enLabel = `${cut.name} (${cut.value} ${unitLabelEn} ≈ ${meters}m)`;
+        const arLabel = `${cut.nameAr || cut.name} (${cut.value} ${unitLabelAr} ≈ ${meters}م)`;
+        return {
+          value: cut._id,
+          en: enLabel,
+          ar: arLabel,
+        };
+      }),
+    [cutOptions],
+  );
 
   const filterLoadingText = t("filters.loading");
   const filterEmptyText = t("filters.empty");
@@ -435,11 +471,8 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     if (!Number.isFinite(formData.tailoringFee) || formData.tailoringFee < 0) {
       errors.tailoringFee = t("validation.tailoringFeeInvalid");
     }
-    if (
-      !Number.isFinite(formData.estimatedMeters) ||
-      formData.estimatedMeters <= 0
-    ) {
-      errors.estimatedMeters = t("validation.estimatedMetersInvalid");
+    if (!formData.minCutId || !formData.minCutId.trim()) {
+      errors.minCutId = t("validation.minCutRequired");
     }
     if (
       !Number.isFinite(formData.estimatedDays) ||
@@ -778,24 +811,44 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-              <FormField
-                label={t("fields.estimatedMeters")}
-                name="estimatedMeters"
+              <BilingualFilterDropdown
+                label={t("fields.minCut")}
+                name="minCutId"
                 required
-                error={fieldErrors.estimatedMeters}
-              >
-                <input
-                  id="estimatedMeters"
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={getNumberDisplay(formData.estimatedMeters)}
-                  onChange={(e) =>
-                    handleNumberChange("estimatedMeters", e.target.value)
+                error={fieldErrors.minCutId}
+                value={formData.minCutId}
+                options={cutDropdownOptions}
+                loading={cutsLoading}
+                loadingText={filterLoadingText}
+                emptyText={filterEmptyText}
+                placeholder={t("filters.selectMinCut")}
+                clearLabel={t("filters.selectMinCut")}
+                isOpen={openMinCut}
+                onToggle={() => setOpenMinCut(!openMinCut)}
+                onClose={() => setOpenMinCut(false)}
+                onSelect={(en, ar, val) => {
+                  const selectedCut = cutOptions.find((c) => c._id === val);
+                  const meters = selectedCut
+                    ? (selectedCut.metersEquivalent ??
+                      selectedCut.lengthInMeters ??
+                      selectedCut.value)
+                    : undefined;
+                  setFormData((prev) => ({
+                    ...prev,
+                    minCutId: val,
+                    ...(meters ? { estimatedMeters: meters } : {}),
+                  }));
+                  if (fieldErrors.minCutId) {
+                    setFieldErrors((prev) => ({
+                      ...prev,
+                      minCutId: undefined,
+                    }));
                   }
-                  className={INPUT_CLASS}
-                />
-              </FormField>
+                }}
+                onClear={() => {
+                  setFormData((prev) => ({ ...prev, minCutId: "" }));
+                }}
+              />
 
               <FormField
                 label={t("fields.estimatedDays")}

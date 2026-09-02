@@ -42,7 +42,17 @@ const designSchema = new mongoose.Schema(
       required: true,
     },
     tailoringFee: { type: Number, required: true, min: 0 },
-    estimatedMeters: { type: Number, required: true, min: 0 },
+    minCutId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Cut",
+      required: [true, "Minimum cut is required"],
+    },
+    minCutSnapshot: {
+      name: { type: String, default: "" },
+      nameAr: { type: String, default: "" },
+      lengthInMeters: { type: Number, default: 0 },
+    },
+    estimatedMeters: { type: Number, required: false, min: 0 },
     estimatedDays: { type: Number, default: 7, min: 1 },
     isActive: { type: Boolean, default: true, required: true },
   },
@@ -54,6 +64,7 @@ const designSchema = new mongoose.Schema(
 designSchema.index({ tailorShopId: 1 });
 designSchema.index({ tailorShopId: 1, slug: 1 }, { unique: true });
 designSchema.index({ tailorShopId: 1, isActive: 1 });
+designSchema.index({ minCutId: 1 });
 
 const Design = mongoose.model("Design", designSchema);
 

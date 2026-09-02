@@ -1338,6 +1338,7 @@
         "fixedPrice": "سعر ثابت",
         "perMeterPrice": "سعر لكل متر",
         "tailoringFee": "رسوم الخياطة (درهم)",
+        "minCut": "الحد الأدنى للقصة",
         "estimatedMeters": "الأقمشة المقدرة (متر)",
         "estimatedDays": "الأيام المقدرة",
         "isActive": "ظاهر للعملاء",
@@ -1353,6 +1354,7 @@
         "selectSeason": "اختر الموسم",
         "selectPattern": "اختر النقشة",
         "selectTag": "اختر الوسم (اختياري)",
+        "selectMinCut": "اختر الحد الأدنى للقصة",
         "selectCategory": "اختر الفئة"
       },
       "categories": {
@@ -1377,6 +1379,7 @@
         "imagesRequired": "صورة واحدة على الأقل مطلوبة.",
         "basePriceInvalid": "يجب أن يكون السعر الأساسي صفراً أو أكثر.",
         "tailoringFeeInvalid": "يجب أن تكون رسوم الخياطة صفراً أو أكثر.",
+        "minCutRequired": "الحد الأدنى للقصة مطلوب.",
         "estimatedMetersInvalid": "يجب أن تكون الأمترة المقدرة أكبر من صفر.",
         "estimatedDaysInvalid": "يجب أن تكون الأيام المقدرة ١ على الأقل."
       },

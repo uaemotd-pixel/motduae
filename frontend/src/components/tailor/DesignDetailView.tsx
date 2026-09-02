@@ -52,6 +52,17 @@ export interface DesignDetailItem {
   basePrice: number;
   priceType?: "fixed" | "per_meter";
   tailoringFee: number;
+  minCutId?: string;
+  minCutSnapshot?: {
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+  };
+  minCut?: {
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+  };
   estimatedMeters: number;
   estimatedDays: number;
   tailorShop: TailorShopInfo;
@@ -482,7 +493,9 @@ export default function DesignDetailView({
                     {labels.estimatedMeters}
                   </p>
                   <p className="[font-family:var(--font-body)] text-base text-black mt-1 font-normal">
-                    {formatLength(design.estimatedMeters)}
+                    {design.minCutSnapshot?.name
+                      ? `${locale === "ar" ? design.minCutSnapshot.nameAr || design.minCutSnapshot.name : design.minCutSnapshot.name} (${formatLength(design.minCutSnapshot.lengthInMeters)})`
+                      : formatLength(design.estimatedMeters)}
                   </p>
                 </div>
                 <div>
