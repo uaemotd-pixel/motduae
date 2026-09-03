@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 import Cut from "../models/Cut.js";
+import Fabric from "../models/Fabric.js";
 import { cutValueToMeters } from "./fabricUnits.js";
+
+/** Default threshold: cut rows with this many pieces or fewer count as low stock. */
+export const LOW_FABRIC_CUT_STOCK_THRESHOLD = 5;
 
 export function normalizeFabricCutsPayload(cutsInput) {
   if (!Array.isArray(cutsInput)) {
@@ -228,4 +232,109 @@ export async function resolveRetailFabricCutLine(fabric, cutId, quantity) {
     cutSnapshot,
     stockPieces,
   };
+}
+
+/**
+ * Atomically deduct piece stock from a fabric cut row.
+ * Used by retail checkout and custom orders (storefront fabric).
+ */
+export async function deductFabricCutStock(
+  fabricId,
+  cutId,
+  quantity,
+  { requireActiveFabric = true } = {},
+) {
+  if (!fabricId || !mongoose.Types.ObjectId.isValid(fabricId)) {
+    return { ok: false, message: "Valid fabricId is required" };
+  }
+  if (!cutId || !mongoose.Types.ObjectId.isValid(cutId)) {
+    return { ok: false, message: "Valid cutId is required" };
+  }
+
+  const pieceQty = Math.floor(Number(quantity));
+  if (!Number.isFinite(pieceQty) || pieceQty <= 0) {
+    return { ok: false, message: "Quantity must be at least 1 piece" };
+  }
+
+  const fabricObjectId = new mongoose.Types.ObjectId(String(fabricId));
+  const cutObjectId = new mongoose.Types.ObjectId(String(cutId));
+
+  const filter = {
+    _id: fabricObjectId,
+    cuts: {
+      $elemMatch: {
+        cutId: cutObjectId,
+        stock: { $gte: pieceQty },
+      },
+    },
+  };
+  if (requireActiveFabric) {
+    filter.isActive = true;
+  }
+
+  const updated = await Fabric.findOneAndUpdate(
+    filter,
+    { $inc: { "cuts.$.stock": -pieceQty } },
+    { new: true },
+  );
+
+  if (!updated) {
+    const fabric = await Fabric.findById(fabricObjectId).select("name cuts");
+    const cutRow = (fabric?.cuts || []).find(
+      (entry) => String(entry.cutId) === String(cutId),
+    );
+    const name = fabric?.name || "Fabric";
+    if (!fabric || !cutRow) {
+      return {
+        ok: false,
+        message: `Selected cut is not available on ${name}`,
+      };
+    }
+    return {
+      ok: false,
+      message: `${name} — insufficient stock for the selected cut (${Math.floor(Number(cutRow.stock) || 0)} pcs available)`,
+    };
+  }
+
+  return { ok: true, fabric: updated };
+}
+
+/**
+ * Count cut rows at or below the low-stock threshold on in-memory fabric docs.
+ */
+export function countLowStockCutRowsFromFabrics(
+  fabrics = [],
+  threshold = LOW_FABRIC_CUT_STOCK_THRESHOLD,
+) {
+  let count = 0;
+  for (const fabric of fabrics) {
+    if (fabric?.isActive === false) continue;
+    for (const entry of fabric.cuts || []) {
+      const stock = Math.floor(Number(entry.stock) || 0);
+      if (stock <= threshold) count += 1;
+    }
+  }
+  return count;
+}
+
+/**
+ * Count active fabric cut rows at or below threshold (Mongo aggregation).
+ */
+export async function countLowStockFabricCutRows(
+  extraMatch = {},
+  threshold = LOW_FABRIC_CUT_STOCK_THRESHOLD,
+) {
+  const result = await Fabric.aggregate([
+    {
+      $match: {
+        isActive: true,
+        "cuts.0": { $exists: true },
+        ...extraMatch,
+      },
+    },
+    { $unwind: "$cuts" },
+    { $match: { "cuts.stock": { $lte: threshold } } },
+    { $count: "total" },
+  ]);
+  return result[0]?.total ?? 0;
 }

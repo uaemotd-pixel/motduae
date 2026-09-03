@@ -2,8 +2,11 @@ import mongoose from "mongoose";
 import CustomOrder, { FABRIC_SOURCES } from "../models/CustomOrder.js";
 import Design from "../models/Design.js";
 import Fabric from "../models/Fabric.js";
+import Cut from "../models/Cut.js";
 import TailorShop from "../models/TailorShop.js";
 import AddOn from "../models/AddOn.js";
+import { cutValueToMeters } from "../utils/fabricUnits.js";
+import { deductFabricCutStock } from "../utils/fabricCuts.js";
 import {
   getCustomOrderPricing,
   getMultiItemCustomOrderPricing,
@@ -39,6 +42,9 @@ function validateFabricOrderInput({
   fabricSource,
   fabricId,
   fabricMeters,
+  cutId,
+  cutIds,
+  cutSelections,
 }) {
   if (!designId || !mongoose.Types.ObjectId.isValid(designId)) {
     throw new PricingValidationError("Valid designId is required");
@@ -65,11 +71,52 @@ function validateFabricOrderInput({
     );
   }
 
+  /** @type {{ cutId: string, quantity: number }[]} */
+  let resolvedSelections = [];
+
+  if (Array.isArray(cutSelections) && cutSelections.length > 0) {
+    const merged = new Map();
+    for (const entry of cutSelections) {
+      const id =
+        entry?.cutId && mongoose.Types.ObjectId.isValid(entry.cutId)
+          ? String(entry.cutId)
+          : "";
+      const qty = Math.floor(Number(entry?.quantity));
+      if (!id || !Number.isFinite(qty) || qty <= 0) continue;
+      merged.set(id, (merged.get(id) || 0) + qty);
+    }
+    resolvedSelections = Array.from(merged.entries()).map(
+      ([id, quantity]) => ({ cutId: id, quantity }),
+    );
+  } else if (Array.isArray(cutIds) && cutIds.length > 0) {
+    const merged = new Map();
+    for (const id of cutIds) {
+      if (!mongoose.Types.ObjectId.isValid(id)) continue;
+      const key = String(id);
+      merged.set(key, (merged.get(key) || 0) + 1);
+    }
+    resolvedSelections = Array.from(merged.entries()).map(
+      ([id, quantity]) => ({ cutId: id, quantity }),
+    );
+  } else if (cutId && mongoose.Types.ObjectId.isValid(cutId)) {
+    resolvedSelections = [{ cutId: String(cutId), quantity: 1 }];
+  }
+
+  const expandedCutIds = [];
+  for (const { cutId: id, quantity } of resolvedSelections) {
+    for (let i = 0; i < quantity; i += 1) {
+      expandedCutIds.push(id);
+    }
+  }
+
   return {
     designId,
     fabricSource,
     fabricId: fabricSource === "storefront" ? fabricId : null,
     fabricMeters: parseFabricMeters(fabricMeters),
+    cutId: resolvedSelections[0]?.cutId || null,
+    cutIds: expandedCutIds,
+    cutSelections: resolvedSelections,
   };
 }
 
@@ -92,6 +139,9 @@ function validateMultiItemOrderInput({ fabricSource, items }) {
         fabricSource,
         fabricId: item.fabricId,
         fabricMeters: item.fabricMeters,
+        cutId: item.cutId,
+        cutIds: item.cutIds,
+        cutSelections: item.cutSelections,
       }),
     ),
   };
@@ -227,26 +277,96 @@ function buildDesignSnapshot(design) {
   };
 }
 
-async function deductFabricStock(fabricId, meters) {
-  const fabric = await Fabric.findOne({ _id: fabricId, isActive: true });
+function buildCutSnapshot(cut) {
+  return {
+    name: cut.name,
+    nameAr: cut.nameAr || "",
+    value: cut.value,
+    unit: cut.unit,
+  };
+}
 
-  if (!fabric) {
-    throw new PricingValidationError("fabric not found or is inactive");
+async function resolveCutForOrderItem(itemInput) {
+  const resolvedSelections =
+    Array.isArray(itemInput.cutSelections) && itemInput.cutSelections.length > 0
+      ? itemInput.cutSelections
+      : Array.isArray(itemInput.cutIds) && itemInput.cutIds.length > 0
+        ? (() => {
+            const merged = new Map();
+            for (const id of itemInput.cutIds) {
+              const key = String(id);
+              merged.set(key, (merged.get(key) || 0) + 1);
+            }
+            return Array.from(merged.entries()).map(([cutId, quantity]) => ({
+              cutId,
+              quantity,
+            }));
+          })()
+        : itemInput.cutId
+          ? [{ cutId: String(itemInput.cutId), quantity: 1 }]
+          : [];
+
+  if (resolvedSelections.length === 0) {
+    return {
+      cutId: null,
+      cutIds: [],
+      cutSelections: [],
+      cutSnapshot: null,
+      cutSnapshots: [],
+    };
   }
 
-  const updatedFabric = await Fabric.findOneAndUpdate(
-    { _id: fabricId, stockInMeters: { $gte: meters } },
-    { $inc: { stockInMeters: -meters } },
-    { new: true },
-  );
+  const snapshots = [];
+  const expandedCutIds = [];
+  let totalMeters = 0;
 
-  if (!updatedFabric) {
+  for (const { cutId: id, quantity } of resolvedSelections) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new PricingValidationError("Valid cutId is required when provided");
+    }
+
+    const cut = await Cut.findById(id);
+    if (!cut || !cut.isActive) {
+      throw new PricingValidationError("cut not found or is inactive");
+    }
+
+    const qty = Math.max(1, Math.floor(Number(quantity) || 1));
+    totalMeters += cutValueToMeters(cut.value, cut.unit) * qty;
+    const snapshot = buildCutSnapshot(cut);
+    for (let i = 0; i < qty; i += 1) {
+      expandedCutIds.push(String(cut._id));
+      snapshots.push(snapshot);
+    }
+  }
+
+  if (Math.abs(Number(totalMeters.toFixed(2)) - itemInput.fabricMeters) > 0.02) {
     throw new PricingValidationError(
-      `Insufficient fabric stock for ${fabric.name}. Available: ${fabric.stockInMeters} meters.`,
+      "fabricMeters does not match the selected cut(s)",
     );
   }
 
-  return updatedFabric;
+  return {
+    cutId: expandedCutIds[0],
+    cutIds: expandedCutIds,
+    cutSelections: resolvedSelections,
+    cutSnapshot: snapshots[0] || null,
+    cutSnapshots: snapshots,
+  };
+}
+
+async function deductStorefrontFabricPiece(fabricId, cutId) {
+  if (!cutId) {
+    throw new PricingValidationError(
+      "cutId is required for storefront fabric purchase",
+    );
+  }
+
+  const result = await deductFabricCutStock(fabricId, cutId, 1);
+  if (!result.ok) {
+    throw new PricingValidationError(result.message);
+  }
+
+  return result.fabric;
 }
 
 async function buildMultiItemOrderData(orderInput, deliveryType = "delivery", addonIds = []) {
@@ -260,18 +380,55 @@ async function buildMultiItemOrderData(orderInput, deliveryType = "delivery", ad
   for (const item of orderInput.items) {
     if (orderInput.fabricSource !== "storefront" || !item.fabricId) continue;
 
-    const key = item.fabricId.toString();
-    fabricDeductions.set(
-      key,
-      (fabricDeductions.get(key) || 0) + item.fabricMeters,
-    );
+    const selections =
+      Array.isArray(item.cutSelections) && item.cutSelections.length > 0
+        ? item.cutSelections
+        : Array.isArray(item.cutIds) && item.cutIds.length > 0
+          ? (() => {
+              const merged = new Map();
+              for (const id of item.cutIds) {
+                const key = String(id);
+                merged.set(key, (merged.get(key) || 0) + 1);
+              }
+              return Array.from(merged.entries()).map(([cutId, quantity]) => ({
+                cutId,
+                quantity,
+              }));
+            })()
+          : item.cutId
+            ? [{ cutId: String(item.cutId), quantity: 1 }]
+            : [];
+
+    for (const { cutId, quantity } of selections) {
+      const key = `${item.fabricId}::${cutId}`;
+      const existing = fabricDeductions.get(key);
+      const pieces = Math.max(1, Math.floor(Number(quantity) || 1));
+      if (existing) {
+        existing.pieces += pieces;
+      } else {
+        fabricDeductions.set(key, {
+          fabricId: item.fabricId,
+          cutId,
+          pieces,
+        });
+      }
+    }
   }
 
   const fabricDocs = new Map();
 
-  for (const [fabricId, totalMeters] of fabricDeductions.entries()) {
-    const fabric = await deductFabricStock(fabricId, totalMeters);
-    fabricDocs.set(fabricId, fabric);
+  for (const { fabricId, cutId, pieces } of fabricDeductions.values()) {
+    if (!cutId) {
+      throw new PricingValidationError(
+        "cutId is required for storefront fabric purchase",
+      );
+    }
+
+    const result = await deductFabricCutStock(fabricId, cutId, pieces);
+    if (!result.ok) {
+      throw new PricingValidationError(result.message);
+    }
+    fabricDocs.set(String(fabricId), result.fabric);
   }
 
   const orderItems = [];
@@ -298,6 +455,7 @@ async function buildMultiItemOrderData(orderInput, deliveryType = "delivery", ad
       fabricStoreId: fabric?.listedByStore ?? null,
       fabricSnapshot: fabric ? buildFabricSnapshot(fabric) : null,
       fabricMeters: itemInput.fabricMeters,
+      ...(await resolveCutForOrderItem(itemInput)),
       pricing: itemPricings[index],
     });
   }
@@ -411,6 +569,7 @@ export async function createPaidCustomOrder({
     fabricSource,
     fabricId,
     fabricMeters,
+    cutId,
     items,
     measurements,
     customerDeliveryAddress,
@@ -517,6 +676,7 @@ export async function createPaidCustomOrder({
         fabricSource,
         fabricId,
         fabricMeters,
+        cutId,
       });
 
       const { design, shop } = await loadDesignWithApprovedShop(
@@ -524,12 +684,14 @@ export async function createPaidCustomOrder({
       );
 
       let fabric = null;
+      let cutFields = { cutId: null, cutSnapshot: null };
 
       if (orderInput.fabricSource === "storefront") {
-        fabric = await deductFabricStock(
+        fabric = await deductStorefrontFabricPiece(
           orderInput.fabricId,
-          orderInput.fabricMeters,
+          orderInput.cutId,
         );
+        cutFields = await resolveCutForOrderItem(orderInput);
       }
 
       const pricing = await getCustomOrderPricing({
@@ -555,6 +717,7 @@ export async function createPaidCustomOrder({
         fabricStoreId: fabric?.listedByStore ?? null,
         fabricSnapshot: fabric ? buildFabricSnapshot(fabric) : null,
         fabricMeters: orderInput.fabricMeters,
+        ...cutFields,
         tailorShopId: shop._id,
         designId: design._id,
         designSnapshot: buildDesignSnapshot(design),

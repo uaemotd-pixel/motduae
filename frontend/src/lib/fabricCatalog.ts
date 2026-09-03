@@ -6,6 +6,7 @@ import {
   serializeFabricCuts,
   type FabricCutFormEntry,
 } from "@/lib/createFabricAdmin";
+import { normalizeUaePhone } from "@/lib/uaePhone";
 
 export const FABRIC_MATERIALS = ["chiffon", "silk velvet", "tana linen cotton"] as const;
 export type FabricMaterial = (typeof FABRIC_MATERIALS)[number];
@@ -141,7 +142,7 @@ export function fabricToForm(fabric: FabricProfile): FabricFormData {
       city: fabric.storePickupAddress?.city ?? "",
       street: fabric.storePickupAddress?.street ?? "",
       building: fabric.storePickupAddress?.building ?? "",
-      phone: fabric.storePickupAddress?.phone ?? "",
+      phone: normalizeUaePhone(fabric.storePickupAddress?.phone ?? ""),
     },
     isActive: fabric.isActive ?? true,
     variants:
@@ -174,7 +175,7 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
       city: form.storePickupAddress.city.trim(),
       street: form.storePickupAddress.street.trim(),
       building: form.storePickupAddress.building.trim(),
-      phone: form.storePickupAddress.phone.trim(),
+      phone: normalizeUaePhone(form.storePickupAddress.phone.trim()),
     },
     isActive: form.isActive,
     variants: form.variants?.map((v) => ({

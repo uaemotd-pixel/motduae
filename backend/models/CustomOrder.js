@@ -263,9 +263,39 @@ const customOrderItemSchema = new mongoose.Schema(
       ref: "Cut",
       default: null,
     },
+    cutIds: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Cut",
+        },
+      ],
+      default: [],
+    },
+    cutSelections: {
+      type: [
+        {
+          cutId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Cut",
+            required: true,
+          },
+          quantity: {
+            type: Number,
+            required: true,
+            min: 1,
+          },
+        },
+      ],
+      default: [],
+    },
     cutSnapshot: {
       type: cutSnapshotSchema,
       default: null,
+    },
+    cutSnapshots: {
+      type: [cutSnapshotSchema],
+      default: [],
     },
     pricing: {
       type: pricingSchema,

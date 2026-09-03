@@ -703,9 +703,9 @@ export default function CustomOrderCheckoutStep() {
             />
           ) : null}
 
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-8">
-            <div className="space-y-6">
-              <aside className="border border-(--color-border) bg-white p-6 sm:p-8 h-fit">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-8 lg:items-start">
+            <div className="space-y-6 lg:sticky lg:top-24 lg:z-10 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto lg:overscroll-contain">
+              <aside className="border border-(--color-border) bg-white p-6 sm:p-8">
                 <h2 className="[font-family:var(--font-display)] text-[22px] mb-6">
                   {t("summaryTitle")}
                 </h2>

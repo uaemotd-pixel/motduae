@@ -44,6 +44,8 @@ import {
   assertActiveCutsExist,
   enrichFabricWithCuts,
   normalizeFabricCutsPayload,
+  countLowStockFabricCutRows,
+  LOW_FABRIC_CUT_STOCK_THRESHOLD,
 } from "../utils/fabricCuts.js";
 import PartnerPayout, {
   PARTNER_PAYOUT_KINDS,
@@ -2452,7 +2454,7 @@ adminRouter.get(
     const totalRevenue = retailNowResult.revenue + customNowResult.revenue;
     const aov = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-    const LOW_FABRIC_STOCK = 10;
+    const LOW_FABRIC_CUT_STOCK = LOW_FABRIC_CUT_STOCK_THRESHOLD;
     const LOW_READY_STOCK = 5;
     const LOW_ADDON_STOCK = 5;
     const monthStartCustomers = new Date(
@@ -2497,10 +2499,7 @@ adminRouter.get(
       User.countDocuments(submittedPendingFilter("fabric_store")),
       TailorShop.countDocuments({ isActive: true }),
       FabricShop.countDocuments({ isActive: true }),
-      Fabric.countDocuments({
-        stockInMeters: { $lte: LOW_FABRIC_STOCK },
-        isActive: true,
-      }),
+      countLowStockFabricCutRows({}, LOW_FABRIC_CUT_STOCK),
       ReadyMadeProduct.countDocuments({
         availableFabricStock: { $lte: LOW_READY_STOCK },
         isActive: true,

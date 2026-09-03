@@ -64,7 +64,7 @@ interface FabricDashboardData {
   kpis: {
     fabricRevenue: number;
     orderCount: number;
-    metersSold: number;
+    piecesSold: number;
     activeSkus: number;
     lowStock: number;
     paid?: number;
@@ -422,7 +422,7 @@ export default function FabricDashboardPage() {
   const kpis = data?.kpis || {
     fabricRevenue: 0,
     orderCount: 0,
-    metersSold: 0,
+    piecesSold: 0,
     activeSkus: 0,
     lowStock: 0,
     paid: 0,
@@ -568,8 +568,8 @@ export default function FabricDashboardPage() {
           label={t("kpiSkus")}
           value={String(kpis.activeSkus)}
           subValue={
-            kpis.metersSold
-              ? `${kpis.metersSold.toFixed(1)} ${t("metersSold")}`
+            kpis.piecesSold
+              ? `${kpis.piecesSold} ${t("piecesSold")}`
               : undefined
           }
           compact

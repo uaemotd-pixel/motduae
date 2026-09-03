@@ -28,3 +28,20 @@ export function formatPhoneDisplay(value: string): string {
 export function extractDigits(value: string): string {
   return String(value || "").replace(/\D/g, "");
 }
+
+/** Read-only display: full stored UAE number (+971501234567). */
+export function displayUaePhone(value: string | null | undefined): string {
+  const normalized = normalizeUaePhone(String(value || ""));
+  if (normalized) return normalized;
+  return String(value || "").trim();
+}
+
+/** 9 local digits for inputs beside a read-only +971 prefix. */
+export function getUaePhoneInputValue(value: string | null | undefined): string {
+  if (!value) return "";
+  const digits = extractDigits(value);
+  if (digits.startsWith("971")) {
+    return digits.slice(3, 12);
+  }
+  return digits.slice(0, 9);
+}

@@ -45,6 +45,8 @@ import {
 import {
   enrichFabricWithCuts,
   prepareFabricCutsInput,
+  countLowStockCutRowsFromFabrics,
+  LOW_FABRIC_CUT_STOCK_THRESHOLD,
 } from "../utils/fabricCuts.js";
 
 const fabricPortalRouter = express.Router();
@@ -1666,7 +1668,7 @@ fabricPortalRouter.get(
           { listedByStore: ownerUserId },
           ...(shop ? [{ fabricShopId: shop._id }] : []),
         ],
-      }).select("_id stockInMeters isActive name isVariantOf"),
+      }).select("_id cuts isActive name isVariantOf"),
       shop
         ? ReadyMadeProduct.find({
             $or: [
@@ -1761,19 +1763,11 @@ fabricPortalRouter.get(
       return 0;
     };
 
-    const sumCustomMeters = (order) => {
+    const sumCustomPieces = (order) => {
       if (order.items && order.items.length > 0) {
-        return order.items
-          .filter(isStoreOwnedItem)
-          .reduce(
-            (sum, item) =>
-              sum + (item.pricing?.fabricMeters || item.fabricMeters || 0),
-            0,
-          );
+        return order.items.filter(isStoreOwnedItem).length;
       }
-      return sumCustomFabricFee(order) > 0
-        ? order.pricing?.fabricMeters || order.fabricMeters || 0
-        : 0;
+      return sumCustomFabricFee(order) > 0 ? 1 : 0;
     };
 
     // Retail lines belonging to this store: fabric-by-meter, ready-made, and add-ons.
@@ -1803,7 +1797,7 @@ fabricPortalRouter.get(
           0,
         );
 
-    const sumRetailMeters = (order) =>
+    const sumRetailPieces = (order) =>
       (order.orderItems || [])
         .filter((item) => {
           const pid =
@@ -1856,7 +1850,7 @@ fabricPortalRouter.get(
       ]);
 
     let fabricRevenue = 0;
-    let metersSold = 0;
+    let piecesSold = 0;
     const statusMap = new Map();
     const fabricRevenueMap = new Map();
 
@@ -1866,7 +1860,7 @@ fabricPortalRouter.get(
         commissionPercent,
       );
       fabricRevenue += breakdown.net;
-      metersSold += sumCustomMeters(order);
+      piecesSold += sumCustomPieces(order);
       const st = order.status || "unknown";
       statusMap.set(st, (statusMap.get(st) || 0) + 1);
 
@@ -1903,7 +1897,7 @@ fabricPortalRouter.get(
       if (gross <= 0) continue;
       const breakdown = splitMotdCommission(gross, commissionPercent);
       fabricRevenue += breakdown.net;
-      metersSold += sumRetailMeters(order);
+      piecesSold += sumRetailPieces(order);
       const st = order.status || "unknown";
       statusMap.set(st, (statusMap.get(st) || 0) + 1);
 
@@ -1973,7 +1967,7 @@ fabricPortalRouter.get(
         monthlyMap.get(`${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`) || 0,
     }));
 
-    const LOW_STOCK = 10;
+    const LOW_STOCK = LOW_FABRIC_CUT_STOCK_THRESHOLD;
     // Match catalog pages: parent fabrics only (variants are not separate listings),
     // plus ready-made and add-ons.
     const isParentFabric = (f) => !f.isVariantOf;
@@ -1989,12 +1983,12 @@ fabricPortalRouter.get(
     const activeSkus =
       activeFabricSkus + activeReadyMadeSkus + activeAddonSkus;
     const lowStock =
-      storeFabricIds.filter(
-        (f) =>
-          isParentFabric(f) &&
-          (f.stockInMeters || 0) <= LOW_STOCK &&
-          f.isActive !== false,
-      ).length +
+      countLowStockCutRowsFromFabrics(
+        storeFabricIds.filter(
+          (f) => isParentFabric(f) && f.isActive !== false,
+        ),
+        LOW_STOCK,
+      ) +
       storeProducts.filter(
         (p) =>
           (p.availableFabricStock || 0) <= LOW_STOCK && p.isActive !== false,
@@ -2162,7 +2156,7 @@ fabricPortalRouter.get(
       kpis: {
         fabricRevenue: Number(kpiPayoutValue.toFixed(2)),
         orderCount,
-        metersSold: Number(metersSold.toFixed(2)),
+        piecesSold,
         activeSkus,
         lowStock,
         paid: paidInWindow,
