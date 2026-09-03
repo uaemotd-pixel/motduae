@@ -20,6 +20,7 @@ import { formatCurrency } from "@/lib/format";
 import {
   formatOrderDate,
   getDesignDisplayName,
+  getDesignMinimumMeters,
   getFabricDisplayName,
   getOrderItemsSummary,
   getTailorDisplayName,
@@ -372,6 +373,21 @@ function CustomPublicCard({
                 order.fabricSource === "storefront"
                   ? item.fabric?.images?.[0]
                   : null;
+              const minRequired = getDesignMinimumMeters(item.design);
+              const leftoverVal =
+                item.leftoverMeters ??
+                (order.leftoverMeters && items.length === 1
+                  ? order.leftoverMeters
+                  : minRequired > 0 && item.fabricMeters > minRequired
+                    ? Number((item.fabricMeters - minRequired).toFixed(2))
+                    : 0);
+              const cuts =
+                item.selectedCuts && item.selectedCuts.length > 0
+                  ? item.selectedCuts
+                  : order.selectedCuts && items.length === 1
+                    ? order.selectedCuts
+                    : [];
+
               return (
                 <div
                   key={index}
@@ -399,9 +415,58 @@ function CustomPublicCard({
                       <Package size={20} className="text-gray-300" />
                     )}
                   </div>
-                  <h4 className="text-sm font-semibold text-black leading-tight">
-                    {fabricName}
-                  </h4>
+                  <div className="flex-1 space-y-1">
+                    <h4 className="text-sm font-semibold text-black leading-tight">
+                      {fabricName}
+                    </h4>
+
+                    {cuts.length > 0 && (
+                      <p className="text-xs text-black/60 font-ui">
+                        {cuts
+                          .map((c) =>
+                            locale === "ar"
+                              ? `${c.nameAr || c.name} (${c.lengthInMeters} م)`
+                              : `${c.name} (${c.lengthInMeters}m)`,
+                          )
+                          .join(" + ")}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 font-ui pt-0.5">
+                      {item.fabricMeters != null && (
+                        <span>
+                          <strong className="text-black font-medium">
+                            {tTrack("totalFabricSent")}:
+                          </strong>{" "}
+                          {item.fabricMeters} {tCustom("meters")}
+                        </span>
+                      )}
+                      {minRequired > 0 && (
+                        <span>
+                          <strong className="text-black font-medium">
+                            {tTrack("minRequired")}:
+                          </strong>{" "}
+                          {minRequired} {tCustom("meters")}
+                        </span>
+                      )}
+                      {leftoverVal > 0 && (
+                        <span>
+                          <strong className="text-emerald-700 font-medium">
+                            {tTrack("leftoverToReturn")}:
+                          </strong>{" "}
+                          <span className="text-emerald-700 font-semibold">
+                            {leftoverVal} {tCustom("meters")}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+
+                    {leftoverVal > 0 && (
+                      <p className="text-xs text-emerald-700 font-medium font-ui pt-1">
+                        {tTrack("customerLeftoverNotice", { meters: leftoverVal })}
+                      </p>
+                    )}
+                  </div>
                 </div>
               );
             })}

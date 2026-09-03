@@ -830,7 +830,7 @@ orderRoutes.get("/custom/mine", isAuth, async (req, res) => {
       .populate("items.designId", "images")
       .populate("items.fabricId", "images")
       .select(
-        "_id createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters pricing tailorShopId userId items addons",
+        "_id createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters leftoverMeters selectedCuts pricing tailorShopId userId items addons",
       );
 
     const formatted = orders.map((order) => ({

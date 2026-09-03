@@ -56,7 +56,7 @@ export async function getPublicOrderByTrackingToken(token) {
 
   const custom = await CustomOrder.findOne({ publicTrackingToken: token })
     .select(
-      "createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters pricing tailorShopId items addons statusHistory shipments returnItems customerDeliveryAddress",
+      "createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters leftoverMeters selectedCuts pricing tailorShopId items addons statusHistory shipments returnItems customerDeliveryAddress",
     )
     .populate(CUSTOM_POPULATE);
 
