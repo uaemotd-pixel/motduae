@@ -1,12 +1,14 @@
 import mongoose from "mongoose";
 import Design from "../models/Design.js";
 import Cut from "../models/Cut.js";
+import Fabric from "../models/Fabric.js";
 import { cutValueToMeters } from "./fabricUnits.js";
 
 /**
  * Ensures that:
  * 1. At least one active Cut exists in the database.
  * 2. Every live design has a valid minCutId and minCutSnapshot embedded.
+ * 3. Every active storefront fabric has at least one cut.
  */
 export async function ensureDesignsHaveMinCut() {
   try {
@@ -84,6 +86,30 @@ export async function ensureDesignsHaveMinCut() {
           await design.save();
         }
       }
+    }
+
+    // Also ensure active storefront fabrics have at least one cut
+    const fabricsNeedingCuts = await Fabric.find({
+      $or: [{ cuts: { $exists: false } }, { cuts: { $size: 0 } }],
+    });
+
+    if (fabricsNeedingCuts.length > 0) {
+      console.log(`[Migration] Backfilling cuts for ${fabricsNeedingCuts.length} fabric(s)...`);
+      const defaultCut = activeCuts[0];
+      const defaultLength = cutValueToMeters(defaultCut.value, defaultCut.unit);
+
+      for (const fabric of fabricsNeedingCuts) {
+        const price = fabric.pricePerMeter ? Math.round(fabric.pricePerMeter * defaultLength) : 350;
+        fabric.cuts = [
+          {
+            cutId: defaultCut._id,
+            price,
+            stock: 10,
+          },
+        ];
+        await fabric.save();
+      }
+      console.log(`[Migration] Successfully assigned cuts to ${fabricsNeedingCuts.length} fabric(s).`);
     }
   } catch (error) {
     console.error("[Migration] Error in ensureDesignsHaveMinCut:", error);

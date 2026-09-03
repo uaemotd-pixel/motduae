@@ -21,8 +21,9 @@ import {
     formatDesignBasePrice,
     getDesignDisplayFields,
     resolveDesignImage,
+    getDesignMinCutLength,
 } from "@/lib/tailors";
-import { type FabricListItem } from "@/lib/fabrics";
+import { type FabricListItem, getFabricMaxCutLength } from "@/lib/fabrics";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 import { CustomOrderStepSkeleton, ProductGridSkeleton } from "@/components/ui/Skeleton";
 
@@ -191,6 +192,9 @@ export default function TailorDesignSelectionStep() {
         : t("continueToFabric");
     const showBackToFabric = draft.firstStep === "fabric";
 
+    const selectedFabric = draft.selectedFabrics[0] ?? null;
+    const fabricMaxCut = selectedFabric ? getFabricMaxCutLength(selectedFabric) : 0;
+
     const handleToggleDesign = (item: TailorDesignListItem) => {
         const selected = toCustomOrderSelectedDesign(item);
         if (selected) {
@@ -288,7 +292,7 @@ export default function TailorDesignSelectionStep() {
                 <p className="text-center text-red-600 py-16">{designsError}</p>
             ) : designs.length === 0 ? (
                 <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-16 text-(--color-grey-muted)">
-                    {t("emptyDesigns")}
+                    {t("emptyDesignsCatalog")}
                 </p>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
@@ -302,6 +306,11 @@ export default function TailorDesignSelectionStep() {
                             locale === "ar"
                                 ? item.tailorNameAr || item.tailorName
                                 : item.tailorName;
+                        const designMinLength = getDesignMinCutLength(item);
+                        const needsSecondCutHint =
+                            fabricMaxCut > 0 &&
+                            designMinLength > 0 &&
+                            designMinLength > fabricMaxCut;
 
                         return (
                             <button
@@ -310,7 +319,7 @@ export default function TailorDesignSelectionStep() {
                                 onClick={() => handleToggleDesign(item)}
                                 className={`group text-left border rounded-lg transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 ${
                                     isSelected
-                                        ? "border-black ring-2 ring-black bg-white"
+                                        ? "border-black ring-2 ring-black bg-white shadow-md"
                                         : "border-(--color-border) bg-white hover:border-black"
                                 }`}
                             >
@@ -357,6 +366,14 @@ export default function TailorDesignSelectionStep() {
                                                 : `${item.estimatedMeters} ${t("meters")}`}
                                         </span>
                                     </div>
+
+                                    {needsSecondCutHint && (
+                                        <div className="mt-3 p-2.5 bg-amber-50/90 border border-amber-200/80 rounded text-[11px] leading-relaxed text-amber-950">
+                                            <span className="font-semibold block [font-family:var(--font-ui)] text-[10px] tracking-wide text-amber-900">
+                                                💡 {t("designLengthHint", { min: designMinLength })}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </button>
                         );
