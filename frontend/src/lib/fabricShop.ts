@@ -67,7 +67,7 @@ export function shopPickupToFabricStorePickup(
       city: pickup.city?.trim() || "",
       street: pickup.line1?.trim() || "",
       building: pickup.line2?.trim() || "",
-      phone: normalizeUaePhone(pickup.phone),
+      phone: normalizeUaePhone(pickup.phone || ""),
     };
   }
 
@@ -76,7 +76,7 @@ export function shopPickupToFabricStorePickup(
     city: shop?.city?.trim() || "",
     street: shop?.location?.trim() || "",
     building: "",
-    phone: normalizeUaePhone(shop?.phone),
+    phone: normalizeUaePhone(shop?.phone || ""),
   };
 }
 
