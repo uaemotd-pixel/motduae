@@ -74,11 +74,10 @@ type CustomOrderContextType = {
     itemId: string,
     cut: { _id: string; value: number; unit: "war" | "meter" },
   ) => void;
-
   updateLineItemCuts: (
     itemId: string,
     cuts: CustomOrderSelectedCut[],
-
+  ) => void;
   toggleLineItemCut: (
     itemId: string,
     cut: { _id: string; value: number; unit: "war" | "meter" },
@@ -87,7 +86,6 @@ type CustomOrderContextType = {
     itemId: string,
     cut: { _id: string; value: number; unit: "war" | "meter" },
     quantity: number,
-
   ) => void;
   toggleAddon: (addonId: string) => void;
 };
@@ -461,6 +459,9 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
           ),
         };
       });
+    },
+    [],
+  );
 
   const toggleLineItemCut = useCallback(
     (

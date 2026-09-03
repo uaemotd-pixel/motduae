@@ -50,7 +50,7 @@ interface CutOption {
   nameAr?: string;
   value: number;
   unit: CutUnit;
-
+  stock?: number;
   metersEquivalent?: number;
   lengthInMeters?: number;
 }
@@ -454,7 +454,6 @@ function StorefrontCutPicker({
       )}
     </div>
   );
-  stock: number;
 }
 
 function getCutOptionsForLineItem(
@@ -485,7 +484,7 @@ function getTotalAvailableCutMeters(cuts: CutOption[]): number {
     cuts
       .reduce(
         (sum, cut) =>
-          sum + cutValueToMeters(cut.value, cut.unit) * Math.max(0, cut.stock),
+          sum + cutValueToMeters(cut.value, cut.unit) * Math.max(0, cut.stock ?? 0),
         0,
       )
       .toFixed(2),
@@ -728,6 +727,10 @@ export default function FabricMetersStep() {
             );
             const metersValue =
               item.fabricMeters !== null ? item.fabricMeters.toFixed(2) : "";
+            const isValid = isLineItemMetersValid(
+              item.fabricMeters,
+              item.fabricUnit,
+            );
             const minimumMeters = getMinimumMetersForDesign(item.design);
             const itemCutOptions = getCutOptionsForLineItem(item, cutOptions);
             const selections = getLineItemCutSelections(item);
@@ -866,223 +869,6 @@ export default function FabricMetersStep() {
                     locale={locale}
                     onUpdateCuts={updateLineItemCuts}
                   />
-
-                {hasValidSelection && (
-                  <CustomOrderNotice
-                    tone="success"
-                    title={t("fabricChoiceValid")}
-                    description={t("fabricChoiceValidDetail", {
-                      required: minimumMeters.toFixed(1),
-                      selected: selectedMeters.toFixed(1),
-                    })}
-                    className="mb-5"
-                  />
-                )}
-
-                {issue === "tooShort" && (
-                  <CustomOrderNotice
-                    tone="error"
-                    title={t("alertTitleTooShort")}
-                    description={t("insufficientFabricError", {
-                      required: minimumMeters.toFixed(1),
-                      selected: selectedMeters.toFixed(1),
-                    })}
-                    className="mb-5"
-                  />
-                )}
-
-                {issue === "invalidRange" && (
-                  <CustomOrderNotice
-                    tone="error"
-                    title={t("alertTitleInvalidRange")}
-                    description={t("validationError")}
-                    className="mb-5"
-                  />
-                )}
-
-                {(issue === "noCuts" || issue === "cannotFulfill") && (
-                  <CustomOrderNotice
-                    tone="error"
-                    title={t("alertTitleNoCuts")}
-                    description={t("noSuitableCutsError", {
-                      required: minimumMeters.toFixed(1),
-                    })}
-                    action={
-                      <Link
-                        href="/custom-order/fabric"
-                        className="inline-flex [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-rose-800 underline underline-offset-4 hover:opacity-70"
-                      >
-                        {t("backToFabric")}
-                      </Link>
-                    }
-                    className="mb-5"
-                  />
-                )}
-
-                {awaitingCutChoice && !issue && (
-                  <CustomOrderNotice
-                    tone="info"
-                    title={t("selectCutPromptTitle")}
-                    description={t("selectCutPrompt")}
-                    className="mb-5"
-                  />
-                )}
-
-                <label className="mb-3 flex items-center gap-2 [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
-                  <Ruler className="h-3.5 w-3.5 text-amber-700" />
-                  {usingOwnFabric ? t("inputLabel") : t("selectCutLabel")}
-                </label>
-
-                {itemCutOptions.length > 0 && (
-                  <>
-                    <div className="space-y-0 divide-y divide-[#E4E0D8] border-y border-[#E4E0D8] mb-3">
-                      {itemCutOptions.map((cut) => {
-                        const quantity = selections[cut._id] || 0;
-                        const selected = quantity > 0;
-                        const lengthMeters = cutValueToMeters(
-                          cut.value,
-                          cut.unit,
-                        );
-                        const canIncrease =
-                          !requirementMet && quantity < cut.stock;
-                        const cutPayload = {
-                          _id: cut._id,
-                          value: cut.value,
-                          unit: cut.unit,
-                        };
-
-                        return (
-                          <div
-                            key={cut._id}
-                            className={`py-4 ${
-                              requirementMet && !selected ? "opacity-50" : ""
-                            }`}
-                          >
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                              <div className="min-w-0">
-                                <p className="[font-family:var(--font-body)] text-sm font-medium text-black">
-                                  {cutName(cut)} ({formatCutLabel(cut.value, cut.unit, locale)})
-                                </p>
-                                <p className="mt-1 [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-(--color-grey-muted)">
-                                  {t("cutStockLabel", { count: cut.stock })}
-                                  {" · "}
-                                  {lengthMeters.toFixed(2)} {t("meters")} /{" "}
-                                  {t("pieceLabel")}
-                                </p>
-                              </div>
-
-                              <div className="flex items-center gap-3">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setLineItemCutQuantity(
-                                      item.id,
-                                      cutPayload,
-                                      quantity - 1,
-                                    )
-                                  }
-                                  disabled={quantity <= 0}
-                                  className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed hover:cursor-pointer"
-                                  aria-label={t("decreaseQuantity")}
-                                >
-                                  <span className="text-lg leading-none">−</span>
-                                </button>
-                                <span className="w-8 text-center text-sm [font-family:var(--font-body)] text-black">
-                                  {quantity}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setLineItemCutQuantity(
-                                      item.id,
-                                      cutPayload,
-                                      quantity + 1,
-                                    )
-                                  }
-                                  disabled={!canIncrease}
-                                  title={
-                                    requirementMet
-                                      ? t("cutSelectionLockedHint")
-                                      : quantity >= cut.stock
-                                        ? t("cutStockLimitHint")
-                                        : undefined
-                                  }
-                                  className="w-8 h-8 border border-gray-300 rounded flex items-center justify-center transition hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed hover:cursor-pointer"
-                                  aria-label={t("increaseQuantity")}
-                                >
-                                  <span className="text-lg leading-none">+</span>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {!usingOwnFabric && selectedCutIds.length > 0 && (
-                      <p className="mb-2 [font-family:var(--font-body)] text-[13px] text-black">
-                        {t("selectedLengthProgress", {
-                          selected: selectedMeters.toFixed(1),
-                          required: minimumMeters.toFixed(1),
-                        })}
-                      </p>
-                    )}
-
-                    {!usingOwnFabric && (
-                      <p className="mb-4 [font-family:var(--font-body)] text-[12px] text-stone-500">
-                        {requirementMet
-                          ? t("cutsLockedLegend")
-                          : t("cutsCombineLegend")}
-                      </p>
-                    )}
-                  </>
-                )}
-
-                {usingOwnFabric && (
-                  <div className="flex max-w-md items-center gap-3">
-                    <input
-                      type="number"
-                      min={
-                        item.fabricUnit === "war" || item.fabricUnit === "wara"
-                          ? Number((2 / WAR_TO_METER).toFixed(2))
-                          : 2
-                      }
-                      max={
-                        item.fabricUnit === "war" || item.fabricUnit === "wara"
-                          ? Number((7 / WAR_TO_METER).toFixed(2))
-                          : 7
-                      }
-                      step="0.01"
-                      inputMode="decimal"
-                      value={metersValue}
-                      onChange={(e) =>
-                        handleMetersChange(item.id, e.target.value)
-                      }
-                      placeholder={t("inputPlaceholder")}
-                      className={`flex-1 border bg-white px-4 py-3 [font-family:var(--font-body)] text-[14px] outline-none transition-colors ${
-                        issue === "invalidRange" || issue === "tooShort"
-                          ? "border-rose-300 ring-2 ring-rose-100"
-                          : hasValidSelection
-                            ? "border-emerald-300 ring-2 ring-emerald-50"
-                            : "border-(--color-border) focus:border-black"
-                      }`}
-                    />
-
-                    <select
-                      value={item.fabricUnit}
-                      onChange={(e) =>
-                        handleUnitChange(
-                          item.id,
-                          e.target.value as FabricUnit,
-                        )
-                      }
-                      className="shrink-0 border border-(--color-border) bg-white px-3 py-3 [font-family:var(--font-body)] text-[14px]"
-                    >
-                      <option value="meters">Meters</option>
-                      <option value="war">War</option>
-                    </select>
-                  </div>
-
                 )}
               </div>
             );

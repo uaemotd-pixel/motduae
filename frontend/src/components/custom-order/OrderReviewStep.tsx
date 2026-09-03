@@ -26,9 +26,7 @@ import {
 import { formatCurrency } from "@/lib/format";
 
 import { formatDesignCategory, getDesignMinCutLength } from "@/lib/tailors";
-
 import { formatCutLabel } from "@/lib/fabricUnits";
-import { formatDesignCategory } from "@/lib/tailors";
 
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 import { CustomOrderStepSkeleton, Skeleton } from "@/components/ui/Skeleton";

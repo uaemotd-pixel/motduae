@@ -817,23 +817,18 @@ export function isLineItemComplete(
   item: CustomOrderLineItem,
   fabricSource: FabricSource | null,
 ): boolean {
-
   if (fabricSource === "storefront") {
     if (!item.fabric) return false;
     if (item.selectedCuts && item.selectedCuts.length > 0) {
       return true;
     }
+    if (isStorefrontCutSelectionRequired(item, fabricSource)) {
+      return getLineItemCutIds(item).length > 0;
+    }
     return item.fabricMeters !== null && item.fabricMeters > 0;
   }
 
   if (!isFabricLengthSufficientForDesign(item)) return false;
-  if (fabricSource === "storefront" && !item.fabric) return false;
-
-  if (isStorefrontCutSelectionRequired(item, fabricSource)) {
-    return getLineItemCutIds(item).length > 0;
-  }
-
-
   return isLineItemMetersValid(item.fabricMeters, item.fabricUnit);
 }
 
