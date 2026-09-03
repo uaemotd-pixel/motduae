@@ -19,6 +19,8 @@ import {
   buildFabricCutCartId,
   buildInitialFabricCutSelections,
   getSelectedFabricCutEntries,
+  getCutLengthLabel,
+  parseFabricCutCartId,
 } from "@/lib/fabrics";
 import { Share2 } from "lucide-react";
 import StoreAttribution from "@/components/fabric/StoreAttribution";
@@ -130,6 +132,8 @@ export default function FabricDetailView({
         image: resolveMediaUrl(fabric.images?.[0]) || "",
         price: entry.price,
         size: cutLabel,
+        cutLength: getCutLengthLabel(entry, locale),
+        itemType: "fabric" as const,
         maxStock: entry.stock,
         quantity,
       };
@@ -171,6 +175,7 @@ export default function FabricDetailView({
 
     if (cartItems.length === 1) {
       const item = cartItems[0];
+      const { cutId } = parseFabricCutCartId(item.id);
       const checkoutParams = new URLSearchParams({
         productId: fabric._id,
         slug: fabric.slug,
@@ -179,6 +184,8 @@ export default function FabricDetailView({
         size: item.size,
         quantity: String(item.quantity),
         maxStock: String(item.maxStock),
+        ...(cutId ? { cutId } : {}),
+        ...(item.cutLength ? { cutLength: item.cutLength } : {}),
       });
       router.push(
         `/${locale}/checkout?buyNow=true&${checkoutParams.toString()}`,

@@ -14,6 +14,8 @@ import {
   getCutDisplayName,
   getFabricMinListingPrice,
   isFabricInStock,
+  buildFabricCutCartId,
+  filterPublicFabrics,
 } from "@/lib/fabrics";
 import { Share2, ChevronDown, ChevronUp } from "lucide-react";
 import FadeInSection from "@/components/shared/fadeInSection";
@@ -602,7 +604,7 @@ export default function FabricsCatalogPage() {
         if (!data?.success) {
           throw new Error("Failed to load fabrics");
         }
-        setFabrics(data.items || []);
+        setFabrics(filterPublicFabrics(data.items || []));
       } catch (err: unknown) {
         const message =
           (err as ApiError)?.message ||
@@ -1641,7 +1643,12 @@ export default function FabricsCatalogPage() {
 
                               <WishlistButton
                                 item={{
-                                  id: fabric._id,
+                                  id: listingCut
+                                    ? buildFabricCutCartId(
+                                        fabric._id,
+                                        listingCut.cutId,
+                                      )
+                                    : fabric._id,
                                   name: title,
                                   image,
                                   price,
@@ -1651,9 +1658,7 @@ export default function FabricsCatalogPage() {
                                   type: "fabric",
                                   ...(listingCut
                                     ? { maxStock: listingCut.stock }
-                                    : Number.isFinite(fabric.stockInMeters)
-                                      ? { maxStock: fabric.stockInMeters }
-                                      : {}),
+                                    : {}),
                                 }}
                                 inline
                                 className="flex items-center justify-center w-6 h-6 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 shrink-0 p-0"

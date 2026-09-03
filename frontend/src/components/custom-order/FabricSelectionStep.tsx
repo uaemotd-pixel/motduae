@@ -27,7 +27,11 @@ import {
     formatFabricListingPrice,
     getFabricDisplayFields,
     isFabricInStock,
+
     getFabricMaxCutLength,
+
+    filterPublicFabrics,
+
 } from "@/lib/fabrics";
 import {
     type TailorDesignListItem,
@@ -80,7 +84,7 @@ export default function FabricSelectionStep() {
                     throw new Error("Failed to load fabrics");
                 }
 
-                setFabrics(data.items || []);
+                setFabrics(filterPublicFabrics(data.items || []));
             } catch (err: unknown) {
                 const message =
                     (err as ApiError)?.message ||

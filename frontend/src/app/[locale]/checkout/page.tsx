@@ -54,7 +54,7 @@ import {
   findCheckoutAddressOption,
   type FamilyMember,
 } from "@/lib/checkoutAddresses";
-import { parseFabricCutCartId } from "@/lib/fabrics";
+import { buildRetailCheckoutItem, isFabricCutCartId } from "@/lib/fabrics";
 
 type CustomerAddress = {
   _id?: string;
@@ -159,6 +159,8 @@ function CheckoutPageContent() {
   const [buyNowName, setBuyNowName] = useState<string>("");
   const [buyNowImage, setBuyNowImage] = useState<string>("");
   const [buyNowMaxStock, setBuyNowMaxStock] = useState<number>(0);
+  const [buyNowCutId, setBuyNowCutId] = useState<string | null>(null);
+  const [buyNowCutLength, setBuyNowCutLength] = useState<string>("");
   const [isBuyNow, setIsBuyNow] = useState(false);
   const [buyNowItemsArray, setBuyNowItemsArray] = useState<CartItem[] | null>(
     null,
@@ -375,8 +377,12 @@ function CheckoutPageContent() {
       const name = searchParams.get("name") || "";
       const image = searchParams.get("image") || "";
       const maxStock = parseInt(searchParams.get("maxStock") || "0");
+      const cutId = searchParams.get("cutId") || "";
+      const cutLength = searchParams.get("cutLength") || "";
 
       setBuyNowProductId(productId);
+      setBuyNowCutId(cutId || null);
+      setBuyNowCutLength(cutLength);
       setBuyNowSize(size);
       setBuyNowQuantity(quantity);
       setBuyNowSlug(slug);
@@ -394,36 +400,42 @@ function CheckoutPageContent() {
       try {
         let itemsToPreview: Array<{
           productId: string;
+          cutId?: string;
           size: string;
           quantity: number;
           measurementUnit?: string;
         }> = [];
 
         if (isBuyNow && buyNowItemsArray && buyNowItemsArray.length > 0) {
-          itemsToPreview = buyNowItemsArray.map((item) => ({
-            productId: parseFabricCutCartId(item.id).fabricId,
-            size: item.size || "",
-            quantity: item.quantity || 1,
-            ...(item.size === "Per Meter" ? { measurementUnit } : {}),
-          }));
+          itemsToPreview = buyNowItemsArray.map((item) => {
+            const payload = buildRetailCheckoutItem(item);
+            return {
+              ...payload,
+              ...(item.size === "Per Meter" ? { measurementUnit } : {}),
+            };
+          });
         } else if (isBuyNow && buyNowProductId) {
           itemsToPreview = [
             {
               productId: buyNowProductId,
+              ...(buyNowCutId ? { cutId: buyNowCutId } : {}),
               size: buyNowSize,
               quantity: buyNowQuantity,
-              ...(buyNowSize === "Per Meter"
+              ...(buyNowSize === "Per Meter" && !buyNowCutId
                 ? { measurementUnit }
                 : {}),
             },
           ];
         } else {
-          itemsToPreview = items.map((item) => ({
-            productId: parseFabricCutCartId(item.id).fabricId,
-            size: item.size || "",
-            quantity: item.quantity || 1,
-            ...(item.size === "Per Meter" ? { measurementUnit } : {}),
-          }));
+          itemsToPreview = items.map((item) => {
+            const payload = buildRetailCheckoutItem(item);
+            return {
+              ...payload,
+              ...(item.size === "Per Meter" && !isFabricCutCartId(item.id)
+                ? { measurementUnit }
+                : {}),
+            };
+          });
         }
 
         if (itemsToPreview.length === 0) {
@@ -452,6 +464,7 @@ function CheckoutPageContent() {
   }, [
     isBuyNow,
     buyNowProductId,
+    buyNowCutId,
     buyNowSize,
     buyNowQuantity,
     buyNowItemsArray,
@@ -475,9 +488,13 @@ function CheckoutPageContent() {
 
     if (isBuyNow && buyNowProductId) {
       const previewItem = pricePreview.items[0];
+      const lineId =
+        buyNowCutId && buyNowProductId
+          ? `${buyNowProductId}::${buyNowCutId}`
+          : buyNowProductId;
       return [
         {
-          id: buyNowProductId,
+          id: lineId,
           slug: buyNowSlug,
           name: previewItem?.name || buyNowName,
           image: previewItem?.image || buyNowImage,
@@ -485,6 +502,8 @@ function CheckoutPageContent() {
           size: buyNowSize,
           quantity: buyNowQuantity,
           maxStock: previewItem?.maxStock || buyNowMaxStock,
+          ...(buyNowCutLength ? { cutLength: buyNowCutLength } : {}),
+          ...(buyNowCutId ? { itemType: "fabric" as const } : {}),
         },
       ];
     }
@@ -736,12 +755,15 @@ function CheckoutPageContent() {
 
   // --- Build order payload (NO PRICE) ---
   const buildOrderPayload = () => {
-    const orderItems = displayItems.map((item) => ({
-      productId: parseFabricCutCartId(item.id).fabricId,
-      size: item.size,
-      quantity: item.quantity,
-      ...(item.size === "Per Meter" ? { measurementUnit } : {}),
-    }));
+    const orderItems = displayItems.map((item) => {
+      const payload = buildRetailCheckoutItem(item);
+      return {
+        ...payload,
+        ...(item.size === "Per Meter" && !isFabricCutCartId(item.id)
+          ? { measurementUnit }
+          : {}),
+      };
+    });
 
     const isArabic = localeParams === "ar";
     const guestSuffix = isArabic ? " - زائر" : " - Guest";
@@ -940,16 +962,53 @@ function CheckoutPageContent() {
                                   {item.name}
                                 </h3>
                                 <ul className="mt-2 space-y-1 [font-family:var(--font-ui)] text-[12px] text-(--color-grey-muted)">
-                                  <li className="flex flex-wrap gap-4">
-                                    {t.checkout.size}{" "}
-                                    <span className="ml-auto">{item.size}</span>
-                                  </li>
-                                  <li className="flex flex-wrap gap-4">
-                                    {t.checkout.quantity}{" "}
-                                    <span className="ml-auto">
-                                      {item.quantity}
-                                    </span>
-                                  </li>
+                                  {item.itemType === "fabric" ||
+                                  isFabricCutCartId(item.id) ? (
+                                    <>
+                                      <li className="flex flex-wrap gap-4">
+                                        {localeParams === "ar" ? "القصة" : "Cut"}
+                                        <span className="ml-auto">{item.size}</span>
+                                      </li>
+                                      {item.cutLength ? (
+                                        <li className="flex flex-wrap gap-4">
+                                          {localeParams === "ar"
+                                            ? "الطول"
+                                            : "Length"}
+                                          <span className="ml-auto">
+                                            {item.cutLength}
+                                          </span>
+                                        </li>
+                                      ) : null}
+                                      <li className="flex flex-wrap gap-4">
+                                        {localeParams === "ar"
+                                          ? "السعر / قطعة"
+                                          : "Price / piece"}
+                                        <span className="ml-auto">
+                                          AED {item.price.toFixed(2)}
+                                        </span>
+                                      </li>
+                                      <li className="flex flex-wrap gap-4">
+                                        {t.checkout.quantity}{" "}
+                                        <span className="ml-auto">
+                                          {item.quantity}{" "}
+                                          {localeParams === "ar" ? "قطع" : "pcs"}
+                                        </span>
+                                      </li>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <li className="flex flex-wrap gap-4">
+                                        {t.checkout.size}{" "}
+                                        <span className="ml-auto">{item.size}</span>
+                                      </li>
+                                      <li className="flex flex-wrap gap-4">
+                                        {t.checkout.quantity}{" "}
+                                        <span className="ml-auto">
+                                          {item.quantity}
+                                        </span>
+                                      </li>
+                                    </>
+                                  )}
                                   <li className="flex flex-wrap gap-4">
                                     {t.checkout.totalPrice}
                                     <span className="ml-auto font-normal text-black">

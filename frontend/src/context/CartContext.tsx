@@ -11,6 +11,9 @@ export type CartItem = {
   price: number;
   size: string;
   quantity: number;
+  /** Cut length label for fabric cut lines (e.g. "3.5 m") */
+  cutLength?: string;
+  itemType?: "fabric" | "readyMade" | "addon";
   // undefined means "unknown / unlimited"
   maxStock?: number;
 };
@@ -45,6 +48,13 @@ function normalizeStoredItems(stored: unknown): CartItem[] {
       price: Number(item.price) || 0,
       size: item.size ?? "",
       quantity: Math.max(1, Number(item.quantity) || 1),
+      cutLength: typeof item.cutLength === "string" ? item.cutLength : undefined,
+      itemType:
+        item.itemType === "fabric" ||
+        item.itemType === "readyMade" ||
+        item.itemType === "addon"
+          ? item.itemType
+          : undefined,
       // keep undefined when not a finite number so we treat it as unlimited
       maxStock: ((): number | undefined => {
         const parsed = Number(item.maxStock);
@@ -145,6 +155,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           price: item.price,
           size: item.size,
           quantity: initialQty,
+          ...(item.cutLength ? { cutLength: item.cutLength } : {}),
+          ...(item.itemType ? { itemType: item.itemType } : {}),
           ...(maxStock != null ? { maxStock } : {}),
         },
       ];

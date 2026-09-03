@@ -1,5 +1,4 @@
 import express from "express";
-import mongoose from "mongoose";
 import { prepareRetailOrder } from "../services/retailOrderService.js";
 import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
 import AddOn from "../models/AddOn.js";
@@ -8,7 +7,7 @@ import Fabric from "../models/Fabric.js";
 const router = express.Router();
 
 // POST /preview
-// Accepts { items: [{ productId, size, quantity }] }
+// Accepts { items: [{ productId, cutId?, size, quantity }] }
 // Returns server-calculated prices and totals
 router.post("/preview", async (req, res) => {
   try {
@@ -17,27 +16,48 @@ router.post("/preview", async (req, res) => {
       return res.status(400).json({ error: "items required" });
     }
 
-    // Prepare order using server-side pricing logic
     const prepared = await prepareRetailOrder(
       items.map((it) => ({
         productId: it.productId,
+        cutId: it.cutId,
         quantity: it.quantity,
         measurementUnit: it.measurementUnit,
       })),
     );
 
-    // Enrich each finalOrderItems with maxStock from DB
     const enriched = await Promise.all(
-      prepared.finalOrderItems.map(async (it) => {
+      prepared.finalOrderItems.map(async (it, index) => {
         let maxStock = 0;
         const pid = it.productId;
-        if (!pid)
+        const requestCutId = items[index]?.cutId;
+
+        if (!pid) {
           return {
             unitPrice: it.price || 0,
             name: it.name || "",
             image: it.image || "",
             maxStock,
           };
+        }
+
+        if (it.kind === "fabric" && (it.cutId || requestCutId)) {
+          const cutId = it.cutId || requestCutId;
+          const fabric = await Fabric.findById(pid).select("cuts images").lean();
+          if (fabric) {
+            const cutEntry = (fabric.cuts || []).find(
+              (entry) =>
+                String(entry.cutId) === String(cutId),
+            );
+            maxStock = cutEntry ? Math.floor(Number(cutEntry.stock) || 0) : 0;
+          }
+
+          return {
+            unitPrice: it.price || 0,
+            name: it.name || "",
+            image: it.image || "",
+            maxStock: Number(maxStock) || 0,
+          };
+        }
 
         let doc = await ReadyMadeProduct.findById(pid).select(
           "availableFabricStock images thumbnailImage stock stockInMeters",
@@ -46,11 +66,10 @@ router.post("/preview", async (req, res) => {
           doc = await AddOn.findById(pid).select("stock thumbnailImage images");
         if (!doc)
           doc = await Fabric.findById(pid).select(
-            "stockInMeters images thumbnailImage",
+            "stockInMeters images thumbnailImage cuts",
           );
 
         if (doc) {
-          // choose best stock field available
           maxStock =
             doc.stock ?? doc.availableFabricStock ?? doc.stockInMeters ?? 0;
         }

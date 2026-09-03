@@ -544,19 +544,6 @@ fabricPortalRouter.post(
       return;
     }
 
-    if (
-      stockInMeters === undefined ||
-      stockInMeters === null ||
-      isNaN(Number(stockInMeters)) ||
-      Number(stockInMeters) <= 0
-    ) {
-      res.status(400).json({
-        success: false,
-        message: "Stock in meters must be greater than 0",
-      });
-      return;
-    }
-
     if (!Array.isArray(images) || images.length === 0) {
       res
         .status(400)
@@ -1796,7 +1783,13 @@ fabricPortalRouter.get(
         item.productId?.toString?.() ||
         "";
       if (!pid) return false;
-      if (item.size === "Per Meter" && storeFabricIdSet.has(pid)) return true;
+      if (
+        (item.kind === "fabric" ||
+          item.cutId ||
+          item.size === "Per Meter") &&
+        storeFabricIdSet.has(pid)
+      )
+        return true;
       if (storeProductIdSet.has(pid) || storeAddonIdSet.has(pid)) return true;
       return false;
     };
@@ -1817,7 +1810,13 @@ fabricPortalRouter.get(
             item.productId?._id?.toString?.() ||
             item.productId?.toString?.() ||
             "";
-          return item.size === "Per Meter" && pid && storeFabricIdSet.has(pid);
+          return (
+            (item.kind === "fabric" ||
+              item.cutId ||
+              item.size === "Per Meter") &&
+            pid &&
+            storeFabricIdSet.has(pid)
+          );
         })
         .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
