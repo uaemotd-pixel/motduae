@@ -82,7 +82,7 @@ const platformSettingsSchema = new mongoose.Schema(
       required: true,
     },
 
-    // Canonical MOTD warehouse for packing hops and last-mile pickup.
+    // Canonical MOTD warehouse pickup when MOTD is the origin shop.
     fulfillmentAddress: {
       type: fulfillmentAddressSchema,
       default: () => ({}),

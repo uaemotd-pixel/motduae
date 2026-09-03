@@ -264,7 +264,6 @@ async function planParcelsForOrder(order, orderKind) {
 
 /**
  * Seed `shipments[]` from the charged delivery breakdown when missing.
- * Billed lines only — packing hops are merged by `ensureOperationalShipments`.
  */
 export function ensurePlannedShipments(order, orderKind = detectOrderKind(order)) {
   if (!order) return order;
@@ -313,33 +312,32 @@ function uniqueCustomTailorShopIds(order) {
 }
 
 /**
- * Every custom tailor still owes a MOTD inbound, even if re-planning skipped
- * a deleted design. Pack waits until these exist and are delivered.
+ * Ensure a tailor → customer last mile exists even if re-planning skipped a design.
  */
-function ensureExpectedCustomTailorInbounds(order) {
+function ensureExpectedCustomTailorLastMiles(order) {
   if (!order.shipments) order.shipments = [];
   for (const tailorShopId of uniqueCustomTailorShopIds(order)) {
     const tailorId = idStr(tailorShopId);
     const already = order.shipments.some(
       (shipment) =>
-        shipment.type === PARCEL_TYPES.TAILOR_TO_MOTD &&
+        shipment.type === PARCEL_TYPES.TAILOR_TO_CUSTOMER &&
         idStr(shipment.tailorShopId) === tailorId,
     );
     if (already) continue;
     order.shipments.push(
       plannedShipmentFromEntry(
         {
-          key: `${PARCEL_TYPES.TAILOR_TO_MOTD}:${tailorId}:motd`,
-          type: PARCEL_TYPES.TAILOR_TO_MOTD,
-          label: "Tailor → MOTD",
+          key: `${PARCEL_TYPES.TAILOR_TO_CUSTOMER}:${tailorId}:customer`,
+          type: PARCEL_TYPES.TAILOR_TO_CUSTOMER,
+          label: "Delivery to you",
           fee: 0,
-          billable: false,
+          billable: true,
           from: {
             kind: "tailor_shop",
             id: tailorId,
             label: "Tailor",
           },
-          to: { kind: "motd", id: "motd", label: "MOTD" },
+          to: { kind: "customer", id: null, label: "Customer" },
           tailorShopId,
         },
         order,
@@ -351,13 +349,12 @@ function ensureExpectedCustomTailorInbounds(order) {
 }
 
 /**
- * Seed billed breakdown parcels, then merge hidden *_to_motd hops and
- * last miles from the full parcel graph so pack/ready waits on real inbounds.
+ * Seed billed breakdown parcels, then merge the full parcel graph
+ * (fabric inbounds + origin → customer last miles).
  *
  * @param {object} order
  * @param {string|null} [orderKind]
- * @param {{ strict?: boolean }} [options] - pack flows should pass strict so a
- *   failed re-plan cannot skip required shop → MOTD hops.
+ * @param {{ strict?: boolean }} [options]
  */
 export async function ensureOperationalShipments(
   order,
@@ -373,7 +370,7 @@ export async function ensureOperationalShipments(
     mergePlanParcelsIntoShipments(order, orderKind, parcels);
   } catch (error) {
     if (orderKind === "custom") {
-      ensureExpectedCustomTailorInbounds(order);
+      ensureExpectedCustomTailorLastMiles(order);
     }
     if (strict) throw error;
     console.error(
@@ -383,7 +380,7 @@ export async function ensureOperationalShipments(
     return order;
   }
   if (orderKind === "custom") {
-    ensureExpectedCustomTailorInbounds(order);
+    ensureExpectedCustomTailorLastMiles(order);
   }
   return order;
 }
@@ -476,10 +473,7 @@ function isMotdInbound(type) {
 }
 
 function isTailorDispatchType(type) {
-  return (
-    type === PARCEL_TYPES.TAILOR_TO_MOTD ||
-    type === PARCEL_TYPES.TAILOR_TO_CUSTOMER
-  );
+  return type === PARCEL_TYPES.TAILOR_TO_CUSTOMER;
 }
 
 /** Distinct tailors on a custom order (line items + legacy order.tailorShopId). */
@@ -587,107 +581,9 @@ function activeShipments(order) {
   return (order.shipments || []).filter((s) => s.status !== "cancelled");
 }
 
-const PACK_BLOCKED_STATUSES = Object.freeze(
-  new Set([
-    "cancelled",
-    "delivered",
-    "return_requested",
-    "return_approved",
-    "return_rejected",
-    "refund_processed",
-  ]),
-);
-
-const PACK_ALLOWED_STATUSES = Object.freeze({
-  custom: new Set(["ready", "out_for_delivery"]),
-  retail: new Set(["confirmed", "shipped"]),
-});
-
-function emptyPackReadiness(overrides = {}) {
-  return {
-    packable: false,
-    canPack: false,
-    alreadyPacked: false,
-    reason: null,
-    pendingInbounds: [],
-    ...overrides,
-  };
-}
-
-/**
- * Whether admin can create last-mile MOTD → customer parcels.
- * Packing hops (*_to_motd) must all be delivered; MOTD-owned origins have none.
- * Last miles may be merged at pack time, so missing motd_to_customer rows
- * do not block a fulfillment-ready order.
- */
-export function getPackReadiness(order, orderKind = detectOrderKind(order)) {
-  const alreadyPacked = Boolean(order?.packedAt);
-  const status = order?.status;
-  const kind = orderKind || detectOrderKind(order);
-
-  if (PACK_BLOCKED_STATUSES.has(status)) {
-    return emptyPackReadiness({
-      alreadyPacked,
-      reason: `Order cannot be packed while status is ${status}`,
-    });
-  }
-
-  const allowed = kind ? PACK_ALLOWED_STATUSES[kind] : null;
-  if (allowed && !allowed.has(status)) {
-    const expected = [...allowed].join(" or ");
-    return emptyPackReadiness({
-      alreadyPacked,
-      reason: `Order can be packed when status is ${expected}`,
-    });
-  }
-
-  const shipments = activeShipments(order);
-  const pendingInbounds = shipments.filter(
-    (shipment) =>
-      isMotdInbound(shipment.type) && shipment.status !== "delivered",
-  );
-  const lastMiles = shipments.filter(
-    (shipment) => shipment.type === PARCEL_TYPES.MOTD_TO_CUSTOMER,
-  );
-
-  if (pendingInbounds.length > 0) {
-    const summary = pendingInbounds
-      .map((shipment) => `${shipment.type} (${shipment.status})`)
-      .join(", ");
-    return emptyPackReadiness({
-      alreadyPacked,
-      reason: `Waiting for MOTD inbound parcels to be delivered: ${summary}`,
-      pendingInbounds: pendingInbounds.map((shipment) => ({
-        parcelKey: shipment.parcelKey,
-        type: shipment.type,
-        status: shipment.status,
-        tailorShopId: idStr(shipment.tailorShopId),
-      })),
-    });
-  }
-
-  const lastMilesNeedShipa = lastMiles.some((shipment) =>
-    shipmentNeedsShipaCreate(shipment),
-  );
-  const canPack = !alreadyPacked || lastMilesNeedShipa;
-
-  return {
-    packable: true,
-    canPack,
-    alreadyPacked,
-    reason: canPack
-      ? null
-      : alreadyPacked
-        ? "Order is already packed"
-        : null,
-    pendingInbounds: [],
-  };
-}
-
 /**
  * Aggregate custom order status from shipment progress.
- * Customer-bound legs only (`motd_to_customer` + legacy `*_to_customer`).
- * Packing hops in transit must not flip OFD/delivered.
+ * Customer-bound legs only. Fabric inbounds must not flip OFD/delivered.
  * Returns the new status if it should change, else null.
  */
 export function resolveCustomStatusFromShipments(order) {
@@ -809,22 +705,15 @@ async function applyOrderStatusAggregation(order, orderKind, changedBy = null) {
 export const CONFIRMED_CUSTOM_SHIPMENT_TYPES = Object.freeze([
   PARCEL_TYPES.FABRIC_TO_TAILOR,
   PARCEL_TYPES.CUSTOMER_FABRIC_TO_TAILOR,
-  PARCEL_TYPES.ADDON_TO_MOTD,
   PARCEL_TYPES.ADDON_TO_CUSTOMER,
 ]);
 
 export const READY_CUSTOM_SHIPMENT_TYPES = Object.freeze([
-  PARCEL_TYPES.TAILOR_TO_MOTD,
   PARCEL_TYPES.TAILOR_TO_CUSTOMER,
 ]);
 
 export const CONFIRMED_RETAIL_SHIPMENT_TYPES = Object.freeze([
-  PARCEL_TYPES.RETAIL_TO_MOTD,
   PARCEL_TYPES.RETAIL_TO_CUSTOMER,
-]);
-
-export const PACK_SHIPMENT_TYPES = Object.freeze([
-  PARCEL_TYPES.MOTD_TO_CUSTOMER,
 ]);
 
 /**
@@ -870,7 +759,8 @@ export async function createShipmentsForOrder(
 
   const needsMotdAddress = order.shipments.some(
     (shipment) =>
-      requiresMotdFulfillmentAddress(shipment.type) &&
+      (shipment.from?.kind === "motd" ||
+        requiresMotdFulfillmentAddress(shipment.type)) &&
       (!filter || filter.has(shipment.type)),
   );
   const motdAddress = needsMotdAddress
@@ -1292,7 +1182,7 @@ export async function safeCreateShipmentsForOrder(
   }
 }
 
-/** Fabric inbound + addon → MOTD (hidden) on custom order confirmed. */
+/** Fabric inbound + add-on → customer on custom order confirmed. */
 export async function createConfirmedCustomShipments(order, options = {}) {
   return safeCreateShipmentsForOrder(
     order,
@@ -1301,7 +1191,7 @@ export async function createConfirmedCustomShipments(order, options = {}) {
   );
 }
 
-/** Shop → MOTD (hidden) per origin on retail confirm; skipped when already at MOTD. */
+/** Shop → customer last mile on retail confirm (including MOTD-as-shop). */
 export async function createConfirmedRetailShipments(order, options = {}) {
   return safeCreateShipmentsForOrder(
     order,
@@ -1311,9 +1201,8 @@ export async function createConfirmedRetailShipments(order, options = {}) {
 }
 
 /**
- * Tailor → MOTD parcels when that tailor (or admin) sets ready.
+ * Tailor → customer last mile when that tailor (or admin) sets ready.
  * Pass `tailorShopId` to create only that tailor's parcels; omit to create all.
- * Legacy orders still create tailor_to_customer.
  */
 export async function createReadyCustomShipments(
   order,
@@ -1327,7 +1216,7 @@ export async function createReadyCustomShipments(
 }
 
 /**
- * One tailor marked ready: create that tailor's packing AWB, but only set
+ * One tailor marked ready: create that tailor's customer AWB, then set
  * customer-facing `ready` when every tailor on the order has dispatched.
  */
 export async function markCustomTailorReady(
@@ -1364,122 +1253,6 @@ export async function markCustomTailorReady(
     ...result,
     order,
     orderReady: allReady,
-  };
-}
-
-function packOrderNotFoundError() {
-  const error = new Error("Order not found for pack");
-  error.statusCode = 404;
-  return error;
-}
-
-function packOrderNotPackableError(readiness) {
-  const error = new Error(
-    readiness?.reason || "Order is not ready to pack",
-  );
-  error.statusCode = 400;
-  error.packReadiness = readiness;
-  return error;
-}
-
-/**
- * After every active *_to_motd inbound is delivered, create billed
- * MOTD → customer last miles (one per origin). Sets packedAt; does not
- * change order status (stays ready / confirmed until last mile moves).
- *
- * @param {object} orderDoc
- * @param {{ client?: object, changedBy?: object }} [options]
- */
-export async function packOrder(orderDoc, options = {}) {
-  if (!orderDoc?._id) {
-    throw new Error("packOrder requires a persisted order");
-  }
-
-  const orderKind = detectOrderKind(orderDoc);
-  if (!orderKind) {
-    throw new Error("Unable to determine order type for pack");
-  }
-
-  const Model = orderKind === "custom" ? CustomOrder : RetailOrder;
-  const order = await Model.findById(orderDoc._id);
-  if (!order) {
-    throw packOrderNotFoundError();
-  }
-
-  await ensureOperationalShipments(order, orderKind, { strict: true });
-  await order.save();
-
-  const readiness = getPackReadiness(order, orderKind);
-  if (!readiness.packable) {
-    throw packOrderNotPackableError(readiness);
-  }
-
-  if (readiness.alreadyPacked && !readiness.canPack) {
-    return {
-      order,
-      created: [],
-      skipped: [],
-      errors: [],
-      packedAt: order.packedAt,
-      packReadiness: readiness,
-    };
-  }
-
-  const result = await createShipmentsForOrder(
-    order,
-    PACK_SHIPMENT_TYPES,
-    options,
-  );
-  const packed = result.order;
-  const lastMiles = activeShipments(packed).filter(
-    (shipment) => shipment.type === PARCEL_TYPES.MOTD_TO_CUSTOMER,
-  );
-  const createdCount = result.created.length;
-  const lastMilesWithShipa = lastMiles.filter(
-    (shipment) => shipment.awb || shipment.shipaOrderId,
-  );
-
-  if (createdCount === 0 && result.errors.length > 0 && lastMilesWithShipa.length === 0) {
-    const error = new Error(
-      `Failed to create last-mile parcels: ${result.errors
-        .map((entry) => entry.error)
-        .join("; ")}`,
-    );
-    error.statusCode = 502;
-    error.packReadiness = getPackReadiness(packed, orderKind);
-    error.details = {
-      created: result.created,
-      errors: result.errors,
-    };
-    throw error;
-  }
-
-  if (!packed.packedAt && (createdCount > 0 || lastMilesWithShipa.length > 0)) {
-    packed.packedAt = new Date();
-    appendStatusHistory(
-      packed,
-      packed.status,
-      `Order packed at MOTD; last-mile parcels created${
-        createdCount ? ` (${createdCount})` : ""
-      }`,
-      options.changedBy || null,
-    );
-    await packed.save();
-  } else if (packed.packedAt && createdCount > 0) {
-    appendStatusHistory(
-      packed,
-      packed.status,
-      `Additional last-mile parcels created after pack (${createdCount})`,
-      options.changedBy || null,
-    );
-    await packed.save();
-  }
-
-  return {
-    ...result,
-    order: packed,
-    packedAt: packed.packedAt,
-    packReadiness: getPackReadiness(packed, orderKind),
   };
 }
 

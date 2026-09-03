@@ -46,9 +46,8 @@ async function createRetailOrderWithTrackingToken(fields) {
 
 /**
  * Create a paid retail order (idempotent by paymentIntentId).
- * On confirmed: seed statusHistory and create hidden retail_to_motd Shipa
- * parcels per shop (skipped when the origin is already MOTD). Last mile
- * is created later via admin pack.
+ * On confirmed: seed statusHistory and create shop → customer Shipa
+ * parcels per origin. MOTD-as-shop uses the listing pickup.
  */
 export async function createPaidRetailOrder({
   userId,

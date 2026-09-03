@@ -47,16 +47,16 @@ export const SHIPMENT_TYPE_LABELS: Record<
     ar: "قماشك إلى الخياط",
   },
   addon_to_customer: {
-    en: "Add-on delivery",
-    ar: "توصيل الإضافة",
+    en: "Delivery to you",
+    ar: "التوصيل إليك",
   },
   tailor_to_customer: {
-    en: "Delivery from tailor",
-    ar: "التوصيل من الخياط",
+    en: "Delivery to you",
+    ar: "التوصيل إليك",
   },
   retail_to_customer: {
-    en: "Shop delivery",
-    ar: "توصيل من المتجر",
+    en: "Delivery to you",
+    ar: "التوصيل إليك",
   },
   tailor_to_motd: {
     en: "Tailor → MOTD",

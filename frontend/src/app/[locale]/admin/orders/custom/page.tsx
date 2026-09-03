@@ -8,9 +8,6 @@ import toast from "react-hot-toast";
 import { RefreshCw, Loader2, Search, PackageSearch, ChevronDown, ChevronUp } from "lucide-react";
 import StatusBadge from "@/components/admin/StatusBadge";
 import AdminOrdersTabs from "@/components/admin/AdminOrdersTabs";
-import AdminPackOrderButton, {
-  type PackReadiness,
-} from "@/components/admin/AdminPackOrderButton";
 
 import OrderProgressPanel from "@/components/orders/OrderProgressPanel";
 import { TableSkeleton } from "@/components/ui/Skeleton";
@@ -103,8 +100,6 @@ interface Order {
     price: number;
     thumbnailImage: string;
   }>;
-  packedAt?: string | null;
-  packReadiness?: PackReadiness;
   customerDeliveryAddress?: OrderDeliveryAddress | null;
 }
 
@@ -898,25 +893,6 @@ export default function AdminCustomOrdersPage() {
                         )}
                       </button>
                     )}
-
-                    <AdminPackOrderButton
-                      kind="custom"
-                      orderId={order._id}
-                      status={order.status}
-                      packedAt={order.packedAt}
-                      packReadiness={order.packReadiness}
-                      disabled={isUpdating}
-                      copy={{
-                        pack: t("pack"),
-                        packing: t("packing"),
-                        packed: t("packed"),
-                        success: t("packSuccess"),
-                        error: t("packFailed"),
-                      }}
-                      onPacked={() => {
-                        void fetchOrders();
-                      }}
-                    />
 
                     {timelineStatus === "return_requested" && (
                       <>
