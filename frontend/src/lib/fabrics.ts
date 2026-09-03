@@ -358,3 +358,22 @@ export function formatPickupAddress(
 
   return parts.join(locale === "ar" ? "، " : ", ");
 }
+
+export function getFabricMaxCutLength(
+  item: Pick<FabricListItem, "cuts">,
+): number {
+  const cuts = item.cuts || [];
+  if (cuts.length === 0) return 0;
+  let max = 0;
+  for (const entry of cuts) {
+    const meters =
+      entry.cut?.lengthInMeters ??
+      (entry.cut?.unit === "war" && typeof entry.cut?.value === "number"
+        ? entry.cut.value * 0.9144
+        : entry.cut?.value) ??
+      0;
+    if (meters > max) max = meters;
+  }
+  return Number(max.toFixed(2));
+}
+

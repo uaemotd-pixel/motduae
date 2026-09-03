@@ -27,9 +27,11 @@ import {
     formatFabricListingPrice,
     getFabricDisplayFields,
     isFabricInStock,
+    getFabricMaxCutLength,
 } from "@/lib/fabrics";
 import {
     type TailorDesignListItem,
+    getDesignMinCutLength,
 } from "@/lib/tailors";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 import { CustomOrderStepSkeleton, ProductGridSkeleton } from "@/components/ui/Skeleton";
@@ -182,10 +184,23 @@ export default function FabricSelectionStep() {
         prefillFabric();
     }, [fabricSlug, isHydrated, prefilledSlug, selectSingleFabric, setFabricSource]);
 
-    const filteredFabrics = useMemo(
-        () => filterFabricsByMaterial(fabrics, selectedFilter),
-        [fabrics, selectedFilter],
+    const storefrontFabrics = useMemo(
+        () => fabrics.filter((f) => (f.cuts?.length ?? 0) > 0),
+        [fabrics],
     );
+
+    const filteredFabrics = useMemo(
+        () => filterFabricsByMaterial(storefrontFabrics, selectedFilter),
+        [storefrontFabrics, selectedFilter],
+    );
+
+    const allOutOfStock = useMemo(
+        () => storefrontFabrics.length > 0 && storefrontFabrics.every((f) => !isFabricInStock(f)),
+        [storefrontFabrics],
+    );
+
+    const selectedDesign = draft.selectedDesigns[0] ?? null;
+    const designMinLength = selectedDesign ? getDesignMinCutLength(selectedDesign) : 0;
 
     const selectedCount = draft.selectedFabrics.length;
     const canContinue = isFabricStepComplete(draft);
@@ -201,17 +216,17 @@ export default function FabricSelectionStep() {
     const showOwnFabricOption = draft.firstStep === "tailor";
 
     const handleToggleFabric = (item: FabricListItem) => {
-        setFabricSource("storefront");
-        const isSelected = draft.selectedFabrics.some((f) => f._id === item._id);
-        toggleFabric(toCustomOrderFabricSelection(item));
-
-        if (!isSelected && !isFabricInStock(item)) {
+        if (!isFabricInStock(item)) {
             toast.error(
                 locale === "ar"
                     ? "هذا القماش غير متوفر في المخزن."
                     : "This fabric is out of stock."
             );
+            return;
         }
+
+        setFabricSource("storefront");
+        toggleFabric(toCustomOrderFabricSelection(item));
     };
 
     const handleContinue = () => {
@@ -366,6 +381,14 @@ export default function FabricSelectionStep() {
                         />
                     ) : error ? (
                         <p className="text-center text-red-600 py-16">{error}</p>
+                    ) : storefrontFabrics.length === 0 ? (
+                        <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-16 text-(--color-grey-muted)">
+                            {t("noFabricsWithCuts")}
+                        </p>
+                    ) : allOutOfStock ? (
+                        <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-16 text-(--color-grey-muted)">
+                            {t("allOutOfStock")}
+                        </p>
                     ) : filteredFabrics.length === 0 ? (
                         <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-16 text-(--color-grey-muted)">
                             {t("empty")}
@@ -379,30 +402,47 @@ export default function FabricSelectionStep() {
                                     (fabric) => fabric._id === item._id,
                                 );
                                 const isOutOfStock = !isFabricInStock(item);
+                                const fabricMaxCut = getFabricMaxCutLength(item);
+                                const needsSecondCutHint =
+                                    designMinLength > 0 &&
+                                    fabricMaxCut > 0 &&
+                                    fabricMaxCut < designMinLength;
 
                                 return (
                                     <button
                                         key={item._id}
                                         type="button"
+                                        disabled={isOutOfStock}
                                         onClick={() => handleToggleFabric(item)}
-                                        className={`group text-left border rounded-lg transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 ${
+                                        className={`group text-left border rounded-lg transition-all duration-500 ${
                                             isSelected
-                                                ? "border-black ring-2 ring-black bg-white"
-                                                : "border-(--color-border) bg-white hover:border-black"
+                                                ? "border-black ring-2 ring-black bg-white shadow-md"
+                                                : isOutOfStock
+                                                  ? "border-neutral-200 bg-neutral-50/70 opacity-60 cursor-not-allowed"
+                                                  : "border-(--color-border) bg-white hover:border-black hover:shadow-2xl hover:-translate-y-2"
                                         }`}
                                     >
                                         <div className="aspect-square bg-neutral-100 overflow-hidden relative rounded-t-lg">
                                             <img
                                                 src={imageUrl}
                                                 alt={title}
-                                                className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105"
+                                                className={`w-full h-full object-cover transition-all duration-700 ${
+                                                    isOutOfStock ? "grayscale-30" : "group-hover:scale-105"
+                                                }`}
                                             />
+                                            {isOutOfStock && (
+                                                <span className="absolute top-3 left-3 bg-neutral-900/90 backdrop-blur-xs text-white [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.16em] px-2.5 py-1 rounded">
+                                                    {t("outOfStockBadge")}
+                                                </span>
+                                            )}
                                             {isSelected && (
                                                 <span className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black text-white flex items-center justify-center [font-family:var(--font-ui)] text-[12px]">
                                                     ✓
                                                 </span>
                                             )}
-                                            <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                            {!isOutOfStock && (
+                                                <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                            )}
                                         </div>
                                         <div className="p-4">
                                             <h3 className="[font-family:var(--font-display)] text-[16px] mb-1 line-clamp-2">
@@ -417,6 +457,14 @@ export default function FabricSelectionStep() {
                                             <p className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.16em] text-(--color-grey-muted) mt-1">
                                                 {formatMaterialLabel(item.material, locale)}
                                             </p>
+
+                                            {needsSecondCutHint && (
+                                                <div className="mt-3 p-2.5 bg-amber-50/90 border border-amber-200/80 rounded text-[11px] leading-relaxed text-amber-950">
+                                                    <span className="font-semibold block [font-family:var(--font-ui)] text-[10px] tracking-wide text-amber-900">
+                                                        💡 {t("designLengthHint", { min: designMinLength })}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </button>
                                 );

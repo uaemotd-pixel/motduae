@@ -309,7 +309,8 @@
     "itemFabric": "Fabric: {name}",
     "ownFabricLabel": "Own fabric",
     "selectedFabricsSummary": "Selected fabrics ({count})",
-    "selectedDesignsSummary": "Selected designs ({count})"
+    "selectedDesignsSummary": "Selected designs ({count})",
+    "designLengthHint": "This design's minimum is {min} m. You can add a second cut. Leftover fabric is returned to you."
   },
   "CustomOrderTailor": {
     "stepLabel": "Step {step} of {total}",
@@ -326,7 +327,8 @@
     "crossStepFabrics": "Selected fabric — choose one design below",
     "tailorLabel": "Tailor: {name}",
     "emptyTailors": "No tailor shops available.",
-    "emptyDesigns": "This tailor has no designs available yet.",
+    "emptyDesigns": "No designs available in the catalog yet.",
+    "emptyDesignsCatalog": "No designs available in the catalog yet.",
     "backToFabric": "Back to fabric selection",
     "browseTailors": "Browse all tailors",
     "continueToFabric": "Continue to Fabric Selection",
@@ -340,7 +342,8 @@
     "estimatedDays": "Est.",
     "days": "days",
     "estimatedMeters": "Est. fabric",
-    "meters": "m"
+    "meters": "m",
+    "designLengthHint": "This design's minimum is {min} m. You can add a second cut. Leftover fabric is returned to you."
   },
   "CustomOrderJourney": {
     "ribbonLabel": "Your creation in progress",
@@ -373,6 +376,10 @@
     "loading": "Loading...",
     "loadingFabrics": "Loading fabrics...",
     "empty": "No fabrics match this filter.",
+    "noFabricsWithCuts": "No fabrics with available cuts found.",
+    "allOutOfStock": "All fabrics are currently out of stock.",
+    "outOfStockBadge": "Out of Stock",
+    "designLengthHint": "This design's minimum is {min} m. You can add a second cut. Leftover fabric is returned to you.",
     "browseFabrics": "Browse fabric store",
     "backToTailor": "Back to tailor & design",
     "continueToTailor": "Continue to Tailor Design",
