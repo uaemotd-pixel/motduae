@@ -183,6 +183,7 @@ export interface CustomOrderPreviewItemPayload {
   cutId?: string;
   cutIds?: string[];
   cutSelections?: { cutId: string; quantity: number }[];
+  selectedCuts?: CustomOrderSelectedCut[];
 }
 
 export interface CustomOrderPreviewPayload {
@@ -216,6 +217,7 @@ export interface CustomOrderPricingBreakdown {
   total: number;
   currency: string;
   itemCount?: number;
+  leftoverMeters?: number;
 }
 
 export const CUSTOM_ORDER_STORAGE_KEY = "motdCustomOrderDraft";
@@ -727,6 +729,16 @@ export function isLineItemMetersValid(
 export function getLineItemCutSelections(
   item: CustomOrderLineItem,
 ): Record<string, number> {
+  if (Array.isArray(item.selectedCuts) && item.selectedCuts.length > 0) {
+    const next: Record<string, number> = {};
+    for (const cut of item.selectedCuts) {
+      if (cut?.cutId) {
+        next[cut.cutId] = (next[cut.cutId] || 0) + 1;
+      }
+    }
+    return next;
+  }
+
   if (item.cutSelections && Object.keys(item.cutSelections).length > 0) {
     const next: Record<string, number> = {};
     for (const [cutId, quantity] of Object.entries(item.cutSelections)) {
@@ -974,13 +986,20 @@ export function buildCustomOrderPreviewPayload(
     items.push({
       designId: item.design._id,
       fabricMeters: metersInMeters, // always in meters
-      ...(cutSelectionsPayload.length > 0
+      ...(item.selectedCuts && item.selectedCuts.length > 0
         ? {
-            cutId: cutSelectionsPayload[0].cutId,
-            cutIds: expandedCutIds,
+            selectedCuts: item.selectedCuts,
+            cutId: item.selectedCuts[0].cutId,
+            cutIds: item.selectedCuts.map((c) => c.cutId),
             cutSelections: cutSelectionsPayload,
           }
-        : {}),
+        : cutSelectionsPayload.length > 0
+          ? {
+              cutId: cutSelectionsPayload[0].cutId,
+              cutIds: expandedCutIds,
+              cutSelections: cutSelectionsPayload,
+            }
+          : {}),
       ...(draft.fabricSource === "storefront" && item.fabric
         ? { fabricId: item.fabric._id }
         : {}),

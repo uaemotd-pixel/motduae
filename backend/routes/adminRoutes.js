@@ -2052,10 +2052,10 @@ adminRouter.get(
     const fabricShops =
       fabricOwnerIds.size > 0
         ? await FabricShop.find({
-            ownerId: { $in: [...fabricOwnerIds] },
-          })
-            .select("name nameAr ownerId phone city location pickupAddress")
-            .lean()
+          ownerId: { $in: [...fabricOwnerIds] },
+        })
+          .select("name nameAr ownerId phone city location pickupAddress")
+          .lean()
         : [];
     const fabricShopByOwner = new Map(
       fabricShops.map((shop) => [String(shop.ownerId), shop]),
@@ -2247,8 +2247,8 @@ adminRouter.get(
     const timeframeRaw = req.query.timeframe;
     const timeframe =
       timeframeRaw === "week" ||
-      timeframeRaw === "month" ||
-      timeframeRaw === "year"
+        timeframeRaw === "month" ||
+        timeframeRaw === "year"
         ? timeframeRaw
         : "month";
 
@@ -4599,20 +4599,20 @@ adminRouter.post(
 
     const orderDocs = Array.isArray(orders)
       ? orders
-          .map((o) => ({
-            orderId: o?.orderId,
-            orderType:
-              o?.orderType === "retail" || o?.channel === "retail"
-                ? "retail"
-                : "custom",
-            amount: Number(o?.amount) || 0,
-          }))
-          .filter(
-            (o) =>
-              o.orderId &&
-              mongoose.Types.ObjectId.isValid(String(o.orderId)) &&
-              o.amount >= 0,
-          )
+        .map((o) => ({
+          orderId: o?.orderId,
+          orderType:
+            o?.orderType === "retail" || o?.channel === "retail"
+              ? "retail"
+              : "custom",
+          amount: Number(o?.amount) || 0,
+        }))
+        .filter(
+          (o) =>
+            o.orderId &&
+            mongoose.Types.ObjectId.isValid(String(o.orderId)) &&
+            o.amount >= 0,
+        )
       : [];
 
     const payout = await PartnerPayout.create({
