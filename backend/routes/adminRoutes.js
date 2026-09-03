@@ -4380,6 +4380,7 @@ adminRouter.put(
       });
       return;
     }
+
     if (unit !== undefined) {
       const normalizedUnit = normalizeCutUnit(unit);
       if (!normalizedUnit || !CUT_UNITS.includes(normalizedUnit)) {
