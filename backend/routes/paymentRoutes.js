@@ -42,6 +42,10 @@ function validateFabricOrderInput({
   fabricSource,
   fabricId,
   fabricMeters,
+  cutId = null,
+  cutIds = null,
+  cutSelections = null,
+  selectedCuts = null,
 }) {
   if (!designId || !mongoose.Types.ObjectId.isValid(designId)) {
     throw new PricingValidationError("Valid designId is required");
@@ -73,6 +77,10 @@ function validateFabricOrderInput({
     fabricSource,
     fabricId: fabricSource === "storefront" ? fabricId : null,
     fabricMeters: parseFabricMeters(fabricMeters),
+    cutId: cutId || null,
+    cutIds: cutIds || null,
+    cutSelections: cutSelections || null,
+    selectedCuts: selectedCuts || null,
   };
 }
 
@@ -95,6 +103,10 @@ function validateMultiItemOrderInput({ fabricSource, items }) {
         fabricSource,
         fabricId: item.fabricId,
         fabricMeters: item.fabricMeters,
+        cutId: item.cutId,
+        cutIds: item.cutIds,
+        cutSelections: item.cutSelections,
+        selectedCuts: item.selectedCuts,
       }),
     ),
   };
