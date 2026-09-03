@@ -410,6 +410,29 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
               .toFixed(2),
           );
 
+    const selectedCuts: CustomOrderSelectedCut[] = [];
+    for (const cutId of cutIds) {
+      const entry = item.fabric?.cuts?.find((cut) => cut.cutId === cutId);
+      const qty = cleaned[cutId];
+      if (!entry?.cut || qty <= 0) continue;
+      const snapshot: CustomOrderSelectedCut = {
+        cutId,
+        name: entry.cut.name,
+        nameAr: entry.cut.nameAr,
+        lengthInMeters: getFabricCutLengthInMeters(item.fabric, cutId),
+        price: Number(entry.price) || 0,
+        stock: Math.max(
+          0,
+          Math.floor(Number(entry.stockPieces ?? entry.stock) || 0),
+        ),
+        value: entry.cut.value,
+        unit: entry.cut.unit,
+      };
+      for (let i = 0; i < qty; i += 1) {
+        selectedCuts.push(snapshot);
+      }
+    }
+
     return {
       ...item,
       cutSelections: cleaned,
@@ -417,6 +440,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       cutId: cutIds[0] ?? null,
       fabricMeters: nextMeters,
       fabricUnit: "meters" as FabricUnit,
+      selectedCuts,
     };
   };
 

@@ -24,7 +24,9 @@ import {
   getFabricDisplayName,
   getOrderItemsSummary,
   getTailorDisplayName,
+  groupSelectedCutPieces,
   hasMultipleTailors,
+  resolveOrderLeftoverMeters,
   shortenOrderId,
   type CustomOrderStatus,
   type PublicCustomTrackOrder,
@@ -374,19 +376,24 @@ function CustomPublicCard({
                   ? item.fabric?.images?.[0]
                   : null;
               const minRequired = getDesignMinimumMeters(item.design);
-              const leftoverVal =
-                item.leftoverMeters ??
-                (order.leftoverMeters && items.length === 1
-                  ? order.leftoverMeters
-                  : minRequired > 0 && item.fabricMeters > minRequired
-                    ? Number((item.fabricMeters - minRequired).toFixed(2))
-                    : 0);
+              const leftoverVal = resolveOrderLeftoverMeters({
+                leftoverMeters:
+                  item.leftoverMeters ??
+                  (order.leftoverMeters && items.length === 1
+                    ? order.leftoverMeters
+                    : null),
+                fabricMeters: item.fabricMeters,
+                minRequired,
+              });
               const cuts =
                 item.selectedCuts && item.selectedCuts.length > 0
                   ? item.selectedCuts
                   : order.selectedCuts && items.length === 1
                     ? order.selectedCuts
                     : [];
+              const cutRows = groupSelectedCutPieces(cuts, locale);
+              const showCuts =
+                cutRows.length > 0 && order.fabricSource !== "self";
 
               return (
                 <div
@@ -420,33 +427,26 @@ function CustomPublicCard({
                       {fabricName}
                     </h4>
 
-                    {cuts.length > 0 && (
+                    {showCuts && (
                       <p className="text-xs text-black/60 font-ui">
-                        {cuts
-                          .map((c) =>
-                            locale === "ar"
-                              ? `${c.nameAr || c.name} (${c.lengthInMeters} م)`
-                              : `${c.name} (${c.lengthInMeters}m)`,
+                        {cutRows
+                          .map((row) =>
+                            tTrack("piecesCount", {
+                              count: row.quantity,
+                              cut: row.label,
+                            }),
                           )
                           .join(" + ")}
                       </p>
                     )}
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 font-ui pt-0.5">
-                      {item.fabricMeters != null && (
+                      {!showCuts && item.fabricMeters != null && (
                         <span>
                           <strong className="text-black font-medium">
                             {tTrack("totalFabricSent")}:
                           </strong>{" "}
                           {item.fabricMeters} {tCustom("meters")}
-                        </span>
-                      )}
-                      {minRequired > 0 && (
-                        <span>
-                          <strong className="text-black font-medium">
-                            {tTrack("minRequired")}:
-                          </strong>{" "}
-                          {minRequired} {tCustom("meters")}
                         </span>
                       )}
                       {leftoverVal > 0 && (

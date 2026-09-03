@@ -28,6 +28,8 @@ import {
   getPreviousCustomOrderStatus,
   isCustomOrderStatus,
   CUSTOM_ORDER_STATUSES,
+  groupSelectedCutPieces,
+  resolveOrderLeftoverMeters,
   type CustomOrderStatus,
   type CustomOrderShipmentSummary,
 } from "@/lib/customOrders";
@@ -501,16 +503,17 @@ export default function TailorOrdersPage() {
               order.designSnapshot?.estimatedMeters ||
               0;
             const totalFabricSent = itemData.fabricMeters ?? order.fabricMeters ?? 0;
-            const leftoverVal =
-              itemData.leftoverMeters ??
-              order.leftoverMeters ??
-              (totalFabricSent > minRequired && minRequired > 0
-                ? Number((totalFabricSent - minRequired).toFixed(2))
-                : 0);
+            const leftoverVal = resolveOrderLeftoverMeters({
+              leftoverMeters:
+                itemData.leftoverMeters ?? order.leftoverMeters,
+              fabricMeters: totalFabricSent,
+              minRequired,
+            });
             const cuts =
               (itemData.selectedCuts && itemData.selectedCuts.length > 0
                 ? itemData.selectedCuts
                 : order.selectedCuts) || [];
+            const cutRows = groupSelectedCutPieces(cuts, locale);
 
             return (
               <div
@@ -543,28 +546,23 @@ export default function TailorOrdersPage() {
                     <p className="text-xs text-gray-500 mt-0.5">
                       {t("fabricLabel", { name: fabricName })}
                     </p>
-                    {cuts.length > 0 && (
+                    {cutRows.length > 0 ? (
                       <p className="text-[11px] text-gray-600 mt-1">
-                        {cuts
-                          .map((c) =>
-                            locale === "ar"
-                              ? `${c.nameAr || c.name} (${c.lengthInMeters} م)`
-                              : `${c.name} (${c.lengthInMeters}m)`,
+                        {cutRows
+                          .map((row) =>
+                            t("piecesCount", {
+                              count: row.quantity,
+                              cut: row.label,
+                            }),
                           )
                           .join(" + ")}
                       </p>
-                    )}
+                    ) : null}
                     <div className="text-[11px] text-gray-500 mt-1.5 space-y-0.5 font-ui">
-                      {totalFabricSent > 0 && (
+                      {cutRows.length === 0 && totalFabricSent > 0 && (
                         <p>
                           <span className="text-gray-400">{t("totalFabricSent")}:</span>{" "}
                           <span className="text-black font-medium">{totalFabricSent} {locale === "ar" ? "م" : "m"}</span>
-                        </p>
-                      )}
-                      {minRequired > 0 && (
-                        <p>
-                          <span className="text-gray-400">{t("minRequired")}:</span>{" "}
-                          <span className="text-black font-medium">{minRequired} {locale === "ar" ? "م" : "m"}</span>
                         </p>
                       )}
                       {leftoverVal > 0 && (

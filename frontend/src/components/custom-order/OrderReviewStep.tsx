@@ -27,6 +27,10 @@ import { formatCurrency } from "@/lib/format";
 
 import { formatDesignCategory, getDesignMinCutLength } from "@/lib/tailors";
 import { formatCutLabel } from "@/lib/fabricUnits";
+import {
+  groupSelectedCutPieces,
+  resolveOrderLeftoverMeters,
+} from "@/lib/customOrders";
 
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 import { CustomOrderStepSkeleton, Skeleton } from "@/components/ui/Skeleton";
@@ -400,60 +404,58 @@ export default function OrderReviewStep() {
                     </div>
 
 
-                    {item.selectedCuts && item.selectedCuts.length > 0 ? (
+                    {cutSelectionRows.length > 0 ||
+                    (item.selectedCuts && item.selectedCuts.length > 0) ? (
                       <>
                         <div>
                           <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
                             {t("cutsLabel")}
                           </dt>
-                          <dd className="[font-family:var(--font-body)] text-[14px] text-black">
-                            <ul className="space-y-1">
-                              {item.selectedCuts.map((cut, idx) => {
-                                const cutTitle =
-                                  locale === "ar"
-                                    ? cut.nameAr || cut.name
-                                    : cut.name;
-                                return (
-                                  <li key={idx}>
-                                    {cutTitle} · {cut.lengthInMeters} {t("meters")} (AED {cut.price})
-                                  </li>
-                                );
-                              })}
+                          <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                            <ul className="space-y-1 mt-1">
+                              {(cutSelectionRows.length > 0
+                                ? cutSelectionRows.map((row) => ({
+                                    key: row.cutId,
+                                    label: row.cutLabel,
+                                    quantity: row.quantity,
+                                    lengthLabel: row.lengthLabel,
+                                  }))
+                                : groupSelectedCutPieces(
+                                    item.selectedCuts,
+                                    locale,
+                                  ).map((row) => ({
+                                    key: row.key,
+                                    label: row.label,
+                                    quantity: row.quantity,
+                                    lengthLabel:
+                                      row.lengthInMeters > 0
+                                        ? `${row.lengthInMeters} ${t("meters")}`
+                                        : "",
+                                  }))
+                              ).map((row) => (
+                                <li
+                                  key={row.key}
+                                  className="[font-family:var(--font-ui)] text-[13px] tracking-[0.04em] text-black"
+                                >
+                                  {t("piecesCount", {
+                                    count: row.quantity,
+                                    cut: row.label,
+                                  })}
+                                  {row.lengthLabel
+                                    ? ` · ${row.lengthLabel}`
+                                    : ""}
+                                </li>
+                              ))}
                             </ul>
                           </dd>
                         </div>
 
-                        <div>
-                          <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                            {t("totalFabricSent")}
-                          </dt>
-                          <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                            {item.fabricMeters} {t("meters")}
-                          </dd>
-                        </div>
-
                         {(() => {
                           const designMin = getDesignMinCutLength(item.design);
-                          if (designMin <= 0) return null;
-                          return (
-                            <div>
-                              <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                                {t("minRequired")}
-                              </dt>
-                              <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                                {designMin} {t("meters")}
-                              </dd>
-                            </div>
-                          );
-                        })()}
-
-                        {(() => {
-                          const designMin = getDesignMinCutLength(item.design);
-                          const totalCut = item.fabricMeters || 0;
-                          const leftoverVal =
-                            totalCut > designMin && designMin > 0
-                              ? Number((totalCut - designMin).toFixed(2))
-                              : 0;
+                          const leftoverVal = resolveOrderLeftoverMeters({
+                            fabricMeters: item.fabricMeters,
+                            minRequired: designMin,
+                          });
                           if (leftoverVal <= 0) return null;
                           return (
                             <div>
@@ -461,7 +463,9 @@ export default function OrderReviewStep() {
                                 {t("leftoverLabel")}
                               </dt>
                               <dd className="[font-family:var(--font-body)] text-[14px] text-emerald-700 font-medium">
-                                {t("customerLeftoverNotice", { meters: leftoverVal })}
+                                {t("customerLeftoverNotice", {
+                                  meters: leftoverVal,
+                                })}
                               </dd>
                             </div>
                           );
@@ -475,9 +479,10 @@ export default function OrderReviewStep() {
                         <dd className="[font-family:var(--font-body)] text-[15px] text-black">
                           {item.fabricMeters ? (
                             <span>
-                              {item.fabricUnit === "wara"
-                                ? `${item.fabricMeters.toFixed(2)} wara / ${(item.fabricMeters * WARA_TO_METERS).toFixed(2)} ${t("meters")}`
-                                : `${item.fabricMeters} ${t("meters")} / ${(item.fabricMeters / WARA_TO_METERS).toFixed(2)} wara`}
+                              {item.fabricUnit === "wara" ||
+                              item.fabricUnit === "war"
+                                ? `${item.fabricMeters.toFixed(2)} war / ${(item.fabricMeters * WARA_TO_METERS).toFixed(2)} ${t("meters")}`
+                                : `${Number(item.fabricMeters).toFixed(2)} ${t("meters")} / ${(item.fabricMeters / WARA_TO_METERS).toFixed(2)} war`}
                             </span>
                           ) : (
                             "—"
@@ -485,50 +490,6 @@ export default function OrderReviewStep() {
                         </dd>
                       </div>
                     )}
-
-                    {cutSelectionRows.length > 0 && (
-                      <div>
-                        <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                          {t("selectedCuts")}
-                        </dt>
-                        <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                          <ul className="space-y-1 mt-1">
-                            {cutSelectionRows.map((row) => (
-                              <li
-                                key={row.cutId}
-                                className="[font-family:var(--font-ui)] text-[11px] tracking-[0.08em] text-(--color-grey-muted)"
-                              >
-                                {row.quantity}× {row.cutLabel}
-                                {row.lengthLabel
-                                  ? ` (${row.lengthLabel})`
-                                  : ""}
-                                {" · "}
-                                {(row.lengthMeters * row.quantity).toFixed(2)}{" "}
-                                {t("meters")}
-                              </li>
-                            ))}
-                          </ul>
-                        </dd>
-                      </div>
-                    )}
-
-                    <div>
-                      <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                        {t("fabricMeters")}
-                      </dt>
-                      <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                        {item.fabricMeters ? (
-                          <span>
-                            {item.fabricUnit === "wara" ||
-                            item.fabricUnit === "war"
-                              ? `${item.fabricMeters.toFixed(2)} war / ${(item.fabricMeters * WARA_TO_METERS).toFixed(2)} ${t("meters")}`
-                              : `${Number(item.fabricMeters).toFixed(2)} ${t("meters")}`}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </dd>
-                    </div>
 
                   </dl>
                 </div>

@@ -14,7 +14,9 @@ import {
   getOrderHeadline,
   getOrderItemsSummary,
   getTailorDisplayName,
+  groupSelectedCutPieces,
   hasActiveCustomerShipments,
+  resolveOrderLeftoverMeters,
   shortenOrderId,
   type CustomOrderDetail,
   type CustomOrderLineItemSummary,
@@ -538,11 +540,13 @@ export default function CustomOrdersTab({
     const tailorName = getTailorDisplayName(item.tailorShop, locale);
 
     const minRequired = getDesignMinimumMeters(item.design);
-    const leftoverVal =
-      item.leftoverMeters ??
-      (minRequired > 0 && item.fabricMeters > minRequired
-        ? Number((item.fabricMeters - minRequired).toFixed(2))
-        : 0);
+    const leftoverVal = resolveOrderLeftoverMeters({
+      leftoverMeters: item.leftoverMeters,
+      fabricMeters: item.fabricMeters,
+      minRequired,
+    });
+    const cutRows = groupSelectedCutPieces(item.selectedCuts, locale);
+    const showCuts = cutRows.length > 0 && fabricSource !== "self";
 
     return (
       <li
@@ -555,15 +559,21 @@ export default function CustomOrdersTab({
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] sm:text-[11px] text-gray-500 font-ui">
           {tailorName && <span>{tailorName}</span>}
           <span>{fabricName}</span>
-          {item.fabricMeters != null && (
+          {showCuts ? (
             <span>
-              {t("totalFabricSent")}: {item.fabricMeters} {t("meters")}
+              {t("cutsOrdered")}:{" "}
+              {cutRows
+                .map((row) =>
+                  t("piecesCount", { count: row.quantity, cut: row.label }),
+                )
+                .join(" + ")}
             </span>
-          )}
-          {minRequired > 0 && (
-            <span>
-              {t("minRequired")}: {minRequired} {t("meters")}
-            </span>
+          ) : (
+            item.fabricMeters != null && (
+              <span>
+                {t("totalFabricSent")}: {item.fabricMeters} {t("meters")}
+              </span>
+            )
           )}
           {leftoverVal > 0 && (
             <span className="text-emerald-700 font-medium">
@@ -939,16 +949,42 @@ export default function CustomOrdersTab({
                         {tReview("lines.fabricCost", {
                           defaultValue: "Fabric Cost",
                         })}
-                        {order.pricing.fabricPricePerMeter > 0 && (
-                          <span className="block text-[10px] text-gray-400">
-                            ({order.pricing.fabricMeters}m ×{" "}
-                            {formatCurrency(
-                              order.pricing.fabricPricePerMeter,
-                              locale,
-                            )}
-                            /m)
-                          </span>
-                        )}
+                        {(() => {
+                          const cutRows = groupSelectedCutPieces(
+                            order.selectedCuts ||
+                              order.items?.flatMap((i) => i.selectedCuts || []),
+                            locale,
+                          );
+                          if (cutRows.length > 0) {
+                            return (
+                              <span className="block text-[10px] text-gray-400">
+                                (
+                                {cutRows
+                                  .map((row) =>
+                                    t("piecesCount", {
+                                      count: row.quantity,
+                                      cut: row.label,
+                                    }),
+                                  )
+                                  .join(" + ")}
+                                )
+                              </span>
+                            );
+                          }
+                          if (order.pricing.fabricPricePerMeter > 0) {
+                            return (
+                              <span className="block text-[10px] text-gray-400">
+                                ({order.pricing.fabricMeters}m ×{" "}
+                                {formatCurrency(
+                                  order.pricing.fabricPricePerMeter,
+                                  locale,
+                                )}
+                                /m)
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </span>
                       <span className="font-semibold text-black">
                         {formatCurrency(order.pricing.fabricCost, locale)}

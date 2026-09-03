@@ -13,435 +13,534 @@ import { useAuth } from "@/context/AuthContext";
 import type { GoogleAuthRole } from "@/context/AuthContext";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
-function getRoleHintFromRedirect(redirectUrl: string | null): GoogleAuthRole | undefined {
-    if (!redirectUrl) return undefined;
-    const path = redirectUrl.replace(/^\/(en|ar)(?=\/|$)/, "");
-    if (path.startsWith("/tailor")) return "tailor";
-    if (path.startsWith("/fabric")) return "fabric_store";
-    return undefined;
+function getRoleHintFromRedirect(
+  redirectUrl: string | null,
+): GoogleAuthRole | undefined {
+  if (!redirectUrl) return undefined;
+  const path = redirectUrl.replace(/^\/(en|ar)(?=\/|$)/, "");
+  if (path.startsWith("/tailor")) return "tailor";
+  if (path.startsWith("/fabric")) return "fabric_store";
+  return undefined;
 }
 
 export default function LoginPage() {
-    const params = useParams();
-    const searchParams = useSearchParams();
-    const redirectUrl = searchParams.get("redirect");
-    const registerHref = redirectUrl
-        ? `/auth/register?redirect=${encodeURIComponent(redirectUrl)}`
-        : "/auth/register";
-    const localeParam = params.locale as string;
-    const t = getTranslation(localeParam);
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get("redirect");
+  const registerHref = redirectUrl
+    ? `/auth/register?redirect=${encodeURIComponent(redirectUrl)}`
+    : "/auth/register";
+  const localeParam = params.locale as string;
+  const t = getTranslation(localeParam);
 
-    const locale = useLocale();
-    const isCheckoutRedirect = Boolean(
-        redirectUrl &&
-        (redirectUrl.includes("checkout") || redirectUrl.includes("custom-order"))
-    );
-    const [showLoginForm, setShowLoginForm] = useState(!isCheckoutRedirect);
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [showPassword, setShowPassword] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState("");
-    const { login, loginAsGuest, loginWithGoogle } = useAuth();
-    const googleRoleHint = getRoleHintFromRedirect(redirectUrl);
-    const forgetPasswordHref = googleRoleHint
-        ? `/auth/forgetPassword?redirect=${encodeURIComponent(redirectUrl!)}`
-        : "/auth/forgetPassword";
+  const locale = useLocale();
+  const isCheckoutRedirect = Boolean(
+    redirectUrl &&
+    (redirectUrl.includes("checkout") || redirectUrl.includes("custom-order")),
+  );
+  const [showLoginForm, setShowLoginForm] = useState(!isCheckoutRedirect);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const { login, loginAsGuest, loginWithGoogle } = useAuth();
+  const googleRoleHint = getRoleHintFromRedirect(redirectUrl);
+  const forgetPasswordHref = googleRoleHint
+    ? `/auth/forgetPassword?redirect=${encodeURIComponent(redirectUrl!)}`
+    : "/auth/forgetPassword";
 
-    const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        setError("");
-        setSuccess("");
-        setIsLoading(true);
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setIsLoading(true);
 
-        try {
-            await login(email, password);
-            setSuccess(t.login.successMessage || "Login successful! Redirecting...");
-        } catch (err: any) {
-            setError(err.message || "An error occurred during login.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleGoogleLogin = async (credential: string) => {
-        setError("");
-        setSuccess("");
-        setIsLoading(true);
-        try {
-            await loginWithGoogle(credential, {
-                mode: "login",
-                ...(googleRoleHint ? { role: googleRoleHint } : {}),
-            });
-            setSuccess(t.login.successMessage || "Login successful! Redirecting...");
-        } catch (err: any) {
-            setError(err.message || "Google sign-in failed.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleGuestLogin = async () => {
-        setError("");
-        setSuccess("");
-        setIsLoading(true);
-        try {
-            await loginAsGuest();
-            setSuccess(t.login.successMessage || "Login successful! Redirecting...");
-        } catch (err: any) {
-            setError(err.message || "An error occurred during guest sign-in.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    if (!showLoginForm && isCheckoutRedirect) {
-        return (
-            <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
-                {/* Left Side - Image Section */}
-                <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden relative">
-                    <img
-                        src={images.login_image.src}
-                        alt=""
-                        className="absolute inset-0 w-full h-full object-cover object-[28%_center]"
-                    />
-                    <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/30 to-transparent"></div>
-                    <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-black/20"></div>
-
-                    <div className="absolute top-7.5 left-7.5 z-10 fade-in">
-                        <Link href="/" className="shrink-0 flex items-center p-7.5 -m-7.5">
-                            <img
-                                src="/PNG/White/MOTD_Wordmark_White.png"
-                                alt={"logoAlt"}
-                                className="h-3 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6 w-auto object-contain"
-                            />
-                        </Link>
-                    </div>
-
-                    <div className="absolute bottom-7.5 left-7.5 hidden md:block fade-in">
-                        <p className="font-label-sm text-[10px] text-white/50 uppercase tracking-[0.3em]">
-                            {t.login.imageText}
-                        </p>
-                    </div>
-                </section>
-
-                {/* Right Side - Form */}
-                <section className="w-full md:w-[45%] h-auto bg-white flex flex-col items-center justify-center py-10 px-5 sm:px-8 md:px-12 lg:px-16 xl:px-20">
-                    <div className="w-full max-w-100 mx-auto">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-                        >
-                            <div className="md:hidden flex justify-center mb-6 fade-in">
-                                <Image
-                                    src={logoBlack}
-                                    alt="MOTD — Mukhawar of the Day"
-                                    height={32}
-                                    width={90}
-                                    className="h-auto w-auto object-contain"
-                                />
-                            </div>
-
-                            <header className="mb-6 fade-in">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <span className="block w-8 h-px bg-black/20"></span>
-                                    <span className="font-label-sm text-[11px] md:text-[12px] tracking-[0.3em] text-black/40 uppercase">
-                                        {locale === "ar" ? "خيارات الدفع" : "Checkout Options"}
-                                    </span>
-                                </div>
-                                <h2 className="font-headline-lg text-[28px] sm:text-[32px] md:text-[36px] lg:text-[40px] uppercase mb-2 tracking-[-0.01em] text-black">
-                                    {locale === "ar" ? "متابعة الطلب" : "Secure Checkout"}
-                                </h2>
-                                <p className="font-body-md text-[14px] sm:text-[15px] md:text-[15px] text-black/50 leading-relaxed">
-                                    {locale === "ar"
-                                        ? "يرجى اختيار طريقة المتابعة لإتمام عملية الدفع الخاصة بك."
-                                        : "Please choose how you would like to proceed to complete your purchase."}
-                                </p>
-                            </header>
-
-                            <div className="space-y-4 fade-in">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowLoginForm(true)}
-                                    className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[11px] md:text-[12px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 hover:cursor-pointer rounded-lg"
-                                >
-                                    <svg className="w-4 h-4 text-white/80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zm0 0c0 1.657 1.007 3 2.25 3S21 13.657 21 12a9 9 0 10-2.636 6.364M16.5 12V8.25" />
-                                    </svg>
-                                    {locale === "ar" ? "تسجيل الدخول بالحساب" : "Sign In to Account"}
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={handleGuestLogin}
-                                    disabled={isLoading}
-                                    className="w-full h-12 md:h-13 border border-black/15 text-black bg-transparent font-label-sm text-[11px] md:text-[12px] uppercase tracking-[0.25em] hover:bg-black/5 transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 hover:cursor-pointer rounded-lg"
-                                >
-                                    <svg className="w-4 h-4 text-black/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                                    </svg>
-                                    {locale === "ar" ? "المتابعة كضيف" : "Sign in as a Guest"}
-                                </button>
-
-                                <div className="relative py-3 flex items-center">
-                                    <div className="grow border-t border-black/10"></div>
-                                    <span className="shrink mx-3 md:mx-4 font-label-sm text-[10px] md:text-[11px] text-black/40 uppercase tracking-[0.2em]">
-                                        {t.login.or}
-                                    </span>
-                                    <div className="grow border-t border-black/10"></div>
-                                </div>
-
-                                <GoogleSignInButton
-                                    onSuccess={handleGoogleLogin}
-                                    disabled={isLoading}
-                                    onError={(message) => setError(message)}
-                                />
-                            </div>
-
-                            {success && (
-                                <div className="mt-4 text-green-600 text-sm text-center bg-green-50 p-3 rounded-md border border-green-200">
-                                    {success}
-                                </div>
-                            )}
-
-                            {error && (
-                                <div className="mt-4 text-red-600 text-sm text-center bg-red-50 p-3 rounded-md border border-red-200">
-                                    {error}
-                                </div>
-                            )}
-
-                            <footer className="mt-8 pt-5 border-t border-black/10 text-center fade-in">
-                                <p className="font-body-md text-[11px] text-black/50 uppercase tracking-[0.15em]">
-                                    {t.login.alreadyLabel}
-                                    <Link href={registerHref} className="text-black font-medium hover:underline underline-offset-4 ml-2">
-                                        {t.login.signupLabel}
-                                    </Link>
-                                </p>
-                                <div className="flex justify-center gap-5 md:gap-6 mt-4">
-                                    <Link href="/privacy" className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors">
-                                        {t.login.privacyLabel}
-                                    </Link>
-                                    <Link href="/terms" className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors">
-                                        {t.login.termsLabel}
-                                    </Link>
-                                </div>
-                                <p className="font-label-sm text-[9px] md:text-[10px] text-black/50 mt-4 tracking-widest">
-                                    {t.login.copyrightLabel}
-                                </p>
-                            </footer>
-                        </motion.div>
-                    </div>
-                </section>
-            </main>
-        );
+    try {
+      await login(email, password);
+      setSuccess(t.login.successMessage || "Login successful! Redirecting...");
+    } catch (err: any) {
+      setError(err.message || "An error occurred during login.");
+    } finally {
+      setIsLoading(false);
     }
+  };
 
+  const handleGoogleLogin = async (credential: string) => {
+    setError("");
+    setSuccess("");
+    setIsLoading(true);
+    try {
+      await loginWithGoogle(credential, {
+        mode: "login",
+        ...(googleRoleHint ? { role: googleRoleHint } : {}),
+      });
+      setSuccess(t.login.successMessage || "Login successful! Redirecting...");
+    } catch (err: any) {
+      setError(err.message || "Google sign-in failed.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    setError("");
+    setSuccess("");
+    setIsLoading(true);
+    try {
+      await loginAsGuest();
+      setSuccess(t.login.successMessage || "Login successful! Redirecting...");
+    } catch (err: any) {
+      setError(err.message || "An error occurred during guest sign-in.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!showLoginForm && isCheckoutRedirect) {
     return (
-        <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
-            {/* Left Side - Image Section */}
-            <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden relative">
-                <img
-                    src={images.login_image.src}
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-cover object-[28%_center]"
+      <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
+        {/* Left Side - Image Section */}
+        <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden relative">
+          <img
+            src={images.login_image.src}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover object-[28%_center]"
+          />
+          <div className="absolute inset-0 bg-linear-to-r from-black/15 via-black/5 to-transparent"></div>
+          <div className="absolute inset-0 bg-linear-to-t from-black/20 via-transparent to-black/5"></div>
+
+          <div className="absolute top-7.5 left-7.5 z-10 fade-in">
+            <Link href="/" className="shrink-0 flex items-center p-7.5 -m-7.5">
+              <img
+                src="/PNG/White/MOTD_Wordmark_White.png"
+                alt={"logoAlt"}
+                className="h-3 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6 w-auto object-contain"
+              />
+            </Link>
+          </div>
+
+          <div className="absolute bottom-7.5 left-7.5 hidden md:block fade-in">
+            <p className="font-label-sm text-[10px] text-white/50 uppercase tracking-[0.3em]">
+              {t.login.imageText}
+            </p>
+          </div>
+        </section>
+
+        {/* Right Side - Form */}
+        <section className="w-full md:w-[45%] h-auto bg-white flex flex-col items-center justify-center py-10 px-5 sm:px-8 md:px-12 lg:px-16 xl:px-20">
+          <div className="w-full max-w-100 mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+            >
+              <div className="md:hidden flex justify-center mb-6 fade-in">
+                <Image
+                  src={logoBlack}
+                  alt="MOTD — Mukhawar of the Day"
+                  height={32}
+                  width={90}
+                  className="h-auto w-auto object-contain"
                 />
-                <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/30 to-transparent"></div>
-                <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-black/20"></div>
+              </div>
 
-                <div className="absolute top-7.5 left-7.5 z-10 fade-in">
-                    <Link href="/" className="shrink-0 flex items-center p-7.5 -m-7.5">
-                        <img
-                            src="/PNG/White/MOTD_Wordmark_White.png"
-                            alt={"logoAlt"}
-                            className="h-3 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6 w-auto object-contain"
-                        />
-                    </Link>
+              <header className="mb-6 fade-in">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="block w-8 h-px bg-black/20"></span>
+                  <span className="font-label-sm text-[11px] md:text-[12px] tracking-[0.3em] text-black/40 uppercase">
+                    {locale === "ar" ? "خيارات الدفع" : "Checkout Options"}
+                  </span>
+                </div>
+                <h2 className="font-headline-lg text-[28px] sm:text-[32px] md:text-[36px] lg:text-[40px] uppercase mb-2 tracking-[-0.01em] text-black">
+                  {locale === "ar" ? "متابعة الطلب" : "Secure Checkout"}
+                </h2>
+                <p className="font-body-md text-[14px] sm:text-[15px] md:text-[15px] text-black/50 leading-relaxed">
+                  {locale === "ar"
+                    ? "يرجى اختيار طريقة المتابعة لإتمام عملية الدفع الخاصة بك."
+                    : "Please choose how you would like to proceed to complete your purchase."}
+                </p>
+              </header>
+
+              <div className="space-y-4 fade-in">
+                <button
+                  type="button"
+                  onClick={() => setShowLoginForm(true)}
+                  className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[11px] md:text-[12px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 hover:cursor-pointer rounded-lg"
+                >
+                  <svg
+                    className="w-4 h-4 text-white/80"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zm0 0c0 1.657 1.007 3 2.25 3S21 13.657 21 12a9 9 0 10-2.636 6.364M16.5 12V8.25"
+                    />
+                  </svg>
+                  {locale === "ar"
+                    ? "تسجيل الدخول بالحساب"
+                    : "Sign In to Account"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleGuestLogin}
+                  disabled={isLoading}
+                  className="w-full h-12 md:h-13 border border-black/15 text-black bg-transparent font-label-sm text-[11px] md:text-[12px] uppercase tracking-[0.25em] hover:bg-black/5 transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 hover:cursor-pointer rounded-lg"
+                >
+                  <svg
+                    className="w-4 h-4 text-black/60"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+                    />
+                  </svg>
+                  {locale === "ar" ? "المتابعة كضيف" : "Sign in as a Guest"}
+                </button>
+
+                <div className="relative py-3 flex items-center">
+                  <div className="grow border-t border-black/10"></div>
+                  <span className="shrink mx-3 md:mx-4 font-label-sm text-[10px] md:text-[11px] text-black/40 uppercase tracking-[0.2em]">
+                    {t.login.or}
+                  </span>
+                  <div className="grow border-t border-black/10"></div>
                 </div>
 
-                <div className="absolute bottom-7.5 left-7.5 hidden md:block fade-in">
-                    <p className="font-label-sm text-[10px] text-white/50 uppercase tracking-[0.3em]">
-                        {t.login.imageText}
-                    </p>
+                <GoogleSignInButton
+                  onSuccess={handleGoogleLogin}
+                  disabled={isLoading}
+                  onError={(message) => setError(message)}
+                />
+              </div>
+
+              {success && (
+                <div className="mt-4 text-green-600 text-sm text-center bg-green-50 p-3 rounded-md border border-green-200">
+                  {success}
                 </div>
-            </section>
+              )}
 
-            {/* Right Side - Form */}
-            <section className="w-full md:w-[45%] h-auto bg-white flex flex-col items-center justify-center py-10 px-5 sm:px-8 md:px-12 lg:px-16 xl:px-20">
-                <div className="w-full max-w-100 mx-auto">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-                    >
-                        <div className="md:hidden flex justify-center mb-6 fade-in">
-                            <Image
-                                src={logoBlack}
-                                alt="MOTD — Mukhawar of the Day"
-                                height={32}
-                                width={90}
-                                className="h-auto w-auto object-contain"
-                            />
-                        </div>
-
-                        {isCheckoutRedirect && (
-                            <button
-                                type="button"
-                                onClick={() => setShowLoginForm(false)}
-                                className="mb-6 text-[10px] md:text-[11px] font-label-sm uppercase tracking-[0.2em] text-black/50 hover:text-black transition-colors flex items-center gap-1.5 hover:cursor-pointer"
-                            >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-                                </svg>
-                                {locale === "ar" ? "رجوع لخيارات الدفع" : "Back to checkout options"}
-                            </button>
-                        )}
-
-                        <header className="mb-6 fade-in">
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="block w-8 h-px bg-black/20"></span>
-                                <span className="font-label-sm text-[11px] md:text-[12px] tracking-[0.3em] text-black/40 uppercase">
-                                    {t.login.subTitle}
-                                </span>
-                            </div>
-                            <h2 className="font-headline-lg text-[28px] sm:text-[32px] md:text-[36px] lg:text-[40px] uppercase mb-2 tracking-[-0.01em] text-black">
-                                {t.login.title}
-                            </h2>
-                            <p className="font-body-md text-[14px] sm:text-[15px] md:text-[15px] text-black/50 leading-relaxed">
-                                {t.login.description}
-                            </p>
-                        </header>
-
-                        <form onSubmit={handleSubmit} className="space-y-5 fade-in">
-                            <div className="space-y-1.5">
-                                <label htmlFor="email" className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
-                                    {t.login.emailLabel}
-                                </label>
-                                <input
-                                    id="email"
-                                    name="email"
-                                    type="email"
-                                    autoComplete="username"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="name@example.com"
-                                    required
-                                    className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-                                />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <div className="flex justify-between items-center">
-                                    <label htmlFor="password" className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">
-                                        {t.login.passwordLabel}
-                                    </label>
-                                    <Link
-                                        href={forgetPasswordHref}
-                                        className="font-label-sm text-[9px] text-black/40 hover:text-black transition-colors uppercase tracking-[0.15em]"
-                                    >
-                                        {t.login.forgetPassword}
-                                    </Link>
-                                </div>
-                                <div className="relative">
-                                    <input
-                                        id="password"
-                                        name="password"
-                                        type={showPassword ? "text" : "password"}
-                                        autoComplete="current-password"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        placeholder="••••••••"
-                                        required
-                                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-0 top-1/2 -translate-y-1/2 text-black/40 hover:text-black transition-colors"
-                                        tabIndex={-1}
-                                    >
-                                        {showPassword ? (
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
-                                            </svg>
-                                        ) : (
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            </svg>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {success && (
-                                <div className="text-green-600 text-sm text-center bg-green-50 p-3 rounded-md border border-green-200">
-                                    {success}
-                                </div>
-                            )}
-
-                            {error && (
-                                <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-md border border-red-200">
-                                    {error}
-                                </div>
-                            )}
-
-                            <button
-                                type="submit"
-                                disabled={isLoading}
-                                className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] mt-6 md:mt-7 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer rounded-lg"
-                            >
-                                {isLoading ? (
-                                    <span className="flex items-center justify-center gap-2">
-                                        <svg className="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24" fill="none">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        {t.login.buttonProgressLabel}
-                                    </span>
-                                ) : (
-                                    `${t.login.buttonLabel}`
-                                )}
-                            </button>
-
-                            <div className="relative py-3 flex items-center">
-                                <div className="grow border-t border-black/10"></div>
-                                <span className="shrink mx-3 md:mx-4 font-label-sm text-[10px] md:text-[11px] text-black/40 uppercase tracking-[0.2em]">
-                                    {t.login.or}
-                                </span>
-                                <div className="grow border-t border-black/10"></div>
-                            </div>
-
-                            <GoogleSignInButton
-                                onSuccess={handleGoogleLogin}
-                                disabled={isLoading}
-                                onError={(message) => setError(message)}
-                            />
-                        </form>
-
-                        <footer className="mt-8 pt-5 border-t border-black/10 text-center fade-in">
-                            <p className="font-body-md text-[11px] text-black/50 uppercase tracking-[0.15em]">
-                                {t.login.alreadyLabel}
-                                <Link href={registerHref} className="text-black font-medium hover:underline underline-offset-4 ml-2">
-                                    {t.login.signupLabel}
-                                </Link>
-                            </p>
-                            <div className="flex justify-center gap-5 md:gap-6 mt-4">
-                                <Link href="/privacy" className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors">
-                                    {t.login.privacyLabel}
-                                </Link>
-                                <Link href="/terms" className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors">
-                                    {t.login.termsLabel}
-                                </Link>
-                            </div>
-                            <p className="font-label-sm text-[9px] md:text-[10px] text-black/50 mt-4 tracking-widest">
-                                {t.login.copyrightLabel}
-                            </p>
-                        </footer>
-                    </motion.div>
+              {error && (
+                <div className="mt-4 text-red-600 text-sm text-center bg-red-50 p-3 rounded-md border border-red-200">
+                  {error}
                 </div>
-            </section>
-        </main>
+              )}
+
+              <footer className="mt-8 pt-5 border-t border-black/10 text-center fade-in">
+                <p className="font-body-md text-[11px] text-black/50 uppercase tracking-[0.15em]">
+                  {t.login.alreadyLabel}
+                  <Link
+                    href={registerHref}
+                    className="text-black font-medium hover:underline underline-offset-4 ml-2"
+                  >
+                    {t.login.signupLabel}
+                  </Link>
+                </p>
+                <div className="flex justify-center gap-5 md:gap-6 mt-4">
+                  <Link
+                    href="/privacy"
+                    className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors"
+                  >
+                    {t.login.privacyLabel}
+                  </Link>
+                  <Link
+                    href="/terms"
+                    className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors"
+                  >
+                    {t.login.termsLabel}
+                  </Link>
+                </div>
+                <p className="font-label-sm text-[9px] md:text-[10px] text-black/50 mt-4 tracking-widest">
+                  {t.login.copyrightLabel}
+                </p>
+              </footer>
+            </motion.div>
+          </div>
+        </section>
+      </main>
     );
+  }
+
+  return (
+    <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
+      {/* Left Side - Image Section */}
+      <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden relative">
+        <img
+          src={images.login_image.src}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover object-[28%_center]"
+        />
+        <div className="absolute inset-0 bg-linear-to-r from-black/15 via-black/5 to-transparent"></div>
+        <div className="absolute inset-0 bg-linear-to-t from-black/20 via-transparent to-black/5"></div>
+
+        <div className="absolute top-7.5 left-7.5 z-10 fade-in">
+          <Link href="/" className="shrink-0 flex items-center p-7.5 -m-7.5">
+            <img
+              src="/PNG/Black/MOTD_Wordmark_Black.png"
+              alt={"logoAlt"}
+              className="h-3 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6 w-auto object-contain"
+            />
+          </Link>
+        </div>
+
+        <div className="absolute bottom-7.5 left-7.5 hidden md:block fade-in">
+          <p className="font-label-sm text-[10px] text-white/50 uppercase tracking-[0.3em]">
+            {t.login.imageText}
+          </p>
+        </div>
+      </section>
+
+      {/* Right Side - Form */}
+      <section className="w-full md:w-[45%] h-auto bg-white flex flex-col items-center justify-center py-10 px-5 sm:px-8 md:px-12 lg:px-16 xl:px-20">
+        <div className="w-full max-w-100 mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <div className="md:hidden flex justify-center mb-6 fade-in">
+              <Image
+                src={logoBlack}
+                alt="MOTD — Mukhawar of the Day"
+                height={32}
+                width={90}
+                className="h-auto w-auto object-contain"
+              />
+            </div>
+
+            {isCheckoutRedirect && (
+              <button
+                type="button"
+                onClick={() => setShowLoginForm(false)}
+                className="mb-6 text-[10px] md:text-[11px] font-label-sm uppercase tracking-[0.2em] text-black/50 hover:text-black transition-colors flex items-center gap-1.5 hover:cursor-pointer"
+              >
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+                  />
+                </svg>
+                {locale === "ar"
+                  ? "رجوع لخيارات الدفع"
+                  : "Back to checkout options"}
+              </button>
+            )}
+
+            <header className="mb-6 fade-in">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="block w-8 h-px bg-black/20"></span>
+                <span className="font-label-sm text-[11px] md:text-[12px] tracking-[0.3em] text-black/40 uppercase">
+                  {t.login.subTitle}
+                </span>
+              </div>
+              <h2 className="font-headline-lg text-[28px] sm:text-[32px] md:text-[36px] lg:text-[40px] uppercase mb-2 tracking-[-0.01em] text-black">
+                {t.login.title}
+              </h2>
+              <p className="font-body-md text-[14px] sm:text-[15px] md:text-[15px] text-black/50 leading-relaxed">
+                {t.login.description}
+              </p>
+            </header>
+
+            <form onSubmit={handleSubmit} className="space-y-5 fade-in">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="email"
+                  className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block"
+                >
+                  {t.login.emailLabel}
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="username"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  required
+                  className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label
+                    htmlFor="password"
+                    className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block"
+                  >
+                    {t.login.passwordLabel}
+                  </label>
+                  <Link
+                    href={forgetPasswordHref}
+                    className="font-label-sm text-[9px] text-black/40 hover:text-black transition-colors uppercase tracking-[0.15em]"
+                  >
+                    {t.login.forgetPassword}
+                  </Link>
+                </div>
+                <div className="relative">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 text-black/40 hover:text-black transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"
+                        />
+                      </svg>
+                    ) : (
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {success && (
+                <div className="text-green-600 text-sm text-center bg-green-50 p-3 rounded-md border border-green-200">
+                  {success}
+                </div>
+              )}
+
+              {error && (
+                <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-md border border-red-200">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] mt-6 md:mt-7 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer rounded-lg"
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg
+                      className="animate-spin h-3.5 w-3.5 text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    {t.login.buttonProgressLabel}
+                  </span>
+                ) : (
+                  `${t.login.buttonLabel}`
+                )}
+              </button>
+
+              <div className="relative py-3 flex items-center">
+                <div className="grow border-t border-black/10"></div>
+                <span className="shrink mx-3 md:mx-4 font-label-sm text-[10px] md:text-[11px] text-black/40 uppercase tracking-[0.2em]">
+                  {t.login.or}
+                </span>
+                <div className="grow border-t border-black/10"></div>
+              </div>
+
+              <GoogleSignInButton
+                onSuccess={handleGoogleLogin}
+                disabled={isLoading}
+                onError={(message) => setError(message)}
+              />
+            </form>
+
+            <footer className="mt-8 pt-5 border-t border-black/10 text-center fade-in">
+              <p className="font-body-md text-[11px] text-black/50 uppercase tracking-[0.15em]">
+                {t.login.alreadyLabel}
+                <Link
+                  href={registerHref}
+                  className="text-black font-medium hover:underline underline-offset-4 ml-2"
+                >
+                  {t.login.signupLabel}
+                </Link>
+              </p>
+              <div className="flex justify-center gap-5 md:gap-6 mt-4">
+                <Link
+                  href="/privacy"
+                  className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors"
+                >
+                  {t.login.privacyLabel}
+                </Link>
+                <Link
+                  href="/terms"
+                  className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors"
+                >
+                  {t.login.termsLabel}
+                </Link>
+              </div>
+              <p className="font-label-sm text-[9px] md:text-[10px] text-black/50 mt-4 tracking-widest">
+                {t.login.copyrightLabel}
+              </p>
+            </footer>
+          </motion.div>
+        </div>
+      </section>
+    </main>
+  );
 }
