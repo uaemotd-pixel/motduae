@@ -364,9 +364,6 @@
     "selectAtLeastOneCut": "Please select at least one cut to continue.",
     "designMinCutRequired": "Design minimum: {min} m",
     "selectedBadge": "Selected"
-
-    "designLengthHint": "This design's minimum is {min} m. You can add a second cut. Leftover fabric is returned to you."
-
   },
   "CustomOrderTailor": {
     "stepLabel": "Step {step} of {total}",
