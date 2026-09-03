@@ -9,7 +9,12 @@ type Props = {
 // Locale-specific lang/dir is applied on the client by RTLProvider.
 export default function RootLayout({ children }: Props) {
   return (
-    <html lang="en" dir="ltr" suppressHydrationWarning>
+    <html
+      lang="en"
+      dir="ltr"
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+    >
       <body className="bg-white text-[#000000]" suppressHydrationWarning>
         <script
           dangerouslySetInnerHTML={{

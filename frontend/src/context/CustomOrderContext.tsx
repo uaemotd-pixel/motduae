@@ -16,7 +16,6 @@ import {
   type CustomOrderDraft,
   type CustomOrderFabricSelection,
   type CustomOrderFirstStep,
-  type CustomOrderLineItem,
   type CustomOrderMeasurements,
   type CustomOrderPreviewPayload,
   type CustomOrderSelectedCut,
@@ -32,9 +31,15 @@ import {
   useOwnFabric,
   buildCustomOrderPreviewPayload,
   FabricUnit,
+  getFabricCutLengthInMeters,
+  getFabricCutStock,
+  getLineItemCutSelections,
+  getMinimumMetersForDesign,
   isDraftEmpty,
+  isFabricLengthSufficientForDesign,
+  type CustomOrderLineItem,
 } from "@/lib/customOrder";
-import { fabricUnitFromCutUnit } from "@/lib/fabricUnits";
+import { cutValueToMeters } from "@/lib/fabricUnits";
 import { useAuth } from "@/context/AuthContext";
 
 type CustomOrderContextType = {
@@ -69,9 +74,20 @@ type CustomOrderContextType = {
     itemId: string,
     cut: { _id: string; value: number; unit: "war" | "meter" },
   ) => void;
+
   updateLineItemCuts: (
     itemId: string,
     cuts: CustomOrderSelectedCut[],
+
+  toggleLineItemCut: (
+    itemId: string,
+    cut: { _id: string; value: number; unit: "war" | "meter" },
+  ) => void;
+  setLineItemCutQuantity: (
+    itemId: string,
+    cut: { _id: string; value: number; unit: "war" | "meter" },
+    quantity: number,
+
   ) => void;
   toggleAddon: (addonId: string) => void;
 };
@@ -266,7 +282,13 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
         ...prev,
         lineItems: prev.lineItems.map((item) =>
           item.id === itemId
-            ? { ...item, fabricMeters: meters, cutId: null }
+            ? {
+                ...item,
+                fabricMeters: meters,
+                cutId: null,
+                cutIds: [],
+                cutSelections: {},
+              }
             : item,
         ),
       }));
@@ -351,10 +373,53 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       ...prev,
       lineItems: prev.lineItems.map((item) =>
         item.id === itemId
-          ? { ...item, fabricUnit: unit, cutId: null }
+          ? {
+              ...item,
+              fabricUnit: unit,
+              cutId: null,
+              cutIds: [],
+              cutSelections: {},
+            }
           : item,
       ),
     }));
+  };
+
+  const applyCutSelectionsToItem = (
+    item: CustomOrderLineItem,
+    nextSelections: Record<string, number>,
+  ) => {
+    const cleaned: Record<string, number> = {};
+    for (const [cutId, quantity] of Object.entries(nextSelections)) {
+      const qty = Math.floor(Number(quantity));
+      if (cutId && Number.isFinite(qty) && qty > 0) {
+        cleaned[cutId] = qty;
+      }
+    }
+    const cutIds = Object.keys(cleaned);
+    const nextMeters =
+      cutIds.length === 0
+        ? null
+        : Number(
+            cutIds
+              .reduce(
+                (sum, cutId) =>
+                  sum +
+                  getFabricCutLengthInMeters(item.fabric, cutId) *
+                    cleaned[cutId],
+                0,
+              )
+              .toFixed(2),
+          );
+
+    return {
+      ...item,
+      cutSelections: cleaned,
+      cutIds,
+      cutId: cutIds[0] ?? null,
+      fabricMeters: nextMeters,
+      fabricUnit: "meters" as FabricUnit,
+    };
   };
 
   const applyLineItemCut = useCallback(
@@ -366,18 +431,14 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
         ...prev,
         lineItems: prev.lineItems.map((item) =>
           item.id === itemId
-            ? {
-                ...item,
-                fabricMeters: cut.value,
-                fabricUnit: fabricUnitFromCutUnit(cut.unit),
-                cutId: cut._id,
-              }
+            ? applyCutSelectionsToItem(item, { [cut._id]: 1 })
             : item,
         ),
       }));
     },
     [],
   );
+
 
   const updateLineItemCuts = useCallback(
     (itemId: string, cuts: CustomOrderSelectedCut[]) => {
@@ -400,6 +461,92 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
           ),
         };
       });
+
+  const toggleLineItemCut = useCallback(
+    (
+      itemId: string,
+      cut: { _id: string; value: number; unit: "war" | "meter" },
+    ) => {
+      setDraft((prev) => ({
+        ...prev,
+        lineItems: prev.lineItems.map((item) => {
+          if (item.id !== itemId) return item;
+          const current = getLineItemCutSelections(item);
+          const alreadySelected = (current[cut._id] || 0) > 0;
+          if (!alreadySelected && isFabricLengthSufficientForDesign(item)) {
+            return item;
+          }
+          const next = { ...current };
+          if (alreadySelected) {
+            delete next[cut._id];
+          } else {
+            next[cut._id] = 1;
+          }
+          return applyCutSelectionsToItem(item, next);
+        }),
+      }));
+    },
+    [],
+  );
+
+  const setLineItemCutQuantity = useCallback(
+    (
+      itemId: string,
+      cut: { _id: string; value: number; unit: "war" | "meter" },
+      quantity: number,
+    ) => {
+      setDraft((prev) => ({
+        ...prev,
+        lineItems: prev.lineItems.map((item) => {
+          if (item.id !== itemId) return item;
+
+          const current = getLineItemCutSelections(item);
+          const currentQty = current[cut._id] || 0;
+          const maxStock = Math.max(
+            getFabricCutStock(item.fabric, cut._id),
+            currentQty,
+          );
+          let nextQty = Math.floor(Number(quantity));
+          if (!Number.isFinite(nextQty) || nextQty < 0) nextQty = 0;
+          nextQty = Math.min(maxStock, nextQty);
+
+          // Increasing while requirement already met is not allowed
+          if (nextQty > currentQty && isFabricLengthSufficientForDesign(item)) {
+            return item;
+          }
+
+          // When increasing, only allow enough pieces to reach requirement
+          if (nextQty > currentQty) {
+            const required = getMinimumMetersForDesign(item.design);
+            const cutLength =
+              cutValueToMeters(cut.value, cut.unit) ||
+              getFabricCutLengthInMeters(item.fabric, cut._id);
+            if (cutLength > 0) {
+              const otherMeters = Object.entries(current).reduce(
+                (sum, [cutId, qty]) => {
+                  if (cutId === cut._id) return sum;
+                  return (
+                    sum + getFabricCutLengthInMeters(item.fabric, cutId) * qty
+                  );
+                },
+                0,
+              );
+              const needed = Math.max(0, required - otherMeters);
+              const maxUseful = Math.ceil((needed + 0.009) / cutLength);
+              nextQty = Math.min(nextQty, Math.max(currentQty, maxUseful));
+            }
+          }
+
+          const next = { ...current };
+          if (nextQty <= 0) {
+            delete next[cut._id];
+          } else {
+            next[cut._id] = nextQty;
+          }
+          return applyCutSelectionsToItem(item, next);
+        }),
+      }));
+
     },
     [],
   );
@@ -491,7 +638,12 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       syncAutoLineItems,
       updateLineItemUnit,
       applyLineItemCut,
+
       updateLineItemCuts,
+
+      toggleLineItemCut,
+      setLineItemCutQuantity,
+
       toggleAddon,
     }),
     [
@@ -520,7 +672,12 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       syncAutoLineItems,
       updateLineItemUnit,
       applyLineItemCut,
+
       updateLineItemCuts,
+
+      toggleLineItemCut,
+      setLineItemCutQuantity,
+
       setAddPocketAction,
       setAddBottomWideFoldAction,
       toggleAddon,

@@ -31,6 +31,35 @@ import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAcco
 import { isWithinLocalDateRange } from "@/lib/dateRange";
 import { splitFabricCommission } from "@/lib/fabricCommission";
 
+function isFabricRetailLine(item: {
+  kind?: string;
+  cutId?: string | null;
+  size?: string;
+}) {
+  return (
+    item.kind === "fabric" ||
+    Boolean(item.cutId) ||
+    item.size === "Per Meter"
+  );
+}
+
+function fabricRetailCutLabel(
+  item: {
+    cutSnapshot?: { name?: string; value?: number; unit?: string } | null;
+    size?: string;
+  },
+  locale: string,
+) {
+  const snap = item.cutSnapshot;
+  if (snap?.name) return snap.name;
+  if (snap?.value != null && snap?.unit) return `${snap.value} ${snap.unit}`;
+  return item.size && item.size !== "Per Meter"
+    ? item.size
+    : locale === "ar"
+      ? "قطعة قماش"
+      : "Fabric cut";
+}
+
 interface OrderUser {
   _id: string;
   name: string;
@@ -496,8 +525,8 @@ export default function FabricOrdersPage() {
             if (activeTab === "retail") {
               const retailOrder = order as any;
               const fabricOnlyItems =
-                retailOrder.orderItems?.filter(
-                  (item: any) => item.size === "Per Meter",
+                retailOrder.orderItems?.filter((item: any) =>
+                  isFabricRetailLine(item),
                 ) || [];
               const fabricGross = fabricOnlyItems.reduce(
                 (sum: number, item: any) =>
@@ -543,7 +572,8 @@ export default function FabricOrdersPage() {
                       </p>
                       <div className="flex flex-col gap-3">
                         {retailOrder.orderItems?.map((item: any, idx: number) => {
-                          const isFabricOnly = item.size === "Per Meter";
+                          const isFabricOnly = isFabricRetailLine(item);
+                          const cutLabel = fabricRetailCutLabel(item, locale);
                           return (
                             <div
                               key={idx}
@@ -561,17 +591,15 @@ export default function FabricOrdersPage() {
                                   {item.name}
                                   {isFabricOnly && (
                                     <span className="ml-1.5 text-[10px] font-normal text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">
-                                      {locale === "ar"
-                                        ? "قماش بالمتر"
-                                        : "Fabric / m"}
+                                      {cutLabel}
                                     </span>
                                   )}
                                 </p>
                                 <p className="text-[10px] text-gray-400 mt-0.5 [font-family:var(--font-body)]">
                                   {isFabricOnly
                                     ? locale === "ar"
-                                      ? `الكمية: ${item.quantity} م | ${formatCurrency(item.price)} / م`
-                                      : `Qty: ${item.quantity} m | ${formatCurrency(item.price)} / m`
+                                      ? `الكمية: ${item.quantity} قطعة | ${formatCurrency(item.price)} / قطعة`
+                                      : `Qty: ${item.quantity} pc(s) | ${formatCurrency(item.price)} / pc`
                                     : `${locale === "ar" ? "المقاس: " : "Size: "}${item.size} | ${locale === "ar" ? "الكمية: " : "Qty: "}${item.quantity} | ${formatCurrency(item.price)}`}
                                 </p>
                               </div>

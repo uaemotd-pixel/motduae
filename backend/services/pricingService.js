@@ -1,6 +1,8 @@
 import PlatformSettings from '../models/PlatformSettings.js';
 import Design from '../models/Design.js';
 import Fabric from '../models/Fabric.js';
+import Cut from '../models/Cut.js';
+import { cutValueToMeters } from '../utils/fabricUnits.js';
 import { FABRIC_SOURCES } from '../models/CustomOrder.js';
 import { planCustomOrderParcels } from './parcelPlanService.js';
 
@@ -12,6 +14,227 @@ export class PricingValidationError extends Error {
 }
 
 const roundMoney = (amount) => Number(amount.toFixed(2));
+
+function getDesignMinimumMeters(design) {
+  const fromSnapshot = design?.minCutSnapshot?.lengthInMeters;
+  if (typeof fromSnapshot === 'number' && fromSnapshot > 0) {
+    return fromSnapshot;
+  }
+  const estimated = design?.estimatedMeters;
+  if (typeof estimated === 'number' && estimated > 0) {
+    return estimated;
+  }
+  return 0;
+}
+
+function normalizeCutSelectionsInput({ cutId = null, cutIds = null, cutSelections = null }) {
+  if (Array.isArray(cutSelections) && cutSelections.length > 0) {
+    const merged = new Map();
+    for (const entry of cutSelections) {
+      const id = entry?.cutId ? String(entry.cutId) : '';
+      const qty = Math.floor(Number(entry?.quantity));
+      if (!id || !Number.isFinite(qty) || qty <= 0) continue;
+      merged.set(id, (merged.get(id) || 0) + qty);
+    }
+    return Array.from(merged.entries()).map(([id, quantity]) => ({
+      cutId: id,
+      quantity,
+    }));
+  }
+
+  if (Array.isArray(cutIds) && cutIds.length > 0) {
+    const merged = new Map();
+    for (const id of cutIds) {
+      const key = String(id);
+      merged.set(key, (merged.get(key) || 0) + 1);
+    }
+    return Array.from(merged.entries()).map(([id, quantity]) => ({
+      cutId: id,
+      quantity,
+    }));
+  }
+
+  if (cutId) {
+    return [{ cutId: String(cutId), quantity: 1 }];
+  }
+
+  return [];
+}
+
+/**
+ * Cut-based fabrics no longer store pricePerMeter.
+ * Cost = sum(selected cut price × quantity). Effective AED/m is derived for display.
+ */
+export function resolveStorefrontFabricPricing({
+  fabric,
+  fabricMeters,
+  cutId = null,
+  cutIds = null,
+  cutSelections = null,
+}) {
+  if (!fabric) {
+    return { fabricCost: 0, fabricPricePerMeter: 0 };
+  }
+
+  const selections = normalizeCutSelectionsInput({
+    cutId,
+    cutIds,
+    cutSelections,
+  });
+  const fabricCuts = Array.isArray(fabric.cuts) ? fabric.cuts : [];
+
+  if (selections.length > 0) {
+    let fabricCost = 0;
+
+    for (const { cutId: id, quantity } of selections) {
+      const fabricCut = fabricCuts.find(
+        (entry) => String(entry.cutId) === String(id),
+      );
+      if (!fabricCut) {
+        throw new PricingValidationError(
+          `Selected cut is not available on ${fabric.name || 'fabric'}`,
+        );
+      }
+      const unitPrice = Number(fabricCut.price);
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        throw new PricingValidationError(
+          `Invalid cut price on ${fabric.name || 'fabric'}`,
+        );
+      }
+      fabricCost += unitPrice * quantity;
+    }
+
+    fabricCost = roundMoney(fabricCost);
+    const meters = Number(fabricMeters) || 0;
+    const fabricPricePerMeter =
+      meters > 0 ? roundMoney(fabricCost / meters) : 0;
+
+    return { fabricCost, fabricPricePerMeter };
+  }
+
+  // Legacy fallback when no cut is selected: use stored pricePerMeter if present.
+  const legacyPrice = Number(fabric.pricePerMeter);
+  if (Number.isFinite(legacyPrice) && legacyPrice > 0) {
+    const meters = Number(fabricMeters) || 0;
+    return {
+      fabricCost: roundMoney(legacyPrice * meters),
+      fabricPricePerMeter: roundMoney(legacyPrice),
+    };
+  }
+
+  return { fabricCost: 0, fabricPricePerMeter: 0 };
+}
+
+/**
+ * Ensure selected fabric length (and optional cut / cuts) meets the design minimum.
+ */
+export async function validateCustomOrderItemFabric({
+  design,
+  fabric = null,
+  fabricSource,
+  fabricMeters,
+  cutId = null,
+  cutIds = null,
+  cutSelections = null,
+}) {
+  if (!design) {
+    throw new PricingValidationError('design is required');
+  }
+
+  const minimumMeters = getDesignMinimumMeters(design);
+
+  /** @type {{ cutId: string, quantity: number }[]} */
+  let resolvedSelections = [];
+
+  if (Array.isArray(cutSelections) && cutSelections.length > 0) {
+    const merged = new Map();
+    for (const entry of cutSelections) {
+      const id = entry?.cutId ? String(entry.cutId) : '';
+      const qty = Math.floor(Number(entry?.quantity));
+      if (!id || !Number.isFinite(qty) || qty <= 0) continue;
+      merged.set(id, (merged.get(id) || 0) + qty);
+    }
+    resolvedSelections = Array.from(merged.entries()).map(([cutId, quantity]) => ({
+      cutId,
+      quantity,
+    }));
+  } else if (Array.isArray(cutIds) && cutIds.length > 0) {
+    const merged = new Map();
+    for (const id of cutIds) {
+      const key = String(id);
+      merged.set(key, (merged.get(key) || 0) + 1);
+    }
+    resolvedSelections = Array.from(merged.entries()).map(([cutId, quantity]) => ({
+      cutId,
+      quantity,
+    }));
+  } else if (cutId) {
+    resolvedSelections = [{ cutId: String(cutId), quantity: 1 }];
+  }
+
+  let selectedMeters = fabricMeters;
+
+  if (resolvedSelections.length > 0) {
+    let totalMeters = 0;
+
+    for (const { cutId: id, quantity } of resolvedSelections) {
+      const cut = await Cut.findById(id);
+      if (!cut || !cut.isActive) {
+        throw new PricingValidationError('cut not found or is inactive');
+      }
+      totalMeters += cutValueToMeters(cut.value, cut.unit) * quantity;
+
+      if (fabricSource === 'storefront' && fabric) {
+        const fabricCut = (fabric.cuts || []).find(
+          (entry) => String(entry.cutId) === String(id),
+        );
+        if (!fabricCut) {
+          throw new PricingValidationError(
+            `Selected cut is not available on ${fabric.name}`,
+          );
+        }
+        const stock = Math.floor(Number(fabricCut.stock) || 0);
+        if (stock < quantity) {
+          throw new PricingValidationError(
+            `${fabric.name} — insufficient stock for the selected cut (need ${quantity}, have ${stock})`,
+          );
+        }
+      }
+    }
+
+    selectedMeters = Number(totalMeters.toFixed(2));
+
+    if (
+      typeof fabricMeters === 'number' &&
+      Math.abs(fabricMeters - selectedMeters) > 0.02
+    ) {
+      throw new PricingValidationError(
+        'fabricMeters does not match the selected cut(s)',
+      );
+    }
+  }
+
+  if (typeof selectedMeters !== 'number' || selectedMeters <= 0) {
+    throw new PricingValidationError('fabricMeters must be greater than 0');
+  }
+
+  if (minimumMeters > 0 && selectedMeters + 0.009 < minimumMeters) {
+    throw new PricingValidationError(
+      `Selected fabric length (${selectedMeters}m) is less than required for this design (${minimumMeters}m)`,
+    );
+  }
+
+  if (
+    fabricSource === 'storefront' &&
+    Array.isArray(fabric?.cuts) &&
+    fabric.cuts.length > 0 &&
+    resolvedSelections.length === 0
+  ) {
+    throw new PricingValidationError(
+      'cutId is required when purchasing storefront fabric by cut',
+    );
+  }
+}
 
 /**
  * Split a fabric-store line into gross, MOTD commission, and net store payout.
@@ -80,6 +303,7 @@ export function calculateCustomOrderPricing({
   fabricMeters,
   fabricSource,
   fabricPricePerMeter = 0,
+  fabricCost: fabricCostOverride = null,
   deliveryFee,
   vatRate = 0.05,
   currency = 'AED',
@@ -119,9 +343,11 @@ export function calculateCustomOrderPricing({
     );
   }
 
-  const fabricCost = isStorefront
-    ? roundMoney(resolvedFabricPricePerMeter * fabricMeters)
-    : 0;
+  const fabricCost = !isStorefront
+    ? 0
+    : typeof fabricCostOverride === 'number'
+      ? roundMoney(fabricCostOverride)
+      : roundMoney(resolvedFabricPricePerMeter * fabricMeters);
 
   const subtotal = roundMoney(
     designBase + fabricCost + tailoringFee + deliveryFee
@@ -153,6 +379,7 @@ export function calculateCustomOrderItemPricing({
   fabricMeters,
   fabricSource,
   fabricPricePerMeter = 0,
+  fabricCost: fabricCostOverride = null,
   vatRate = 0.05,
   currency = 'AED',
 }) {
@@ -183,9 +410,11 @@ export function calculateCustomOrderItemPricing({
     );
   }
 
-  const fabricCost = isStorefront
-    ? roundMoney(resolvedFabricPricePerMeter * fabricMeters)
-    : 0;
+  const fabricCost = !isStorefront
+    ? 0
+    : typeof fabricCostOverride === 'number'
+      ? roundMoney(fabricCostOverride)
+      : roundMoney(resolvedFabricPricePerMeter * fabricMeters);
 
   const subtotal = roundMoney(designBase + fabricCost + tailoringFee);
   const vatAmount = roundMoney(subtotal * vatRate);
@@ -290,6 +519,9 @@ export function buildCustomOrderPricing({
   deliveryType = 'delivery',
   deliveryFee = null,
   parcelPlan = null,
+  cutId = null,
+  cutIds = null,
+  cutSelections = null,
 }) {
   if (!design) {
     throw new PricingValidationError('design is required');
@@ -323,12 +555,24 @@ export function buildCustomOrderPricing({
       ? deliveryFee
       : parcelPlan?.deliveryFee ?? getPerParcelDeliveryFee(settings);
 
+  const fabricPricing =
+    fabricSource === 'storefront'
+      ? resolveStorefrontFabricPricing({
+          fabric,
+          fabricMeters,
+          cutId,
+          cutIds,
+          cutSelections,
+        })
+      : { fabricCost: 0, fabricPricePerMeter: 0 };
+
   const pricing = calculateCustomOrderPricing({
     designBase: calculatedDesignBase,
     tailoringFee: design.tailoringFee,
     fabricMeters,
     fabricSource,
-    fabricPricePerMeter: fabric?.pricePerMeter ?? 0,
+    fabricPricePerMeter: fabricPricing.fabricPricePerMeter,
+    fabricCost: fabricPricing.fabricCost,
     deliveryFee: resolvedDeliveryFee,
     vatRate: settings.vatRate,
     currency: settings.currency,
@@ -355,6 +599,9 @@ export async function getCustomOrderPricing({
   fabricId = null,
   fabricSource,
   fabricMeters,
+  cutId = null,
+  cutIds = null,
+  cutSelections = null,
   deliveryType = 'delivery',
   addonIds = [],
 }) {
@@ -385,6 +632,16 @@ export async function getCustomOrderPricing({
     }
   }
 
+  await validateCustomOrderItemFabric({
+    design,
+    fabric,
+    fabricSource,
+    fabricMeters,
+    cutId,
+    cutIds,
+    cutSelections,
+  });
+
   const parcelPlan = await planCustomOrderParcels({
     fabricSource,
     items: [{ designId, fabricId, fabricMeters }],
@@ -403,6 +660,9 @@ export async function getCustomOrderPricing({
     deliveryType,
     deliveryFee: parcelPlan.deliveryFee,
     parcelPlan,
+    cutId,
+    cutIds,
+    cutSelections,
   });
 }
 
@@ -415,6 +675,9 @@ export function buildCustomOrderItemPricing({
   fabricSource,
   fabricMeters,
   settings,
+  cutId = null,
+  cutIds = null,
+  cutSelections = null,
 }) {
   if (!design) {
     throw new PricingValidationError('design is required');
@@ -441,12 +704,24 @@ export function buildCustomOrderItemPricing({
     ? roundMoney(design.basePrice * fabricMeters)
     : design.basePrice;
 
+  const fabricPricing =
+    fabricSource === 'storefront'
+      ? resolveStorefrontFabricPricing({
+          fabric,
+          fabricMeters,
+          cutId,
+          cutIds,
+          cutSelections,
+        })
+      : { fabricCost: 0, fabricPricePerMeter: 0 };
+
   return calculateCustomOrderItemPricing({
     designBase: calculatedDesignBase,
     tailoringFee: design.tailoringFee,
     fabricMeters,
     fabricSource,
-    fabricPricePerMeter: fabric?.pricePerMeter ?? 0,
+    fabricPricePerMeter: fabricPricing.fabricPricePerMeter,
+    fabricCost: fabricPricing.fabricCost,
     vatRate: settings.vatRate,
     currency: settings.currency,
   });
@@ -494,6 +769,16 @@ export async function getMultiItemCustomOrderPricing({
       }
     }
 
+    await validateCustomOrderItemFabric({
+      design,
+      fabric,
+      fabricSource,
+      fabricMeters: item.fabricMeters,
+      cutId: item.cutId ?? null,
+      cutIds: item.cutIds ?? null,
+      cutSelections: item.cutSelections ?? null,
+    });
+
     itemPricings.push(
       buildCustomOrderItemPricing({
         design,
@@ -501,6 +786,9 @@ export async function getMultiItemCustomOrderPricing({
         fabricSource,
         fabricMeters: item.fabricMeters,
         settings,
+        cutId: item.cutId ?? null,
+        cutIds: item.cutIds ?? null,
+        cutSelections: item.cutSelections ?? null,
       })
     );
   }

@@ -1,4 +1,5 @@
 import { api, type ApiError } from "@/lib/api/client";
+import { normalizeUaePhone } from "@/lib/uaePhone";
 
 export const SHOP_EMIRATES = [
   "Abu Dhabi",
@@ -66,7 +67,7 @@ export function shopPickupToFabricStorePickup(
       city: pickup.city?.trim() || "",
       street: pickup.line1?.trim() || "",
       building: pickup.line2?.trim() || "",
-      phone: toUaeLocalPhoneDigits(pickup.phone),
+      phone: normalizeUaePhone(pickup.phone || ""),
     };
   }
 
@@ -75,7 +76,7 @@ export function shopPickupToFabricStorePickup(
     city: shop?.city?.trim() || "",
     street: shop?.location?.trim() || "",
     building: "",
-    phone: toUaeLocalPhoneDigits(shop?.phone),
+    phone: normalizeUaePhone(shop?.phone || ""),
   };
 }
 

@@ -652,6 +652,10 @@ export default function FabricDetailView({
                       <div className="space-y-0 divide-y divide-[#E4E0D8] border-y border-[#E4E0D8]">
                         {cuts.map((entry) => {
                           const cutLabel = getCutDisplayName(entry, locale);
+                          const lengthLabel = getCutLengthLabel(entry, locale);
+                          const cutTitle = lengthLabel
+                            ? `${cutLabel} (${lengthLabel})`
+                            : cutLabel;
                           const isSelected = (cutSelections[entry.cutId] ?? 0) > 0;
                           const quantity = cutSelections[entry.cutId] ?? 0;
                           const isOutOfStock = entry.stock <= 0;
@@ -668,12 +672,12 @@ export default function FabricDetailView({
                                   disabled={isOutOfStock}
                                   onChange={() => toggleCutSelection(entry)}
                                   className="mt-1 w-4 h-4 rounded border-gray-300 text-black focus:ring-black disabled:cursor-not-allowed"
-                                  aria-label={cutLabel}
+                                  aria-label={cutTitle}
                                 />
                                 <div className="flex-1 min-w-0">
                                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                     <span className="[font-family:var(--font-body)] text-sm font-medium text-black">
-                                      {cutLabel}
+                                      {cutTitle}
                                     </span>
                                     <span className="[font-family:var(--font-ui)] text-sm text-black">
                                       {formatCurrency(entry.price, locale)}
@@ -723,7 +727,7 @@ export default function FabricDetailView({
                                         <span className="text-lg">+</span>
                                       </button>
                                       <span className="text-[10px] text-gray-500 uppercase tracking-wider font-ui">
-                                        {cutLabel}
+                                        {cutTitle}
                                       </span>
                                     </div>
                                   )}

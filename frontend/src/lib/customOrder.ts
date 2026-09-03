@@ -5,6 +5,7 @@ import { resolveDesignImage } from "@/lib/tailors";
 import {
   convertToMeters,
   convertToWar,
+  cutValueToMeters,
   getDisplayUnit,
   normalizeFabricUnit,
   WAR_TO_METER,
@@ -108,8 +109,16 @@ export interface CustomOrderLineItem {
   fabric: CustomOrderFabricSelection | null;
   fabricMeters: number | null;
   fabricUnit: FabricUnit;
+  /** @deprecated Prefer cutSelections — kept for draft migration */
   cutId?: string | null;
+
   selectedCuts?: CustomOrderSelectedCut[];
+
+  /** @deprecated Prefer cutSelections — kept for draft migration */
+  cutIds?: string[];
+  /** Selected cut quantities: cutId -> pieces (1..stock) */
+  cutSelections?: Record<string, number>;
+
 }
 
 export const CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS = [
@@ -172,6 +181,8 @@ export interface CustomOrderPreviewItemPayload {
   fabricId?: string;
   fabricMeters: number;
   cutId?: string;
+  cutIds?: string[];
+  cutSelections?: { cutId: string; quantity: number }[];
 }
 
 export interface CustomOrderPreviewPayload {
@@ -417,6 +428,41 @@ function normalizeLineItem(value: unknown): CustomOrderLineItem | null {
 
   const meters = normalizeNumber(item.fabricMeters);
 
+  const legacyCutId = typeof item.cutId === "string" ? item.cutId : null;
+  const legacyCutIds = Array.isArray(item.cutIds)
+    ? item.cutIds.filter((id): id is string => typeof id === "string" && id.length > 0)
+    : legacyCutId
+      ? [legacyCutId]
+      : [];
+
+  let cutSelections: Record<string, number> = {};
+  if (
+    item.cutSelections &&
+    typeof item.cutSelections === "object" &&
+    !Array.isArray(item.cutSelections)
+  ) {
+    for (const [cutId, quantity] of Object.entries(item.cutSelections)) {
+      const qty = Math.floor(Number(quantity));
+      if (cutId && Number.isFinite(qty) && qty > 0) {
+        cutSelections[cutId] = qty;
+      }
+    }
+  } else if (Array.isArray(item.cutSelections)) {
+    for (const entry of item.cutSelections as { cutId?: string; quantity?: number }[]) {
+      const cutId = typeof entry?.cutId === "string" ? entry.cutId : "";
+      const qty = Math.floor(Number(entry?.quantity));
+      if (cutId && Number.isFinite(qty) && qty > 0) {
+        cutSelections[cutId] = (cutSelections[cutId] || 0) + qty;
+      }
+    }
+  } else {
+    for (const cutId of legacyCutIds) {
+      cutSelections[cutId] = (cutSelections[cutId] || 0) + 1;
+    }
+  }
+
+  const cutIds = Object.keys(cutSelections);
+
   return {
     id: item.id,
     design,
@@ -424,7 +470,9 @@ function normalizeLineItem(value: unknown): CustomOrderLineItem | null {
     fabric,
     fabricMeters: meters,
     fabricUnit: normalizeFabricUnit(item.fabricUnit),
-    cutId: typeof item.cutId === "string" ? item.cutId : null,
+    cutId: cutIds[0] ?? null,
+    cutIds,
+    cutSelections,
   };
 }
 
@@ -676,10 +724,100 @@ export function isLineItemMetersValid(
   return rounded >= 2 && rounded <= 7;
 }
 
+export function getLineItemCutSelections(
+  item: CustomOrderLineItem,
+): Record<string, number> {
+  if (item.cutSelections && Object.keys(item.cutSelections).length > 0) {
+    const next: Record<string, number> = {};
+    for (const [cutId, quantity] of Object.entries(item.cutSelections)) {
+      const qty = Math.floor(Number(quantity));
+      if (cutId && Number.isFinite(qty) && qty > 0) {
+        next[cutId] = qty;
+      }
+    }
+    return next;
+  }
+
+  const legacyIds = Array.isArray(item.cutIds)
+    ? item.cutIds
+    : item.cutId
+      ? [item.cutId]
+      : [];
+  const next: Record<string, number> = {};
+  for (const cutId of legacyIds) {
+    if (!cutId) continue;
+    next[cutId] = (next[cutId] || 0) + 1;
+  }
+  return next;
+}
+
+export function getLineItemCutIds(item: CustomOrderLineItem): string[] {
+  return Object.keys(getLineItemCutSelections(item));
+}
+
+export function getFabricCutStock(
+  fabric: CustomOrderFabricSelection | null | undefined,
+  cutId: string,
+): number {
+  const entry = fabric?.cuts?.find((cut) => cut.cutId === cutId);
+  if (!entry) return 0;
+  return Math.max(0, Math.floor(Number(entry.stockPieces ?? entry.stock) || 0));
+}
+
+export function getFabricCutLengthInMeters(
+  fabric: CustomOrderFabricSelection | null | undefined,
+  cutId: string,
+): number {
+  const entry = fabric?.cuts?.find((cut) => cut.cutId === cutId);
+  if (!entry?.cut) return 0;
+  return cutValueToMeters(entry.cut.value, entry.cut.unit);
+}
+
+export function getSelectedCutsLengthInMeters(
+  item: CustomOrderLineItem,
+): number {
+  const selections = getLineItemCutSelections(item);
+  const cutIds = Object.keys(selections);
+  if (cutIds.length === 0) return 0;
+  return Number(
+    cutIds
+      .reduce(
+        (sum, cutId) =>
+          sum +
+          getFabricCutLengthInMeters(item.fabric, cutId) *
+            (selections[cutId] || 0),
+        0,
+      )
+      .toFixed(2),
+  );
+}
+
+export function buildCutSelectionsPayload(
+  item: CustomOrderLineItem,
+): { cutId: string; quantity: number }[] {
+  return Object.entries(getLineItemCutSelections(item)).map(
+    ([cutId, quantity]) => ({ cutId, quantity }),
+  );
+}
+
+export function expandCutIdsFromSelections(
+  selections: Record<string, number>,
+): string[] {
+  const ids: string[] = [];
+  for (const [cutId, quantity] of Object.entries(selections)) {
+    const qty = Math.max(0, Math.floor(quantity));
+    for (let i = 0; i < qty; i += 1) {
+      ids.push(cutId);
+    }
+  }
+  return ids;
+}
+
 export function isLineItemComplete(
   item: CustomOrderLineItem,
   fabricSource: FabricSource | null,
 ): boolean {
+
   if (fabricSource === "storefront") {
     if (!item.fabric) return false;
     if (item.selectedCuts && item.selectedCuts.length > 0) {
@@ -687,6 +825,15 @@ export function isLineItemComplete(
     }
     return item.fabricMeters !== null && item.fabricMeters > 0;
   }
+
+  if (!isFabricLengthSufficientForDesign(item)) return false;
+  if (fabricSource === "storefront" && !item.fabric) return false;
+
+  if (isStorefrontCutSelectionRequired(item, fabricSource)) {
+    return getLineItemCutIds(item).length > 0;
+  }
+
+
   return isLineItemMetersValid(item.fabricMeters, item.fabricUnit);
 }
 
@@ -715,12 +862,55 @@ export function createLineItemId(
   return `${designId}-${fabricId ?? "self"}`;
 }
 
+export function getMinimumMetersForDesign(
+  design: CustomOrderDesignSelection,
+): number {
+  const fromSnapshot =
+    design.minCutSnapshot?.lengthInMeters ?? design.minCut?.lengthInMeters;
+  if (typeof fromSnapshot === "number" && fromSnapshot > 0) {
+    return fromSnapshot;
+  }
+  const estimated = design.estimatedMeters;
+  if (typeof estimated === "number" && estimated > 0) {
+    return estimated;
+  }
+  return 2;
+}
+
+export function getLineItemFabricLengthInMeters(
+  item: CustomOrderLineItem,
+): number | null {
+  if (item.fabricMeters === null) return null;
+  if (item.fabricUnit === "war" || item.fabricUnit === "wara") {
+    return Number((item.fabricMeters * WAR_TO_METER).toFixed(2));
+  }
+  return Number(item.fabricMeters.toFixed(2));
+}
+
+export function isFabricLengthSufficientForDesign(
+  item: CustomOrderLineItem,
+): boolean {
+  const selected = getLineItemFabricLengthInMeters(item);
+  if (selected === null) return false;
+  const required = getMinimumMetersForDesign(item.design);
+  return selected + 0.009 >= required;
+}
+
+export function isStorefrontCutSelectionRequired(
+  item: CustomOrderLineItem,
+  fabricSource: FabricSource | null,
+): boolean {
+  return (
+    fabricSource === "storefront" &&
+    Boolean(item.fabric?.cuts && item.fabric.cuts.length > 0)
+  );
+}
+
 export function getSuggestedMetersForDesign(
   design: CustomOrderDesignSelection,
 ): number {
-  const estimated = design.estimatedMeters;
-  if (!estimated || estimated <= 0) return 3;
-  return Math.min(7, Math.max(2, estimated));
+  const minimum = getMinimumMetersForDesign(design);
+  return Math.min(7, Math.max(2, minimum));
 }
 
 export function buildAutoLineItem(
@@ -732,8 +922,11 @@ export function buildAutoLineItem(
     design,
     tailor: design.tailor,
     fabric,
-    fabricMeters: getSuggestedMetersForDesign(design),
+    fabricMeters: null,
     fabricUnit: "meters",
+    cutId: null,
+    cutIds: [],
+    cutSelections: {},
   };
 }
 
@@ -778,10 +971,21 @@ export function buildCustomOrderPreviewPayload(
     // Round to 2 decimal places
     metersInMeters = Number(metersInMeters.toFixed(2));
 
+    const cutSelectionsPayload = buildCutSelectionsPayload(item);
+    const expandedCutIds = expandCutIdsFromSelections(
+      getLineItemCutSelections(item),
+    );
+
     items.push({
       designId: item.design._id,
       fabricMeters: metersInMeters, // always in meters
-      ...(item.cutId ? { cutId: item.cutId } : {}),
+      ...(cutSelectionsPayload.length > 0
+        ? {
+            cutId: cutSelectionsPayload[0].cutId,
+            cutIds: expandedCutIds,
+            cutSelections: cutSelectionsPayload,
+          }
+        : {}),
       ...(draft.fabricSource === "storefront" && item.fabric
         ? { fabricId: item.fabric._id }
         : {}),

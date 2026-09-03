@@ -8,10 +8,9 @@ import { getTranslation } from "@/lib/getTranslation";
 import {
   FabricFormData,
   fromApiFabric,
-  PickupAddress,
 } from "@/lib/createFabricAdmin";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
-import { ChevronLeft, Edit, MapPin, Layers, Tag, Globe, Calendar, CheckCircle, XCircle } from "lucide-react";
+import { ChevronLeft, Edit, MapPin, Layers, Tag, Calendar } from "lucide-react";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { resolveMediaUrl } from "@/lib/media";
 
@@ -67,9 +66,7 @@ export default function FabricDetailsPage() {
 
         setFabric(fromApiFabric(data));
       } catch (err: unknown) {
-        setError(
-          getApiErrorMessage(err, t.adminFabrics.errors.load_failed),
-        );
+        setError(getApiErrorMessage(err, t.adminFabrics.errors.load_failed));
       } finally {
         setLoading(false);
       }
@@ -100,7 +97,6 @@ export default function FabricDetailsPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 px-4 md:px-0">
-      
       {/* Breadcrumbs & Header Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-100">
         <div className="text-left">
@@ -135,12 +131,13 @@ export default function FabricDetailsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
         {/* Left Column - Image Gallery */}
         <div className="lg:col-span-5 space-y-4">
-          <div 
+          <div
             className="aspect-square bg-[#F5F4F0] rounded-xl overflow-hidden relative cursor-zoom-in border border-gray-100 group"
-            onClick={() => handleImageClick(resolveMediaUrl(images[activeImage]) || "")}
+            onClick={() =>
+              handleImageClick(resolveMediaUrl(images[activeImage]) || "")
+            }
           >
             <img
               src={resolveMediaUrl(images[activeImage]) || "/placeholder.png"}
@@ -148,7 +145,13 @@ export default function FabricDetailsPage() {
               className="w-full h-full object-cover transition duration-500 group-hover:scale-102"
             />
             <div className="absolute top-4 left-4 bg-black/75 text-white px-3 py-1 text-[10px] tracking-wider uppercase font-mono rounded">
-              {fabric.isActive ? (isAr ? "نشط" : "Active") : (isAr ? "غير نشط" : "Inactive")}
+              {fabric.isActive
+                ? isAr
+                  ? "نشط"
+                  : "Active"
+                : isAr
+                  ? "غير نشط"
+                  : "Inactive"}
             </div>
           </div>
 
@@ -159,7 +162,9 @@ export default function FabricDetailsPage() {
                   key={idx}
                   onClick={() => setActiveImage(idx)}
                   className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition ${
-                    idx === activeImage ? "border-black scale-102" : "border-transparent hover:border-gray-300"
+                    idx === activeImage
+                      ? "border-black scale-102"
+                      : "border-transparent hover:border-gray-300"
                   }`}
                 >
                   <img
@@ -175,13 +180,12 @@ export default function FabricDetailsPage() {
 
         {/* Right Column - Product Attributes & Pickup Location */}
         <div className="lg:col-span-7 space-y-6 text-left">
-          
           {/* Section 1: Overview */}
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-xs space-y-4">
             <h2 className="text-xs uppercase tracking-widest text-gray-400 font-semibold border-b border-gray-50 pb-2">
               Overview
             </h2>
-            
+
             <div className="grid grid-cols-1 gap-4">
               {fabric.cuts?.length > 0 ? (
                 <div className="overflow-x-auto">
@@ -215,25 +219,29 @@ export default function FabricDetailsPage() {
                   </table>
                 </div>
               ) : (
-                <p className="text-sm text-gray-500">No cut pricing configured.</p>
-              )}
-              {fabric.pricePerMeter != null && (
-                <p className="text-xs text-gray-400">
-                  Est. from cuts: AED {fabric.pricePerMeter}/m ·{" "}
-                  {fabric.stockInMeters ?? 0} m total stock equivalent
+                <p className="text-sm text-gray-500">
+                  No cut pricing configured.
                 </p>
               )}
             </div>
 
             <div className="border-t border-gray-50 pt-4">
-              <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400">URL Slug</p>
-              <p className="text-sm font-mono text-gray-600 mt-0.5 break-all">{fabric.slug}</p>
+              <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400">
+                URL Slug
+              </p>
+              <p className="text-sm font-mono text-gray-600 mt-0.5 break-all">
+                {fabric.slug}
+              </p>
             </div>
 
             {fabric.listedByStore && (
               <div className="border-t border-gray-50 pt-4">
-                <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400">Listed By Store</p>
-                <p className="text-sm font-medium text-black mt-0.5">{fabric.listedByStore}</p>
+                <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400">
+                  Listed By Store
+                </p>
+                <p className="text-sm font-medium text-black mt-0.5">
+                  {fabric.listedByStore}
+                </p>
               </div>
             )}
           </div>
@@ -250,15 +258,19 @@ export default function FabricDetailsPage() {
                   <Layers className="w-3.5 h-3.5" />
                   <span>Material (EN)</span>
                 </div>
-                <p className="text-sm font-medium text-black mt-0.5">{fabric.material || "—"}</p>
+                <p className="text-sm font-medium text-black mt-0.5">
+                  {fabric.material || "—"}
+                </p>
               </div>
-              
+
               <div>
                 <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-gray-400">
                   <Layers className="w-3.5 h-3.5" />
                   <span>Material (AR)</span>
                 </div>
-                <p className="text-sm font-medium text-black mt-0.5">{fabric.materialAr || "—"}</p>
+                <p className="text-sm font-medium text-black mt-0.5">
+                  {fabric.materialAr || "—"}
+                </p>
               </div>
 
               <div>
@@ -266,7 +278,9 @@ export default function FabricDetailsPage() {
                   <Tag className="w-3.5 h-3.5" />
                   <span>Tag (EN)</span>
                 </div>
-                <p className="text-sm font-medium text-black mt-0.5">{fabric.tag || "—"}</p>
+                <p className="text-sm font-medium text-black mt-0.5">
+                  {fabric.tag || "—"}
+                </p>
               </div>
 
               <div>
@@ -274,7 +288,9 @@ export default function FabricDetailsPage() {
                   <Tag className="w-3.5 h-3.5" />
                   <span>Tag (AR)</span>
                 </div>
-                <p className="text-sm font-medium text-black mt-0.5">{fabric.tagAr || "—"}</p>
+                <p className="text-sm font-medium text-black mt-0.5">
+                  {fabric.tagAr || "—"}
+                </p>
               </div>
 
               {(fabric.minAge !== null || fabric.maxAge !== null) && (
@@ -284,7 +300,13 @@ export default function FabricDetailsPage() {
                     <span>Age Recommendations</span>
                   </div>
                   <p className="text-sm font-medium text-black mt-0.5">
-                    {fabric.minAge !== null ? `${fabric.minAge} years` : "No minimum"} — {fabric.maxAge !== null ? `${fabric.maxAge} years` : "No maximum"}
+                    {fabric.minAge !== null
+                      ? `${fabric.minAge} years`
+                      : "No minimum"}{" "}
+                    —{" "}
+                    {fabric.maxAge !== null
+                      ? `${fabric.maxAge} years`
+                      : "No maximum"}
                   </p>
                 </div>
               )}
@@ -292,10 +314,12 @@ export default function FabricDetailsPage() {
 
             {fabric.colors && fabric.colors.length > 0 && (
               <div className="border-t border-gray-50 pt-4">
-                <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400 mb-2">Available Colors</p>
+                <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400 mb-2">
+                  Available Colors
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {fabric.colors.map((c) => (
-                    <span 
+                    <span
                       key={c}
                       className="px-2.5 py-1 bg-gray-50 text-gray-700 text-xs font-mono border border-gray-150 rounded"
                     >
@@ -310,14 +334,22 @@ export default function FabricDetailsPage() {
               <div className="border-t border-gray-50 pt-4 space-y-3">
                 {fabric.description && (
                   <div>
-                    <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400">Description (EN)</p>
-                    <p className="text-sm text-gray-600 mt-1 leading-relaxed whitespace-pre-line">{fabric.description}</p>
+                    <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400">
+                      Description (EN)
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1 leading-relaxed whitespace-pre-line">
+                      {fabric.description}
+                    </p>
                   </div>
                 )}
                 {fabric.descriptionAr && (
                   <div className="text-right">
-                    <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400 text-left">Description (AR)</p>
-                    <p className="text-sm text-gray-600 mt-1 leading-relaxed whitespace-pre-line dir-rtl">{fabric.descriptionAr}</p>
+                    <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400 text-left">
+                      Description (AR)
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1 leading-relaxed whitespace-pre-line dir-rtl">
+                      {fabric.descriptionAr}
+                    </p>
                   </div>
                 )}
               </div>
@@ -335,36 +367,54 @@ export default function FabricDetailsPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">Emirate</p>
-                <p className="text-sm font-medium text-black mt-0.5">{fabric.pickupAddress.emirate || "—"}</p>
+                <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                  Emirate
+                </p>
+                <p className="text-sm font-medium text-black mt-0.5">
+                  {fabric.pickupAddress.emirate || "—"}
+                </p>
               </div>
 
               <div>
-                <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">City</p>
-                <p className="text-sm font-medium text-black mt-0.5">{fabric.pickupAddress.city || "—"}</p>
+                <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                  City
+                </p>
+                <p className="text-sm font-medium text-black mt-0.5">
+                  {fabric.pickupAddress.city || "—"}
+                </p>
               </div>
 
               <div>
-                <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">Street / Area</p>
-                <p className="text-sm font-medium text-black mt-0.5">{fabric.pickupAddress.street || "—"}</p>
+                <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                  Street / Area
+                </p>
+                <p className="text-sm font-medium text-black mt-0.5">
+                  {fabric.pickupAddress.street || "—"}
+                </p>
               </div>
 
               <div>
-                <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">Building / Villa</p>
-                <p className="text-sm font-medium text-black mt-0.5">{fabric.pickupAddress.building || "—"}</p>
+                <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                  Building / Villa
+                </p>
+                <p className="text-sm font-medium text-black mt-0.5">
+                  {fabric.pickupAddress.building || "—"}
+                </p>
               </div>
 
               <div className="col-span-2 border-t border-gray-50 pt-4">
-                <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">Contact Number</p>
+                <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                  Contact Number
+                </p>
                 <p className="text-sm font-medium text-black font-mono mt-0.5">
-                  {fabric.pickupAddress.phone ? `+971 ${fabric.pickupAddress.phone}` : "—"}
+                  {fabric.pickupAddress.phone
+                    ? `+971 ${fabric.pickupAddress.phone}`
+                    : "—"}
                 </p>
               </div>
             </div>
           </div>
-
         </div>
-
       </div>
 
       <ImageModal
