@@ -591,7 +591,7 @@ const ViewFabricDetails = ({ product }: FabricDetailsProps) => {
             initial={{ y: 100 }}
             animate={{ y: 0 }}
             exit={{ y: 100 }}
-            className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-white border-t border-[#E8E8E4] px-4 sm:px-6 py-4 flex items-center justify-between"
+            className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-white border-t border-[#E8E8E4] px-4 sm:px-6 pt-4 pb-safe flex items-center justify-between gap-3 ps-[max(1rem,var(--safe-left))] pe-[max(1rem,var(--safe-right))]"
           >
             <div>
               <p className="text-sm font-medium text-black truncate max-w-45">

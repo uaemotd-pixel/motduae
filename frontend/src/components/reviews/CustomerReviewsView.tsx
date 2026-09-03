@@ -16,7 +16,6 @@ interface Review {
 }
 
 const TOAST_BASE = {
-  position: "top-right" as const,
   duration: 6000,
   style: {
     fontFamily: "var(--font-body)",

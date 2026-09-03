@@ -215,7 +215,7 @@ function AddonDetailContent({
                   />
                   {tag && (
                     <div
-                      className="absolute top-3 left-3 z-10 px-2.5 py-1 text-xs font-medium rounded shadow-sm uppercase"
+                      className="absolute top-1.5 left-1.5 z-10 px-1.5 py-px text-[8px] [font-family:var(--font-ui)] tracking-[0.12em] font-medium shadow-sm uppercase max-w-[calc(100%-3.75rem)] truncate"
                       style={{
                         backgroundColor: tagStyles.bg,
                         color: tagStyles.text,

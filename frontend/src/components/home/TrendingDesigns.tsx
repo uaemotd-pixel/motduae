@@ -522,9 +522,9 @@ export function TrendingSection() {
                           />
                         </div>
 
-                        <div className="absolute top-2 xs:top-3 left-2 xs:left-3 z-10">
+                        <div className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-3.75rem)]">
                           <span
-                            className="text-white px-2.5 xs:px-3 py-1 xs:py-1.25 text-[10px] xs:text-[12px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.24em] font-bold"
+                            className="block px-1.5 py-px text-[8px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.12em] font-medium shadow-sm text-white truncate"
                             style={{ backgroundColor: categoryColor }}
                           >
                             {category}

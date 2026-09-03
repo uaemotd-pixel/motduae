@@ -306,7 +306,7 @@ function AccountPageContent() {
         />
       </aside>
 
-      <div className="lg:hidden fixed top-4 left-4 z-50">
+      <div className="lg:hidden fixed safe-fixed-top start-4 z-50">
         <button
           onClick={() => setSidebarOpen(true)}
           className="p-2 rounded-lg bg-black/80 backdrop-blur-sm border border-white/20 text-white hover:bg-white/10 transition"

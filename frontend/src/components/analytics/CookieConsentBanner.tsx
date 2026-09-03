@@ -46,13 +46,13 @@ export default function CookieConsentBanner() {
       role="dialog"
       aria-live="polite"
       aria-label={isAr ? "موافقة ملفات تعريف الارتباط" : "Cookie consent"}
-      className="fixed inset-x-0 bottom-0 z-[10000] p-4 sm:p-6"
+      className="fixed inset-x-0 bottom-0 z-[10000] p-3 sm:p-6 pb-[max(0.75rem,var(--safe-bottom))] ps-[max(0.75rem,var(--safe-left))] pe-[max(0.75rem,var(--safe-right))]"
     >
       <div
-        className="mx-auto max-w-3xl border border-[#1a1a1a] bg-white"
+        className="mx-auto max-w-3xl border border-[#1a1a1a] bg-white max-h-[min(70dvh,32rem)] overflow-y-auto"
         style={{ boxShadow: "0 -12px 40px rgba(0,0,0,0.18)" }}
       >
-        <div className="flex flex-col gap-5 px-5 py-5 sm:px-7 sm:py-6 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-4 px-4 py-4 sm:gap-5 sm:px-7 sm:py-6 md:flex-row md:items-end md:justify-between">
           <div className="max-w-xl space-y-2">
             <p className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.28em] text-[#8A8A80]">
               {isAr ? "الخصوصية" : "Privacy"}

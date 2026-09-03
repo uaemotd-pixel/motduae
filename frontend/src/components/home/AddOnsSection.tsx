@@ -362,13 +362,13 @@ export function AddOnsSection() {
                         <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
                         {displayTag && (
-                          <div className="absolute top-2 xs:top-3 left-2 xs:left-3 z-10">
+                          <div className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-3.75rem)]">
                             <span
                               style={{
                                 backgroundColor: tagStyles.bg,
                                 color: tagStyles.text,
                               }}
-                              className="px-2.5 xs:px-3 py-1 xs:py-1.25 text-[10px] xs:text-[12px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.24em] font-bold"
+                              className="block px-1.5 py-px text-[8px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.12em] font-medium shadow-sm truncate"
                             >
                               {displayTag}
                             </span>
@@ -418,7 +418,7 @@ export function AddOnsSection() {
       </div>
 
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-black text-white text-xs px-4 py-2.5 shadow-md font-mono tracking-wider uppercase animate-fade-in-up">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 bg-black text-white text-xs px-4 py-2.5 shadow-md font-mono tracking-wider uppercase animate-fade-in-up max-w-[calc(100vw-24px)] text-center pointer-events-none mb-[var(--safe-bottom)]">
           {toastMessage}
         </div>
       )}

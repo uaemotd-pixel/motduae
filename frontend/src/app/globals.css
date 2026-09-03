@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "lenis/dist/lenis.css";
+@config "../../tailwind.config.mjs";
 
 @font-face {
   font-family: "TT Norms Pro";
@@ -92,10 +93,35 @@
   /* Desktop */
   --space-section-xl: 96px;
   /* Large Desktop */
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --nav-height: 56px;
+}
+
+@media (min-width: 375px) {
+  :root {
+    --nav-height: 60px;
+  }
+}
+
+@media (min-width: 640px) {
+  :root {
+    --nav-height: 64px;
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --nav-height: 72px;
+  }
 }
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 
 html,
@@ -104,6 +130,23 @@ body {
   background-color: var(--bg-page);
   color: var(--color-black);
   min-height: 100%;
+  max-width: 100%;
+}
+
+body {
+  overflow-x: clip;
+}
+
+.sticky-below-nav {
+  top: calc(var(--nav-height) + var(--safe-top));
+}
+
+.safe-fixed-top {
+  top: max(1rem, var(--safe-top));
+}
+
+.pb-safe {
+  padding-bottom: max(0.75rem, var(--safe-bottom));
 }
 
 .nav-blur {

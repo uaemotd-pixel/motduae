@@ -92,7 +92,7 @@ export default function RegisterForm() {
   };
 
   return (
-    <main className="min-h-screen w-full flex flex-col md:flex-row bg-white">
+    <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
       {/* Left Side - Image Section */}
       <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden">
         <img src={images.des7.src} alt="Register" className="w-full" />

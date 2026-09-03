@@ -377,7 +377,7 @@ export default function AdminLayout({
       >
         <button
           onClick={() => setIsSidebarOpen(true)}
-          className="lg:hidden fixed top-4 left-4 z-20 rounded-md bg-black p-2 shadow-md transition hover:bg-(--dash-charcoal-deep)"
+          className="lg:hidden fixed safe-fixed-top start-4 z-20 rounded-md bg-black p-2 shadow-md transition hover:bg-(--dash-charcoal-deep)"
           aria-label="Open menu"
         >
           <Menu className="w-5 h-5 text-white" />

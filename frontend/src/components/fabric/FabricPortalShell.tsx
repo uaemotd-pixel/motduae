@@ -229,7 +229,7 @@ export default function FabricPortalShell({
         <button
           type="button"
           onClick={() => setIsSidebarOpen(true)}
-          className="fixed top-4 left-4 z-20 bg-black p-2 text-white transition hover:bg-(--dash-charcoal-deep) lg:hidden rounded-md"
+          className="fixed safe-fixed-top start-4 z-20 bg-black p-2 text-white transition hover:bg-(--dash-charcoal-deep) lg:hidden rounded-md"
           aria-label="Open menu"
         >
           <Menu className="w-5 h-5" />

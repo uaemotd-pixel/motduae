@@ -6,7 +6,6 @@ import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
 
 const TOAST_BASE = {
-  position: "top-right" as const,
   duration: 6000,
   style: {
     fontFamily: "var(--font-body)",

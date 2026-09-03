@@ -70,7 +70,7 @@ export default function FabricRegisterForm() {
     };
 
     return (
-        <main className="min-h-screen w-full flex flex-col md:flex-row bg-white">
+        <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
             <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden relative">
                 <img
                     src={images.sub2.src}

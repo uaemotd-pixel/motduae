@@ -356,11 +356,11 @@ export default function CustomOrderJourneyRibbon() {
                 className="mb-6 border border-(--color-border) bg-white overflow-hidden"
             >
                 <div className="flex items-center justify-between gap-3 px-3 sm:px-5 py-2 border-b border-(--color-border)/60 bg-white/50">
-                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-black">
+                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-black min-w-0 truncate">
                         {t("ribbonLabel")}
                     </p>
                     {extraCount > 0 && (
-                        <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.2em] text-(--color-grey-muted) border border-(--color-border) px-2 py-1 bg-white">
+                        <span className="shrink-0 [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.2em] text-(--color-grey-muted) border border-(--color-border) px-2 py-1 bg-white">
                             {t("moreItems", { count: extraCount })}
                         </span>
                     )}
