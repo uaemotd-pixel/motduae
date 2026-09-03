@@ -617,6 +617,17 @@ export default function FabricMetersStep() {
   const backLabel =
     draft.firstStep === "tailor" ? t("backToFabric") : t("backToTailor");
 
+  const selectedDesign = draft.selectedDesigns[0] ?? null;
+  const selectedFabric = draft.selectedFabrics[0] ?? null;
+  const designMinLength = selectedDesign ? getDesignMinCutLength(selectedDesign) : 0;
+  const fabricMaxCut = selectedFabric ? getFabricMaxCutLength(selectedFabric) : 0;
+  const needsSecondCutHint =
+    !usingOwnFabric &&
+    selectedFabric &&
+    fabricMaxCut > 0 &&
+    designMinLength > 0 &&
+    designMinLength > fabricMaxCut;
+
   const handleMetersChange = (itemId: string, value: string) => {
     if (value.trim() === "") {
       updateLineItemMeters(itemId, null);
@@ -708,6 +719,15 @@ export default function FabricMetersStep() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {needsSecondCutHint && (
+        <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+          <span className="text-lg shrink-0">💡</span>
+          <p className="[font-family:var(--font-ui)] text-xs text-amber-950 font-medium leading-relaxed">
+            {t("designLengthHint", { min: designMinLength })}
+          </p>
         </div>
       )}
 

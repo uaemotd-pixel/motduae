@@ -344,6 +344,7 @@
     "ownFabricLabel": "Own fabric",
     "selectedFabricsSummary": "Selected fabrics ({count})",
     "selectedDesignsSummary": "Selected designs ({count})",
+
     "designLengthHint": "This design's minimum is {min} m. You can add a second cut. Leftover fabric is returned to you.",
     "cutPickerTitle": "Select Fabric Cuts",
     "cutSlotsEyebrow": "Select 1 or 2 cuts to send to the tailor",
@@ -363,6 +364,9 @@
     "selectAtLeastOneCut": "Please select at least one cut to continue.",
     "designMinCutRequired": "Design minimum: {min} m",
     "selectedBadge": "Selected"
+
+    "designLengthHint": "This design's minimum is {min} m. You can add a second cut. Leftover fabric is returned to you."
+
   },
   "CustomOrderTailor": {
     "stepLabel": "Step {step} of {total}",
