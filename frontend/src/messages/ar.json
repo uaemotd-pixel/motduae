@@ -355,7 +355,8 @@
     "itemFabric": "القماش: {name}",
     "ownFabricLabel": "قماش خاص",
     "selectedFabricsSummary": "الأقمشة المختارة ({count})",
-    "selectedDesignsSummary": "التصاميم المختارة ({count})"
+    "selectedDesignsSummary": "التصاميم المختارة ({count})",
+    "designLengthHint": "الحد الأدنى لهذا التصميم هو {min} م. يمكنك إضافة قصة ثانية. سيتم إرجاع القماش المتبقي إليك."
   },
   "CustomOrderTailor": {
     "stepLabel": "الخطوة {step} من {total}",
@@ -372,7 +373,8 @@
     "crossStepFabrics": "القماش المختار — اختر تصميماً واحداً أدناه",
     "tailorLabel": "الخياط: {name}",
     "emptyTailors": "لا توجد متاجر خياطة متاحة.",
-    "emptyDesigns": "لا توجد تصاميم متاحة من هذا الخياط حالياً.",
+    "emptyDesigns": "لا توجد تصاميم متاحة في الدليل حالياً.",
+    "emptyDesignsCatalog": "لا توجد تصاميم متاحة في الدليل حالياً.",
     "backToFabric": "العودة لاختيار القماش",
     "browseTailors": "تصفح جميع الخياطين",
     "continueToFabric": "متابعة إلى اختيار القماش",
@@ -386,7 +388,8 @@
     "estimatedDays": "تقريباً",
     "days": "يوم",
     "estimatedMeters": "القماش المقدّر",
-    "meters": "م"
+    "meters": "م",
+    "designLengthHint": "الحد الأدنى لهذا التصميم هو {min} م. يمكنك إضافة قصة ثانية. سيتم إرجاع القماش المتبقي إليك."
   },
   "CustomOrderJourney": {
     "ribbonLabel": "إبداعك قيد التنفيذ",
@@ -419,6 +422,10 @@
     "loading": "جاري التحميل...",
     "loadingFabrics": "جاري تحميل الأقمشة...",
     "empty": "لا توجد أقمشة تطابق هذا الفلتر.",
+    "noFabricsWithCuts": "لا توجد أقمشة بقصات متوفرة.",
+    "allOutOfStock": "جميع الأقمشة غير متوفرة في المخزن حالياً.",
+    "outOfStockBadge": "نفذت الكمية",
+    "designLengthHint": "الحد الأدنى لهذا التصميم هو {min} م. يمكنك إضافة قصة ثانية. سيتم إرجاع القماش المتبقي إليك.",
     "browseFabrics": "تصفح متجر الأقمشة",
     "backToTailor": "العودة إلى الخياط والتصميم",
     "continueToTailor": "متابعة إلى الخياط والتصميم",

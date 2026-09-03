@@ -197,3 +197,20 @@ export function buildCustomOrderDesignHref(
   });
   return `/custom-order/fabric?${params.toString()}`;
 }
+
+export function getDesignMinCutLength(
+  design?: {
+    minCutSnapshot?: { lengthInMeters?: number } | null;
+    minCut?: { lengthInMeters?: number } | null;
+    estimatedMeters?: number;
+  } | null,
+): number {
+  if (!design) return 0;
+  return (
+    design.minCutSnapshot?.lengthInMeters ??
+    design.minCut?.lengthInMeters ??
+    design.estimatedMeters ??
+    0
+  );
+}
+
