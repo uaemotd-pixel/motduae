@@ -7,10 +7,20 @@ import { getTranslation } from "@/lib/getTranslation";
 import { useParams } from "next/navigation";
 
 const BACKGROUND_IMAGES = [
-  images.hero_image_1.src,
-  images.hero_image_2.src,
-  images.hero_image_3.src,
-];
+  {
+    src: images.hero_image_1.src,
+    // Anchor left so the MOTD bag stays visible; mid Y = less face-tight crop
+    position: "object-[0%_38%]",
+  },
+  {
+    src: images.hero_image_2.src,
+    position: "object-[58%_36%]",
+  },
+  {
+    src: images.hero_image_3.src,
+    position: "object-[48%_40%]",
+  },
+] as const;
 
 export function HeroSection() {
   const params = useParams();
@@ -38,12 +48,15 @@ export function HeroSection() {
       <div className="absolute inset-0 w-full h-full z-0">
         <div className="overflow-hidden h-full" ref={emblaRef}>
           <div className="flex h-full embla__container">
-            {BACKGROUND_IMAGES.map((src, idx) => (
-              <div key={idx} className="relative flex-[0_0_100%] h-full">
+            {BACKGROUND_IMAGES.map((image, idx) => (
+              <div
+                key={idx}
+                className="relative flex-[0_0_100%] min-w-0 h-full overflow-hidden"
+              >
                 <img
-                  src={src}
+                  src={image.src}
                   alt={`${t.heroSection.imageAlt} ${idx + 1}`}
-                  className="w-full h-full object-cover"
+                  className={`absolute left-1/2 top-1/2 w-full h-auto min-h-full max-w-none -translate-x-1/2 -translate-y-1/2 object-cover ${image.position}`}
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/25 to-black/10" />
               </div>
@@ -81,7 +94,7 @@ export function HeroSection() {
               }
             `}
           >
-            <span className="lg:whitespace-nowrap break-words">
+            <span className="lg:whitespace-nowrap wrap-break-word">
               {t.heroSection.headlineLine1}{" "}
             </span>
             <br />

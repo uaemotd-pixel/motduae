@@ -30,13 +30,15 @@ import apple_icon from "./apple_icon.svg";
 import google_icon from "./google_icon.svg";
 import heart_icon from "./heart_icon.svg";
 import cart_icon from "./cart_icon.svg";
-import hero_image_1 from "./hero-1.webp";
-import hero_image_2 from "./hero-2.webp";
-import hero_image_3 from "./hero-3.webp";
+import hero_image_1 from "./hero_image_1.jpg";
+import hero_image_2 from "./IMG_3918.jpg";
+import hero_image_3 from "./IMG_3923.jpg";
 import element_1 from "./element-1.webp";
 import element_2 from "./element-2.webp";
 import element_3 from "./element-3.webp";
 import brand_loading_logo from "../PNG/Black/MOTD_Wordmark_Black.png";
+import login_image from "./IMG_3926.jpeg";
+import register_image from "./IMG_3927.jpg";
 
 // Or export individually
 export {
@@ -99,4 +101,8 @@ export {
 
   //   Brand Loading Logo
   brand_loading_logo,
+
+  // Login Image & Register Image
+  login_image,
+  register_image,
 };

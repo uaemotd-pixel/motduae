@@ -100,11 +100,11 @@ export default function LoginPage() {
         return (
             <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
                 {/* Left Side - Image Section */}
-                <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden">
+                <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden relative">
                     <img
-                        src={images.des6.src}
-                        alt="Logo"
-                        className="w-full"
+                        src={images.login_image.src}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover object-[28%_center]"
                     />
                     <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/30 to-transparent"></div>
                     <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-black/20"></div>
@@ -114,7 +114,7 @@ export default function LoginPage() {
                             <img
                                 src="/PNG/White/MOTD_Wordmark_White.png"
                                 alt={"logoAlt"}
-                                className="h-3 xs:h-[13px] sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-[24px] w-auto object-contain"
+                                className="h-3 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6 w-auto object-contain"
                             />
                         </Link>
                     </div>
@@ -241,11 +241,11 @@ export default function LoginPage() {
     return (
         <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
             {/* Left Side - Image Section */}
-            <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden">
+            <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden relative">
                 <img
-                    src={images.des6.src}
-                    alt="Logo"
-                    className="w-full"
+                    src={images.login_image.src}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover object-[28%_center]"
                 />
                 <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/30 to-transparent"></div>
                 <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-black/20"></div>
@@ -255,7 +255,7 @@ export default function LoginPage() {
                         <img
                             src="/PNG/White/MOTD_Wordmark_White.png"
                             alt={"logoAlt"}
-                            className="h-3 xs:h-[13px] sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-[24px] w-auto object-contain"
+                            className="h-3 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6 w-auto object-contain"
                         />
                     </Link>
                 </div>

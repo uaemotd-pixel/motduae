@@ -60,7 +60,7 @@ export default function RegisterForm() {
       setError(
         localeParam === "ar"
           ? "رقم الهاتف غير صحيح. يجب أن يكون 9 أرقام بعد +971"
-          : "Invalid phone number. Must be 9 digits after +971"
+          : "Invalid phone number. Must be 9 digits after +971",
       );
       return;
     }
@@ -94,16 +94,20 @@ export default function RegisterForm() {
   return (
     <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
       {/* Left Side - Image Section */}
-      <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden">
-        <img src={images.des7.src} alt="Register" className="w-full" />
+      <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden relative">
+        <img
+          src={images.register_image.src}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover object-[28%_center]"
+        />
         <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/30 to-transparent"></div>
         <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-black/20"></div>
         <div className="absolute top-7.5 left-7.5 z-10 fade-in">
           <Link href="/" className="shrink-0 flex items-center p-7.5 -m-7.5">
             <img
-              src="\PNG\White\MOTD_Wordmark_White.png"
+              src="/PNG/White/MOTD_Wordmark_White.png"
               alt="logoAlt"
-              className="h-3 xs:h-[13px] sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-[24px] w-auto object-contain"
+              className="h-3 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6 w-auto object-contain"
             />
           </Link>
         </div>
@@ -379,28 +383,37 @@ export default function RegisterForm() {
               />
             </form>
 
-                        <footer className="mt-10 md:mt-12 pt-6 border-t border-black/10 text-center fade-in">
-                            <p className="font-body-md text-[12px] md:text-[13px] text-black/50 uppercase tracking-[0.15em]">
-                                {t.signup.alreadyLabel}
-                                <Link href={loginHref} className="text-black font-medium hover:underline underline-offset-4 ml-2">
-                                    {t.signup.signInLabel}
-                                </Link>
-                            </p>
-                            <div className="flex justify-center gap-5 md:gap-6 mt-4">
-                                <Link href="/privacy" className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors">
-                                    {t.signup.privacyLabel}
-                                </Link>
-                                <Link href="/terms" className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors">
-                                    {t.signup.termsLabel}
-                                </Link>
-                            </div>
-                            <p className="font-label-sm text-[9px] md:text-[10px] text-black/20 mt-4 tracking-widest">
-                                {t.signup.copyrightLabel}
-                            </p>
-                        </footer>
-                    </motion.div>
-                </div>
-            </section>
-        </main>
-    );
+            <footer className="mt-10 md:mt-12 pt-6 border-t border-black/10 text-center fade-in">
+              <p className="font-body-md text-[12px] md:text-[13px] text-black/50 uppercase tracking-[0.15em]">
+                {t.signup.alreadyLabel}
+                <Link
+                  href={loginHref}
+                  className="text-black font-medium hover:underline underline-offset-4 ml-2"
+                >
+                  {t.signup.signInLabel}
+                </Link>
+              </p>
+              <div className="flex justify-center gap-5 md:gap-6 mt-4">
+                <Link
+                  href="/privacy"
+                  className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors"
+                >
+                  {t.signup.privacyLabel}
+                </Link>
+                <Link
+                  href="/terms"
+                  className="font-label-sm text-[9px] md:text-[10px] text-black/30 uppercase tracking-[0.15em] hover:text-black/60 transition-colors"
+                >
+                  {t.signup.termsLabel}
+                </Link>
+              </div>
+              <p className="font-label-sm text-[9px] md:text-[10px] text-black/20 mt-4 tracking-widest">
+                {t.signup.copyrightLabel}
+              </p>
+            </footer>
+          </motion.div>
+        </div>
+      </section>
+    </main>
+  );
 }
