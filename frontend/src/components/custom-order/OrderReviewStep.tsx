@@ -425,7 +425,7 @@ export default function OrderReviewStep() {
 
                         <div>
                           <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                            {t("fabricMeters")}
+                            {t("totalFabricSent")}
                           </dt>
                           <dd className="[font-family:var(--font-body)] text-[15px] text-black">
                             {item.fabricMeters} {t("meters")}
@@ -434,9 +434,24 @@ export default function OrderReviewStep() {
 
                         {(() => {
                           const designMin = getDesignMinCutLength(item.design);
+                          if (designMin <= 0) return null;
+                          return (
+                            <div>
+                              <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                                {t("minRequired")}
+                              </dt>
+                              <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                                {designMin} {t("meters")}
+                              </dd>
+                            </div>
+                          );
+                        })()}
+
+                        {(() => {
+                          const designMin = getDesignMinCutLength(item.design);
                           const totalCut = item.fabricMeters || 0;
                           const leftoverVal =
-                            totalCut > designMin
+                            totalCut > designMin && designMin > 0
                               ? Number((totalCut - designMin).toFixed(2))
                               : 0;
                           if (leftoverVal <= 0) return null;
@@ -446,7 +461,7 @@ export default function OrderReviewStep() {
                                 {t("leftoverLabel")}
                               </dt>
                               <dd className="[font-family:var(--font-body)] text-[14px] text-emerald-700 font-medium">
-                                {t("leftoverNote", { meters: leftoverVal })}
+                                {t("customerLeftoverNotice", { meters: leftoverVal })}
                               </dd>
                             </div>
                           );

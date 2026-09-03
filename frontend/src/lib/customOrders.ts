@@ -27,6 +27,24 @@ export interface CustomOrderDesignSummary {
   slug?: string;
   category?: string;
   images?: string[];
+  minCutSnapshot?: {
+    cutId?: string;
+    lengthInMeters?: number;
+    name?: string;
+    nameAr?: string;
+  } | null;
+  estimatedMeters?: number | null;
+}
+
+export function getDesignMinimumMeters(
+  design: CustomOrderDesignSummary | null | undefined,
+): number {
+  if (!design) return 0;
+  return (
+    design.minCutSnapshot?.lengthInMeters ??
+    design.estimatedMeters ??
+    0
+  );
 }
 
 export interface CustomOrderTailorSummary {
@@ -47,6 +65,14 @@ export interface CustomOrderLineItemSummary {
   design: CustomOrderDesignSummary | null;
   fabric: CustomOrderFabricSummary | null;
   fabricMeters: number;
+  leftoverMeters?: number;
+  selectedCuts?: Array<{
+    cutId?: string;
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+    price?: number;
+  }>;
   tailorShop: CustomOrderTailorSummary | null;
   tailorStatus?: CustomOrderStatus;
   awaitingRestOfOrder?: boolean;
@@ -63,6 +89,14 @@ export interface CustomOrderListItem {
   items: CustomOrderLineItemSummary[];
   design: CustomOrderDesignSummary | null;
   tailorShop: CustomOrderTailorSummary | null;
+  leftoverMeters?: number;
+  selectedCuts?: Array<{
+    cutId?: string;
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+    price?: number;
+  }>;
   addons?: Array<{
     addonId: string;
     name: string;
@@ -82,6 +116,7 @@ export interface CustomOrderListItem {
     vatAmount: number;
     total: number;
     currency: string;
+    leftoverMeters?: number;
   } | null;
 }
 
@@ -107,6 +142,14 @@ export interface CustomOrderDetail {
   status: CustomOrderStatus;
   fabricSource: "storefront" | "self";
   fabricMeters?: number;
+  leftoverMeters?: number;
+  selectedCuts?: Array<{
+    cutId?: string;
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+    price?: number;
+  }>;
   returnItems?: unknown[];
   statusHistory: CustomOrderStatusHistoryEntry[];
   designSnapshot?: CustomOrderDesignSummary & { basePrice?: number };

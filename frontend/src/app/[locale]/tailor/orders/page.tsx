@@ -62,8 +62,38 @@ interface Order {
   _id: string;
   userId: OrderUser | string | null;
   contactEmail?: string;
-  designSnapshot?: { name: string };
+  designSnapshot?: {
+    name: string;
+    minCutSnapshot?: { lengthInMeters?: number; name?: string; nameAr?: string };
+    estimatedMeters?: number;
+  };
   fabricSnapshot?: { name: string } | null;
+  fabricMeters?: number;
+  leftoverMeters?: number;
+  selectedCuts?: Array<{
+    cutId?: string;
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+    price?: number;
+  }>;
+  items?: Array<{
+    designSnapshot?: {
+      name: string;
+      minCutSnapshot?: { lengthInMeters?: number; name?: string; nameAr?: string };
+      estimatedMeters?: number;
+    };
+    fabricSnapshot?: { name: string } | null;
+    fabricMeters?: number;
+    leftoverMeters?: number;
+    selectedCuts?: Array<{
+      cutId?: string;
+      name: string;
+      nameAr?: string;
+      lengthInMeters: number;
+      price?: number;
+    }>;
+  }>;
   measurements?: Measurements;
   status: string;
   tailorStatus?: string;
@@ -463,6 +493,24 @@ export default function TailorOrdersPage() {
             const canRevertStatus =
               canRevert(displayStatus) && !awaitingOtherTailors;
             const isActionable = isTailorActionable(displayStatus);
+            const itemData = order.items?.[0] || order;
+            const minRequired =
+              itemData.designSnapshot?.minCutSnapshot?.lengthInMeters ||
+              itemData.designSnapshot?.estimatedMeters ||
+              order.designSnapshot?.minCutSnapshot?.lengthInMeters ||
+              order.designSnapshot?.estimatedMeters ||
+              0;
+            const totalFabricSent = itemData.fabricMeters ?? order.fabricMeters ?? 0;
+            const leftoverVal =
+              itemData.leftoverMeters ??
+              order.leftoverMeters ??
+              (totalFabricSent > minRequired && minRequired > 0
+                ? Number((totalFabricSent - minRequired).toFixed(2))
+                : 0);
+            const cuts =
+              (itemData.selectedCuts && itemData.selectedCuts.length > 0
+                ? itemData.selectedCuts
+                : order.selectedCuts) || [];
 
             return (
               <div
@@ -495,6 +543,37 @@ export default function TailorOrdersPage() {
                     <p className="text-xs text-gray-500 mt-0.5">
                       {t("fabricLabel", { name: fabricName })}
                     </p>
+                    {cuts.length > 0 && (
+                      <p className="text-[11px] text-gray-600 mt-1">
+                        {cuts
+                          .map((c) =>
+                            locale === "ar"
+                              ? `${c.nameAr || c.name} (${c.lengthInMeters} م)`
+                              : `${c.name} (${c.lengthInMeters}m)`,
+                          )
+                          .join(" + ")}
+                      </p>
+                    )}
+                    <div className="text-[11px] text-gray-500 mt-1.5 space-y-0.5 font-ui">
+                      {totalFabricSent > 0 && (
+                        <p>
+                          <span className="text-gray-400">{t("totalFabricSent")}:</span>{" "}
+                          <span className="text-black font-medium">{totalFabricSent} {locale === "ar" ? "م" : "m"}</span>
+                        </p>
+                      )}
+                      {minRequired > 0 && (
+                        <p>
+                          <span className="text-gray-400">{t("minRequired")}:</span>{" "}
+                          <span className="text-black font-medium">{minRequired} {locale === "ar" ? "م" : "m"}</span>
+                        </p>
+                      )}
+                      {leftoverVal > 0 && (
+                        <p>
+                          <span className="text-emerald-700 font-medium">{t("leftoverToReturn")}:</span>{" "}
+                          <span className="text-emerald-700 font-semibold">{leftoverVal} {locale === "ar" ? "م" : "m"}</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   <div>
@@ -562,6 +641,21 @@ export default function TailorOrdersPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Leftover fabric return banner for tailor */}
+                {leftoverVal > 0 && (
+                  <div className="mx-5 mb-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-xs text-emerald-900 font-ui">
+                    <span className="text-base leading-none">✂️</span>
+                    <div>
+                      <p className="font-semibold text-emerald-950">
+                        {t("leftoverToReturn")}: {leftoverVal} {locale === "ar" ? "م" : "m"}
+                      </p>
+                      <p className="text-emerald-800 text-[11px] mt-0.5">
+                        {t("tailorNotice", { meters: leftoverVal })}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Sizing measurements details block */}
                 <div className="px-5 pb-5">

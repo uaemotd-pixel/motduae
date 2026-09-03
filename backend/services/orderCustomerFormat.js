@@ -23,6 +23,8 @@ export function formatDesignSummary(snapshot, designIdDoc) {
     slug: snapshot.slug || "",
     category: snapshot.category || "",
     images: (designIdDoc && designIdDoc.images) || [],
+    minCutSnapshot: snapshot.minCutSnapshot || null,
+    estimatedMeters: snapshot.estimatedMeters || null,
   };
 }
 
@@ -44,6 +46,8 @@ export function formatCustomOrderLineItems(order) {
       fabric: formatFabricSummary(item.fabricSnapshot, item.fabricId),
       fabricMeters: item.fabricMeters,
       tailorShop: formatTailorShopSummary(item.tailorShopId),
+      leftoverMeters: item.leftoverMeters || 0,
+      selectedCuts: item.selectedCuts || [],
     }));
   }
 
@@ -55,6 +59,8 @@ export function formatCustomOrderLineItems(order) {
       fabric: formatFabricSummary(order.fabricSnapshot, order.fabricId),
       fabricMeters: order.fabricMeters,
       tailorShop: formatTailorShopSummary(order.tailorShopId),
+      leftoverMeters: order.leftoverMeters || 0,
+      selectedCuts: order.selectedCuts || [],
     },
   ];
 }
@@ -77,6 +83,8 @@ export function formatCustomOrderListItem(order) {
       primaryItem?.tailorShop ?? formatTailorShopSummary(order.tailorShopId),
     addons: order.addons || [],
     pricing: order.pricing || null,
+    leftoverMeters: order.leftoverMeters ?? primaryItem?.leftoverMeters ?? 0,
+    selectedCuts: order.selectedCuts || primaryItem?.selectedCuts || [],
   };
 }
 

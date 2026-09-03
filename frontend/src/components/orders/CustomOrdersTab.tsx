@@ -9,6 +9,7 @@ import type { Locale } from "@/i18n/routing";
 import {
   formatOrderDate,
   getDesignDisplayName,
+  getDesignMinimumMeters,
   getFabricDisplayName,
   getOrderHeadline,
   getOrderItemsSummary,
@@ -536,6 +537,13 @@ export default function CustomOrdersTab({
         : getFabricDisplayName(item.fabric, locale) || t("unknownFabric");
     const tailorName = getTailorDisplayName(item.tailorShop, locale);
 
+    const minRequired = getDesignMinimumMeters(item.design);
+    const leftoverVal =
+      item.leftoverMeters ??
+      (minRequired > 0 && item.fabricMeters > minRequired
+        ? Number((item.fabricMeters - minRequired).toFixed(2))
+        : 0);
+
     return (
       <li
         key={`${designName}-${index}`}
@@ -544,15 +552,30 @@ export default function CustomOrdersTab({
         <p className="font-medium text-sm sm:text-[15px] text-black mb-1">
           {designName}
         </p>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] sm:text-[11px] text-gray-500">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] sm:text-[11px] text-gray-500 font-ui">
           {tailorName && <span>{tailorName}</span>}
           <span>{fabricName}</span>
           {item.fabricMeters != null && (
             <span>
-              {item.fabricMeters} {t("meters")}
+              {t("totalFabricSent")}: {item.fabricMeters} {t("meters")}
+            </span>
+          )}
+          {minRequired > 0 && (
+            <span>
+              {t("minRequired")}: {minRequired} {t("meters")}
+            </span>
+          )}
+          {leftoverVal > 0 && (
+            <span className="text-emerald-700 font-medium">
+              {t("leftoverToReturn")}: {leftoverVal} {t("meters")}
             </span>
           )}
         </div>
+        {leftoverVal > 0 && (
+          <p className="text-[11px] text-emerald-700 font-medium font-ui mt-1">
+            {t("customerLeftoverNotice", { meters: leftoverVal })}
+          </p>
+        )}
       </li>
     );
   };
