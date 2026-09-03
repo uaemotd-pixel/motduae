@@ -36,6 +36,11 @@ import {
   type FabricFormData,
   type FabricVariantFormData,
 } from "@/lib/fabricCatalog";
+import {
+  getUaePhoneInputValue,
+  isValidUaePhone,
+  normalizeUaePhone,
+} from "@/lib/uaePhone";
 import colors from "../shared/colors";
 
 const INPUT_CLASS =
@@ -407,11 +412,21 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
   };
 
   const handlePickupChange = (subfield: keyof PickupAddress, value: string) => {
+    let nextValue = value;
+    if (subfield === "phone") {
+      const digits = value.replace(/\D/g, "");
+      if (digits.length <= 9) {
+        nextValue = normalizeUaePhone(digits);
+      } else {
+        return;
+      }
+    }
+
     setFormData((prev) => ({
       ...prev,
       storePickupAddress: {
         ...prev.storePickupAddress,
-        [subfield]: value,
+        [subfield]: nextValue,
       },
     }));
 
@@ -487,9 +502,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     }
     if (!formData.storePickupAddress.phone.trim()) {
       errors["storePickupAddress.phone"] = "Phone is required";
-    } else if (!/^\d{9}$/.test(formData.storePickupAddress.phone.trim())) {
+    } else if (!isValidUaePhone(formData.storePickupAddress.phone.trim())) {
       errors["storePickupAddress.phone"] =
-        "Phone number must be exactly 9 digits";
+        "Invalid UAE phone. Must be +971 followed by 9 digits";
     }
 
     if (formData.variants && formData.variants.length > 0) {
@@ -1159,18 +1174,13 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                   </span>
                   <input
                     type="text"
-                    value={formData.storePickupAddress.phone}
+                    value={getUaePhoneInputValue(formData.storePickupAddress.phone)}
                     onChange={(e) => {
-                      const val = e.target.value;
-                      if (
-                        (val === "" || /^\d*$/.test(val)) &&
-                        val.length <= 9
-                      ) {
-                        handlePickupChange("phone", val);
-                      }
+                      handlePickupChange("phone", e.target.value);
                     }}
                     className="w-full py-1 pl-3 bg-transparent text-xs sm:text-[14px] focus:outline-none hover:cursor-text"
                     placeholder="123456777"
+                    maxLength={9}
                   />
                 </div>
               </FormField>

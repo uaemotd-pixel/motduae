@@ -9,6 +9,7 @@ import { getPerParcelDeliveryFee } from "./pricingService.js";
 import {
   isRetailFabricLine,
   resolveRetailFabricCutLine,
+  deductFabricCutStock,
 } from "../utils/fabricCuts.js";
 
 // Legacy meter orders only
@@ -242,25 +243,13 @@ export async function deductRetailProductStock(orderItems) {
     }
 
     if (item.cutId && mongoose.Types.ObjectId.isValid(item.cutId)) {
-      const cutObjectId = new mongoose.Types.ObjectId(String(item.cutId));
-      const updated = await Fabric.findOneAndUpdate(
-        {
-          _id: item.productId,
-          cuts: {
-            $elemMatch: {
-              cutId: cutObjectId,
-              stock: { $gte: requestedQty },
-            },
-          },
-        },
-        { $inc: { "cuts.$.stock": -requestedQty } },
-        { new: true },
+      const result = await deductFabricCutStock(
+        item.productId,
+        item.cutId,
+        requestedQty,
       );
-
-      if (!updated) {
-        throw new Error(
-          `Insufficient stock for fabric cut: ${item.productId}/${item.cutId}`,
-        );
+      if (!result.ok) {
+        throw new Error(result.message);
       }
       continue;
     }

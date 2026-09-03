@@ -11,7 +11,19 @@ function collectCutIdsFromPayload(payload) {
   if (!Array.isArray(items)) return ids;
 
   for (const item of items) {
-    if (item?.cutId && mongoose.Types.ObjectId.isValid(item.cutId)) {
+    if (Array.isArray(item?.cutSelections)) {
+      for (const entry of item.cutSelections) {
+        if (entry?.cutId && mongoose.Types.ObjectId.isValid(entry.cutId)) {
+          ids.push(String(entry.cutId));
+        }
+      }
+    } else if (Array.isArray(item?.cutIds)) {
+      for (const cutId of item.cutIds) {
+        if (cutId && mongoose.Types.ObjectId.isValid(cutId)) {
+          ids.push(String(cutId));
+        }
+      }
+    } else if (item?.cutId && mongoose.Types.ObjectId.isValid(item.cutId)) {
       ids.push(String(item.cutId));
     }
   }

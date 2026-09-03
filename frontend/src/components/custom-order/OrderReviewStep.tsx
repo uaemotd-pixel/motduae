@@ -12,6 +12,10 @@ import {
   CUSTOM_ORDER_TOTAL_STEPS,
   getCustomOrderEntryPath,
   getCustomOrderStepNumber,
+  getFabricCutLengthInMeters,
+  getLineItemCutSelections,
+  isLineItemComplete,
+  isMetersStepComplete,
   isReviewStepComplete,
   type CustomOrderMeasurements,
   type CustomOrderPricingBreakdown,
@@ -20,6 +24,7 @@ import {
   type FabricUnit,
 } from "@/lib/customOrder";
 import { formatCurrency } from "@/lib/format";
+import { formatCutLabel } from "@/lib/fabricUnits";
 import { formatDesignCategory } from "@/lib/tailors";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 import { CustomOrderStepSkeleton, Skeleton } from "@/components/ui/Skeleton";
@@ -141,6 +146,43 @@ export default function OrderReviewStep() {
       .reduce((sum, item) => sum + item.price, 0);
   }, [addons, draft.addonIds]);
 
+  const fabricCutCostLines = useMemo(() => {
+    if (usingOwnFabric) return [];
+
+    const lines: {
+      key: string;
+      cutLabel: string;
+      quantity: number;
+      unitPrice: number;
+      lineTotal: number;
+    }[] = [];
+
+    for (const item of draft.lineItems) {
+      const selections = getLineItemCutSelections(item);
+      for (const [cutId, quantity] of Object.entries(selections)) {
+        const entry = item.fabric?.cuts?.find((cut) => cut.cutId === cutId);
+        const unitPrice = Number(entry?.price) || 0;
+        if (quantity <= 0 || unitPrice <= 0) continue;
+
+        const cutLabel = entry?.cut
+          ? locale === "ar"
+            ? entry.cut.nameAr || entry.cut.name
+            : entry.cut.name
+          : cutId;
+
+        lines.push({
+          key: `${item.id}-${cutId}`,
+          cutLabel,
+          quantity,
+          unitPrice,
+          lineTotal: unitPrice * quantity,
+        });
+      }
+    }
+
+    return lines;
+  }, [draft.lineItems, locale, usingOwnFabric]);
+
   const previewPayload = useMemo(
     () => (isHydrated ? buildCustomOrderPreviewPayload(draft) : null),
     [draft, isHydrated],
@@ -227,7 +269,6 @@ export default function OrderReviewStep() {
 
   const invalidPreviewReason = useMemo(() => {
     if (!draft.lineItems || draft.lineItems.length === 0) {
-      // Fallback string so we don't crash when translation keys are missing
       return "Add at least one item to calculate pricing.";
     }
 
@@ -236,20 +277,15 @@ export default function OrderReviewStep() {
       if (missingFabric) return "Please select fabric for all items.";
     }
 
-    const invalidMeters = draft.lineItems.some((li) => {
-      if (li.fabricMeters === null) return true;
-      if (li.fabricMeters === 0) return true;
-      const metersInMeters =
-        li.fabricUnit === "wara"
-          ? li.fabricMeters * WARA_TO_METERS
-          : li.fabricMeters;
-      return metersInMeters < 2 || metersInMeters > 7;
-    });
+    if (!isMetersStepComplete(draft)) {
+      const incomplete = draft.lineItems.some(
+        (li) => !isLineItemComplete(li, draft.fabricSource),
+      );
+      if (incomplete) return t("pricingNotReady.invalidMeters");
+    }
 
-    if (invalidMeters) return t("pricingNotReady.invalidMeters");
-    // Fallback for any other invalid state.
     return t("pricingNotReady.generic");
-  }, [draft.fabricSource, draft.lineItems, t]);
+  }, [draft, t]);
 
   if (!isHydrated) {
     return <CustomOrderStepSkeleton />;
@@ -295,6 +331,33 @@ export default function OrderReviewStep() {
                 item.design.category,
                 locale,
               );
+              const cutSelections = getLineItemCutSelections(item);
+              const cutSelectionRows = Object.entries(cutSelections).map(
+                ([cutId, quantity]) => {
+                  const entry = item.fabric?.cuts?.find(
+                    (cut) => cut.cutId === cutId,
+                  );
+                  const cutLabel = entry?.cut
+                    ? locale === "ar"
+                      ? entry.cut.nameAr || entry.cut.name
+                      : entry.cut.name
+                    : cutId;
+                  const lengthLabel = entry?.cut
+                    ? formatCutLabel(entry.cut.value, entry.cut.unit, locale)
+                    : "";
+                  const lengthMeters = getFabricCutLengthInMeters(
+                    item.fabric,
+                    cutId,
+                  );
+                  return {
+                    cutId,
+                    quantity,
+                    cutLabel,
+                    lengthLabel,
+                    lengthMeters,
+                  };
+                },
+              );
 
               return (
                 <div
@@ -334,6 +397,32 @@ export default function OrderReviewStep() {
                       </dd>
                     </div>
 
+                    {cutSelectionRows.length > 0 && (
+                      <div>
+                        <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                          {t("selectedCuts")}
+                        </dt>
+                        <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                          <ul className="space-y-1 mt-1">
+                            {cutSelectionRows.map((row) => (
+                              <li
+                                key={row.cutId}
+                                className="[font-family:var(--font-ui)] text-[11px] tracking-[0.08em] text-(--color-grey-muted)"
+                              >
+                                {row.quantity}× {row.cutLabel}
+                                {row.lengthLabel
+                                  ? ` (${row.lengthLabel})`
+                                  : ""}
+                                {" · "}
+                                {(row.lengthMeters * row.quantity).toFixed(2)}{" "}
+                                {t("meters")}
+                              </li>
+                            ))}
+                          </ul>
+                        </dd>
+                      </div>
+                    )}
+
                     <div>
                       <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
                         {t("fabricMeters")}
@@ -341,9 +430,10 @@ export default function OrderReviewStep() {
                       <dd className="[font-family:var(--font-body)] text-[15px] text-black">
                         {item.fabricMeters ? (
                           <span>
-                            {item.fabricUnit === "wara"
-                              ? `${item.fabricMeters.toFixed(2)} wara / ${(item.fabricMeters * WARA_TO_METERS).toFixed(2)} ${t("meters")}`
-                              : `${item.fabricMeters} ${t("meters")} / ${(item.fabricMeters / WARA_TO_METERS).toFixed(2)} wara`}
+                            {item.fabricUnit === "wara" ||
+                            item.fabricUnit === "war"
+                              ? `${item.fabricMeters.toFixed(2)} war / ${(item.fabricMeters * WARA_TO_METERS).toFixed(2)} ${t("meters")}`
+                              : `${Number(item.fabricMeters).toFixed(2)} ${t("meters")}`}
                           </span>
                         ) : (
                           "—"
@@ -534,15 +624,17 @@ export default function OrderReviewStep() {
                   <div className="flex justify-between gap-4">
                     <span className="text-(--color-grey-muted)">
                       {t("lines.fabricCost")}
-                      {!usingOwnFabric && pricing.fabricPricePerMeter > 0 && (
-                        <span className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.12em] mt-1">
-                          {t("lines.fabricDetail", {
-                            meters: pricing.fabricMeters,
-                            pricePerMeter: formatCurrency(
-                              pricing.fabricPricePerMeter,
-                              locale,
-                            ),
-                          })}
+                      {!usingOwnFabric && fabricCutCostLines.length > 0 && (
+                        <span className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.12em] mt-1 space-y-1">
+                          {fabricCutCostLines.map((line) => (
+                            <span key={line.key} className="block">
+                              {t("lines.fabricCutDetail", {
+                                cut: line.cutLabel,
+                                quantity: line.quantity,
+                                price: formatCurrency(line.unitPrice, locale),
+                              })}
+                            </span>
+                          ))}
                         </span>
                       )}
                     </span>
