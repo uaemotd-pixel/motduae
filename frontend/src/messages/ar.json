@@ -359,6 +359,7 @@
     "ownFabricLabel": "قماش خاص",
     "selectedFabricsSummary": "الأقمشة المختارة ({count})",
     "selectedDesignsSummary": "التصاميم المختارة ({count})",
+
     "designLengthHint": "الحد الأدنى لهذا التصميم هو {min} م. يمكنك إضافة قصة ثانية. سيتم إرجاع القماش المتبقي إليك.",
     "cutPickerTitle": "اختر قصات القماش",
     "cutSlotsEyebrow": "اختر قصة واحدة أو قصتين لإرسالها إلى الخياط",
@@ -378,6 +379,9 @@
     "selectAtLeastOneCut": "يرجى اختيار قصة واحدة على الأقل للمتابعة.",
     "designMinCutRequired": "الحد الأدنى للتصميم: {min} م",
     "selectedBadge": "تم الاختيار"
+
+    "designLengthHint": "الحد الأدنى لهذا التصميم هو {min} م. يمكنك إضافة قصة ثانية. سيتم إرجاع القماش المتبقي إليك."
+
   },
   "CustomOrderTailor": {
     "stepLabel": "الخطوة {step} من {total}",
