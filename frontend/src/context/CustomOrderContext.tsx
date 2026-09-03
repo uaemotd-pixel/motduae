@@ -16,7 +16,6 @@ import {
   type CustomOrderDraft,
   type CustomOrderFabricSelection,
   type CustomOrderFirstStep,
-  type CustomOrderLineItem,
   type CustomOrderMeasurements,
   type CustomOrderPreviewPayload,
   type CustomOrderSelectedDesign,
@@ -497,8 +496,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
                 (sum, [cutId, qty]) => {
                   if (cutId === cut._id) return sum;
                   return (
-                    sum +
-                    getFabricCutLengthInMeters(item.fabric, cutId) * qty
+                    sum + getFabricCutLengthInMeters(item.fabric, cutId) * qty
                   );
                 },
                 0,
