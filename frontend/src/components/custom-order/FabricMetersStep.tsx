@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -16,6 +16,8 @@ import {
   isLineItemMetersValid,
   isMetersStepComplete,
   useOwnFabric,
+  type CustomOrderLineItem,
+  type CustomOrderSelectedCut,
 } from "@/lib/customOrder";
 import {
   convertToWar,
@@ -35,6 +37,409 @@ interface CutOption {
   nameAr?: string;
   value: number;
   unit: CutUnit;
+  metersEquivalent?: number;
+  lengthInMeters?: number;
+}
+
+interface StorefrontCutPickerProps {
+  item: CustomOrderLineItem;
+  cutOptions: CutOption[];
+  locale: "en" | "ar";
+  onUpdateCuts: (itemId: string, cuts: CustomOrderSelectedCut[]) => void;
+}
+
+function StorefrontCutPicker({
+  item,
+  cutOptions,
+  locale,
+  onUpdateCuts,
+}: StorefrontCutPickerProps) {
+  const t = useTranslations("CustomOrderMeters");
+  const [slot2Open, setSlot2Open] = useState(
+    Boolean(item.selectedCuts && item.selectedCuts.length > 1),
+  );
+
+  const designMinLength = getDesignMinCutLength(item.design);
+
+  // Extract cuts from fabric, matching with cutOptions for length/units
+  const availableCuts: CustomOrderSelectedCut[] = useMemo(() => {
+    const rawCuts = item.fabric?.cuts || [];
+    if (rawCuts.length > 0) {
+      return rawCuts
+        .map((c) => {
+          const matchedAdminCut = cutOptions.find(
+            (opt) =>
+              String(opt._id) ===
+              String(c.cutId || (typeof c.cut === "object" ? c.cut?._id : "")),
+          );
+          const name = c.cut?.name || matchedAdminCut?.name || "Standard Cut";
+          const nameAr = c.cut?.nameAr || matchedAdminCut?.nameAr || name;
+          const value = c.cut?.value ?? matchedAdminCut?.value ?? 3.5;
+          const unit = c.cut?.unit ?? matchedAdminCut?.unit ?? "meter";
+          const lengthInMeters =
+            c.cut?.lengthInMeters ??
+            (matchedAdminCut
+              ? matchedAdminCut.metersEquivalent ??
+                (matchedAdminCut.unit === "war"
+                  ? Number((matchedAdminCut.value * 0.9144).toFixed(2))
+                  : matchedAdminCut.value)
+              : 3.5);
+          const cutId = String(
+            c.cutId || (typeof c.cut === "object" ? c.cut?._id : "") || "",
+          );
+
+          return {
+            cutId,
+            name,
+            nameAr,
+            lengthInMeters,
+            price: c.price,
+            stock: c.stock ?? 0,
+            value,
+            unit,
+          };
+        })
+        .filter((c) => c.stock > 0);
+    }
+
+    // Fallback if fabric.cuts is empty: map available cutOptions with default price
+    return cutOptions.map((opt) => ({
+      cutId: opt._id,
+      name: opt.name,
+      nameAr: opt.nameAr,
+      lengthInMeters:
+        opt.unit === "war"
+          ? Number((opt.value * 0.9144).toFixed(2))
+          : opt.value,
+      price: item.fabric?.pricePerMeter
+        ? Math.round(
+            item.fabric.pricePerMeter *
+              (opt.unit === "war" ? opt.value * 0.9144 : opt.value),
+          )
+        : 350,
+      stock: 10,
+      value: opt.value,
+      unit: opt.unit,
+    }));
+  }, [item.fabric, cutOptions]);
+
+  const selectedCuts = item.selectedCuts || [];
+  const slot1 = selectedCuts[0] || null;
+  const slot2 = selectedCuts[1] || null;
+
+  // Auto-select first cut if none is selected yet and cuts exist
+  useEffect(() => {
+    if (!slot1 && availableCuts.length > 0 && selectedCuts.length === 0) {
+      onUpdateCuts(item.id, [availableCuts[0]]);
+    }
+  }, [slot1, availableCuts, selectedCuts.length, item.id, onUpdateCuts]);
+
+  const handleSelectSlot1 = (cut: CustomOrderSelectedCut) => {
+    // If same cut was selected, do nothing
+    if (slot1?.cutId === cut.cutId) return;
+
+    // Check if slot2 was using the newly selected slot1 cut, and if stock is sufficient
+    let newSlot2: CustomOrderSelectedCut | null = slot2;
+    if (slot2 && slot2.cutId === cut.cutId && (cut.stock ?? 0) < 2) {
+      newSlot2 = null;
+    }
+
+    const nextCuts = [cut, ...(newSlot2 ? [newSlot2] : [])];
+    onUpdateCuts(item.id, nextCuts);
+  };
+
+  const handleSelectSlot2 = (cut: CustomOrderSelectedCut) => {
+    if (slot2?.cutId === cut.cutId) {
+      // Deselect slot 2
+      onUpdateCuts(item.id, slot1 ? [slot1] : []);
+      return;
+    }
+
+    if (!slot1) return;
+
+    // If picking same cut as slot 1, ensure stock >= 2
+    if (cut.cutId === slot1.cutId && (cut.stock ?? 0) < 2) {
+      return;
+    }
+
+    onUpdateCuts(item.id, [slot1, cut]);
+  };
+
+  const handleRemoveSlot2 = () => {
+    setSlot2Open(false);
+    if (slot1) {
+      onUpdateCuts(item.id, [slot1]);
+    }
+  };
+
+  const totalLength = Number(
+    ((slot1?.lengthInMeters || 0) + (slot2?.lengthInMeters || 0)).toFixed(2),
+  );
+  const totalPrice = (slot1?.price || 0) + (slot2?.price || 0);
+  const leftover =
+    totalLength > designMinLength
+      ? Number((totalLength - designMinLength).toFixed(2))
+      : 0;
+  const isShort = slot1 !== null && totalLength < designMinLength;
+
+  const getCutDisplayName = (cut: { name: string; nameAr?: string }) =>
+    locale === "ar" ? cut.nameAr || cut.name : cut.name;
+
+  return (
+    <div className="space-y-6 pt-2">
+      {/* Slot 1: First Cut */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <label className="block [font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.24em] font-medium text-black">
+            {t("slot1Title")}
+          </label>
+          <span className="text-[10px] [font-family:var(--font-ui)] text-(--color-grey-muted) uppercase tracking-wider">
+            {t("cutSlotsEyebrow")}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {availableCuts.map((cut) => {
+            const isSelected = slot1?.cutId === cut.cutId;
+            return (
+              <button
+                key={`slot1-${cut.cutId}`}
+                type="button"
+                onClick={() => handleSelectSlot1(cut)}
+                className={`p-4 border text-left transition relative rounded-sm flex flex-col justify-between hover:cursor-pointer ${
+                  isSelected
+                    ? "border-black bg-neutral-900 text-white shadow-sm"
+                    : "border-(--color-border) bg-white text-black hover:border-black"
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <span className="[font-family:var(--font-display)] text-[15px] font-semibold">
+                      {getCutDisplayName(cut)}
+                    </span>
+                    {isSelected && (
+                      <span className="px-2 py-0.5 text-[9px] uppercase tracking-wider bg-white text-black font-medium rounded-xs">
+                        {t("selectedBadge")}
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className={`text-xs [font-family:var(--font-ui)] ${
+                      isSelected ? "text-neutral-300" : "text-(--color-grey-muted)"
+                    }`}
+                  >
+                    {cut.lengthInMeters} {t("meters")}
+                    {cut.unit === "war" ? ` · ${cut.value} war` : ""}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between mt-4 pt-3 border-t border-current/10">
+                  <span className="font-medium text-sm [font-family:var(--font-ui)]">
+                    AED {cut.price}
+                  </span>
+                  <span
+                    className={`text-[10px] [font-family:var(--font-ui)] ${
+                      isSelected ? "text-neutral-300" : "text-neutral-500"
+                    }`}
+                  >
+                    {t("piecesLeft", { count: cut.stock ?? 0 })}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Slot 2: Prompt to add or choose second cut */}
+      {slot1 && (
+        <div className="pt-2">
+          {!slot2 && !slot2Open ? (
+            <div
+              className={`p-4 rounded-md border ${
+                isShort
+                  ? "bg-amber-50/90 border-amber-200"
+                  : "bg-neutral-50 border-(--color-border)"
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <span className="text-base shrink-0">{isShort ? "💡" : "✂️"}</span>
+                  <div>
+                    <p
+                      className={`text-xs [font-family:var(--font-ui)] font-medium leading-relaxed ${
+                        isShort ? "text-amber-950" : "text-neutral-800"
+                      }`}
+                    >
+                      {isShort
+                        ? t("promptSecondCut", { min: designMinLength })
+                        : t("designLengthHint", { min: designMinLength })}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSlot2Open(true)}
+                  className="shrink-0 px-4 py-2 bg-black text-white text-[10px] uppercase tracking-[0.16em] [font-family:var(--font-ui)] hover:bg-neutral-800 transition hover:cursor-pointer self-start sm:self-auto"
+                >
+                  {t("addSecondCutBtn")}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="border border-(--color-border) bg-neutral-50/60 p-4 sm:p-5 rounded-md">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <label className="block [font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.24em] font-medium text-black">
+                    {t("slot2Title")}
+                  </label>
+                  {isShort && (
+                    <p className="text-[11px] text-amber-800 [font-family:var(--font-ui)] mt-0.5">
+                      {t("promptSecondCut", { min: designMinLength })}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRemoveSlot2}
+                  className="text-[10px] uppercase tracking-[0.16em] [font-family:var(--font-ui)] text-red-600 hover:text-red-800 transition underline hover:cursor-pointer"
+                >
+                  {t("removeSecondCutBtn")}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {availableCuts.map((cut) => {
+                  const isSelected = slot2?.cutId === cut.cutId;
+                  const isSameAsSlot1 = slot1.cutId === cut.cutId;
+                  const isStockRestricted =
+                    isSameAsSlot1 && (cut.stock ?? 0) < 2;
+
+                  return (
+                    <button
+                      key={`slot2-${cut.cutId}`}
+                      type="button"
+                      disabled={isStockRestricted}
+                      onClick={() => handleSelectSlot2(cut)}
+                      className={`p-4 border text-left transition relative rounded-sm flex flex-col justify-between ${
+                        isStockRestricted
+                          ? "opacity-40 bg-neutral-100 border-neutral-200 cursor-not-allowed"
+                          : isSelected
+                            ? "border-black bg-neutral-900 text-white shadow-sm hover:cursor-pointer"
+                            : "border-(--color-border) bg-white text-black hover:border-black hover:cursor-pointer"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <span className="[font-family:var(--font-display)] text-[15px] font-semibold">
+                            {getCutDisplayName(cut)}
+                          </span>
+                          {isSelected && (
+                            <span className="px-2 py-0.5 text-[9px] uppercase tracking-wider bg-white text-black font-medium rounded-xs">
+                              {t("selectedBadge")}
+                            </span>
+                          )}
+                        </div>
+                        <p
+                          className={`text-xs [font-family:var(--font-ui)] ${
+                            isSelected ? "text-neutral-300" : "text-(--color-grey-muted)"
+                          }`}
+                        >
+                          {cut.lengthInMeters} {t("meters")}
+                          {cut.unit === "war" ? ` · ${cut.value} war` : ""}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-current/10">
+                        <span className="font-medium text-sm [font-family:var(--font-ui)]">
+                          AED {cut.price}
+                        </span>
+                        <span
+                          className={`text-[10px] [font-family:var(--font-ui)] ${
+                            isStockRestricted
+                              ? "text-red-500 font-medium"
+                              : isSelected
+                                ? "text-neutral-300"
+                                : "text-neutral-500"
+                          }`}
+                        >
+                          {isStockRestricted
+                            ? t("onlyOnePieceLeft")
+                            : t("piecesLeft", {
+                                count: isSameAsSlot1
+                                  ? (cut.stock ?? 1) - 1
+                                  : (cut.stock ?? 0),
+                              })}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Real-time Summary Box */}
+      {slot1 && (
+        <div className="border border-black/10 bg-neutral-50 p-4 sm:p-5 rounded-md space-y-3">
+          <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] font-medium text-(--color-grey-muted)">
+            {t("runningTotalTitle")}
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+            <div className="border-b sm:border-b-0 sm:border-r border-neutral-200 pb-2 sm:pb-0 pr-2">
+              <span className="block text-[11px] [font-family:var(--font-ui)] text-(--color-grey-muted) uppercase tracking-wider">
+                {t("totalLengthLabel")}
+              </span>
+              <span className="text-lg font-semibold [font-family:var(--font-display)] text-black">
+                {totalLength} {t("meters")}
+              </span>
+            </div>
+
+            <div className="border-b sm:border-b-0 sm:border-r border-neutral-200 pb-2 sm:pb-0 pr-2">
+              <span className="block text-[11px] [font-family:var(--font-ui)] text-(--color-grey-muted) uppercase tracking-wider">
+                {t("totalPriceLabel")}
+              </span>
+              <span className="text-lg font-semibold [font-family:var(--font-display)] text-black">
+                AED {totalPrice}
+              </span>
+            </div>
+
+            <div>
+              <span className="block text-[11px] [font-family:var(--font-ui)] text-(--color-grey-muted) uppercase tracking-wider">
+                {t("estimatedLeftoverLabel")}
+              </span>
+              <span className="text-lg font-semibold [font-family:var(--font-display)] text-black">
+                {leftover} {t("meters")}
+              </span>
+            </div>
+          </div>
+
+          {leftover > 0 && (
+            <p className="text-xs text-neutral-600 [font-family:var(--font-body)] pt-1 flex items-center gap-1.5">
+              <span>🎁</span>
+              <span>{t("leftoverReturnedNote")}</span>
+            </p>
+          )}
+
+          {slot1 && slot2 && isShort && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded text-amber-900 text-xs [font-family:var(--font-ui)] flex items-start gap-2">
+              <span>⚠️</span>
+              <span>
+                {t("stillShortWarning", {
+                  total: totalLength,
+                  min: designMinLength,
+                })}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function FabricMetersStep() {
@@ -50,6 +455,7 @@ export default function FabricMetersStep() {
     syncAutoLineItems,
     updateLineItemUnit,
     applyLineItemCut,
+    updateLineItemCuts,
   } = useCustomOrder();
   const usingOwnFabric = useOwnFabric(draft);
   const [cutOptions, setCutOptions] = useState<CutOption[]>([]);
@@ -95,17 +501,6 @@ export default function FabricMetersStep() {
   const backPath = getBackPathFromMeters(draft);
   const backLabel =
     draft.firstStep === "tailor" ? t("backToFabric") : t("backToTailor");
-
-  const selectedDesign = draft.selectedDesigns[0] ?? null;
-  const selectedFabric = draft.selectedFabrics[0] ?? null;
-  const designMinLength = selectedDesign ? getDesignMinCutLength(selectedDesign) : 0;
-  const fabricMaxCut = selectedFabric ? getFabricMaxCutLength(selectedFabric) : 0;
-  const needsSecondCutHint =
-    !usingOwnFabric &&
-    selectedFabric &&
-    fabricMaxCut > 0 &&
-    designMinLength > 0 &&
-    designMinLength > fabricMaxCut;
 
   const handleMetersChange = (itemId: string, value: string) => {
     if (value.trim() === "") {
@@ -201,15 +596,6 @@ export default function FabricMetersStep() {
         </div>
       )}
 
-      {needsSecondCutHint && (
-        <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
-          <span className="text-lg shrink-0">💡</span>
-          <p className="[font-family:var(--font-ui)] text-xs text-amber-950 font-medium leading-relaxed">
-            {t("designLengthHint", { min: designMinLength })}
-          </p>
-        </div>
-      )}
-
       {draft.lineItems.length > 0 ? (
         <div className="space-y-4 mb-8">
           {draft.lineItems.map((item) => {
@@ -258,77 +644,88 @@ export default function FabricMetersStep() {
                   </div>
                 </div>
 
-                <label className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2">
-                  {t("inputLabel")}
-                </label>
+                {usingOwnFabric ? (
+                  <>
+                    <label className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black mb-2">
+                      {t("inputLabel")}
+                    </label>
 
-                {cutOptions.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {cutOptions.map((cut) => {
-                      const selected = item.cutId === cut._id;
-                      return (
-                        <button
-                          key={cut._id}
-                          type="button"
-                          onClick={() =>
-                            applyLineItemCut(item.id, {
-                              _id: cut._id,
-                              value: cut.value,
-                              unit: cut.unit,
-                            })
-                          }
-                          className={`px-3 py-2 border text-[10px] uppercase tracking-[0.16em] [font-family:var(--font-ui)] transition ${
-                            selected
-                              ? "bg-black text-white border-black"
-                              : "bg-white text-black border-(--color-border) hover:border-black"
-                          }`}
-                        >
-                          {cutName(cut)} ·{" "}
-                          {formatCutLabel(cut.value, cut.unit, locale)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                    {cutOptions.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {cutOptions.map((cut) => {
+                          const selected = item.cutId === cut._id;
+                          return (
+                            <button
+                              key={cut._id}
+                              type="button"
+                              onClick={() =>
+                                applyLineItemCut(item.id, {
+                                  _id: cut._id,
+                                  value: cut.value,
+                                  unit: cut.unit,
+                                })
+                              }
+                              className={`px-3 py-2 border text-[10px] uppercase tracking-[0.16em] [font-family:var(--font-ui)] transition hover:cursor-pointer ${
+                                selected
+                                  ? "bg-black text-white border-black"
+                                  : "bg-white text-black border-(--color-border) hover:border-black"
+                              }`}
+                            >
+                              {cutName(cut)} ·{" "}
+                              {formatCutLabel(cut.value, cut.unit, locale)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
 
-                <div className="flex items-center gap-3 max-w-xs">
-                  <input
-                    type="number"
-                    min={
-                      item.fabricUnit === "war" || item.fabricUnit === "wara"
-                        ? Number((2 / WAR_TO_METER).toFixed(2))
-                        : 2
-                    }
-                    max={
-                      item.fabricUnit === "war" || item.fabricUnit === "wara"
-                        ? Number((7 / WAR_TO_METER).toFixed(2))
-                        : 7
-                    }
-                    step="0.01"
-                    inputMode="decimal"
-                    value={metersValue}
-                    onChange={(e) =>
-                      handleMetersChange(item.id, e.target.value)
-                    }
-                    placeholder={t("inputPlaceholder")}
-                    className="flex-1 border bg-white px-4 py-3 ..."
+                    <div className="flex items-center gap-3 max-w-xs">
+                      <input
+                        type="number"
+                        min={
+                          item.fabricUnit === "war" || item.fabricUnit === "wara"
+                            ? Number((2 / WAR_TO_METER).toFixed(2))
+                            : 2
+                        }
+                        max={
+                          item.fabricUnit === "war" || item.fabricUnit === "wara"
+                            ? Number((7 / WAR_TO_METER).toFixed(2))
+                            : 7
+                        }
+                        step="0.01"
+                        inputMode="decimal"
+                        value={metersValue}
+                        onChange={(e) =>
+                          handleMetersChange(item.id, e.target.value)
+                        }
+                        placeholder={t("inputPlaceholder")}
+                        className="flex-1 border bg-white px-4 py-3 [font-family:var(--font-body)] text-[14px]"
+                      />
+
+                      <select
+                        value={item.fabricUnit}
+                        onChange={(e) =>
+                          handleUnitChange(item.id, e.target.value as FabricUnit)
+                        }
+                        className="border border-(--color-border) bg-white px-3 py-3 [font-family:var(--font-body)] text-[14px] shrink-0"
+                      >
+                        <option value="meters">Meters</option>
+                        <option value="war">War</option>
+                      </select>
+                    </div>
+                    {metersValue && !isValid && (
+                      <p className="text-red-600 text-[12px] mt-2 [font-family:var(--font-body)]">
+                        {t("validationError")}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <StorefrontCutPicker
+                    item={item}
+                    cutOptions={cutOptions}
+                    locale={locale}
+                    onUpdateCuts={updateLineItemCuts}
                   />
-
-                  <select
-                    value={item.fabricUnit}
-                    onChange={(e) =>
-                      handleUnitChange(item.id, e.target.value as FabricUnit)
-                    }
-                    className="border border-(--color-border) bg-white px-3 py-3 [font-family:var(--font-body)] text-[14px] shrink-0"
-                  >
-                    <option value="meters">Meters</option>
-                    <option value="war">War</option>
-                  </select>
-                </div>
-                {metersValue && !isValid && (
-                  <p className="text-red-600 text-[12px] mt-2 [font-family:var(--font-body)]">
-                    {t("validationError")}
-                  </p>
                 )}
               </div>
             );

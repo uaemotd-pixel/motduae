@@ -19,6 +19,7 @@ import {
   type CustomOrderLineItem,
   type CustomOrderMeasurements,
   type CustomOrderPreviewPayload,
+  type CustomOrderSelectedCut,
   type CustomOrderSelectedDesign,
   type FabricSource,
   buildAutoLineItemsFromSelections,
@@ -67,6 +68,10 @@ type CustomOrderContextType = {
   applyLineItemCut: (
     itemId: string,
     cut: { _id: string; value: number; unit: "war" | "meter" },
+  ) => void;
+  updateLineItemCuts: (
+    itemId: string,
+    cuts: CustomOrderSelectedCut[],
   ) => void;
   toggleAddon: (addonId: string) => void;
 };
@@ -374,6 +379,31 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const updateLineItemCuts = useCallback(
+    (itemId: string, cuts: CustomOrderSelectedCut[]) => {
+      setDraft((prev) => {
+        const totalMeters = cuts.reduce((sum, c) => sum + c.lengthInMeters, 0);
+        const primaryCutId = cuts[0]?.cutId ?? null;
+        return {
+          ...prev,
+          lineItems: prev.lineItems.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  selectedCuts: cuts,
+                  fabricMeters:
+                    cuts.length > 0 ? Number(totalMeters.toFixed(2)) : null,
+                  fabricUnit: "meters",
+                  cutId: primaryCutId,
+                }
+              : item,
+          ),
+        };
+      });
+    },
+    [],
+  );
+
   const toggleAddon = useCallback((addonId: string) => {
     setDraft((prev) => {
       const addonIds = prev.addonIds || [];
@@ -461,6 +491,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       syncAutoLineItems,
       updateLineItemUnit,
       applyLineItemCut,
+      updateLineItemCuts,
       toggleAddon,
     }),
     [
@@ -489,6 +520,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       syncAutoLineItems,
       updateLineItemUnit,
       applyLineItemCut,
+      updateLineItemCuts,
       setAddPocketAction,
       setAddBottomWideFoldAction,
       toggleAddon,

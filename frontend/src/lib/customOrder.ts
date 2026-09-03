@@ -90,6 +90,17 @@ export interface CustomOrderSelectedDesign extends CustomOrderDesignSelection {
   tailor: CustomOrderTailorSelection;
 }
 
+export interface CustomOrderSelectedCut {
+  cutId: string;
+  name: string;
+  nameAr?: string;
+  lengthInMeters: number;
+  price: number;
+  stock?: number;
+  unit?: string;
+  value?: number;
+}
+
 export interface CustomOrderLineItem {
   id: string;
   design: CustomOrderDesignSelection;
@@ -98,6 +109,7 @@ export interface CustomOrderLineItem {
   fabricMeters: number | null;
   fabricUnit: FabricUnit;
   cutId?: string | null;
+  selectedCuts?: CustomOrderSelectedCut[];
 }
 
 export const CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS = [
@@ -668,9 +680,14 @@ export function isLineItemComplete(
   item: CustomOrderLineItem,
   fabricSource: FabricSource | null,
 ): boolean {
-  if (!isLineItemMetersValid(item.fabricMeters)) return false;
-  if (fabricSource === "storefront" && !item.fabric) return false;
-  return true;
+  if (fabricSource === "storefront") {
+    if (!item.fabric) return false;
+    if (item.selectedCuts && item.selectedCuts.length > 0) {
+      return true;
+    }
+    return item.fabricMeters !== null && item.fabricMeters > 0;
+  }
+  return isLineItemMetersValid(item.fabricMeters, item.fabricUnit);
 }
 
 export function isMetersStepComplete(draft: CustomOrderDraft): boolean {

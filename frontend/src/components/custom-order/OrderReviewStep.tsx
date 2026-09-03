@@ -20,7 +20,7 @@ import {
   type FabricUnit,
 } from "@/lib/customOrder";
 import { formatCurrency } from "@/lib/format";
-import { formatDesignCategory } from "@/lib/tailors";
+import { formatDesignCategory, getDesignMinCutLength } from "@/lib/tailors";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 import { CustomOrderStepSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { resolveMediaUrl } from "@/lib/media";
@@ -334,22 +334,76 @@ export default function OrderReviewStep() {
                       </dd>
                     </div>
 
-                    <div>
-                      <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                        {t("fabricMeters")}
-                      </dt>
-                      <dd className="[font-family:var(--font-body)] text-[15px] text-black">
-                        {item.fabricMeters ? (
-                          <span>
-                            {item.fabricUnit === "wara"
-                              ? `${item.fabricMeters.toFixed(2)} wara / ${(item.fabricMeters * WARA_TO_METERS).toFixed(2)} ${t("meters")}`
-                              : `${item.fabricMeters} ${t("meters")} / ${(item.fabricMeters / WARA_TO_METERS).toFixed(2)} wara`}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </dd>
-                    </div>
+                    {item.selectedCuts && item.selectedCuts.length > 0 ? (
+                      <>
+                        <div>
+                          <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                            {t("cutsLabel")}
+                          </dt>
+                          <dd className="[font-family:var(--font-body)] text-[14px] text-black">
+                            <ul className="space-y-1">
+                              {item.selectedCuts.map((cut, idx) => {
+                                const cutTitle =
+                                  locale === "ar"
+                                    ? cut.nameAr || cut.name
+                                    : cut.name;
+                                return (
+                                  <li key={idx}>
+                                    {cutTitle} · {cut.lengthInMeters} {t("meters")} (AED {cut.price})
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </dd>
+                        </div>
+
+                        <div>
+                          <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                            {t("fabricMeters")}
+                          </dt>
+                          <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                            {item.fabricMeters} {t("meters")}
+                          </dd>
+                        </div>
+
+                        {(() => {
+                          const designMin = getDesignMinCutLength(item.design);
+                          const totalCut = item.fabricMeters || 0;
+                          const leftoverVal =
+                            totalCut > designMin
+                              ? Number((totalCut - designMin).toFixed(2))
+                              : 0;
+                          if (leftoverVal <= 0) return null;
+                          return (
+                            <div>
+                              <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                                {t("leftoverLabel")}
+                              </dt>
+                              <dd className="[font-family:var(--font-body)] text-[14px] text-emerald-700 font-medium">
+                                {t("leftoverNote", { meters: leftoverVal })}
+                              </dd>
+                            </div>
+                          );
+                        })()}
+                      </>
+                    ) : (
+                      <div>
+                        <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
+                          {t("fabricMeters")}
+                        </dt>
+                        <dd className="[font-family:var(--font-body)] text-[15px] text-black">
+                          {item.fabricMeters ? (
+                            <span>
+                              {item.fabricUnit === "wara"
+                                ? `${item.fabricMeters.toFixed(2)} wara / ${(item.fabricMeters * WARA_TO_METERS).toFixed(2)} ${t("meters")}`
+                                : `${item.fabricMeters} ${t("meters")} / ${(item.fabricMeters / WARA_TO_METERS).toFixed(2)} wara`}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </dd>
+                      </div>
+                    )}
                   </dl>
                 </div>
               );
