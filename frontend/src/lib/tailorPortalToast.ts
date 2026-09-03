@@ -1,5 +1,4 @@
 export const TOAST_BASE = {
-    position: "top-right" as const,
     duration: 6000,
     style: {
         fontFamily: "var(--font-body)",
@@ -7,7 +6,7 @@ export const TOAST_BASE = {
         letterSpacing: "0.04em",
         borderRadius: "0",
         padding: "14px 18px",
-        maxWidth: "360px",
+        maxWidth: "min(360px, calc(100vw - 24px))",
     },
 };
 

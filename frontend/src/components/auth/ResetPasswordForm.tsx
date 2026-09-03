@@ -196,7 +196,7 @@ export default function ResetPasswordForm() {
   }
 
   return (
-    <main className="min-h-screen w-full flex flex-col md:flex-row bg-white">
+    <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
       <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden relative">
         <img src={images.des6.src} alt="" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/30 to-transparent" />

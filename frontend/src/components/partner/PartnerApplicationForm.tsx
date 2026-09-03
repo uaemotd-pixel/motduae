@@ -37,7 +37,6 @@ const ABOUT_MAX = 400;
 const PARTNER_NOTE_MAX = 1000;
 
 const TOAST_BASE = {
-  position: "top-right" as const,
   duration: 4000,
   style: {
     fontFamily: "var(--font-body)",

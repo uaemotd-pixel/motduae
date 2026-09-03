@@ -4,17 +4,10 @@
 
 import { motion } from "framer-motion";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 
 const LocaleSwitcher = () => {
   const pathname = usePathname();
   const router = useRouter();
-  const [isRTL, setIsRTL] = useState(false);
-
-  useEffect(() => {
-    // Check the actual direction of the document (set by your RTLProvider)
-    setIsRTL(document.documentElement.dir === "rtl");
-  }, []);
 
   const segments = pathname.split("/").filter(Boolean);
   const currentLocale =
@@ -27,26 +20,21 @@ const LocaleSwitcher = () => {
     router.push("/" + segments.join("/"));
   };
 
-  // In LTR mode: EN (left) is x=0, AR (right) is x=36
-  // In RTL mode: because the button's content is forced LTR, the physical positions stay the same,
-  // but positive x still moves right on screen. So we keep the same offset.
-  // However, if you want the pill to slide toward the AR label (which is always on the right),
-  // the offset remains 36 regardless of dir.
-  const sliderOffset = 36;
-
   return (
     <button
       onClick={switchLanguage}
       aria-label="Switch language"
-      // Force the button's internal direction to LTR so EN always on left, AR always on right
       dir="ltr"
       className="
         relative
-        flex
+        isolate
+        grid
+        grid-cols-2
         items-center
-        w-17.5
+        shrink-0
         h-8
-        p-0.5
+        w-14
+        p-[3px]
         rounded-full
         border
         border-[#D7D2C9]
@@ -55,58 +43,44 @@ const LocaleSwitcher = () => {
         to-[#F2EEE8]
         shadow-sm
         hover:shadow-md
-        transition-colors
         transition-shadow
         duration-300
         cursor-pointer
       "
     >
-      <motion.div
+      <motion.span
+        aria-hidden
+        className="pointer-events-none absolute top-[3px] bottom-[3px] left-[3px] w-[calc(50%-3px)] rounded-full bg-black"
+        initial={false}
+        animate={{ x: isArabic ? "100%" : "0%" }}
         transition={{
           type: "spring",
           stiffness: 500,
           damping: 35,
         }}
-        className="
-          absolute
-          top-0.5
-          bottom-0.5
-          w-7
-          rounded-full
-          bg-black
-        "
-        animate={{
-          x: isArabic ? sliderOffset : 0,
-        }}
       />
 
-      <div className="flex justify-between items-center w-full px-2 relative z-10">
-        <span
-          className={`
-            text-[9px]
-            tracking-[0.16em]
-            font-medium
-            transition-colors
-            duration-300
-            ${!isArabic ? "text-white" : "text-[#6F6B63]"}
-          `}
-        >
-          EN
-        </span>
+      <span
+        className={`
+          relative z-10 text-center
+          text-[9px] tracking-[0.08em] font-medium leading-none
+          transition-colors duration-300
+          ${!isArabic ? "text-white" : "text-[#6F6B63]"}
+        `}
+      >
+        EN
+      </span>
 
-        <span
-          className={`
-            text-[9px]
-            tracking-[0.16em]
-            font-medium
-            transition-colors
-            duration-300
-            ${isArabic ? "text-white" : "text-[#6F6B63]"}
-          `}
-        >
-          AR
-        </span>
-      </div>
+      <span
+        className={`
+          relative z-10 text-center
+          text-[9px] tracking-[0.08em] font-medium leading-none
+          transition-colors duration-300
+          ${isArabic ? "text-white" : "text-[#6F6B63]"}
+        `}
+      >
+        AR
+      </span>
     </button>
   );
 };

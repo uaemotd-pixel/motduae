@@ -263,20 +263,23 @@ export function Navbar() {
     isArabic ? "text-[10px] xs:text-[11px]" : "text-[8px] xs:text-[9px]"
   }`;
 
+  const navIconClass =
+    "p-2 hover:opacity-50 transition items-center justify-center relative touch-manipulation shrink-0";
+
   return (
-    <nav className="fixed top-0 left-0 right-0 w-full z-50 border-b border-(--color-border) nav-blur">
+    <nav className="fixed top-0 left-0 right-0 w-full z-50 border-b border-(--color-border) nav-blur pt-[var(--safe-top)] ps-[var(--safe-left)] pe-[var(--safe-right)]">
       {/* MAIN BAR */}
-      <div className="w-full min-h-14 xs:min-h-[60px] sm:min-h-16 md:min-h-18 flex items-center justify-between px-3 xs:px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 3xl:px-24 4xl:px-32">
+      <div className="w-full min-h-14 xs:min-h-[60px] sm:min-h-16 md:min-h-18 flex items-center justify-between gap-2 min-w-0 px-3 xs:px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 3xl:px-24 4xl:px-32">
         {/* LOGO */}
         <Link
           href="/"
-          className="shrink-0 flex items-center p-7.5 -m-7.5"
+          className="shrink-0 flex items-center py-2"
           onClick={closeMenu}
         >
           <img
             src="/PNG/Black/MOTD_Wordmark_Black.png"
             alt={t.navbar.logoAlt}
-            className="h-3 xs:h-[13px] sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-[24px] w-auto object-contain"
+            className="h-3.5 xs:h-[13px] sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-[24px] w-auto object-contain"
           />
         </Link>
 
@@ -329,13 +332,65 @@ export function Navbar() {
         </ul>
 
         {/* RIGHT ICONS */}
-        <div className="flex items-center gap-1 xs:gap-1.5 sm:gap-2 md:gap-2 lg:gap-3 xl:gap-3 2xl:gap-4">
+        <div className="flex items-center gap-0.5 xs:gap-1 sm:gap-2 md:gap-2 lg:gap-3 xl:gap-3 2xl:gap-4 shrink-0">
           <LocaleSwitcher />
 
-          {/* Wishlist Icon */}
+          {/* Cart – always visible */}
+          <Link
+            href="/cart"
+            className={`flex ${navIconClass}`}
+            aria-label={t.navbar.actions.cart}
+            onClick={closeMenu}
+          >
+            <div className="relative">
+              <CartIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
+              {totalItems > 0 && (
+                <span className="absolute -top-2.5 -right-1 w-4 h-4 lg:w-4 lg:h-4 bg-black text-white text-[9px] lg:text-[10px] font-medium rounded-full flex items-center justify-center shadow-sm">
+                  {totalItems}
+                </span>
+              )}
+            </div>
+          </Link>
+
+          {/* Login / Account – always visible */}
+          {user && user.isGuest ? (
+            <button
+              onClick={() => {
+                closeMenu();
+                void logout();
+              }}
+              className={`flex ${navIconClass} text-red-600 hover:cursor-pointer bg-transparent border-0`}
+              title={
+                localParams === "ar"
+                  ? "تسجيل الخروج كضيف"
+                  : "Sign out from Guest"
+              }
+            >
+              <LogOutIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
+            </button>
+          ) : accountHref ? (
+            <Link
+              href={accountHref}
+              className={`flex ${navIconClass}`}
+              aria-label={accountLabel}
+              onClick={closeMenu}
+            >
+              <UserIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
+            </Link>
+          ) : (
+            <span
+              className={`flex ${navIconClass} opacity-50`}
+              aria-label={t.navbar.actions.account}
+              aria-busy="true"
+            >
+              <UserIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
+            </span>
+          )}
+
+          {/* Wishlist Icon – desktop */}
           <Link
             href="/wishlist"
-            className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center relative"
+            className={`hidden lg:flex ${navIconClass}`}
             aria-label={t.navbar.actions.wishlist}
           >
             <div className="relative">
@@ -348,64 +403,15 @@ export function Navbar() {
             </div>
           </Link>
 
-          {/* Cart Icon */}
-          <Link
-            href="/cart"
-            className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center relative"
-            aria-label={t.navbar.actions.cart}
-          >
-            <div className="relative">
-              <CartIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
-              {totalItems > 0 && (
-                <span className="absolute -top-2.5 -right-1 w-4 h-4 lg:w-4 lg:h-4 bg-black text-white text-[9px] lg:text-[10px] font-medium rounded-full flex items-center justify-center shadow-sm">
-                  {totalItems}
-                </span>
-              )}
-            </div>
-          </Link>
-
-          {/* Customer notifications */}
+          {/* Customer notifications – desktop */}
           {isCustomerAccount && <CustomerNotificationBell />}
-
-          {/* User Icon */}
-          {user && user.isGuest ? (
-            <button
-              onClick={() => {
-                void logout();
-              }}
-              className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center text-red-600 hover:cursor-pointer bg-transparent border-0"
-              title={
-                localParams === "ar"
-                  ? "تسجيل الخروج كضيف"
-                  : "Sign out from Guest"
-              }
-            >
-              <LogOutIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
-            </button>
-          ) : accountHref ? (
-            <Link
-              href={accountHref}
-              className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center"
-              aria-label={accountLabel}
-            >
-              <UserIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
-            </Link>
-          ) : (
-            <span
-              className="hidden lg:flex p-1.5 lg:p-2 items-center justify-center opacity-50"
-              aria-label={t.navbar.actions.account}
-              aria-busy="true"
-            >
-              <UserIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
-            </span>
-          )}
 
           {/* MOBILE HAMBURGER */}
           <button
             ref={btnRef}
             type="button"
             id="hamburger-btn"
-            className="lg:hidden flex flex-col gap-[3.5px] xs:gap-[4px] p-1.5 xs:p-2"
+            className="lg:hidden flex flex-col gap-[3.5px] xs:gap-[4px] p-2 touch-manipulation shrink-0"
             aria-expanded={mobileOpen}
             aria-label={
               mobileOpen
@@ -428,11 +434,14 @@ export function Navbar() {
       <div
         ref={menuRef}
         id="mobile-menu"
-        className={`lg:hidden border-t border-(--color-border) bg-white transition-all duration-300 ease ${mobileOpen ? "" : "hidden"}`}
+        className={`lg:hidden border-t border-(--color-border) bg-white transition-all duration-300 ease overflow-y-auto overflow-x-clip ${mobileOpen ? "" : "hidden"}`}
         style={{
           opacity: mobileOpen ? 1 : 0,
           transform: mobileOpen ? "translateY(0)" : "translateY(-10px)",
           transition: "all 0.3s ease",
+          maxHeight: mobileOpen
+            ? "calc(100dvh - var(--nav-height) - var(--safe-top) - var(--safe-bottom))"
+            : undefined,
         }}
         aria-hidden={!mobileOpen}
       >
@@ -492,49 +501,12 @@ export function Navbar() {
             </li>
           </ul>
 
-          {/* Mobile bottom icons grid */}
+          {/* Mobile bottom icons – wishlist + alerts (login & cart are in the bar) */}
           <div
-            className={`grid gap-2 border-t border-(--color-border) pt-4 xs:pt-5 ${
-              isCustomerAccount ? "grid-cols-4" : "grid-cols-3"
+            className={`grid gap-2 border-t border-(--color-border) pt-4 xs:pt-5 pb-[var(--safe-bottom)] ${
+              isCustomerAccount ? "grid-cols-2" : "grid-cols-1"
             }`}
           >
-            {user && user.isGuest ? (
-              <button
-                onClick={() => {
-                  closeMenu();
-                  void logout();
-                }}
-                className="flex flex-col items-center gap-1 group hover:opacity-50 transition text-red-600 hover:cursor-pointer bg-transparent border-0"
-                aria-label={localParams === "ar" ? "تسجيل الخروج" : "Sign Out"}
-              >
-                <LogOutIcon className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5" />
-                <span className={bottomLabelClass}>
-                  {localParams === "ar" ? "تسجيل الخروج" : "Sign Out"}
-                </span>
-              </button>
-            ) : accountHref ? (
-              <Link
-                href={accountHref}
-                className="flex flex-col items-center gap-1 group hover:opacity-50 transition"
-                aria-label={accountLabel}
-                onClick={closeMenu}
-              >
-                <UserIcon className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5" />
-                <span className={bottomLabelClass}>{accountLabel}</span>
-              </Link>
-            ) : (
-              <span
-                className="flex flex-col items-center gap-1 opacity-50"
-                aria-label={t.navbar.actions.account}
-                aria-busy="true"
-              >
-                <UserIcon className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5" />
-                <span className={bottomLabelClass}>
-                  {t.navbar.actions.account}
-                </span>
-              </span>
-            )}
-
             {isCustomerAccount && (
               <Link
                 href="/account?tab=notifications"
@@ -566,32 +538,23 @@ export function Navbar() {
             )}
 
             <Link
-              href="/cart"
-              className="flex flex-col items-center gap-1 group hover:opacity-50 transition relative"
-              onClick={closeMenu}
-            >
-              <div className="relative">
-                <CartIcon className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5" />
-                {totalItems > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 xs:w-5 xs:h-5 bg-black text-white text-[8px] xs:text-[10px] font-medium rounded-full flex items-center justify-center shadow-sm">
-                    {totalItems}
-                  </span>
-                )}
-              </div>
-              <span className={bottomLabelClass}>{t.navbar.actions.cart}</span>
-            </Link>
-
-            <button
-              type="button"
+              href="/wishlist"
               className="flex flex-col items-center gap-1 group hover:opacity-50 transition relative"
               aria-label={t.navbar.actions.wishlist}
               onClick={closeMenu}
             >
-              <WishlistIcon className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5" />
+              <div className="relative">
+                <WishlistIcon className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5" />
+                {wishlistTotalItems > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 xs:w-5 xs:h-5 bg-black text-white text-[8px] xs:text-[10px] font-medium rounded-full flex items-center justify-center shadow-sm">
+                    {wishlistTotalItems}
+                  </span>
+                )}
+              </div>
               <span className={bottomLabelClass}>
                 {t.navbar.actions.wishlist}
               </span>
-            </button>
+            </Link>
           </div>
         </div>
       </div>

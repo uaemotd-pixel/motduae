@@ -10,7 +10,9 @@ export default function MainLayout({ children }: Props) {
   return (
     <>
       <Navbar />
-      <main className="pt-18 md:pt-20">{children}</main>
+      <main className="pt-[calc(var(--nav-height)+var(--safe-top))] min-w-0 overflow-x-clip">
+        {children}
+      </main>
       <Footer />
       <ScrollToTop />
     </>

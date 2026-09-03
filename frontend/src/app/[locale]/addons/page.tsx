@@ -1049,7 +1049,7 @@ export default function AddOnsCatalogPage() {
           </div>
 
           {/* Filter Bar */}
-          <div className="sticky top-16 z-30 bg-white border-b border-[#E4E0D8] px-4 sm:px-8 lg:px-12">
+          <div className="sticky sticky-below-nav z-30 bg-white border-b border-[#E4E0D8] px-4 sm:px-8 lg:px-12">
             <div className="py-4">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 

@@ -1,8 +1,15 @@
 import type { ReactNode } from "react";
+import type { Viewport } from "next";
 import "./globals.css";
 
 type Props = {
   children: ReactNode;
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 // Next.js 16 requires <html> and <body> on the root layout.

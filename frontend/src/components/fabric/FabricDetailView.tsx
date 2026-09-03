@@ -430,7 +430,7 @@ export default function FabricDetailView({
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.3 }}
-                  className="inline-block bg-black text-white text-[10px] uppercase tracking-[0.2em] px-3 py-1.5"
+                  className="inline-block bg-black text-white text-[8px] uppercase tracking-[0.12em] [font-family:var(--font-ui)] px-1.5 py-px"
                 >
                   {fabric.tag}
                 </motion.span>

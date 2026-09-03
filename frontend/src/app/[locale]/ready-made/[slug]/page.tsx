@@ -242,7 +242,7 @@ function ReadyMadeDetailContent({
                   />
                   {tag && (
                     <div
-                      className="absolute top-3 left-3 z-10 px-2.5 py-1 text-xs font-medium rounded shadow-sm uppercase"
+                      className="absolute top-1.5 left-1.5 z-10 px-1.5 py-px text-[8px] [font-family:var(--font-ui)] tracking-[0.12em] font-medium shadow-sm uppercase max-w-[calc(100%-3.75rem)] truncate"
                       style={{
                         backgroundColor: tagStyles.bg,
                         color: tagStyles.text,
@@ -672,7 +672,7 @@ export default function ReadyMadeDetailPage() {
         onBuyNow={handleBuyNow}
       />
 
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-(--color-border) p-4 shadow-lg z-30">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-(--color-border) px-4 pt-4 pb-safe shadow-lg z-30 ps-[max(1rem,var(--safe-left))] pe-[max(1rem,var(--safe-right))]">
         <div className="flex gap-3">
           <button
             onClick={handleAddToCart}

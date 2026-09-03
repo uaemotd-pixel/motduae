@@ -33,7 +33,7 @@ export function HeroSection() {
   );
 
   return (
-    <section className="relative min-h-[fit] xs:min-h-[85vh] sm:min-h-[90vh] flex flex-col justify-end bg-(--color-near-black) overflow-hidden pt-16 xs:pt-20 sm:pt-24 md:pt-28 lg:pt-0 mb-8 xs:mb-10 sm:mb-12 md:mb-14 lg:mb-18">
+    <section className="relative min-h-[72vh] xs:min-h-[85vh] sm:min-h-[90vh] flex flex-col justify-end bg-(--color-near-black) overflow-hidden pt-16 xs:pt-20 sm:pt-24 md:pt-28 lg:pt-0 mb-8 xs:mb-10 sm:mb-12 md:mb-14 lg:mb-18">
       {/* Embla Carousel – background layer */}
       <div className="absolute inset-0 w-full h-full z-0">
         <div className="overflow-hidden h-full" ref={emblaRef}>
@@ -53,8 +53,8 @@ export function HeroSection() {
       </div>
 
       {/* Content with Arabic font size adjustments */}
-      <div className="relative z-10 border-white/10 px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) pt-6 xs:pt-8 sm:pt-10 pb-8 xs:pb-10 sm:pb-12 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 xs:gap-8 sm:gap-10">
-        <div className="max-w-140 w-full lg:w-auto">
+      <div className="relative z-10 border-white/10 px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) pt-6 xs:pt-8 sm:pt-10 pb-8 xs:pb-10 sm:pb-12 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 xs:gap-8 sm:gap-10 min-w-0">
+        <div className="max-w-140 w-full lg:w-auto min-w-0">
           {/* Eyebrow text */}
           <span
             className={`
@@ -81,7 +81,7 @@ export function HeroSection() {
               }
             `}
           >
-            <span className="lg:whitespace-nowrap">
+            <span className="lg:whitespace-nowrap break-words">
               {t.heroSection.headlineLine1}{" "}
             </span>
             <br />
