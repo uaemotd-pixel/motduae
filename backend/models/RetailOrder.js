@@ -19,9 +19,21 @@ const PAYMENT_METHODS = ["apple_pay", "card"];
 
 const RETAIL_ITEM_KINDS = ["readyMade", "addon", "fabric"];
 
+const fabricCutSnapshotSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    nameAr: { type: String, default: "", trim: true },
+    value: { type: Number, required: true, min: 0 },
+    unit: { type: String, enum: ["war", "meter"], required: true },
+    lengthInMeters: { type: Number, default: 0, min: 0 },
+    price: { type: Number, required: true, min: 0 },
+  },
+  { _id: false },
+);
+
 const orderItemSchema = new mongoose.Schema(
   {
-    // Mixed catalog: ready-made, add-on, or fabric-by-the-meter. Do not set a
+    // Mixed catalog: ready-made, add-on, or fabric cut purchase. Do not set a
     // single `ref` here — populate(ReadyMadeProduct) nulls fabric/add-on IDs.
     productId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -45,6 +57,16 @@ const orderItemSchema = new mongoose.Schema(
     size: { type: String, required: true, trim: true },
     price: { type: Number, required: true, min: 0 },
     quantity: { type: Number, required: true, min: 0.01 },
+    cutId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Cut",
+      default: null,
+    },
+    cutSnapshot: {
+      type: fabricCutSnapshotSchema,
+      default: null,
+    },
+    /** @deprecated Legacy meter-based fabric lines only */
     quantityInMeters: { type: Number, default: null, min: 0 },
   },
   { _id: false },

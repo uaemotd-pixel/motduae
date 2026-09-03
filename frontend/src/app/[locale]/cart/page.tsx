@@ -14,6 +14,7 @@ import MainLayout from "../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 import { useCart } from "@/context/CartContext";
 import { resolveMediaUrl } from "@/lib/media";
+import { isFabricCutCartId } from "@/lib/fabrics";
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api/client";
 import { ImageModal } from "@/components/shared/ImageModal";
@@ -172,10 +173,37 @@ export default function CartPage() {
                               {item.name}
                             </h3>
                             <p className="[font-family:var(--font-ui)] text-[11px] xs:text-[12px] text-(--color-grey-muted)">
-                              Size (in Meters): {item.size}
+                              {item.itemType === "fabric" || isFabricCutCartId(item.id) ? (
+                                <>
+                                  {locale === "ar" ? "القصة: " : "Cut: "}
+                                  {item.size}
+                                  {item.cutLength ? (
+                                    <span>
+                                      {" "}
+                                      · {locale === "ar" ? "الطول: " : "Length: "}
+                                      {item.cutLength}
+                                    </span>
+                                  ) : null}
+                                  {" "}
+                                  · {locale === "ar" ? "الكمية (قطع): " : "Qty (pcs): "}
+                                  {item.quantity}
+                                </>
+                              ) : (
+                                <>
+                                  {locale === "ar" ? "المقاس: " : "Size: "}
+                                  {item.size}
+                                </>
+                              )}
                             </p>
                             <p className="[font-family:var(--font-ui)] text-[14px] xs:text-[16px] font-medium text-black">
                               AED {item.price.toFixed(2)}
+                              {(item.itemType === "fabric" ||
+                                isFabricCutCartId(item.id)) && (
+                                <span className="text-[11px] font-normal text-(--color-grey-muted)">
+                                  {" "}
+                                  / {locale === "ar" ? "قطعة" : "piece"}
+                                </span>
+                              )}
                             </p>
                           </div>
 

@@ -87,15 +87,15 @@ export default function SupportPage() {
                                 </h2>
                                 <p className="[font-family:var(--font-body)] text-white/60 text-sm">
                                     {isAr 
-                                        ? "تصفح الأسئلة الشائعة لمعرفة المزيد حول الشحن، المرتجعات، والقياسات."
-                                        : "Browse our frequently asked questions about shipping, returns, and measurements."}
+                                        ? "تصفح دليل MOTD لمعرفة المزيد حول الشحن، المرتجعات، والقياسات."
+                                        : "Browse the MOTD Guide for answers about shipping, returns, and measurements."}
                                 </p>
                             </div>
                             <Link 
-                                href="/faq" 
+                                href="/motd-guide" 
                                 className="inline-flex items-center gap-2 px-6 py-3.5 bg-white text-black font-semibold text-xs tracking-[0.2em] uppercase hover:bg-white/90 transition"
                             >
-                                <span>{isAr ? "الأسئلة الشائعة" : "View FAQs"}</span>
+                                <span>{isAr ? "دليل MOTD" : "View MOTD Guide"}</span>
                                 <ArrowRight className="w-4 h-4" />
                             </Link>
                         </div>

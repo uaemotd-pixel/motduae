@@ -40,6 +40,7 @@ import {
   metersToWar,
   normalizeCutUnit,
 } from "../utils/fabricUnits.js";
+
 import {
   assertActiveCutsExist,
   enrichFabricWithCuts,
@@ -1027,17 +1028,6 @@ adminRouter.post(
     if (!partnerCheck.ok) {
       res.status(400).send({ message: partnerCheck.message });
       return;
-    }
-
-    if (
-      stockInMeters === undefined ||
-      stockInMeters === null ||
-      isNaN(Number(stockInMeters)) ||
-      Number(stockInMeters) <= 0
-    ) {
-      return res.status(400).send({
-        message: "Stock in meters must be greater than 0",
-      });
     }
 
     // validate Emirate
@@ -4391,7 +4381,7 @@ adminRouter.put(
       });
       return;
     }
-
+in
     if (unit !== undefined) {
       const normalizedUnit = normalizeCutUnit(unit);
       if (!normalizedUnit || !CUT_UNITS.includes(normalizedUnit)) {

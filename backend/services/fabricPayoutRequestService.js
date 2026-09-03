@@ -226,7 +226,11 @@ export async function computeFabricUnpaidBreakdown(ownerUserId) {
     const pid =
       item.productId?._id?.toString?.() || item.productId?.toString?.() || "";
     if (!pid) return false;
-    if (item.size === "Per Meter" && storeFabricIdSet.has(pid)) return true;
+    if (
+      (item.kind === "fabric" || item.cutId || item.size === "Per Meter") &&
+      storeFabricIdSet.has(pid)
+    )
+      return true;
     if (storeProductIdSet.has(pid) || storeAddonIdSet.has(pid)) return true;
     return false;
   };

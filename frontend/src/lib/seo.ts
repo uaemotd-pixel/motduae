@@ -212,13 +212,6 @@ export const STATIC_SEO_PAGES: StaticSeoPage[] = [
     descriptionAr: "الإرجاع والاستبدال لطلبات MOTD الجاهزة والمخصصة.",
   },
   {
-    path: "/faq",
-    titleEn: "FAQ",
-    titleAr: "الأسئلة الشائعة",
-    descriptionEn: "Answers to common questions about MOTD orders and custom tailoring.",
-    descriptionAr: "إجابات على الأسئلة الشائعة حول طلبات MOTD والخياطة المخصصة.",
-  },
-  {
     path: "/motd-guide",
     titleEn: "MOTD Guide",
     titleAr: "دليل MOTD",
