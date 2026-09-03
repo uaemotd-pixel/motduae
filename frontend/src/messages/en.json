@@ -229,6 +229,9 @@
     "editOrder": "Edit fabric selection",
     "continue": "Continue to Checkout",
     "meters": "m",
+    "leftoverLabel": "Estimated leftover fabric",
+    "leftoverNote": "{meters} m (returned to you)",
+    "cutsLabel": "Selected cuts",
     "showMoreAddons": "Show more (+{count})",
     "showLessAddons": "Show less"
   },
@@ -341,7 +344,26 @@
     "ownFabricLabel": "Own fabric",
     "selectedFabricsSummary": "Selected fabrics ({count})",
     "selectedDesignsSummary": "Selected designs ({count})",
-    "designLengthHint": "This design's minimum is {min} m. You can add a second cut. Leftover fabric is returned to you."
+
+    "designLengthHint": "This design's minimum is {min} m. You can add a second cut. Leftover fabric is returned to you.",
+    "cutPickerTitle": "Select Fabric Cuts",
+    "cutSlotsEyebrow": "Select 1 or 2 cuts to send to the tailor",
+    "slot1Title": "First Cut (Required)",
+    "slot2Title": "Second Cut (Optional)",
+    "addSecondCutBtn": "+ Add Second Cut",
+    "removeSecondCutBtn": "Remove second cut",
+    "piecesLeft": "{count} pieces left",
+    "onlyOnePieceLeft": "Only 1 piece left in stock",
+    "runningTotalTitle": "Cut & Leftover Summary",
+    "totalLengthLabel": "Total fabric length",
+    "totalPriceLabel": "Total fabric price",
+    "estimatedLeftoverLabel": "Estimated leftover",
+    "leftoverReturnedNote": "Leftover fabric is returned to you with your finished order.",
+    "promptSecondCut": "This design's minimum is {min} m. Add a second cut to cover the required length.",
+    "stillShortWarning": "Total length ({total} m) is less than the design minimum ({min} m). Your tailor may request adjustments.",
+    "selectAtLeastOneCut": "Please select at least one cut to continue.",
+    "designMinCutRequired": "Design minimum: {min} m",
+    "selectedBadge": "Selected"
   },
   "CustomOrderTailor": {
     "stepLabel": "Step {step} of {total}",

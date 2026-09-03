@@ -465,9 +465,6 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
       errors.images = t("validation.imagesRequired");
     }
 
-    if (!Number.isFinite(formData.basePrice) || formData.basePrice < 0) {
-      errors.basePrice = t("validation.basePriceInvalid");
-    }
     if (!Number.isFinite(formData.tailoringFee) || formData.tailoringFee < 0) {
       errors.tailoringFee = t("validation.tailoringFeeInvalid");
     }
@@ -742,57 +739,8 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
             </div>
           </div>
 
-          <div className="md:col-span-2">
-            <FormField label={t("fields.priceType")} name="priceType" required>
-              <div className="flex gap-3 sm:gap-4">
-                <button
-                  type="button"
-                  onClick={() => handleChange("priceType", "fixed")}
-                  className={`flex-1 py-2 px-3 border-b-2 text-xs sm:text-sm transition-colors hover:cursor-pointer ${
-                    formData.priceType === "fixed"
-                      ? "border-black text-black font-medium"
-                      : "border-gray-200 text-gray-500 hover:border-gray-400"
-                  }`}
-                >
-                  {t("fields.fixedPrice")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleChange("priceType", "per_meter")}
-                  className={`flex-1 py-2 px-3 border-b-2 text-xs sm:text-sm transition-colors hover:cursor-pointer ${
-                    formData.priceType === "per_meter"
-                      ? "border-black text-black font-medium"
-                      : "border-gray-200 text-gray-500 hover:border-gray-400"
-                  }`}
-                >
-                  {t("fields.perMeterPrice")}
-                </button>
-              </div>
-            </FormField>
-          </div>
-
           <div className="md:col-span-2 space-y-4 sm:space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-              <FormField
-                label={
-                  formData.priceType === "per_meter"
-                    ? t("fields.perMeterPrice")
-                    : t("fields.basePrice")
-                }
-                name="basePrice"
-                required
-                error={fieldErrors.basePrice}
-              >
-                <NumericInput
-                  id="basePrice"
-                  min={0}
-                  step={1}
-                  value={formData.basePrice}
-                  onChange={(value) => handleChange("basePrice", value)}
-                  className={INPUT_CLASS}
-                />
-              </FormField>
-
               <FormField
                 label={t("fields.tailoringFee")}
                 name="tailoringFee"
@@ -804,7 +752,10 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
                   min={0}
                   step={1}
                   value={formData.tailoringFee}
-                  onChange={(value) => handleChange("tailoringFee", value)}
+                  onChange={(value) => {
+                    handleChange("tailoringFee", value);
+                    handleChange("basePrice", value);
+                  }}
                   className={INPUT_CLASS}
                 />
               </FormField>

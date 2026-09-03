@@ -91,6 +91,17 @@ export interface CustomOrderSelectedDesign extends CustomOrderDesignSelection {
   tailor: CustomOrderTailorSelection;
 }
 
+export interface CustomOrderSelectedCut {
+  cutId: string;
+  name: string;
+  nameAr?: string;
+  lengthInMeters: number;
+  price: number;
+  stock?: number;
+  unit?: string;
+  value?: number;
+}
+
 export interface CustomOrderLineItem {
   id: string;
   design: CustomOrderDesignSelection;
@@ -100,10 +111,14 @@ export interface CustomOrderLineItem {
   fabricUnit: FabricUnit;
   /** @deprecated Prefer cutSelections — kept for draft migration */
   cutId?: string | null;
+
+  selectedCuts?: CustomOrderSelectedCut[];
+
   /** @deprecated Prefer cutSelections — kept for draft migration */
   cutIds?: string[];
   /** Selected cut quantities: cutId -> pieces (1..stock) */
   cutSelections?: Record<string, number>;
+
 }
 
 export const CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS = [
@@ -802,13 +817,18 @@ export function isLineItemComplete(
   item: CustomOrderLineItem,
   fabricSource: FabricSource | null,
 ): boolean {
-  if (!isFabricLengthSufficientForDesign(item)) return false;
-  if (fabricSource === "storefront" && !item.fabric) return false;
-
-  if (isStorefrontCutSelectionRequired(item, fabricSource)) {
-    return getLineItemCutIds(item).length > 0;
+  if (fabricSource === "storefront") {
+    if (!item.fabric) return false;
+    if (item.selectedCuts && item.selectedCuts.length > 0) {
+      return true;
+    }
+    if (isStorefrontCutSelectionRequired(item, fabricSource)) {
+      return getLineItemCutIds(item).length > 0;
+    }
+    return item.fabricMeters !== null && item.fabricMeters > 0;
   }
 
+  if (!isFabricLengthSufficientForDesign(item)) return false;
   return isLineItemMetersValid(item.fabricMeters, item.fabricUnit);
 }
 

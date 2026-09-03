@@ -18,6 +18,7 @@ import {
   type CustomOrderFirstStep,
   type CustomOrderMeasurements,
   type CustomOrderPreviewPayload,
+  type CustomOrderSelectedCut,
   type CustomOrderSelectedDesign,
   type FabricSource,
   buildAutoLineItemsFromSelections,
@@ -72,6 +73,10 @@ type CustomOrderContextType = {
   applyLineItemCut: (
     itemId: string,
     cut: { _id: string; value: number; unit: "war" | "meter" },
+  ) => void;
+  updateLineItemCuts: (
+    itemId: string,
+    cuts: CustomOrderSelectedCut[],
   ) => void;
   toggleLineItemCut: (
     itemId: string,
@@ -432,6 +437,32 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+
+  const updateLineItemCuts = useCallback(
+    (itemId: string, cuts: CustomOrderSelectedCut[]) => {
+      setDraft((prev) => {
+        const totalMeters = cuts.reduce((sum, c) => sum + c.lengthInMeters, 0);
+        const primaryCutId = cuts[0]?.cutId ?? null;
+        return {
+          ...prev,
+          lineItems: prev.lineItems.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  selectedCuts: cuts,
+                  fabricMeters:
+                    cuts.length > 0 ? Number(totalMeters.toFixed(2)) : null,
+                  fabricUnit: "meters",
+                  cutId: primaryCutId,
+                }
+              : item,
+          ),
+        };
+      });
+    },
+    [],
+  );
+
   const toggleLineItemCut = useCallback(
     (
       itemId: string,
@@ -516,6 +547,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
           return applyCutSelectionsToItem(item, next);
         }),
       }));
+
     },
     [],
   );
@@ -607,8 +639,12 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       syncAutoLineItems,
       updateLineItemUnit,
       applyLineItemCut,
+
+      updateLineItemCuts,
+
       toggleLineItemCut,
       setLineItemCutQuantity,
+
       toggleAddon,
     }),
     [
@@ -637,8 +673,12 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       syncAutoLineItems,
       updateLineItemUnit,
       applyLineItemCut,
+
+      updateLineItemCuts,
+
       toggleLineItemCut,
       setLineItemCutQuantity,
+
       setAddPocketAction,
       setAddBottomWideFoldAction,
       toggleAddon,
