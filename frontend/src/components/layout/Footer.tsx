@@ -19,7 +19,6 @@ const CUSTOMER_LINKS = [
   { key: "shippingPolicy", href: "/shipping" },
   { key: "returnsRefunds", href: "/returns" },
   { key: "measurementGuide", href: "/#how-it-works" },
-  { key: "faqs", href: "/faq" },
   { key: "supportCenter", href: "/support" },
 ] as const;
 

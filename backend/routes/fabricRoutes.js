@@ -83,6 +83,8 @@ fabricRoutes.get("/", async (req, res) => {
     const { material, page = 1, limit = 20 } = req.query;
     const filter = {
       isActive: true,
+      "cuts.0": { $exists: true },
+      "cuts.stock": { $gt: 0 },
       $or: [
         { isVariantOf: null },
         { isVariantOf: { $exists: false } }
@@ -201,6 +203,12 @@ fabricRoutes.get("/:slug", async (req, res) => {
     }).select("_id name nameAr slug images colors material minAge maxAge");
 
     const enrichedFabric = await enrichFabricWithCuts(fabric);
+    if (!enrichedFabric.cuts?.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Fabric not found",
+      });
+    }
     const detailItem = toDetailItem(enrichedFabric);
     detailItem.variations = variants.map(v => ({
       _id: v._id,

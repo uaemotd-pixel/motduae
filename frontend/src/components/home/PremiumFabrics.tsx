@@ -15,6 +15,9 @@ import {
   getFabricDefaultCut,
   getCutDisplayName,
   getFabricDisplayFields,
+  buildFabricCutCartId,
+  getCutLengthLabel,
+  filterPublicFabrics,
 } from "@/lib/fabrics";
 import { resolveMediaUrl } from "@/lib/media";
 import { Share2 } from "lucide-react";
@@ -85,7 +88,7 @@ export function PremiumFabrics() {
           throw new Error("Failed to load fabrics");
         }
 
-        setFabrics(data.items || []);
+        setFabrics(filterPublicFabrics(data.items || []));
       } catch (err: unknown) {
         const message =
           (err as ApiError)?.message ||
@@ -415,7 +418,9 @@ export function PremiumFabrics() {
                               className="p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 flex h-8 w-8 items-center justify-center xs:h-9 xs:w-9"
                               iconClassName="h-4 w-4"
                               item={{
-                                id: item._id,
+                                id: listingCut
+                                  ? buildFabricCutCartId(item._id, listingCut.cutId)
+                                  : item._id,
                                 name: title,
                                 image: imageUrl || "",
                                 price: listingCut?.price ?? item.pricePerMeter ?? 0,
@@ -425,9 +430,7 @@ export function PremiumFabrics() {
                                 type: "fabric",
                                 ...(listingCut
                                   ? { maxStock: listingCut.stock }
-                                  : Number.isFinite(item.stockInMeters)
-                                    ? { maxStock: item.stockInMeters }
-                                    : {}),
+                                  : {}),
                               }}
                             />
                           </div>

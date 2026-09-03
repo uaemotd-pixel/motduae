@@ -43,6 +43,8 @@ export interface FabricCutEntry {
   cutId: string;
   price: number;
   stock: number;
+  stockPieces?: number;
+  inStock?: boolean;
   cut?: FabricCutMeta | null;
 }
 
@@ -314,6 +316,44 @@ export function parseFabricCutCartId(cartId: string): {
     fabricId: cartId.slice(0, separatorIndex),
     cutId: cartId.slice(separatorIndex + 2) || undefined,
   };
+}
+
+export function isFabricCutCartId(id: string): boolean {
+  return id.includes("::");
+}
+
+export function getCutLengthLabel(
+  entry: FabricCutEntry,
+  locale: Locale,
+): string {
+  const cut = entry.cut;
+  if (!cut) return "";
+  return formatCutLabel(cut.value, cut.unit, locale);
+}
+
+export function buildRetailCheckoutItem(item: {
+  id: string;
+  size: string;
+  quantity: number;
+}): {
+  productId: string;
+  cutId?: string;
+  size: string;
+  quantity: number;
+} {
+  const { fabricId, cutId } = parseFabricCutCartId(item.id);
+  return {
+    productId: fabricId,
+    size: item.size,
+    quantity: item.quantity,
+    ...(cutId ? { cutId } : {}),
+  };
+}
+
+export function filterPublicFabrics(items: FabricListItem[]): FabricListItem[] {
+  return items.filter(
+    (item) => (item.cuts?.length ?? 0) > 0 && isFabricInStock(item),
+  );
 }
 
 export function buildInitialFabricCutSelections(

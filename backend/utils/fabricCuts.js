@@ -132,10 +132,13 @@ export async function enrichFabricWithCuts(fabric) {
   obj.cuts = (obj.cuts || []).map((entry) => {
     const cutId = String(entry.cutId?._id || entry.cutId || "");
     const cutDoc = cutsMap.get(cutId);
+    const stockPieces = Math.floor(Number(entry.stock) || 0);
     return {
       cutId,
       price: entry.price,
-      stock: entry.stock,
+      stock: stockPieces,
+      stockPieces,
+      inStock: stockPieces > 0,
       cut: cutDoc
         ? {
             _id: String(cutDoc._id),
@@ -154,4 +157,75 @@ export async function enrichFabricWithCuts(fabric) {
   obj.stockInMeters = legacy.stockInMeters;
 
   return obj;
+}
+
+export function isRetailFabricLine(item) {
+  if (!item || typeof item !== "object") return false;
+  return (
+    item.kind === "fabric" ||
+    Boolean(item.cutId) ||
+    item.size === "Per Meter"
+  );
+}
+
+/**
+ * Resolve a fabric retail line: cut on fabric, piece qty, price, snapshot.
+ */
+export async function resolveRetailFabricCutLine(fabric, cutId, quantity) {
+  if (!cutId || !mongoose.Types.ObjectId.isValid(cutId)) {
+    return { ok: false, message: "Valid cutId is required for fabric purchase" };
+  }
+
+  const cutIdStr = String(cutId);
+  const fabricCut = (fabric.cuts || []).find(
+    (entry) => String(entry.cutId?._id || entry.cutId) === cutIdStr,
+  );
+
+  if (!fabricCut) {
+    return {
+      ok: false,
+      message: `Selected cut is not available on ${fabric.name}`,
+    };
+  }
+
+  const pieceQty = Math.floor(Number(quantity));
+  if (!Number.isFinite(pieceQty) || pieceQty <= 0) {
+    return { ok: false, message: "Quantity must be at least 1 piece" };
+  }
+
+  const stockPieces = Math.floor(Number(fabricCut.stock) || 0);
+  if (stockPieces < pieceQty) {
+    return {
+      ok: false,
+      message: `${fabric.name} — insufficient stock for the selected cut`,
+    };
+  }
+
+  const cutDoc = await Cut.findOne({ _id: cutIdStr, isActive: true }).lean();
+  if (!cutDoc) {
+    return { ok: false, message: "Selected cut is invalid or inactive" };
+  }
+
+  const lengthInMeters = cutValueToMeters(cutDoc.value, cutDoc.unit);
+  const unitPrice = Number(fabricCut.price);
+  const cutSnapshot = {
+    name: cutDoc.name,
+    nameAr: cutDoc.nameAr || "",
+    value: cutDoc.value,
+    unit: cutDoc.unit,
+    lengthInMeters,
+    price: unitPrice,
+  };
+  const sizeLabel = cutDoc.name?.trim() || `${cutDoc.value} ${cutDoc.unit}`;
+
+  return {
+    ok: true,
+    cutId: cutDoc._id,
+    pieceQty,
+    unitPrice,
+    lineTotal: Number((unitPrice * pieceQty).toFixed(2)),
+    sizeLabel,
+    cutSnapshot,
+    stockPieces,
+  };
 }
