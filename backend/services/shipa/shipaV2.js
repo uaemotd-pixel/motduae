@@ -12,9 +12,6 @@ export const SHIPA_V2_LIVE_BASE_URL = "https://api.shipadelivery.com/v2";
 const INTERNAL_SHIPMENT_TYPES = new Set([
   "fabric_to_tailor",
   "customer_fabric_to_tailor",
-  "tailor_to_motd",
-  "addon_to_motd",
-  "retail_to_motd",
 ]);
 
 /** Shipa V2 event → MOTD shipment status. */

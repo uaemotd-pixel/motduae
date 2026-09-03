@@ -69,7 +69,7 @@ const translations = {
     loading: "Loading settings...",
     fulfillmentTitle: "MOTD fulfillment address",
     fulfillmentHelp:
-      "Canonical warehouse for packing hops and last-mile pickup. Required before Shipa can create MOTD parcels.",
+      "Warehouse pickup when MOTD is the origin shop. Used for Shipa when a listing ships from MOTD.",
     validation: {
       deliveryFeeMin:
         "Per-parcel delivery fee must be a valid number greater than or equal to 0.",
@@ -106,7 +106,7 @@ const translations = {
     loading: "جاري تحميل الإعدادات...",
     fulfillmentTitle: "عنوان استيفاء MOTD",
     fulfillmentHelp:
-      "عنوان المستودع المعتمد لرحلات التعبئة واستلام الميل الأخير. مطلوب قبل إنشاء طرود MOTD عبر شيبا.",
+      "عنوان مستودع الاستلام عندما تكون MOTD هي المتجر المصدر. يُستخدم لشيبا عندما يُشحن المنتج من MOTD.",
     validation: {
       deliveryFeeMin:
         "يجب أن تكون رسوم التوصيل لكل طرد قيمة صحيحة أكبر من أو تساوي 0.",
