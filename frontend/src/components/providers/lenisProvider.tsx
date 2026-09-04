@@ -7,7 +7,22 @@ import Lenis from "lenis";
 const LENIS_DISABLED_PATHS = ["/admin", "/tailor", "/fabric"];
 
 function shouldDisableLenis(pathname: string) {
-    return LENIS_DISABLED_PATHS.some((segment) => pathname.includes(segment));
+    if (LENIS_DISABLED_PATHS.some((segment) => pathname.includes(segment))) {
+        return true;
+    }
+
+    // Touch devices already have native momentum scrolling, so Lenis only adds
+    // a permanent requestAnimationFrame loop and repeated resize passes. On
+    // low-end Android that competes with image decoding for the main thread and
+    // is a large part of why scrolling feels rough there.
+    if (typeof window !== "undefined") {
+        const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+        const noHover = window.matchMedia("(hover: none)").matches;
+        const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (coarsePointer || noHover || reducedMotion) return true;
+    }
+
+    return false;
 }
 
 function resetScrollStyles() {

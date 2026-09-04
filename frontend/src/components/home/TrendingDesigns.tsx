@@ -485,6 +485,8 @@ export function TrendingSection() {
                       <div className="aspect-9/9 relative overflow-hidden bg-[#F5F4F0] rounded-t-lg">
                         <img
                           src={imageUrl}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-105"
                           alt={name}
                         />

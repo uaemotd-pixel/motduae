@@ -149,9 +149,18 @@ body {
   padding-bottom: max(0.75rem, var(--safe-bottom));
 }
 
+/* Opaque on touch/small screens: a `backdrop-filter` on the fixed navbar makes
+   the compositor re-blur the whole bar on every frame the hero carousel moves,
+   which stalls low-end Android devices and delays taps on the hamburger. */
 .nav-blur {
-  backdrop-filter: blur(12px);
-  background: color-mix(in srgb, var(--bg-page) 85%, transparent);
+  background: var(--bg-page);
+}
+
+@media (min-width: 1024px) and (hover: hover) {
+  .nav-blur {
+    backdrop-filter: blur(12px);
+    background: color-mix(in srgb, var(--bg-page) 85%, transparent);
+  }
 }
 
 /* Brand scrollbar */
@@ -272,4 +281,21 @@ body {
 
 .admin-canvas {
   background-color: #ffffff;
+}
+
+/* Full-height sidebars/drawers with an explicit fallback. `dvh` is unsupported
+   before Chrome 108, and Android WebViews on older handsets drop the whole
+   declaration — a bare `h-dvh` leaves those elements with no height at all,
+   which collapses the portal drawers. Not a Tailwind utility on purpose: it is
+   only ever used unprefixed, so no responsive variant is needed. */
+.h-viewport {
+  height: 100dvh;
+}
+
+/* Written as @supports rather than two `height` declarations because Lightning
+   CSS minifies a duplicate-property fallback away. */
+@supports not (height: 100dvh) {
+  .h-viewport {
+    height: 100vh;
+  }
 }
