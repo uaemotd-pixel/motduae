@@ -465,8 +465,8 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
       errors.images = t("validation.imagesRequired");
     }
 
-    if (!Number.isFinite(formData.tailoringFee) || formData.tailoringFee < 0) {
-      errors.tailoringFee = t("validation.tailoringFeeInvalid");
+    if (!Number.isFinite(formData.basePrice) || formData.basePrice < 0) {
+      errors.basePrice = t("validation.priceInvalid");
     }
     if (!formData.minCutId || !formData.minCutId.trim()) {
       errors.minCutId = t("validation.minCutRequired");
@@ -742,18 +742,17 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
           <div className="md:col-span-2 space-y-4 sm:space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
               <FormField
-                label={t("fields.tailoringFee")}
-                name="tailoringFee"
+                label={t("fields.price")}
+                name="basePrice"
                 required
-                error={fieldErrors.tailoringFee}
+                error={fieldErrors.basePrice}
               >
                 <NumericInput
-                  id="tailoringFee"
+                  id="basePrice"
                   min={0}
                   step={1}
-                  value={formData.tailoringFee}
+                  value={formData.basePrice}
                   onChange={(value) => {
-                    handleChange("tailoringFee", value);
                     handleChange("basePrice", value);
                   }}
                   className={INPUT_CLASS}

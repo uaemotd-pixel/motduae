@@ -159,9 +159,9 @@ export function designToForm(
     patternAr: design.patternAr ?? "",
     tag: design.tag ?? "",
     tagAr: design.tagAr ?? "",
-    basePrice: design.tailoringFee ?? design.basePrice ?? 0,
+    basePrice: design.basePrice ?? 0,
     priceType: "fixed",
-    tailoringFee: design.tailoringFee ?? design.basePrice ?? DEFAULT_TAILORING_FEE,
+    tailoringFee: design.tailoringFee ?? DEFAULT_TAILORING_FEE,
     minCutId,
     estimatedMeters:
       design.minCutSnapshot?.lengthInMeters ?? design.estimatedMeters ?? 3.5,
@@ -174,7 +174,8 @@ export function toTailorDesignPayload(
   form: TailorDesignFormData,
 ): Record<string, unknown> {
   const name = form.name.trim();
-  const fee = Number(form.tailoringFee || form.basePrice || 0);
+  const basePrice = Number(form.basePrice || 0);
+  const tailoringFee = Number(form.tailoringFee ?? DEFAULT_TAILORING_FEE);
   return {
     name,
     nameAr: form.nameAr.trim(),
@@ -191,9 +192,9 @@ export function toTailorDesignPayload(
     patternAr: form.patternAr.trim(),
     tag: form.tag.trim(),
     tagAr: form.tagAr.trim(),
-    basePrice: fee,
+    basePrice,
     priceType: "fixed",
-    tailoringFee: fee,
+    tailoringFee,
     minCutId: form.minCutId,
     estimatedMeters: form.estimatedMeters ? Number(form.estimatedMeters) : undefined,
     estimatedDays: Number(form.estimatedDays),
