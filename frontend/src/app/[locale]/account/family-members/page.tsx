@@ -16,6 +16,7 @@ import toast from "react-hot-toast";
 import { api } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
 import { AccountPanelSkeleton } from "@/components/ui/Skeleton";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type Relationship =
@@ -68,6 +69,10 @@ export default function FamilyMembersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [addingMember, setAddingMember] = useState(false);
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null);
+  const [memberToDelete, setMemberToDelete] = useState<FamilyMember | null>(
+    null,
+  );
+  const [deleting, setDeleting] = useState(false);
 
   // ── Fetch ──
   const fetchMembers = useCallback(async () => {
@@ -88,14 +93,27 @@ export default function FamilyMembersPage() {
     fetchMembers();
   }, [fetchMembers]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Remove this family member?")) return;
+  const openDeleteModal = (member: FamilyMember) => {
+    setMemberToDelete(member);
+  };
+
+  const closeDeleteModal = () => {
+    if (deleting) return;
+    setMemberToDelete(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!memberToDelete) return;
+    setDeleting(true);
     try {
-      await api.delete(`/api/customer/family-members/${id}`);
+      await api.delete(`/api/customer/family-members/${memberToDelete._id}`);
       toast.success("Member removed");
+      setMemberToDelete(null);
       fetchMembers();
     } catch (err: any) {
       toast.error(err.message || "Failed to delete");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -239,7 +257,7 @@ export default function FamilyMembersPage() {
                               <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
                             </button>
                             <button
-                              onClick={() => handleDelete(member._id)}
+                              onClick={() => openDeleteModal(member)}
                               className="p-1 sm:p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition"
                               aria-label="Delete"
                             >
@@ -347,7 +365,7 @@ export default function FamilyMembersPage() {
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDelete(member._id)}
+                            onClick={() => openDeleteModal(member)}
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition hover:cursor-pointer"
                             aria-label="Delete"
                           >
@@ -363,6 +381,18 @@ export default function FamilyMembersPage() {
           </div>
         </>
       )}
+
+      <ConfirmationModal
+        isOpen={!!memberToDelete}
+        title="Remove Family Member"
+        message={`Are you sure you want to remove "${memberToDelete?.name}"? This action cannot be undone.`}
+        confirmLabel={deleting ? "Removing..." : "Remove"}
+        cancelLabel="Cancel"
+        onConfirm={handleDeleteConfirm}
+        onCancel={closeDeleteModal}
+        isLoading={deleting}
+        isDanger
+      />
     </div>
   );
 }

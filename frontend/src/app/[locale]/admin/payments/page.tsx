@@ -28,6 +28,7 @@ import StatCard from "@/components/dashboard/StatCard";
 import { type DashAccent } from "@/components/dashboard/palette";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { splitFabricCommission } from "@/lib/fabricCommission";
+import toast from "react-hot-toast";
 
 /** Courier partner — fixed platform shipping company. */
 const SHIPPING_COMPANY_NAME = "SHIPAA";
@@ -291,7 +292,7 @@ export default function AdminPaymentsPage() {
       await Promise.all([fetchPayoutRequests(), fetchPartnerPayouts()]);
     } catch (err: any) {
       console.error("Approve payout request error:", err);
-      alert(err?.message || "Failed to approve payout request.");
+      toast.error(err?.message || "Failed to approve payout request.");
     } finally {
       setReviewingRequestId(null);
     }
@@ -308,7 +309,7 @@ export default function AdminPaymentsPage() {
       await fetchPayoutRequests();
     } catch (err: any) {
       console.error("Reject payout request error:", err);
-      alert(err?.message || "Failed to reject payout request.");
+      toast.error(err?.message || "Failed to reject payout request.");
     } finally {
       setReviewingRequestId(null);
     }
@@ -323,7 +324,7 @@ export default function AdminPaymentsPage() {
       await fetchPayoutRequests();
     } catch (err: any) {
       console.error("Delete payout request error:", err);
-      alert(err?.message || "Failed to delete payout request.");
+      toast.error(err?.message || "Failed to delete payout request.");
     } finally {
       setDeletingRequestId(null);
     }
@@ -1043,7 +1044,7 @@ export default function AdminPaymentsPage() {
       await Promise.all([fetchPartnerPayouts(), fetchPayoutRequests()]);
     } catch (err: any) {
       console.error("Release payment error:", err);
-      alert(err?.message || "Failed to release payment. Please try again.");
+      toast.error(err?.message || "Failed to release payment. Please try again.");
     } finally {
       setReleasingKey(null);
     }
@@ -1058,7 +1059,7 @@ export default function AdminPaymentsPage() {
       await fetchPartnerPayouts();
     } catch (err: any) {
       console.error("Delete transaction error:", err);
-      alert(err?.message || "Failed to delete transaction. Please try again.");
+      toast.error(err?.message || "Failed to delete transaction. Please try again.");
     } finally {
       setDeletingTxId(null);
     }

@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { api, getApiErrorMessage } from "@/lib/api/client";
-import { Edit, Trash2, Search, RefreshCw, Users, X } from "lucide-react";
+import { Edit, Trash2, Search, RefreshCw, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import { Link } from "@/i18n/navigation";
 import GlobalPagination from "@/components/shared/GlobalPagination";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 
 interface SubAdmin {
@@ -347,47 +348,17 @@ export default function SubAdminPage() {
       )}
 
       {/* DELETE CONFIRMATION MODAL */}
-      {showDeleteModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-          onClick={closeModal}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-md w-full mx-4 p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-black">Confirm Delete</h3>
-              <button
-                onClick={closeModal}
-                className="text-gray-400 hover:text-black transition-colors hover:cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-gray-600 text-sm mb-6">
-              Are you sure you want to delete this sub-admin? This action cannot
-              be undone.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition hover:cursor-pointer"
-                disabled={deleting}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-gray-800 transition disabled:opacity-50 hover:cursor-pointer"
-                disabled={deleting}
-              >
-                {deleting ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        title="Confirm Delete"
+        message="Are you sure you want to delete this sub-admin? This action cannot be undone."
+        confirmLabel={deleting ? "Deleting..." : "Delete"}
+        cancelLabel="Cancel"
+        onConfirm={handleDeleteConfirm}
+        onCancel={closeModal}
+        isLoading={deleting}
+        isDanger
+      />
     </div>
   );
 }

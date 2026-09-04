@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
 import { Link } from "@/i18n/navigation";
-import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
+import { getApiErrorMessage } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
 import { ERROR_TOAST, SUCCESS_TOAST } from "@/lib/tailorPortalToast";
 import {
@@ -16,6 +16,7 @@ import {
 import { formatDesignCategory, formatDesignBasePrice } from "@/lib/tailors";
 import { useParams } from "next/navigation";
 import { ImageModal } from "../shared/ImageModal";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
 export default function TailorDesignsList() {
   const t = useTranslations("TailorPortal.designs");
@@ -26,6 +27,9 @@ export default function TailorDesignsList() {
   const [loading, setLoading] = useState(true);
   const [shopMissing, setShopMissing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<TailorDesignProfile | null>(
+    null,
+  );
   const [modalImage, setModalImage] = useState<{
     url: string;
     name: string;
@@ -56,15 +60,24 @@ export default function TailorDesignsList() {
     loadDesigns();
   }, [loadDesigns]);
 
-  const handleDelete = async (design: TailorDesignProfile) => {
-    const name = locale === "ar" ? design.nameAr || design.name : design.name;
-    if (!window.confirm(t("confirmDelete", { name }))) return;
+  const openDeleteModal = (design: TailorDesignProfile) => {
+    setItemToDelete(design);
+  };
 
+  const closeDeleteModal = () => {
+    if (deletingId) return;
+    setItemToDelete(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+    const design = itemToDelete;
     setDeletingId(design._id);
     try {
       await deleteTailorDesign(design._id);
       setDesigns((prev) => prev.filter((item) => item._id !== design._id));
       toast.success(t("deleted"), SUCCESS_TOAST);
+      setItemToDelete(null);
     } catch (err: unknown) {
       toast.error(
         getApiErrorMessage(err, t("errors.deleteFailed")),
@@ -74,6 +87,12 @@ export default function TailorDesignsList() {
       setDeletingId(null);
     }
   };
+
+  const deleteTargetName = itemToDelete
+    ? locale === "ar"
+      ? itemToDelete.nameAr || itemToDelete.name
+      : itemToDelete.name
+    : "";
 
   if (loading) {
     return (
@@ -211,7 +230,7 @@ export default function TailorDesignsList() {
                   </Link>
                   <button
                     type="button"
-                    onClick={() => handleDelete(design)}
+                    onClick={() => openDeleteModal(design)}
                     disabled={deletingId === design._id}
                     className="px-5 py-2.5 border border-red-300 text-red-700 text-[10px] tracking-[0.2em] uppercase hover:bg-red-50 transition disabled:opacity-50 [font-family:var(--font-ui)]"
                   >
@@ -229,6 +248,18 @@ export default function TailorDesignsList() {
         imageUrl={modalImage?.url ?? ""}
         alt={modalImage?.name ?? "Fabric image"}
         onClose={() => setModalImage(null)}
+      />
+
+      <ConfirmationModal
+        isOpen={!!itemToDelete}
+        title={t("delete")}
+        message={t("confirmDelete", { name: deleteTargetName })}
+        confirmLabel={deletingId ? t("deleting") : t("delete")}
+        cancelLabel={t("cancel")}
+        onConfirm={handleDeleteConfirm}
+        onCancel={closeDeleteModal}
+        isLoading={!!deletingId}
+        isDanger
       />
     </div>
   );

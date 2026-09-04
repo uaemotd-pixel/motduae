@@ -23,67 +23,9 @@ import {
   Eye,
 } from "lucide-react";
 import { ImageModal } from "@/components/shared/ImageModal";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
-
-// ---------- Modal for Deactivate/Reactivate ----------
-interface ToggleModalProps {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  confirmLabel: string;
-  cancelLabel: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-function ToggleModal({
-  isOpen,
-  title,
-  message,
-  confirmLabel,
-  cancelLabel,
-  onConfirm,
-  onCancel,
-}: ToggleModalProps) {
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) onCancel();
-    };
-    if (isOpen) document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onCancel]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onCancel()}
-    >
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100">
-        <div className="p-6">
-          <h3 className="text-lg font-medium text-black">{title}</h3>
-          <p className="mt-2 text-sm text-gray-600">{message}</p>
-          <div className="mt-6 flex justify-end gap-3">
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer"
-            >
-              {cancelLabel}
-            </button>
-            <button
-              onClick={onConfirm}
-              className="px-4 py-2 text-sm font-medium text-white bg-black rounded-lg hover:bg-black/80 transition hover:cursor-pointer"
-            >
-              {confirmLabel}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ---------- Types ----------
 
@@ -540,7 +482,7 @@ export default function AdminTailorsPage() {
   return (
     <div className="space-y-4 sm:space-y-6 px-3 sm:px-0">
       {/* Modals */}
-      <ToggleModal
+      <ConfirmationModal
         isOpen={toggleModalOpen}
         title={
           pendingToggle?.currentStatus ? "Deactivate Shop" : "Reactivate Shop"
@@ -554,6 +496,7 @@ export default function AdminTailorsPage() {
         cancelLabel="Cancel"
         onConfirm={executeToggle}
         onCancel={cancelToggle}
+        isDanger={!!pendingToggle?.currentStatus}
       />
 
       {/* Header */}
