@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { useAuth, needsEmailVerification } from "@/context/AuthContext";
 import { LayoutDashboard, LogOut, Menu, Scissors, Store, X, ShoppingBag, Bell, Edit } from "lucide-react";
-import logoBlack from "../../../public/PNG/Black/MOTD_Wordmark_Black.png";
+import white_logo from "../../../public/PNG/White/MOTD_Wordmark_White.png";
 import {
   buildVerifyEmailHref,
   canChangeAccountEmail,
@@ -78,23 +78,23 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
             <div className="mb-8 lg:mb-10">
                 <Link href="/tailor" onClick={() => setIsSidebarOpen(false)}>
                     <img
-                        src={logoBlack.src}
+                        src={white_logo.src}
                         alt="MOTD"
                         className="h-3 sm:h-3.5 md:h-4 w-auto object-contain"
                     />
                 </Link>
-                <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mt-3">
+                <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-white/50 mt-3">
                     {t("portalLabel")}
                 </p>
                 {user?.name && (
-                    <p className="[font-family:var(--font-body)] text-[13px] text-black mt-2">
+                    <p className="[font-family:var(--font-body)] text-[13px] text-white mt-2">
                         {user.name}
                     </p>
                 )}
                 {user?.email ? (
                     <div className="mt-1 flex items-center gap-1.5 min-w-0 flex-wrap">
                         <p
-                            className="[font-family:var(--font-body)] text-[11px] text-(--color-grey-muted) truncate min-w-0"
+                            className="[font-family:var(--font-body)] text-[11px] text-white/50 truncate min-w-0"
                             title={user.email}
                         >
                             {user.email}
@@ -124,7 +124,7 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
                                     setIsSidebarOpen(false);
                                 }}
                                 aria-label={tVerify.changeEmailHeading}
-                                className="shrink-0 p-0.5 rounded border border-black text-black bg-transparent hover:bg-black hover:text-white transition cursor-pointer"
+                                className="shrink-0 p-0.5 rounded border border-white/40 text-white bg-transparent hover:bg-white hover:text-black transition cursor-pointer"
                             >
                                 <Edit className="w-3 h-3" strokeWidth={2} />
                             </button>
@@ -145,15 +145,21 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
                             onClick={() => setIsSidebarOpen(false)}
                             className={`flex items-center gap-3 px-4 py-3 text-[11px] uppercase tracking-[0.18em] transition [font-family:var(--font-ui)] rounded-xl ${
                                 isActive
-                                    ? "bg-black text-white"
-                                    : "text-(--dash-ink) hover:bg-(--dash-bg)"
+                                    ? "bg-white text-black shadow-md font-medium"
+                                    : "text-white/70 hover:bg-white/10 hover:text-white"
                             }`}
                         >
                             <Icon className="w-4 h-4" />
                             {item.label}
                             {item.href === "/tailor/notification" &&
                                 unreadNotificationCount > 0 && (
-                                    <span className="min-w-5 h-5 px-1 rounded-full bg-(--dash-danger) text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
+                                    <span
+                                        className={`min-w-5 h-5 px-1 rounded-full text-[11px] font-semibold flex items-center justify-center shadow-sm ${
+                                            isActive
+                                                ? "bg-black text-white"
+                                                : "bg-(--dash-danger) text-white"
+                                        }`}
+                                    >
                                         {unreadNotificationCount > 99
                                             ? "99+"
                                             : unreadNotificationCount}
@@ -169,7 +175,7 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
                 onClick={() => {
                     void logout("/auth/login?redirect=/tailor");
                 }}
-                className="flex items-center gap-3 px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-(--color-grey-muted) hover:text-black transition [font-family:var(--font-ui)] mt-4"
+                className="flex items-center gap-3 px-4 py-3 text-[11px] uppercase tracking-[0.18em] text-red-400/90 hover:bg-red-500/10 hover:text-red-300 transition [font-family:var(--font-ui)] rounded-xl mt-4"
             >
                 <LogOut className="w-4 h-4" />
                 {t("logout")}
@@ -179,7 +185,7 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
 
     return (
         <div className="bg-(--dash-bg) text-(--dash-ink) lg:flex lg:h-dvh lg:overflow-hidden">
-            <aside className="h-viewport fixed left-0 top-0 z-20 hidden w-72 shrink-0 flex-col overflow-y-auto border-r border-(--dash-border) bg-(--dash-surface) p-6 lg:sticky lg:flex">
+            <aside className="h-viewport fixed left-0 top-0 z-20 hidden w-72 shrink-0 flex-col overflow-y-auto border-r border-white/10 bg-(--dash-charcoal) p-6 lg:sticky lg:flex">
                 <SidebarContent />
             </aside>
 
@@ -190,14 +196,14 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
                 onClick={() => setIsSidebarOpen(false)}
             />
             <aside
-                className={`h-viewport fixed left-0 top-0 z-40 flex w-72 flex-col overflow-y-auto overscroll-contain border-r border-(--dash-border) bg-(--dash-surface) p-6 transition-transform duration-300 ease-in-out lg:hidden ${
+                className={`h-viewport fixed left-0 top-0 z-40 flex w-72 flex-col overflow-y-auto overscroll-contain border-r border-white/10 bg-(--dash-charcoal) p-6 transition-transform duration-300 ease-in-out lg:hidden ${
                     isSidebarOpen ? "translate-x-0" : "-translate-x-full"
                 }`}
             >
                 <button
                     type="button"
                     onClick={() => setIsSidebarOpen(false)}
-                    className="absolute top-4 right-4 p-2 text-(--dash-muted) hover:text-(--dash-ink)"
+                    className="absolute top-4 right-4 p-2 text-white/70 hover:text-white"
                     aria-label="Close menu"
                 >
                     <X className="w-5 h-5" />
@@ -214,7 +220,7 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
                 <button
                     type="button"
                     onClick={() => setIsSidebarOpen(true)}
-                    className="fixed safe-fixed-top start-4 z-20 bg-black p-2 text-white transition hover:bg-(--dash-charcoal-deep) lg:hidden rounded-md"
+                    className="fixed safe-fixed-top inset-s-4 z-20 bg-black p-2 text-white transition hover:bg-(--dash-charcoal-deep) lg:hidden rounded-md"
                     aria-label="Open menu"
                 >
                     <Menu className="w-5 h-5" />
