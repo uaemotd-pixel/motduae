@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent, useEffect } from "react";
+import { useState, FormEvent } from "react";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api/client";
 import {
@@ -8,7 +8,7 @@ import {
   isPasswordValid,
 } from "@/lib/auth/passwordValidation";
 import PasswordChecklist from "@/components/auth/PasswordChecklist";
-import { Eye, EyeOff, Save, Ruler, Lock, Check, Mail, Edit } from "lucide-react";
+import { Eye, EyeOff, Save, Lock, Check, Mail, Edit } from "lucide-react";
 import PartnerChangeEmailCard from "@/components/auth/PartnerChangeEmailCard";
 import EmailChangePendingBanner from "@/components/auth/EmailChangePendingBanner";
 import { canChangeAccountEmail } from "@/lib/auth/emailVerification";
@@ -19,8 +19,6 @@ import { getTranslation } from "@/lib/getTranslation";
 type CustomerSettingsProps = {
   hasPassword?: boolean;
 };
-
-type MeasurementUnit = "meters" | "wara";
 
 export default function CustomerSettings({
   hasPassword = true,
@@ -36,44 +34,6 @@ export default function CustomerSettings({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [measurementUnit, setMeasurementUnit] =
-    useState<MeasurementUnit>("meters");
-  const [isSavingUnit, setIsSavingUnit] = useState(false);
-
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const res = await api.get<{ measurementUnit: MeasurementUnit }>(
-          "/api/customer/customerSettings",
-        );
-        if (res.measurementUnit) {
-          setMeasurementUnit(res.measurementUnit);
-        }
-      } catch {
-        // Silently fall back to default
-      }
-    };
-    fetchSettings();
-  }, []);
-
-  const handleUnitChange = async (unit: MeasurementUnit) => {
-    setIsSavingUnit(true);
-    try {
-      await api.put("/api/customer/customerSettings", {
-        measurementUnit: unit,
-      });
-      setMeasurementUnit(unit);
-      toast.success(`Measurement unit updated to ${unit}`);
-    } catch (err: unknown) {
-      const message =
-        err && typeof err === "object" && "message" in err
-          ? String((err as { message: string }).message)
-          : "Failed to update measurement unit.";
-      toast.error(message);
-    } finally {
-      setIsSavingUnit(false);
-    }
-  };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -140,71 +100,6 @@ export default function CustomerSettings({
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-100">
-        {/* Measurement Unit Section */}
-        <div className="p-4 sm:p-6">
-          <div className="flex items-start sm:items-center gap-3">
-            <Ruler
-              className="w-5 h-5 text-gray-400 shrink-0 mt-0.5 sm:mt-0"
-              strokeWidth={1.5}
-            />
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-medium text-black">
-                Measurement Unit
-              </h3>
-              <p className="text-sm text-gray-500">
-                Choose your preferred unit for fabric measurements
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 sm:ml-10">
-            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-              <label className="flex items-center gap-2 text-sm text-gray-700 hover:cursor-pointer">
-                <input
-                  type="radio"
-                  name="measurementUnit"
-                  value="meters"
-                  checked={measurementUnit === "meters"}
-                  onChange={() => handleUnitChange("meters")}
-                  disabled={isSavingUnit}
-                  className="w-4 h-4 accent-black hover:cursor-pointer shrink-0"
-                />
-                <span
-                  className={
-                    measurementUnit === "meters" ? "font-medium text-black" : ""
-                  }
-                >
-                  Meters
-                </span>
-              </label>
-              <label className="flex items-center gap-2 text-sm text-gray-700 hover:cursor-pointer">
-                <input
-                  type="radio"
-                  name="measurementUnit"
-                  value="wara"
-                  checked={measurementUnit === "wara"}
-                  onChange={() => handleUnitChange("wara")}
-                  disabled={isSavingUnit}
-                  className="w-4 h-4 accent-black hover:cursor-pointer shrink-0"
-                />
-                <span
-                  className={
-                    measurementUnit === "wara" ? "font-medium text-black" : ""
-                  }
-                >
-                  War
-                </span>
-              </label>
-              {isSavingUnit && (
-                <span className="text-sm text-gray-400 flex items-center gap-1.5">
-                  <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-black rounded-full animate-spin" />
-                  Saving...
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
         {/* Change email */}
         {canChangeEmail ? (
           <div className="p-4 sm:p-6 space-y-4">

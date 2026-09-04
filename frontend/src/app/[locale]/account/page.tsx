@@ -18,7 +18,6 @@ import {
   Users,
   Star,
   PanelLeft,
-  LayoutDashboard,
 } from "lucide-react";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 import OrdersView from "@/components/orders/OrdersView";
@@ -27,14 +26,12 @@ import EditProfileForm from "./profile/edit/page";
 import FamilyMembersPage from "./family-members/page";
 import CustomerReviewsView from "@/components/reviews/CustomerReviewsView";
 import CustomerSettings from "@/components/account/CustomerSettings";
-import CustomerDashboard from "@/components/account/CustomerDashboard";
 import BrandLoader from "@/components/shared/BrandLoader";
 import MeasurementsForm from "./measurements/page";
 import CustomerNotificationPage from "./notification/page";
 import { useNotificationUnreadCount } from "@/hooks/useNotifications";
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "profile", label: "Profile", icon: User },
   { id: "orders", label: "Orders", icon: ShoppingBag },
   { id: "reviews", label: "My Reviews", icon: Star },
@@ -95,15 +92,14 @@ function AccountSidebar({
           className={`w-auto object-contain ${
             collapsed
               ? "h-8 xs:h-8 sm:h-8 md:h-8 lg:h-8 xl:h-8"
-              : "h-5 xs:h-[13px] sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-[24px]"
+              : "h-5 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6"
           }`}
         />
       </Link>
 
       <nav className="flex-1 space-y-1.5">
         {NAV_ITEMS.map((item) => {
-          if (isGuest && item.id !== "orders" && item.id !== "dashboard")
-            return null;
+          if (isGuest && item.id !== "orders") return null;
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           return (
@@ -193,7 +189,7 @@ function AccountPageContent() {
     needsEmailVerification(user) && !user?.isGuest;
 
   const [activeTab, setActiveTab] = useState<AccountTab>(
-    isAccountTab(tabFromUrl) ? tabFromUrl : "dashboard",
+    isAccountTab(tabFromUrl) ? tabFromUrl : "profile",
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -242,8 +238,8 @@ function AccountPageContent() {
 
   useEffect(() => {
     if (user?.isGuest) {
-      if (!isAccountTab(tabFromUrl) || (tabFromUrl !== "orders" && tabFromUrl !== "dashboard")) {
-        setActiveTab("dashboard");
+      if (!isAccountTab(tabFromUrl) || tabFromUrl !== "orders") {
+        setActiveTab("orders");
       } else if (tabFromUrl !== activeTab) {
         setActiveTab(tabFromUrl);
       }
@@ -251,6 +247,9 @@ function AccountPageContent() {
     }
     if (isAccountTab(tabFromUrl) && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
+    } else if (tabFromUrl && !isAccountTab(tabFromUrl)) {
+      // e.g. legacy ?tab=dashboard
+      setActiveTab("profile");
     }
   }, [tabFromUrl, activeTab, user]);
 
@@ -306,7 +305,7 @@ function AccountPageContent() {
         />
       </aside>
 
-      <div className="lg:hidden fixed safe-fixed-top start-4 z-50">
+      <div className="lg:hidden fixed safe-fixed-top inset-s-4 z-50">
         <button
           onClick={() => setSidebarOpen(true)}
           className="p-2 rounded-lg bg-black/80 backdrop-blur-sm border border-white/20 text-white hover:bg-white/10 transition"
@@ -367,7 +366,7 @@ function AccountPageContent() {
               My Account
             </h1>
             <p className="text-gray-500 mt-2 sm:mt-3 font-['TT_Norms_Pro'] text-sm sm:text-base md:text-lg">
-              Manage your dashboard, profile, orders, notifications &amp; settings
+              Manage your profile, orders, notifications &amp; settings
             </p>
           </div>
 
@@ -397,23 +396,6 @@ function AccountPageContent() {
 
           <div className="relative">
             <AnimatePresence mode="wait">
-              {activeTab === "dashboard" && (
-                <motion.div
-                  key="dashboard"
-                  variants={pageVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  transition={{ duration: 0.4 }}
-                >
-                  <CustomerDashboard
-                    userName={user.name || ""}
-                    isGuest={Boolean(user.isGuest)}
-                    onNavigate={handleTabChange}
-                  />
-                </motion.div>
-              )}
-
               {activeTab === "profile" && (
                 <motion.div
                   key="profile"
