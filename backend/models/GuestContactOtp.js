@@ -17,7 +17,7 @@ const guestContactOtpSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-guestContactOtpSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 });
+guestContactOtpSchema.index({ otpExpires: 1 }, { expireAfterSeconds: 0 });
 
 const GuestContactOtp = mongoose.model("GuestContactOtp", guestContactOtpSchema);
 

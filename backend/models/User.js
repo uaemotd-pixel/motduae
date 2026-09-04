@@ -89,6 +89,9 @@ userSchema.index({ role: 1, approvalStatus: 1 });
 userSchema.index({ role: 1, approvalStatus: 1, applicationSubmittedAt: 1 });
 userSchema.index({ pendingEmail: 1 }, { unique: true, sparse: true });
 userSchema.index({ requestNumber: 1 }, { unique: true, sparse: true });
+userSchema.index({ pendingEmailExpiresAt: 1 }, { sparse: true });
+userSchema.index({ emailVerificationOTPExpires: 1 }, { sparse: true });
+userSchema.index({ resetPasswordExpires: 1 }, { sparse: true });
 
 userSchema.pre("validate", function requireCustomerPhone(next) {
   if (

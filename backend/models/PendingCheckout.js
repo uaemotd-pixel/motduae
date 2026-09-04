@@ -1,4 +1,7 @@
 import mongoose from "mongoose";
+import {
+  PENDING_CHECKOUT_TTL_SECONDS,
+} from "../jobs/purgePolicy.js";
 
 const PENDING_STATUSES = [
   "pending",
@@ -63,7 +66,11 @@ const pendingCheckoutSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-pendingCheckoutSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 7 });
+pendingCheckoutSchema.index({ status: 1, createdAt: 1 });
+pendingCheckoutSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: PENDING_CHECKOUT_TTL_SECONDS },
+);
 
 const PendingCheckout = mongoose.model("PendingCheckout", pendingCheckoutSchema);
 

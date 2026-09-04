@@ -9,6 +9,7 @@ import {
   findCustomOrderByPaymentIntent,
 } from "./customPaidOrderService.js";
 import {
+  isStripeConfigured,
   resolveStripePaymentMethod,
   retrieveStripePaymentIntent,
 } from "./stripeService.js";
@@ -139,7 +140,7 @@ export async function fulfillPaidCheckout({
   const pending = await PendingCheckout.findOneAndUpdate(
     {
       paymentIntentId,
-      status: { $in: ["pending", "failed"] },
+      status: { $in: ["pending", "failed", "expired"] },
     },
     {
       status: "fulfilling",
@@ -225,5 +226,59 @@ export async function fulfillPaidCheckout({
   } catch (error) {
     await markPendingCheckoutFailed(paymentIntentId, error.message);
     throw error;
+  }
+}
+
+/**
+ * Recover a paid-but-unfulfilled snapshot, or say it is safe to delete.
+ * Optional `deps` is for tests; production callers omit it.
+ * @returns {"linked"|"fulfilled"|"abandon"|"keep"}
+ */
+export async function recoverOrClassifyPendingCheckout(doc, deps = {}) {
+  const findOrder =
+    deps.findExistingOrderByPaymentIntent || findExistingOrderByPaymentIntent;
+  const stripeOn = deps.isStripeConfigured || isStripeConfigured;
+  const retrievePi =
+    deps.retrieveStripePaymentIntent || retrieveStripePaymentIntent;
+  const fulfill = deps.fulfillPaidCheckout || fulfillPaidCheckout;
+  const markDone =
+    deps.markPendingCheckoutCompleted || markPendingCheckoutCompleted;
+
+  if (!doc?.paymentIntentId) return "abandon";
+
+  try {
+    const existing = await findOrder(doc.paymentIntentId);
+    if (existing) {
+      await markDone({
+        paymentIntentId: doc.paymentIntentId,
+        orderId: existing.order._id,
+        fulfilledBy: "reconcile",
+      });
+      return "linked";
+    }
+
+    if (!stripeOn()) {
+      return "abandon";
+    }
+
+    const paymentIntent = await retrievePi(doc.paymentIntentId);
+    if (paymentIntent.status === "succeeded") {
+      await fulfill({
+        paymentIntentId: doc.paymentIntentId,
+        fulfilledBy: "reconcile",
+      });
+      return "fulfilled";
+    }
+
+    return "abandon";
+  } catch (error) {
+    const code = error?.code || error?.raw?.code;
+    if (code === "resource_missing") return "abandon";
+    console.warn(
+      "[pending-checkout] recover failed",
+      doc.paymentIntentId,
+      error.message,
+    );
+    return "keep";
   }
 }

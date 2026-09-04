@@ -33,6 +33,7 @@ import shipaWebhookRoutes from "./routes/shipaWebhookRoutes.js";
 import notificationRouter from "./routes/notificationRoutes.js";
 import customerNotificationRouter from "./routes/customerNotificationRoutes.js";
 import filterRoutes from "./routes/filterRoutes.js";
+import cronRoutes from "./routes/cronRoutes.js";
 
 const app = express();
 
@@ -66,6 +67,8 @@ app.use("/uploads", express.static(UPLOADS_ROOT));
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", service: "motd-backend" });
 });
+
+app.use("/api/cron", cronRoutes);
 
 app.use("/api/users", userRouter);
 app.use("/api/ready-made", readyMadeRoutes);
