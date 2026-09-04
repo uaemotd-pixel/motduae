@@ -179,7 +179,7 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
 
     return (
         <div className="bg-(--dash-bg) text-(--dash-ink) lg:flex lg:h-dvh lg:overflow-hidden">
-            <aside className="fixed left-0 top-0 z-20 hidden h-dvh w-72 shrink-0 flex-col overflow-y-auto border-r border-(--dash-border) bg-(--dash-surface) p-6 lg:sticky lg:flex">
+            <aside className="h-viewport fixed left-0 top-0 z-20 hidden w-72 shrink-0 flex-col overflow-y-auto border-r border-(--dash-border) bg-(--dash-surface) p-6 lg:sticky lg:flex">
                 <SidebarContent />
             </aside>
 
@@ -190,7 +190,7 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
                 onClick={() => setIsSidebarOpen(false)}
             />
             <aside
-                className={`fixed left-0 top-0 z-40 flex h-dvh w-72 flex-col overflow-y-auto border-r border-(--dash-border) bg-(--dash-surface) p-6 transition-transform duration-300 ease-in-out lg:hidden ${
+                className={`h-viewport fixed left-0 top-0 z-40 flex w-72 flex-col overflow-y-auto overscroll-contain border-r border-(--dash-border) bg-(--dash-surface) p-6 transition-transform duration-300 ease-in-out lg:hidden ${
                     isSidebarOpen ? "translate-x-0" : "-translate-x-full"
                 }`}
             >
@@ -207,7 +207,10 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
                 </div>
             </aside>
 
-            <main className="min-h-dvh flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4 pb-40 pt-14 xs:p-6 sm:p-8 md:p-10 lg:min-h-0 lg:pt-10">
+            {/* See FabricPortalShell: below `lg` this must not be a scroll
+                container, or Android refuses to chain one-finger scrolls to the
+                document and only a two-finger pan moves the page. */}
+            <main className="min-h-dvh flex-1 overflow-x-clip p-4 pb-40 pt-14 xs:p-6 sm:p-8 md:p-10 lg:min-h-0 lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-y-contain lg:pt-10">
                 <button
                     type="button"
                     onClick={() => setIsSidebarOpen(true)}

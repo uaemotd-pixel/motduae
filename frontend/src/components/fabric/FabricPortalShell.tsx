@@ -195,7 +195,7 @@ export default function FabricPortalShell({
 
   return (
     <div className="bg-(--dash-bg) text-(--dash-ink) lg:flex lg:h-dvh lg:overflow-hidden">
-      <aside className="fixed left-0 top-0 z-20 hidden h-dvh w-72 shrink-0 flex-col overflow-y-auto border-r border-(--dash-border) bg-(--dash-surface) p-6 lg:sticky lg:flex">
+      <aside className="h-viewport fixed left-0 top-0 z-20 hidden w-72 shrink-0 flex-col overflow-y-auto border-r border-(--dash-border) bg-(--dash-surface) p-6 lg:sticky lg:flex">
         <SidebarContent />
       </aside>
 
@@ -208,7 +208,7 @@ export default function FabricPortalShell({
         onClick={() => setIsSidebarOpen(false)}
       />
       <aside
-        className={`fixed left-0 top-0 z-40 flex h-dvh w-72 flex-col overflow-y-auto border-r border-(--dash-border) bg-(--dash-surface) p-6 transition-transform duration-300 ease-in-out lg:hidden ${
+        className={`h-viewport fixed left-0 top-0 z-40 flex w-72 flex-col overflow-y-auto overscroll-contain border-r border-(--dash-border) bg-(--dash-surface) p-6 transition-transform duration-300 ease-in-out lg:hidden ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -225,7 +225,14 @@ export default function FabricPortalShell({
         </div>
       </aside>
 
-      <main className="min-h-dvh flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4 pb-40 pt-14 xs:p-6 sm:p-8 md:p-10 lg:min-h-0 lg:pt-10">
+      {/* Below `lg` the page must scroll natively on the document. Making this
+          element a scroll container instead (`overflow-y-auto`, or even a lone
+          `overflow-x-hidden`, which forces the y axis to `auto`) combined with
+          `overscroll-contain` breaks one-finger scrolling on Android: the box
+          has nothing to scroll and refuses to chain the gesture to the
+          document, so only a two-finger visual-viewport pan moves the page.
+          `overflow-x-clip` still clips wide children without creating one. */}
+      <main className="min-h-dvh flex-1 overflow-x-clip p-4 pb-40 pt-14 xs:p-6 sm:p-8 md:p-10 lg:min-h-0 lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-y-contain lg:pt-10">
         <button
           type="button"
           onClick={() => setIsSidebarOpen(true)}

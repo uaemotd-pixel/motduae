@@ -321,6 +321,8 @@ export function AddOnsSection() {
                             resolveMediaUrl(item.thumbnailImage) ||
                             "/placeholder.jpg"
                           }
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-105"
                           alt={displayName}
                         />

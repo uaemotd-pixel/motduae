@@ -2,23 +2,25 @@
 
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
+import Image from "next/image";
 import * as images from "../../../public/images/ImageIndex";
 import { getTranslation } from "@/lib/getTranslation";
 import { useParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 const BACKGROUND_IMAGES = [
   {
-    src: images.hero_image_1.src,
+    src: images.hero_image_1,
     // Anchor left so the MOTD bag stays visible; mid Y = less face-tight crop
-    position: "object-[0%_38%]",
+    position: "0% 38%",
   },
   {
-    src: images.hero_image_2.src,
-    position: "object-[58%_36%]",
+    src: images.hero_image_2,
+    position: "58% 36%",
   },
   {
-    src: images.hero_image_3.src,
-    position: "object-[48%_40%]",
+    src: images.hero_image_3,
+    position: "48% 40%",
   },
 ] as const;
 
@@ -27,7 +29,8 @@ export function HeroSection() {
   const localParams = params.locale as string;
   const isArabic = localParams === "ar";
   const t = getTranslation(localParams);
-  const [emblaRef] = useEmblaCarousel(
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const [emblaRef, emblaApi] = useEmblaCarousel(
     {
       loop: true,
       direction: isArabic ? "rtl" : "ltr",
@@ -42,8 +45,30 @@ export function HeroSection() {
     ],
   );
 
+  // Only animate while the hero is actually on screen. Sliding a full-viewport
+  // image every 4s while the user is further down the page costs a compositor
+  // frame budget that low-end Android devices need for scrolling.
+  useEffect(() => {
+    const section = sectionRef.current;
+    const autoplay = emblaApi?.plugins()?.autoplay;
+    if (!section || !autoplay) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) autoplay.play();
+        else autoplay.stop();
+      },
+      { threshold: 0 },
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, [emblaApi]);
+
   return (
-    <section className="relative min-h-[72vh] xs:min-h-[85vh] sm:min-h-[90vh] flex flex-col justify-end bg-(--color-near-black) overflow-hidden pt-16 xs:pt-20 sm:pt-24 md:pt-28 lg:pt-0 mb-8 xs:mb-10 sm:mb-12 md:mb-14 lg:mb-18">
+    <section
+      ref={sectionRef}
+      className="relative min-h-[72vh] xs:min-h-[85vh] sm:min-h-[90vh] flex flex-col justify-end bg-(--color-near-black) overflow-hidden pt-16 xs:pt-20 sm:pt-24 md:pt-28 lg:pt-0 mb-8 xs:mb-10 sm:mb-12 md:mb-14 lg:mb-18"
+    >
       {/* Embla Carousel – background layer */}
       <div className="absolute inset-0 w-full h-full z-0">
         <div className="overflow-hidden h-full" ref={emblaRef}>
@@ -53,10 +78,17 @@ export function HeroSection() {
                 key={idx}
                 className="relative flex-[0_0_100%] min-w-0 h-full overflow-hidden"
               >
-                <img
+                <Image
                   src={image.src}
                   alt={`${t.heroSection.imageAlt} ${idx + 1}`}
-                  className={`absolute left-1/2 top-1/2 w-full h-auto min-h-full max-w-none -translate-x-1/2 -translate-y-1/2 object-cover ${image.position}`}
+                  fill
+                  sizes="100vw"
+                  priority={idx === 0}
+                  loading={idx === 0 ? "eager" : "lazy"}
+                  fetchPriority={idx === 0 ? "high" : "low"}
+                  placeholder="blur"
+                  className="object-cover"
+                  style={{ objectPosition: image.position }}
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/25 to-black/10" />
               </div>

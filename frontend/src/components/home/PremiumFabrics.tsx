@@ -394,6 +394,8 @@ export function PremiumFabrics() {
                         <div className="aspect-9/9 relative overflow-hidden rounded-t-lg">
                           <img
                             src={imageUrl}
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-105"
                             alt={title}
                           />

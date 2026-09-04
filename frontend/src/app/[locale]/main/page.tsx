@@ -17,10 +17,11 @@ import SectionDivider from "@/components/shared/SectionDivider";
 export default function HomePage() {
   return (
     <>
-      {/* 2. Hero — Mukhawar of the Day */}
-      <FadeInSection>
-        <HeroSection />
-      </FadeInSection>
+      {/* 2. Hero — Mukhawar of the Day.
+          Deliberately not wrapped in FadeInSection: it is above the fold, so the
+          fade only ever animates a full-viewport layer while the hero image is
+          still decoding — the worst possible moment on a low-end device. */}
+      <HeroSection />
       {/* 3. Trending Designs of Mukhawar Section */}
       <FadeInSection>
         <TrendingSection />
