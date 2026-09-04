@@ -24,6 +24,8 @@ import {
   formatOrderDate,
   isCustomOrderStatus,
   CUSTOM_ORDER_STATUSES,
+  groupSelectedCutPieces,
+  resolveOrderLeftoverMeters,
   type CustomOrderShipmentSummary,
 } from "@/lib/customOrders";
 import type { Locale } from "@/i18n/routing";
@@ -81,13 +83,42 @@ interface Order {
   _id: string;
   userId: OrderUser | string;
   contactEmail?: string;
-  designSnapshot?: { name: string };
+  designSnapshot?: {
+    name?: string;
+    minCutSnapshot?: { lengthInMeters?: number } | null;
+    estimatedMeters?: number | null;
+  };
   fabricSnapshot?: { name: string } | null;
   measurements?: Measurements;
   status: string;
   createdAt: string;
   shipments?: CustomOrderShipmentSummary[];
   fabricMeters: number;
+  leftoverMeters?: number;
+  selectedCuts?: Array<{
+    cutId?: string;
+    name: string;
+    nameAr?: string;
+    lengthInMeters: number;
+    price?: number;
+  }>;
+  items?: Array<{
+    fabricMeters?: number;
+    leftoverMeters?: number;
+    selectedCuts?: Array<{
+      cutId?: string;
+      name: string;
+      nameAr?: string;
+      lengthInMeters: number;
+      price?: number;
+    }>;
+    fabricSnapshot?: { name: string } | null;
+    designSnapshot?: {
+      name?: string;
+      minCutSnapshot?: { lengthInMeters?: number } | null;
+      estimatedMeters?: number | null;
+    };
+  }>;
   shippingPrice?: number;
   parcelCount?: number;
   perParcelFee?: number | null;
@@ -931,15 +962,63 @@ export default function FabricOrdersPage() {
 
                   {isExpanded && (
                     <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50 grid grid-cols-1 sm:grid-cols-3 gap-4 [font-family:var(--font-body)]">
-                      <div className="bg-white p-3 border border-gray-100 rounded-lg">
+                      <div className="bg-white p-3 border border-gray-100 rounded-lg sm:col-span-3">
                         <p className="text-3xs text-gray-400 uppercase font-medium">
-                          {locale === "ar"
-                            ? "كمية القماش المطلوبة"
-                            : "Fabric Quantity Requested"}
+                          {t("quantityRequested")}
                         </p>
-                        <p className="text-sm font-semibold font-mono text-black mt-0.5">
-                          {order.fabricMeters || 0} meters (m)
-                        </p>
+                        {(() => {
+                          const itemData = order.items?.[0] || order;
+                          const cuts =
+                            (itemData.selectedCuts &&
+                            itemData.selectedCuts.length > 0
+                              ? itemData.selectedCuts
+                              : order.selectedCuts) || [];
+                          const cutRows = groupSelectedCutPieces(cuts, locale);
+                          const leftoverVal = resolveOrderLeftoverMeters({
+                            leftoverMeters:
+                              itemData.leftoverMeters ?? order.leftoverMeters,
+                            fabricMeters:
+                              itemData.fabricMeters ?? order.fabricMeters,
+                            minRequired:
+                              itemData.designSnapshot?.minCutSnapshot
+                                ?.lengthInMeters ??
+                              itemData.designSnapshot?.estimatedMeters ??
+                              0,
+                          });
+
+                          if (cutRows.length > 0) {
+                            return (
+                              <div className="mt-1 space-y-1">
+                                <ul className="text-sm font-semibold text-black space-y-0.5">
+                                  {cutRows.map((row) => (
+                                    <li key={row.key}>
+                                      {t("piecesCount", {
+                                        count: row.quantity,
+                                        cut: row.label,
+                                      })}
+                                      {row.lengthInMeters > 0
+                                        ? ` · ${row.lengthInMeters}${locale === "ar" ? " م" : "m"}`
+                                        : ""}
+                                    </li>
+                                  ))}
+                                </ul>
+                                {leftoverVal > 0 && (
+                                  <p className="text-xs text-emerald-700 font-medium pt-1">
+                                    {t("leftoverToReturn")}: {leftoverVal}{" "}
+                                    {locale === "ar" ? "م" : "m"}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <p className="text-sm font-semibold font-mono text-black mt-0.5">
+                              {order.fabricMeters || 0}{" "}
+                              {locale === "ar" ? "متر" : "meters (m)"}
+                            </p>
+                          );
+                        })()}
                       </div>
                       <div className="bg-white p-3 border border-gray-100 rounded-lg">
                         <p className="text-3xs text-gray-400 uppercase font-medium">

@@ -729,22 +729,22 @@ export function isLineItemMetersValid(
 export function getLineItemCutSelections(
   item: CustomOrderLineItem,
 ): Record<string, number> {
-  if (Array.isArray(item.selectedCuts) && item.selectedCuts.length > 0) {
-    const next: Record<string, number> = {};
-    for (const cut of item.selectedCuts) {
-      if (cut?.cutId) {
-        next[cut.cutId] = (next[cut.cutId] || 0) + 1;
-      }
-    }
-    return next;
-  }
-
   if (item.cutSelections && Object.keys(item.cutSelections).length > 0) {
     const next: Record<string, number> = {};
     for (const [cutId, quantity] of Object.entries(item.cutSelections)) {
       const qty = Math.floor(Number(quantity));
       if (cutId && Number.isFinite(qty) && qty > 0) {
         next[cutId] = qty;
+      }
+    }
+    if (Object.keys(next).length > 0) return next;
+  }
+
+  if (Array.isArray(item.selectedCuts) && item.selectedCuts.length > 0) {
+    const next: Record<string, number> = {};
+    for (const cut of item.selectedCuts) {
+      if (cut?.cutId) {
+        next[cut.cutId] = (next[cut.cutId] || 0) + 1;
       }
     }
     return next;

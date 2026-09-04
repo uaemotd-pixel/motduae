@@ -100,8 +100,8 @@ export default function RegisterForm() {
           alt=""
           className="absolute inset-0 w-full h-full object-cover object-[28%_center]"
         />
-        <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/30 to-transparent"></div>
-        <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-black/20"></div>
+        <div className="absolute inset-0 bg-linear-to-r from-black/15 via-black/5 to-transparent"></div>
+        <div className="absolute inset-0 bg-linear-to-t from-black/20 via-transparent to-black/5"></div>
         <div className="absolute top-7.5 left-7.5 z-10 fade-in">
           <Link href="/" className="shrink-0 flex items-center p-7.5 -m-7.5">
             <img

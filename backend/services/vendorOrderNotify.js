@@ -33,14 +33,40 @@ function formatAmount(value) {
   return String(Math.round(num * 100) / 100);
 }
 
-export function formatVendorLineLabel({ name, meters, quantity } = {}) {
+export function formatVendorLineLabel({
+  name,
+  meters,
+  quantity,
+  cutsLabel,
+} = {}) {
   const label = String(name || "").trim();
   if (!label) return "";
+  const cuts = String(cutsLabel || "").trim();
+  if (cuts) return `${label} · ${cuts}`;
   const metersLabel = formatAmount(meters);
   if (metersLabel) return `${label} · ${metersLabel} m`;
   const qtyLabel = formatAmount(quantity);
   if (qtyLabel) return `${label} · qty ${qtyLabel}`;
   return label;
+}
+
+function formatSelectedCutsForNotify(cuts) {
+  if (!Array.isArray(cuts) || cuts.length === 0) return "";
+  const map = new Map();
+  for (const cut of cuts) {
+    if (!cut) continue;
+    const key = String(cut.cutId || cut.name || "").trim();
+    if (!key) continue;
+    const label = cut.name || cut.nameAr || key;
+    const qty = Math.max(1, Math.floor(Number(cut.quantity) || 1));
+    map.set(key, {
+      label,
+      quantity: (map.get(key)?.quantity || 0) + qty,
+    });
+  }
+  return Array.from(map.values())
+    .map((row) => `${row.quantity}× ${row.label}`)
+    .join(" + ");
 }
 
 function uniqueLabels(lines) {
@@ -89,6 +115,8 @@ function customLineItems(order) {
       designSnapshot: order?.designSnapshot,
       fabricSnapshot: order?.fabricSnapshot,
       fabricMeters: order?.fabricMeters,
+      selectedCuts: order?.selectedCuts,
+      leftoverMeters: order?.leftoverMeters,
     },
   ];
 }
@@ -137,7 +165,14 @@ async function resolveCustomTailorRecipients(order) {
       shopItems.map((item) =>
         formatVendorLineLabel({
           name: item?.designSnapshot?.name,
-          meters: item?.fabricMeters,
+          cutsLabel: formatSelectedCutsForNotify(
+            item?.selectedCuts?.length
+              ? item.selectedCuts
+              : order?.selectedCuts,
+          ),
+          meters: item?.selectedCuts?.length
+            ? undefined
+            : item?.fabricMeters,
         }),
       ),
     );
@@ -183,7 +218,14 @@ async function resolveCustomFabricRecipients(order) {
       shopItems.map((item) =>
         formatVendorLineLabel({
           name: item?.fabricSnapshot?.name,
-          meters: item?.fabricMeters,
+          cutsLabel: formatSelectedCutsForNotify(
+            item?.selectedCuts?.length
+              ? item.selectedCuts
+              : order?.selectedCuts,
+          ),
+          meters: item?.selectedCuts?.length
+            ? undefined
+            : item?.fabricMeters,
         }),
       ),
     );

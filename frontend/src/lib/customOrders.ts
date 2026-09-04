@@ -351,6 +351,88 @@ export function getHistoryEntryForStatus(
   return history.find((entry) => entry.status === status);
 }
 
+export type SelectedCutEntry = {
+  cutId?: string | null;
+  name?: string;
+  nameAr?: string;
+  lengthInMeters?: number;
+  price?: number;
+  quantity?: number;
+};
+
+/** Group expanded cut snapshots (1 row per piece) into quantity × cut name. */
+export function groupSelectedCutPieces(
+  cuts: SelectedCutEntry[] | null | undefined,
+  locale: string = "en",
+): Array<{
+  key: string;
+  label: string;
+  quantity: number;
+  lengthInMeters: number;
+}> {
+  if (!Array.isArray(cuts) || cuts.length === 0) return [];
+
+  const map = new Map<
+    string,
+    { label: string; quantity: number; lengthInMeters: number }
+  >();
+
+  for (const cut of cuts) {
+    if (!cut) continue;
+    const key = String(cut.cutId || cut.name || "").trim();
+    if (!key) continue;
+    const label =
+      locale === "ar"
+        ? cut.nameAr || cut.name || key
+        : cut.name || cut.nameAr || key;
+    const qty = Math.max(1, Math.floor(Number(cut.quantity) || 1));
+    const existing = map.get(key);
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      map.set(key, {
+        label,
+        quantity: qty,
+        lengthInMeters: Number(cut.lengthInMeters) || 0,
+      });
+    }
+  }
+
+  return Array.from(map.entries()).map(([key, value]) => ({ key, ...value }));
+}
+
+export function formatSelectedCutsLabel(
+  cuts: SelectedCutEntry[] | null | undefined,
+  locale: string = "en",
+): string {
+  return groupSelectedCutPieces(cuts, locale)
+    .map((row) => `${row.quantity}× ${row.label}`)
+    .join(" + ");
+}
+
+export function hasSelectedCuts(
+  cuts: SelectedCutEntry[] | null | undefined,
+): boolean {
+  return Array.isArray(cuts) && cuts.length > 0;
+}
+
+export function resolveOrderLeftoverMeters(options: {
+  leftoverMeters?: number | null;
+  fabricMeters?: number | null;
+  minRequired?: number | null;
+}): number {
+  const stored = Number(options.leftoverMeters);
+  if (Number.isFinite(stored) && stored > 0) {
+    return Number(stored.toFixed(2));
+  }
+  const total = Number(options.fabricMeters) || 0;
+  const min = Number(options.minRequired) || 0;
+  if (total > min && min > 0) {
+    return Number((total - min).toFixed(2));
+  }
+  return 0;
+}
+
 export function formatOrderDate(date: string, locale: Locale): string {
   return new Intl.DateTimeFormat(locale === "ar" ? "ar-AE" : "en-AE", {
     day: "numeric",
