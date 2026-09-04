@@ -15,7 +15,6 @@ import {
   validateAddress,
   normalizeAddress,
 } from "../utils/uaeAddress.js";
-import { getCustomerDashboard } from "../services/customerDashboardService.js";
 
 const calculateAge = (dob) => {
   if (!dob || Number.isNaN(new Date(dob).getTime())) return null;
@@ -36,26 +35,6 @@ const hasAddressData = (address) => {
 };
 
 const customerRouter = express.Router();
-
-// ==========================================
-// GET /api/customer/dashboard
-// Customer account overview (orders, spend, setup)
-// ==========================================
-customerRouter.get(
-  "/dashboard",
-  isAuth,
-  expressAsyncHandler(async (req, res) => {
-    const timeframeRaw = req.query.timeframe;
-    const timeframe =
-      timeframeRaw === "week" ||
-      timeframeRaw === "month" ||
-      timeframeRaw === "year"
-        ? timeframeRaw
-        : "month";
-    const data = await getCustomerDashboard(req.user._id, timeframe);
-    res.json(data);
-  }),
-);
 
 customerRouter.post(
   "/uploads/customer",
