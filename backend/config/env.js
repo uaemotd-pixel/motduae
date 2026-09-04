@@ -36,6 +36,18 @@ function defaultFrontendUrl() {
   return process.env.FRONTEND_URL || vercelOrigin() || 'http://localhost:3000';
 }
 
+function parseUtcHour(value, fallback) {
+  if (value === undefined || value === '') return fallback;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > 23) return fallback;
+  return n;
+}
+
+function isTruthyEnv(value, fallback) {
+  if (value === undefined || value === '') return fallback;
+  return ['1', 'true', 'yes'].includes(String(value).toLowerCase());
+}
+
 export const env = {
   get port() {
     return Number(process.env.PORT) || 5000;
@@ -96,6 +108,19 @@ export const env = {
       apiKey: process.env.SHIPA_API_KEY || '',
       baseUrl: (process.env.SHIPA_BASE_URL || fallbackBase).replace(/\/$/, ''),
       webhookSecret: process.env.SHIPA_WEBHOOK_SECRET || '',
+    };
+  },
+  get cronSecret() {
+    return process.env.CRON_SECRET || '';
+  },
+  get purgeOldData() {
+    const isProd = (process.env.NODE_ENV || 'development') === 'production';
+    return {
+      schedulerEnabled: isTruthyEnv(
+        process.env.PURGE_OLD_DATA_SCHEDULER,
+        isProd,
+      ),
+      schedulerHourUtc: parseUtcHour(process.env.PURGE_OLD_DATA_HOUR_UTC, 2),
     };
   },
 };

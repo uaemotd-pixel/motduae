@@ -89,6 +89,7 @@ In **Project → Settings → Environment Variables**, add these for **Productio
 | `MONGODB_URI` | `mongodb+srv://user:pass@cluster.mongodb.net/motd?retryWrites=true&w=majority` |
 | `JWT_SECRET` | Long random string |
 | `NODE_ENV` | `production` |
+| `CRON_SECRET` | Long random string. Vercel Cron and Postman send `Authorization: Bearer <CRON_SECRET>` (or `x-cron-secret`). Required in production even for Postman. |
 
 ### URLs (use your Vercel URL after first deploy, or a placeholder you update)
 
@@ -116,7 +117,27 @@ In **Project → Settings → Environment Variables**, add these for **Productio
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (see Stripe webhooks below) |
 | `BLOB_READ_WRITE_TOKEN` | Auto-set when Blob store is linked to the Vercel project |
 
+**Cron retention** lives in `backend/jobs/purgePolicy.js` (not env). Those numbers are “delete if older than N days”, not “run every N days”. The job already runs daily at 02:00 UTC. `pendingCheckoutSettledDays` (30) only removes **completed** checkout snapshots after an order exists. Abandoned `pending` / `failed` / `expired` rows are recovered against Stripe first, then deleted after `pendingCheckoutDays` (15). Guest OTP leftovers (no live code) are removed after `guestOtpDays` (2); expired codes still drop as soon as `otpExpires` passes. Each run is stored in the `cronruns` collection.
+
 You do **not** need `NEXT_PUBLIC_API_URL` on Vercel — frontend and API share the same domain, so requests go to `/api/...` automatically.
+
+Each purge is its own GET/POST route so you can run them from Postman:
+
+| Method | Path |
+|---|---|
+| GET/POST | `/api/cron` (lists jobs) |
+| GET/POST | `/api/cron/purge-pending-emails` |
+| GET/POST | `/api/cron/purge-expired-otps` |
+| GET/POST | `/api/cron/purge-reset-tokens` |
+| GET/POST | `/api/cron/purge-guest-otps` |
+| GET/POST | `/api/cron/purge-pending-checkouts` |
+| GET/POST | `/api/cron/purge-email-logs` |
+| GET/POST | `/api/cron/purge-notifications` |
+| GET/POST | `/api/cron/purge-old-data` (all of the above) |
+
+Pass `?dryRun=1` or JSON `{ "dryRun": true }` to count without deleting. Vercel runs `/api/cron/purge-old-data` daily at 02:00 UTC. Local Postman needs no secret when `CRON_SECRET` is empty; production always needs `CRON_SECRET`.
+
+On multiple backend instances (Node cluster, PM2, Kubernetes), **only one instance runs a given job**. Vercel Cron sends a single HTTP request. If several processes still try to run at once, a Mongo lock skips the extras (`skipped: true`). Dry-runs do not take the lock.
 
 ### Stripe webhooks (required for live card / Apple Pay)
 

@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 import User from '../models/User.js';
 import Customer from '../models/customer.js';
 import bcrypt from 'bcryptjs';
+import { alignPurgeIndexes } from './alignPurgeIndexes.js';
 
 const globalCache = globalThis;
 
@@ -64,6 +65,11 @@ export async function connectDB() {
       .then(async () => {
         console.log('Connected to MongoDB');
         await ensureGuestUser();
+        try {
+          await alignPurgeIndexes();
+        } catch (err) {
+          console.warn('alignPurgeIndexes failed:', err.message);
+        }
         return mongoose.connection;
       })
       .catch((err) => {
