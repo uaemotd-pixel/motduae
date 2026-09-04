@@ -694,7 +694,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
               value={formData.description}
               onChange={(e) => handleChange("description", e.target.value)}
               className={`${INPUT_CLASS} hover:cursor-text`}
-              placeholder="fhyfhy"
+              placeholder="Enter description (EN)"
             />
           </FormField>
 
