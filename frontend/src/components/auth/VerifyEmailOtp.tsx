@@ -38,6 +38,29 @@ type Phase = "idle" | "sent" | "verifying" | "verified" | "failed";
 const OTP_LENGTH = 6;
 const EASE = [0.25, 0.1, 0.25, 1] as const;
 
+function heroForRole(role?: string) {
+  if (role === "tailor") {
+    return {
+      src: images.sub1.src,
+      imgClass: "w-full h-full object-cover",
+      overlay: "partner" as const,
+    };
+  }
+  if (role === "fabric_store") {
+    return {
+      src: images.sub2.src,
+      imgClass: "w-full h-full object-cover",
+      overlay: "partner" as const,
+    };
+  }
+  return {
+    src: images.register_image.src,
+    imgClass:
+      "absolute inset-0 w-full h-full object-cover object-[28%_center]",
+    overlay: "customer" as const,
+  };
+}
+
 type Props = {
   locale: string;
   mode?: VerifyEmailMode;
@@ -59,6 +82,7 @@ export default function VerifyEmailOtp({
   const { user, applyUserResponse } = useAuth();
   const isPartner =
     user?.role === "tailor" || user?.role === "fabric_store";
+  const hero = heroForRole(user?.role);
   const isPartnerSubmit = mode === "partner-submit";
   const isEmailChange = mode === "email-change";
   const isGuestCheckout = mode === "guest-checkout";
@@ -249,13 +273,18 @@ export default function VerifyEmailOtp({
   return (
     <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
       <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden relative">
-        <img
-          src={images.sub1.src}
-          alt=""
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/30 to-transparent" />
-        <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-black/20" />
+        <img src={hero.src} alt="" className={hero.imgClass} />
+        {hero.overlay === "customer" ? (
+          <>
+            <div className="absolute inset-0 bg-linear-to-r from-black/15 via-black/5 to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-t from-black/20 via-transparent to-black/5" />
+          </>
+        ) : (
+          <>
+            <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/30 to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-black/20" />
+          </>
+        )}
         <div className="absolute top-7.5 left-7.5 z-10">
           <Link href="/" className="shrink-0 flex items-center p-7.5 -m-7.5">
             <img
