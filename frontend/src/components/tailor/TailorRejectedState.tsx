@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/context/AuthContext";
 import PartnerGateScreen from "@/components/partner/PartnerGateScreen";
+import { partnerSupportMailto } from "@/lib/contactEmail";
 
 export default function TailorRejectedState() {
   const t = useTranslations("TailorPortal.rejected");
@@ -24,7 +25,10 @@ export default function TailorRejectedState() {
         { label: t("goHome"), href: "/", variant: "outline" },
         {
           label: t("contactCta"),
-          mailto: "mailto:care@motd.ae",
+          mailto: partnerSupportMailto({
+            requestNumber: user?.requestNumber,
+            role: "tailor",
+          }),
           variant: "outline",
         },
       ]}

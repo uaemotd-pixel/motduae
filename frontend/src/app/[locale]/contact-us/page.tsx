@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import MainLayout from "../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
@@ -8,11 +8,17 @@ import toast from "react-hot-toast";
 import { Mail, Phone, Loader2, Send } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { SUCCESS_TOAST, ERROR_TOAST } from "@/lib/tailorPortalToast";
+import { useAuth, needsEmailVerification } from "@/context/AuthContext";
+import { getContactEmail } from "@/lib/contactEmail";
 
 export default function ContactUsPage() {
   const params = useParams();
   const locale = params.locale as string;
   const isAr = locale === "ar";
+  const { user, isLoading: authLoading } = useAuth();
+  const contactEmail = getContactEmail();
+  const lockVerifiedEmail =
+    Boolean(user?.email) && !needsEmailVerification(user);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -22,12 +28,25 @@ export default function ContactUsPage() {
   });
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (authLoading || !user) return;
+    setFormData((prev) => ({
+      ...prev,
+      name: prev.name.trim() ? prev.name : user.name || "",
+      email: lockVerifiedEmail ? user.email : prev.email,
+    }));
+  }, [authLoading, user, lockVerifiedEmail]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const emailValue = lockVerifiedEmail
+      ? user?.email || formData.email
+      : formData.email;
+
     if (
       !formData.name.trim() ||
-      !formData.email.trim() ||
+      !emailValue.trim() ||
       !formData.subject.trim() ||
       !formData.message.trim()
     ) {
@@ -41,7 +60,7 @@ export default function ContactUsPage() {
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
+    if (!emailRegex.test(emailValue)) {
       toast.error(
         isAr
           ? "يرجى إدخال بريد إلكتروني صحيح."
@@ -53,14 +72,26 @@ export default function ContactUsPage() {
 
     setLoading(true);
     try {
-      await api.post("/api/users/contact", formData);
+      await api.post("/api/users/contact", {
+        ...formData,
+        email: emailValue,
+      });
       toast.success(
         isAr
           ? "لقد استلمنا رسالتك. سنتواصل معك قريبًا إن لزم الأمر."
           : "We received your message. Our team will get back to you if needed.",
         SUCCESS_TOAST,
       );
-      setFormData({ name: "", email: "", subject: "", message: "" });
+      if (lockVerifiedEmail) {
+        setFormData({
+          name: user?.name || formData.name,
+          email: user?.email || emailValue,
+          subject: "",
+          message: "",
+        });
+      } else {
+        setFormData({ name: "", email: "", subject: "", message: "" });
+      }
     } catch (error) {
       toast.error(
         isAr
@@ -110,10 +141,10 @@ export default function ContactUsPage() {
                         {isAr ? "البريد الإلكتروني" : "EMAIL ADDRESS"}
                       </span>
                       <a
-                        href="mailto:care@motd.ae"
+                        href={`mailto:${contactEmail}`}
                         className="text-sm sm:text-base font-medium text-black hover:opacity-70 transition-opacity decoration-1"
                       >
-                        care@motd.ae
+                        {contactEmail}
                       </a>
                     </div>
                   </div>
@@ -182,14 +213,20 @@ export default function ContactUsPage() {
                       type="email"
                       id="email"
                       disabled={loading}
+                      readOnly={lockVerifiedEmail}
                       value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
+                      onChange={(e) => {
+                        if (lockVerifiedEmail) return;
+                        setFormData({ ...formData, email: e.target.value });
+                      }}
                       placeholder={
                         isAr ? "example@domain.com" : "example@domain.com"
                       }
-                      className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-start hover:cursor-text text-xs sm:text-sm"
+                      className={`w-full py-1 border-b border-gray-300 focus:border-black outline-none text-start text-xs sm:text-sm ${
+                        lockVerifiedEmail
+                          ? "text-[#5A5A56] cursor-default bg-transparent"
+                          : "hover:cursor-text"
+                      }`}
                       required
                     />
                   </div>
