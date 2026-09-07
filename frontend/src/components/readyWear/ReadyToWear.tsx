@@ -118,11 +118,17 @@ export function ReadyToWearSection() {
   }, [emblaApi]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.location.hash === "#ready-made") {
+    if (
+      typeof window !== "undefined" &&
+      window.location.hash === "#ready-made"
+    ) {
       const timer = setTimeout(() => {
         const element = document.getElementById("ready-made");
         if ((window as any).lenis) {
-          (window as any).lenis.scrollTo(element || "#ready-made", { offset: -80, duration: 1.2 });
+          (window as any).lenis.scrollTo(element || "#ready-made", {
+            offset: -80,
+            duration: 1.2,
+          });
         } else if (element) {
           element.scrollIntoView({ behavior: "smooth", block: "start" });
         }
@@ -206,7 +212,10 @@ export function ReadyToWearSection() {
 
   if (loading) {
     return (
-      <section id="ready-made" className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16 scroll-mt-20">
+      <section
+        id="ready-made"
+        className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16 scroll-mt-20"
+      >
         <HomeSectionSkeleton showFilters={false} cardCount={4} />
       </section>
     );
@@ -236,7 +245,7 @@ export function ReadyToWearSection() {
       className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16 scroll-mt-20"
     >
       {toastMessage && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 bg-black text-white px-4 py-2.5 rounded-lg shadow-lg [font-family:var(--font-ui)] text-xs sm:text-sm tracking-wide animate-fade-in-up max-w-[calc(100vw-24px)] text-center pointer-events-none mb-[var(--safe-bottom)]">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 bg-black text-white px-4 py-2.5 rounded-lg shadow-lg [font-family:var(--font-ui)] text-xs sm:text-sm tracking-wide animate-fade-in-up max-w-[calc(100vw-24px)] text-center pointer-events-none mb-(--safe-bottom)">
           {toastMessage}
         </div>
       )}
@@ -381,7 +390,7 @@ export function ReadyToWearSection() {
                       </div>
 
                       <div className="p-3 xs:p-4 sm:p-5 md:p-6 lg:p-(--space-24) flex flex-col grow">
-                        <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-[1.25] tracking-[-0.01em] text-black mb-1.5 line-clamp-2">
+                        <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-tight tracking-[-0.01em] text-black mb-1.5 line-clamp-2">
                           {title}
                         </h3>
                         <span className="[font-family:var(--font-ui)] text-[13px] xs:text-[14px] sm:text-[15px] md:text-[14px] lg:text-[15px] xl:text-[16px] 2xl:text-[17px] tracking-[0.08em] text-black font-semibold mb-1">
@@ -399,7 +408,7 @@ export function ReadyToWearSection() {
                             </p>
                           ) : null;
                         })()}
-                        <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow">
+                        <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-normal sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow">
                           {description}
                         </p>
                       </div>

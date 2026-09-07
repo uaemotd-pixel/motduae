@@ -118,7 +118,23 @@ interface Order {
       minCutSnapshot?: { lengthInMeters?: number } | null;
       estimatedMeters?: number | null;
     };
+    pricing?: { fabricCost?: number; fabricPricePerMeter?: number };
   }>;
+  addons?: Array<{
+    addonId?: string;
+    name?: string;
+    nameAr?: string;
+    price?: number;
+    thumbnailImage?: string;
+  }>;
+  storeScope?: {
+    hasFabric?: boolean;
+    hasAddons?: boolean;
+    canUpdateFabricStatus?: boolean;
+    fabricGross?: number;
+    addonsGross?: number;
+    gross?: number;
+  };
   shippingPrice?: number;
   parcelCount?: number;
   perParcelFee?: number | null;
@@ -291,6 +307,15 @@ export default function FabricOrdersPage() {
   const updateOrderStatus = async (orderId: string) => {
     const order = orders.find((o) => o._id === orderId);
     if (!order) return;
+    if (order.storeScope && order.storeScope.canUpdateFabricStatus === false) {
+      toast.error(
+        locale === "ar"
+          ? "لا يمكنك تحديث حالة تسليم القماش لهذا الطلب"
+          : "You cannot update fabric handoff status for this order",
+        ERROR_TOAST,
+      );
+      return;
+    }
 
     const nextStatus = getNextFabricStatus(order.status);
     if (!nextStatus) return;
@@ -548,9 +573,29 @@ export default function FabricOrdersPage() {
               : user?.phone || "";
             const fabricName =
               order.fabricSnapshot?.name ||
+              order.items?.[0]?.fabricSnapshot?.name ||
               (locale === "ar" ? "قماش خاص" : "Self Fabric");
             const isExpanded = !!expandedOrders[order._id];
             const isShipmentsExpanded = !!expandedShipments[order._id];
+            const scope = order.storeScope;
+            const hasFabric = scope?.hasFabric !== false;
+            // When API provides storeScope, trust it; older payloads without it keep prior fabric UI.
+            const hasAddons = Boolean(
+              scope?.hasAddons ||
+                (Array.isArray(order.addons) && order.addons.length > 0),
+            );
+            const canUpdateFabricStatus =
+              scope?.canUpdateFabricStatus ?? hasFabric;
+            const storeAddons = Array.isArray(order.addons) ? order.addons : [];
+            const storeGross =
+              typeof scope?.gross === "number"
+                ? scope.gross
+                : (Number(order.pricing?.fabricCost) || 0) +
+                  storeAddons.reduce(
+                    (sum, a) => sum + (Number(a.price) || 0),
+                    0,
+                  );
+            const addonOnly = Boolean(scope && !hasFabric && hasAddons);
 
             if (activeTab === "retail") {
               const retailOrder = order as any;
@@ -790,11 +835,30 @@ export default function FabricOrdersPage() {
 
                   <div>
                     <p className="text-xs text-gray-400 uppercase tracking-wider mb-1 [font-family:var(--font-ui)]">
-                      {t("design")}
+                      {addonOnly
+                        ? locale === "ar"
+                          ? "إضافات"
+                          : "Add-ons"
+                        : t("design")}
                     </p>
                     <p className="text-sm font-medium text-black [font-family:var(--font-body)]">
-                      {fabricName}
+                      {addonOnly
+                        ? storeAddons
+                            .map((a) => a.name)
+                            .filter(Boolean)
+                            .join(", ") ||
+                          (locale === "ar" ? "إضافات" : "Add-ons")
+                        : fabricName}
                     </p>
+                    {!addonOnly && hasAddons ? (
+                      <p className="mt-1 text-[11px] text-gray-500 [font-family:var(--font-body)]">
+                        {locale === "ar" ? "يشمل إضافات" : "Includes add-ons"}:{" "}
+                        {storeAddons
+                          .map((a) => a.name)
+                          .filter(Boolean)
+                          .join(", ")}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div>
@@ -816,9 +880,10 @@ export default function FabricOrdersPage() {
                         label={statusLabel(order.status)}
                       />
 
-                      {(["confirmed", "fabric_delivered"] as const).includes(
+                      {canUpdateFabricStatus &&
+                      (["confirmed", "fabric_delivered"] as const).includes(
                         order.status as "confirmed" | "fabric_delivered",
-                      ) && (
+                      ) ? (
                         <div className="relative">
                           <select
                             value={order.status}
@@ -829,7 +894,8 @@ export default function FabricOrdersPage() {
                               if (!next) return;
 
                               // Only allow the fabric-flow progression (two-way)
-                              if (next !== getNextFabricStatus(order.status)) return;
+                              if (next !== getNextFabricStatus(order.status))
+                                return;
 
                               updateOrderStatus(order._id);
                             }}
@@ -851,7 +917,9 @@ export default function FabricOrdersPage() {
                                   <option value={order.status}>
                                     {statusLabel(order.status)}
                                   </option>
-                                  <option value={next}>{statusLabel(next)}</option>
+                                  <option value={next}>
+                                    {statusLabel(next)}
+                                  </option>
                                 </>
                               );
                             })()}
@@ -865,7 +933,13 @@ export default function FabricOrdersPage() {
                             <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
                           </div>
                         </div>
-                      )}
+                      ) : addonOnly ? (
+                        <p className="text-[10px] text-gray-500 [font-family:var(--font-body)]">
+                          {locale === "ar"
+                            ? "طلب إضافات فقط — حالة تسليم القماش يديرها متجر القماش"
+                            : "Add-ons only — fabric handoff is managed by the fabric store"}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
@@ -875,18 +949,24 @@ export default function FabricOrdersPage() {
                     </p>
                     {(() => {
                       const breakdown = splitFabricCommission(
-                        order.pricing.fabricCost || 0,
+                        storeGross,
                         commissionPercent,
                       );
                       const currency = order.pricing.currency || "AED";
-                      const deliveryFee = order.pricing.deliveryFee || 0;
-                      const parcelNote = formatParcelDeliveryNote(
-                        locale,
-                        order.pricing.parcelCount ?? order.parcelCount,
-                        order.pricing.perParcelFee ?? order.perParcelFee,
-                        formatCurrency,
-                        currency,
-                      );
+                      const deliveryFee =
+                        hasFabric && !addonOnly
+                          ? order.pricing.deliveryFee || 0
+                          : 0;
+                      const parcelNote =
+                        hasFabric && !addonOnly
+                          ? formatParcelDeliveryNote(
+                              locale,
+                              order.pricing.parcelCount ?? order.parcelCount,
+                              order.pricing.perParcelFee ?? order.perParcelFee,
+                              formatCurrency,
+                              currency,
+                            )
+                          : null;
                       return (
                         <>
                           <p className="font-medium text-black text-sm [font-family:var(--font-body)]">
@@ -898,6 +978,34 @@ export default function FabricOrdersPage() {
                               : "Your payout after commission"}
                           </p>
                           <div className="mt-2 space-y-0.5 text-[10px] text-gray-500 [font-family:var(--font-body)]">
+                            {hasAddons ? (
+                              <p>
+                                {locale === "ar"
+                                  ? "إضافات: "
+                                  : "Add-ons: "}
+                                {formatCurrency(
+                                  Number(scope?.addonsGross) ||
+                                    storeAddons.reduce(
+                                      (sum, a) =>
+                                        sum + (Number(a.price) || 0),
+                                      0,
+                                    ),
+                                  currency,
+                                )}
+                              </p>
+                            ) : null}
+                            {hasFabric &&
+                            (Number(scope?.fabricGross) || 0) > 0 ? (
+                              <p>
+                                {locale === "ar" ? "قماش: " : "Fabric: "}
+                                {formatCurrency(
+                                  Number(scope?.fabricGross) ||
+                                    order.pricing.fabricCost ||
+                                    0,
+                                  currency,
+                                )}
+                              </p>
+                            ) : null}
                             {deliveryFee > 0 && (
                               <>
                                 <p>
@@ -924,6 +1032,43 @@ export default function FabricOrdersPage() {
 
                 {/* Fabric meters & details block */}
                 <div className="px-5 pb-5">
+                  {hasAddons ? (
+                    <div className="mb-4 rounded-xl border border-gray-100 bg-gray-50/50 p-3">
+                      <p className="text-xs text-gray-400 uppercase tracking-wider mb-2 [font-family:var(--font-ui)]">
+                        {locale === "ar" ? "الإضافات المطلوبة" : "Ordered add-ons"}
+                      </p>
+                      <div className="flex flex-col gap-2">
+                        {storeAddons.map((addon, idx) => (
+                          <div
+                            key={`${order._id}-addon-${idx}`}
+                            className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white p-2"
+                          >
+                            {addon.thumbnailImage ? (
+                              <img
+                                src={addon.thumbnailImage}
+                                alt={addon.name || "Add-on"}
+                                className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 object-cover"
+                              />
+                            ) : null}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-black [font-family:var(--font-body)]">
+                                {addon.name ||
+                                  (locale === "ar" ? "إضافة" : "Add-on")}
+                              </p>
+                              <p className="text-[10px] text-gray-500 [font-family:var(--font-body)]">
+                                {formatCurrency(
+                                  Number(addon.price) || 0,
+                                  order.pricing.currency || "AED",
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {hasFabric ? (
                   <div className="flex flex-wrap gap-4">
                     <button
                       type="button"
@@ -959,8 +1104,9 @@ export default function FabricOrdersPage() {
                       )}
                     </button>
                   </div>
+                  ) : null}
 
-                  {isExpanded && (
+                  {hasFabric && isExpanded && (
                     <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50 grid grid-cols-1 sm:grid-cols-3 gap-4 [font-family:var(--font-body)]">
                       <div className="bg-white p-3 border border-gray-100 rounded-lg sm:col-span-3">
                         <p className="text-3xs text-gray-400 uppercase font-medium">
@@ -1026,7 +1172,9 @@ export default function FabricOrdersPage() {
                         </p>
                         <p className="text-sm font-semibold font-mono text-black mt-0.5">
                           {formatCurrency(
-                            order.pricing.fabricPricePerMeter || 0,
+                            order.items?.[0]?.pricing?.fabricPricePerMeter ||
+                              order.pricing.fabricPricePerMeter ||
+                              0,
                             order.pricing.currency || "AED",
                           )}{" "}
                           / m
@@ -1040,15 +1188,21 @@ export default function FabricOrdersPage() {
                         </p>
                         <p className="text-sm font-semibold font-mono text-black mt-0.5">
                           {formatCurrency(
-                            order.pricing.fabricCost || 0,
+                            Number(scope?.fabricGross) ||
+                              order.pricing.fabricCost ||
+                              0,
                             order.pricing.currency || "AED",
                           )}
                         </p>
                       </div>
                       <div className="bg-white p-3 border border-gray-100 rounded-lg sm:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
                         {(() => {
+                          const fabricOnlyGross =
+                            Number(scope?.fabricGross) ||
+                            order.pricing.fabricCost ||
+                            0;
                           const breakdown = splitFabricCommission(
-                            order.pricing.fabricCost || 0,
+                            fabricOnlyGross,
                             commissionPercent,
                           );
                           const currency = order.pricing.currency || "AED";
@@ -1089,7 +1243,7 @@ export default function FabricOrdersPage() {
                     </div>
                   )}
 
-                  {isShipmentsExpanded && (
+                  {hasFabric && isShipmentsExpanded && (
                     <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
                       <ShipmentList
                         shipments={order.shipments}

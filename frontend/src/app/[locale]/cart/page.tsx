@@ -261,7 +261,7 @@ export default function CartPage() {
                   onClick={clearCart}
                   className="text-[16px] xs:text-[14px] text-(--color-grey-muted) hover:text-black transition hover:cursor-pointer"
                 >
-                  Clear cart
+                  Clear Cart
                 </button>
               </div>
 

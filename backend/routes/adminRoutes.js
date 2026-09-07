@@ -128,15 +128,24 @@ function sumCustomTailorGross(order) {
   );
 }
 
-/** Admin-wide custom fabric gross = fabric cost lines. */
+/** Admin-wide custom fabric gross = fabric cost lines + purchased add-ons. */
 function sumCustomFabricGross(order) {
+  let fabricFee = 0;
   if (order.items && order.items.length > 0) {
-    return order.items.reduce(
+    fabricFee = order.items.reduce(
       (sum, item) => sum + (Number(item.pricing?.fabricCost) || 0),
       0,
     );
+  } else {
+    fabricFee = Number(order.pricing?.fabricCost) || 0;
   }
-  return Number(order.pricing?.fabricCost) || 0;
+
+  const addOnsFee = (order.addons || order.addOns || []).reduce(
+    (sum, addon) => sum + (Number(addon?.price) || 0),
+    0,
+  );
+
+  return fabricFee + addOnsFee;
 }
 
 /** Admin-wide retail fabric-store gross = line totals (ready-made / add-ons / fabric). */
@@ -2025,6 +2034,9 @@ adminRouter.get(
       .lean();
 
     const fabricOwnerIds = new Set();
+    const addonIds = new Set();
+    const addonShopIds = new Set();
+
     for (const order of orders) {
       const rootId =
         order.fabricStoreId?._id?.toString?.() ||
@@ -2038,18 +2050,63 @@ adminRouter.get(
           "";
         if (itemId) fabricOwnerIds.add(itemId);
       }
+
+      for (const addon of order.addons || []) {
+        const addonId =
+          addon.addonId?._id?.toString?.() ||
+          addon.addonId?.toString?.() ||
+          "";
+        if (addonId) addonIds.add(addonId);
+        const shopId =
+          addon.fabricShopId?._id?.toString?.() ||
+          addon.fabricShopId?.toString?.() ||
+          "";
+        if (shopId) addonShopIds.add(shopId);
+      }
     }
 
-    const fabricShops =
+    const [ownerFabricShops, catalogAddons] = await Promise.all([
       fabricOwnerIds.size > 0
-        ? await FabricShop.find({
-          ownerId: { $in: [...fabricOwnerIds] },
-        })
-          .select("name nameAr ownerId phone city location pickupAddress")
-          .lean()
+        ? FabricShop.find({
+            ownerId: { $in: [...fabricOwnerIds] },
+          })
+            .select("name nameAr ownerId phone city location pickupAddress")
+            .lean()
+        : Promise.resolve([]),
+      addonIds.size > 0
+        ? AddOn.find({ _id: { $in: [...addonIds] } })
+            .select("_id fabricShopId name")
+            .lean()
+        : Promise.resolve([]),
+    ]);
+
+    for (const addon of catalogAddons) {
+      const shopId =
+        addon.fabricShopId?._id?.toString?.() ||
+        addon.fabricShopId?.toString?.() ||
+        "";
+      if (shopId) addonShopIds.add(shopId);
+    }
+
+    const addonFabricShops =
+      addonShopIds.size > 0
+        ? await FabricShop.find({ _id: { $in: [...addonShopIds] } })
+            .select("name nameAr ownerId phone city location pickupAddress")
+            .populate("ownerId", "name email phone")
+            .lean()
         : [];
+
     const fabricShopByOwner = new Map(
-      fabricShops.map((shop) => [String(shop.ownerId), shop]),
+      ownerFabricShops.map((shop) => [String(shop.ownerId), shop]),
+    );
+    const fabricShopById = new Map(
+      [...ownerFabricShops, ...addonFabricShops].map((shop) => [
+        String(shop._id),
+        shop,
+      ]),
+    );
+    const addonById = new Map(
+      catalogAddons.map((addon) => [String(addon._id), addon]),
     );
 
     const withFabricShopNames = orders.map((order) => {
@@ -2074,6 +2131,47 @@ adminRouter.get(
         };
       };
 
+      const enrichAddon = (addon) => {
+        if (!addon || typeof addon !== "object") return addon;
+        const addonId =
+          addon.addonId?._id?.toString?.() ||
+          addon.addonId?.toString?.() ||
+          "";
+        const catalog = addonId ? addonById.get(addonId) : null;
+        const shopId =
+          addon.fabricShopId?._id?.toString?.() ||
+          addon.fabricShopId?.toString?.() ||
+          catalog?.fabricShopId?._id?.toString?.() ||
+          catalog?.fabricShopId?.toString?.() ||
+          "";
+        const shop = shopId ? fabricShopById.get(shopId) : null;
+        const owner =
+          shop?.ownerId && typeof shop.ownerId === "object"
+            ? shop.ownerId
+            : null;
+
+        return {
+          ...addon,
+          fabricShopId: shop?._id || shopId || addon.fabricShopId || null,
+          fabricShop: shop
+            ? {
+                _id: shop._id,
+                shopId: shop._id,
+                name: shop.name,
+                shopName: shop.name,
+                phone: shop.phone || "",
+                city: shop.city || "",
+                location: shop.location || "",
+                pickupAddress: shop.pickupAddress || null,
+                ownerId: owner?._id || shop.ownerId || null,
+                ownerName: owner?.name || "",
+                ownerEmail: owner?.email || "",
+                ownerPhone: owner?.phone || "",
+              }
+            : null,
+        };
+      };
+
       return {
         ...order,
         fabricStoreId: attachShopName(order.fabricStoreId),
@@ -2081,6 +2179,7 @@ adminRouter.get(
           ...item,
           fabricStoreId: attachShopName(item.fabricStoreId),
         })),
+        addons: (order.addons || []).map(enrichAddon),
       };
     });
 
@@ -2618,7 +2717,7 @@ adminRouter.get(
       await Promise.all([
         PlatformSettings.findOne({}).lean(),
         CustomOrder.find({ createdAt: { $gte: start, $lte: end } })
-          .select("items pricing isPaid status")
+          .select("items pricing addons isPaid status")
           .lean(),
         RetailOrder.find({ createdAt: { $gte: start, $lte: end } })
           .select(

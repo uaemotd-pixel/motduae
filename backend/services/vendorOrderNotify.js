@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { env } from "../config/env.js";
 import TailorShop from "../models/TailorShop.js";
 import FabricShop from "../models/FabricShop.js";
+import AddOn from "../models/AddOn.js";
 import User from "../models/User.js";
 import { EMAIL_EVENTS } from "./email/emailEvents.js";
 import { sendVendorOrderPlacedEmail } from "./emailService.js";
@@ -192,55 +193,138 @@ async function resolveCustomTailorRecipients(order) {
 }
 
 async function resolveCustomFabricRecipients(order) {
-  if (order?.fabricSource !== "storefront") return [];
-
-  const items = customLineItems(order);
-  const grouped = groupByKey(items, (item) =>
-    isValidId(item?.fabricStoreId) ? idStr(item.fabricStoreId) : "",
-  );
-  if (!grouped.size) return [];
-
-  const ownerIds = [...grouped.keys()];
-  const shops = await FabricShop.find({ ownerId: { $in: ownerIds } })
-    .select("_id ownerId isActive")
-    .lean();
-  const shopByOwner = new Map(shops.map((shop) => [idStr(shop.ownerId), shop]));
-  const users = await loadUsersById(ownerIds);
-
   const recipients = [];
-  for (const [ownerId, shopItems] of grouped) {
-    const shop = shopByOwner.get(ownerId);
-    if (!isActiveShop(shop)) continue;
-    const user = users.get(ownerId);
-    if (!isEligibleOwner(user, "fabric_store")) continue;
 
-    const lines = uniqueLabels(
-      shopItems.map((item) =>
-        formatVendorLineLabel({
-          name: item?.fabricSnapshot?.name,
-          cutsLabel: formatSelectedCutsForNotify(
-            item?.selectedCuts?.length
-              ? item.selectedCuts
-              : order?.selectedCuts,
-          ),
-          meters: item?.selectedCuts?.length
-            ? undefined
-            : item?.fabricMeters,
-        }),
-      ),
+  if (order?.fabricSource === "storefront") {
+    const items = customLineItems(order);
+    const grouped = groupByKey(items, (item) =>
+      isValidId(item?.fabricStoreId) ? idStr(item.fabricStoreId) : "",
     );
-    if (!lines.length) continue;
 
-    recipients.push({
-      event: EMAIL_EVENTS.ORDER_CUSTOM_PLACED_FABRIC,
-      portalKind: "fabric",
-      notifyType: "fabric_order_placed",
-      notifyTitle: "New custom order",
-      notifyDedupePrefix: "fabric:order_placed",
-      user,
-      lines,
-    });
+    if (grouped.size) {
+      const ownerIds = [...grouped.keys()];
+      const shops = await FabricShop.find({ ownerId: { $in: ownerIds } })
+        .select("_id ownerId isActive")
+        .lean();
+      const shopByOwner = new Map(
+        shops.map((shop) => [idStr(shop.ownerId), shop]),
+      );
+      const users = await loadUsersById(ownerIds);
+
+      for (const [ownerId, shopItems] of grouped) {
+        const shop = shopByOwner.get(ownerId);
+        if (!isActiveShop(shop)) continue;
+        const user = users.get(ownerId);
+        if (!isEligibleOwner(user, "fabric_store")) continue;
+
+        const lines = uniqueLabels(
+          shopItems.map((item) =>
+            formatVendorLineLabel({
+              name: item?.fabricSnapshot?.name,
+              cutsLabel: formatSelectedCutsForNotify(
+                item?.selectedCuts?.length
+                  ? item.selectedCuts
+                  : order?.selectedCuts,
+              ),
+              meters: item?.selectedCuts?.length
+                ? undefined
+                : item?.fabricMeters,
+            }),
+          ),
+        );
+        if (!lines.length) continue;
+
+        recipients.push({
+          event: EMAIL_EVENTS.ORDER_CUSTOM_PLACED_FABRIC,
+          portalKind: "fabric",
+          notifyType: "fabric_order_placed",
+          notifyTitle: "New custom order",
+          notifyDedupePrefix: "fabric:order_placed",
+          user,
+          lines,
+        });
+      }
+    }
   }
+
+  // Always notify fabric shops that own purchased custom-order add-ons,
+  // including when the customer used their own fabric.
+  const addons = Array.isArray(order?.addons) ? order.addons : [];
+  if (addons.length) {
+    const addonIds = [
+      ...new Set(
+        addons
+          .map((a) => idStr(a?.addonId))
+          .filter((id) => isValidId(id)),
+      ),
+    ];
+
+    let catalogById = new Map();
+    if (addonIds.length) {
+      const catalog = await AddOn.find({ _id: { $in: addonIds } })
+        .select("_id fabricShopId name")
+        .lean();
+      catalogById = new Map(catalog.map((row) => [idStr(row._id), row]));
+    }
+
+    const groupedAddons = groupByKey(addons, (addon) => {
+      const snapShop = idStr(addon?.fabricShopId);
+      if (isValidId(snapShop)) return snapShop;
+      const catalog = catalogById.get(idStr(addon?.addonId));
+      const catalogShop = idStr(catalog?.fabricShopId);
+      return isValidId(catalogShop) ? catalogShop : "";
+    });
+
+    if (groupedAddons.size) {
+      const shops = await FabricShop.find({
+        _id: { $in: [...groupedAddons.keys()] },
+      })
+        .select("_id ownerId isActive")
+        .lean();
+      const shopById = new Map(shops.map((shop) => [idStr(shop._id), shop]));
+      const users = await loadUsersById(shops.map((shop) => shop.ownerId));
+
+      for (const [shopId, shopAddons] of groupedAddons) {
+        const shop = shopById.get(shopId);
+        if (!isActiveShop(shop) || !isValidId(shop.ownerId)) continue;
+        const user = users.get(idStr(shop.ownerId));
+        if (!isEligibleOwner(user, "fabric_store")) continue;
+
+        const lines = uniqueLabels(
+          shopAddons.map((addon) =>
+            formatVendorLineLabel({
+              name: addon?.name || catalogById.get(idStr(addon?.addonId))?.name,
+              quantity: 1,
+            }),
+          ),
+        );
+        if (!lines.length) continue;
+
+        // Merge with existing fabric recipient for same owner when both fabric + addons
+        const existing = recipients.find(
+          (r) => idStr(r.user?._id) === idStr(user._id),
+        );
+        if (existing) {
+          existing.lines = uniqueLabels([
+            ...(existing.lines || []),
+            ...lines.map((line) => `Add-on: ${line}`),
+          ]);
+          continue;
+        }
+
+        recipients.push({
+          event: EMAIL_EVENTS.ORDER_CUSTOM_PLACED_FABRIC,
+          portalKind: "fabric",
+          notifyType: "fabric_order_placed",
+          notifyTitle: "New add-on order",
+          notifyDedupePrefix: "fabric:addon_order_placed",
+          user,
+          lines: lines.map((line) => `Add-on: ${line}`),
+        });
+      }
+    }
+  }
+
   return recipients;
 }
 
