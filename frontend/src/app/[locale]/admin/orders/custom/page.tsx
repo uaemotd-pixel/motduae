@@ -422,14 +422,6 @@ export default function AdminCustomOrdersPage() {
           </h1>
           <p className="text-gray-500 text-sm mt-1">{t("subtitle")}</p>
         </div>
-
-        <button
-          onClick={fetchOrders}
-          className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 bg-white rounded-lg text-sm hover:bg-gray-50 hover:cursor-pointer transition shadow-sm"
-        >
-          <RefreshCw className="w-4 h-4" />
-          {t("refresh")}
-        </button>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -462,26 +454,6 @@ export default function AdminCustomOrdersPage() {
       </div>
 
       <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div>
-          <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">
-            {locale === "ar" ? "التصفية والبحث" : "Filter & Search"}
-          </label>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder={
-                locale === "ar"
-                  ? "البحث باسم العميل أو بريده..."
-                  : "Search client name/email..."
-              }
-              value={filterCustomer}
-              onChange={(e) => setFilterCustomer(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition"
-            />
-          </div>
-        </div>
-
         <div>
           <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">
             {locale === "ar" ? "الحالة" : "Status"}
@@ -527,6 +499,35 @@ export default function AdminCustomOrdersPage() {
               onChange={(e) => setFilterTo(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition hover:cursor-pointer"
             />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">
+            {locale === "ar" ? "بحث" : "Search"}
+          </label>
+          <div className="flex gap-2 sm:gap-3 items-stretch">
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder={
+                  locale === "ar"
+                    ? "البحث باسم العميل أو بريده..."
+                    : "Search client name/email..."
+                }
+                value={filterCustomer}
+                onChange={(e) => setFilterCustomer(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg pl-8 sm:pl-9 pr-3 py-1.5 text-xs sm:text-sm focus:outline-none focus:border-black text-black bg-white placeholder:text-gray-400 transition"
+              />
+            </div>
+            <button
+              onClick={fetchOrders}
+              className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0"
+            >
+              <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span>{t("refresh")}</span>
+            </button>
           </div>
         </div>
       </div>

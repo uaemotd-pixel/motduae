@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
 import {
@@ -12,6 +13,9 @@ import {
   Check,
   Ruler,
   Lock,
+  RefreshCw,
+  Power,
+  MoreVertical,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
@@ -52,8 +56,7 @@ function getNextCutNamePreview(totalCount: number): string {
 }
 
 function getEquivalentLabel(cut: Cut): string {
-  const meters =
-    cut.metersEquivalent ?? cutValueToMeters(cut.value, cut.unit);
+  const meters = cut.metersEquivalent ?? cutValueToMeters(cut.value, cut.unit);
   const war = cut.warEquivalent ?? metersToWar(meters);
 
   if (cut.unit === "war") {
@@ -77,6 +80,14 @@ export default function AdminSettingsCutsPage() {
   const [cutToDelete, setCutToDelete] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  const [menuItem, setMenuItem] = useState<Cut | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const [createValue, setCreateValue] = useState("");
   const [createUnit, setCreateUnit] = useState<CutUnit>("meter");
   const [createIsActive, setCreateIsActive] = useState(true);
@@ -88,6 +99,60 @@ export default function AdminSettingsCutsPage() {
 
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoad = useRef(true);
+
+  const closeMenu = () => {
+    setMenuPosition(null);
+    setMenuItem(null);
+    setMenuAnchor(null);
+  };
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        closeMenu();
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuPosition]);
+
+  // Close menu on escape
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeMenu();
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [menuPosition]);
+
+  // Reposition menu on scroll/resize
+  useEffect(() => {
+    function updateMenuPosition() {
+      if (menuAnchor && menuPosition) {
+        const rect = menuAnchor.getBoundingClientRect();
+        setMenuPosition({
+          top: rect.bottom + 8,
+          right: window.innerWidth - rect.right,
+        });
+      }
+    }
+
+    if (menuPosition) {
+      window.addEventListener("scroll", updateMenuPosition, true);
+      window.addEventListener("resize", updateMenuPosition);
+      return () => {
+        window.removeEventListener("scroll", updateMenuPosition, true);
+        window.removeEventListener("resize", updateMenuPosition);
+      };
+    }
+  }, [menuPosition, menuAnchor]);
 
   const fetchCuts = useCallback(
     async (page = 1, limitOverride?: number, searchOverride?: string) => {
@@ -165,6 +230,7 @@ export default function AdminSettingsCutsPage() {
       toast.error("This cut is in use and cannot be edited.");
       return;
     }
+    closeMenu();
     setEditingCut(item);
     setEditValue(String(item.value));
     setEditUnit(item.unit);
@@ -234,6 +300,7 @@ export default function AdminSettingsCutsPage() {
       toast.error("This cut is in use and cannot be deleted.");
       return;
     }
+    closeMenu();
     setCutToDelete(item._id);
     setShowDeleteConfirm(true);
   };
@@ -259,12 +326,26 @@ export default function AdminSettingsCutsPage() {
     setCutToDelete(null);
   };
 
+  const handleMenuOpen = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    item: Cut,
+  ) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuAnchor(e.currentTarget);
+    setMenuPosition({
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right,
+    });
+    setMenuItem(item);
+  };
+
   const toggleActive = async (item: Cut) => {
     if (item.isInUse) {
       toast.error("This cut is in use and cannot be changed.");
       return;
     }
 
+    closeMenu();
     const newIsActive = !item.isActive;
     setCuts((prev) =>
       prev.map((x) =>
@@ -322,6 +403,70 @@ export default function AdminSettingsCutsPage() {
 
   return (
     <div className="space-y-8">
+      {/* Floating Menu Portal */}
+      {menuPosition &&
+        menuItem &&
+        createPortal(
+          <AnimatePresence>
+            <motion.div
+              ref={menuRef}
+              style={{
+                position: "fixed",
+                top: menuPosition.top,
+                right: menuPosition.right,
+                zIndex: 50,
+              }}
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="w-fit min-w-30 sm:min-w-35 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"
+            >
+              <button
+                type="button"
+                onClick={() => toggleActive(menuItem)}
+                disabled={!!menuItem.isInUse || togglingId === menuItem._id}
+                className={`w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors text-left hover:cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${
+                  menuItem.isActive
+                    ? "text-red-600 hover:bg-red-50"
+                    : "text-emerald-700 hover:bg-emerald-50"
+                }`}
+              >
+                {togglingId === menuItem._id ? (
+                  <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 animate-spin" />
+                ) : (
+                  <Power className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                )}
+                <span>{menuItem.isActive ? "Deactivate" : "Activate"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openEditModal(menuItem)}
+                disabled={!!menuItem.isInUse}
+                className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span>Edit</span>
+              </button>
+              <div className="border-t border-gray-100 my-1" />
+              <button
+                type="button"
+                onClick={() => promptDelete(menuItem)}
+                disabled={!!menuItem.isInUse || deletingId === menuItem._id}
+                className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-red-600 hover:bg-red-50 transition-colors text-left hover:cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingId === menuItem._id ? (
+                  <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                )}
+                <span>Delete</span>
+              </button>
+            </motion.div>
+          </AnimatePresence>,
+          document.body,
+        )}
+
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -344,14 +489,16 @@ export default function AdminSettingsCutsPage() {
       <div className="rounded-2xl border border-gray-100 bg-gray-50/80 px-4 py-3 text-sm text-gray-600">
         <span className="font-medium text-gray-800">Unit conversion:</span> 1
         meter = 1.0936 war · 1 war = 0.9144 meter. The first cut is named{" "}
-        <span className="font-mono text-gray-800">cut</span>; additional cuts are{" "}
-        <span className="font-mono text-gray-800">cut 1</span>,{" "}
+        <span className="font-mono text-gray-800">cut</span>; additional cuts
+        are <span className="font-mono text-gray-800">cut 1</span>,{" "}
         <span className="font-mono text-gray-800">cut 2</span>, and so on.
       </div>
 
       {/* Inline create form */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
-        <h2 className="text-sm font-semibold text-gray-900 mb-1">Add new cut</h2>
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">
+          Add new cut
+        </h2>
         <p className="text-xs text-gray-500 mb-4">
           Will be saved as:{" "}
           <span className="font-mono font-medium text-gray-800">
@@ -376,7 +523,7 @@ export default function AdminSettingsCutsPage() {
                 value={createValue}
                 onChange={(e) => setCreateValue(e.target.value)}
                 placeholder="e.g. 3.5"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
             </div>
             <div>
@@ -386,7 +533,7 @@ export default function AdminSettingsCutsPage() {
               <select
                 value={createUnit}
                 onChange={(e) => setCreateUnit(e.target.value as CutUnit)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow bg-white"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               >
                 <option value="meter">Meter</option>
                 <option value="war">War</option>
@@ -395,9 +542,7 @@ export default function AdminSettingsCutsPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 lg:shrink-0">
-            <label
-              className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-100 cursor-pointer select-none"
-            >
+            <label className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-100 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={createIsActive}
@@ -427,24 +572,28 @@ export default function AdminSettingsCutsPage() {
         )}
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="search"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search cuts by name..."
-          className="w-full pl-11 pr-4 py-3 rounded-2xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow shadow-sm"
-        />
-        {searchQuery && (
+      {/* Filters & Search — right-aligned like other admin list pages */}
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-end">
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search cuts by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full sm:w-64 pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
+            />
+          </div>
           <button
             type="button"
-            onClick={() => setSearchQuery("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition hover:cursor-pointer"
+            onClick={() => fetchCuts(currentPage)}
+            className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0"
           >
-            <X className="w-4 h-4" />
+            <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span>Refresh</span>
           </button>
-        )}
+        </div>
       </div>
 
       {!loading && totalItems > 0 && (
@@ -513,34 +662,20 @@ export default function AdminSettingsCutsPage() {
                           In use
                         </span>
                       )}
-                      <motion.button
-                        type="button"
-                        onClick={() => toggleActive(item)}
-                        disabled={togglingId === item._id || item.isInUse}
-                        whileHover={{ scale: item.isInUse ? 1 : 1.05 }}
-                        whileTap={{ scale: item.isInUse ? 1 : 0.95 }}
-                        title={
-                          item.isInUse
-                            ? "Cannot change status while cut is in use"
-                            : `Click to ${item.isActive ? "deactivate" : "activate"}`
-                        }
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium transition-all ${
-                          item.isInUse
-                            ? "bg-gray-50 text-gray-400 ring-1 ring-gray-200 cursor-not-allowed"
-                            : item.isActive
-                              ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 hover:bg-red-50 hover:text-red-600 hover:ring-red-300 cursor-pointer"
-                              : "bg-gray-50 text-gray-400 ring-1 ring-gray-300/20 hover:bg-gray-100 hover:text-gray-500 cursor-pointer"
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          item.isActive
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
+                            : "bg-gray-50 text-gray-400 ring-1 ring-gray-300/20"
                         }`}
                       >
-                        {togglingId === item._id ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : item.isActive ? (
+                        {item.isActive ? (
                           <Check className="w-3 h-3" />
                         ) : (
                           <X className="w-3 h-3" />
                         )}
                         {item.isActive ? "Active" : "Inactive"}
-                      </motion.button>
+                      </span>
                     </div>
                     <div className="flex items-center gap-3 mt-2">
                       {item.createdAt && (
@@ -550,39 +685,16 @@ export default function AdminSettingsCutsPage() {
                       )}
                     </div>
                   </div>
-                  <div
-                    className={`flex items-center gap-1.5 shrink-0 transition-opacity ${
-                      item.isInUse
-                        ? "opacity-40"
-                        : "opacity-0 group-hover:opacity-100"
-                    }`}
-                  >
-                    <motion.button
+                  <div className="shrink-0">
+                    <button
                       type="button"
-                      onClick={() => openEditModal(item)}
-                      disabled={item.isInUse}
-                      whileHover={{ scale: item.isInUse ? 1 : 1.05 }}
-                      whileTap={{ scale: item.isInUse ? 1 : 0.95 }}
-                      className="p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition-all hover:cursor-pointer disabled:cursor-not-allowed"
-                      aria-label="Edit cut"
+                      onClick={(e) => handleMenuOpen(e, item)}
+                      className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
+                      title="Actions"
+                      aria-label="Open actions menu"
                     >
-                      <Pencil className="w-4 h-4" />
-                    </motion.button>
-                    <motion.button
-                      type="button"
-                      disabled={deletingId === item._id || item.isInUse}
-                      onClick={() => promptDelete(item)}
-                      whileHover={{ scale: item.isInUse ? 1 : 1.05 }}
-                      whileTap={{ scale: item.isInUse ? 1 : 0.95 }}
-                      className="p-2 rounded-xl border border-gray-200 hover:bg-red-50 text-gray-400 hover:text-red-600 transition-all hover:cursor-pointer disabled:opacity-50"
-                      aria-label="Delete cut"
-                    >
-                      {deletingId === item._id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                    </motion.button>
+                      <MoreVertical className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
               </motion.div>
@@ -659,7 +771,7 @@ export default function AdminSettingsCutsPage() {
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
                         placeholder="e.g. 3.5"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow"
+                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                       />
                     </div>
                     <div>
@@ -668,10 +780,8 @@ export default function AdminSettingsCutsPage() {
                       </label>
                       <select
                         value={editUnit}
-                        onChange={(e) =>
-                          setEditUnit(e.target.value as CutUnit)
-                        }
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow bg-white"
+                        onChange={(e) => setEditUnit(e.target.value as CutUnit)}
+                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                       >
                         <option value="meter">Meter</option>
                         <option value="war">War</option>

@@ -1523,9 +1523,16 @@
         "customOrderReceived": "Order received",
         "retailOrderReceived": "Order received",
         "customReturnRequested": "Return requested",
+        "customReturnReceived": "Return request received",
         "customReturnApproved": "Return approved",
         "customReturnRejected": "Return rejected",
         "customRefundProcessed": "Refund processed",
+        "fabricPayoutRequested": "Fabric payout request",
+        "fabricPayoutApproved": "Fabric payout approved",
+        "fabricPayoutRejected": "Fabric payout declined",
+        "tailorPayoutRequested": "Tailor payout request",
+        "tailorPayoutApproved": "Tailor payout approved",
+        "tailorPayoutRejected": "Tailor payout declined",
         "default": "Notification"
       }
     }

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
 import {
-  Plus,
   Pencil,
   Trash2,
   Loader2,
@@ -12,6 +11,7 @@ import {
   X,
   Check,
   FolderTree,
+  RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
@@ -22,8 +22,6 @@ interface Category {
   _id: string;
   name: string;
   nameAr?: string;
-  description?: string;
-  descriptionAr?: string;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -36,16 +34,14 @@ interface CategoriesApiResponse {
   totalPages: number;
 }
 
-// Helper: convert to lowercase slug format
 const toSlug = (str: string): string => {
   return str
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, "-") // spaces → hyphens
-    .replace(/[^a-z0-9-]/g, ""); // remove special chars
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
 };
 
-// Helper: lowercase with spaces preserved for display
 const toLowerPreserveSpaces = (str: string): string => {
   return str.toLowerCase().trim();
 };
@@ -54,9 +50,9 @@ export default function AdminSettingsCategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
@@ -67,21 +63,19 @@ export default function AdminSettingsCategoriesPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
 
-  const [formName, setFormName] = useState("");
-  const [formNameAr, setFormNameAr] = useState("");
-  const [formDescription, setFormDescription] = useState("");
-  const [formDescriptionAr, setFormDescriptionAr] = useState("");
-  const [formIsActive, setFormIsActive] = useState(true);
+  const [createName, setCreateName] = useState("");
+  const [createNameAr, setCreateNameAr] = useState("");
+  const [createIsActive, setCreateIsActive] = useState(true);
+
+  const [editName, setEditName] = useState("");
+  const [editNameAr, setEditNameAr] = useState("");
+  const [editIsActive, setEditIsActive] = useState(true);
 
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoad = useRef(true);
 
   const fetchCategories = useCallback(
-    async (
-      page = 1,
-      limitOverride?: number,
-      searchOverride?: string,
-    ) => {
+    async (page = 1, limitOverride?: number, searchOverride?: string) => {
       try {
         setLoading(true);
         const l = limitOverride ?? limit;
@@ -137,7 +131,6 @@ export default function AdminSettingsCategoriesPage() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-    // Intentionally only react to searchQuery — page/limit changes call fetch directly
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
@@ -152,53 +145,67 @@ export default function AdminSettingsCategoriesPage() {
     void fetchCategories(1, newLimit);
   };
 
-  const openAddModal = () => {
-    setEditingCategory(null);
-    setFormName("");
-    setFormNameAr("");
-    setFormDescription("");
-    setFormDescriptionAr("");
-    setFormIsActive(true);
-    setShowModal(true);
-  };
-
   const openEditModal = (cat: Category) => {
     setEditingCategory(cat);
-    setFormName(cat.name);
-    setFormNameAr(cat.nameAr || "");
-    setFormDescription(cat.description || "");
-    setFormDescriptionAr(cat.descriptionAr || "");
-    setFormIsActive(cat.isActive);
-    setShowModal(true);
+    setEditName(cat.name);
+    setEditNameAr(cat.nameAr || "");
+    setEditIsActive(cat.isActive);
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const closeEditModal = () => {
+    setEditingCategory(null);
+  };
+
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSubmitting(true);
+    if (!createName.trim() || !createNameAr.trim()) {
+      toast.error("Name and Arabic name are required");
+      return;
+    }
 
-    const payload = {
-      name: toSlug(formName), // "Crystal" → "crystal"
-      nameAr: toLowerPreserveSpaces(formNameAr), // Arabic lowercase
-      domain: "general",
-      description: formDescription,
-      descriptionAr: formDescriptionAr,
-      isActive: formIsActive,
-    };
-
+    setCreating(true);
     try {
-      if (editingCategory) {
-        await api.put(`/api/admin/categories/${editingCategory._id}`, payload);
-        toast.success("Category updated");
-      } else {
-        await api.post("/api/admin/categories", payload);
-        toast.success("Category created");
-      }
-      setShowModal(false);
-      void fetchCategories(editingCategory ? currentPage : 1);
+      await api.post("/api/admin/categories", {
+        name: toSlug(createName),
+        nameAr: toLowerPreserveSpaces(createNameAr),
+        domain: "general",
+        isActive: createIsActive,
+      });
+      toast.success("Category created");
+      setCreateName("");
+      setCreateNameAr("");
+      setCreateIsActive(true);
+      void fetchCategories(1);
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to create category"));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingCategory) return;
+    if (!editName.trim() || !editNameAr.trim()) {
+      toast.error("Name and Arabic name are required");
+      return;
+    }
+
+    setSubmittingEdit(true);
+    try {
+      await api.put(`/api/admin/categories/${editingCategory._id}`, {
+        name: toSlug(editName),
+        nameAr: toLowerPreserveSpaces(editNameAr),
+        domain: "general",
+        isActive: editIsActive,
+      });
+      toast.success("Category updated");
+      closeEditModal();
+      void fetchCategories(currentPage);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to save category"));
     } finally {
-      setSubmitting(false);
+      setSubmittingEdit(false);
     }
   };
 
@@ -268,7 +275,6 @@ export default function AdminSettingsCategoriesPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -285,40 +291,100 @@ export default function AdminSettingsCategoriesPage() {
             </div>
           </div>
         </div>
-        <motion.button
-          type="button"
-          onClick={openAddModal}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-linear-to-r from-gray-900 to-gray-800 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:shadow-xl hover:shadow-gray-900/30 transition-all hover:cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          Add Category
-        </motion.button>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="search"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search categories by name or description..."
-          className="w-full pl-11 pr-4 py-3 rounded-2xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow shadow-sm"
-        />
-        {searchQuery && (
+      {/* Inline create form */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+        <h2 className="text-sm font-semibold text-gray-900 mb-4">
+          Add new category
+        </h2>
+
+        <form
+          onSubmit={handleCreate}
+          className="flex flex-col lg:flex-row lg:items-end gap-4"
+        >
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5 uppercase tracking-wide">
+                Name <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder="e.g. evening-gowns"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Will be saved as: {createName ? toSlug(createName) : "..."}
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5 uppercase tracking-wide">
+                Name (Arabic) <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={createNameAr}
+                onChange={(e) => setCreateNameAr(e.target.value)}
+                dir="rtl"
+                placeholder="مثال: فساتين سهرة"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 lg:shrink-0">
+            <label className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-100 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={createIsActive}
+                onChange={(e) => setCreateIsActive(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+              />
+              <span className="text-sm text-gray-700">Active</span>
+            </label>
+
+            <motion.button
+              type="submit"
+              disabled={creating}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="px-5 py-2.5 rounded-xl bg-linear-to-r from-gray-900 to-gray-800 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:shadow-xl transition-all disabled:opacity-50 hover:cursor-pointer inline-flex items-center justify-center gap-2 min-h-10.5"
+            >
+              {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {creating ? "Adding..." : "Add Category"}
+            </motion.button>
+          </div>
+        </form>
+      </div>
+
+      {/* Filters & Search */}
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-end">
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search categories by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full sm:w-64 pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
+            />
+          </div>
           <button
             type="button"
-            onClick={() => setSearchQuery("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition hover:cursor-pointer"
+            onClick={() => fetchCategories(currentPage)}
+            className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0"
           >
-            <X className="w-4 h-4" />
+            <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span>Refresh</span>
           </button>
-        )}
+        </div>
       </div>
 
-      {/* Count badge */}
       {!loading && totalItems > 0 && (
         <div className="text-xs text-gray-400 font-medium tracking-wide uppercase">
           {searchQuery.trim()
@@ -327,34 +393,21 @@ export default function AdminSettingsCategoriesPage() {
         </div>
       )}
 
-      {/* Loading */}
       {loading ? (
         <TableSkeleton rows={6} cols={3} className="rounded-2xl" />
       ) : categories.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-center py-20">
+        <div className="flex flex-col items-center justify-center text-center py-16">
           <div className="w-20 h-20 bg-linear-to-br from-gray-50 to-gray-100 rounded-3xl flex items-center justify-center mb-6 shadow-inner">
             <FolderTree className="w-8 h-8 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-1">
             {searchQuery ? "No matching categories" : "No categories yet"}
           </h3>
-          <p className="text-sm text-gray-500 max-w-sm mb-6">
+          <p className="text-sm text-gray-500 max-w-sm">
             {searchQuery
               ? "Try a different search term or clear the filter."
-              : "Create your first category to start organizing your products."}
+              : "Use the form above to add your first category."}
           </p>
-          {!searchQuery && (
-            <motion.button
-              type="button"
-              onClick={openAddModal}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-linear-to-r from-gray-900 to-gray-800 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:shadow-xl transition-all hover:cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Create Category
-            </motion.button>
-          )}
         </div>
       ) : (
         <div className="grid gap-3">
@@ -406,11 +459,6 @@ export default function AdminSettingsCategoriesPage() {
                         {cat.isActive ? "Active" : "Inactive"}
                       </motion.button>
                     </div>
-                    {cat.description && (
-                      <p className="text-sm text-gray-500 mt-1.5 line-clamp-2 leading-relaxed">
-                        {cat.description}
-                      </p>
-                    )}
                     <div className="flex items-center gap-3 mt-2">
                       {cat.createdAt && (
                         <span className="text-xs text-gray-400">
@@ -453,7 +501,6 @@ export default function AdminSettingsCategoriesPage() {
         </div>
       )}
 
-      {/* Pagination */}
       {totalPages > 0 && totalItems > 0 && (
         <GlobalPagination
           currentPage={currentPage}
@@ -467,9 +514,8 @@ export default function AdminSettingsCategoriesPage() {
         />
       )}
 
-      {/* Create / Edit Modal */}
       <AnimatePresence>
-        {showModal && (
+        {editingCategory && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -484,27 +530,25 @@ export default function AdminSettingsCategoriesPage() {
               className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
             >
               <div className="p-6 sm:p-8">
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center justify-between mb-6">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900">
-                      {editingCategory ? "Edit Category" : "New Category"}
+                      Edit Category
                     </h2>
                     <p className="text-sm text-gray-500 mt-0.5">
-                      {editingCategory
-                        ? "Update the category details below."
-                        : "Fill in the details to create a new category."}
+                      Update the category details below.
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShowModal(false)}
+                    onClick={closeEditModal}
                     className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition hover:cursor-pointer"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleEditSubmit} className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -513,13 +557,13 @@ export default function AdminSettingsCategoriesPage() {
                       <input
                         type="text"
                         required
-                        value={formName}
-                        onChange={(e) => setFormName(e.target.value)}
-                        placeholder="e.g. evening-gowns (will become lowercase slug)"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="e.g. evening-gowns"
+                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                       />
                       <p className="text-xs text-gray-400 mt-1">
-                        Will be saved as: {formName ? toSlug(formName) : "..."}
+                        Will be saved as: {editName ? toSlug(editName) : "..."}
                       </p>
                     </div>
                     <div>
@@ -529,42 +573,11 @@ export default function AdminSettingsCategoriesPage() {
                       <input
                         type="text"
                         required
-                        value={formNameAr}
-                        onChange={(e) => setFormNameAr(e.target.value)}
+                        value={editNameAr}
+                        onChange={(e) => setEditNameAr(e.target.value)}
                         dir="rtl"
                         placeholder="مثال: فساتين سهرة"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow"
-                      />
-                      <p className="text-xs text-gray-400 mt-1 text-right">
-                        {formNameAr ? toLowerPreserveSpaces(formNameAr) : "..."}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Description
-                      </label>
-                      <textarea
-                        value={formDescription}
-                        onChange={(e) => setFormDescription(e.target.value)}
-                        rows={3}
-                        placeholder="Brief description in English..."
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow resize-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Description (Arabic)
-                      </label>
-                      <textarea
-                        value={formDescriptionAr}
-                        onChange={(e) => setFormDescriptionAr(e.target.value)}
-                        rows={3}
-                        dir="rtl"
-                        placeholder="وصف باللغة العربية..."
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow resize-none"
+                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                       />
                     </div>
                   </div>
@@ -572,13 +585,13 @@ export default function AdminSettingsCategoriesPage() {
                   <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
                     <input
                       type="checkbox"
-                      id="isActive"
-                      checked={formIsActive}
-                      onChange={(e) => setFormIsActive(e.target.checked)}
+                      id="categoryIsActive"
+                      checked={editIsActive}
+                      onChange={(e) => setEditIsActive(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
                     />
                     <label
-                      htmlFor="isActive"
+                      htmlFor="categoryIsActive"
                       className="text-sm text-gray-700 cursor-pointer select-none"
                     >
                       <span className="font-medium">Active</span>
@@ -591,26 +604,22 @@ export default function AdminSettingsCategoriesPage() {
                   <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
                     <button
                       type="button"
-                      onClick={() => setShowModal(false)}
+                      onClick={closeEditModal}
                       className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition hover:cursor-pointer"
                     >
                       Cancel
                     </button>
                     <motion.button
                       type="submit"
-                      disabled={submitting}
+                      disabled={submittingEdit}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       className="px-5 py-2.5 rounded-xl bg-linear-to-r from-gray-900 to-gray-800 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:shadow-xl transition-all disabled:opacity-50 hover:cursor-pointer inline-flex items-center gap-2"
                     >
-                      {submitting && (
+                      {submittingEdit && (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       )}
-                      {submitting
-                        ? "Saving..."
-                        : editingCategory
-                          ? "Update Category"
-                          : "Create Category"}
+                      {submittingEdit ? "Saving..." : "Update Category"}
                     </motion.button>
                   </div>
                 </form>

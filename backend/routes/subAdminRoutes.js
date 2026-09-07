@@ -79,6 +79,7 @@ subAdminRouter.post("/", async (req, res) => {
       phone,
       address: normalizedAddress,
       perms: perms || {},
+      isActive: true,
     });
 
     await subAdmin.save();
@@ -91,6 +92,7 @@ subAdminRouter.post("/", async (req, res) => {
       phone,
       role: "sub-admin",
       isAdmin: true,
+      isActive: true,
     });
     await user.save();
 
@@ -123,12 +125,18 @@ subAdminRouter.get("/", async (req, res) => {
         .select("-password")
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
       SubAdmin.countDocuments(filter),
     ]);
 
+    const items = admins.map((admin) => ({
+      ...admin,
+      isActive: admin.isActive !== false,
+    }));
+
     res.json({
-      items: admins,
+      items,
       total,
       page,
       totalPages: Math.ceil(total / limit),
@@ -144,6 +152,34 @@ subAdminRouter.get("/:id", async (req, res) => {
     if (!admin) return res.status(404).json({ error: "Not found" });
     res.json(admin);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/subadmins/:id/toggle-active
+subAdminRouter.patch("/:id/toggle-active", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const subAdmin = await SubAdmin.findById(id);
+    if (!subAdmin) {
+      return res.status(404).json({ error: "Sub-admin not found" });
+    }
+
+    const nextActive = subAdmin.isActive === false;
+    subAdmin.isActive = nextActive;
+    await subAdmin.save();
+
+    await User.findOneAndUpdate(
+      { email: subAdmin.email, role: "sub-admin" },
+      { isActive: nextActive },
+    );
+
+    res.json({
+      message: `Sub-admin ${nextActive ? "activated" : "deactivated"} successfully`,
+      isActive: nextActive,
+    });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });

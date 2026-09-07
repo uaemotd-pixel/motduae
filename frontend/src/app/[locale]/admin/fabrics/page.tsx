@@ -25,7 +25,6 @@ import {
   Eye,
   Image as ImageIcon,
   MoreVertical,
-  DollarSign,
   Box,
   Tag,
   Store,
@@ -862,14 +861,11 @@ export default function AdminFabricsPage() {
                     <span className="truncate">{item.material || "—"}</span>
                   </div>
                   <div className="text-gray-600">
-                    <div className="flex items-start gap-1.5 sm:gap-2">
-                      <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 shrink-0 mt-0.5" />
-                      <FabricCutsCell
-                        cuts={item.cuts}
-                        locale={localeParam}
-                        stockLabel={t.adminFabrics.list.stock_label}
-                      />
-                    </div>
+                    <FabricCutsCell
+                      cuts={item.cuts}
+                      locale={localeParam}
+                      stockLabel={t.adminFabrics.list.stock_label}
+                    />
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
                     <Store className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />

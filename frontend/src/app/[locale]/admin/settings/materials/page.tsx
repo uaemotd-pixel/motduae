@@ -4,13 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
 import {
-  Plus,
   Pencil,
   Trash2,
   Loader2,
   Search,
   X,
   Check,
+  Paintbrush,
+  RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
@@ -21,8 +22,6 @@ interface Material {
   _id: string;
   name: string;
   nameAr?: string;
-  description?: string;
-  descriptionAr?: string;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -51,9 +50,9 @@ export default function AdminSettingsMaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showModal, setShowModal] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [materialToDelete, setMaterialToDelete] = useState<string | null>(null);
@@ -64,11 +63,13 @@ export default function AdminSettingsMaterialsPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
 
-  const [formName, setFormName] = useState("");
-  const [formNameAr, setFormNameAr] = useState("");
-  const [formDescription, setFormDescription] = useState("");
-  const [formDescriptionAr, setFormDescriptionAr] = useState("");
-  const [formIsActive, setFormIsActive] = useState(true);
+  const [createName, setCreateName] = useState("");
+  const [createNameAr, setCreateNameAr] = useState("");
+  const [createIsActive, setCreateIsActive] = useState(true);
+
+  const [editName, setEditName] = useState("");
+  const [editNameAr, setEditNameAr] = useState("");
+  const [editIsActive, setEditIsActive] = useState(true);
 
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoad = useRef(true);
@@ -144,51 +145,67 @@ export default function AdminSettingsMaterialsPage() {
     void fetchMaterials(1, newLimit);
   };
 
-  const openAddModal = () => {
-    setEditingMaterial(null);
-    setFormName("");
-    setFormNameAr("");
-    setFormDescription("");
-    setFormDescriptionAr("");
-    setFormIsActive(true);
-    setShowModal(true);
-  };
-
   const openEditModal = (item: Material) => {
     setEditingMaterial(item);
-    setFormName(item.name);
-    setFormNameAr(item.nameAr || "");
-    setFormDescription(item.description || "");
-    setFormDescriptionAr(item.descriptionAr || "");
-    setFormIsActive(item.isActive);
-    setShowModal(true);
+    setEditName(item.name);
+    setEditNameAr(item.nameAr || "");
+    setEditIsActive(item.isActive);
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const closeEditModal = () => {
+    setEditingMaterial(null);
+  };
+
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSubmitting(true);
-    const payload = {
-      name: toSlug(formName),
-      nameAr: toLowerPreserveSpaces(formNameAr),
-      domain: "general",
-      description: formDescription,
-      descriptionAr: formDescriptionAr,
-      isActive: formIsActive,
-    };
+    if (!createName.trim() || !createNameAr.trim()) {
+      toast.error("Name and Arabic name are required");
+      return;
+    }
+
+    setCreating(true);
     try {
-      if (editingMaterial) {
-        await api.put(`/api/admin/materials/${editingMaterial._id}`, payload);
-        toast.success("Material updated");
-      } else {
-        await api.post("/api/admin/materials", payload);
-        toast.success("Material created");
-      }
-      setShowModal(false);
-      void fetchMaterials(editingMaterial ? currentPage : 1);
+      await api.post("/api/admin/materials", {
+        name: toSlug(createName),
+        nameAr: toLowerPreserveSpaces(createNameAr),
+        domain: "general",
+        isActive: createIsActive,
+      });
+      toast.success("Material created");
+      setCreateName("");
+      setCreateNameAr("");
+      setCreateIsActive(true);
+      void fetchMaterials(1);
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to create material"));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingMaterial) return;
+    if (!editName.trim() || !editNameAr.trim()) {
+      toast.error("Name and Arabic name are required");
+      return;
+    }
+
+    setSubmittingEdit(true);
+    try {
+      await api.put(`/api/admin/materials/${editingMaterial._id}`, {
+        name: toSlug(editName),
+        nameAr: toLowerPreserveSpaces(editNameAr),
+        domain: "general",
+        isActive: editIsActive,
+      });
+      toast.success("Material updated");
+      closeEditModal();
+      void fetchMaterials(currentPage);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to save material"));
     } finally {
-      setSubmitting(false);
+      setSubmittingEdit(false);
     }
   };
 
@@ -230,9 +247,7 @@ export default function AdminSettingsMaterialsPage() {
       await api.put(`/api/admin/materials/${item._id}`, {
         isActive: newIsActive,
       });
-      toast.success(
-        `Material ${newIsActive ? "activated" : "deactivated"}`,
-      );
+      toast.success(`Material ${newIsActive ? "activated" : "deactivated"}`);
     } catch (err: unknown) {
       setMaterials((prev) =>
         prev.map((x) =>
@@ -264,105 +279,133 @@ export default function AdminSettingsMaterialsPage() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 rounded-xl bg-linear-to-br from-gray-900 to-gray-700 flex items-center justify-center shadow-lg">
-              <svg
-                className="w-5 h-5 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 0 2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128m0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42"
-                />
-              </svg>
+              <Paintbrush className="w-5 h-5 text-white" />
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">
                 Materials
               </h1>
-              <p className="text-gray-500 text-sm">Manage fabric materials and types used across your platform</p>
+              <p className="text-gray-500 text-sm">
+                Manage fabric and garment materials across your platform
+              </p>
             </div>
           </div>
         </div>
-        <motion.button
-          type="button"
-          onClick={openAddModal}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-linear-to-r from-gray-900 to-gray-800 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:shadow-xl hover:shadow-gray-900/30 transition-all hover:cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          New Material
-        </motion.button>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="search"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search materials by name or description..."
-          className="w-full pl-11 pr-4 py-3 rounded-2xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow shadow-sm"
-        />
-        {searchQuery && (
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 sm:p-6">
+        <h2 className="text-sm font-semibold text-gray-900 mb-4">
+          Add new material
+        </h2>
+
+        <form
+          onSubmit={handleCreate}
+          className="flex flex-col lg:flex-row lg:items-end gap-4"
+        >
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5 uppercase tracking-wide">
+                Name <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder="e.g. silk"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Will be saved as: {createName ? toSlug(createName) : "..."}
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5 uppercase tracking-wide">
+                Name (Arabic) <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={createNameAr}
+                onChange={(e) => setCreateNameAr(e.target.value)}
+                dir="rtl"
+                placeholder="مثال: حرير"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 lg:shrink-0">
+            <label className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-100 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={createIsActive}
+                onChange={(e) => setCreateIsActive(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+              />
+              <span className="text-sm text-gray-700">Active</span>
+            </label>
+
+            <motion.button
+              type="submit"
+              disabled={creating}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="px-5 py-2.5 rounded-xl bg-linear-to-r from-gray-900 to-gray-800 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:shadow-xl transition-all disabled:opacity-50 hover:cursor-pointer inline-flex items-center justify-center gap-2 min-h-10.5"
+            >
+              {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {creating ? "Adding..." : "Add Material"}
+            </motion.button>
+          </div>
+        </form>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-end">
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search materials by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full sm:w-64 pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
+            />
+          </div>
           <button
             type="button"
-            onClick={() => setSearchQuery("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition hover:cursor-pointer"
+            onClick={() => fetchMaterials(currentPage)}
+            className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0"
           >
-            <X className="w-4 h-4" />
+            <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span>Refresh</span>
           </button>
-        )}
+        </div>
       </div>
 
       {!loading && totalItems > 0 && (
         <div className="text-xs text-gray-400 font-medium tracking-wide uppercase">
-          {searchQuery.trim() ? `${totalItems} matching material${totalItems === 1 ? '' : 's'}` : `${totalItems} material${totalItems === 1 ? '' : 's'} total`}
+          {searchQuery.trim()
+            ? `${totalItems} matching material${totalItems === 1 ? "" : "s"}`
+            : `${totalItems} material${totalItems === 1 ? "" : "s"} total`}
         </div>
       )}
 
       {loading ? (
         <TableSkeleton rows={6} cols={3} className="rounded-2xl" />
       ) : materials.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-center py-20">
+        <div className="flex flex-col items-center justify-center text-center py-16">
           <div className="w-20 h-20 bg-linear-to-br from-gray-50 to-gray-100 rounded-3xl flex items-center justify-center mb-6 shadow-inner">
-            <svg
-              className="w-8 h-8 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 0 2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128m0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42"
-              />
-            </svg>
+            <Paintbrush className="w-8 h-8 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-1">
             {searchQuery ? "No matching materials" : "No materials yet"}
           </h3>
-          <p className="text-sm text-gray-500 max-w-sm mb-6">
+          <p className="text-sm text-gray-500 max-w-sm">
             {searchQuery
               ? "Try a different search term or clear the filter."
-              : "Create your first material to start organizing fabric types."}
+              : "Use the form above to add your first material."}
           </p>
-          {!searchQuery && (
-            <motion.button
-              type="button"
-              onClick={openAddModal}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-linear-to-r from-gray-900 to-gray-800 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:shadow-xl transition-all hover:cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              Create Material
-            </motion.button>
-          )}
         </div>
       ) : (
         <div className="grid gap-3">
@@ -414,11 +457,6 @@ export default function AdminSettingsMaterialsPage() {
                         {item.isActive ? "Active" : "Inactive"}
                       </motion.button>
                     </div>
-                    {item.description && (
-                      <p className="text-sm text-gray-500 mt-1.5 line-clamp-2 leading-relaxed">
-                        {item.description}
-                      </p>
-                    )}
                     <div className="flex items-center gap-3 mt-2">
                       {item.createdAt && (
                         <span className="text-xs text-gray-400">
@@ -475,7 +513,7 @@ export default function AdminSettingsMaterialsPage() {
       )}
 
       <AnimatePresence>
-        {showModal && (
+        {editingMaterial && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -490,27 +528,25 @@ export default function AdminSettingsMaterialsPage() {
               className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
             >
               <div className="p-6 sm:p-8">
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center justify-between mb-6">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900">
-                      {editingMaterial ? "Edit Material" : "New Material"}
+                      Edit Material
                     </h2>
                     <p className="text-sm text-gray-500 mt-0.5">
-                      {editingMaterial
-                        ? "Update the material details below."
-                        : "Fill in the details to create a new material."}
+                      Update the material details below.
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShowModal(false)}
+                    onClick={closeEditModal}
                     className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition hover:cursor-pointer"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleEditSubmit} className="space-y-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -519,13 +555,13 @@ export default function AdminSettingsMaterialsPage() {
                       <input
                         type="text"
                         required
-                        value={formName}
-                        onChange={(e) => setFormName(e.target.value)}
-                        placeholder="e.g. cotton-silk (will become lowercase slug)"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="e.g. silk"
+                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                       />
                       <p className="text-xs text-gray-400 mt-1">
-                        Will be saved as: {formName ? toSlug(formName) : "..."}
+                        Will be saved as: {editName ? toSlug(editName) : "..."}
                       </p>
                     </div>
                     <div>
@@ -535,42 +571,11 @@ export default function AdminSettingsMaterialsPage() {
                       <input
                         type="text"
                         required
-                        value={formNameAr}
-                        onChange={(e) => setFormNameAr(e.target.value)}
+                        value={editNameAr}
+                        onChange={(e) => setEditNameAr(e.target.value)}
                         dir="rtl"
-                        placeholder="مثال: قطن حرير"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow"
-                      />
-                      <p className="text-xs text-gray-400 mt-1 text-right">
-                        {formNameAr ? toLowerPreserveSpaces(formNameAr) : "..."}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Description
-                      </label>
-                      <textarea
-                        value={formDescription}
-                        onChange={(e) => setFormDescription(e.target.value)}
-                        rows={3}
-                        placeholder="Brief description in English..."
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow resize-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Description (Arabic)
-                      </label>
-                      <textarea
-                        value={formDescriptionAr}
-                        onChange={(e) => setFormDescriptionAr(e.target.value)}
-                        rows={3}
-                        dir="rtl"
-                        placeholder="وصف باللغة العربية..."
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-shadow resize-none"
+                        placeholder="مثال: حرير"
+                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                       />
                     </div>
                   </div>
@@ -578,13 +583,13 @@ export default function AdminSettingsMaterialsPage() {
                   <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
                     <input
                       type="checkbox"
-                      id="isActive"
-                      checked={formIsActive}
-                      onChange={(e) => setFormIsActive(e.target.checked)}
+                      id="materialIsActive"
+                      checked={editIsActive}
+                      onChange={(e) => setEditIsActive(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
                     />
                     <label
-                      htmlFor="isActive"
+                      htmlFor="materialIsActive"
                       className="text-sm text-gray-700 cursor-pointer select-none"
                     >
                       <span className="font-medium">Active</span>
@@ -597,26 +602,22 @@ export default function AdminSettingsMaterialsPage() {
                   <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
                     <button
                       type="button"
-                      onClick={() => setShowModal(false)}
+                      onClick={closeEditModal}
                       className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition hover:cursor-pointer"
                     >
                       Cancel
                     </button>
                     <motion.button
                       type="submit"
-                      disabled={submitting}
+                      disabled={submittingEdit}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       className="px-5 py-2.5 rounded-xl bg-linear-to-r from-gray-900 to-gray-800 text-white text-sm font-medium shadow-lg shadow-gray-900/20 hover:shadow-xl transition-all disabled:opacity-50 hover:cursor-pointer inline-flex items-center gap-2"
                     >
-                      {submitting && (
+                      {submittingEdit && (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       )}
-                      {submitting
-                        ? "Saving..."
-                        : editingMaterial
-                          ? "Update Material"
-                          : "Create Material"}
+                      {submittingEdit ? "Saving..." : "Update Material"}
                     </motion.button>
                   </div>
                 </form>
@@ -629,7 +630,7 @@ export default function AdminSettingsMaterialsPage() {
       <ConfirmationModal
         isOpen={showDeleteConfirm}
         title="Delete Material"
-        message="Are you sure you want to delete this material? This action cannot be undone. Products using this material may be affected."
+        message="Are you sure you want to delete this material? This action cannot be undone."
         confirmLabel="Delete"
         cancelLabel="Cancel"
         onConfirm={handleConfirmDelete}

@@ -24,6 +24,7 @@ import {
   X,
   Maximize2,
   Calendar,
+  Mail,
 } from "lucide-react";
 import { resolveMediaUrl } from "@/lib/media";
 import FormField from "@/components/admin/FormField";
@@ -394,16 +395,64 @@ export default function AdminPartnersPage() {
         <img
           src={row.logo}
           alt={row.name}
-          className="w-9 h-9 rounded-full object-cover hover:cursor-pointer"
+          className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover hover:cursor-pointer shrink-0"
           onClick={() => handleImageClick(row.logo as string)}
         />
       );
     }
     return (
-      <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
-        <Store className="w-5 h-5 text-gray-400" />
+      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+        <Store className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
       </div>
     );
+  };
+
+  const getStatusBadge = (row: FabricRow, compact = false) => {
+    const size = compact
+      ? "px-2 py-0.5 rounded-full text-[10px] font-medium"
+      : "px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium";
+
+    if (row.type === "pending") {
+      return (
+        <span
+          className={`inline-flex items-center ${size} bg-yellow-100 text-yellow-800`}
+        >
+          <Clock className="w-3 h-3 mr-1" /> Pending
+        </span>
+      );
+    }
+    if (row.type === "rejected") {
+      return (
+        <span
+          className={`inline-flex items-center ${size} bg-red-100 text-red-800`}
+        >
+          Rejected
+        </span>
+      );
+    }
+    return (
+      <span
+        className={`inline-flex items-center ${size} ${
+          row.isActive
+            ? "bg-white text-black border border-black/30"
+            : "bg-gray-100 text-gray-500 border border-gray-200"
+        }`}
+      >
+        {row.isActive ? "Active" : "Inactive"}
+      </span>
+    );
+  };
+
+  const handleMenuOpen = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    row: FabricRow,
+  ) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPosition({
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right,
+    });
+    setMenuItem(row);
   };
 
   const openToggleModal = (
@@ -481,9 +530,9 @@ export default function AdminPartnersPage() {
 
   if (loading && rows.length === 0) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="space-y-4 sm:space-y-6 px-3 sm:px-0">
+        <Skeleton className="h-6 sm:h-8 w-32 sm:w-48" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-2xl" />
           ))}
@@ -495,11 +544,13 @@ export default function AdminPartnersPage() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center bg-white p-8 rounded-2xl border border-gray-100 max-w-md">
-          <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-          <p className="text-xl text-black">Failed to load partners</p>
-          <p className="text-sm text-gray-500 mt-2">{error}</p>
+      <div className="flex items-center justify-center h-full px-3 sm:px-0">
+        <div className="text-center bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-gray-100 max-w-md">
+          <AlertCircle className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 text-gray-400" />
+          <p className="font-normal text-lg sm:text-xl text-black">
+            Failed to load partners
+          </p>
+          <p className="text-gray-500 mt-2 text-xs sm:text-sm">{error}</p>
           <button
             onClick={() => fetchData(1)}
             className="mt-6 px-6 py-2 bg-black text-white rounded-full hover:bg-black/80 transition text-sm hover:cursor-pointer"
@@ -512,7 +563,7 @@ export default function AdminPartnersPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 px-3 sm:px-0">
       {/* Modals */}
       <ConfirmationModal
         isOpen={toggleModalOpen}
@@ -553,7 +604,7 @@ export default function AdminPartnersPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -8 }}
               transition={{ duration: 0.15, ease: "easeOut" }}
-              className="w-fit bg-white rounded-xl shadow-lg border border-gray-200 py-1 overflow-hidden"
+              className="w-fit min-w-30 sm:min-w-35 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:cursor-pointer"
             >
               <Link
                 href={`/admin/partners/${menuItem.id}/application`}
@@ -561,9 +612,9 @@ export default function AdminPartnersPage() {
                   setMenuPosition(null);
                   setMenuItem(null);
                 }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer"
+                className="w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2.5 text-xs sm:text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer whitespace-nowrap"
               >
-                <Eye className="w-4 h-4 shrink-0" />
+                <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                 <span>View</span>
               </Link>
               <button
@@ -573,9 +624,9 @@ export default function AdminPartnersPage() {
                   setMenuPosition(null);
                   setMenuItem(null);
                 }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer"
+                className="w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2.5 text-xs sm:text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer whitespace-nowrap"
               >
-                <Users className="w-4 h-4 shrink-0" />
+                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                 <span>Details</span>
               </button>
               {menuItem.type === "approved" && (
@@ -587,13 +638,13 @@ export default function AdminPartnersPage() {
                       menuItem.isActive || false,
                     );
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:cursor-pointer ${
+                  className={`w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2.5 text-xs sm:text-sm transition-colors text-left hover:cursor-pointer whitespace-nowrap ${
                     menuItem.isActive
                       ? "text-red-600 hover:bg-red-50"
                       : "text-green-700 hover:bg-green-50"
                   }`}
                 >
-                  <Store className="w-4 h-4 shrink-0" />
+                  <Store className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                   <span>{menuItem.isActive ? "Deactivate" : "Reactivate"}</span>
                 </button>
               )}
@@ -603,173 +654,156 @@ export default function AdminPartnersPage() {
         )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
             Fabric Store Partners
           </h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-gray-500 text-xs sm:text-sm mt-1">
             Manage fabric store partner accounts – approvals and active shops.
           </p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => fetchData(currentPage)}
-            className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer"
-          >
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
-          <button
             onClick={() => setFormModalOpen(true)}
-            className="inline-flex items-center gap-2 px-3 py-2 bg-black text-white rounded-lg hover:bg-black/80 transition text-sm hover:cursor-pointer"
+            className="inline-flex items-center gap-2 px-3 py-2 bg-black text-white rounded-lg hover:bg-black/80 transition text-xs sm:text-sm hover:cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Add Partner
           </button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div
-          key="total"
-          className="bg-white rounded-2xl p-4 border border-gray-100"
-        >
-          <p className="text-xs text-gray-400 uppercase">Total</p>
-          <p className="text-2xl font-light text-black mt-1">{stats.total}</p>
+      {/* Stats cards - 2 per row on mobile */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
+          <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider">
+            Total
+          </p>
+          <p className="text-xl sm:text-2xl font-light text-black mt-1">
+            {stats.total}
+          </p>
         </div>
-        <div
-          key="approved"
-          className="bg-white rounded-2xl p-4 border border-gray-100"
-        >
-          <p className="text-xs text-gray-400 uppercase">Approved</p>
-          <p className="text-2xl font-light text-black mt-1">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
+          <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider">
+            Approved
+          </p>
+          <p className="text-xl sm:text-2xl font-light text-black mt-1">
             {stats.approved}
           </p>
         </div>
-        <div
-          key="pending"
-          className="bg-white rounded-2xl p-4 border border-gray-100"
-        >
-          <p className="text-xs text-gray-400 uppercase">Pending</p>
-          <p className="text-2xl font-light text-black mt-1">{stats.pending}</p>
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
+          <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider">
+            Pending
+          </p>
+          <p className="text-xl sm:text-2xl font-light text-black mt-1">
+            {stats.pending}
+          </p>
         </div>
-        <div
-          key="rejected"
-          className="bg-white rounded-2xl p-4 border border-gray-100"
-        >
-          <p className="text-xs text-gray-400 uppercase">Rejected</p>
-          <p className="text-2xl font-light text-black mt-1">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
+          <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider">
+            Rejected
+          </p>
+          <p className="text-xl sm:text-2xl font-light text-black mt-1">
             {stats.rejected}
           </p>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex space-x-8">
+      {/* Tabs & Search */}
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        <div className="flex w-full sm:w-auto gap-0.5 sm:gap-2 border-b border-gray-200">
           {(["all", "approved", "pending", "rejected"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
-              className={`pb-4 px-1 border-b-2 font-medium text-sm transition-all capitalize hover:cursor-pointer ${
+              className={`flex-1 sm:flex-none px-1.5 sm:px-3 md:px-4 py-2 text-[10px] sm:text-xs md:text-sm font-medium transition-colors hover:cursor-pointer capitalize text-center ${
                 activeTab === tab
-                  ? "border-black text-black"
-                  : "border-transparent text-gray-500 hover:text-gray-750 hover:border-gray-300"
+                  ? "border-b-2 border-black text-black"
+                  : "text-gray-500 hover:text-black"
               }`}
             >
               {tab}
             </button>
           ))}
-        </nav>
+        </div>
+
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search..."
+              className="w-full sm:w-64 pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
+            />
+          </div>
+          <button
+            onClick={() => fetchData(currentPage)}
+            className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0"
+          >
+            <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search by name, email, shop, or request number..."
-          className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-black"
-        />
-      </div>
-
-      {/* Table */}
+      {/* Table / Cards */}
       {filteredRows.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-          <Store className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-          <p className="text-gray-500">
-            No partners found matching the criteria.
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sm:p-12 text-center">
+          <Store className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 text-gray-300" />
+          <p className="text-gray-500 text-sm sm:text-base">
+            {searchTerm
+              ? "No partners match your search."
+              : "No partners found matching the criteria."}
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-150">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Partner
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Shop
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Joined
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredRows.map((row) => {
-                  const isPending = row.type === "pending";
-                  const isRejected = row.type === "rejected";
-
-                  let statusBadge;
-                  if (isPending) {
-                    statusBadge = (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        <Clock className="w-3 h-3 mr-1" /> Pending
-                      </span>
-                    );
-                  } else if (isRejected) {
-                    statusBadge = (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        Rejected
-                      </span>
-                    );
-                  } else {
-                    statusBadge = (
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${row.isActive ? "bg-black text-white" : "bg-gray-200 text-black"}`}
-                      >
-                        {row.isActive ? "Active" : "Inactive"}
-                      </span>
-                    );
-                  }
-
-                  return (
-                    <tr key={row.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+        <>
+          {/* Desktop Table */}
+          <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Partner
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Email
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Shop
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Joined
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredRows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="hover:bg-gray-50 transition-all duration-200"
+                    >
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           {getAvatar(row)}
-                          <span className="text-sm font-medium text-black">
+                          <span className="text-xs sm:text-sm font-medium text-black">
                             {row.name}
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                         <div>{row.email}</div>
                         {row.requestNumber ? (
                           <div className="text-xs text-gray-400 mt-0.5">
@@ -777,42 +811,80 @@ export default function AdminPartnersPage() {
                           </div>
                         ) : null}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm capitalize">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm capitalize text-gray-600">
                         {row.type}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                         {row.shopName || "—"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
                         {formatDate(row.createdAt)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {statusBadge}
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                        {getStatusBadge(row)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right">
                         <button
-                          onClick={(e) => {
-                            const rect =
-                              e.currentTarget.getBoundingClientRect();
-                            setMenuPosition({
-                              top: rect.bottom + 8,
-                              right: window.innerWidth - rect.right,
-                            });
-                            setMenuItem(row);
-                          }}
-                          className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center"
+                          onClick={(e) => handleMenuOpen(e, row)}
+                          className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
                           title="Actions"
                         >
-                          <MoreVertical className="w-5 h-5 hover:cursor-pointer" />
+                          <MoreVertical className="w-5 h-5" />
                         </button>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-3 sm:space-y-4">
+            {filteredRows.map((row) => (
+              <div
+                key={row.id}
+                className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    {getAvatar(row)}
+                    <div className="min-w-0">
+                      <h3 className="text-xs sm:text-sm font-medium text-black truncate">
+                        {row.name}
+                      </h3>
+                      <div className="mt-1">{getStatusBadge(row, true)}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => handleMenuOpen(e, row)}
+                    className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer shrink-0"
+                    title="Actions"
+                  >
+                    <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
+                </div>
+
+                <div className="mt-2 sm:mt-3 space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
+                  <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 min-w-0">
+                    <Mail className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                    <span className="truncate">{row.email}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 min-w-0">
+                    <Store className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                    <span className="truncate">{row.shopName || "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
+                    <Calendar className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                    <span className="text-xs sm:text-sm">
+                      Joined {formatDate(row.createdAt)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Pagination */}
@@ -929,7 +1001,7 @@ export default function AdminPartnersPage() {
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <Clock className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <Mail className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                   <div className="text-left">
                     <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
                       Owner Email

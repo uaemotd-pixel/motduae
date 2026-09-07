@@ -36,6 +36,7 @@ const SubAdminSchema = new mongoose.Schema({
     addons: { type: Boolean, default: false },
     notifications: { type: Boolean, default: false },
   },
+  isActive: { type: Boolean, default: true, required: true },
   createdAt: { type: Date, default: Date.now },
 });
 
