@@ -451,6 +451,11 @@ const customOrderSchema = new mongoose.Schema(
         nameAr: { type: String, required: true },
         price: { type: Number, required: true, min: 0 },
         thumbnailImage: { type: String, required: true },
+        fabricShopId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "FabricShop",
+          default: null,
+        },
       },
     ],
 

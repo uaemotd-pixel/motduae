@@ -80,6 +80,9 @@ interface OrderBreakdownLine {
   pickup?: string;
   deliveryLines?: any[];
   shippingLabel?: string;
+  /** Purchased custom-order add-ons attributed to this fabric payout line. */
+  addOnsTotal?: number;
+  addOnsLabel?: string;
 }
 
 interface DashboardStats {
@@ -395,9 +398,47 @@ export default function AdminPaymentsPage() {
     return true;
   };
 
+  const getOrderAddonList = (order: any) => {
+    if (isRetailOrder(order)) return [];
+    if (Array.isArray(order?.addons) && order.addons.length > 0) {
+      return order.addons;
+    }
+    if (Array.isArray(order?.addOns) && order.addOns.length > 0) {
+      return order.addOns;
+    }
+    return (order?.items || []).flatMap(
+      (item: any) => item?.addons || item?.addOns || [],
+    );
+  };
+
+  const sumAddonList = (list: any) => {
+    if (!Array.isArray(list) || list.length === 0) return 0;
+    return list.reduce(
+      (sum: number, addOn: any) => sum + (Number(addOn?.price) || 0),
+      0,
+    );
+  };
+
+  /** Custom orders store purchased add-ons on `order.addons` (fabric-shop products). */
+  const getOrderAddOnsTotal = (order: any) => sumAddonList(getOrderAddonList(order));
+
+  const getAddonNamesLabel = (list: any[]) => {
+    const names = (list || [])
+      .map((a: any) => a?.name)
+      .filter((name: any) => typeof name === "string" && name.trim());
+    return [...new Set(names)].join(", ");
+  };
+
+  const getOrderAddOnsLabel = (order: any) =>
+    getAddonNamesLabel(getOrderAddonList(order));
+
   const getOrderFees = (order: any) => {
     const shippingFee = getOrderShippingFee(order);
+    const addOnsTotal = getOrderAddOnsTotal(order);
+
     if (isRetailOrder(order)) {
+      // Retail line items (ready-made / add-ons / fabric-by-meter) already include
+      // purchased add-on products in orderItems — do not double-count.
       const fabricFee = (order.orderItems || []).reduce(
         (sum: number, item: any) =>
           sum + (Number(item.price) || 0) * (Number(item.quantity) || 0),
@@ -408,8 +449,10 @@ export default function AdminPaymentsPage() {
         tailoringFee: 0,
         fabricFee,
         shippingFee,
+        addOnsTotal: 0,
       };
     }
+
     if (order.items && order.items.length > 0) {
       return {
         tailorFee: order.items.reduce(
@@ -425,13 +468,16 @@ export default function AdminPaymentsPage() {
           0,
         ),
         shippingFee,
+        addOnsTotal,
       };
     }
+
     return {
       tailorFee: order.pricing?.designBase || 0,
       tailoringFee: order.pricing?.tailoringFee || 0,
       fabricFee: order.pricing?.fabricCost || 0,
       shippingFee,
+      addOnsTotal,
     };
   };
 
@@ -443,20 +489,34 @@ export default function AdminPaymentsPage() {
     const fees = getOrderFees(order);
     const tailorGross = fees.tailorFee + fees.tailoringFee;
     const tailor = splitFabricCommission(tailorGross, tailorCommissionPercent);
+    // Default combined view (before same/different shop split in getOrderPayees)
+    const fabricGross = fees.fabricFee + fees.addOnsTotal;
     const fabric = splitFabricCommission(
-      fees.fabricFee,
+      fabricGross,
       fabricCommissionPercent,
     );
+
     const shipping = {
       gross: fees.shippingFee,
       net: fees.shippingFee,
       commission: 0,
       percent: 0,
     };
+
     const motdEarns = Number(
       (tailor.commission + fabric.commission).toFixed(2),
     );
-    return { fees, tailorGross, tailor, fabric, shipping, motdEarns };
+
+    return {
+      fees,
+      tailorGross,
+      fabricGross,
+      tailor,
+      fabric,
+      shipping,
+      motdEarns,
+      addOnsTotal: fees.addOnsTotal,
+    };
   };
 
   const readPartnerName = (value: any, fallback: string) => {
@@ -468,7 +528,38 @@ export default function AdminPaymentsPage() {
   const readPartnerId = (value: any) => {
     if (!value) return "";
     if (typeof value === "string") return value;
-    return String(value._id || value.id || "").trim();
+    return String(value._id || value.id || value.shopId || "").trim();
+  };
+
+  const collectPartnerIds = (...values: any[]) => {
+    const ids = new Set<string>();
+    for (const value of values) {
+      if (!value) continue;
+      if (typeof value === "string" || typeof value === "number") {
+        const id = String(value).trim();
+        if (id) ids.add(id);
+        continue;
+      }
+      for (const key of ["_id", "id", "shopId", "ownerId"]) {
+        const nested = value[key];
+        if (!nested) continue;
+        if (typeof nested === "object") {
+          const nestedId = readPartnerId(nested);
+          if (nestedId) ids.add(nestedId);
+        } else {
+          const id = String(nested).trim();
+          if (id) ids.add(id);
+        }
+      }
+    }
+    return ids;
+  };
+
+  const idsOverlap = (a: Set<string>, b: Set<string>) => {
+    for (const id of a) {
+      if (b.has(id)) return true;
+    }
+    return false;
   };
 
   const getOrderPayees = (order: any) => {
@@ -537,8 +628,126 @@ export default function AdminPaymentsPage() {
       Number(order.pricing?.parcelCount || order.parcelCount) || 0;
     const deliveryLines = getDeliveryBreakdown(order);
 
+    const primaryFabricIds = collectPartnerIds(
+      fabricStore?.shopId,
+      fabricStore,
+      fabricStore?.ownerId,
+      order.fabricStoreId,
+      ...(order.items || []).map((item: any) => item.fabricStoreId),
+      ...(order.items || []).map((item: any) => item.fabricStoreId?.shopId),
+    );
+
+    const sameStoreAddOns: any[] = [];
+    const otherStoreAddOnsByShop = new Map<
+      string,
+      {
+        shopIds: Set<string>;
+        shop: any;
+        addons: any[];
+      }
+    >();
+
+    for (const addon of getOrderAddonList(order)) {
+      const shop = addon?.fabricShop || null;
+      const addonShopIds = collectPartnerIds(
+        addon?.fabricShopId,
+        shop,
+        shop?.shopId,
+        shop?.ownerId,
+      );
+
+      // No owning shop on the add-on: keep with order fabric store when present
+      // (legacy snapshots); otherwise MOTD-owned → no partner payout line.
+      if (addonShopIds.size === 0) {
+        if (primaryFabricIds.size > 0) sameStoreAddOns.push(addon);
+        continue;
+      }
+
+      if (
+        primaryFabricIds.size > 0 &&
+        idsOverlap(primaryFabricIds, addonShopIds)
+      ) {
+        sameStoreAddOns.push(addon);
+        continue;
+      }
+
+      const groupKey =
+        readPartnerId(shop?.shopId) ||
+        readPartnerId(shop) ||
+        readPartnerId(addon?.fabricShopId) ||
+        [...addonShopIds][0] ||
+        `unknown-addon-${otherStoreAddOnsByShop.size}`;
+
+      const existing = otherStoreAddOnsByShop.get(groupKey);
+      if (existing) {
+        existing.addons.push(addon);
+        for (const id of addonShopIds) existing.shopIds.add(id);
+        continue;
+      }
+
+      otherStoreAddOnsByShop.set(groupKey, {
+        shopIds: addonShopIds,
+        shop,
+        addons: [addon],
+      });
+    }
+
+    const sameStoreAddOnsTotal = sumAddonList(sameStoreAddOns);
+    const fabricOnlyGross = shares.fees.fabricFee;
+    const primaryFabricGross = fabricOnlyGross + sameStoreAddOnsTotal;
+    const primaryFabricShare = splitFabricCommission(
+      primaryFabricGross,
+      fabricCommissionPercent,
+    );
+
+    const separateAddOnPayees = Array.from(otherStoreAddOnsByShop.entries()).map(
+      ([key, group]) => {
+        const gross = sumAddonList(group.addons);
+        const share = splitFabricCommission(gross, fabricCommissionPercent);
+        const shop = group.shop;
+        const shopName =
+          shop?.shopName || shop?.name || "Fabric store (add-ons)";
+        return {
+          key,
+          id:
+            readPartnerId(shop?.shopId) ||
+            readPartnerId(shop) ||
+            readPartnerId(shop?.ownerId) ||
+            key,
+          shopName,
+          payeeName: shop?.ownerName || shopName,
+          phone: shop?.phone || shop?.ownerPhone || "",
+          email: shop?.ownerEmail || "",
+          city: shop?.city || "",
+          location: shop?.location || "",
+          pickup: formatPickupAddress(shop?.pickupAddress),
+          addOnsTotal: gross,
+          addOnsLabel: getAddonNamesLabel(group.addons),
+          share,
+        };
+      },
+    );
+
+    const separateAddOnsCommission = separateAddOnPayees.reduce(
+      (sum, row) => sum + (row.share.commission || 0),
+      0,
+    );
+    const motdEarns = Number(
+      (
+        shares.tailor.commission +
+        primaryFabricShare.commission +
+        separateAddOnsCommission
+      ).toFixed(2),
+    );
+
     return {
-      shares,
+      shares: {
+        ...shares,
+        fabricGross: primaryFabricGross,
+        fabric: primaryFabricShare,
+        motdEarns,
+        addOnsTotal: sameStoreAddOnsTotal,
+      },
       channel: isRetailOrder(order) ? "retail" : "custom",
       tailor: {
         id:
@@ -592,6 +801,20 @@ export default function AdminPaymentsPage() {
                 }`
               : "Courier delivery",
       },
+      addOns: {
+        total: sameStoreAddOnsTotal,
+        label: getAddonNamesLabel(sameStoreAddOns),
+        commission: Number(
+          ((sameStoreAddOnsTotal * fabricCommissionPercent) / 100).toFixed(2),
+        ),
+        toFabric: Number(
+          (
+            sameStoreAddOnsTotal *
+            (1 - fabricCommissionPercent / 100)
+          ).toFixed(2),
+        ),
+      },
+      separateAddOnPayees,
     };
   };
 
@@ -775,13 +998,43 @@ export default function AdminPaymentsPage() {
           orderId,
           channel: payees.channel,
           amount: payees.shares.fabric.net,
-          gross: payees.shares.fees.fabricFee,
+          gross: payees.shares.fabricGross,
           commission: payees.shares.fabric.commission,
           percent: fabricCommissionPercent,
           meta: payees.fabric.fabrics || undefined,
           pickup: payees.fabric.pickup || undefined,
+          addOnsTotal: payees.addOns.total || undefined,
+          addOnsLabel: payees.addOns.label || undefined,
         },
       );
+
+      for (const addonPayee of payees.separateAddOnPayees || []) {
+        bump(
+          "fabric",
+          addonPayee.id,
+          addonPayee.shopName,
+          addonPayee.payeeName,
+          addonPayee.phone,
+          addonPayee.email,
+          addonPayee.city,
+          addonPayee.location,
+          addonPayee.pickup,
+          addonPayee.share.net,
+          {
+            orderId,
+            channel: payees.channel,
+            amount: addonPayee.share.net,
+            gross: addonPayee.share.gross,
+            commission: addonPayee.share.commission,
+            percent: fabricCommissionPercent,
+            meta: "Add-ons only",
+            pickup: addonPayee.pickup || undefined,
+            addOnsTotal: addonPayee.addOnsTotal || undefined,
+            addOnsLabel: addonPayee.addOnsLabel || undefined,
+          },
+        );
+      }
+
       bump(
         "shipping",
         payees.shipping.id,
@@ -925,14 +1178,20 @@ export default function AdminPaymentsPage() {
     let motdProfit = 0;
     for (const order of pricingOrders) {
       if (!isPayoutEligibleOrder(order)) continue;
-      const shares = getOrderShares(order);
+      const payees = getOrderPayees(order);
+      const shares = payees.shares;
+      const separateAddOnGross = (payees.separateAddOnPayees || []).reduce(
+        (sum: number, row: any) => sum + (Number(row.share?.gross) || 0),
+        0,
+      );
       const orderTotal =
         Number(order.totalPrice) ||
         Number(order.pricing?.total) ||
         Number(
           (
             shares.tailorGross +
-            shares.fees.fabricFee +
+            shares.fabricGross +
+            separateAddOnGross +
             shares.shipping.gross
           ).toFixed(2),
         );
@@ -1044,7 +1303,9 @@ export default function AdminPaymentsPage() {
       await Promise.all([fetchPartnerPayouts(), fetchPayoutRequests()]);
     } catch (err: any) {
       console.error("Release payment error:", err);
-      toast.error(err?.message || "Failed to release payment. Please try again.");
+      toast.error(
+        err?.message || "Failed to release payment. Please try again.",
+      );
     } finally {
       setReleasingKey(null);
     }
@@ -1059,7 +1320,9 @@ export default function AdminPaymentsPage() {
       await fetchPartnerPayouts();
     } catch (err: any) {
       console.error("Delete transaction error:", err);
-      toast.error(err?.message || "Failed to delete transaction. Please try again.");
+      toast.error(
+        err?.message || "Failed to delete transaction. Please try again.",
+      );
     } finally {
       setDeletingTxId(null);
     }
@@ -1573,8 +1836,13 @@ export default function AdminPaymentsPage() {
                                   <p className="mt-1 text-[11px] text-(--dash-muted)">
                                     {row.kind === "tailor"
                                       ? "Design"
-                                      : "Fabric"}
-                                    : {orderLine.meta}
+                                      : orderLine.meta === "Add-ons only"
+                                        ? "Type"
+                                        : "Fabric"}
+                                    :{" "}
+                                    {orderLine.meta === "Add-ons only"
+                                      ? "Add-ons only (different fabric store)"
+                                      : orderLine.meta}
                                   </p>
                                 ) : null}
                                 {orderLine.shippingLabel ? (
@@ -1609,12 +1877,24 @@ export default function AdminPaymentsPage() {
                                   ))}
                               </div>
                             ) : (
-                              <p className="mt-2 text-[11px] text-(--dash-muted)">
-                                Gross {formatCurrency(orderLine.gross)} − MOTD{" "}
-                                {formatCurrency(orderLine.commission)} (
-                                {orderLine.percent}%) ={" "}
-                                {formatCurrency(orderLine.amount)}
-                              </p>
+                              <div className="mt-2 space-y-1 text-[11px] text-(--dash-muted)">
+                                <p>
+                                  Gross {formatCurrency(orderLine.gross)} − MOTD{" "}
+                                  {formatCurrency(orderLine.commission)} (
+                                  {orderLine.percent}%) ={" "}
+                                  {formatCurrency(orderLine.amount)}
+                                </p>
+                                {row.kind === "fabric" &&
+                                (orderLine.addOnsTotal || 0) > 0 ? (
+                                  <p className="text-(--dash-ink)">
+                                    Includes add-ons{" "}
+                                    {formatCurrency(orderLine.addOnsTotal || 0)}
+                                    {orderLine.addOnsLabel
+                                      ? `: ${orderLine.addOnsLabel}`
+                                      : ""}
+                                  </p>
+                                ) : null}
+                              </div>
                             )}
                           </div>
                         ))}

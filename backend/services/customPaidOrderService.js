@@ -700,6 +700,7 @@ export async function createPaidCustomOrder({
     nameAr: a.nameAr,
     price: a.price,
     thumbnailImage: a.thumbnailImage,
+    fabricShopId: a.fabricShopId || null,
   }));
 
   const confirmedAt = new Date();

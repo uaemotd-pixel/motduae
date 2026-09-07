@@ -201,25 +201,37 @@ export async function computeFabricUnpaidBreakdown(ownerUserId) {
   };
 
   const sumCustomFabricFee = (order) => {
+    let fabricFee = 0;
     if (order.items && order.items.length > 0) {
-      return order.items
+      fabricFee = order.items
         .filter(isStoreOwnedItem)
         .reduce((sum, item) => sum + (item.pricing?.fabricCost || 0), 0);
+    } else {
+      const rootSid =
+        order.fabricStoreId?._id?.toString?.() ||
+        order.fabricStoreId?.toString?.() ||
+        "";
+      const rootFabricId =
+        order.fabricId?._id?.toString?.() || order.fabricId?.toString?.() || "";
+      if (
+        rootSid === ownerUserIdStr ||
+        (shopIdStr && rootSid === shopIdStr) ||
+        (rootFabricId && storeFabricIdSet.has(rootFabricId))
+      ) {
+        fabricFee = order.pricing?.fabricCost || 0;
+      }
     }
-    const rootSid =
-      order.fabricStoreId?._id?.toString?.() ||
-      order.fabricStoreId?.toString?.() ||
-      "";
-    const rootFabricId =
-      order.fabricId?._id?.toString?.() || order.fabricId?.toString?.() || "";
-    if (
-      rootSid === ownerUserIdStr ||
-      (shopIdStr && rootSid === shopIdStr) ||
-      (rootFabricId && storeFabricIdSet.has(rootFabricId))
-    ) {
-      return order.pricing?.fabricCost || 0;
-    }
-    return 0;
+
+    const addOnsFee = (order.addons || []).reduce((sum, addon) => {
+      const addonId =
+        addon.addonId?._id?.toString?.() ||
+        addon.addonId?.toString?.() ||
+        "";
+      if (!addonId || !storeAddonIdSet.has(addonId)) return sum;
+      return sum + (Number(addon.price) || 0);
+    }, 0);
+
+    return fabricFee + addOnsFee;
   };
 
   const isStoreRetailItem = (item) => {

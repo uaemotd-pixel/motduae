@@ -669,6 +669,7 @@ orderRoutes.post("/custom/preview", async (req, res) => {
           nameAr: a.nameAr,
           price: a.price,
           thumbnailImage: a.thumbnailImage,
+          fabricShopId: a.fabricShopId || null,
         })),
       });
     }
@@ -694,6 +695,7 @@ orderRoutes.post("/custom/preview", async (req, res) => {
         nameAr: a.nameAr,
         price: a.price,
         thumbnailImage: a.thumbnailImage,
+        fabricShopId: a.fabricShopId || null,
       })),
     });
   } catch (error) {

@@ -877,57 +877,165 @@ fabricPortalRouter.delete(
   }),
 );
 
-// GET /api/fabric/orders — get all custom orders containing fabric from this store
+// GET /api/fabric/orders — custom orders with fabric and/or add-ons from this store
 fabricPortalRouter.get(
   "/orders",
   expressAsyncHandler(async (req, res) => {
-    const shop = await findOwnShop(req.user._id);
-    const storeAddonIds = shop
-      ? await AddOn.find({
-          $or: [{ fabricShopId: shop._id }, { ownerName: shop.name }],
-        }).select("_id")
-      : [];
-    const storeAddonIdValues = storeAddonIds.map((a) => a._id);
+    const ownerUserId = req.user._id;
+    const ownerUserIdStr = String(ownerUserId);
+    const shop = await findOwnShop(ownerUserId);
+    const shopIdStr = shop?._id ? String(shop._id) : "";
 
-    const primaryMatchOrdersQuery = {
-      $or: [
-        { fabricStoreId: req.user._id },
-        { "items.fabricStoreId": req.user._id },
-        { "addons.addonId": { $in: storeAddonIdValues } },
-      ],
+    const [storeAddons, storeFabrics] = await Promise.all([
+      shop
+        ? AddOn.find({
+            $or: [{ fabricShopId: shop._id }, { ownerName: shop.name }],
+          }).select("_id")
+        : Promise.resolve([]),
+      Fabric.find({
+        $or: [
+          { listedByStore: ownerUserId },
+          ...(shop ? [{ fabricShopId: shop._id }] : []),
+        ],
+      }).select("_id"),
+    ]);
+
+    const storeAddonIdValues = storeAddons.map((a) => a._id);
+    const storeAddonIdSet = new Set(
+      storeAddonIdValues.map((id) => String(id)),
+    );
+    const storeFabricIdValues = storeFabrics.map((f) => f._id);
+    const storeFabricIdSet = new Set(
+      storeFabricIdValues.map((id) => String(id)),
+    );
+
+    const matchClauses = [
+      { fabricStoreId: ownerUserId },
+      { "items.fabricStoreId": ownerUserId },
+    ];
+    if (shopIdStr) {
+      matchClauses.push(
+        { fabricStoreId: shop._id },
+        { "items.fabricStoreId": shop._id },
+        { "addons.fabricShopId": shop._id },
+      );
+    }
+    if (storeAddonIdValues.length) {
+      matchClauses.push({ "addons.addonId": { $in: storeAddonIdValues } });
+    }
+    if (storeFabricIdValues.length) {
+      matchClauses.push(
+        { fabricId: { $in: storeFabricIdValues } },
+        { "items.fabricId": { $in: storeFabricIdValues } },
+      );
+    }
+
+    const orders = await CustomOrder.find({ $or: matchClauses })
+      .populate("userId", "name email phone")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const isStoreFabricItem = (item) => {
+      const sid =
+        item?.fabricStoreId?._id?.toString?.() ||
+        item?.fabricStoreId?.toString?.() ||
+        "";
+      if (sid && (sid === ownerUserIdStr || (shopIdStr && sid === shopIdStr))) {
+        return true;
+      }
+      const fabricId =
+        item?.fabricId?._id?.toString?.() || item?.fabricId?.toString?.() || "";
+      return Boolean(fabricId && storeFabricIdSet.has(fabricId));
     };
 
-    // Fallback match for legacy/older orders where fabricStoreId might be null,
-    // but the fabricId belongs to fabrics listed by this store.
-    const storeFabricIds = await Fabric.find({
-      listedByStore: req.user._id,
-    }).select("_id");
+    const orderHasFabricForStore = (order) => {
+      if (Array.isArray(order.items) && order.items.length > 0) {
+        return order.items.some(isStoreFabricItem);
+      }
+      const rootSid =
+        order.fabricStoreId?._id?.toString?.() ||
+        order.fabricStoreId?.toString?.() ||
+        "";
+      if (
+        rootSid &&
+        (rootSid === ownerUserIdStr || (shopIdStr && rootSid === shopIdStr))
+      ) {
+        return true;
+      }
+      const rootFabricId =
+        order.fabricId?._id?.toString?.() || order.fabricId?.toString?.() || "";
+      return Boolean(rootFabricId && storeFabricIdSet.has(rootFabricId));
+    };
 
-    const storeFabricIdValues = storeFabricIds.map((f) => f._id);
+    const filterStoreAddons = (order) =>
+      (order.addons || []).filter((addon) => {
+        const addonId =
+          addon.addonId?._id?.toString?.() ||
+          addon.addonId?.toString?.() ||
+          "";
+        if (addonId && storeAddonIdSet.has(addonId)) return true;
+        const addonShopId =
+          addon.fabricShopId?._id?.toString?.() ||
+          addon.fabricShopId?.toString?.() ||
+          "";
+        return Boolean(shopIdStr && addonShopId === shopIdStr);
+      });
 
-    const legacyMatchQuery = storeFabricIdValues.length
-      ? {
-          $or: [
-            { fabricId: { $in: storeFabricIdValues } },
-            { "items.fabricId": { $in: storeFabricIdValues } },
-          ],
-        }
-      : null;
+    const sumStoreFabricGross = (order) => {
+      if (Array.isArray(order.items) && order.items.length > 0) {
+        return order.items
+          .filter(isStoreFabricItem)
+          .reduce(
+            (sum, item) => sum + (Number(item.pricing?.fabricCost) || 0),
+            0,
+          );
+      }
+      return orderHasFabricForStore(order)
+        ? Number(order.pricing?.fabricCost) || 0
+        : 0;
+    };
 
-    const finalQuery = legacyMatchQuery
-      ? {
-          $or: [primaryMatchOrdersQuery, legacyMatchQuery],
-        }
-      : primaryMatchOrdersQuery;
+    const scopedItems = orders
+      .map((order) => {
+        const hasFabric = orderHasFabricForStore(order);
+        const storeAddonsForOrder = filterStoreAddons(order);
+        const hasAddons = storeAddonsForOrder.length > 0;
+        if (!hasFabric && !hasAddons) return null;
 
-    const orders = await CustomOrder.find(finalQuery)
-      .populate("userId", "name email phone")
-      .sort({ createdAt: -1 });
+        const fabricGross = hasFabric ? sumStoreFabricGross(order) : 0;
+        const addonsGross = storeAddonsForOrder.reduce(
+          (sum, addon) => sum + (Number(addon.price) || 0),
+          0,
+        );
+
+        const storeItems = hasFabric
+          ? Array.isArray(order.items) && order.items.length > 0
+            ? order.items.filter(isStoreFabricItem)
+            : order.items
+          : [];
+
+        return {
+          ...order,
+          // Hide other stores' fabric lines from this portal view
+          items: hasFabric ? storeItems : [],
+          // Only this store's purchased add-ons
+          addons: storeAddonsForOrder,
+          storeScope: {
+            hasFabric,
+            hasAddons,
+            canUpdateFabricStatus: hasFabric,
+            fabricGross,
+            addonsGross,
+            gross: Number((fabricGross + addonsGross).toFixed(2)),
+          },
+        };
+      })
+      .filter(Boolean);
 
     res.json({
       success: true,
-      items: orders,
-      fabricShopId: req.user._id,
+      items: scopedItems,
+      fabricShopId: shopIdStr || ownerUserIdStr,
     });
   }),
 );
@@ -1013,17 +1121,45 @@ fabricPortalRouter.patch(
       return;
     }
 
-    // Authorize: order must belong to this fabric store
+    const ownerUserIdStr = String(req.user._id);
+    const shop = await findOwnShop(req.user._id);
+    const shopIdStr = shop?._id ? String(shop._id) : "";
+
+    const storeFabrics = await Fabric.find({
+      $or: [
+        { listedByStore: req.user._id },
+        ...(shop ? [{ fabricShopId: shop._id }] : []),
+      ],
+    }).select("_id");
+    const storeFabricIdSet = new Set(
+      storeFabrics.map((f) => String(f._id)),
+    );
+
+    const isStoreFabricRef = (storeRef, fabricRef) => {
+      const sid =
+        storeRef?._id?.toString?.() || storeRef?.toString?.() || "";
+      if (sid && (sid === ownerUserIdStr || (shopIdStr && sid === shopIdStr))) {
+        return true;
+      }
+      const fabricId =
+        fabricRef?._id?.toString?.() || fabricRef?.toString?.() || "";
+      return Boolean(fabricId && storeFabricIdSet.has(fabricId));
+    };
+
+    // Authorize: only the fabric-providing store may advance fabric_delivered.
+    // Add-on-only stores must not update the shared custom-order fabric status.
     const isBelongsToThisStore =
-      order.fabricStoreId?.toString() === req.user._id.toString() ||
-      order.items?.some(
-        (it) => it?.fabricStoreId?.toString() === req.user._id.toString(),
-      );
+      isStoreFabricRef(order.fabricStoreId, order.fabricId) ||
+      (Array.isArray(order.items) &&
+        order.items.some((it) =>
+          isStoreFabricRef(it?.fabricStoreId, it?.fabricId),
+        ));
 
     if (!isBelongsToThisStore) {
       res.status(403).json({
         success: false,
-        message: "You are not allowed to update this order",
+        message:
+          "You are not allowed to update fabric status for this order. Add-on stores cannot change fabric handoff status.",
       });
       return;
     }
