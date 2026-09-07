@@ -24,6 +24,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import { ImageModal } from "../shared/ImageModal";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
 type FabricCutRow = {
   cutId: string;
@@ -129,6 +130,9 @@ export default function FabricDesignsList() {
   const [loading, setLoading] = useState(true);
   const [shopMissing, setShopMissing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<
+    Pick<FabricProfile, "_id" | "name" | "nameAr"> | FabricVariantProfile | null
+  >(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [modalImage, setModalImage] = useState<{
@@ -161,12 +165,20 @@ export default function FabricDesignsList() {
     loadFabrics();
   }, [loadFabrics]);
 
-  const handleDelete = async (
+  const openDeleteModal = (
     fabric: Pick<FabricProfile, "_id" | "name" | "nameAr"> | FabricVariantProfile,
   ) => {
-    const name = locale === "ar" ? fabric.nameAr || fabric.name : fabric.name;
-    if (!window.confirm(t("confirmDelete", { name }))) return;
+    setItemToDelete(fabric);
+  };
 
+  const closeDeleteModal = () => {
+    if (deletingId) return;
+    setItemToDelete(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!itemToDelete) return;
+    const fabric = itemToDelete;
     setDeletingId(fabric._id);
     try {
       await deleteFabricItem(fabric._id);
@@ -179,6 +191,7 @@ export default function FabricDesignsList() {
           })),
       );
       toast.success(t("deleted"), SUCCESS_TOAST);
+      setItemToDelete(null);
     } catch (err: unknown) {
       toast.error(
         getApiErrorMessage(err, t("errors.deleteFailed")),
@@ -188,6 +201,12 @@ export default function FabricDesignsList() {
       setDeletingId(null);
     }
   };
+
+  const deleteTargetName = itemToDelete
+    ? locale === "ar"
+      ? itemToDelete.nameAr || itemToDelete.name
+      : itemToDelete.name
+    : "";
 
   const filteredFabrics = useMemo(() => {
     if (!searchTerm) return fabrics;
@@ -443,7 +462,7 @@ export default function FabricDesignsList() {
                             </Link>
                             <button
                               type="button"
-                              onClick={() => handleDelete(fabric)}
+                              onClick={() => openDeleteModal(fabric)}
                               disabled={deletingId === fabric._id}
                               className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
                               title={locale === "ar" ? "حذف" : "Delete"}
@@ -587,7 +606,7 @@ export default function FabricDesignsList() {
                                                 <button
                                                   type="button"
                                                   onClick={() =>
-                                                    handleDelete(v)
+                                                    openDeleteModal(v)
                                                   }
                                                   disabled={
                                                     deletingId === v._id
@@ -628,6 +647,18 @@ export default function FabricDesignsList() {
         imageUrl={modalImage?.url ?? ""}
         alt={modalImage?.name ?? "Fabric image"}
         onClose={() => setModalImage(null)}
+      />
+
+      <ConfirmationModal
+        isOpen={!!itemToDelete}
+        title={t("delete")}
+        message={t("confirmDelete", { name: deleteTargetName })}
+        confirmLabel={deletingId ? t("deleting") : t("delete")}
+        cancelLabel={t("cancel")}
+        onConfirm={handleDeleteConfirm}
+        onCancel={closeDeleteModal}
+        isLoading={!!deletingId}
+        isDanger
       />
     </div>
   );

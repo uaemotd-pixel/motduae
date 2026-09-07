@@ -283,6 +283,18 @@ body {
   background-color: #ffffff;
 }
 
+/* react-hot-toast Message defaults to `flex:1` + `white-space:pre-line`, which
+   wraps short phrases (e.g. "Member removed") onto two lines. Our AppToaster
+   renders a custom message node; this keeps any leftover default Message safe. */
+.motd-toaster [role="status"] {
+  width: fit-content !important;
+  max-width: min(360px, calc(100vw - 24px)) !important;
+}
+
+.motd-toaster .motd-toast-message {
+  flex: 0 1 auto !important;
+}
+
 /* Full-height sidebars/drawers with an explicit fallback. `dvh` is unsupported
    before Chrome 108, and Android WebViews on older handsets drop the whole
    declaration — a bare `h-dvh` leaves those elements with no height at all,
