@@ -560,6 +560,7 @@
     "saveDraft": "Save draft",
     "saving": "Saving...",
     "saved": "Draft saved",
+    "draftReadyToSubmit": "Your draft was saved. Confirm and submit when you are ready.",
     "submit": "Submit application",
     "resubmit": "Submit again",
     "submitting": "Submitting...",

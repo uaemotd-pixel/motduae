@@ -33,10 +33,13 @@ export function sanitizePartnerSubmitNext(
   const raw = next.startsWith("/") ? next : `/${next}`;
   if (raw.startsWith("//") || raw.includes("://")) return fallback;
   const path = raw.split("?")[0];
-  if (role === "fabric_store" && path === "/fabric/apply") return "/fabric/apply";
-  if (role === "tailor" && path === "/tailor/apply") return "/tailor/apply";
-  if (path === "/fabric/apply" || path === "/tailor/apply") return path;
-  return fallback;
+  const keepDraft = new URLSearchParams(raw.split("?")[1] || "").get("draft") === "1";
+  let allowed = "";
+  if (role === "fabric_store" && path === "/fabric/apply") allowed = "/fabric/apply";
+  else if (role === "tailor" && path === "/tailor/apply") allowed = "/tailor/apply";
+  else if (path === "/fabric/apply" || path === "/tailor/apply") allowed = path;
+  if (!allowed) return fallback;
+  return keepDraft ? `${allowed}?draft=1` : allowed;
 }
 
 export type SendOtpResponse = {

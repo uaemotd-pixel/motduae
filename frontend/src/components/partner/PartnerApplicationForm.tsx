@@ -102,6 +102,17 @@ export default function PartnerApplicationForm({ role }: Props) {
     };
   }, [t]);
 
+  useEffect(() => {
+    if (loading || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("draft") !== "1") return;
+    toast.success(t("draftReadyToSubmit"), TOAST_BASE);
+    params.delete("draft");
+    const query = params.toString();
+    const next = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", next);
+  }, [loading, t]);
+
   const setField = <K extends keyof PartnerApplication>(
     key: K,
     value: PartnerApplication[K],
@@ -163,14 +174,23 @@ export default function PartnerApplicationForm({ role }: Props) {
       setFieldErrors((prev) => ({ ...prev, confirmed: t("confirmRequired") }));
       return;
     }
+    const verifyHref = buildVerifyEmailHref({
+      locale,
+      mode: "partner-submit",
+      next: `${applyPath}?draft=1`,
+    });
+
     if (needsEmailVerification(user)) {
-      window.location.assign(
-        buildVerifyEmailHref({
-          locale,
-          mode: "partner-submit",
-          next: applyPath,
-        }),
-      );
+      setSubmitting(true);
+      setFieldErrors({});
+      try {
+        const saved = await patchPartnerApplication(payloadFromForm());
+        if (saved) setForm(saved);
+        window.location.assign(verifyHref);
+      } catch (err) {
+        toast.error(getApiErrorMessage(err, t("loadError")), TOAST_BASE);
+        setSubmitting(false);
+      }
       return;
     }
 
@@ -186,13 +206,7 @@ export default function PartnerApplicationForm({ role }: Props) {
     } catch (err) {
       const code = getApiErrorCode(err);
       if (code === "EMAIL_NOT_VERIFIED") {
-        window.location.assign(
-          buildVerifyEmailHref({
-            locale,
-            mode: "partner-submit",
-            next: applyPath,
-          }),
-        );
+        window.location.assign(verifyHref);
         return;
       }
       const data = (err as ApiError)?.data as
