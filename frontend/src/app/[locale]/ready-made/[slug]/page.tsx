@@ -889,6 +889,8 @@ export default function ReadyMadeDetailPage() {
         onBuyNow={handleBuyNow}
       />
 
+      <RelatedProductsSection items={relatedProducts} locale={locale} t={t} />
+      
       <ProductReviewsSection
         productId={String(product._id)}
         locale={locale}
@@ -900,8 +902,6 @@ export default function ReadyMadeDetailPage() {
           countLabel: t.reviewsCount,
         }}
       />
-
-      <RelatedProductsSection items={relatedProducts} locale={locale} t={t} />
 
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-(--color-border) px-4 pt-4 pb-safe shadow-lg z-30 ps-[max(1rem,var(--safe-left))] pe-[max(1rem,var(--safe-right))]">
         <div className="flex gap-3">

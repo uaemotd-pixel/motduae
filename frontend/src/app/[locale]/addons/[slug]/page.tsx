@@ -147,8 +147,7 @@ function RelatedAddonsSection({
             const price = Number(item.price) || 0;
             const inStock = Number(item.stock) > 0;
             const hrefPath = `/addons/${item.slug}`;
-            const tag =
-              locale === "ar" ? item.tagAr || item.tag : item.tag;
+            const tag = locale === "ar" ? item.tagAr || item.tag : item.tag;
             const tagStyles = getTagStyles(item.tag);
 
             return (
@@ -772,6 +771,17 @@ export default function AddonDetailPage() {
         onBuyNow={handleBuyNow}
       />
 
+      <RelatedAddonsSection
+        items={related}
+        locale={locale === "ar" ? "ar" : "en"}
+        labels={{
+          relatedEyebrow: t("relatedEyebrow"),
+          relatedTitle: t("relatedTitle"),
+          relatedExplore: t("relatedExplore"),
+          outOfStock: t("outOfStock"),
+        }}
+      />
+
       <ProductReviewsSection
         productId={String(addon._id)}
         locale={locale === "ar" ? "ar" : "en"}
@@ -781,17 +791,6 @@ export default function AddonDetailPage() {
           loading: t("reviewsLoading"),
           averageLabel: t.raw("reviewsAverage"),
           countLabel: t.raw("reviewsCount"),
-        }}
-      />
-
-      <RelatedAddonsSection
-        items={related}
-        locale={locale === "ar" ? "ar" : "en"}
-        labels={{
-          relatedEyebrow: t("relatedEyebrow"),
-          relatedTitle: t("relatedTitle"),
-          relatedExplore: t("relatedExplore"),
-          outOfStock: t("outOfStock"),
         }}
       />
     </MainLayout>

@@ -147,9 +147,7 @@ function RelatedFabricsSection({
                       className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
                     />
                     {tag && (
-                      <div
-                        className="absolute top-2 left-2 z-10 px-1.5 py-px text-[8px] [font-family:var(--font-ui)] tracking-[0.12em] font-medium uppercase max-w-[calc(100%-5.5rem)] truncate bg-black text-white"
-                      >
+                      <div className="absolute top-2 left-2 z-10 px-1.5 py-px text-[8px] [font-family:var(--font-ui)] tracking-[0.12em] font-medium uppercase max-w-[calc(100%-5.5rem)] truncate bg-black text-white">
                         {tag}
                       </div>
                     )}
@@ -353,6 +351,17 @@ export default function FabricDetailPage() {
         />
       </FadeInSection>
 
+      <RelatedFabricsSection
+        items={related}
+        locale={locale}
+        labels={{
+          relatedEyebrow: t("relatedEyebrow"),
+          relatedTitle: t("relatedTitle"),
+          relatedExplore: t("relatedExplore"),
+          outOfStock: t("outOfStock"),
+        }}
+      />
+
       <ProductReviewsSection
         productId={String(fabric._id)}
         locale={locale}
@@ -363,17 +372,6 @@ export default function FabricDetailPage() {
           // Use raw templates — ProductReviewsSection fills {rating}/{count}
           averageLabel: t.raw("reviewsAverage"),
           countLabel: t.raw("reviewsCount"),
-        }}
-      />
-
-      <RelatedFabricsSection
-        items={related}
-        locale={locale}
-        labels={{
-          relatedEyebrow: t("relatedEyebrow"),
-          relatedTitle: t("relatedTitle"),
-          relatedExplore: t("relatedExplore"),
-          outOfStock: t("outOfStock"),
         }}
       />
     </MainLayout>
