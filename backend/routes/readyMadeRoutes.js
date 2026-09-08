@@ -74,9 +74,87 @@ readyMadeRoutes.get("/:slug", async (req, res) => {
             })
         }
 
+        const relatedLimit = 8;
+        const candidates = await ReadyMadeProduct.find({
+            isActive: true,
+            _id: { $ne: product._id },
+        })
+            .select(
+                "slug images colors name nameAr finalSellingPriceAED tag tagAr availableFabricStock fabricType fabricTypeAr fabricShopId createdAt",
+            )
+            .sort({ createdAt: -1 })
+            .limit(48)
+            .lean();
+
+        const productColors = new Set(
+            (product.colors || []).map((c) => String(c).trim().toLowerCase()).filter(Boolean),
+        );
+        const productPrice = Number(product.finalSellingPriceAED) || 0;
+        const productFabricShopId = product.fabricShopId
+            ? String(product.fabricShopId)
+            : "";
+
+        const scored = candidates
+            .map((item) => {
+                let score = 0;
+                if (
+                    product.fabricType &&
+                    item.fabricType &&
+                    String(item.fabricType).toLowerCase() ===
+                        String(product.fabricType).toLowerCase()
+                ) {
+                    score += 4;
+                }
+                if (
+                    product.tag &&
+                    item.tag &&
+                    String(item.tag).toLowerCase() === String(product.tag).toLowerCase()
+                ) {
+                    score += 3;
+                }
+                if (productFabricShopId && item.fabricShopId) {
+                    if (String(item.fabricShopId) === productFabricShopId) score += 2;
+                }
+                const sharedColor = (item.colors || []).some((c) =>
+                    productColors.has(String(c).trim().toLowerCase()),
+                );
+                if (sharedColor) score += 2;
+
+                const priceDiff = Math.abs(
+                    (Number(item.finalSellingPriceAED) || 0) - productPrice,
+                );
+                if (priceDiff <= 150) score += 2;
+                else if (priceDiff <= 400) score += 1;
+
+                return { item, score };
+            })
+            .sort((a, b) => {
+                if (b.score !== a.score) return b.score - a.score;
+                return (
+                    new Date(b.item.createdAt).getTime() -
+                    new Date(a.item.createdAt).getTime()
+                );
+            });
+
+        const related = scored.slice(0, relatedLimit).map(({ item }) => ({
+            _id: item._id,
+            slug: item.slug,
+            images: item.images,
+            colors: item.colors,
+            name: item.name,
+            nameAr: item.nameAr,
+            finalSellingPriceAED: item.finalSellingPriceAED,
+            tag: item.tag,
+            tagAr: item.tagAr,
+            availableFabricStock: item.availableFabricStock,
+            fabricType: item.fabricType,
+            fabricTypeAr: item.fabricTypeAr,
+        }));
+
         res.json({
             success: true,
-            item: product
+            item: product,
+            related,
         })
     } catch (error) {
         console.error("GET /api/ready-made/:slug error:", error);

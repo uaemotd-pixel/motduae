@@ -12,7 +12,16 @@
             "madeWithDescription": "This piece was tailored from the fabric and design below. View each to explore details or start a custom order.",
             "viewFabricLabel": "Source fabric",
             "viewDesignLabel": "Tailor design",
-            "viewDetails": "View details"
+            "viewDetails": "View details",
+            "relatedEyebrow": "Complete the look",
+            "relatedTitle": "You May Also Like",
+            "relatedExplore": "View all ready-made",
+            "outOfStock": "Sold out",
+            "reviewsTitle": "Customer Reviews",
+            "reviewsEmpty": "No reviews for this product yet.",
+            "reviewsLoading": "Loading reviews…",
+            "reviewsAverage": "Average {rating}",
+            "reviewsCount": "{count} reviews"
         }
     }
 }

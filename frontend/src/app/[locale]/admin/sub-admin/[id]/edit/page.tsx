@@ -66,6 +66,7 @@ const defaultForm: SubAdminForm = {
     payments: false,
     addons: false,
     notifications: false,
+    reviews: false,
   },
 };
 

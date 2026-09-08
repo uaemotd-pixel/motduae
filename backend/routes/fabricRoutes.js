@@ -210,7 +210,7 @@ fabricRoutes.get("/:slug", async (req, res) => {
       });
     }
     const detailItem = toDetailItem(enrichedFabric);
-    detailItem.variations = variants.map(v => ({
+    detailItem.variations = variants.map((v) => ({
       _id: v._id,
       slug: v.slug,
       name: v.name,
@@ -222,9 +222,102 @@ fabricRoutes.get("/:slug", async (req, res) => {
       maxAge: v.maxAge,
     }));
 
+    const variantIds = new Set(variants.map((v) => String(v._id)));
+    variantIds.add(String(fabric._id));
+    variantIds.add(String(parentId));
+
+    const relatedLimit = 8;
+    const shopId =
+      fabric.fabricShopId?._id ||
+      fabric.fabricShopId ||
+      fabric.listedByStore?._id ||
+      fabric.listedByStore ||
+      null;
+
+    const relatedFilter = {
+      isActive: true,
+      "cuts.0": { $exists: true },
+      "cuts.stock": { $gt: 0 },
+      _id: { $nin: [...variantIds] },
+      $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
+    };
+
+    const candidates = await Fabric.find(relatedFilter)
+      .populate("listedByStore", "_id name role")
+      .populate("fabricShopId", "_id name")
+      .sort({ createdAt: -1 })
+      .limit(48)
+      .select("-__v");
+
+    const fabricColors = new Set(
+      (fabric.colors || [])
+        .map((c) => String(c).trim().toLowerCase())
+        .filter(Boolean),
+    );
+    const fabricMaterial = String(fabric.material || "")
+      .trim()
+      .toLowerCase();
+    const fabricTag = String(fabric.tag || "")
+      .trim()
+      .toLowerCase();
+    const fabricShopKey = shopId ? String(shopId) : "";
+
+    const enrichedCandidates = await Promise.all(
+      candidates.map((item) => enrichFabricWithCuts(item)),
+    );
+
+    const scored = enrichedCandidates
+      .map((item) => {
+        let score = 0;
+        if (
+          fabricMaterial &&
+          String(item.material || "")
+            .trim()
+            .toLowerCase() === fabricMaterial
+        ) {
+          score += 4;
+        }
+        if (
+          fabricTag &&
+          String(item.tag || "")
+            .trim()
+            .toLowerCase() === fabricTag
+        ) {
+          score += 3;
+        }
+        const itemShop = item.fabricShopId
+          ? String(item.fabricShopId._id || item.fabricShopId)
+          : item.listedByStore
+            ? String(item.listedByStore._id || item.listedByStore)
+            : "";
+        if (fabricShopKey && itemShop && fabricShopKey === itemShop) {
+          score += 2;
+        }
+        const sharedColor = (item.colors || []).some((c) =>
+          fabricColors.has(String(c).trim().toLowerCase()),
+        );
+        if (sharedColor) score += 2;
+        if (String(item.city || "").toLowerCase() === String(fabric.city || "").toLowerCase() && fabric.city) {
+          score += 1;
+        }
+        return { item, score };
+      })
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (
+          new Date(b.item.createdAt).getTime() -
+          new Date(a.item.createdAt).getTime()
+        );
+      });
+
+    const related = scored
+      .slice(0, relatedLimit)
+      .map(({ item }) => toListItem(item));
+
     res.json({
       success: true,
       item: detailItem,
+      related,
     });
   } catch (error) {
     console.error("GET /api/fabrics/:slug error:", error);

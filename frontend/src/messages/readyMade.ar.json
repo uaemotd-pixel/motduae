@@ -12,7 +12,16 @@
             "madeWithDescription": "تم تفصيل هذه القطعة من القماش والتصميم أدناه. اضغط على أي منهما لعرض التفاصيل أو بدء طلب تفصيل مخصص.",
             "viewFabricLabel": "القماش المستخدم",
             "viewDesignLabel": "تصميم الخياط",
-            "viewDetails": "عرض التفاصيل"
+            "viewDetails": "عرض التفاصيل",
+            "relatedEyebrow": "أكمل الإطلالة",
+            "relatedTitle": "قد يعجبك أيضاً",
+            "relatedExplore": "عرض كل الجاهز",
+            "outOfStock": "نفدت الكمية",
+            "reviewsTitle": "تقييمات العملاء",
+            "reviewsEmpty": "لا توجد تقييمات لهذا المنتج بعد.",
+            "reviewsLoading": "جاري تحميل التقييمات…",
+            "reviewsAverage": "المتوسط {rating}",
+            "reviewsCount": "{count} تقييمات"
         }
     }
 }

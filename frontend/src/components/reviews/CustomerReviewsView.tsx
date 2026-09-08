@@ -1,9 +1,295 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { api, type ApiError } from "@/lib/api/client";
+import { useLocale, useTranslations } from "next-intl";
+import { api } from "@/lib/api/client";
+import { useAuth } from "@/context/AuthContext";
+import { Link } from "@/i18n/navigation";
 import toast from "react-hot-toast";
-import { Star } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
+
+/* ─── Shared star helpers (display + half-star input) ─── */
+
+function StarRatingDisplay({
+  rating,
+  sizeClassName = "w-4 h-4",
+  className = "",
+}: {
+  rating: number;
+  sizeClassName?: string;
+  className?: string;
+}) {
+  const value = Math.max(0, Math.min(5, Number(rating) || 0));
+
+  return (
+    <div
+      className={`flex items-center gap-0.5 ${className}`}
+      aria-label={`${value} out of 5`}
+    >
+      {Array.from({ length: 5 }).map((_, index) => {
+        const starValue = index + 1;
+        const fill =
+          value >= starValue ? 1 : value >= starValue - 0.5 ? 0.5 : 0;
+
+        return (
+          <span
+            key={starValue}
+            className={`relative inline-block ${sizeClassName}`}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className={`${sizeClassName} text-gray-300`}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              aria-hidden
+            >
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+            {fill > 0 && (
+              <svg
+                viewBox="0 0 24 24"
+                className={`${sizeClassName} text-black absolute inset-0`}
+                fill="currentColor"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                aria-hidden
+                style={
+                  fill === 0.5 ? { clipPath: "inset(0 50% 0 0)" } : undefined
+                }
+              >
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function StarRatingInput({
+  value,
+  onChange,
+  labelForValue,
+  sizeClassName = "w-7 h-7",
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  labelForValue?: (value: number) => string;
+  sizeClassName?: string;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const display = hover ?? value;
+
+  return (
+    <div
+      className="flex items-center gap-0.5"
+      onMouseLeave={() => setHover(null)}
+    >
+      {[1, 2, 3, 4, 5].map((star) => {
+        const halfValue = star - 0.5;
+        const fill =
+          display >= star ? 1 : display >= halfValue ? 0.5 : 0;
+
+        return (
+          <div
+            key={star}
+            className={`relative inline-block ${sizeClassName} select-none`}
+          >
+            <button
+              type="button"
+              className="absolute inset-y-0 left-0 w-1/2 z-10 cursor-pointer"
+              aria-label={labelForValue?.(halfValue) ?? `${halfValue} stars`}
+              onClick={() => onChange(halfValue)}
+              onMouseEnter={() => setHover(halfValue)}
+            />
+            <button
+              type="button"
+              className="absolute inset-y-0 right-0 w-1/2 z-10 cursor-pointer"
+              aria-label={labelForValue?.(star) ?? `${star} stars`}
+              onClick={() => onChange(star)}
+              onMouseEnter={() => setHover(star)}
+            />
+            <svg
+              viewBox="0 0 24 24"
+              className={`${sizeClassName} text-gray-300 pointer-events-none`}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              aria-hidden
+            >
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+            {fill > 0 && (
+              <svg
+                viewBox="0 0 24 24"
+                className={`${sizeClassName} text-black absolute inset-0 pointer-events-none`}
+                fill="currentColor"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                aria-hidden
+                style={
+                  fill === 0.5 ? { clipPath: "inset(0 50% 0 0)" } : undefined
+                }
+              >
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ─── Product detail reviews section ─── */
+
+type ProductReview = {
+  id: string;
+  nameEn: string;
+  nameAr: string;
+  titleEn: string;
+  titleAr: string;
+  quoteEn: string;
+  quoteAr: string;
+  rating: number;
+  createdAt: string;
+};
+
+export function ProductReviewsSection({
+  productId,
+  locale,
+  labels,
+}: {
+  productId: string;
+  locale: string;
+  labels: {
+    title: string;
+    empty: string;
+    loading: string;
+    averageLabel: string;
+    countLabel: string;
+  };
+}) {
+  const isArabic = locale === "ar";
+  const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        const data = await api.get<ProductReview[]>(
+          `/api/customer/reviews?productId=${encodeURIComponent(productId)}`,
+        );
+        if (!cancelled && Array.isArray(data)) {
+          setReviews(data);
+        }
+      } catch (err) {
+        console.error("Failed to load product reviews:", err);
+        if (!cancelled) setReviews([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    if (productId) load();
+    return () => {
+      cancelled = true;
+    };
+  }, [productId]);
+
+  const average =
+    reviews.length > 0
+      ? reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) /
+        reviews.length
+      : 0;
+
+  return (
+    <section
+      className="bg-(--bg-page) border-t border-(--color-border) py-12 sm:py-16"
+      dir={isArabic ? "rtl" : "ltr"}
+    >
+      <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto max-w-7xl">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-8 sm:mb-10">
+        <div>
+          <h2 className="[font-family:var(--font-display)] text-2xl sm:text-[32px] text-black tracking-[-0.01em]">
+            {labels.title}
+          </h2>
+          {!loading && reviews.length > 0 && (
+            <p className="mt-2 text-sm text-(--color-grey-muted) [font-family:var(--font-body)]">
+              {labels.averageLabel.replace("{rating}", average.toFixed(1))} ·{" "}
+              {labels.countLabel.replace("{count}", String(reviews.length))}
+            </p>
+          )}
+        </div>
+        {!loading && reviews.length > 0 && (
+          <StarRatingDisplay rating={average} sizeClassName="w-5 h-5" />
+        )}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-gray-500 [font-family:var(--font-body)]">
+          {labels.loading}
+        </p>
+      ) : reviews.length === 0 ? (
+        <p className="text-sm text-gray-500 [font-family:var(--font-body)]">
+          {labels.empty}
+        </p>
+      ) : (
+        <ul className="space-y-6 sm:space-y-8">
+          {reviews.map((rev) => {
+            const quote = isArabic
+              ? rev.quoteAr || rev.quoteEn
+              : rev.quoteEn || rev.quoteAr;
+            const name = isArabic
+              ? rev.nameAr || rev.nameEn
+              : rev.nameEn || rev.nameAr;
+            const title = isArabic
+              ? rev.titleAr || rev.titleEn
+              : rev.titleEn || rev.titleAr;
+
+            return (
+              <li
+                key={rev.id}
+                className="border-b border-gray-100 pb-6 sm:pb-8 last:border-0"
+              >
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <StarRatingDisplay
+                    rating={rev.rating}
+                    sizeClassName="w-3.5 h-3.5 sm:w-4 sm:h-4"
+                  />
+                  <span className="text-[10px] sm:text-xs text-gray-400 [font-family:var(--font-body)]">
+                    {new Date(rev.createdAt).toLocaleDateString(
+                      isArabic ? "ar" : "en",
+                    )}
+                  </span>
+                </div>
+                <p className="[font-family:var(--font-display)] text-sm sm:text-base text-black uppercase tracking-wide">
+                  {name}
+                </p>
+                {title ? (
+                  <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] text-gray-400 mt-1 [font-family:var(--font-ui)]">
+                    {title}
+                  </p>
+                ) : null}
+                <p className="mt-3 [font-family:var(--font-body)] text-sm sm:text-[15px] leading-relaxed italic text-gray-800">
+                  &ldquo;{quote}&rdquo;
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      </div>
+    </section>
+  );
+}
+
+/* ─── Account: write / list customer reviews ─── */
 
 interface Review {
   _id: string;
@@ -13,6 +299,40 @@ interface Review {
   titleEn: string;
   titleAr: string;
   createdAt: string;
+  status?: "pending" | "approved" | "rejected";
+  productId?: string | null;
+  productKind?: string;
+  productName?: string;
+  productNameAr?: string;
+  productSlug?: string;
+  orderType?: string;
+  orderId?: string | null;
+}
+
+type EligibleProduct = {
+  productId: string;
+  orderId: string;
+  kind?: "readyMade" | "fabric" | "addon" | string;
+  name: string;
+  nameAr: string;
+  slug: string;
+  image: string;
+};
+
+type EligibleCustomOrder = {
+  orderId: string;
+  kind: "custom";
+  name: string;
+  nameAr: string;
+  image?: string;
+};
+
+/** Dropdown / submit target: general | product:<id> | custom:<orderId> */
+function targetKeyProduct(productId: string) {
+  return `product:${productId}`;
+}
+function targetKeyCustom(orderId: string) {
+  return `custom:${orderId}`;
 }
 
 const TOAST_BASE = {
@@ -53,28 +373,130 @@ const INPUT_CLASS =
   "w-full border border-gray-200 bg-white px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-[14px] [font-family:var(--font-body)] text-black focus:border-black focus:outline-none transition-colors";
 const TEXTAREA_CLASS = `${INPUT_CLASS} min-h-[80px] sm:min-h-[100px] resize-y`;
 
-export default function CustomerReviewsView() {
+export default function CustomerReviewsView({
+  initialOrderId = null,
+  initialOrderType = null,
+}: {
+  initialOrderId?: string | null;
+  initialOrderType?: "custom" | "retail" | null;
+} = {}) {
+  const t = useTranslations("Account.Reviews");
+  const locale = useLocale();
+  const isArabic = locale === "ar";
+  const { user } = useAuth();
+
+  const fromNotification = Boolean(initialOrderId);
+  const isRetailContext = initialOrderType === "retail";
+  const isCustomContext = initialOrderType === "custom";
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [eligibleProducts, setEligibleProducts] = useState<EligibleProduct[]>(
+    [],
+  );
+  const [eligibleCustomOrders, setEligibleCustomOrders] = useState<
+    EligibleCustomOrder[]
+  >([]);
 
   const [rating, setRating] = useState<number>(5);
-  const [quoteEn, setQuoteEn] = useState("");
-  const [quoteAr, setQuoteAr] = useState("");
-  const [titleEn, setTitleEn] = useState("");
-  const [titleAr, setTitleAr] = useState("");
-  const [hoverRating, setHoverRating] = useState<number | null>(null);
+  const [quote, setQuote] = useState("");
+  const [title, setTitle] = useState("");
+  /** "" | product:<id> | custom:<orderId> */
+  const [selectedTarget, setSelectedTarget] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingProductLabel, setEditingProductLabel] = useState("");
+
+  const isRegisteredCustomer =
+    Boolean(user) &&
+    !user?.isGuest &&
+    String(user?.role || "").toLowerCase() === "customer";
+
+  const lockedProduct =
+    fromNotification && isRetailContext
+      ? eligibleProducts.find(
+          (p) => selectedTarget === targetKeyProduct(p.productId),
+        ) ||
+        eligibleProducts[0] ||
+        null
+      : null;
+
+  const lockedCustomOrder =
+    fromNotification && isCustomContext
+      ? eligibleCustomOrders.find(
+          (o) => selectedTarget === targetKeyCustom(o.orderId),
+        ) ||
+        eligibleCustomOrders[0] ||
+        null
+      : null;
+
+  const lockedLabel = lockedCustomOrder
+    ? isArabic
+      ? lockedCustomOrder.nameAr || lockedCustomOrder.name
+      : lockedCustomOrder.name || lockedCustomOrder.nameAr
+    : lockedProduct
+      ? isArabic
+        ? lockedProduct.nameAr || lockedProduct.name
+        : lockedProduct.name || lockedProduct.nameAr
+      : null;
+
+  const notificationAlreadyReviewed =
+    fromNotification &&
+    !editingId &&
+    ((isRetailContext && !lockedProduct) ||
+      (isCustomContext && !lockedCustomOrder));
 
   const fetchProfileAndReviews = async () => {
     try {
       setLoading(true);
-      const data = await api.get("/api/customer/profile");
-      if (data && data.reviews) {
-        const sorted = [...data.reviews].sort(
-          (a: any, b: any) =>
+      let eligibleQuery = "";
+      if (fromNotification && initialOrderId) {
+        const params = new URLSearchParams();
+        params.set("orderId", initialOrderId);
+        if (isRetailContext) params.set("orderType", "retail");
+        if (isCustomContext) params.set("orderType", "custom");
+        eligibleQuery = `?${params.toString()}`;
+      }
+
+      const [profile, eligible] = await Promise.all([
+        api.get("/api/customer/profile"),
+        api
+          .get<{
+            success: boolean;
+            products: EligibleProduct[];
+            customOrders?: EligibleCustomOrder[];
+          }>(`/api/customer/reviews/eligible-products${eligibleQuery}`)
+          .catch(() => ({
+            success: false,
+            products: [] as EligibleProduct[],
+            customOrders: [] as EligibleCustomOrder[],
+          })),
+      ]);
+
+      if (profile && profile.reviews) {
+        const sorted = [...profile.reviews].sort(
+          (a: Review, b: Review) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         );
         setReviews(sorted);
+      }
+
+      const products = Array.isArray(eligible?.products)
+        ? eligible.products
+        : [];
+      const customs = Array.isArray(eligible?.customOrders)
+        ? eligible.customOrders
+        : [];
+      setEligibleProducts(products);
+      setEligibleCustomOrders(customs);
+
+      if (fromNotification && isRetailContext && products.length > 0) {
+        setSelectedTarget(targetKeyProduct(products[0].productId));
+      } else if (fromNotification && isCustomContext && customs.length > 0) {
+        setSelectedTarget(targetKeyCustom(customs[0].orderId));
+      } else if (fromNotification) {
+        setSelectedTarget("");
       }
     } catch (err) {
       console.error("Failed to load reviews:", err);
@@ -84,48 +506,150 @@ export default function CustomerReviewsView() {
   };
 
   useEffect(() => {
+    if (!isRegisteredCustomer) {
+      setLoading(false);
+      return;
+    }
     fetchProfileAndReviews();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when notification context changes
+  }, [isRegisteredCustomer, initialOrderId, initialOrderType]);
+
+  const resetForm = () => {
+    setQuote("");
+    setTitle("");
+    setRating(5);
+    setSelectedTarget("");
+    setEditingId(null);
+    setEditingProductLabel("");
+  };
+
+  const startEdit = (rev: Review) => {
+    setEditingId(rev._id);
+    setRating(Number(rev.rating) || 5);
+    setQuote(
+      isArabic
+        ? rev.quoteAr || rev.quoteEn || ""
+        : rev.quoteEn || rev.quoteAr || "",
+    );
+    setTitle(
+      isArabic
+        ? rev.titleAr || rev.titleEn || ""
+        : rev.titleEn || rev.titleAr || "",
+    );
+    if (rev.orderType === "custom" && rev.orderId) {
+      setSelectedTarget(targetKeyCustom(String(rev.orderId)));
+    } else if (rev.productId) {
+      setSelectedTarget(targetKeyProduct(String(rev.productId)));
+    } else {
+      setSelectedTarget("");
+    }
+    setEditingProductLabel(
+      isArabic
+        ? rev.productNameAr || rev.productName || ""
+        : rev.productName || rev.productNameAr || "",
+    );
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!quoteEn.trim()) {
-      toast.error("Please enter a review comment.", ERROR_TOAST);
+
+    if (!isRegisteredCustomer) {
+      toast.error(t("registeredOnly"), ERROR_TOAST);
+      return;
+    }
+
+    if (!quote.trim()) {
+      toast.error(t("commentRequired"), ERROR_TOAST);
       return;
     }
 
     setSubmitting(true);
 
     try {
-      const payload = {
-        rating,
-        quoteEn: quoteEn.trim(),
-        quoteAr: quoteAr.trim() || undefined,
-        titleEn: titleEn.trim() || undefined,
-        titleAr: titleAr.trim() || undefined,
-      };
+      const trimmedQuote = quote.trim();
+      const trimmedTitle = title.trim();
 
-      await api.post("/api/customer/reviews", payload);
+      const textPayload = isArabic
+        ? {
+            quoteAr: trimmedQuote,
+            titleAr: trimmedTitle || undefined,
+          }
+        : {
+            quoteEn: trimmedQuote,
+            titleEn: trimmedTitle || undefined,
+          };
 
-      toast.success(
-        "Review submitted successfully! It will appear on the homepage.",
-        SUCCESS_TOAST,
-      );
+      if (editingId) {
+        await api.put(`/api/customer/reviews/${encodeURIComponent(editingId)}`, {
+          rating,
+          ...textPayload,
+        });
+        toast.success(t("editSuccess"), SUCCESS_TOAST);
+      } else {
+        const linkPayload: { productId?: string; customOrderId?: string } = {};
+        if (selectedTarget.startsWith("custom:")) {
+          linkPayload.customOrderId = selectedTarget.slice("custom:".length);
+        } else if (selectedTarget.startsWith("product:")) {
+          linkPayload.productId = selectedTarget.slice("product:".length);
+        } else if (
+          fromNotification &&
+          isCustomContext &&
+          lockedCustomOrder?.orderId
+        ) {
+          linkPayload.customOrderId = lockedCustomOrder.orderId;
+        } else if (
+          fromNotification &&
+          isRetailContext &&
+          lockedProduct?.productId
+        ) {
+          linkPayload.productId = lockedProduct.productId;
+        }
 
-      setQuoteEn("");
-      setQuoteAr("");
-      setTitleEn("");
-      setTitleAr("");
-      setRating(5);
+        await api.post("/api/customer/reviews", {
+          rating,
+          ...linkPayload,
+          ...textPayload,
+        });
+        toast.success(t("submitSuccess"), SUCCESS_TOAST);
+      }
 
+      resetForm();
       fetchProfileAndReviews();
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msg =
-        err.message ||
-        "Failed to submit review. Make sure your profile is completed.";
+        err instanceof Error && err.message
+          ? err.message
+          : editingId
+            ? t("editFailed")
+            : t("submitFailed");
       toast.error(msg, ERROR_TOAST);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (reviewId: string) => {
+    if (!isRegisteredCustomer || !reviewId) return;
+    if (!window.confirm(t("confirmDelete"))) return;
+
+    setDeletingId(reviewId);
+    try {
+      await api.delete(`/api/customer/reviews/${encodeURIComponent(reviewId)}`);
+      toast.success(t("deleteSuccess"), SUCCESS_TOAST);
+      if (editingId === reviewId) resetForm();
+      setReviews((prev) => prev.filter((rev) => rev._id !== reviewId));
+      fetchProfileAndReviews();
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error && err.message
+          ? err.message
+          : t("deleteFailed");
+      toast.error(msg, ERROR_TOAST);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -134,185 +658,300 @@ export default function CustomerReviewsView() {
       <div className="flex items-center gap-3 py-8 sm:py-10 justify-center">
         <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
         <span className="[font-family:var(--font-ui)] text-[10px] sm:text-sm tracking-widest uppercase text-gray-500">
-          Loading reviews…
+          {t("loading")}
         </span>
       </div>
     );
   }
 
+  if (!isRegisteredCustomer) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 md:p-8 shadow-sm space-y-4">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-['Ivy_Ora'] text-black">
+          {t("writeTitle")}
+        </h2>
+        <p className="text-gray-500 text-xs sm:text-sm font-['TT_Norms_Pro']">
+          {t("registeredOnly")}
+        </p>
+        <div className="flex flex-wrap gap-3 pt-1">
+          <Link
+            href="/auth/login"
+            className="px-6 sm:px-8 py-2 sm:py-3 bg-black text-white text-[10px] sm:text-[12px] tracking-[0.18em] sm:tracking-[0.22em] uppercase hover:bg-gray-800 transition [font-family:var(--font-ui)]"
+          >
+            {t("loginCta")}
+          </Link>
+          <Link
+            href="/auth/register"
+            className="px-6 sm:px-8 py-2 sm:py-3 border border-black text-black text-[10px] sm:text-[12px] tracking-[0.18em] sm:tracking-[0.22em] uppercase hover:bg-gray-50 transition [font-family:var(--font-ui)]"
+          >
+            {t("signupCta")}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 sm:space-y-8 md:space-y-10">
-      {/* Add Review Section */}
+    <div
+      className="space-y-6 sm:space-y-8 md:space-y-10"
+      dir={isArabic ? "rtl" : "ltr"}
+    >
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 md:p-8 shadow-sm">
         <h2 className="text-lg sm:text-xl md:text-2xl font-['Ivy_Ora'] mb-1.5 sm:mb-2 text-black">
-          Write a Review
+          {editingId ? t("editTitle") : t("writeTitle")}
         </h2>
         <p className="text-gray-500 text-xs sm:text-sm font-['TT_Norms_Pro'] mb-4 sm:mb-6">
-          Share your experience with MOTD. Your review will be featured on the
-          homepage.
+          {editingId ? t("editSubtitle") : t("writeSubtitle")}
         </p>
 
+        {notificationAlreadyReviewed ? (
+          <p className="text-gray-500 text-xs sm:text-sm font-['TT_Norms_Pro'] mb-4 sm:mb-6">
+            {t("orderAlreadyReviewed")}
+          </p>
+        ) : null}
+
+        {!fromNotification &&
+        !editingId &&
+        eligibleProducts.length === 0 &&
+        eligibleCustomOrders.length === 0 ? (
+          <p className="text-gray-500 text-xs sm:text-sm font-['TT_Norms_Pro'] mb-4 sm:mb-6">
+            {t("noEligibleProducts")}
+          </p>
+        ) : null}
+
+        {!notificationAlreadyReviewed ? (
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-          {/* Star Rating Select */}
+          {editingId && editingProductLabel ? (
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
+                {t("productLockedLabel")}
+              </label>
+              <p className="text-sm sm:text-[15px] text-black font-['TT_Norms_Pro'] border border-gray-200 bg-gray-50 px-3 sm:px-4 py-2.5 sm:py-3">
+                {editingProductLabel}
+              </p>
+            </div>
+          ) : null}
+
+          {!editingId && fromNotification && lockedLabel ? (
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
+                {t("productLockedLabel")}
+              </label>
+              <p className="text-sm sm:text-[15px] text-black font-['TT_Norms_Pro'] border border-gray-200 bg-gray-50 px-3 sm:px-4 py-2.5 sm:py-3">
+                {lockedLabel}
+              </p>
+              <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
+                {isCustomContext
+                  ? t("customOrderLockedHint")
+                  : t("productLockedHint")}
+              </p>
+            </div>
+          ) : null}
+
+          {!editingId &&
+          !fromNotification &&
+          (eligibleProducts.length > 0 || eligibleCustomOrders.length > 0) ? (
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
+                {t("productLabel")}
+              </label>
+              <select
+                value={selectedTarget}
+                onChange={(e) => setSelectedTarget(e.target.value)}
+                className={INPUT_CLASS}
+              >
+                <option value="">{t("productGeneral")}</option>
+                {eligibleCustomOrders.map((order) => (
+                  <option
+                    key={order.orderId}
+                    value={targetKeyCustom(order.orderId)}
+                  >
+                    {isArabic
+                      ? order.nameAr || order.name
+                      : order.name || order.nameAr}
+                  </option>
+                ))}
+                {eligibleProducts.map((product) => (
+                  <option
+                    key={product.productId}
+                    value={targetKeyProduct(product.productId)}
+                  >
+                    {isArabic
+                      ? product.nameAr || product.name
+                      : product.name || product.nameAr}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
+                {t("productHint")}
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-1.5 sm:space-y-2">
             <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
-              Rating
+              {t("rating")} ({rating})
             </label>
-            <div className="flex items-center gap-1">
-              {[1, 2, 3, 4, 5].map((star) => {
-                const isSelected = star <= (hoverRating ?? rating);
-                return (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setRating(star)}
-                    onMouseEnter={() => setHoverRating(star)}
-                    onMouseLeave={() => setHoverRating(null)}
-                    className="p-0.5 sm:p-1 hover:scale-110 transition-transform cursor-pointer"
-                  >
-                    <Star
-                      className={`w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 transition-colors ${isSelected
-                        ? "fill-black stroke-black text-black"
-                        : "fill-none stroke-gray-300 text-gray-300"
-                        }`}
-                    />
-                  </button>
-                );
-              })}
-            </div>
+            <StarRatingInput
+              value={rating}
+              onChange={setRating}
+              labelForValue={(value) => t("starLabel", { count: value })}
+              sizeClassName="w-6 h-6 sm:w-7 sm:h-7"
+            />
+            <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
+              {t("halfStarHint")}
+            </p>
           </div>
 
-          {/* Comment inputs */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-            <div className="space-y-1.5 sm:space-y-2">
-              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
-                Review (English) *
-              </label>
-              <textarea
-                value={quoteEn}
-                onChange={(e) => setQuoteEn(e.target.value)}
-                placeholder="The fabrics and tailoring were exceptional..."
-                className={TEXTAREA_CLASS}
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5 sm:space-y-2">
-              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
-                التقييم (بالإنجليزية)
-              </label>
-              <textarea
-                value={quoteAr}
-                onChange={(e) => setQuoteAr(e.target.value)}
-                placeholder="كان القماش والخوّار استثنائيين..."
-                className={TEXTAREA_CLASS}
-                dir="rtl"
-              />
-            </div>
+          <div className="space-y-1.5 sm:space-y-2">
+            <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
+              {t("commentLabel")} *
+            </label>
+            <textarea
+              value={quote}
+              onChange={(e) => setQuote(e.target.value)}
+              placeholder={t("commentPlaceholder")}
+              className={TEXTAREA_CLASS}
+              dir={isArabic ? "rtl" : "ltr"}
+              required
+            />
           </div>
 
-          {/* Title / Description inputs */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-            <div className="space-y-1.5 sm:space-y-2">
-              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
-                Your Job / Location (English)
-              </label>
-              <input
-                type="text"
-                value={titleEn}
-                onChange={(e) => setTitleEn(e.target.value)}
-                placeholder="e.g. Architect · Dubai"
-                className={INPUT_CLASS}
-              />
-            </div>
-
-            <div className="space-y-1.5 sm:space-y-2">
-              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
-                الالمهنة / الموقع
-              </label>
-              <input
-                type="text"
-                value={titleAr}
-                onChange={(e) => setTitleAr(e.target.value)}
-                placeholder="مثال: مهندسة معمارية · دبي"
-                className={INPUT_CLASS}
-                dir="rtl"
-              />
-            </div>
+          <div className="space-y-1.5 sm:space-y-2">
+            <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
+              {t("titleLabel")}
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={t("titlePlaceholder")}
+              className={INPUT_CLASS}
+              dir={isArabic ? "rtl" : "ltr"}
+            />
           </div>
 
-          <div className="pt-1 sm:pt-2">
+          <div className="pt-1 sm:pt-2 flex flex-wrap gap-3">
             <button
               type="submit"
               disabled={submitting}
               className="px-6 sm:px-8 py-2 sm:py-3 bg-black text-white text-[10px] sm:text-[12px] tracking-[0.18em] sm:tracking-[0.22em] uppercase hover:bg-gray-800 transition disabled:opacity-50 [font-family:var(--font-ui)] cursor-pointer w-full sm:w-auto"
             >
-              {submitting ? "Submitting..." : "Submit Review"}
+              {submitting
+                ? t("submitting")
+                : editingId
+                  ? t("saveEdit")
+                  : t("submit")}
             </button>
+            {editingId ? (
+              <button
+                type="button"
+                onClick={resetForm}
+                disabled={submitting}
+                className="px-6 sm:px-8 py-2 sm:py-3 border border-black text-black text-[10px] sm:text-[12px] tracking-[0.18em] sm:tracking-[0.22em] uppercase hover:bg-gray-50 transition disabled:opacity-50 [font-family:var(--font-ui)] cursor-pointer w-full sm:w-auto"
+              >
+                {t("cancelEdit")}
+              </button>
+            ) : null}
           </div>
         </form>
+        ) : null}
       </div>
 
-      {/* Past Reviews List */}
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 md:p-8 shadow-sm">
         <h2 className="text-lg sm:text-xl md:text-2xl font-['Ivy_Ora'] mb-4 sm:mb-6 text-black">
-          My Past Reviews
+          {t("pastTitle")}
         </h2>
 
         {reviews.length === 0 ? (
           <p className="text-gray-500 text-xs sm:text-sm font-['TT_Norms_Pro']">
-            You haven't submitted any reviews yet.
+            {t("pastEmpty")}
           </p>
         ) : (
           <div className="space-y-4 sm:space-y-6 divide-y divide-gray-100">
-            {reviews.map((rev, index) => (
-              <div
-                key={rev._id}
-                className={`pt-4 sm:pt-6 ${index === 0 ? "pt-0" : ""}`}
-              >
-                <div className="flex flex-wrap items-center gap-1 mb-2 sm:mb-3">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${i < rev.rating
-                        ? "fill-black stroke-black text-black"
-                        : "fill-none stroke-gray-300 text-gray-300"
-                        }`}
-                    />
-                  ))}
-                  <span className="text-[10px] sm:text-xs text-gray-400 ml-1 sm:ml-2 font-['TT_Norms_Pro']">
-                    {new Date(rev.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
+            {reviews.map((rev, index) => {
+              const displayQuote = isArabic
+                ? rev.quoteAr || rev.quoteEn
+                : rev.quoteEn || rev.quoteAr;
+              const displayTitle = isArabic
+                ? rev.titleAr || rev.titleEn || t("defaultTitle")
+                : rev.titleEn || rev.titleAr || t("defaultTitle");
+              const productLabel = isArabic
+                ? rev.productNameAr || rev.productName
+                : rev.productName || rev.productNameAr;
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mt-1.5 sm:mt-2">
-                  <div>
-                    <p className="text-[10px] sm:text-[13px] text-gray-400 font-['TT_Norms_Pro'] uppercase tracking-widest mb-0.5 sm:mb-1">
-                      English: {rev.titleEn || "Client"}
-                    </p>
-                    <p className="[font-family:var(--font-body)] text-sm sm:text-[14px] leading-relaxed italic text-gray-800">
-                      "{rev.quoteEn}"
-                    </p>
-                  </div>
-                  {rev.quoteAr && (
-                    <div className="text-right">
-                      <p
-                        className="text-[10px] sm:text-[13px] text-gray-400 font-['TT_Norms_Pro'] uppercase tracking-widest mb-0.5 sm:mb-1"
-                        dir="rtl"
+              return (
+                <div
+                  key={rev._id}
+                  className={`pt-4 sm:pt-6 ${index === 0 ? "pt-0" : ""}`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3 mb-2 sm:mb-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StarRatingDisplay
+                        rating={rev.rating}
+                        sizeClassName="w-3.5 h-3.5 sm:w-4 sm:h-4"
+                      />
+                      <span className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
+                        {rev.rating.toFixed(1)} ·{" "}
+                        {new Date(rev.createdAt).toLocaleDateString(
+                          isArabic ? "ar" : "en",
+                        )}
+                      </span>
+                      <span
+                        className={`text-[9px] sm:text-[10px] uppercase tracking-wider px-1.5 py-0.5 border ${
+                          rev.status === "approved"
+                            ? "border-green-200 text-green-700 bg-green-50"
+                            : rev.status === "rejected"
+                              ? "border-red-200 text-red-700 bg-red-50"
+                              : "border-amber-200 text-amber-800 bg-amber-50"
+                        }`}
                       >
-                        العربية: {rev.titleAr || "عميل"}
-                      </p>
-                      <p
-                        className="[font-family:var(--font-body)] text-sm sm:text-[14px] leading-relaxed italic text-gray-800"
-                        dir="rtl"
-                      >
-                        "{rev.quoteAr}"
-                      </p>
+                        {rev.status === "approved"
+                          ? t("statusApproved")
+                          : rev.status === "rejected"
+                            ? t("statusRejected")
+                            : t("statusPending")}
+                      </span>
                     </div>
-                  )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(rev)}
+                        disabled={deletingId === rev._id || submitting}
+                        className="p-1.5 text-gray-600 hover:text-black disabled:opacity-50 cursor-pointer transition-colors"
+                        aria-label={t("editAria")}
+                        title={t("editAria")}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(rev._id)}
+                        disabled={deletingId === rev._id || submitting}
+                        className="p-1.5 text-gray-600 hover:text-red-600 disabled:opacity-50 cursor-pointer transition-colors"
+                        aria-label={t("deleteAria")}
+                        title={t("deleteAria")}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {productLabel ? (
+                    <p className="text-[10px] sm:text-xs text-gray-500 font-['TT_Norms_Pro'] mb-1">
+                      {t("reviewedProduct", { name: productLabel })}
+                    </p>
+                  ) : null}
+
+                  <p className="text-[10px] sm:text-[13px] text-gray-400 font-['TT_Norms_Pro'] uppercase tracking-widest mb-0.5 sm:mb-1">
+                    {displayTitle}
+                  </p>
+                  <p className="[font-family:var(--font-body)] text-sm sm:text-[14px] leading-relaxed italic text-gray-800">
+                    &ldquo;{displayQuote}&rdquo;
+                  </p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

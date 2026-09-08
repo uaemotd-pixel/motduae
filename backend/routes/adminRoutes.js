@@ -5049,4 +5049,217 @@ adminRouter.delete(
   }),
 );
 
+// ==========================================
+// Admin Reviews moderation
+// ==========================================
+
+function serializeAdminReview(customer, rev) {
+  return {
+    id: String(rev._id),
+    customerId: String(customer._id),
+    customerUserId: customer.userId ? String(customer.userId) : null,
+    customerName: customer.name || "",
+    rating: rev.rating,
+    quoteEn: rev.quoteEn || "",
+    quoteAr: rev.quoteAr || "",
+    titleEn: rev.titleEn || "",
+    titleAr: rev.titleAr || "",
+    status: rev.status || "approved",
+    productId: rev.productId ? String(rev.productId) : null,
+    productKind: rev.productKind || "",
+    productName: rev.productName || "",
+    productNameAr: rev.productNameAr || "",
+    productSlug: rev.productSlug || "",
+    orderType: rev.orderType || "",
+    orderId: rev.orderId ? String(rev.orderId) : null,
+    createdAt: rev.createdAt,
+    updatedAt: rev.updatedAt,
+  };
+}
+
+function isValidHalfStarRatingAdmin(rating) {
+  const n = Number(rating);
+  if (!Number.isFinite(n) || n < 1 || n > 5) return false;
+  return Math.abs(n * 2 - Math.round(n * 2)) < 1e-9;
+}
+
+// GET /api/admin/reviews?status=pending|approved|rejected|all&search=
+adminRouter.get(
+  "/reviews",
+  expressAsyncHandler(async (req, res) => {
+    const statusFilter = String(req.query.status || "all").toLowerCase();
+    const search =
+      typeof req.query.search === "string" ? req.query.search.trim() : "";
+
+    const customers = await Customer.find({
+      "reviews.0": { $exists: true },
+      ...(search
+        ? { name: new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") }
+        : {}),
+    })
+      .select("name userId reviews")
+      .lean();
+
+    const allItems = [];
+    for (const customer of customers) {
+      for (const rev of customer.reviews || []) {
+        allItems.push(serializeAdminReview(customer, rev));
+      }
+    }
+
+    const items =
+      statusFilter === "all"
+        ? allItems
+        : allItems.filter((r) => r.status === statusFilter);
+
+    items.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+
+    res.json({
+      success: true,
+      items,
+      counts: {
+        pending: allItems.filter((r) => r.status === "pending").length,
+        approved: allItems.filter((r) => r.status === "approved").length,
+        rejected: allItems.filter((r) => r.status === "rejected").length,
+        all: allItems.length,
+      },
+    });
+  }),
+);
+
+// PATCH /api/admin/reviews/:id/status  body: { status: pending|approved|rejected }
+adminRouter.patch(
+  "/reviews/:id/status",
+  expressAsyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const nextStatus = String(req.body?.status || "").toLowerCase();
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ message: "Invalid review id" });
+      return;
+    }
+    if (!["pending", "approved", "rejected"].includes(nextStatus)) {
+      res.status(400).json({ message: "Invalid status" });
+      return;
+    }
+
+    const customer = await Customer.findOne({ "reviews._id": id });
+    if (!customer) {
+      res.status(404).json({ message: "Review not found" });
+      return;
+    }
+
+    const review = customer.reviews.id(id);
+    if (!review) {
+      res.status(404).json({ message: "Review not found" });
+      return;
+    }
+
+    review.status = nextStatus;
+    await customer.save();
+
+    res.json({
+      success: true,
+      review: serializeAdminReview(customer, review),
+    });
+  }),
+);
+
+// PUT /api/admin/reviews/:id — edit review content / rating
+adminRouter.put(
+  "/reviews/:id",
+  expressAsyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { rating, quoteEn, quoteAr, titleEn, titleAr, status } = req.body || {};
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ message: "Invalid review id" });
+      return;
+    }
+    if (!isValidHalfStarRatingAdmin(rating)) {
+      res.status(400).json({
+        message: "Rating must be between 1 and 5 in half-star steps",
+      });
+      return;
+    }
+
+    const trimmedQuoteEn = typeof quoteEn === "string" ? quoteEn.trim() : "";
+    const trimmedQuoteAr = typeof quoteAr === "string" ? quoteAr.trim() : "";
+    if (!trimmedQuoteEn && !trimmedQuoteAr) {
+      res.status(400).json({ message: "Review comment is required" });
+      return;
+    }
+
+    const customer = await Customer.findOne({ "reviews._id": id });
+    if (!customer) {
+      res.status(404).json({ message: "Review not found" });
+      return;
+    }
+
+    const review = customer.reviews.id(id);
+    if (!review) {
+      res.status(404).json({ message: "Review not found" });
+      return;
+    }
+
+    review.rating = Number(rating);
+    review.quoteEn = trimmedQuoteEn || trimmedQuoteAr;
+    review.quoteAr = trimmedQuoteAr || trimmedQuoteEn;
+    review.titleEn =
+      (typeof titleEn === "string" && titleEn.trim()) ||
+      (typeof titleAr === "string" && titleAr.trim()) ||
+      review.titleEn ||
+      "Client";
+    review.titleAr =
+      (typeof titleAr === "string" && titleAr.trim()) ||
+      (typeof titleEn === "string" && titleEn.trim()) ||
+      review.titleAr ||
+      "عميل";
+
+    if (status && ["pending", "approved", "rejected"].includes(String(status))) {
+      review.status = String(status);
+    }
+
+    await customer.save();
+
+    res.json({
+      success: true,
+      review: serializeAdminReview(customer, review),
+    });
+  }),
+);
+
+// DELETE /api/admin/reviews/:id
+adminRouter.delete(
+  "/reviews/:id",
+  expressAsyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({ message: "Invalid review id" });
+      return;
+    }
+
+    const customer = await Customer.findOne({ "reviews._id": id });
+    if (!customer) {
+      res.status(404).json({ message: "Review not found" });
+      return;
+    }
+
+    const before = customer.reviews.length;
+    customer.reviews = customer.reviews.filter(
+      (rev) => String(rev._id) !== String(id),
+    );
+    if (customer.reviews.length === before) {
+      res.status(404).json({ message: "Review not found" });
+      return;
+    }
+
+    await customer.save();
+    res.json({ success: true });
+  }),
+);
+
 export default adminRouter;

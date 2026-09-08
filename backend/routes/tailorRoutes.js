@@ -262,6 +262,108 @@ tailorRoutes.get("/designs/:slug", async (req, res) => {
       });
     }
 
+    const relatedLimit = 8;
+    const shopId = shop._id ? String(shop._id) : "";
+    const category = String(design.category || "")
+      .trim()
+      .toLowerCase();
+    const material = String(design.material || "")
+      .trim()
+      .toLowerCase();
+    const season = String(design.season || "")
+      .trim()
+      .toLowerCase();
+    const pattern = String(design.pattern || "")
+      .trim()
+      .toLowerCase();
+    const tag = String(design.tag || "")
+      .trim()
+      .toLowerCase();
+
+    const approvedOwnerIds = await getApprovedTailorOwnerIds();
+    const approvedShops = await TailorShop.find({
+      isActive: true,
+      ownerId: { $in: approvedOwnerIds },
+      ...publicShopSlugFilter(),
+    }).select("_id slug name nameAr");
+
+    const approvedShopIds = approvedShops.map((s) => s._id);
+    const shopMap = approvedShops.reduce((acc, s) => {
+      acc[String(s._id)] = s;
+      return acc;
+    }, {});
+
+    const candidates = await Design.find({
+      isActive: true,
+      minCutId: { $exists: true, $ne: null },
+      tailorShopId: { $in: approvedShopIds },
+      _id: { $ne: design._id },
+    })
+      .sort({ createdAt: -1 })
+      .limit(48)
+      .select("-__v");
+
+    const scored = candidates
+      .map((item) => {
+        let score = 0;
+        if (
+          category &&
+          String(item.category || "")
+            .trim()
+            .toLowerCase() === category
+        ) {
+          score += 4;
+        }
+        if (
+          material &&
+          String(item.material || "")
+            .trim()
+            .toLowerCase() === material
+        ) {
+          score += 3;
+        }
+        if (
+          season &&
+          String(item.season || "")
+            .trim()
+            .toLowerCase() === season
+        ) {
+          score += 2;
+        }
+        if (
+          pattern &&
+          String(item.pattern || "")
+            .trim()
+            .toLowerCase() === pattern
+        ) {
+          score += 2;
+        }
+        if (
+          tag &&
+          String(item.tag || "")
+            .trim()
+            .toLowerCase() === tag
+        ) {
+          score += 2;
+        }
+        if (shopId && item.tailorShopId && shopId === String(item.tailorShopId)) {
+          score += 3;
+        }
+        return { item, score };
+      })
+      .sort((a, b) => b.score - a.score || 0);
+
+    const related = scored.slice(0, relatedLimit).map(({ item }) => {
+      const relatedShop = shopMap[String(item.tailorShopId)];
+      return {
+        ...toDesignListItem(item),
+        tailorShopId: item.tailorShopId,
+        tailorSlug: relatedShop?.slug || "",
+        tailorName: relatedShop?.name || "",
+        tailorNameAr: relatedShop?.nameAr || "",
+      };
+    });
+
     res.json({
       success: true,
       item: {
@@ -280,6 +382,7 @@ tailorRoutes.get("/designs/:slug", async (req, res) => {
           reviewCount: shop.reviewCount,
         },
       },
+      related,
     });
   } catch (error) {
     console.error("GET /api/tailors/designs/:slug error:", error);
