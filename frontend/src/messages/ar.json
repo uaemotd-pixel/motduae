@@ -1736,9 +1736,16 @@
         "customOrderReceived": "تم استلام الطلب",
         "retailOrderReceived": "تم استلام الطلب",
         "customReturnRequested": "طلب إرجاع",
+        "customReturnReceived": "تم استلام طلب الإرجاع",
         "customReturnApproved": "تمت الموافقة على الإرجاع",
         "customReturnRejected": "تم رفض الإرجاع",
         "customRefundProcessed": "تم معالجة الاسترداد",
+        "fabricPayoutRequested": "طلب مستحقات قماش",
+        "fabricPayoutApproved": "تمت الموافقة على مستحقات القماش",
+        "fabricPayoutRejected": "تم رفض مستحقات القماش",
+        "tailorPayoutRequested": "طلب مستحقات خياط",
+        "tailorPayoutApproved": "تمت الموافقة على مستحقات الخياط",
+        "tailorPayoutRejected": "تم رفض مستحقات الخياط",
         "default": "إشعار"
       }
     }

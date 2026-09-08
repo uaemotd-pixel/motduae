@@ -17,7 +17,6 @@ import {
   Eye,
   Image as ImageIcon,
   MoreVertical,
-  DollarSign,
   Box,
   Tag,
   Maximize2,
@@ -667,7 +666,6 @@ export default function AdminReadyMadePage() {
                       <span>{item.tailorName || "—"}</span>
                     </div>
                     <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
-                      <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                       <span>AED {item.finalSellingPriceAED}</span>
                     </div>
                     <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">

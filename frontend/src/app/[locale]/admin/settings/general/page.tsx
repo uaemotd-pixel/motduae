@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, FormEvent, FocusEvent } from "react";
+import { useCallback, useEffect, useState, FormEvent, FocusEvent } from "react";
 import { useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
@@ -424,11 +424,11 @@ export default function AdminSettingsGeneralPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
-          {t.title}
-        </h1>
-        <p className="text-gray-500 text-sm mt-1">{t.subtitle}</p>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
+            {t.title}
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">{t.subtitle}</p>
       </div>
 
       <form
@@ -695,7 +695,7 @@ export default function AdminSettingsGeneralPage() {
           />
         </div>
 
-        <div className="flex gap-3 pt-6 mt-6 border-t border-gray-100">
+        <div className="flex items-center justify-end gap-3 pt-6 mt-6 border-t border-gray-100">
           <button
             type="submit"
             disabled={submitting}
