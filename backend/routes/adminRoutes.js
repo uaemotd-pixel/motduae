@@ -131,22 +131,65 @@ function sumCustomTailorGross(order) {
 
 /** Admin-wide custom fabric gross = fabric cost lines + purchased add-ons. */
 function sumCustomFabricGross(order) {
+  // Customer-supplied fabric is MOTD revenue, not a fabric-store partner payout.
+  const isSelf = String(order?.fabricSource || "") === "self";
   let fabricFee = 0;
-  if (order.items && order.items.length > 0) {
-    fabricFee = order.items.reduce(
-      (sum, item) => sum + (Number(item.pricing?.fabricCost) || 0),
-      0,
-    );
-  } else {
-    fabricFee = Number(order.pricing?.fabricCost) || 0;
+  if (!isSelf) {
+    if (order.items && order.items.length > 0) {
+      fabricFee = order.items.reduce(
+        (sum, item) => sum + (Number(item.pricing?.fabricCost) || 0),
+        0,
+      );
+    } else {
+      fabricFee = Number(order.pricing?.fabricCost) || 0;
+    }
   }
 
-  const addOnsFee = (order.addons || order.addOns || []).reduce(
-    (sum, addon) => sum + (Number(addon?.price) || 0),
-    0,
-  );
+  // Only partner-owned custom add-ons (have a fabricShopId).
+  const addOnsFee = (order.addons || order.addOns || []).reduce((sum, addon) => {
+    const shopId =
+      addon?.fabricShopId?._id?.toString?.() ||
+      addon?.fabricShopId?.toString?.() ||
+      addon?.fabricShop?._id?.toString?.() ||
+      addon?.fabricShop?.toString?.() ||
+      "";
+    const ownerName = String(addon?.ownerName || "").trim();
+    if (ownerName === "MOTD Admin" || !shopId) return sum;
+    return sum + (Number(addon?.price) || 0);
+  }, 0);
 
   return fabricFee + addOnsFee;
+}
+
+/** MOTD-owned custom add-ons + self-fabric gross (full amount kept by platform). */
+function sumCustomMotdOwnedGross(order) {
+  let selfFabric = 0;
+  if (String(order?.fabricSource || "") === "self") {
+    if (order.items && order.items.length > 0) {
+      selfFabric = order.items.reduce(
+        (sum, item) => sum + (Number(item.pricing?.fabricCost) || 0),
+        0,
+      );
+    } else {
+      selfFabric = Number(order.pricing?.fabricCost) || 0;
+    }
+  }
+
+  const motdAddOns = (order.addons || order.addOns || []).reduce((sum, addon) => {
+    const shopId =
+      addon?.fabricShopId?._id?.toString?.() ||
+      addon?.fabricShopId?.toString?.() ||
+      addon?.fabricShop?._id?.toString?.() ||
+      addon?.fabricShop?.toString?.() ||
+      "";
+    const ownerName = String(addon?.ownerName || "").trim();
+    if (ownerName === "MOTD Admin" || !shopId) {
+      return sum + (Number(addon?.price) || 0);
+    }
+    return sum;
+  }, 0);
+
+  return Number((selfFabric + motdAddOns).toFixed(2));
 }
 
 function sumCustomAddonsGross(order) {
@@ -253,13 +296,32 @@ function customDashboardRevenueStages() {
   ];
 }
 
-/** Admin-wide retail fabric-store gross = line totals (ready-made / add-ons / fabric). */
+/** Partner fabric-store retail gross = lines attributed to a fabric shop. */
 function sumRetailFabricGross(order) {
-  return (order.orderItems || []).reduce(
-    (sum, item) =>
-      sum + (Number(item.price) || 0) * (Number(item.quantity) || 0),
-    0,
-  );
+  return (order.orderItems || []).reduce((sum, item) => {
+    const shopId =
+      item?.fabricShopId?._id?.toString?.() ||
+      item?.fabricShopId?.toString?.() ||
+      "";
+    const ownerName = String(item?.ownerName || "").trim();
+    if (ownerName === "MOTD Admin" || !shopId) return sum;
+    return sum + (Number(item.price) || 0) * (Number(item.quantity) || 0);
+  }, 0);
+}
+
+/** MOTD Admin / platform catalog retail lines — full gross kept by MOTD. */
+function sumRetailMotdOwnedGross(order) {
+  return (order.orderItems || []).reduce((sum, item) => {
+    const shopId =
+      item?.fabricShopId?._id?.toString?.() ||
+      item?.fabricShopId?.toString?.() ||
+      "";
+    const ownerName = String(item?.ownerName || "").trim();
+    if (ownerName === "MOTD Admin" || !shopId) {
+      return sum + (Number(item.price) || 0) * (Number(item.quantity) || 0);
+    }
+    return sum;
+  }, 0);
 }
 
 /** Custom order shipping amount owed to the courier / shipping company. */
@@ -2965,7 +3027,7 @@ adminRouter.get(
       await Promise.all([
         PlatformSettings.findOne({}).lean(),
         CustomOrder.find({ createdAt: { $gte: start, $lte: end } })
-          .select("items pricing addons isPaid status")
+          .select("items pricing addons isPaid status fabricSource")
           .lean(),
         RetailOrder.find({ createdAt: { $gte: start, $lte: end } })
           .select(
@@ -2986,6 +3048,7 @@ adminRouter.get(
     let tailorGrossTotal = 0;
     let fabricGrossCustomTotal = 0;
     let shippingCustomTotal = 0;
+    let motdOwnedGrossTotal = 0;
     for (const order of customShareOrders) {
       if (order.isPaid === false) continue;
       if (
@@ -2999,6 +3062,7 @@ adminRouter.get(
       tailorGrossTotal += sumCustomTailorGross(order);
       fabricGrossCustomTotal += sumCustomFabricGross(order);
       shippingCustomTotal += sumCustomShippingGross(order);
+      motdOwnedGrossTotal += sumCustomMotdOwnedGross(order);
     }
 
     let fabricGrossRetailTotal = 0;
@@ -3008,6 +3072,7 @@ adminRouter.get(
       if (order.status === "cancelled") continue;
       fabricGrossRetailTotal += sumRetailFabricGross(order);
       shippingRetailTotal += sumRetailShippingGross(order);
+      motdOwnedGrossTotal += sumRetailMotdOwnedGross(order);
     }
 
     const tailorShare = splitMotdCommission(
@@ -3022,7 +3087,11 @@ adminRouter.get(
       (shippingCustomTotal + shippingRetailTotal).toFixed(2),
     );
     const motdKeeps = Number(
-      (tailorShare.commission + fabricStoreShare.commission).toFixed(2),
+      (
+        tailorShare.commission +
+        fabricStoreShare.commission +
+        motdOwnedGrossTotal
+      ).toFixed(2),
     );
 
     res.send({

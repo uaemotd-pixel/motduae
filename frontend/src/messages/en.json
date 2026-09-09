@@ -769,7 +769,12 @@
       "requestHistoryDeleteConfirm": "Permanently delete this {status} request for {amount} from your history?",
       "requestHistoryDeleteCta": "Delete",
       "requestHistoryDeleting": "Deleting…",
-      "requestHistoryDeleteError": "Could not delete request. Please try again."
+      "requestHistoryDeleteError": "Could not delete request. Please try again.",
+      "releasesTitle": "Payouts received",
+      "releasesDesc": "Every payment MOTD has released to your store — including multi-order releases.",
+      "releasesOrders": "Orders",
+      "releasesOrderCount": "{count} order(s)",
+      "releasesPaid": "Released"
     },
     "shop": {
       "loading": "Loading store profile...",

@@ -103,6 +103,20 @@ interface FabricPayoutRequestSummary {
   adminNote?: string;
 }
 
+interface FabricPayoutReleaseItem {
+  _id: string;
+  amount: number;
+  currency?: string;
+  orderCount: number;
+  orders?: Array<{
+    orderId: string;
+    orderType: string;
+    amount: number;
+  }>;
+  releasedAt?: string;
+  note?: string;
+}
+
 interface FabricPayoutRequestsResponse {
   success: boolean;
   currency: string;
@@ -110,6 +124,7 @@ interface FabricPayoutRequestsResponse {
   unpaidOrderCount: number;
   pendingRequest: FabricPayoutRequestSummary | null;
   items: FabricPayoutRequestSummary[];
+  releases?: FabricPayoutReleaseItem[];
 }
 
 export default function FabricDashboardPage() {
@@ -131,6 +146,9 @@ export default function FabricDashboardPage() {
     useState<FabricPayoutRequestSummary | null>(null);
   const [requestHistory, setRequestHistory] = useState<
     FabricPayoutRequestSummary[]
+  >([]);
+  const [payoutReleases, setPayoutReleases] = useState<
+    FabricPayoutReleaseItem[]
   >([]);
   const [showRequestConfirm, setShowRequestConfirm] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
@@ -154,6 +172,7 @@ export default function FabricDashboardPage() {
       setUnpaidOrderCount(Number(res.unpaidOrderCount) || 0);
       setPendingRequest(res.pendingRequest || null);
       setRequestHistory(Array.isArray(res.items) ? res.items : []);
+      setPayoutReleases(Array.isArray(res.releases) ? res.releases : []);
     } catch (err) {
       console.error("Fabric payout requests error:", err);
     }
@@ -819,6 +838,65 @@ export default function FabricDashboardPage() {
           </div>
         )}
       </div>
+
+      {payoutReleases.length > 0 ? (
+        <div className="rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) p-5 shadow-sm sm:p-6">
+          <div className="mb-4">
+            <h3 className="[font-family:var(--font-display)] text-lg text-(--dash-ink)">
+              {t("releasesTitle")}
+            </h3>
+            <p className="mt-1 text-xs text-(--dash-muted)">
+              {t("releasesDesc")}
+            </p>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-(--dash-border)">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-(--dash-bg) text-[10px] uppercase tracking-[0.16em] text-(--dash-muted)">
+                <tr>
+                  <th className="px-4 py-3 font-medium">{t("colDate")}</th>
+                  <th className="px-4 py-3 font-medium">{t("colYourPayout")}</th>
+                  <th className="px-4 py-3 font-medium">{t("releasesOrders")}</th>
+                  <th className="px-4 py-3 font-medium">{t("colStatus")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payoutReleases.map((release) => (
+                  <tr
+                    key={release._id}
+                    className="border-t border-(--dash-border) bg-white"
+                  >
+                    <td className="px-4 py-3 text-xs text-(--dash-ink)">
+                      {release.releasedAt
+                        ? formatOrderDateLocal(release.releasedAt)
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-medium text-(--dash-ink)">
+                      {formatKpiCurrency(Number(release.amount) || 0)}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-(--dash-muted)">
+                      {t("releasesOrderCount", {
+                        count: Number(release.orderCount) || 0,
+                      })}
+                      {(release.orders || []).length > 0 ? (
+                        <span className="mt-1 block text-[10px]">
+                          {(release.orders || [])
+                            .map((o) => `#${String(o.orderId).slice(-6)}`)
+                            .join(", ")}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-800">
+                        {t("releasesPaid")}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
 
       {requestHistory.filter((item) => item.status !== "pending").length > 0 ? (
         <div className="rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) p-5 shadow-sm sm:p-6">

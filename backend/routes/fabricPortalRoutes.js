@@ -27,8 +27,6 @@ import { hasActiveFabricShipments } from "../services/shipmentService.js";
 import { getTimeframeWindow } from "../utils/dateRange.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { splitMotdCommission } from "../services/pricingService.js";
-import PartnerPayout from "../models/PartnerPayout.js";
-import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
 import { hydrateRetailOrders } from "../services/retailOrderHydrate.js";
 import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
 import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
@@ -36,7 +34,7 @@ import {
   createNotification,
   ensurePartnerPayoutReleasedNotification,
 } from "../services/notificationService.js";
-import { computeFabricUnpaidBreakdown, sumStoreCustomOrderGross } from "../services/fabricPayoutRequestService.js";
+import { computeFabricUnpaidBreakdown, sumStoreCustomOrderGross, getFabricSettlement } from "../services/fabricPayoutRequestService.js";
 import {
   buildFabricStoreCustomOrderMatch,
   isStoreOwnedCustomAddon,
@@ -68,84 +66,6 @@ const resolveFabricCommissionPercent = (settings) => {
   }
   return DEFAULT_FABRIC_COMMISSION_PERCENT;
 };
-
-function normalizePartnerLabel(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\u0600-\u06ff]+/gi, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-/** Paid totals for this fabric store from admin PartnerPayout releases. */
-async function getFabricSettlement(shop, ownerUserId) {
-  const ownerIdStr = String(ownerUserId);
-  const partnerIds = [ownerIdStr];
-  const keys = [`fabric:${ownerIdStr}`];
-
-  if (shop) {
-    const shopId = String(shop._id);
-    partnerIds.push(shopId);
-    keys.push(`fabric:${shopId}`);
-    const nameNorm = normalizePartnerLabel(shop.name);
-    if (nameNorm) keys.push(`fabric:name:${nameNorm}`);
-  }
-
-  const match = {
-    partnerKind: "fabric",
-    $or: [{ partnerId: { $in: partnerIds } }, { partnerKey: { $in: keys } }],
-  };
-
-  const [payouts, credits] = await Promise.all([
-    PartnerPayout.find(match).select("amount orders deletedAt").lean(),
-    PartnerPayoutCredit.find({
-      ...match,
-      "orders.0": { $exists: true },
-    })
-      .select("amount orders")
-      .lean(),
-  ]);
-
-  let paidTotal = 0;
-  const paidByOrderId = new Map();
-
-  for (const payout of payouts) {
-    paidTotal += Number(payout.amount) || 0;
-    for (const order of payout.orders || []) {
-      const orderId = String(order.orderId || "");
-      if (!orderId) continue;
-      paidByOrderId.set(
-        orderId,
-        Number(
-          (
-            (paidByOrderId.get(orderId) || 0) + (Number(order.amount) || 0)
-          ).toFixed(2),
-        ),
-      );
-    }
-  }
-
-  for (const credit of credits) {
-    paidTotal += Number(credit.amount) || 0;
-    for (const order of credit.orders || []) {
-      const orderId = String(order.orderId || "");
-      if (!orderId) continue;
-      paidByOrderId.set(
-        orderId,
-        Number(
-          (
-            (paidByOrderId.get(orderId) || 0) + (Number(order.amount) || 0)
-          ).toFixed(2),
-        ),
-      );
-    }
-  }
-
-  return {
-    paidTotal: Number(paidTotal.toFixed(2)),
-    paidByOrderId,
-  };
-}
 
 const SHOP_FIELDS = [
   "name",
@@ -1705,7 +1625,9 @@ fabricPortalRouter.put(
     addon.ownerName = req.body.ownerName ?? addon.ownerName;
 
     if (req.body.pickupAddress !== undefined) {
-      const normalized = normalizeShopPickupAddress(req.body.pickupAddress);
+      const normalized =
+        normalizeShopPickupAddress(req.body.pickupAddress) ||
+        normalizeShopPickupAddress(shop.pickupAddress);
       if (!normalized) {
         res.status(400).json({
           success: false,
@@ -1715,6 +1637,11 @@ fabricPortalRouter.put(
         return;
       }
       addon.pickupAddress = normalized;
+    } else if (!isCompleteShopPickupAddress(addon.pickupAddress)) {
+      const fromShop = normalizeShopPickupAddress(shop.pickupAddress);
+      if (fromShop) {
+        addon.pickupAddress = fromShop;
+      }
     }
 
     const updatedAddon = await addon.save();
@@ -2383,6 +2310,11 @@ fabricPortalRouter.get(
       .limit(50)
       .lean();
 
+    const settlement = await getFabricSettlement(
+      breakdown.shop,
+      req.user._id,
+    );
+
     res.json({
       success: true,
       currency: "AED",
@@ -2391,6 +2323,7 @@ fabricPortalRouter.get(
       pendingRequest: breakdown.pendingRequest,
       identity: breakdown.identity,
       items,
+      releases: settlement.releases || [],
     });
   }),
 );
