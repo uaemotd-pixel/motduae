@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode, type MutableRefObject } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -45,6 +45,145 @@ import colors from "../shared/colors";
 
 const INPUT_CLASS =
   "w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none bg-transparent text-xs sm:text-sm";
+
+type FilterOpt = { value: string; en: string; ar: string };
+
+function BilingualUnderlineDropdown({
+  label,
+  name,
+  required,
+  error,
+  value,
+  options,
+  loading,
+  placeholder,
+  clearLabel,
+  isOpen,
+  onToggle,
+  onClose,
+  onSelect,
+  onClear,
+  dropdownRef,
+}: {
+  label: string;
+  name: string;
+  required?: boolean;
+  error?: string;
+  value: string;
+  options: FilterOpt[];
+  loading: boolean;
+  placeholder: string;
+  clearLabel: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onSelect: (en: string, ar: string) => void;
+  onClear: () => void;
+  dropdownRef: MutableRefObject<HTMLDivElement | null>;
+}) {
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <FormField label={label} name={name} required={required} error={error}>
+      <div className="relative" ref={dropdownRef}>
+        <button
+          type="button"
+          onClick={onToggle}
+          className={`${INPUT_CLASS} cursor-pointer text-left flex items-center justify-between gap-2 hover:cursor-pointer`}
+        >
+          <span className="truncate text-xs sm:text-sm flex items-center gap-2 min-w-0">
+            {selected || value ? (
+              <>
+                <span className="truncate">{selected?.en || value}</span>
+                <span className="text-black/40 shrink-0">/</span>
+                <span className="truncate">
+                  {selected?.ar || value}
+                </span>
+              </>
+            ) : loading ? (
+              <span className="text-black/60">Loading...</span>
+            ) : (
+              <span className="text-black/60">{placeholder}</span>
+            )}
+          </span>
+          <ChevronDown
+            size={14}
+            className={`shrink-0 text-black/40 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.96 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden max-h-60 overflow-y-auto"
+            >
+              {loading ? (
+                <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                  Loading...
+                </div>
+              ) : options.length === 0 ? (
+                <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                  No options found
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClear();
+                      onClose();
+                    }}
+                    className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${!value ? "bg-neutral-100 font-medium" : ""}`}
+                  >
+                    {clearLabel}
+                  </button>
+                  {options.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        onSelect(opt.en, opt.ar);
+                        onClose();
+                      }}
+                      className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer flex items-center gap-2 ${value === opt.value ? "bg-neutral-100 font-medium" : ""}`}
+                    >
+                      <span className="truncate">{opt.en}</span>
+                      <span className="text-black/40 shrink-0">/</span>
+                      <span className="truncate">{opt.ar}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </FormField>
+  );
+}
+
+function FormSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="md:col-span-2 space-y-4 sm:space-y-5 pt-2 first:pt-0">
+      <div className="flex items-center gap-3">
+        <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted)">
+          {title}
+        </span>
+        <span className="h-px flex-1 bg-gray-100" />
+      </div>
+      {children}
+    </div>
+  );
+}
 
 type FabricDesignFormProps = {
   fabricId?: string;
@@ -117,12 +256,27 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     number | null
   >(null);
   const [isMaterialDropdownOpen, setIsMaterialDropdownOpen] = useState(false);
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [isPatternDropdownOpen, setIsPatternDropdownOpen] = useState(false);
+  const [isSeasonDropdownOpen, setIsSeasonDropdownOpen] = useState(false);
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const [isEmirateDropdownOpen, setIsEmirateDropdownOpen] = useState(false);
   const [dbMaterials, setDbMaterials] = useState<
     { name: string; nameAr: string; _id: string }[]
   >([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
+  const [dbCategories, setDbCategories] = useState<
+    { name: string; nameAr: string; _id: string }[]
+  >([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [dbPatterns, setDbPatterns] = useState<
+    { name: string; nameAr: string; _id: string }[]
+  >([]);
+  const [patternsLoading, setPatternsLoading] = useState(true);
+  const [dbSeasons, setDbSeasons] = useState<
+    { name: string; nameAr: string; _id: string }[]
+  >([]);
+  const [seasonsLoading, setSeasonsLoading] = useState(true);
   const [dbTags, setDbTags] = useState<
     { name: string; nameAr: string; _id: string }[]
   >([]);
@@ -131,6 +285,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
   const [cutsLoading, setCutsLoading] = useState(true);
   const colorDropdownRef = useRef<HTMLDivElement>(null);
   const materialDropdownRef = useRef<HTMLDivElement>(null);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+  const patternDropdownRef = useRef<HTMLDivElement>(null);
+  const seasonDropdownRef = useRef<HTMLDivElement>(null);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
   const emirateDropdownRef = useRef<HTMLDivElement>(null);
   const formActionsRef = useRef<HTMLDivElement>(null);
@@ -148,50 +305,53 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     previousImageCountRef.current = formData.images.length;
   }, [formData.images.length]);
 
-  // Fetch materials from DB
+  // Fetch materials / categories / patterns / seasons / tags from DB
   useEffect(() => {
     let cancelled = false;
-    const fetchMaterials = async () => {
+    const fetchFilters = async () => {
       try {
         setMaterialsLoading(true);
-        const data = await api.get<
-          { name: string; nameAr: string; _id: string }[]
-        >("/api/filters/materials");
-        if (!cancelled && Array.isArray(data) && data.length > 0) {
-          setDbMaterials(data);
-        }
-      } catch {
-        // Silently fall back to empty array
-      } finally {
-        if (!cancelled) setMaterialsLoading(false);
-      }
-    };
-    fetchMaterials();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Fetch tags from DB
-  useEffect(() => {
-    let cancelled = false;
-    const fetchTags = async () => {
-      try {
+        setCategoriesLoading(true);
+        setPatternsLoading(true);
+        setSeasonsLoading(true);
         setTagsLoading(true);
-        const data =
-          await api.get<{ name: string; nameAr: string; _id: string }[]>(
-            "/api/filters/tags",
-          );
-        if (!cancelled && Array.isArray(data)) {
-          setDbTags(data);
-        }
+        const [materials, categories, patterns, seasons, tags] =
+          await Promise.all([
+            api.get<{ name: string; nameAr: string; _id: string }[]>(
+              "/api/filters/materials?domain=fabrics",
+            ),
+            api.get<{ name: string; nameAr: string; _id: string }[]>(
+              "/api/filters/categories?domain=fabrics",
+            ),
+            api.get<{ name: string; nameAr: string; _id: string }[]>(
+              "/api/filters/patterns?domain=fabrics",
+            ),
+            api.get<{ name: string; nameAr: string; _id: string }[]>(
+              "/api/filters/seasons?domain=fabrics",
+            ),
+            api.get<{ name: string; nameAr: string; _id: string }[]>(
+              "/api/filters/tags?domain=fabrics",
+            ),
+          ]);
+        if (cancelled) return;
+        if (Array.isArray(materials)) setDbMaterials(materials);
+        if (Array.isArray(categories)) setDbCategories(categories);
+        if (Array.isArray(patterns)) setDbPatterns(patterns);
+        if (Array.isArray(seasons)) setDbSeasons(seasons);
+        if (Array.isArray(tags)) setDbTags(tags);
       } catch {
-        // Silently fall back to empty array
+        // keep empty lists
       } finally {
-        if (!cancelled) setTagsLoading(false);
+        if (!cancelled) {
+          setMaterialsLoading(false);
+          setCategoriesLoading(false);
+          setPatternsLoading(false);
+          setSeasonsLoading(false);
+          setTagsLoading(false);
+        }
       }
     };
-    fetchTags();
+    void fetchFilters();
     return () => {
       cancelled = true;
     };
@@ -246,6 +406,24 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         !materialDropdownRef.current.contains(event.target as Node)
       ) {
         setIsMaterialDropdownOpen(false);
+      }
+      if (
+        categoryDropdownRef.current &&
+        !categoryDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsCategoryDropdownOpen(false);
+      }
+      if (
+        patternDropdownRef.current &&
+        !patternDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsPatternDropdownOpen(false);
+      }
+      if (
+        seasonDropdownRef.current &&
+        !seasonDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsSeasonDropdownOpen(false);
       }
       if (
         tagDropdownRef.current &&
@@ -392,6 +570,12 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
           images: [""],
           material: prev.material,
           materialAr: prev.materialAr,
+          category: prev.category,
+          categoryAr: prev.categoryAr,
+          pattern: prev.pattern,
+          patternAr: prev.patternAr,
+          season: prev.season,
+          seasonAr: prev.seasonAr,
           colors: [],
           tag: "",
           tagAr: "",
@@ -615,18 +799,30 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     );
   }
 
-  // Material options - from DB only
   const allMaterials = dbMaterials.map((m) => ({
     value: m.name,
     en: m.name,
     ar: m.nameAr || m.name,
   }));
-
-  // Tag options - from DB only
-  const allTags = dbTags.map((t) => ({
-    value: t.name,
-    en: t.name,
-    ar: t.nameAr || t.name,
+  const allCategories = dbCategories.map((c) => ({
+    value: c.name,
+    en: c.name,
+    ar: c.nameAr || c.name,
+  }));
+  const allPatterns = dbPatterns.map((p) => ({
+    value: p.name,
+    en: p.name,
+    ar: p.nameAr || p.name,
+  }));
+  const allSeasons = dbSeasons.map((s) => ({
+    value: s.name,
+    en: s.name,
+    ar: s.nameAr || s.name,
+  }));
+  const allTags = dbTags.map((tag) => ({
+    value: tag.name,
+    en: tag.name,
+    ar: tag.nameAr || tag.name,
   }));
 
   const selectedColors = formData.colors || [];
@@ -647,347 +843,312 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white border border-gray-200 p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8"
+        className="bg-white border border-gray-200 p-4 sm:p-6 md:p-8 space-y-8 sm:space-y-10"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          {/* NAME (EN) */}
-          <FormField
-            label="NAME (EN)"
-            name="name"
-            error={fieldErrors.name}
-            required
-          >
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => handleChange("name", e.target.value)}
-              className={`${INPUT_CLASS} hover:cursor-text`}
-              placeholder="Silk Fabric"
-            />
-          </FormField>
+          <FormSection title={t("sections.identity")}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <FormField
+                label="NAME (EN)"
+                name="name"
+                error={fieldErrors.name}
+                required
+              >
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => handleChange("name", e.target.value)}
+                  className={`${INPUT_CLASS} hover:cursor-text`}
+                  placeholder="Silk Fabric"
+                />
+              </FormField>
 
-          {/* NAME (AR) */}
-          <FormField
-            label="NAME (AR)"
-            name="nameAr"
-            error={fieldErrors.nameAr}
-            required
-          >
-            <input
-              type="text"
-              value={formData.nameAr}
-              onChange={(e) => handleChange("nameAr", e.target.value)}
-              className={`${INPUT_CLASS} text-right hover:cursor-text`}
-              placeholder="قماش حرير"
-              dir="rtl"
-            />
-          </FormField>
+              <FormField
+                label="NAME (AR)"
+                name="nameAr"
+                error={fieldErrors.nameAr}
+                required
+              >
+                <input
+                  type="text"
+                  value={formData.nameAr}
+                  onChange={(e) => handleChange("nameAr", e.target.value)}
+                  className={`${INPUT_CLASS} text-right hover:cursor-text`}
+                  placeholder="قماش حرير"
+                  dir="rtl"
+                />
+              </FormField>
 
-          {/* DESCRIPTION (EN) */}
-          <FormField
-            label="DESCRIPTION (EN)"
-            name="description"
-            error={fieldErrors.description}
-          >
-            <input
-              type="text"
-              value={formData.description}
-              onChange={(e) => handleChange("description", e.target.value)}
-              className={`${INPUT_CLASS} hover:cursor-text`}
-              placeholder="Enter description (EN)"
-            />
-          </FormField>
+              <FormField
+                label="DESCRIPTION (EN)"
+                name="description"
+                error={fieldErrors.description}
+              >
+                <input
+                  type="text"
+                  value={formData.description}
+                  onChange={(e) => handleChange("description", e.target.value)}
+                  className={`${INPUT_CLASS} hover:cursor-text`}
+                  placeholder="Enter description (EN)"
+                />
+              </FormField>
 
-          {/* DESCRIPTION (AR) */}
-          <FormField
-            label="DESCRIPTION (AR)"
-            name="descriptionAr"
-            error={fieldErrors.descriptionAr}
-          >
-            <input
-              type="text"
-              value={formData.descriptionAr}
-              onChange={(e) => handleChange("descriptionAr", e.target.value)}
-              className={`${INPUT_CLASS} text-right hover:cursor-text`}
-              placeholder="...وصف القماش"
-              dir="rtl"
-            />
-          </FormField>
+              <FormField
+                label="DESCRIPTION (AR)"
+                name="descriptionAr"
+                error={fieldErrors.descriptionAr}
+              >
+                <input
+                  type="text"
+                  value={formData.descriptionAr}
+                  onChange={(e) =>
+                    handleChange("descriptionAr", e.target.value)
+                  }
+                  className={`${INPUT_CLASS} text-right hover:cursor-text`}
+                  placeholder="...وصف القماش"
+                  dir="rtl"
+                />
+              </FormField>
+            </div>
+          </FormSection>
 
-          {/* Row for Material (EN / AR), Colors, Tag */}
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-            {/* MATERIAL (EN / AR) - from DB */}
-            <FormField
-              label="MATERIAL (EN / AR)"
-              name="material"
-              error={fieldErrors.material || fieldErrors.materialAr}
-              required
-            >
-              <div className="relative" ref={materialDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsMaterialDropdownOpen((prev) => !prev)}
-                  className={`${INPUT_CLASS} cursor-pointer text-left flex items-center justify-between gap-2 hover:cursor-pointer`}
-                >
-                  <span className="truncate text-xs sm:text-sm flex items-center gap-2 min-w-0">
-                    {formData.material ? (
-                      <>
-                        <span className="truncate">
-                          {allMaterials.find(
-                            (m) => m.value === formData.material,
-                          )?.en || formData.material}
-                        </span>
-                        <span className="text-black/40 shrink-0">/</span>
-                        <span className="truncate">
-                          {allMaterials.find(
-                            (m) => m.value === formData.material,
-                          )?.ar || formData.materialAr}
-                        </span>
-                      </>
-                    ) : materialsLoading ? (
-                      <span className="text-black/60">Loading...</span>
-                    ) : (
-                      <span className="text-black/60">
-                        Select material (EN / AR)
+          <FormSection title={t("sections.tags")}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 items-start">
+              <BilingualUnderlineDropdown
+                label="MATERIAL (EN / AR)"
+                name="material"
+                required
+                error={fieldErrors.material || fieldErrors.materialAr}
+                value={formData.material}
+                options={allMaterials}
+                loading={materialsLoading}
+                placeholder="Select material (EN / AR)"
+                clearLabel="Select material (EN / AR)"
+                isOpen={isMaterialDropdownOpen}
+                onToggle={() => {
+                  setIsMaterialDropdownOpen((prev) => !prev);
+                  setIsCategoryDropdownOpen(false);
+                  setIsPatternDropdownOpen(false);
+                  setIsSeasonDropdownOpen(false);
+                  setIsTagDropdownOpen(false);
+                }}
+                onClose={() => setIsMaterialDropdownOpen(false)}
+                onSelect={(en, ar) => {
+                  handleChange("material", en);
+                  handleChange("materialAr", ar);
+                }}
+                onClear={() => {
+                  handleChange("material", "");
+                  handleChange("materialAr", "");
+                }}
+                dropdownRef={materialDropdownRef}
+              />
+
+              <BilingualUnderlineDropdown
+                label="CATEGORY (EN / AR)"
+                name="category"
+                error={fieldErrors.category || fieldErrors.categoryAr}
+                value={formData.category}
+                options={allCategories}
+                loading={categoriesLoading}
+                placeholder="Select category (optional)"
+                clearLabel="Select category (optional)"
+                isOpen={isCategoryDropdownOpen}
+                onToggle={() => {
+                  setIsCategoryDropdownOpen((prev) => !prev);
+                  setIsMaterialDropdownOpen(false);
+                  setIsPatternDropdownOpen(false);
+                  setIsSeasonDropdownOpen(false);
+                  setIsTagDropdownOpen(false);
+                }}
+                onClose={() => setIsCategoryDropdownOpen(false)}
+                onSelect={(en, ar) => {
+                  handleChange("category", en);
+                  handleChange("categoryAr", ar);
+                }}
+                onClear={() => {
+                  handleChange("category", "");
+                  handleChange("categoryAr", "");
+                }}
+                dropdownRef={categoryDropdownRef}
+              />
+
+              <BilingualUnderlineDropdown
+                label="PATTERN (EN / AR)"
+                name="pattern"
+                error={fieldErrors.pattern || fieldErrors.patternAr}
+                value={formData.pattern}
+                options={allPatterns}
+                loading={patternsLoading}
+                placeholder="Select pattern (optional)"
+                clearLabel="Select pattern (optional)"
+                isOpen={isPatternDropdownOpen}
+                onToggle={() => {
+                  setIsPatternDropdownOpen((prev) => !prev);
+                  setIsMaterialDropdownOpen(false);
+                  setIsCategoryDropdownOpen(false);
+                  setIsSeasonDropdownOpen(false);
+                  setIsTagDropdownOpen(false);
+                }}
+                onClose={() => setIsPatternDropdownOpen(false)}
+                onSelect={(en, ar) => {
+                  handleChange("pattern", en);
+                  handleChange("patternAr", ar);
+                }}
+                onClear={() => {
+                  handleChange("pattern", "");
+                  handleChange("patternAr", "");
+                }}
+                dropdownRef={patternDropdownRef}
+              />
+
+              <BilingualUnderlineDropdown
+                label="SEASON (EN / AR)"
+                name="season"
+                error={fieldErrors.season || fieldErrors.seasonAr}
+                value={formData.season}
+                options={allSeasons}
+                loading={seasonsLoading}
+                placeholder="Select season (optional)"
+                clearLabel="Select season (optional)"
+                isOpen={isSeasonDropdownOpen}
+                onToggle={() => {
+                  setIsSeasonDropdownOpen((prev) => !prev);
+                  setIsMaterialDropdownOpen(false);
+                  setIsCategoryDropdownOpen(false);
+                  setIsPatternDropdownOpen(false);
+                  setIsTagDropdownOpen(false);
+                }}
+                onClose={() => setIsSeasonDropdownOpen(false)}
+                onSelect={(en, ar) => {
+                  handleChange("season", en);
+                  handleChange("seasonAr", ar);
+                }}
+                onClear={() => {
+                  handleChange("season", "");
+                  handleChange("seasonAr", "");
+                }}
+                dropdownRef={seasonDropdownRef}
+              />
+
+              <BilingualUnderlineDropdown
+                label="TAG (EN / AR)"
+                name="tag"
+                error={fieldErrors.tag}
+                value={formData.tag}
+                options={allTags}
+                loading={tagsLoading}
+                placeholder="Select tag (optional)"
+                clearLabel="Select tag (optional)"
+                isOpen={isTagDropdownOpen}
+                onToggle={() => {
+                  setIsTagDropdownOpen((prev) => !prev);
+                  setIsMaterialDropdownOpen(false);
+                  setIsCategoryDropdownOpen(false);
+                  setIsPatternDropdownOpen(false);
+                  setIsSeasonDropdownOpen(false);
+                }}
+                onClose={() => setIsTagDropdownOpen(false)}
+                onSelect={(en, ar) => {
+                  handleChange("tag", en);
+                  handleChange("tagAr", ar);
+                }}
+                onClear={() => {
+                  handleChange("tag", "");
+                  handleChange("tagAr", "");
+                }}
+                dropdownRef={tagDropdownRef}
+              />
+
+              <FormField
+                label="COLORS"
+                name="colors"
+                error={fieldErrors.colors}
+                required
+              >
+                <div className="relative" ref={colorDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsColorDropdownOpen((prev) => !prev)}
+                    className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent min-h-7 flex items-center justify-between gap-2 hover:cursor-pointer"
+                  >
+                    {selectedColors.length === 0 ? (
+                      <span className="text-[10px] sm:text-xs text-black/60 leading-none">
+                        Select colors
                       </span>
-                    )}
-                  </span>
-                  <ChevronDown
-                    size={14}
-                    className={`shrink-0 text-black/40 transition-transform duration-200 ${isMaterialDropdownOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
-                <AnimatePresence>
-                  {isMaterialDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                      className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden max-h-60 overflow-y-auto"
-                    >
-                      {materialsLoading ? (
-                        <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-                          Loading materials...
-                        </div>
-                      ) : allMaterials.length === 0 ? (
-                        <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-                          No materials found
-                        </div>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleChange("material", "");
-                              handleChange("materialAr", "");
-                              setIsMaterialDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${!formData.material ? "bg-neutral-100 font-medium" : ""}`}
-                          >
-                            Select material (EN / AR)
-                          </button>
-                          {allMaterials.map((opt) => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => {
-                                handleChange("material", opt.value);
-                                handleChange("materialAr", opt.ar);
-                                setIsMaterialDropdownOpen(false);
-                              }}
-                              className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer flex items-center gap-2 ${formData.material === opt.value ? "bg-neutral-100 font-medium" : ""}`}
-                            >
-                              <span className="truncate">{opt.en}</span>
-                              <span className="text-black/40 shrink-0">/</span>
-                              <span className="truncate">{opt.ar}</span>
-                            </button>
-                          ))}
-                        </>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </FormField>
-
-            {/* COLORS */}
-            <FormField
-              label="COLORS"
-              name="colors"
-              error={fieldErrors.colors}
-              required
-            >
-              <div className="relative" ref={colorDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsColorDropdownOpen((prev) => !prev)}
-                  className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent min-h-7 flex items-center justify-between gap-2 hover:cursor-pointer"
-                >
-                  {selectedColors.length === 0 ? (
-                    <span className="text-[10px] sm:text-xs text-black/60 leading-none">
-                      Select colors
-                    </span>
-                  ) : (
-                    <div className="flex flex-wrap gap-1 sm:gap-1.5 items-center">
-                      {colors
-                        .filter((c) => selectedColors.includes(c.value))
-                        .map((c) => (
-                          <span
-                            key={c.value}
-                            className="inline-flex items-center justify-center"
-                            title={`${c.en} / ${c.ar}`}
-                          >
+                    ) : (
+                      <div className="flex flex-wrap gap-1 sm:gap-1.5 items-center">
+                        {colors
+                          .filter((c) => selectedColors.includes(c.value))
+                          .map((c) => (
                             <span
-                              className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border border-gray-200 shrink-0"
-                              style={{ backgroundColor: c.hex }}
-                            />
-                          </span>
-                        ))}
-                    </div>
-                  )}
-                  <ChevronDown
-                    size={14}
-                    className={`shrink-0 text-black/40 transition-transform duration-200 ${isColorDropdownOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
-
-                <AnimatePresence>
-                  {isColorDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                      className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm p-1.5 sm:p-3 z-50 origin-top max-h-60 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-400 [&::-webkit-scrollbar-thumb]:rounded-full"
-                    >
-                      <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2 sm:gap-1">
-                        {colors.map((opt) => {
-                          const selected = selectedColors.includes(opt.value);
-                          return (
-                            <label
-                              key={opt.value}
-                              className="flex items-center gap-1 sm:gap-1.5 cursor-pointer px-1 py-0.5 hover:bg-gray-50 rounded hover:cursor-pointer"
+                              key={c.value}
+                              className="inline-flex items-center justify-center"
+                              title={`${c.en} / ${c.ar}`}
                             >
-                              <input
-                                type="checkbox"
-                                checked={selected}
-                                onChange={() => toggleColor(opt.value)}
-                                className="accent-black w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 hover:cursor-pointer"
+                              <span
+                                className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border border-gray-200 shrink-0"
+                                style={{ backgroundColor: c.hex }}
                               />
-                              <span className="inline-flex items-center gap-1 sm:gap-1.5 min-w-0">
-                                <span
-                                  className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full border border-gray-200 shrink-0"
-                                  style={{ backgroundColor: opt.hex }}
-                                />
-                                <span className="inline-flex items-center gap-1 text-[8px] sm:text-[10px] lg:text-xs min-w-0 hover:cursor-pointer">
-                                  <span className="truncate">{opt.en}</span>
-                                  <span className="text-gray-400 shrink-0">
-                                    /
-                                  </span>
-                                  <span className="truncate">{opt.ar}</span>
-                                </span>
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </FormField>
-
-            {/* TAG (EN / AR) - from DB */}
-            <FormField label="TAG (EN / AR)" name="tag" error={fieldErrors.tag}>
-              <div className="relative" ref={tagDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsTagDropdownOpen((prev) => !prev)}
-                  className={`${INPUT_CLASS} cursor-pointer text-left flex items-center justify-between gap-2 hover:cursor-pointer`}
-                >
-                  <span className="truncate text-xs sm:text-sm flex items-center gap-2 min-w-0">
-                    {formData.tag ? (
-                      <>
-                        <span className="truncate">
-                          {allTags.find((t) => t.value === formData.tag)?.en ||
-                            formData.tag}
-                        </span>
-                        <span className="text-black/40 shrink-0">/</span>
-                        <span className="truncate">
-                          {allTags.find((t) => t.value === formData.tag)?.ar ||
-                            formData.tagAr}
-                        </span>
-                      </>
-                    ) : tagsLoading ? (
-                      <span className="text-black/60">Loading...</span>
-                    ) : (
-                      <span className="text-black/60">
-                        Select tag (optional)
-                      </span>
-                    )}
-                  </span>
-                  <ChevronDown
-                    size={14}
-                    className={`shrink-0 text-black/40 transition-transform duration-200 ${isTagDropdownOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
-                <AnimatePresence>
-                  {isTagDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                      className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm z-50 origin-top overflow-hidden max-h-60 overflow-y-auto"
-                    >
-                      {tagsLoading ? (
-                        <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-                          Loading tags...
-                        </div>
-                      ) : allTags.length === 0 ? (
-                        <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-                          No tags found
-                        </div>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleChange("tag", "");
-                              handleChange("tagAr", "");
-                              setIsTagDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer ${!formData.tag ? "bg-neutral-100 font-medium" : ""}`}
-                          >
-                            Select tag (optional)
-                          </button>
-                          {allTags.map((opt) => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => {
-                                handleChange("tag", opt.value);
-                                handleChange("tagAr", opt.ar);
-                                setIsTagDropdownOpen(false);
-                              }}
-                              className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm hover:bg-neutral-50 transition hover:cursor-pointer flex items-center gap-2 ${formData.tag === opt.value ? "bg-neutral-100 font-medium" : ""}`}
-                            >
-                              <span className="truncate">{opt.en}</span>
-                              <span className="text-black/40 shrink-0">/</span>
-                              <span className="truncate">{opt.ar}</span>
-                            </button>
+                            </span>
                           ))}
-                        </>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </FormField>
-          </div>
+                      </div>
+                    )}
+                    <ChevronDown
+                      size={14}
+                      className={`shrink-0 text-black/40 transition-transform duration-200 ${isColorDropdownOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
 
-          <div className="md:col-span-2">
+                  <AnimatePresence>
+                    {isColorDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="absolute left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-sm p-1.5 sm:p-3 z-50 origin-top max-h-60 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-400 [&::-webkit-scrollbar-thumb]:rounded-full"
+                      >
+                        <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-2 sm:gap-1">
+                          {colors.map((opt) => {
+                            const selected = selectedColors.includes(opt.value);
+                            return (
+                              <label
+                                key={opt.value}
+                                className="flex items-center gap-1 sm:gap-1.5 cursor-pointer px-1 py-0.5 hover:bg-gray-50 rounded hover:cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selected}
+                                  onChange={() => toggleColor(opt.value)}
+                                  className="accent-black w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 hover:cursor-pointer"
+                                />
+                                <span className="inline-flex items-center gap-1 sm:gap-1.5 min-w-0">
+                                  <span
+                                    className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full border border-gray-200 shrink-0"
+                                    style={{ backgroundColor: opt.hex }}
+                                  />
+                                  <span className="inline-flex items-center gap-1 text-[8px] sm:text-[10px] lg:text-xs min-w-0 hover:cursor-pointer">
+                                    <span className="truncate">{opt.en}</span>
+                                    <span className="text-gray-400 shrink-0">
+                                      /
+                                    </span>
+                                    <span className="truncate">{opt.ar}</span>
+                                  </span>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </FormField>
+            </div>
+          </FormSection>
+
+          <FormSection title={t("sections.pricing")}>
             <FabricCutsEditor
               cuts={formData.cuts}
               catalogCuts={catalogCuts}
@@ -998,57 +1159,53 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 handleChange("cuts", cuts)
               }
             />
-          </div>
 
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-            <FormField
-              label="MIN AGE (YEARS)"
-              name="minAge"
-              error={fieldErrors.minAge}
-            >
-              <input
-                type="number"
-                min="0"
-                max="150"
-                value={formData.minAge ?? ""}
-                onChange={(e) =>
-                  handleChange(
-                    "minAge",
-                    e.target.value === "" ? null : Number(e.target.value),
-                  )
-                }
-                className={`${INPUT_CLASS} hover:cursor-text`}
-                placeholder="0"
-              />
-            </FormField>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start pt-1">
+              <FormField
+                label="MIN AGE (YEARS)"
+                name="minAge"
+                error={fieldErrors.minAge}
+              >
+                <input
+                  type="number"
+                  min="0"
+                  max="150"
+                  value={formData.minAge ?? ""}
+                  onChange={(e) =>
+                    handleChange(
+                      "minAge",
+                      e.target.value === "" ? null : Number(e.target.value),
+                    )
+                  }
+                  className={`${INPUT_CLASS} hover:cursor-text`}
+                  placeholder="0"
+                />
+              </FormField>
 
-            <FormField
-              label="MAX AGE (YEARS)"
-              name="maxAge"
-              error={fieldErrors.maxAge}
-            >
-              <input
-                type="number"
-                min="0"
-                max="150"
-                value={formData.maxAge ?? ""}
-                onChange={(e) =>
-                  handleChange(
-                    "maxAge",
-                    e.target.value === "" ? null : Number(e.target.value),
-                  )
-                }
-                className={`${INPUT_CLASS} hover:cursor-text`}
-                placeholder="150"
-              />
-            </FormField>
-          </div>
+              <FormField
+                label="MAX AGE (YEARS)"
+                name="maxAge"
+                error={fieldErrors.maxAge}
+              >
+                <input
+                  type="number"
+                  min="0"
+                  max="150"
+                  value={formData.maxAge ?? ""}
+                  onChange={(e) =>
+                    handleChange(
+                      "maxAge",
+                      e.target.value === "" ? null : Number(e.target.value),
+                    )
+                  }
+                  className={`${INPUT_CLASS} hover:cursor-text`}
+                  placeholder="150"
+                />
+              </FormField>
+            </div>
+          </FormSection>
 
-          {/* Store Pickup Address */}
-          <div className="md:col-span-2">
-            <h3 className="text-[11px] sm:text-xs font-medium text-gray-700 mb-3 uppercase tracking-wider [font-family:var(--font-ui)]">
-              Store Pickup Address
-            </h3>
+          <FormSection title="Store pickup address">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* EMIRATE */}
               <FormField
@@ -1184,10 +1341,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 </div>
               </FormField>
             </div>
-          </div>
+          </FormSection>
 
-          {/* IMAGES (MAX 5) */}
-          <div className="md:col-span-2">
+          <FormSection title={t("sections.images")}>
             <div className="mb-2 flex justify-between items-center">
               <span className="font-label-sm text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
                 IMAGES (MAX 5) <span className="text-red-500 ml-1">*</span>
@@ -1210,7 +1366,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
             {formData.images.map((url, idx) => (
               <div
                 key={idx}
-                className="mb-4 p-3 sm:p-4 border border-gray-100 rounded-lg"
+                className="mb-4 last:mb-0"
               >
                 <FabricImageUpload
                   value={url}
@@ -1232,10 +1388,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 )}
               </div>
             ))}
-          </div>
 
-          {/* ACTIVE STATUS */}
-          <div className="md:col-span-2">
             <FormField label="ACTIVE STATUS" name="isActive">
               <div className="flex items-center gap-2">
                 <input
@@ -1253,7 +1406,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 </label>
               </div>
             </FormField>
-          </div>
+          </FormSection>
         </div>
 
         {/* VARIATIONS SECTION */}
@@ -1389,6 +1542,96 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                           {dbMaterials.map((m) => (
                             <option key={m._id} value={m.name}>
                               {m.name}
+                            </option>
+                          ))}
+                        </select>
+                      </FormField>
+
+                      <FormField
+                        label="Category"
+                        name={`${prefix}.category`}
+                        error={fieldErrors[`${prefix}.category`]}
+                      >
+                        <select
+                          value={variant.category || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            handleVariantChange(index, "category", val);
+                            const found = dbCategories.find(
+                              (c) => c.name === val,
+                            );
+                            handleVariantChange(
+                              index,
+                              "categoryAr",
+                              found?.nameAr || "",
+                            );
+                          }}
+                          className={`${INPUT_CLASS} hover:cursor-pointer`}
+                        >
+                          <option value="">Select category</option>
+                          {dbCategories.map((c) => (
+                            <option key={c._id} value={c.name}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </FormField>
+
+                      <FormField
+                        label="Pattern"
+                        name={`${prefix}.pattern`}
+                        error={fieldErrors[`${prefix}.pattern`]}
+                      >
+                        <select
+                          value={variant.pattern || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            handleVariantChange(index, "pattern", val);
+                            const found = dbPatterns.find(
+                              (p) => p.name === val,
+                            );
+                            handleVariantChange(
+                              index,
+                              "patternAr",
+                              found?.nameAr || "",
+                            );
+                          }}
+                          className={`${INPUT_CLASS} hover:cursor-pointer`}
+                        >
+                          <option value="">Select pattern</option>
+                          {dbPatterns.map((p) => (
+                            <option key={p._id} value={p.name}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </FormField>
+
+                      <FormField
+                        label="Season"
+                        name={`${prefix}.season`}
+                        error={fieldErrors[`${prefix}.season`]}
+                      >
+                        <select
+                          value={variant.season || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            handleVariantChange(index, "season", val);
+                            const found = dbSeasons.find(
+                              (s) => s.name === val,
+                            );
+                            handleVariantChange(
+                              index,
+                              "seasonAr",
+                              found?.nameAr || "",
+                            );
+                          }}
+                          className={`${INPUT_CLASS} hover:cursor-pointer`}
+                        >
+                          <option value="">Select season</option>
+                          {dbSeasons.map((s) => (
+                            <option key={s._id} value={s.name}>
+                              {s.name}
                             </option>
                           ))}
                         </select>

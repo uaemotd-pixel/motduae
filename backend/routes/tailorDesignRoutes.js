@@ -20,6 +20,7 @@ const DESIGN_FIELDS = [
   "descriptionAr",
   "images",
   "category",
+  "categoryAr",
   "material",
   "materialAr",
   "season",
@@ -34,6 +35,8 @@ const DESIGN_FIELDS = [
   "minCutId",
   "estimatedMeters",
   "estimatedDays",
+  "minAge",
+  "maxAge",
   "isActive",
 ];
 
@@ -47,6 +50,7 @@ const formatDesign = (design) => ({
   descriptionAr: design.descriptionAr,
   images: design.images,
   category: design.category,
+  categoryAr: design.categoryAr || "",
   material: design.material,
   materialAr: design.materialAr,
   season: design.season,
@@ -64,6 +68,8 @@ const formatDesign = (design) => ({
   estimatedMeters:
     design.minCutSnapshot?.lengthInMeters ?? (design.estimatedMeters || 0),
   estimatedDays: design.estimatedDays,
+  minAge: Number.isFinite(Number(design.minAge)) ? Number(design.minAge) : 0,
+  maxAge: Number.isFinite(Number(design.maxAge)) ? Number(design.maxAge) : 0,
   isActive: design.isActive,
   createdAt: design.createdAt,
   updatedAt: design.updatedAt,
@@ -113,6 +119,11 @@ const pickDesignFields = (body) => {
       continue;
     }
 
+    if (field === "categoryAr") {
+      data.categoryAr = String(body.categoryAr ?? "").trim();
+      continue;
+    }
+
     if (
       [
         "material",
@@ -135,6 +146,8 @@ const pickDesignFields = (body) => {
         "tailoringFee",
         "estimatedMeters",
         "estimatedDays",
+        "minAge",
+        "maxAge",
       ].includes(field)
     ) {
       data[field] = Number(body[field]);
@@ -226,6 +239,27 @@ const validateDesignPayload = (data, { requireCore = false } = {}) => {
     }
   }
 
+  for (const field of ["minAge", "maxAge"]) {
+    if (data[field] !== undefined) {
+      if (
+        !Number.isFinite(data[field]) ||
+        data[field] < 0 ||
+        data[field] > 150 ||
+        !Number.isInteger(data[field])
+      ) {
+        return `${field} must be a whole number between 0 and 150`;
+      }
+    }
+  }
+
+  if (
+    data.minAge !== undefined &&
+    data.maxAge !== undefined &&
+    data.maxAge < data.minAge
+  ) {
+    return "Max age must be greater than or equal to min age";
+  }
+
   return null;
 };
 
@@ -310,6 +344,13 @@ tailorDesignRouter.post(
       data.tailoringFee = Number(settings.defaultTailoringFee || 0);
     }
 
+    if (data.minAge === undefined || Number.isNaN(data.minAge)) {
+      data.minAge = 0;
+    }
+    if (data.maxAge === undefined || Number.isNaN(data.maxAge)) {
+      data.maxAge = 0;
+    }
+
     const validationError = validateDesignPayload(data, { requireCore: true });
     if (validationError) {
       res.status(400).json({
@@ -377,6 +418,18 @@ tailorDesignRouter.put(
       res.status(400).json({
         success: false,
         message: validationError,
+      });
+      return;
+    }
+
+    const nextMinAge =
+      data.minAge !== undefined ? data.minAge : Number(design.minAge) || 0;
+    const nextMaxAge =
+      data.maxAge !== undefined ? data.maxAge : Number(design.maxAge) || 0;
+    if (nextMaxAge < nextMinAge) {
+      res.status(400).json({
+        success: false,
+        message: "Max age must be greater than or equal to min age",
       });
       return;
     }

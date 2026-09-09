@@ -513,6 +513,12 @@ fabricPortalRouter.post(
       images,
       material,
       materialAr,
+      category,
+      categoryAr,
+      pattern,
+      patternAr,
+      season,
+      seasonAr,
       colors,
       tag,
       tagAr,
@@ -573,6 +579,12 @@ fabricPortalRouter.post(
       images,
       material,
       materialAr: materialAr || "",
+      category: category || "",
+      categoryAr: categoryAr || "",
+      pattern: pattern || "",
+      patternAr: patternAr || "",
+      season: season || "",
+      seasonAr: seasonAr || "",
       colors: colors || [],
       tag: tag || "",
       tagAr: tagAr || "",
@@ -629,6 +641,12 @@ fabricPortalRouter.post(
           images: variant.images,
           material: variant.material,
           materialAr: variant.materialAr || fabric.materialAr,
+          category: variant.category || fabric.category || "",
+          categoryAr: variant.categoryAr || fabric.categoryAr || "",
+          pattern: variant.pattern || fabric.pattern || "",
+          patternAr: variant.patternAr || fabric.patternAr || "",
+          season: variant.season || fabric.season || "",
+          seasonAr: variant.seasonAr || fabric.seasonAr || "",
           colors: variant.colors || [],
           tag: variant.tag || "",
           tagAr: variant.tagAr || "",
@@ -681,6 +699,12 @@ fabricPortalRouter.put(
       images,
       material,
       materialAr,
+      category,
+      categoryAr,
+      pattern,
+      patternAr,
+      season,
+      seasonAr,
       colors,
       tag,
       tagAr,
@@ -716,6 +740,12 @@ fabricPortalRouter.put(
     if (images) fabric.images = images;
     if (material) fabric.material = material;
     if (materialAr !== undefined) fabric.materialAr = materialAr;
+    if (category !== undefined) fabric.category = category || "";
+    if (categoryAr !== undefined) fabric.categoryAr = categoryAr || "";
+    if (pattern !== undefined) fabric.pattern = pattern || "";
+    if (patternAr !== undefined) fabric.patternAr = patternAr || "";
+    if (season !== undefined) fabric.season = season || "";
+    if (seasonAr !== undefined) fabric.seasonAr = seasonAr || "";
     if (colors) fabric.colors = colors;
     if (tag !== undefined) fabric.tag = tag;
     if (tagAr !== undefined) fabric.tagAr = tagAr;
@@ -779,6 +809,18 @@ fabricPortalRouter.put(
             if (variant.material) existing.material = variant.material;
             if (variant.materialAr !== undefined)
               existing.materialAr = variant.materialAr;
+            if (variant.category !== undefined)
+              existing.category = variant.category || "";
+            if (variant.categoryAr !== undefined)
+              existing.categoryAr = variant.categoryAr || "";
+            if (variant.pattern !== undefined)
+              existing.pattern = variant.pattern || "";
+            if (variant.patternAr !== undefined)
+              existing.patternAr = variant.patternAr || "";
+            if (variant.season !== undefined)
+              existing.season = variant.season || "";
+            if (variant.seasonAr !== undefined)
+              existing.seasonAr = variant.seasonAr || "";
             if (variant.colors) existing.colors = variant.colors;
             if (variant.tag !== undefined) existing.tag = variant.tag;
             if (variant.tagAr !== undefined) existing.tagAr = variant.tagAr;
@@ -832,6 +874,12 @@ fabricPortalRouter.put(
             images: variant.images,
             material: variant.material,
             materialAr: variant.materialAr || updatedFabric.materialAr,
+            category: variant.category || updatedFabric.category || "",
+            categoryAr: variant.categoryAr || updatedFabric.categoryAr || "",
+            pattern: variant.pattern || updatedFabric.pattern || "",
+            patternAr: variant.patternAr || updatedFabric.patternAr || "",
+            season: variant.season || updatedFabric.season || "",
+            seasonAr: variant.seasonAr || updatedFabric.seasonAr || "",
             colors: variant.colors || [],
             tag: variant.tag || "",
             tagAr: variant.tagAr || "",
@@ -1192,6 +1240,14 @@ fabricPortalRouter.post(
       descriptionAr,
       tag,
       tagAr,
+      category,
+      categoryAr,
+      material,
+      materialAr,
+      pattern,
+      patternAr,
+      season,
+      seasonAr,
       colors,
       thumbnailImage,
       images,
@@ -1225,6 +1281,14 @@ fabricPortalRouter.post(
       descriptionAr,
       tag,
       tagAr,
+      category: category || "",
+      categoryAr: categoryAr || "",
+      material: material || "",
+      materialAr: materialAr || "",
+      pattern: pattern || "",
+      patternAr: patternAr || "",
+      season: season || "",
+      seasonAr: seasonAr || "",
       colors: Array.isArray(colors) ? colors : [],
       thumbnailImage,
       images: Array.isArray(images) ? images : [],
@@ -1298,6 +1362,14 @@ fabricPortalRouter.put(
     product.descriptionAr = req.body.descriptionAr ?? product.descriptionAr;
     product.tag = req.body.tag ?? product.tag;
     product.tagAr = req.body.tagAr ?? product.tagAr;
+    product.category = req.body.category ?? product.category;
+    product.categoryAr = req.body.categoryAr ?? product.categoryAr;
+    product.material = req.body.material ?? product.material;
+    product.materialAr = req.body.materialAr ?? product.materialAr;
+    product.pattern = req.body.pattern ?? product.pattern;
+    product.patternAr = req.body.patternAr ?? product.patternAr;
+    product.season = req.body.season ?? product.season;
+    product.seasonAr = req.body.seasonAr ?? product.seasonAr;
 
     if (req.body.colors !== undefined) {
       product.colors = Array.isArray(req.body.colors) ? req.body.colors : [];
@@ -1459,6 +1531,10 @@ fabricPortalRouter.post(
       materialAr,
       design,
       designAr,
+      pattern,
+      patternAr,
+      category,
+      categoryAr,
       season,
       seasonAr,
       colors,
@@ -1480,6 +1556,9 @@ fabricPortalRouter.post(
       fallback: "addon",
     });
 
+    const resolvedPattern = (pattern || design || "").trim();
+    const resolvedPatternAr = (patternAr || designAr || "").trim();
+
     const addon = new AddOn({
       name,
       nameAr,
@@ -1494,8 +1573,12 @@ fabricPortalRouter.post(
       tagAr,
       material,
       materialAr,
-      design,
-      designAr,
+      design: resolvedPattern,
+      designAr: resolvedPatternAr,
+      pattern: resolvedPattern,
+      patternAr: resolvedPatternAr,
+      category: category || "",
+      categoryAr: categoryAr || "",
       season,
       seasonAr,
       colors: Array.isArray(colors) ? colors : [],
@@ -1556,6 +1639,10 @@ fabricPortalRouter.put(
       materialAr,
       design,
       designAr,
+      pattern,
+      patternAr,
+      category,
+      categoryAr,
       season,
       seasonAr,
       colors,
@@ -1585,8 +1672,30 @@ fabricPortalRouter.put(
     addon.tagAr = tagAr ?? addon.tagAr;
     addon.material = material ?? addon.material;
     addon.materialAr = materialAr ?? addon.materialAr;
-    addon.design = design ?? addon.design;
-    addon.designAr = designAr ?? addon.designAr;
+    if (category !== undefined) addon.category = category || "";
+    if (categoryAr !== undefined) addon.categoryAr = categoryAr || "";
+    {
+      const nextPattern =
+        pattern !== undefined
+          ? pattern
+          : design !== undefined
+            ? design
+            : undefined;
+      const nextPatternAr =
+        patternAr !== undefined
+          ? patternAr
+          : designAr !== undefined
+            ? designAr
+            : undefined;
+      if (nextPattern !== undefined) {
+        addon.design = nextPattern || "";
+        addon.pattern = nextPattern || "";
+      }
+      if (nextPatternAr !== undefined) {
+        addon.designAr = nextPatternAr || "";
+        addon.patternAr = nextPatternAr || "";
+      }
+    }
     addon.season = season ?? addon.season;
     addon.seasonAr = seasonAr ?? addon.seasonAr;
     if (colors !== undefined) {

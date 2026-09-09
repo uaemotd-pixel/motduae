@@ -339,6 +339,8 @@ export default function FabricDetailPage() {
           labels={{
             fabrics: t("fabrics"),
             material: t("material"),
+            category: t("category"),
+            pattern: t("pattern"),
             color: [t("color")],
             city: t("city"),
             perMeter: t("perMeter"),

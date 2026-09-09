@@ -46,6 +46,10 @@ export default function NewReadyMadePage() {
   const [tailorShopOpen, setTailorShopOpen] = useState(false);
   const [designOpen, setDesignOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [materialOpen, setMaterialOpen] = useState(false);
+  const [patternOpen, setPatternOpen] = useState(false);
+  const [seasonOpen, setSeasonOpen] = useState(false);
   const [colorsOpen, setColorsOpen] = useState(false);
   const [emirateOpen, setEmirateOpen] = useState(false);
 
@@ -53,34 +57,57 @@ export default function NewReadyMadePage() {
   const [allFabrics, setAllFabrics] = useState<any[]>([]);
   const [tailorShops, setTailorShops] = useState<any[]>([]);
   const [allDesigns, setAllDesigns] = useState<any[]>([]);
-  const [allTags, setAllTags] = useState<any[]>([]);
+  type FilterOpt = { value: string; en: string; ar: string };
+  const [allCategories, setAllCategories] = useState<FilterOpt[]>([]);
+  const [allMaterials, setAllMaterials] = useState<FilterOpt[]>([]);
+  const [allPatterns, setAllPatterns] = useState<FilterOpt[]>([]);
+  const [allTags, setAllTags] = useState<FilterOpt[]>([]);
+  const [allSeasons, setAllSeasons] = useState<FilterOpt[]>([]);
+  const [filtersLoading, setFiltersLoading] = useState(true);
 
   useEffect(() => {
     const loadDropdownData = async () => {
       try {
-        const [shopsRes, fabricsRes, tailorsRes, designsRes, tagsRes] =
-          await Promise.all([
-            api.get<any>("/api/admin/fabric-shops"),
-            api.get<any>("/api/admin/fabrics"),
-            api.get<any>("/api/admin/tailors"),
-            api.get<any[]>("/api/admin/designs"),
-            api.get<any[]>("/api/admin/tags"),
-          ]);
+        const [
+          shopsRes,
+          fabricsRes,
+          tailorsRes,
+          designsRes,
+          categoriesRes,
+          materialsRes,
+          patternsRes,
+          tagsRes,
+          seasonsRes,
+        ] = await Promise.all([
+          api.get<any>("/api/admin/fabric-shops"),
+          api.get<any>("/api/admin/fabrics"),
+          api.get<any>("/api/admin/tailors"),
+          api.get<any[]>("/api/admin/designs"),
+          api.get<any[]>("/api/filters/categories?domain=ready-made"),
+          api.get<any[]>("/api/filters/materials?domain=ready-made"),
+          api.get<any[]>("/api/filters/patterns?domain=ready-made"),
+          api.get<any[]>("/api/filters/tags"),
+          api.get<any[]>("/api/filters/seasons?domain=ready-made"),
+        ]);
         setFabricShops(shopsRes.items || []);
         setAllFabrics(fabricsRes?.items || []);
         setTailorShops(tailorsRes.items || []);
         setAllDesigns(designsRes || []);
-        if (Array.isArray(tagsRes) && tagsRes.length > 0) {
-          setAllTags(
-            tagsRes.map((t: any) => ({
-              value: t.name,
-              en: t.name,
-              ar: t.nameAr || t.name,
-            })),
-          );
-        }
+        const toOpts = (items: any[]) =>
+          items.map((t: any) => ({
+            value: t.name,
+            en: t.name,
+            ar: t.nameAr || t.name,
+          }));
+        if (Array.isArray(categoriesRes)) setAllCategories(toOpts(categoriesRes));
+        if (Array.isArray(materialsRes)) setAllMaterials(toOpts(materialsRes));
+        if (Array.isArray(patternsRes)) setAllPatterns(toOpts(patternsRes));
+        if (Array.isArray(tagsRes)) setAllTags(toOpts(tagsRes));
+        if (Array.isArray(seasonsRes)) setAllSeasons(toOpts(seasonsRes));
       } catch (err) {
         toast.error("Failed to load store or catalog data for dropdowns");
+      } finally {
+        setFiltersLoading(false);
       }
     };
     loadDropdownData();
@@ -673,8 +700,215 @@ export default function NewReadyMadePage() {
             </FormField>
           </div>
 
-          {/* TAG (ENG + AR) + Color + User in one row */}
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+          {/* Category + Material + Pattern + Tag + Season */}
+          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+            <FormField label="Category (ENG / AR)" name="category">
+              <AnimatedDropdown
+                isOpen={categoryOpen}
+                onClose={() => setCategoryOpen(false)}
+                trigger={(() => {
+                  const selected = allCategories.find(
+                    (t) => t.value === formData.category,
+                  );
+                  const hasValue = !!formData.category;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setCategoryOpen(!categoryOpen)}
+                      className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent text-xs sm:text-[14px] flex items-center justify-between hover:cursor-pointer"
+                    >
+                      {hasValue ? (
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="text-black truncate">
+                            {selected?.en || formData.category}
+                          </span>
+                          <span className="text-gray-500 shrink-0">/</span>
+                          <span className="text-black truncate">
+                            {selected?.ar || formData.categoryAr}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">
+                          {filtersLoading
+                            ? "Loading..."
+                            : "Select category (ENG / AR)"}
+                        </span>
+                      )}
+                      <span className="text-gray-400">▾</span>
+                    </button>
+                  );
+                })()}
+                dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+                position="bottom-left"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleChange("category", "");
+                    handleChange("categoryAr", "");
+                    setCategoryOpen(false);
+                  }}
+                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                >
+                  Select category (ENG / AR)
+                </button>
+                {allCategories.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      handleChange("category", opt.value);
+                      handleChange("categoryAr", opt.ar);
+                      setCategoryOpen(false);
+                    }}
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer flex items-center gap-2"
+                  >
+                    <span className="truncate">{opt.en}</span>
+                    <span className="text-gray-500 shrink-0">/</span>
+                    <span className="truncate">{opt.ar}</span>
+                  </button>
+                ))}
+              </AnimatedDropdown>
+            </FormField>
+
+            <FormField label="Material (ENG / AR)" name="material">
+              <AnimatedDropdown
+                isOpen={materialOpen}
+                onClose={() => setMaterialOpen(false)}
+                trigger={(() => {
+                  const selected = allMaterials.find(
+                    (t) => t.value === formData.material,
+                  );
+                  const hasValue = !!formData.material;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setMaterialOpen(!materialOpen)}
+                      className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent text-xs sm:text-[14px] flex items-center justify-between hover:cursor-pointer"
+                    >
+                      {hasValue ? (
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="text-black truncate">
+                            {selected?.en || formData.material}
+                          </span>
+                          <span className="text-gray-500 shrink-0">/</span>
+                          <span className="text-black truncate">
+                            {selected?.ar || formData.materialAr}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">
+                          {filtersLoading
+                            ? "Loading..."
+                            : "Select material (ENG / AR)"}
+                        </span>
+                      )}
+                      <span className="text-gray-400">▾</span>
+                    </button>
+                  );
+                })()}
+                dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+                position="bottom-left"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleChange("material", "");
+                    handleChange("materialAr", "");
+                    setMaterialOpen(false);
+                  }}
+                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                >
+                  Select material (ENG / AR)
+                </button>
+                {allMaterials.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      handleChange("material", opt.value);
+                      handleChange("materialAr", opt.ar);
+                      setMaterialOpen(false);
+                    }}
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer flex items-center gap-2"
+                  >
+                    <span className="truncate">{opt.en}</span>
+                    <span className="text-gray-500 shrink-0">/</span>
+                    <span className="truncate">{opt.ar}</span>
+                  </button>
+                ))}
+              </AnimatedDropdown>
+            </FormField>
+
+            <FormField label="Pattern (ENG / AR)" name="pattern">
+              <AnimatedDropdown
+                isOpen={patternOpen}
+                onClose={() => setPatternOpen(false)}
+                trigger={(() => {
+                  const selected = allPatterns.find(
+                    (t) => t.value === formData.pattern,
+                  );
+                  const hasValue = !!formData.pattern;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setPatternOpen(!patternOpen)}
+                      className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent text-xs sm:text-[14px] flex items-center justify-between hover:cursor-pointer"
+                    >
+                      {hasValue ? (
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="text-black truncate">
+                            {selected?.en || formData.pattern}
+                          </span>
+                          <span className="text-gray-500 shrink-0">/</span>
+                          <span className="text-black truncate">
+                            {selected?.ar || formData.patternAr}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">
+                          {filtersLoading
+                            ? "Loading..."
+                            : "Select pattern (ENG / AR)"}
+                        </span>
+                      )}
+                      <span className="text-gray-400">▾</span>
+                    </button>
+                  );
+                })()}
+                dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+                position="bottom-left"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleChange("pattern", "");
+                    handleChange("patternAr", "");
+                    setPatternOpen(false);
+                  }}
+                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                >
+                  Select pattern (ENG / AR)
+                </button>
+                {allPatterns.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      handleChange("pattern", opt.value);
+                      handleChange("patternAr", opt.ar);
+                      setPatternOpen(false);
+                    }}
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer flex items-center gap-2"
+                  >
+                    <span className="truncate">{opt.en}</span>
+                    <span className="text-gray-500 shrink-0">/</span>
+                    <span className="truncate">{opt.ar}</span>
+                  </button>
+                ))}
+              </AnimatedDropdown>
+            </FormField>
+
             {/* TAG ENG + AR */}
             <FormField label="Tag (ENG / AR)" name="tag">
               <AnimatedDropdown
@@ -703,7 +937,9 @@ export default function NewReadyMadePage() {
                         </span>
                       ) : (
                         <span className="text-gray-400">
-                          Select tag (ENG / AR)
+                          {filtersLoading
+                            ? "Loading..."
+                            : "Select tag (ENG / AR)"}
                         </span>
                       )}
                       <span className="text-gray-400">▾</span>
@@ -743,6 +979,78 @@ export default function NewReadyMadePage() {
               </AnimatedDropdown>
             </FormField>
 
+            <FormField label="Season (ENG / AR)" name="season">
+              <AnimatedDropdown
+                isOpen={seasonOpen}
+                onClose={() => setSeasonOpen(false)}
+                trigger={(() => {
+                  const selected = allSeasons.find(
+                    (t) => t.value === formData.season,
+                  );
+                  const hasValue = !!formData.season;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setSeasonOpen(!seasonOpen)}
+                      className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent text-xs sm:text-[14px] flex items-center justify-between hover:cursor-pointer"
+                    >
+                      {hasValue ? (
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="text-black truncate">
+                            {selected?.en || formData.season}
+                          </span>
+                          <span className="text-gray-500 shrink-0">/</span>
+                          <span className="text-black truncate">
+                            {selected?.ar || formData.seasonAr}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">
+                          {filtersLoading
+                            ? "Loading..."
+                            : "Select season (ENG / AR)"}
+                        </span>
+                      )}
+                      <span className="text-gray-400">▾</span>
+                    </button>
+                  );
+                })()}
+                dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+                position="bottom-left"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleChange("season", "");
+                    handleChange("seasonAr", "");
+                    setSeasonOpen(false);
+                  }}
+                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                >
+                  Select season (ENG / AR)
+                </button>
+                {allSeasons.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      handleChange("season", opt.value);
+                      handleChange("seasonAr", opt.ar);
+                      setSeasonOpen(false);
+                    }}
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer flex items-center gap-2"
+                  >
+                    <span className="truncate">{opt.en}</span>
+                    <span className="text-gray-500 shrink-0">/</span>
+                    <span className="truncate">{opt.ar}</span>
+                  </button>
+                ))}
+              </AnimatedDropdown>
+            </FormField>
+          </div>
+
+          {/* Color + User */}
+          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
             {/* COLORS */}
             <FormField label="Colors" name="colors" required>
               <AnimatedDropdown

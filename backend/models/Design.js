@@ -26,6 +26,7 @@ const designSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    categoryAr: { type: String, default: "", trim: true },
     material: { type: String, default: "", trim: true },
     materialAr: { type: String, default: "", trim: true },
     season: { type: String, default: "", trim: true },
@@ -54,6 +55,20 @@ const designSchema = new mongoose.Schema(
     },
     estimatedMeters: { type: Number, required: false, min: 0 },
     estimatedDays: { type: Number, default: 7, min: 1 },
+    minAge: { type: Number, required: true, default: 0, min: 0, max: 150 },
+    maxAge: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+      max: 150,
+      validate: {
+        validator(value) {
+          return typeof this.minAge !== "number" || value >= this.minAge;
+        },
+        message: "Max age must be greater than or equal to min age",
+      },
+    },
     isActive: { type: Boolean, default: true, required: true },
   },
   {

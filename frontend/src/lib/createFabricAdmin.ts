@@ -40,6 +40,12 @@ export interface FabricFormData {
   images: string[];
   material: string;
   materialAr: string;
+  category: string;
+  categoryAr: string;
+  pattern: string;
+  patternAr: string;
+  season: string;
+  seasonAr: string;
   colors: string[];
   tag: string;
   tagAr: string;
@@ -65,6 +71,12 @@ export function defaultFabricForm(): FabricFormData {
     images: [""],
     material: "",
     materialAr: "",
+    category: "",
+    categoryAr: "",
+    pattern: "",
+    patternAr: "",
+    season: "",
+    seasonAr: "",
     colors: [],
     tag: "",
     tagAr: "",
@@ -224,6 +236,16 @@ export function fromApiFabric(
   const material = typeof product.material === "string" ? product.material : "";
   const materialAr =
     typeof product.materialAr === "string" ? product.materialAr : "";
+  const category =
+    typeof product.category === "string" ? product.category : "";
+  const categoryAr =
+    typeof product.categoryAr === "string" ? product.categoryAr : "";
+  const pattern = typeof product.pattern === "string" ? product.pattern : "";
+  const patternAr =
+    typeof product.patternAr === "string" ? product.patternAr : "";
+  const season = typeof product.season === "string" ? product.season : "";
+  const seasonAr =
+    typeof product.seasonAr === "string" ? product.seasonAr : "";
   const colors = Array.isArray(product.colors)
     ? product.colors.filter(
         (color): color is string => typeof color === "string",
@@ -292,6 +314,12 @@ export function fromApiFabric(
     images,
     material,
     materialAr,
+    category,
+    categoryAr,
+    pattern,
+    patternAr,
+    season,
+    seasonAr,
     colors,
     tag,
     tagAr,
@@ -330,6 +358,12 @@ export function toFabricApiPayload(
     images: form.images.filter((url) => url.trim() !== "" && !isDataUrl(url)),
     material: form.material,
     materialAr: form.materialAr.trim(),
+    category: form.category.trim(),
+    categoryAr: form.categoryAr.trim(),
+    pattern: form.pattern.trim(),
+    patternAr: form.patternAr.trim(),
+    season: form.season.trim(),
+    seasonAr: form.seasonAr.trim(),
     colors: form.colors,
     tag: form.tag,
     tagAr: form.tagAr.trim(),
@@ -352,6 +386,12 @@ export function toFabricApiPayload(
       images: v.images.filter((url) => url.trim() !== "" && !isDataUrl(url)),
       material: v.material,
       materialAr: v.materialAr.trim(),
+      category: v.category.trim(),
+      categoryAr: v.categoryAr.trim(),
+      pattern: v.pattern.trim(),
+      patternAr: v.patternAr.trim(),
+      season: v.season.trim(),
+      seasonAr: v.seasonAr.trim(),
       colors: v.colors,
       tag: v.tag,
       tagAr: v.tagAr.trim(),

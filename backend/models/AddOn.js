@@ -48,6 +48,16 @@ const addOnSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    category: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    categoryAr: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     tag: {
       type: String,
       default: "",
@@ -68,12 +78,23 @@ const addOnSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    // Pattern catalog value (UI label: Pattern; legacy field name: design)
     design: {
       type: String,
       default: "",
       trim: true,
     },
     designAr: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    pattern: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    patternAr: {
       type: String,
       default: "",
       trim: true,

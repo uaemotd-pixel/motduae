@@ -492,6 +492,14 @@ adminRouter.post(
       descriptionAr,
       tag,
       tagAr,
+      category,
+      categoryAr,
+      material,
+      materialAr,
+      pattern,
+      patternAr,
+      season,
+      seasonAr,
       colors,
       thumbnailImage,
       images,
@@ -538,6 +546,14 @@ adminRouter.post(
       descriptionAr,
       tag,
       tagAr,
+      category: category || "",
+      categoryAr: categoryAr || "",
+      material: material || "",
+      materialAr: materialAr || "",
+      pattern: pattern || "",
+      patternAr: patternAr || "",
+      season: season || "",
+      seasonAr: seasonAr || "",
       colors,
       thumbnailImage,
       images,
@@ -591,9 +607,17 @@ adminRouter.put(
     product.description = req.body.description ?? product.description;
     product.descriptionAr = req.body.descriptionAr ?? product.descriptionAr;
 
-    // --- Tags ---
+    // --- Catalog filters ---
     product.tag = req.body.tag ?? product.tag;
     product.tagAr = req.body.tagAr ?? product.tagAr;
+    product.category = req.body.category ?? product.category;
+    product.categoryAr = req.body.categoryAr ?? product.categoryAr;
+    product.material = req.body.material ?? product.material;
+    product.materialAr = req.body.materialAr ?? product.materialAr;
+    product.pattern = req.body.pattern ?? product.pattern;
+    product.patternAr = req.body.patternAr ?? product.patternAr;
+    product.season = req.body.season ?? product.season;
+    product.seasonAr = req.body.seasonAr ?? product.seasonAr;
 
     // --- Colors – array, assign directly ---
     if (req.body.colors !== undefined) {
@@ -1105,6 +1129,12 @@ adminRouter.post(
       images,
       material,
       materialAr,
+      category,
+      categoryAr,
+      pattern,
+      patternAr,
+      season,
+      seasonAr,
       colors,
       tag,
       tagAr,
@@ -1159,6 +1189,12 @@ adminRouter.post(
       images,
       material,
       materialAr: materialAr || "",
+      category: category || "",
+      categoryAr: categoryAr || "",
+      pattern: pattern || "",
+      patternAr: patternAr || "",
+      season: season || "",
+      seasonAr: seasonAr || "",
       colors: colors || [],
       tag,
       tagAr: tagAr || "",
@@ -1198,6 +1234,12 @@ adminRouter.post(
           images: variant.images,
           material: variant.material,
           materialAr: variant.materialAr || createdFabric.materialAr,
+          category: variant.category || createdFabric.category || "",
+          categoryAr: variant.categoryAr || createdFabric.categoryAr || "",
+          pattern: variant.pattern || createdFabric.pattern || "",
+          patternAr: variant.patternAr || createdFabric.patternAr || "",
+          season: variant.season || createdFabric.season || "",
+          seasonAr: variant.seasonAr || createdFabric.seasonAr || "",
           colors: variant.colors || [],
           tag: variant.tag || "",
           tagAr: variant.tagAr || "",
@@ -1271,6 +1313,15 @@ adminRouter.put(
     fabric.images = req.body.images ?? fabric.images;
     fabric.material = req.body.material ?? fabric.material;
     fabric.materialAr = req.body.materialAr ?? fabric.materialAr;
+    if (req.body.category !== undefined) fabric.category = req.body.category || "";
+    if (req.body.categoryAr !== undefined)
+      fabric.categoryAr = req.body.categoryAr || "";
+    if (req.body.pattern !== undefined) fabric.pattern = req.body.pattern || "";
+    if (req.body.patternAr !== undefined)
+      fabric.patternAr = req.body.patternAr || "";
+    if (req.body.season !== undefined) fabric.season = req.body.season || "";
+    if (req.body.seasonAr !== undefined)
+      fabric.seasonAr = req.body.seasonAr || "";
     fabric.colors = Array.isArray(req.body.colors)
       ? req.body.colors
       : fabric.colors;
@@ -1341,6 +1392,18 @@ adminRouter.put(
             if (variant.material) existing.material = variant.material;
             if (variant.materialAr !== undefined)
               existing.materialAr = variant.materialAr;
+            if (variant.category !== undefined)
+              existing.category = variant.category || "";
+            if (variant.categoryAr !== undefined)
+              existing.categoryAr = variant.categoryAr || "";
+            if (variant.pattern !== undefined)
+              existing.pattern = variant.pattern || "";
+            if (variant.patternAr !== undefined)
+              existing.patternAr = variant.patternAr || "";
+            if (variant.season !== undefined)
+              existing.season = variant.season || "";
+            if (variant.seasonAr !== undefined)
+              existing.seasonAr = variant.seasonAr || "";
             if (variant.colors) existing.colors = variant.colors;
             if (variant.tag !== undefined) existing.tag = variant.tag;
             if (variant.tagAr !== undefined) existing.tagAr = variant.tagAr;
@@ -1396,6 +1459,12 @@ adminRouter.put(
             images: variant.images,
             material: variant.material,
             materialAr: variant.materialAr || updatedFabric.materialAr,
+            category: variant.category || updatedFabric.category || "",
+            categoryAr: variant.categoryAr || updatedFabric.categoryAr || "",
+            pattern: variant.pattern || updatedFabric.pattern || "",
+            patternAr: variant.patternAr || updatedFabric.patternAr || "",
+            season: variant.season || updatedFabric.season || "",
+            seasonAr: variant.seasonAr || updatedFabric.seasonAr || "",
             colors: variant.colors || [],
             tag: variant.tag || "",
             tagAr: variant.tagAr || "",
@@ -3435,6 +3504,10 @@ adminRouter.post(
       materialAr,
       design,
       designAr,
+      pattern,
+      patternAr,
+      category,
+      categoryAr,
       season,
       seasonAr,
       colors,
@@ -3462,6 +3535,9 @@ adminRouter.post(
       return;
     }
 
+    const resolvedPattern = (pattern || design || "").trim();
+    const resolvedPatternAr = (patternAr || designAr || "").trim();
+
     const addon = new AddOn({
       name,
       nameAr,
@@ -3476,8 +3552,12 @@ adminRouter.post(
       tagAr,
       material,
       materialAr,
-      design,
-      designAr,
+      design: resolvedPattern,
+      designAr: resolvedPatternAr,
+      pattern: resolvedPattern,
+      patternAr: resolvedPatternAr,
+      category: category || "",
+      categoryAr: categoryAr || "",
       season,
       seasonAr,
       colors: Array.isArray(colors) ? colors : [],
@@ -3516,6 +3596,10 @@ adminRouter.put(
       materialAr,
       design,
       designAr,
+      pattern,
+      patternAr,
+      category,
+      categoryAr,
       season,
       seasonAr,
       colors,
@@ -3542,8 +3626,30 @@ adminRouter.put(
     addon.tagAr = tagAr ?? addon.tagAr;
     addon.material = material ?? addon.material;
     addon.materialAr = materialAr ?? addon.materialAr;
-    addon.design = design ?? addon.design;
-    addon.designAr = designAr ?? addon.designAr;
+    if (category !== undefined) addon.category = category || "";
+    if (categoryAr !== undefined) addon.categoryAr = categoryAr || "";
+    {
+      const nextPattern =
+        pattern !== undefined
+          ? pattern
+          : design !== undefined
+            ? design
+            : undefined;
+      const nextPatternAr =
+        patternAr !== undefined
+          ? patternAr
+          : designAr !== undefined
+            ? designAr
+            : undefined;
+      if (nextPattern !== undefined) {
+        addon.design = nextPattern || "";
+        addon.pattern = nextPattern || "";
+      }
+      if (nextPatternAr !== undefined) {
+        addon.designAr = nextPatternAr || "";
+        addon.patternAr = nextPatternAr || "";
+      }
+    }
     addon.season = season ?? addon.season;
     addon.seasonAr = seasonAr ?? addon.seasonAr;
     if (colors !== undefined) {

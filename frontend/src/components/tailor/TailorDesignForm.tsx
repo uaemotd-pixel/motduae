@@ -78,6 +78,8 @@ type BilingualFilterDropdownProps = {
   onClose: () => void;
   onSelect: (en: string, ar: string, value: string) => void;
   onClear: () => void;
+  /** When true, show English label only (no "en / ar"). */
+  englishOnly?: boolean;
 };
 
 function BilingualFilterDropdown({
@@ -97,9 +99,14 @@ function BilingualFilterDropdown({
   onClose,
   onSelect,
   onClear,
+  englishOnly = false,
 }: BilingualFilterDropdownProps) {
   const selected = options.find((o) => o.value === value);
-  const displayValue = selected ? `${selected.en} / ${selected.ar}` : "";
+  const displayValue = selected
+    ? englishOnly
+      ? selected.en
+      : `${selected.en} / ${selected.ar}`
+    : "";
 
   return (
     <FormField label={label} name={name} required={required} error={error}>
@@ -147,8 +154,14 @@ function BilingualFilterDropdown({
                 }}
                 className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
               >
-                <span>{opt.en} / </span>
-                <span>{opt.ar}</span>
+                {englishOnly ? (
+                  <span>{opt.en}</span>
+                ) : (
+                  <>
+                    <span>{opt.en} / </span>
+                    <span>{opt.ar}</span>
+                  </>
+                )}
               </button>
             ))}
           </>
@@ -217,18 +230,84 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
   const formActionsRef = useRef<HTMLDivElement>(null);
   const previousImageCountRef = useRef(formData.images.length);
 
+  const getAgeErrors = (
+    minAge: number,
+    maxAge: number,
+    changedField?: "minAge" | "maxAge",
+  ): { minAge?: string; maxAge?: string } => {
+    const minOk =
+      Number.isFinite(minAge) &&
+      Number.isInteger(minAge) &&
+      minAge >= 0 &&
+      minAge <= 150;
+    const maxOk =
+      Number.isFinite(maxAge) &&
+      Number.isInteger(maxAge) &&
+      maxAge >= 0 &&
+      maxAge <= 150;
+
+    // One error at a time — prefer the field the user just changed.
+    if (!minOk || !maxOk) {
+      if (changedField === "maxAge" && !maxOk) {
+        return { maxAge: t("validation.maxAgeInvalid") };
+      }
+      if (changedField === "minAge" && !minOk) {
+        return { minAge: t("validation.minAgeInvalid") };
+      }
+      if (!minOk) return { minAge: t("validation.minAgeInvalid") };
+      if (!maxOk) return { maxAge: t("validation.maxAgeInvalid") };
+    }
+
+    if (maxAge < minAge) {
+      if (changedField === "minAge") {
+        return { minAge: t("validation.minAgeCannotExceedMax") };
+      }
+      return { maxAge: t("validation.maxAgeCannotBeLessThanMin") };
+    }
+
+    return {};
+  };
+
+  const applyAgeErrors = (
+    minAge: number,
+    maxAge: number,
+    changedField?: "minAge" | "maxAge",
+  ) => {
+    const ageErrors = getAgeErrors(minAge, maxAge, changedField);
+    setFieldErrors((prev) => ({
+      ...prev,
+      minAge: ageErrors.minAge,
+      maxAge: ageErrors.maxAge,
+    }));
+  };
+
   const handleNumberChange = (
-    field: "basePrice" | "tailoringFee" | "estimatedDays",
+    field: "basePrice" | "tailoringFee" | "estimatedDays" | "minAge" | "maxAge",
     value: string,
   ) => {
     if (value === "") {
       handleChange(field, 0);
+      if (field === "minAge" || field === "maxAge") {
+        const nextMin = field === "minAge" ? 0 : formData.minAge;
+        const nextMax = field === "maxAge" ? 0 : formData.maxAge;
+        applyAgeErrors(nextMin, nextMax, field);
+      }
       return;
     }
+
     const num =
-      field === "estimatedDays" ? parseInt(value, 10) : parseFloat(value);
-    if (!Number.isNaN(num) && num >= 0) {
-      handleChange(field, num);
+      field === "estimatedDays" || field === "minAge" || field === "maxAge"
+        ? parseInt(value, 10)
+        : parseFloat(value);
+
+    if (Number.isNaN(num) || num < 0) return;
+
+    handleChange(field, num);
+
+    if (field === "minAge" || field === "maxAge") {
+      const nextMin = field === "minAge" ? num : formData.minAge;
+      const nextMax = field === "maxAge" ? num : formData.maxAge;
+      applyAgeErrors(nextMin, nextMax, field);
     }
   };
 
@@ -249,7 +328,11 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
         setFormData((prev) => {
           let next = prev;
           if (prev.category === "" && cats.length > 0) {
-            next = { ...next, category: cats[0].name };
+            next = {
+              ...next,
+              category: cats[0].name,
+              categoryAr: cats[0].nameAr || cats[0].name,
+            };
           }
           if (
             !isEditMode &&
@@ -338,6 +421,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
         const design = await fetchTailorDesign(designId);
         if (cancelled) return;
         setFormData(designToForm(design));
+        setFieldErrors({});
       } catch (err: unknown) {
         if (!cancelled) {
           const message = getApiErrorMessage(err, t("errors.loadFailed"));
@@ -419,13 +503,11 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
       cutOptions.map((cut) => {
         const meters = cut.metersEquivalent ?? cut.lengthInMeters ?? cut.value;
         const unitLabelEn = cut.unit === "war" ? "war" : "m";
-        const unitLabelAr = cut.unit === "war" ? "وار" : "متر";
         const enLabel = `${cut.name} (${cut.value} ${unitLabelEn} ≈ ${meters}m)`;
-        const arLabel = `${cut.nameAr || cut.name} (${cut.value} ${unitLabelAr} ≈ ${meters}م)`;
         return {
           value: cut._id,
           en: enLabel,
-          ar: arLabel,
+          ar: enLabel,
         };
       }),
     [cutOptions],
@@ -477,6 +559,10 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     ) {
       errors.estimatedDays = t("validation.estimatedDaysInvalid");
     }
+
+    const ageErrors = getAgeErrors(formData.minAge, formData.maxAge);
+    if (ageErrors.minAge) errors.minAge = ageErrors.minAge;
+    if (ageErrors.maxAge) errors.maxAge = ageErrors.maxAge;
 
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -654,8 +740,10 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
                 isOpen={openCategory}
                 onToggle={() => setOpenCategory(!openCategory)}
                 onClose={() => setOpenCategory(false)}
-                onSelect={(en) => handleChange("category", en)}
-                onClear={() => handleChange("category", "")}
+                onSelect={(en, ar) =>
+                  handleBilingualSelect("category", "categoryAr", en, ar)
+                }
+                onClear={() => clearBilingualSelect("category", "categoryAr")}
               />
               <BilingualFilterDropdown
                 label={t("fields.material")}
@@ -697,7 +785,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
               <BilingualFilterDropdown
                 label={t("fields.season")}
                 name="season"
@@ -736,11 +824,47 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
                 }
                 onClear={() => clearBilingualSelect("tag", "tagAr")}
               />
+              <FormField
+                label={t("fields.minAge")}
+                name="minAge"
+                required
+                error={fieldErrors.minAge}
+              >
+                <input
+                  id="minAge"
+                  type="number"
+                  min={0}
+                  max={150}
+                  step={1}
+                  value={getNumberDisplay(formData.minAge)}
+                  onChange={(e) => handleNumberChange("minAge", e.target.value)}
+                  className={INPUT_CLASS}
+                  placeholder="0"
+                />
+              </FormField>
+              <FormField
+                label={t("fields.maxAge")}
+                name="maxAge"
+                required
+                error={fieldErrors.maxAge}
+              >
+                <input
+                  id="maxAge"
+                  type="number"
+                  min={0}
+                  max={150}
+                  step={1}
+                  value={getNumberDisplay(formData.maxAge)}
+                  onChange={(e) => handleNumberChange("maxAge", e.target.value)}
+                  className={INPUT_CLASS}
+                  placeholder="0"
+                />
+              </FormField>
             </div>
           </div>
 
           <div className="md:col-span-2 space-y-4 sm:space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
               <FormField
                 label={t("fields.price")}
                 name="basePrice"
@@ -758,9 +882,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
                   className={INPUT_CLASS}
                 />
               </FormField>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
               <BilingualFilterDropdown
                 label={t("fields.minCut")}
                 name="minCutId"
@@ -776,7 +898,8 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
                 isOpen={openMinCut}
                 onToggle={() => setOpenMinCut(!openMinCut)}
                 onClose={() => setOpenMinCut(false)}
-                onSelect={(en, ar, val) => {
+                englishOnly
+                onSelect={(_en, _ar, val) => {
                   const selectedCut = cutOptions.find((c) => c._id === val);
                   const meters = selectedCut
                     ? (selectedCut.metersEquivalent ??

@@ -57,6 +57,11 @@ export interface FabricListItem {
   descriptionAr?: string;
   images?: string[];
   material: FabricMaterial;
+  materialAr?: string;
+  category?: string;
+  categoryAr?: string;
+  pattern?: string;
+  patternAr?: string;
   color?: string[];
   city?: string;
   tag?: string;

@@ -24,6 +24,7 @@ export interface TailorDesignProfile {
   descriptionAr: string;
   images: string[];
   category: string;
+  categoryAr: string;
   material: string;
   materialAr: string;
   season: string;
@@ -48,6 +49,8 @@ export interface TailorDesignProfile {
   };
   estimatedMeters?: number;
   estimatedDays: number;
+  minAge: number;
+  maxAge: number;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -61,6 +64,7 @@ export interface TailorDesignFormData {
   descriptionAr: string;
   images: string[];
   category: string;
+  categoryAr: string;
   material: string;
   materialAr: string;
   season: string;
@@ -75,6 +79,8 @@ export interface TailorDesignFormData {
   minCutId: string;
   estimatedMeters?: number;
   estimatedDays: number;
+  minAge: number;
+  maxAge: number;
   isActive: boolean;
 }
 
@@ -105,6 +111,7 @@ export function emptyTailorDesignForm(
     descriptionAr: "",
     images: [""],
     category: "",
+    categoryAr: "",
     material: "",
     materialAr: "",
     season: "",
@@ -119,6 +126,8 @@ export function emptyTailorDesignForm(
     minCutId: "",
     estimatedMeters: 3.5,
     estimatedDays: 7,
+    minAge: 0,
+    maxAge: 0,
     isActive: true,
   };
 }
@@ -151,6 +160,7 @@ export function designToForm(
     descriptionAr: design.descriptionAr ?? "",
     images: design.images?.length ? [...design.images] : [""],
     category: design.category ?? "",
+    categoryAr: design.categoryAr ?? "",
     material: design.material ?? "",
     materialAr: design.materialAr ?? "",
     season: design.season ?? "",
@@ -166,6 +176,8 @@ export function designToForm(
     estimatedMeters:
       design.minCutSnapshot?.lengthInMeters ?? design.estimatedMeters ?? 3.5,
     estimatedDays: design.estimatedDays ?? 7,
+    minAge: Number.isFinite(Number(design.minAge)) ? Number(design.minAge) : 0,
+    maxAge: Number.isFinite(Number(design.maxAge)) ? Number(design.maxAge) : 0,
     isActive: design.isActive ?? true,
   };
 }
@@ -184,6 +196,7 @@ export function toTailorDesignPayload(
     descriptionAr: form.descriptionAr.trim(),
     images: form.images.map((image) => image.trim()).filter(Boolean),
     category: form.category,
+    categoryAr: form.categoryAr.trim(),
     material: form.material.trim(),
     materialAr: form.materialAr.trim(),
     season: form.season.trim(),
@@ -198,6 +211,8 @@ export function toTailorDesignPayload(
     minCutId: form.minCutId,
     estimatedMeters: form.estimatedMeters ? Number(form.estimatedMeters) : undefined,
     estimatedDays: Number(form.estimatedDays),
+    minAge: Number(form.minAge),
+    maxAge: Number(form.maxAge),
     isActive: form.isActive,
   };
 }
@@ -252,7 +267,9 @@ export function isShopMissingError(error: unknown): boolean {
 }
 
 export async function fetchDesignCategories(): Promise<DesignCategoryOption[]> {
-  const data = await api.get<DesignCategoryOption[]>("/api/filters/categories");
+  const data = await api.get<DesignCategoryOption[]>(
+    "/api/filters/categories?domain=designs",
+  );
   return Array.isArray(data) ? data : [];
 }
 
@@ -262,12 +279,13 @@ async function fetchFilterOptions(endpoint: string): Promise<DesignFilterOption[
 }
 
 export const fetchDesignMaterials = () =>
-  fetchFilterOptions("/api/filters/materials");
+  fetchFilterOptions("/api/filters/materials?domain=designs");
 
 export const fetchDesignPatterns = () =>
-  fetchFilterOptions("/api/filters/patterns");
+  fetchFilterOptions("/api/filters/patterns?domain=designs");
 
 export const fetchDesignSeasons = () =>
-  fetchFilterOptions("/api/filters/seasons");
+  fetchFilterOptions("/api/filters/seasons?domain=designs");
 
-export const fetchDesignTags = () => fetchFilterOptions("/api/filters/tags");
+export const fetchDesignTags = () =>
+  fetchFilterOptions("/api/filters/tags?domain=designs");

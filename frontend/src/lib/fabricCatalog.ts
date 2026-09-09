@@ -29,6 +29,12 @@ export interface FabricProfile {
   images: string[];
   material: FabricMaterial | string;
   materialAr: string;
+  category: string;
+  categoryAr: string;
+  pattern: string;
+  patternAr: string;
+  season: string;
+  seasonAr: string;
   colors: string[];
   tag: string;
   tagAr: string;
@@ -59,8 +65,14 @@ export interface FabricFormData {
   description: string;
   descriptionAr: string;
   images: string[];
-  material: FabricMaterial | "";
+  material: FabricMaterial | string | "";
   materialAr: string;
+  category: string;
+  categoryAr: string;
+  pattern: string;
+  patternAr: string;
+  season: string;
+  seasonAr: string;
   colors: string[];
   tag: string;
   tagAr: string;
@@ -84,6 +96,12 @@ export function emptyFabricForm(): FabricFormData {
     images: [""],
     material: "",
     materialAr: "",
+    category: "",
+    categoryAr: "",
+    pattern: "",
+    patternAr: "",
+    season: "",
+    seasonAr: "",
     colors: [],
     tag: "",
     tagAr: "",
@@ -121,10 +139,14 @@ export function fabricToForm(fabric: FabricProfile): FabricFormData {
     description: fabric.description ?? "",
     descriptionAr: fabric.descriptionAr ?? "",
     images: fabric.images?.length ? [...fabric.images] : [""],
-    material: (FABRIC_MATERIALS.includes(fabric.material as FabricMaterial)
-      ? fabric.material
-      : "") as FabricMaterial | "",
+    material: fabric.material ?? "",
     materialAr: fabric.materialAr ?? "",
+    category: fabric.category ?? "",
+    categoryAr: fabric.categoryAr ?? "",
+    pattern: fabric.pattern ?? "",
+    patternAr: fabric.patternAr ?? "",
+    season: fabric.season ?? "",
+    seasonAr: fabric.seasonAr ?? "",
     colors: fabric.colors?.length ? [...fabric.colors] : [],
     tag: fabric.tag ?? "",
     tagAr: fabric.tagAr ?? "",
@@ -164,6 +186,12 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
     images: form.images.map((image) => image.trim()).filter(Boolean),
     material: form.material,
     materialAr: form.materialAr.trim(),
+    category: form.category.trim(),
+    categoryAr: form.categoryAr.trim(),
+    pattern: form.pattern.trim(),
+    patternAr: form.patternAr.trim(),
+    season: form.season.trim(),
+    seasonAr: form.seasonAr.trim(),
     colors: form.colors.map((c) => c.trim()).filter(Boolean),
     tag: form.tag.trim(),
     tagAr: form.tagAr.trim(),
@@ -188,6 +216,12 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
       images: v.images.map((image) => image.trim()).filter(Boolean),
       material: v.material,
       materialAr: v.materialAr.trim(),
+      category: v.category.trim(),
+      categoryAr: v.categoryAr.trim(),
+      pattern: v.pattern.trim(),
+      patternAr: v.patternAr.trim(),
+      season: v.season.trim(),
+      seasonAr: v.seasonAr.trim(),
       colors: v.colors.map((c) => c.trim()).filter(Boolean),
       tag: v.tag.trim(),
       tagAr: v.tagAr.trim(),

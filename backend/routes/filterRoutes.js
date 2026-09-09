@@ -14,10 +14,14 @@ const filterRoutes = express.Router();
 filterRoutes.get("/categories", async (req, res) => {
   try {
     const filter = { isActive: true };
+    const domain = String(req.query.domain || "").trim();
+    if (domain) {
+      filter.domain = { $in: [domain, "general"] };
+    }
 
     const categories = await Category.find(filter)
       .sort({ sortOrder: 1, name: 1 })
-      .select("name nameAr isActive sortOrder");
+      .select("name nameAr domain isActive sortOrder");
 
     res.json(categories);
   } catch (error) {
@@ -32,11 +36,15 @@ filterRoutes.get("/categories", async (req, res) => {
 // GET /api/filters/materials
 filterRoutes.get("/materials", async (req, res) => {
   try {
-    const materials = await Material.find({
-      isActive: true,
-    })
+    const filter = { isActive: true };
+    const domain = String(req.query.domain || "").trim();
+    if (domain) {
+      filter.domain = { $in: [domain, "general"] };
+    }
+
+    const materials = await Material.find(filter)
       .sort({ name: 1 })
-      .select("name nameAr isActive");
+      .select("name nameAr domain isActive");
 
     res.json(materials);
   } catch (error) {
@@ -51,11 +59,15 @@ filterRoutes.get("/materials", async (req, res) => {
 // GET /api/filters/patterns
 filterRoutes.get("/patterns", async (req, res) => {
   try {
-    const patterns = await Pattern.find({
-      isActive: true,
-    })
+    const filter = { isActive: true };
+    const domain = String(req.query.domain || "").trim();
+    if (domain) {
+      filter.domain = { $in: [domain, "general"] };
+    }
+
+    const patterns = await Pattern.find(filter)
       .sort({ name: 1 })
-      .select("name nameAr isActive");
+      .select("name nameAr domain isActive");
 
     res.json(patterns);
   } catch (error) {
@@ -70,11 +82,15 @@ filterRoutes.get("/patterns", async (req, res) => {
 // GET /api/filters/seasons
 filterRoutes.get("/seasons", async (req, res) => {
   try {
-    const seasons = await Season.find({
-      isActive: true,
-    })
+    const filter = { isActive: true };
+    const domain = String(req.query.domain || "").trim();
+    if (domain) {
+      filter.domain = { $in: [domain, "general"] };
+    }
+
+    const seasons = await Season.find(filter)
       .sort({ name: 1 })
-      .select("name nameAr isActive");
+      .select("name nameAr domain isActive");
 
     res.json(seasons);
   } catch (error) {
@@ -116,11 +132,15 @@ filterRoutes.get("/cuts", async (req, res) => {
 // GET /api/filters/tags
 filterRoutes.get("/tags", async (req, res) => {
   try {
-    const tags = await Tag.find({
-      isActive: true,
-    })
+    const filter = { isActive: true };
+    const domain = String(req.query.domain || "").trim();
+    if (domain) {
+      filter.domain = { $in: [domain, "general"] };
+    }
+
+    const tags = await Tag.find(filter)
       .sort({ name: 1 })
-      .select("name nameAr isActive");
+      .select("name nameAr domain isActive");
 
     res.json(tags);
   } catch (error) {

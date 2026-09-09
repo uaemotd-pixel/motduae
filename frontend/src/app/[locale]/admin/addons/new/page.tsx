@@ -26,8 +26,12 @@ interface AddOnFormData {
   descriptionAr: string;
   material: string;
   materialAr: string;
+  category: string;
+  categoryAr: string;
   design: string;
   designAr: string;
+  pattern: string;
+  patternAr: string;
   season: string;
   seasonAr: string;
   tag: string;
@@ -46,16 +50,19 @@ export default function AdminNewAddOnPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [dbMaterials, setDbMaterials] = useState<FilterItem[]>([]);
+  const [dbCategories, setDbCategories] = useState<FilterItem[]>([]);
   const [dbDesigns, setDbDesigns] = useState<FilterItem[]>([]);
   const [dbSeasons, setDbSeasons] = useState<FilterItem[]>([]);
   const [dbTags, setDbTags] = useState<FilterItem[]>([]);
 
   const [materialsLoading, setMaterialsLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [designsLoading, setDesignsLoading] = useState(true);
   const [seasonsLoading, setSeasonsLoading] = useState(true);
   const [tagsLoading, setTagsLoading] = useState(true);
 
   const [openMaterial, setOpenMaterial] = useState(false);
+  const [openCategory, setOpenCategory] = useState(false);
   const [openDesign, setOpenDesign] = useState(false);
   const [openSeason, setOpenSeason] = useState(false);
   const [openTag, setOpenTag] = useState(false);
@@ -70,8 +77,12 @@ export default function AdminNewAddOnPage() {
     descriptionAr: "",
     material: "",
     materialAr: "",
+    category: "",
+    categoryAr: "",
     design: "",
     designAr: "",
+    pattern: "",
+    patternAr: "",
     season: "",
     seasonAr: "",
     tag: "",
@@ -96,10 +107,26 @@ export default function AdminNewAddOnPage() {
       }
     };
 
+    const fetchCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const data = await api.get<FilterItem[]>(
+          "/api/filters/categories?domain=add-ons",
+        );
+        if (!cancelled && Array.isArray(data)) setDbCategories(data);
+      } catch {
+        // fall back to empty
+      } finally {
+        if (!cancelled) setCategoriesLoading(false);
+      }
+    };
+
     const fetchDesigns = async () => {
       try {
         setDesignsLoading(true);
-        const data = await api.get<FilterItem[]>("/api/filters/patterns");
+        const data = await api.get<FilterItem[]>(
+          "/api/filters/patterns?domain=add-ons",
+        );
         if (!cancelled && Array.isArray(data)) setDbDesigns(data);
       } catch {
         // fall back to empty
@@ -111,7 +138,9 @@ export default function AdminNewAddOnPage() {
     const fetchSeasons = async () => {
       try {
         setSeasonsLoading(true);
-        const data = await api.get<FilterItem[]>("/api/filters/seasons");
+        const data = await api.get<FilterItem[]>(
+          "/api/filters/seasons?domain=add-ons",
+        );
         if (!cancelled && Array.isArray(data)) setDbSeasons(data);
       } catch {
         // fall back to empty
@@ -133,6 +162,7 @@ export default function AdminNewAddOnPage() {
     };
 
     void fetchMaterials();
+    void fetchCategories();
     void fetchDesigns();
     void fetchSeasons();
     void fetchTags();
@@ -245,6 +275,12 @@ export default function AdminNewAddOnPage() {
     value: m.name,
     en: m.name,
     ar: m.nameAr || m.name,
+  }));
+
+  const categoryOptions = dbCategories.map((c) => ({
+    value: c.name,
+    en: c.name,
+    ar: c.nameAr || c.name,
   }));
 
   const designOptions = dbDesigns.map((d) => ({
@@ -368,7 +404,7 @@ export default function AdminNewAddOnPage() {
             />
           </FormField>
 
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
             <FormField
               label="Material (ENG / AR)"
               name="material"
@@ -438,7 +474,75 @@ export default function AdminNewAddOnPage() {
             </FormField>
 
             <FormField
-              label="Design (ENG / AR)"
+              label="Category (ENG / AR)"
+              name="category"
+              error={fieldErrors.category}
+            >
+              <AnimatedDropdown
+                isOpen={openCategory}
+                onClose={() => setOpenCategory(false)}
+                trigger={
+                  <SelectTrigger
+                    value={formData.category}
+                    placeholder={
+                      categoriesLoading ? "Loading..." : "Select category"
+                    }
+                    displayValue={(() => {
+                      const opt = categoryOptions.find(
+                        (o) => o.value === formData.category,
+                      );
+                      if (!opt) return "";
+                      return `${opt.en} / ${opt.ar}`;
+                    })()}
+                    onClick={() => setOpenCategory(!openCategory)}
+                  />
+                }
+                dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+                position="bottom-left"
+              >
+                {categoriesLoading ? (
+                  <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                    Loading categories...
+                  </div>
+                ) : categoryOptions.length === 0 ? (
+                  <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                    No categories found
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleChange("category", "");
+                        handleChange("categoryAr", "");
+                        setOpenCategory(false);
+                      }}
+                      className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                    >
+                      Select category
+                    </button>
+                    {categoryOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          handleChange("category", opt.en);
+                          handleChange("categoryAr", opt.ar);
+                          setOpenCategory(false);
+                        }}
+                        className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                      >
+                        <span>{opt.en} / </span>
+                        <span>{opt.ar}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </AnimatedDropdown>
+            </FormField>
+
+            <FormField
+              label="Pattern (ENG / AR)"
               name="design"
               error={fieldErrors.design}
             >
@@ -447,13 +551,14 @@ export default function AdminNewAddOnPage() {
                 onClose={() => setOpenDesign(false)}
                 trigger={
                   <SelectTrigger
-                    value={formData.design}
+                    value={formData.design || formData.pattern}
                     placeholder={
-                      designsLoading ? "Loading..." : "Select design"
+                      designsLoading ? "Loading..." : "Select pattern"
                     }
                     displayValue={(() => {
+                      const current = formData.design || formData.pattern;
                       const opt = designOptions.find(
-                        (o) => o.value === formData.design,
+                        (o) => o.value === current,
                       );
                       if (!opt) return "";
                       return `${opt.en} / ${opt.ar}`;
@@ -466,11 +571,11 @@ export default function AdminNewAddOnPage() {
               >
                 {designsLoading ? (
                   <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-                    Loading designs...
+                    Loading patterns...
                   </div>
                 ) : designOptions.length === 0 ? (
                   <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-                    No designs found
+                    No patterns found
                   </div>
                 ) : (
                   <>
@@ -479,11 +584,13 @@ export default function AdminNewAddOnPage() {
                       onClick={() => {
                         handleChange("design", "");
                         handleChange("designAr", "");
+                        handleChange("pattern", "");
+                        handleChange("patternAr", "");
                         setOpenDesign(false);
                       }}
                       className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
                     >
-                      Select design
+                      Select pattern
                     </button>
                     {designOptions.map((opt) => (
                       <button
@@ -492,6 +599,8 @@ export default function AdminNewAddOnPage() {
                         onClick={() => {
                           handleChange("design", opt.en);
                           handleChange("designAr", opt.ar);
+                          handleChange("pattern", opt.en);
+                          handleChange("patternAr", opt.ar);
                           setOpenDesign(false);
                         }}
                         className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"

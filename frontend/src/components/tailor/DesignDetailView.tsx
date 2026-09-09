@@ -65,6 +65,8 @@ export interface DesignDetailItem {
   };
   estimatedMeters: number;
   estimatedDays: number;
+  minAge?: number;
+  maxAge?: number;
   tailorShop: TailorShopInfo;
 }
 
@@ -77,6 +79,8 @@ type DesignDetailViewProps = {
     estimatedMeters: string;
     estimatedDays: string;
     days: string;
+    ageRange: string;
+    years: string;
     city: string;
     startingPrice: string;
     selectForCustomOrder: string;
@@ -478,7 +482,7 @@ export default function DesignDetailView({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.25 }}
-                className="grid grid-cols-3 gap-4 py-5 border-y border-(--color-border)"
+                className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-5 border-y border-(--color-border)"
               >
                 <div>
                   <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted)">
@@ -504,6 +508,15 @@ export default function DesignDetailView({
                   </p>
                   <p className="[font-family:var(--font-body)] text-base text-black mt-1 font-normal">
                     {design.estimatedDays} {labels.days}
+                  </p>
+                </div>
+                <div>
+                  <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted)">
+                    {labels.ageRange}
+                  </p>
+                  <p className="[font-family:var(--font-body)] text-base text-black mt-1 font-normal">
+                    {Number(design.minAge) || 0}–{Number(design.maxAge) || 0}{" "}
+                    {labels.years}
                   </p>
                 </div>
               </motion.div>
