@@ -148,6 +148,110 @@ function sumCustomFabricGross(order) {
   return fabricFee + addOnsFee;
 }
 
+function sumCustomAddonsGross(order) {
+  return (order.addons || order.addOns || []).reduce(
+    (sum, addon) => sum + (Number(addon?.price) || 0),
+    0,
+  );
+}
+
+/**
+ * Customer-paid custom-order total for dashboards.
+ * Newer orders already bake add-ons into pricing.total; older ones may not.
+ */
+function customOrderDashboardRevenue(order) {
+  const pricing = order?.pricing || {};
+  const storedTotal = Number(pricing.total) || 0;
+  const addonsCost =
+    Number(pricing.addonsCost) > 0
+      ? Number(pricing.addonsCost)
+      : sumCustomAddonsGross(order);
+  if (addonsCost <= 0) return storedTotal;
+
+  const garmentSubtotal =
+    (Number(pricing.designBase) || 0) +
+    (Number(pricing.fabricCost) || 0) +
+    (Number(pricing.tailoringFee) || 0) +
+    (Number(pricing.deliveryFee) || 0);
+  const subtotal = Number(pricing.subtotal) || 0;
+  if (subtotal + 0.05 >= garmentSubtotal + addonsCost) return storedTotal;
+
+  const vatRate = Number(pricing.vatRate) || 0;
+  return Number((storedTotal + addonsCost * (1 + vatRate)).toFixed(2));
+}
+
+function customDashboardRevenueStages() {
+  return [
+    {
+      $addFields: {
+        _addonsCost: {
+          $cond: [
+            { $gt: [{ $ifNull: ["$pricing.addonsCost", 0] }, 0] },
+            "$pricing.addonsCost",
+            {
+              $sum: {
+                $map: {
+                  input: { $ifNull: ["$addons", []] },
+                  as: "addon",
+                  in: { $ifNull: ["$$addon.price", 0] },
+                },
+              },
+            },
+          ],
+        },
+        _garmentSubtotal: {
+          $add: [
+            { $ifNull: ["$pricing.designBase", 0] },
+            { $ifNull: ["$pricing.fabricCost", 0] },
+            { $ifNull: ["$pricing.tailoringFee", 0] },
+            { $ifNull: ["$pricing.deliveryFee", 0] },
+          ],
+        },
+      },
+    },
+    {
+      $addFields: {
+        dashboardRevenue: {
+          $let: {
+            vars: {
+              storedTotal: { $ifNull: ["$pricing.total", 0] },
+              vatRate: { $ifNull: ["$pricing.vatRate", 0] },
+              subtotal: { $ifNull: ["$pricing.subtotal", 0] },
+            },
+            in: {
+              $cond: [
+                {
+                  $gte: [
+                    { $add: ["$$subtotal", 0.05] },
+                    { $add: ["$_garmentSubtotal", "$_addonsCost"] },
+                  ],
+                },
+                "$$storedTotal",
+                {
+                  $round: [
+                    {
+                      $add: [
+                        "$$storedTotal",
+                        {
+                          $multiply: [
+                            "$_addonsCost",
+                            { $add: [1, "$$vatRate"] },
+                          ],
+                        },
+                      ],
+                    },
+                    2,
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  ];
+}
+
 /** Admin-wide retail fabric-store gross = line totals (ready-made / add-ons / fabric). */
 function sumRetailFabricGross(order) {
   return (order.orderItems || []).reduce(
@@ -2288,7 +2392,7 @@ adminRouter.get(
     });
 
     const revenueExprRetail = "$totalPrice";
-    const revenueExprCustom = "$pricing.total";
+    const customRevenueStages = customDashboardRevenueStages();
 
     // Current window aggregates
     const [retailNow, customNow] = await Promise.all([
@@ -2304,11 +2408,12 @@ adminRouter.get(
       ]),
       CustomOrder.aggregate([
         { $match: { createdAt: { $gte: start, $lte: end } } },
+        ...customRevenueStages,
         {
           $group: {
             _id: null,
             orderCount: { $sum: 1 },
-            revenue: { $sum: revenueExprCustom },
+            revenue: { $sum: "$dashboardRevenue" },
           },
         },
       ]),
@@ -2331,11 +2436,12 @@ adminRouter.get(
       ]),
       CustomOrder.aggregate([
         { $match: { createdAt: { $gte: prevStart, $lte: prevEnd } } },
+        ...customRevenueStages,
         {
           $group: {
             _id: null,
             orderCount: { $sum: 1 },
-            revenue: { $sum: revenueExprCustom },
+            revenue: { $sum: "$dashboardRevenue" },
           },
         },
       ]),
@@ -2391,6 +2497,7 @@ adminRouter.get(
       ]),
       CustomOrder.aggregate([
         { $match: { createdAt: { $gte: startRange, $lte: endRange } } },
+        ...customRevenueStages,
         {
           $group: {
             _id: {
@@ -2398,7 +2505,7 @@ adminRouter.get(
               month: { $month: "$createdAt" },
             },
             orderCount: { $sum: 1 },
-            revenue: { $sum: "$pricing.total" },
+            revenue: { $sum: "$dashboardRevenue" },
           },
         },
       ]),
@@ -2434,7 +2541,7 @@ adminRouter.get(
       CustomOrder.find({})
         .sort({ createdAt: -1 })
         .limit(5)
-        .select("_id createdAt status pricing")
+        .select("_id createdAt status pricing addons")
         .lean(),
     ]);
 
@@ -2449,7 +2556,7 @@ adminRouter.get(
     const normalizedCustom = (recentCustom || []).map((o) => ({
       id: o._id.toString(),
       type: "custom",
-      amount: o.pricing?.total || 0,
+      amount: customOrderDashboardRevenue(o),
       status: o.status,
       date: o.createdAt ? o.createdAt.toISOString() : "",
     }));
@@ -2510,6 +2617,7 @@ adminRouter.get(
       lowAddonCount,
       topFabricsAgg,
       topProductsAgg,
+      customAddonProductsAgg,
       topTailorsAgg,
       retailTopFabricsAgg,
     ] = await Promise.all([
@@ -2586,6 +2694,27 @@ adminRouter.get(
               },
             },
             quantity: { $sum: "$orderItems.quantity" },
+          },
+        },
+        { $sort: { revenue: -1 } },
+        { $limit: 5 },
+      ]),
+      CustomOrder.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: start, $lte: end },
+            "addons.0": { $exists: true },
+          },
+        },
+        { $unwind: "$addons" },
+        {
+          $group: {
+            _id: {
+              id: "$addons.addonId",
+              name: "$addons.name",
+            },
+            revenue: { $sum: { $ifNull: ["$addons.price", 0] } },
+            quantity: { $sum: 1 },
           },
         },
         { $sort: { revenue: -1 } },
@@ -2698,12 +2827,47 @@ adminRouter.get(
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
 
-    const topProducts = (topProductsAgg || []).map((row, i) => ({
-      id: row._id?.id ? String(row._id.id) : String(i),
-      name: row._id?.name || "Unknown",
-      value: row.revenue || 0,
-      meta: `${row.quantity || 0} sold`,
-    }));
+    const productRevenueByKey = new Map();
+    const addProductRow = (id, name, revenue, quantity) => {
+      const key = id || name;
+      const prev = productRevenueByKey.get(key) || {
+        id,
+        name,
+        revenue: 0,
+        quantity: 0,
+      };
+      productRevenueByKey.set(key, {
+        id: prev.id || id,
+        name: prev.name || name,
+        revenue: prev.revenue + (revenue || 0),
+        quantity: prev.quantity + (quantity || 0),
+      });
+    };
+    for (const row of topProductsAgg || []) {
+      addProductRow(
+        row._id?.id ? String(row._id.id) : "",
+        row._id?.name || "Unknown",
+        row.revenue || 0,
+        row.quantity || 0,
+      );
+    }
+    for (const row of customAddonProductsAgg || []) {
+      addProductRow(
+        row._id?.id ? String(row._id.id) : "",
+        row._id?.name || "Unknown",
+        row.revenue || 0,
+        row.quantity || 0,
+      );
+    }
+    const topProducts = Array.from(productRevenueByKey.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5)
+      .map((row, i) => ({
+        id: row.id || String(i),
+        name: row.name || "Unknown",
+        value: row.revenue || 0,
+        meta: `${row.quantity || 0} sold`,
+      }));
 
     const topTailors = (topTailorsAgg || []).map((row) => ({
       id: row._id ? String(row._id) : row.name,

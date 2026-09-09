@@ -204,6 +204,7 @@ const pricingSchema = new mongoose.Schema(
       default: [],
     },
     subtotal: { type: Number, required: true, min: 0 },
+    addonsCost: { type: Number, default: 0, min: 0 },
     vatRate: { type: Number, default: 0.05, min: 0, max: 1 },
     vatAmount: { type: Number, required: true, min: 0 },
     total: { type: Number, required: true, min: 0 },

@@ -9,6 +9,11 @@ import PartnerPayout from "../models/PartnerPayout.js";
 import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
 import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
 import { splitMotdCommission } from "./pricingService.js";
+import {
+  buildFabricStoreCustomOrderMatch,
+  isStoreOwnedCustomAddon,
+  isStoreOwnedCustomItem,
+} from "./fabricPortalCustomOrderScope.js";
 
 const DEFAULT_FABRIC_COMMISSION_PERCENT = 15;
 
@@ -28,6 +33,61 @@ export function resolveFabricCommissionPercent(settings) {
     return Math.min(100, Math.max(0, settings.motdCommissionFromFabricStore));
   }
   return DEFAULT_FABRIC_COMMISSION_PERCENT;
+}
+
+function asId(value) {
+  if (value == null) return "";
+  if (typeof value === "object" && value._id != null) return String(value._id);
+  return String(value);
+}
+
+export { isStoreOwnedCustomItem };
+
+export function sumStoreCustomAddOnsFee(order, storeAddonIdSet, shopIdStr = "") {
+  return (order.addons || []).reduce((sum, addon) => {
+    if (
+      !isStoreOwnedCustomAddon(addon, {
+        storeAddonIdSet,
+        shopIdStr,
+      })
+    ) {
+      return sum;
+    }
+    return sum + (Number(addon.price) || 0);
+  }, 0);
+}
+
+/** Fabric lines + this store's add-ons on a custom order (gross, before commission). */
+export function sumStoreCustomOrderGross(order, ctx) {
+  const { ownerUserIdStr, shopIdStr, storeFabricIdSet, storeAddonIdSet } = ctx;
+  let fabricFee = 0;
+  if (String(order.fabricSource || "") !== "self") {
+    if (order.items && order.items.length > 0) {
+      fabricFee = order.items
+        .filter((item) =>
+          isStoreOwnedCustomItem(item, {
+            ownerUserIdStr,
+            shopIdStr,
+            storeFabricIdSet,
+          }),
+        )
+        .reduce(
+          (sum, item) => sum + (Number(item.pricing?.fabricCost) || 0),
+          0,
+        );
+    } else {
+      const rootSid = asId(order.fabricStoreId);
+      const rootFabricId = asId(order.fabricId);
+      if (
+        rootSid === ownerUserIdStr ||
+        (shopIdStr && rootSid === shopIdStr) ||
+        (rootFabricId && storeFabricIdSet.has(rootFabricId))
+      ) {
+        fabricFee = Number(order.pricing?.fabricCost) || 0;
+      }
+    }
+  }
+  return fabricFee + sumStoreCustomAddOnsFee(order, storeAddonIdSet, shopIdStr);
 }
 
 export function buildFabricPartnerIdentity(shop, ownerUserId) {
@@ -163,76 +223,21 @@ export async function computeFabricUnpaidBreakdown(ownerUserId) {
     ...storeAddonIdValues,
   ];
 
-  const primaryMatch = {
-    $or: [
-      { fabricStoreId: ownerUserId },
-      { "items.fabricStoreId": ownerUserId },
-      ...(shopIdStr
-        ? [{ fabricStoreId: shop._id }, { "items.fabricStoreId": shop._id }]
-        : []),
-      ...(storeAddonIdValues.length
-        ? [{ "addons.addonId": { $in: storeAddonIdValues } }]
-        : []),
-    ],
+  const orderMatch = buildFabricStoreCustomOrderMatch({
+    ownerUserId,
+    shop,
+    storeFabricIdValues: storeFabricIds.map((f) => f._id),
+    storeAddonIdValues,
+  });
+
+  const storeGrossCtx = {
+    ownerUserIdStr,
+    shopIdStr,
+    storeFabricIdSet,
+    storeAddonIdSet,
   };
-  const legacyMatch = storeFabricIds.length
-    ? {
-        $or: [
-          { fabricId: { $in: storeFabricIds.map((f) => f._id) } },
-          { "items.fabricId": { $in: storeFabricIds.map((f) => f._id) } },
-        ],
-      }
-    : null;
-  const orderMatch = legacyMatch
-    ? { $or: [primaryMatch, legacyMatch] }
-    : primaryMatch;
-
-  const isStoreOwnedItem = (item) => {
-    const sid =
-      item.fabricStoreId?._id?.toString?.() ||
-      item.fabricStoreId?.toString?.() ||
-      "";
-    if (sid && (sid === ownerUserIdStr || (shopIdStr && sid === shopIdStr))) {
-      return true;
-    }
-    const fabricId =
-      item.fabricId?._id?.toString?.() || item.fabricId?.toString?.() || "";
-    return Boolean(fabricId && storeFabricIdSet.has(fabricId));
-  };
-
-  const sumCustomFabricFee = (order) => {
-    let fabricFee = 0;
-    if (order.items && order.items.length > 0) {
-      fabricFee = order.items
-        .filter(isStoreOwnedItem)
-        .reduce((sum, item) => sum + (item.pricing?.fabricCost || 0), 0);
-    } else {
-      const rootSid =
-        order.fabricStoreId?._id?.toString?.() ||
-        order.fabricStoreId?.toString?.() ||
-        "";
-      const rootFabricId =
-        order.fabricId?._id?.toString?.() || order.fabricId?.toString?.() || "";
-      if (
-        rootSid === ownerUserIdStr ||
-        (shopIdStr && rootSid === shopIdStr) ||
-        (rootFabricId && storeFabricIdSet.has(rootFabricId))
-      ) {
-        fabricFee = order.pricing?.fabricCost || 0;
-      }
-    }
-
-    const addOnsFee = (order.addons || []).reduce((sum, addon) => {
-      const addonId =
-        addon.addonId?._id?.toString?.() ||
-        addon.addonId?.toString?.() ||
-        "";
-      if (!addonId || !storeAddonIdSet.has(addonId)) return sum;
-      return sum + (Number(addon.price) || 0);
-    }, 0);
-
-    return fabricFee + addOnsFee;
-  };
+  const sumCustomFabricFee = (order) =>
+    sumStoreCustomOrderGross(order, storeGrossCtx);
 
   const isStoreRetailItem = (item) => {
     const pid =

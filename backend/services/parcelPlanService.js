@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import Design from '../models/Design.js';
 import Fabric from '../models/Fabric.js';
 import FabricShop from '../models/FabricShop.js';
@@ -30,8 +29,13 @@ const PARTY_KINDS = Object.freeze({
 const roundMoney = (amount) => Number(Number(amount).toFixed(2));
 
 function idStr(value) {
-  if (value == null) return null;
-  return String(value);
+  if (value == null || value === '') return null;
+  if (typeof value === 'object') {
+    if (value._id != null && value._id !== value) return idStr(value._id);
+    if (typeof value.toHexString === 'function') return value.toHexString();
+  }
+  const asString = String(value);
+  return !asString || asString === '[object Object]' ? null : asString;
 }
 
 function party(kind, id = null, label = '') {
@@ -66,13 +70,6 @@ const LAST_MILE_TYPES = new Set([
   PARCEL_TYPES.ADDON_TO_CUSTOMER,
   PARCEL_TYPES.MOTD_TO_CUSTOMER,
 ]);
-
-function addressOriginId(address) {
-  const key = [address.line1, address.line2, address.city, address.emirate]
-    .map((part) => String(part || '').trim().toLowerCase().replace(/\s+/g, ' '))
-    .join('|');
-  return `addr_${crypto.createHash('sha1').update(key).digest('hex').slice(0, 12)}`;
-}
 
 function customerSafeOriginName(name, fallback = '') {
   const trimmed = String(name || '').trim();
@@ -216,16 +213,114 @@ function upsertDirectLastMile(map, {
   });
 }
 
+function isMotdOwnerName(name) {
+  return /^(motd)(\s+admin)?$/i.test(String(name || '').trim());
+}
+
+function normalizeOwnerKey(name) {
+  const trimmed = String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  if (!trimmed || isMotdOwnerName(trimmed)) return null;
+  return trimmed;
+}
+
+function isListingScopedOriginId(id) {
+  const value = String(id || '');
+  return (
+    value.startsWith('addr_') ||
+    value.startsWith('addon:') ||
+    value.startsWith('product:') ||
+    value.startsWith('fabric:')
+  );
+}
+
 /**
- * Last-mile identity is the fabric store, not the listing.
- * Listing pickup hashes / product ids would split same-shop lines into extra AED 30 fees.
+ * Last-mile identity is the store (or MOTD), never a listing.
+ * Pickup-address hashes and product ids would bill two same-shop add-ons twice.
  */
 function lastMileOriginParty(origin) {
-  const storeId = origin?.fabricShopId || origin?.shopId;
-  const kind = origin?.fabricShopId
-    ? PARTY_KINDS.FABRIC_SHOP
-    : origin?.partyKind || PARTY_KINDS.FABRIC_SHOP;
-  return party(kind, storeId, origin?.shopName || 'Shop');
+  const storeId = idStr(origin?.fabricShopId);
+  if (storeId) {
+    return party(PARTY_KINDS.FABRIC_SHOP, storeId, origin?.shopName || 'Shop');
+  }
+
+  const shopId = idStr(origin?.shopId);
+  if (shopId && !isListingScopedOriginId(shopId)) {
+    return party(
+      origin?.partyKind || PARTY_KINDS.FABRIC_SHOP,
+      shopId,
+      origin?.shopName || 'Shop',
+    );
+  }
+
+  const ownerKey = normalizeOwnerKey(origin?.ownerName || origin?.shopName);
+  if (ownerKey) {
+    return party(
+      PARTY_KINDS.FABRIC_SHOP,
+      `owner:${ownerKey}`,
+      origin?.shopName || origin?.ownerName || 'Shop',
+    );
+  }
+
+  return party(PARTY_KINDS.MOTD, 'motd', origin?.shopName || 'MOTD');
+}
+
+/**
+ * Canonical store for an add-on / ready-made listing.
+ * fabricShopId first, then shop matched by ownerName, else one MOTD origin.
+ */
+async function resolveProductStore(product, shopCache = new Map()) {
+  const fabricShopId = idStr(product?.fabricShopId);
+  if (fabricShopId) {
+    const cacheKey = `id:${fabricShopId}`;
+    if (shopCache.has(cacheKey)) return shopCache.get(cacheKey);
+    const shop = await resolveFabricShopById(fabricShopId);
+    const resolved = {
+      fabricShopId,
+      shopId: fabricShopId,
+      shopName: shop?.name || product.ownerName || 'Shop',
+      ownerName: product.ownerName || shop?.name || '',
+      partyKind: PARTY_KINDS.FABRIC_SHOP,
+    };
+    shopCache.set(cacheKey, resolved);
+    return resolved;
+  }
+
+  const ownerName = String(product?.ownerName || '').trim();
+  if (ownerName && !isMotdOwnerName(ownerName)) {
+    const cacheKey = `name:${ownerName.toLowerCase()}`;
+    if (shopCache.has(cacheKey)) return shopCache.get(cacheKey);
+    const shop = await FabricShop.findOne({
+      $or: [{ name: ownerName }, { nameAr: ownerName }],
+    }).select('name nameAr');
+    const resolved = shop
+      ? {
+          fabricShopId: idStr(shop._id),
+          shopId: idStr(shop._id),
+          shopName: shop.name || shop.nameAr || ownerName,
+          ownerName,
+          partyKind: PARTY_KINDS.FABRIC_SHOP,
+        }
+      : {
+          fabricShopId: null,
+          shopId: `owner:${normalizeOwnerKey(ownerName)}`,
+          shopName: ownerName,
+          ownerName,
+          partyKind: PARTY_KINDS.FABRIC_SHOP,
+        };
+    shopCache.set(cacheKey, resolved);
+    return resolved;
+  }
+
+  return {
+    fabricShopId: null,
+    shopId: 'motd',
+    shopName: 'MOTD',
+    ownerName: ownerName || 'MOTD Admin',
+    partyKind: PARTY_KINDS.MOTD,
+  };
 }
 
 async function resolveFabricShopForFabric(fabric) {
@@ -289,6 +384,7 @@ export async function planCustomOrderParcels({
 
   const parcelMap = new Map();
   const tailorCache = new Map();
+  const shopCache = new Map();
   const customerParty = party(PARTY_KINDS.CUSTOMER, null, 'Customer');
 
   for (let index = 0; index < items.length; index += 1) {
@@ -357,7 +453,7 @@ export async function planCustomOrderParcels({
     );
 
     for (const addon of addons) {
-      const origin = await resolveAddonOrigin(addon);
+      const origin = await resolveAddonOrigin(addon, shopCache);
 
       upsertDirectLastMile(parcelMap, {
         type: PARCEL_TYPES.ADDON_TO_CUSTOMER,
@@ -374,72 +470,30 @@ export async function planCustomOrderParcels({
 }
 
 /**
- * MOTD warehouse origin when the listing has a complete pickupAddress;
- * otherwise the linked fabric shop (legacy).
+ * Store origin for an add-on. Listing pickupAddress is the Shipa pickup only,
+ * not a unique billed parcel — two add-ons from the same store share one fee.
  */
-async function resolveAddonOrigin(addon) {
-  const productPickup = normalizeShopPickupAddress(addon.pickupAddress);
-  if (productPickup) {
-    return {
-      fabricShopId: addon.fabricShopId || null,
-      shopId: addressOriginId(productPickup),
-      shopName: customerSafeOriginName(
-        addon.ownerName || addon.name,
-        addon.name || 'Add-on',
-      ),
-      partyKind: PARTY_KINDS.MOTD,
-      alreadyAtMotd: true,
-      pickupAddress: productPickup,
-    };
-  }
-
-  const shop = addon.fabricShopId
-    ? await resolveFabricShopById(addon.fabricShopId)
-    : { id: `addon:${addon._id}`, name: addon.name || 'Add-on' };
+async function resolveAddonOrigin(addon, shopCache) {
+  const store = await resolveProductStore(addon, shopCache);
   return {
-    fabricShopId: addon.fabricShopId || null,
-    shopId: shop.id,
-    shopName: shop.name,
-    partyKind: PARTY_KINDS.FABRIC_SHOP,
-    alreadyAtMotd: false,
-    pickupAddress: null,
+    ...store,
+    pickupAddress: normalizeShopPickupAddress(addon.pickupAddress),
   };
 }
 
 /**
  * Resolve origin for a retail cart line (ready-made, addon, or fabric).
- * Ready-made / add-on: listing pickupAddress (MOTD warehouse) wins; else linked shop.
+ * Ready-made / add-on last mile is keyed by store, not by listing pickup.
  */
-async function resolveRetailLineShop(productId) {
+async function resolveRetailLineShop(productId, shopCache = new Map()) {
   let product = await ReadyMadeProduct.findById(productId).select(
     'fabricShopId name nameAr ownerName pickupAddress',
   );
   if (product) {
-    const productPickup = normalizeShopPickupAddress(product.pickupAddress);
-    if (productPickup) {
-      return {
-        fabricShopId: product.fabricShopId || null,
-        shopId: addressOriginId(productPickup),
-        shopName: customerSafeOriginName(
-          product.ownerName || product.name,
-          product.name || 'Shop',
-        ),
-        partyKind: PARTY_KINDS.MOTD,
-        alreadyAtMotd: true,
-        pickupAddress: productPickup,
-      };
-    }
-
-    const shop = product.fabricShopId
-      ? await resolveFabricShopById(product.fabricShopId)
-      : { id: `product:${product._id}`, name: product.name || 'Shop' };
+    const store = await resolveProductStore(product, shopCache);
     return {
-      fabricShopId: product.fabricShopId || null,
-      shopId: shop.id,
-      shopName: shop.name,
-      partyKind: PARTY_KINDS.FABRIC_SHOP,
-      alreadyAtMotd: false,
-      pickupAddress: null,
+      ...store,
+      pickupAddress: normalizeShopPickupAddress(product.pickupAddress),
     };
   }
 
@@ -447,7 +501,7 @@ async function resolveRetailLineShop(productId) {
     'fabricShopId name nameAr ownerName pickupAddress',
   );
   if (product) {
-    return resolveAddonOrigin(product);
+    return resolveAddonOrigin(product, shopCache);
   }
 
   product = await Fabric.findById(productId).select(
@@ -463,8 +517,8 @@ async function resolveRetailLineShop(productId) {
           : product.fabricShopId || null,
       shopId: fabricShop?.id || `fabric:${product._id}`,
       shopName,
+      ownerName: shopName,
       partyKind: PARTY_KINDS.FABRIC_SHOP,
-      alreadyAtMotd: false,
       pickupAddress: null,
     };
   }
@@ -482,6 +536,7 @@ async function resolveRetailLineShop(productId) {
  */
 export async function planRetailOrderParcels({ items, perParcelFee }) {
   const parcelMap = new Map();
+  const shopCache = new Map();
   const customerParty = party(PARTY_KINDS.CUSTOMER, null, 'Customer');
 
   if (!Array.isArray(items) || items.length === 0) {
@@ -490,7 +545,7 @@ export async function planRetailOrderParcels({ items, perParcelFee }) {
 
   for (let index = 0; index < items.length; index += 1) {
     const line = items[index];
-    const origin = await resolveRetailLineShop(line.productId);
+    const origin = await resolveRetailLineShop(line.productId, shopCache);
     if (!origin) continue;
 
     upsertDirectLastMile(parcelMap, {

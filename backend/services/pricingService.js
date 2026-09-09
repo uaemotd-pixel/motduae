@@ -268,6 +268,7 @@ export function applyAddonsToCustomOrderPricing(pricing, addonsCost = 0) {
 
   return {
     ...pricing,
+    addonsCost: roundMoney(addons),
     subtotal,
     vatAmount,
     total,

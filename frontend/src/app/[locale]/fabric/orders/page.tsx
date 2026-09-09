@@ -307,7 +307,7 @@ export default function FabricOrdersPage() {
   const updateOrderStatus = async (orderId: string) => {
     const order = orders.find((o) => o._id === orderId);
     if (!order) return;
-    if (order.storeScope && order.storeScope.canUpdateFabricStatus === false) {
+    if (order.storeScope && !order.storeScope.canUpdateFabricStatus) {
       toast.error(
         locale === "ar"
           ? "لا يمكنك تحديث حالة تسليم القماش لهذا الطلب"
@@ -571,22 +571,34 @@ export default function FabricOrdersPage() {
                   ? (order as any).shippingAddress?.phone
                   : (order as any).customerDeliveryAddress?.phone) || ""
               : user?.phone || "";
-            const fabricName =
-              order.fabricSnapshot?.name ||
-              order.items?.[0]?.fabricSnapshot?.name ||
-              (locale === "ar" ? "قماش خاص" : "Self Fabric");
             const isExpanded = !!expandedOrders[order._id];
             const isShipmentsExpanded = !!expandedShipments[order._id];
             const scope = order.storeScope;
-            const hasFabric = scope?.hasFabric !== false;
-            // When API provides storeScope, trust it; older payloads without it keep prior fabric UI.
-            const hasAddons = Boolean(
-              scope?.hasAddons ||
-                (Array.isArray(order.addons) && order.addons.length > 0),
-            );
-            const canUpdateFabricStatus =
-              scope?.canUpdateFabricStatus ?? hasFabric;
             const storeAddons = Array.isArray(order.addons) ? order.addons : [];
+            const hasAddons = Boolean(
+              scope?.hasAddons || storeAddons.length > 0,
+            );
+            const hasFabric = scope
+              ? Boolean(scope.hasFabric)
+              : Boolean(
+                  order.fabricSnapshot?.name ||
+                    order.items?.some(
+                      (item) => item.fabricSnapshot?.name || item.fabricId,
+                    ),
+                );
+            const canUpdateFabricStatus = scope
+              ? Boolean(scope.canUpdateFabricStatus)
+              : hasFabric;
+            const addonOnly = !hasFabric && hasAddons;
+            const fabricName = addonOnly
+              ? storeAddons
+                  .map((a) => a.name)
+                  .filter(Boolean)
+                  .join(", ") ||
+                (locale === "ar" ? "إضافات" : "Add-ons")
+              : order.fabricSnapshot?.name ||
+                order.items?.[0]?.fabricSnapshot?.name ||
+                (locale === "ar" ? "قماش خاص" : "Self Fabric");
             const storeGross =
               typeof scope?.gross === "number"
                 ? scope.gross
@@ -595,7 +607,6 @@ export default function FabricOrdersPage() {
                     (sum, a) => sum + (Number(a.price) || 0),
                     0,
                   );
-            const addonOnly = Boolean(scope && !hasFabric && hasAddons);
 
             if (activeTab === "retail") {
               const retailOrder = order as any;
@@ -936,8 +947,8 @@ export default function FabricOrdersPage() {
                       ) : addonOnly ? (
                         <p className="text-[10px] text-gray-500 [font-family:var(--font-body)]">
                           {locale === "ar"
-                            ? "طلب إضافات فقط — حالة تسليم القماش يديرها متجر القماش"
-                            : "Add-ons only — fabric handoff is managed by the fabric store"}
+                            ? "طلب إضافات — لا يشمل حالة تسليم القماش"
+                            : "Add-on order — fabric handoff is not managed by this store"}
                         </p>
                       ) : null}
                     </div>
@@ -1068,8 +1079,9 @@ export default function FabricOrdersPage() {
                     </div>
                   ) : null}
 
-                  {hasFabric ? (
+                  {hasFabric || hasAddons ? (
                   <div className="flex flex-wrap gap-4">
+                    {hasFabric ? (
                     <button
                       type="button"
                       onClick={() => toggleExpand(order._id)}
@@ -1083,6 +1095,7 @@ export default function FabricOrdersPage() {
                         <ChevronDown className="w-3 h-3" />
                       )}
                     </button>
+                    ) : null}
 
                     <button
                       type="button"
@@ -1243,7 +1256,7 @@ export default function FabricOrdersPage() {
                     </div>
                   )}
 
-                  {hasFabric && isShipmentsExpanded && (
+                  {(hasFabric || hasAddons) && isShipmentsExpanded && (
                     <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
                       <ShipmentList
                         shipments={order.shipments}
