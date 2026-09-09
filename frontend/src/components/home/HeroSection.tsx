@@ -11,16 +11,19 @@ import { useEffect, useRef } from "react";
 const BACKGROUND_IMAGES = [
   {
     src: images.hero_image_1,
-    // Anchor left so the MOTD bag stays visible; mid Y = less face-tight crop
-    position: "0% 38%",
+    // Landscape photo: the model sits mid-right, the MOTD bag is on the far
+    // left. `object-cover` in a tall mobile hero crops the sides, so a left
+    // anchor (`0%`) kept the bag and cut her out. Portrait: centre on her.
+    // Desktop is wide enough to show both.
+    position: "object-[62%_32%] sm:object-[48%_34%] lg:object-[30%_38%]",
   },
   {
     src: images.hero_image_2,
-    position: "58% 36%",
+    position: "object-[58%_36%]",
   },
   {
     src: images.hero_image_3,
-    position: "48% 40%",
+    position: "object-[48%_40%]",
   },
 ] as const;
 
@@ -87,8 +90,7 @@ export function HeroSection() {
                   loading={idx === 0 ? "eager" : "lazy"}
                   fetchPriority={idx === 0 ? "high" : "low"}
                   placeholder="blur"
-                  className="object-cover"
-                  style={{ objectPosition: image.position }}
+                  className={`object-cover ${image.position}`}
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/25 to-black/10" />
               </div>

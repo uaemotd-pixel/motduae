@@ -194,22 +194,22 @@ export default function CustomerNotificationPage() {
     getNotificationTypeLabel(type, (key) => t(`types.${key}`));
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
             {t("title")}
           </h1>
-          <p className="text-gray-500 text-sm mt-1">{t("subtitle")}</p>
+          <p className="text-gray-500 text-sm mt-0.5">{t("subtitle")}</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+        <div className="flex gap-2 items-center w-full sm:w-auto">
           <input
             type="search"
             value={searchQuery}
             onChange={(e) => handleFilterChange(readFilter, e.target.value)}
             placeholder={t("searchPlaceholder")}
-            className="px-3 py-2 rounded-lg border border-gray-200 text-sm"
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm flex-1 min-w-0 sm:w-48"
           />
           <select
             value={readFilter}
@@ -219,7 +219,7 @@ export default function CustomerNotificationPage() {
                 searchQuery,
               )
             }
-            className="px-3 py-2 rounded-lg border border-gray-200 text-sm"
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm shrink-0"
           >
             <option value="">{t("filterAll")}</option>
             <option value="false">{t("filterUnread")}</option>
@@ -227,13 +227,15 @@ export default function CustomerNotificationPage() {
           </select>
         </div>
 
-        <div className="flex items-center gap-2 text-gray-500">
-          <Bell className="w-4 h-4" />
-          <span className="text-sm">{unreadCount}</span>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-gray-500 shrink-0">
+            <Bell className="w-4 h-4" />
+            <span className="text-sm">{unreadCount}</span>
+          </div>
           <button
             type="button"
             disabled={markAllLoading || unreadCount === 0}
-            className="ml-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 transition disabled:opacity-50 hover:cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-900 text-white text-[10px] sm:text-xs font-medium hover:bg-gray-800 transition disabled:opacity-50 hover:cursor-pointer shrink-0"
             onClick={async () => {
               setMarkAllLoading(true);
               try {
@@ -251,7 +253,7 @@ export default function CustomerNotificationPage() {
             ) : (
               <Check className="w-3 h-3" />
             )}
-            {t("markedAllAsRead").toUpperCase()}
+            {t("markAllRead")}
           </button>
         </div>
       </div>
@@ -275,7 +277,7 @@ export default function CustomerNotificationPage() {
       ) : error ? (
         <div className="p-6 text-red-600">{error}</div>
       ) : sortedItems.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-center bg-white rounded-2xl border border-gray-100 py-16 shadow-sm px-6">
+        <div className="flex flex-col items-center justify-center text-center py-10 sm:py-12 px-4">
           <Bell className="w-12 h-12 text-gray-300 mb-4" />
           <p className="text-lg font-medium text-gray-700 mb-2">
             {t("emptyTitle")}

@@ -322,20 +322,20 @@ export default function FabricAddOnsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Total Add-Ons
           </p>
           <p className="text-2xl font-light text-black mt-1">{items.length}</p>
         </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Active
           </p>
           <p className="text-2xl font-light text-black mt-1">{activeCount}</p>
         </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Inactive
           </p>
@@ -420,7 +420,61 @@ export default function FabricAddOnsPage() {
           </p>
         </div>
       ) : (
-        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+        <>
+          <div className="space-y-3 sm:hidden">
+            {filteredItems.map((item) => {
+              const itemLow = isLowStockQty(item.stock);
+              return (
+                <div
+                  key={item._id}
+                  className={`rounded-xl border p-3 ${
+                    itemLow
+                      ? "border-rose-200 bg-rose-50/80"
+                      : "border-gray-200 bg-white"
+                  }`}
+                >
+                  <div className="flex gap-3 min-w-0">
+                    <div className="shrink-0">{getItemImage(item)}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium text-black leading-snug">
+                          {item.name || "—"}
+                        </p>
+                        <span
+                          className={`shrink-0 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
+                            item.isActive
+                              ? "border border-black/30 text-black"
+                              : "bg-gray-100 text-gray-500"
+                          }`}
+                        >
+                          {item.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1">
+                        AED {item.price.toFixed(2)} · {item.stock} in stock
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <Link
+                      href={`/fabric/addons/${item._id}`}
+                      className="flex-1 text-center px-3 py-2 border border-black text-black text-[10px] tracking-[0.16em] uppercase"
+                    >
+                      Edit
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => openDeleteModal(item)}
+                      className="flex-1 px-3 py-2 border border-red-300 text-red-700 text-[10px] tracking-[0.16em] uppercase"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden sm:block bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-sm text-gray-500">
               <thead className="bg-gray-50/70 text-[10px] uppercase tracking-wider text-gray-400 font-semibold border-b border-gray-100">
@@ -514,6 +568,7 @@ export default function FabricAddOnsPage() {
             </table>
           </div>
         </div>
+        </>
       )}
     </div>
   );

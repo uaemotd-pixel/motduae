@@ -497,7 +497,8 @@
     "awaitingFabric": "القماش لاحقاً",
     "awaitingDesign": "التصميم لاحقاً",
     "ownFabric": "قماشك الخاص",
-    "moreItems": "+{count} المزيد"
+    "moreItems": "+{count} المزيد",
+    "nextStep": "التالي"
   },
   "CustomOrderFabric": {
     "stepLabel": "الخطوة {step} من {total}",
@@ -1826,6 +1827,7 @@
       "loadMore": "تحميل المزيد",
       "markedAsRead": "تم التعليم كمقروء",
       "markedAllAsRead": "تم تعليم جميع الإشعارات كمقروءة",
+      "markAllRead": "تعليم الكل كمقروء",
       "deleteSuccess": "تم حذف الإشعار",
       "deleteFailed": "فشل حذف الإشعار",
       "markReadFailed": "فشل التعليم كمقروء",

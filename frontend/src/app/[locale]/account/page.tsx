@@ -12,13 +12,13 @@ import {
   Bell,
   Settings,
   LogOut,
-  Menu,
   X,
   Shirt,
   Users,
   Star,
   PanelLeft,
 } from "lucide-react";
+import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 import OrdersView from "@/components/orders/OrdersView";
 import ProfileTab from "./profile/page";
@@ -308,16 +308,6 @@ function AccountPageContent() {
         />
       </aside>
 
-      <div className="lg:hidden fixed safe-fixed-top inset-s-4 z-50">
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="p-2 rounded-lg bg-black/80 backdrop-blur-sm border border-white/20 text-white hover:bg-white/10 transition"
-          aria-label="Open menu"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-      </div>
-
       <AnimatePresence>
         {sidebarOpen && (
           <>
@@ -363,7 +353,8 @@ function AccountPageContent() {
           sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
         }`}
       >
-        <div className="p-4 xs:p-6 sm:p-8 md:p-10 lg:p-14 pt-14 lg:pt-14">
+        <div className="p-4 xs:p-6 sm:p-8 md:p-10 lg:p-14">
+          <DashboardMobileMenuBar onOpen={() => setSidebarOpen(true)} />
           <div className="mb-8 sm:mb-10">
             <h1 className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl font-['Ivy_Ora'] tracking-tight">
               My Account

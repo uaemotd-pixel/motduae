@@ -373,8 +373,8 @@ export default function FamilyMembersForm({
   );
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-      <div className="border-b border-gray-100 px-4 sm:px-6 md:px-8 py-4 sm:py-5 md:py-6">
+    <div>
+      <div className="border-b border-gray-100 pb-3 sm:pb-4 mb-1">
         <h1 className="text-xl sm:text-2xl font-medium text-black">
           {isEdit ? "Edit Family Member" : "Add Family Member"}
         </h1>
@@ -387,13 +387,13 @@ export default function FamilyMembersForm({
 
       <form
         onSubmit={handleSubmit}
-        className="p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8 md:space-y-10"
+        className="pt-4 sm:pt-6 space-y-5 sm:space-y-8"
       >
         <section>
           <h2 className="text-sm sm:text-base font-medium text-black mb-4 sm:mb-6">
             Personal Information
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4 sm:gap-6">
             <FormField label="Full Name" name="name" required>
               <input
                 type="text"
@@ -514,7 +514,7 @@ export default function FamilyMembersForm({
           <h2 className="text-sm sm:text-base font-medium text-black mb-4 sm:mb-6">
             Delivery Address (Optional)
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4 sm:gap-6">
             <FormField label="Full Name" name="address.fullName">
               <input
                 type="text"

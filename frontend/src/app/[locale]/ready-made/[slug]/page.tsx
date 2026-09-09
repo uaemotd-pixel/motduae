@@ -173,7 +173,7 @@ function RelatedProductsSection({
                   href={hrefPath}
                   className="block h-full border border-(--color-border) bg-(--bg-page) rounded-lg overflow-hidden transition-all duration-500 hover:shadow-xl hover:-translate-y-1"
                 >
-                  <div className="relative aspect-3/4 overflow-hidden bg-[#F5F5F0]">
+                  <div className="relative aspect-4/5 overflow-hidden bg-[#F5F5F0]">
                     <img
                       src={image}
                       alt={title}
@@ -431,13 +431,13 @@ function ReadyMadeDetailContent({
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5, delay: 0.1 }}
-                  className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group"
+                  className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group aspect-4/5"
                 >
                   <ZoomImageEffect
                     key={selectedImage}
                     src={selectedImage}
                     alt={title}
-                    className="w-full h-auto"
+                    className="h-full w-full object-cover object-top"
                     lensSize={185}
                     zoomLevel={3.5}
                   />
@@ -870,9 +870,6 @@ export default function ReadyMadeDetailPage() {
     );
   }
 
-  const price = product.finalSellingPriceAED || 0;
-  const stock = product.availableFabricStock || 0;
-
   return (
     <MainLayout>
       <ReadyMadeDetailContent
@@ -903,19 +900,6 @@ export default function ReadyMadeDetailPage() {
           verifiedLabel: t.verifiedPurchase,
         }}
       />
-
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-(--color-border) px-4 pt-4 pb-safe shadow-lg z-30 ps-[max(1rem,var(--safe-left))] pe-[max(1rem,var(--safe-right))]">
-        <div className="flex gap-3">
-          <button
-            onClick={handleAddToCart}
-            disabled={stock < 1}
-            className="flex-1 bg-black text-white py-3 text-[10px] tracking-[0.24em] uppercase font-ui disabled:opacity-50"
-          >
-            Add to Cart – AED {price * quantity}
-          </button>
-        </div>
-      </div>
-      <div className="lg:hidden pb-20" />
     </MainLayout>
   );
 }

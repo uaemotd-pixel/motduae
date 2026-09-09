@@ -138,7 +138,7 @@ function RelatedFabricsSection({
                   href={hrefPath}
                   className="block h-full border border-(--color-border) bg-(--bg-page) rounded-lg overflow-hidden transition-all duration-500 hover:shadow-xl hover:-translate-y-1"
                 >
-                  <div className="relative aspect-3/4 overflow-hidden bg-[#F5F5F0]">
+                  <div className="relative aspect-4/5 overflow-hidden bg-[#F5F5F0]">
                     <img
                       src={image}
                       alt={title}

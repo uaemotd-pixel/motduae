@@ -9,7 +9,6 @@ import FormField from "@/components/admin/FormField";
 import ImageUpload from "@/components/admin/ImageUpload";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import {
-  SLUG_PATTERN,
   createTailorShop,
   emptyTailorShopForm,
   fetchOwnTailorShop,
@@ -90,7 +89,6 @@ export default function TailorShopForm() {
     emptyTailorShopForm(),
   );
   const [shop, setShop] = useState<TailorShopProfile | null>(null);
-  const [slugTouched, setSlugTouched] = useState(false);
   const [emirateOpen, setEmirateOpen] = useState(false);
 
   const isCreateMode = shop === null;
@@ -110,11 +108,9 @@ export default function TailorShopForm() {
           setShop(existingShop);
           const form = tailorShopToForm(existingShop);
           setFormData(form);
-          setSlugTouched(Boolean(form.slug?.trim()));
         } else {
           setShop(null);
           setFormData(emptyTailorShopForm());
-          setSlugTouched(false);
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -150,16 +146,12 @@ export default function TailorShopForm() {
     setFormData((prev) => {
       const next = { ...prev, [field]: val };
 
-      if (field === "name" && !slugTouched) {
+      if (field === "name") {
         next.slug = slugifyShopName(val);
       }
 
       return next;
     });
-
-    if (field === "slug") {
-      setSlugTouched(true);
-    }
 
     if (fieldErrors[field]) {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -195,11 +187,6 @@ export default function TailorShopForm() {
 
     if (!payload.name.trim()) errors.name = t("validation.nameRequired");
     if (!payload.nameAr.trim()) errors.nameAr = t("validation.nameArRequired");
-    if (!payload.slug.trim()) {
-      errors.slug = t("validation.slugRequired");
-    } else if (!SLUG_PATTERN.test(payload.slug.trim().toLowerCase())) {
-      errors.slug = t("validation.slugInvalid");
-    }
 
     // Validate phone: must have 9 digits
     const phoneDigits = extractDigits(payload.phone);
@@ -350,7 +337,7 @@ export default function TailorShopForm() {
       </div>
 
       {!isCreateMode && shop && (
-        <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-3">
           <div className="border border-(--color-border) bg-white p-4">
             <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) mb-1">
               {t("meta.rating")}
@@ -380,14 +367,14 @@ export default function TailorShopForm() {
 
       <form
         onSubmit={handleSubmit}
-        className="border border-(--color-border) bg-white p-6 sm:p-8 space-y-8"
+        className="border border-(--color-border) bg-white p-4 sm:p-8 space-y-6 sm:space-y-8"
       >
         <section className="space-y-5">
           <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
             {t("sections.identity")}
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5">
             <FormField
               label={t("fields.name")}
               name="name"
@@ -421,23 +408,6 @@ export default function TailorShopForm() {
               />
             </FormField>
           </div>
-
-          <FormField
-            label={t("fields.slug")}
-            name="slug"
-            required
-            hint={t("hints.slug")}
-            error={fieldErrors.slug}
-          >
-            <input
-              id="slug"
-              type="text"
-              value={formData.slug}
-              onChange={(e) => handleChange("slug", e.target.value)}
-              placeholder={t("placeholders.slug")}
-              className={INPUT_CLASS}
-            />
-          </FormField>
         </section>
 
         <section className="space-y-5">
@@ -472,7 +442,7 @@ export default function TailorShopForm() {
             {t("sections.media")}
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5">
             <FormField
               label={t("fields.logo")}
               name="logo"
@@ -512,7 +482,7 @@ export default function TailorShopForm() {
             {t("sections.contact")}
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5">
             <FormField label={t("fields.city")} name="city">
               <input
                 id="city"
@@ -580,7 +550,7 @@ export default function TailorShopForm() {
             {t("hints.pickupAddress")}
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5">
             <FormField
               label={t("fields.pickupFullName")}
               name="pickupFullName"

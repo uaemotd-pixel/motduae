@@ -315,7 +315,7 @@ export function AddOnsSection() {
                       href={`/addons/${item.slug}`}
                       className="bg-(--bg-page) border border-(--color-border) rounded-lg transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 h-full flex flex-col hover:cursor-pointer"
                     >
-                      <div className="aspect-9/9 relative overflow-hidden rounded-t-lg">
+                      <div className="aspect-4/5 relative overflow-hidden rounded-t-lg">
                         <img
                           src={
                             resolveMediaUrl(item.thumbnailImage) ||

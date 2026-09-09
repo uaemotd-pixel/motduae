@@ -8,7 +8,6 @@ import { useAuth, needsEmailVerification } from "@/context/AuthContext";
 import {
   LayoutDashboard,
   LogOut,
-  Menu,
   Scissors,
   Store,
   X,
@@ -25,6 +24,7 @@ import {
 } from "@/lib/auth/emailVerification";
 import PartnerChangeEmailCard from "@/components/auth/PartnerChangeEmailCard";
 import EmailChangePendingBanner from "@/components/auth/EmailChangePendingBanner";
+import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
 import { getTranslation } from "@/lib/getTranslation";
 import { useNotificationUnreadCount } from "@/hooks/useNotifications";
 
@@ -238,15 +238,8 @@ export default function FabricPortalShell({
           has nothing to scroll and refuses to chain the gesture to the
           document, so only a two-finger visual-viewport pan moves the page.
           `overflow-x-clip` still clips wide children without creating one. */}
-      <main className="min-h-dvh flex-1 overflow-x-clip p-4 pb-40 pt-14 xs:p-6 sm:p-8 md:p-10 lg:min-h-0 lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-y-contain lg:pt-10">
-        <button
-          type="button"
-          onClick={() => setIsSidebarOpen(true)}
-          className="fixed safe-fixed-top start-4 z-20 bg-black p-2 text-white transition hover:bg-(--dash-charcoal-deep) lg:hidden rounded-md"
-          aria-label="Open menu"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
+      <main className="min-h-dvh flex-1 overflow-x-clip p-4 pb-40 xs:p-6 sm:p-8 md:p-10 lg:min-h-0 lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-y-contain lg:pt-10">
+        <DashboardMobileMenuBar onOpen={() => setIsSidebarOpen(true)} />
 
         {showChangeEmail && canChangeEmail ? (
           <PartnerChangeEmailCard

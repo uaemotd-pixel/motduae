@@ -9,8 +9,6 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import Image from "next/image";
-import { Link } from "@/i18n/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { getTranslation } from "@/lib/getTranslation";
@@ -28,8 +26,8 @@ import {
   type VerifyEmailMode,
 } from "@/lib/auth/emailVerification";
 import { getApiErrorMessage } from "@/lib/api/client";
-import logoBlack from "../../../public/PNG/Black/MOTD_Wordmark_Black.png";
 import * as images from "../../../public/images/ImageIndex";
+import { AuthSplitHero } from "@/components/auth/AuthSplitHero";
 
 export type { VerifyEmailMode };
 
@@ -42,22 +40,21 @@ function heroForRole(role?: string) {
   if (role === "tailor") {
     return {
       src: images.sub1.src,
-      imgClass: "w-full h-full object-cover",
-      overlay: "partner" as const,
+      overlay: "dark" as const,
+      imageClassName: "object-top",
     };
   }
   if (role === "fabric_store") {
     return {
       src: images.sub2.src,
-      imgClass: "w-full h-full object-cover",
-      overlay: "partner" as const,
+      overlay: "dark" as const,
+      imageClassName: "object-top",
     };
   }
   return {
     src: images.register_image.src,
-    imgClass:
-      "absolute inset-0 w-full h-full object-cover object-[28%_center]",
-    overlay: "customer" as const,
+    overlay: "light" as const,
+    imageClassName: "object-[22%_center] md:object-[28%_center]",
   };
 }
 
@@ -272,29 +269,11 @@ export default function VerifyEmailOtp({
 
   return (
     <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
-      <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden relative">
-        <img src={hero.src} alt="" className={hero.imgClass} />
-        {hero.overlay === "customer" ? (
-          <>
-            <div className="absolute inset-0 bg-linear-to-r from-black/15 via-black/5 to-transparent" />
-            <div className="absolute inset-0 bg-linear-to-t from-black/20 via-transparent to-black/5" />
-          </>
-        ) : (
-          <>
-            <div className="absolute inset-0 bg-linear-to-r from-black/60 via-black/30 to-transparent" />
-            <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-black/20" />
-          </>
-        )}
-        <div className="absolute top-7.5 left-7.5 z-10">
-          <Link href="/" className="shrink-0 flex items-center p-7.5 -m-7.5">
-            <img
-              src="/PNG/White/MOTD_Wordmark_White.png"
-              alt="MOTD"
-              className="h-3 xs:h-[13px] sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 w-auto object-contain"
-            />
-          </Link>
-        </div>
-      </section>
+      <AuthSplitHero
+        src={hero.src}
+        overlay={hero.overlay}
+        imageClassName={hero.imageClassName}
+      />
 
       <section className="w-full md:w-[45%] bg-white h-auto flex flex-col justify-center items-center py-10 px-5 sm:px-8 md:px-12 lg:px-16 xl:px-20">
         <div className="w-full max-w-100 mx-auto">
@@ -303,16 +282,6 @@ export default function VerifyEmailOtp({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: EASE }}
           >
-            <div className="md:hidden flex justify-center mb-10">
-              <Image
-                src={logoBlack}
-                alt="MOTD — Mukhawar of the Day"
-                height={35}
-                width={100}
-                className="h-auto w-auto object-contain"
-              />
-            </div>
-
             <header
               className={`mb-10 md:mb-12 ${
                 phase === "verified" || phase === "failed"

@@ -733,7 +733,7 @@ export default function CustomerReviewsView({
 
   return (
     <div
-      className="space-y-6 sm:space-y-8 md:space-y-10"
+      className="space-y-4 sm:space-y-6"
       dir={isArabic ? "rtl" : "ltr"}
     >
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 md:p-8 shadow-sm">
@@ -869,19 +869,34 @@ export default function CustomerReviewsView({
           ) : null}
 
           {showMultiCard ? null : (
-          <div className="space-y-1.5 sm:space-y-2">
-            <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
-              {t("rating")} ({rating})
-            </label>
-            <StarRatingInput
-              value={rating}
-              onChange={setRating}
-              labelForValue={(value) => t("starLabel", { count: value })}
-              sizeClassName="w-6 h-6 sm:w-7 sm:h-7"
-            />
-            <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
-              {t("halfStarHint")}
-            </p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
+                {t("rating")} ({rating})
+              </label>
+              <StarRatingInput
+                value={rating}
+                onChange={setRating}
+                labelForValue={(value) => t("starLabel", { count: value })}
+                sizeClassName="w-6 h-6 sm:w-7 sm:h-7"
+              />
+              <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
+                {t("halfStarHint")}
+              </p>
+            </div>
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
+                {t("titleLabel")}
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t("titlePlaceholder")}
+                className={INPUT_CLASS}
+                dir={isArabic ? "rtl" : "ltr"}
+              />
+            </div>
           </div>
           )}
 
@@ -901,19 +916,21 @@ export default function CustomerReviewsView({
           </div>
           )}
 
-          <div className="space-y-1.5 sm:space-y-2">
-            <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
-              {t("titleLabel")}
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={t("titlePlaceholder")}
-              className={INPUT_CLASS}
-              dir={isArabic ? "rtl" : "ltr"}
-            />
-          </div>
+          {showMultiCard ? (
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
+                {t("titleLabel")}
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t("titlePlaceholder")}
+                className={INPUT_CLASS}
+                dir={isArabic ? "rtl" : "ltr"}
+              />
+            </div>
+          ) : null}
 
           <div className="pt-1 sm:pt-2 flex flex-wrap gap-3">
             <button

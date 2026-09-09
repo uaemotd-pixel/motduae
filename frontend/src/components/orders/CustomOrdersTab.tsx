@@ -1122,7 +1122,7 @@ export default function CustomOrdersTab({
                           className="mt-4 pt-4 border-t border-gray-200"
                         >
                           <div className="space-y-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-4">
                               <div>
                                 <label className="text-[11px] uppercase tracking-[0.14em] text-gray-400 block mb-1.5">
                                   Condition{" "}
@@ -1250,7 +1250,7 @@ export default function CustomOrdersTab({
                               <h5 className="font-display text-sm mb-3">
                                 Pickup Address Details
                               </h5>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-4">
                                 <div>
                                   <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
                                     Full Name{" "}

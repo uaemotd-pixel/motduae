@@ -953,7 +953,7 @@ function CheckoutPageContent() {
                               <div className="w-20 h-20 shrink-0 bg-[#F5F5F0] rounded-md overflow-hidden">
                                 <img
                                   src={resolveMediaUrl(item.image)}
-                                  className="w-full h-full object-cover"
+                                  className="w-full h-full object-cover object-top"
                                   alt={item.name}
                                 />
                               </div>

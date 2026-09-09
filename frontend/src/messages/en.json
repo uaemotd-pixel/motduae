@@ -449,7 +449,8 @@
     "awaitingFabric": "Fabric next",
     "awaitingDesign": "Design next",
     "ownFabric": "Your own fabric",
-    "moreItems": "+{count} more"
+    "moreItems": "+{count} more",
+    "nextStep": "Next"
   },
   "CustomOrderFabric": {
     "stepLabel": "Step {step} of {total}",
@@ -1611,6 +1612,7 @@
       "loadMore": "Load more",
       "markedAsRead": "Marked as read",
       "markedAllAsRead": "All notifications marked as read",
+      "markAllRead": "Mark all as read",
       "deleteSuccess": "Notification deleted",
       "deleteFailed": "Failed to delete notification",
       "markReadFailed": "Failed to mark as read",

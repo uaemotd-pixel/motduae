@@ -339,7 +339,7 @@ export default function DesignDetailView({
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
-                className="w-full relative bg-[#F5F5F0] rounded-lg group"
+                className="w-full relative bg-[#F5F5F0] rounded-lg group aspect-4/5 overflow-hidden"
               >
                 <button
                   type="button"
@@ -351,11 +351,11 @@ export default function DesignDetailView({
                 </button>
 
                 {/* Main Image with Zoom Effect */}
-                <div className="relative w-full">
+                <div className="relative h-full w-full">
                   <ZoomImageEffect
                     src={images[activeImage]}
                     alt={name}
-                    className="w-full h-auto"
+                    className="h-full w-full object-cover object-top"
                     lensSize={185}
                     zoomLevel={4.5}
                   />
