@@ -13,7 +13,15 @@ type LenisLike = {
 
 function getLenis(): LenisLike | undefined {
   if (typeof window === "undefined") return undefined;
-  return (window as Window & { lenis?: LenisLike }).lenis;
+  const candidate = (window as unknown as { lenis?: LenisLike }).lenis;
+  if (
+    candidate &&
+    typeof candidate.scrollTo === "function" &&
+    typeof candidate.resize === "function"
+  ) {
+    return candidate;
+  }
+  return undefined;
 }
 
 function getNavOffset(): number {
