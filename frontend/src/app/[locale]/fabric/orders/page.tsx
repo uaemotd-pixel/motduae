@@ -103,6 +103,7 @@ interface Order {
     price?: number;
   }>;
   items?: Array<{
+    fabricId?: string | null;
     fabricMeters?: number;
     leftoverMeters?: number;
     selectedCuts?: Array<{
