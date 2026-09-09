@@ -14,9 +14,17 @@ const toListItem = (fabric) => ({
   descriptionAr: fabric.descriptionAr,
   images: fabric.images,
   material: fabric.material,
+  materialAr: fabric.materialAr,
+  category: fabric.category || "",
+  categoryAr: fabric.categoryAr || "",
+  pattern: fabric.pattern || "",
+  patternAr: fabric.patternAr || "",
+  season: fabric.season || "",
+  seasonAr: fabric.seasonAr || "",
   color: fabric.colors,
   city: fabric.city,
   tag: fabric.tag,
+  tagAr: fabric.tagAr,
   tagColor: fabric.tagColor,
   cuts: fabric.cuts || [],
   pricePerMeter: fabric.pricePerMeter,
@@ -141,9 +149,17 @@ const toDetailItem = (fabric) => ({
   descriptionAr: fabric.descriptionAr,
   images: fabric.images,
   material: fabric.material,
+  materialAr: fabric.materialAr,
+  category: fabric.category || "",
+  categoryAr: fabric.categoryAr || "",
+  pattern: fabric.pattern || "",
+  patternAr: fabric.patternAr || "",
+  season: fabric.season || "",
+  seasonAr: fabric.seasonAr || "",
   color: fabric.colors,
   city: fabric.city,
   tag: fabric.tag,
+  tagAr: fabric.tagAr,
   tagColor: fabric.tagColor,
   cuts: fabric.cuts || [],
   pricePerMeter: fabric.pricePerMeter,
@@ -257,6 +273,12 @@ fabricRoutes.get("/:slug", async (req, res) => {
     const fabricMaterial = String(fabric.material || "")
       .trim()
       .toLowerCase();
+    const fabricCategory = String(fabric.category || "")
+      .trim()
+      .toLowerCase();
+    const fabricPattern = String(fabric.pattern || "")
+      .trim()
+      .toLowerCase();
     const fabricTag = String(fabric.tag || "")
       .trim()
       .toLowerCase();
@@ -278,12 +300,28 @@ fabricRoutes.get("/:slug", async (req, res) => {
           score += 4;
         }
         if (
+          fabricCategory &&
+          String(item.category || "")
+            .trim()
+            .toLowerCase() === fabricCategory
+        ) {
+          score += 3;
+        }
+        if (
+          fabricPattern &&
+          String(item.pattern || "")
+            .trim()
+            .toLowerCase() === fabricPattern
+        ) {
+          score += 3;
+        }
+        if (
           fabricTag &&
           String(item.tag || "")
             .trim()
             .toLowerCase() === fabricTag
         ) {
-          score += 3;
+          score += 2;
         }
         const itemShop = item.fabricShopId
           ? String(item.fabricShopId._id || item.fabricShopId)

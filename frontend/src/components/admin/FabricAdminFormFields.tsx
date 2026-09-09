@@ -301,60 +301,80 @@ export default function FabricAdminFormFields({
     { name: string; nameAr: string; _id: string }[]
   >([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
+  const [dbCategories, setDbCategories] = useState<
+    { name: string; nameAr: string; _id: string }[]
+  >([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [dbPatterns, setDbPatterns] = useState<
+    { name: string; nameAr: string; _id: string }[]
+  >([]);
+  const [patternsLoading, setPatternsLoading] = useState(true);
   const [dbTags, setDbTags] = useState<
     { name: string; nameAr: string; _id: string }[]
   >([]);
   const [tagsLoading, setTagsLoading] = useState(true);
+  const [dbSeasons, setDbSeasons] = useState<
+    { name: string; nameAr: string; _id: string }[]
+  >([]);
+  const [seasonsLoading, setSeasonsLoading] = useState(true);
   const [catalogCuts, setCatalogCuts] = useState<CatalogCut[]>([]);
   const [cutsLoading, setCutsLoading] = useState(true);
 
   const [openMaterial, setOpenMaterial] = useState(false);
+  const [openCategory, setOpenCategory] = useState(false);
+  const [openPattern, setOpenPattern] = useState(false);
   const [openTag, setOpenTag] = useState(false);
+  const [openSeason, setOpenSeason] = useState(false);
   const [openEmirate, setOpenEmirate] = useState(false);
   const [openColors, setOpenColors] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    const fetchMaterials = async () => {
+    const fetchFilters = async () => {
       try {
         setMaterialsLoading(true);
-        const data = await api.get<
-          { name: string; nameAr: string; _id: string }[]
-        >("/api/filters/materials");
-        if (!cancelled && Array.isArray(data)) {
-          setDbMaterials(data);
-        }
-      } catch {
-        // Silently fall back to empty array
-      } finally {
-        if (!cancelled) setMaterialsLoading(false);
-      }
-    };
-    fetchMaterials();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const fetchTags = async () => {
-      try {
+        setCategoriesLoading(true);
+        setPatternsLoading(true);
         setTagsLoading(true);
-        const data =
-          await api.get<{ name: string; nameAr: string; _id: string }[]>(
-            "/api/filters/tags",
-          );
-        if (!cancelled && Array.isArray(data)) {
-          setDbTags(data);
+        setSeasonsLoading(true);
+        const [materials, categories, patterns, tags, seasons] =
+          await Promise.all([
+            api.get<{ name: string; nameAr: string; _id: string }[]>(
+              "/api/filters/materials?domain=fabrics",
+            ),
+            api.get<{ name: string; nameAr: string; _id: string }[]>(
+              "/api/filters/categories?domain=fabrics",
+            ),
+            api.get<{ name: string; nameAr: string; _id: string }[]>(
+              "/api/filters/patterns?domain=fabrics",
+            ),
+            api.get<{ name: string; nameAr: string; _id: string }[]>(
+              "/api/filters/tags",
+            ),
+            api.get<{ name: string; nameAr: string; _id: string }[]>(
+              "/api/filters/seasons?domain=fabrics",
+            ),
+          ]);
+        if (!cancelled) {
+          if (Array.isArray(materials)) setDbMaterials(materials);
+          if (Array.isArray(categories)) setDbCategories(categories);
+          if (Array.isArray(patterns)) setDbPatterns(patterns);
+          if (Array.isArray(tags)) setDbTags(tags);
+          if (Array.isArray(seasons)) setDbSeasons(seasons);
         }
       } catch {
-        // Silently fall back to empty array
+        // Silently fall back to empty arrays
       } finally {
-        if (!cancelled) setTagsLoading(false);
+        if (!cancelled) {
+          setMaterialsLoading(false);
+          setCategoriesLoading(false);
+          setPatternsLoading(false);
+          setTagsLoading(false);
+          setSeasonsLoading(false);
+        }
       }
     };
-    fetchTags();
+    void fetchFilters();
     return () => {
       cancelled = true;
     };
@@ -438,10 +458,28 @@ export default function FabricAdminFormFields({
     ar: m.nameAr || m.name,
   }));
 
+  const categoryOptions = dbCategories.map((c) => ({
+    value: c.name,
+    en: c.name,
+    ar: c.nameAr || c.name,
+  }));
+
+  const patternOptions = dbPatterns.map((p) => ({
+    value: p.name,
+    en: p.name,
+    ar: p.nameAr || p.name,
+  }));
+
   const tagOptions = dbTags.map((t) => ({
     value: t.name,
     en: t.name,
     ar: t.nameAr || t.name,
+  }));
+
+  const seasonOptions = dbSeasons.map((s) => ({
+    value: s.name,
+    en: s.name,
+    ar: s.nameAr || s.name,
   }));
 
   const SelectTrigger = ({
@@ -597,56 +635,62 @@ export default function FabricAdminFormFields({
           </AnimatedDropdown>
         </FormField>
 
-        <FormField label="Tag (ENG / AR)" name="tag" error={fieldErrors.tag}>
+        <FormField
+          label="Category (ENG / AR)"
+          name="category"
+          error={fieldErrors.category}
+        >
           <AnimatedDropdown
-            isOpen={openTag}
-            onClose={() => setOpenTag(false)}
+            isOpen={openCategory}
+            onClose={() => setOpenCategory(false)}
             trigger={
               <SelectTrigger
-                value={formData.tag}
+                value={formData.category}
                 placeholder={
-                  tagsLoading ? "Loading..." : "Select tag (optional)"
+                  categoriesLoading ? "Loading..." : "Select category"
                 }
                 displayValue={(() => {
-                  const opt = tagOptions.find((o) => o.value === formData.tag);
+                  const opt = categoryOptions.find(
+                    (o) => o.value === formData.category,
+                  );
                   if (!opt) return "";
                   return `${opt.en} / ${opt.ar}`;
                 })()}
-                onClick={() => setOpenTag(!openTag)}
+                onClick={() => setOpenCategory(!openCategory)}
               />
             }
             dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
             position="bottom-left"
           >
-            {tagsLoading ? (
+            {categoriesLoading ? (
               <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-                Loading tags...
+                Loading categories...
               </div>
-            ) : tagOptions.length === 0 ? (
+            ) : categoryOptions.length === 0 ? (
               <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-                No tags found
+                No categories found
               </div>
             ) : (
               <>
                 <button
                   type="button"
                   onClick={() => {
-                    onFieldChange("tag", "");
-                    onFieldChange("tagAr", "");
-                    setOpenTag(false);
+                    onFieldChange("category", "");
+                    onFieldChange("categoryAr", "");
+                    setOpenCategory(false);
                   }}
                   className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
                 >
-                  Select tag (optional)
+                  Select category
                 </button>
-                {tagOptions.map((opt) => (
+                {categoryOptions.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => {
-                      onFieldChange("tag", opt.en);
-                      onFieldChange("tagAr", opt.ar);
-                      setOpenTag(false);
+                      onFieldChange("category", opt.en);
+                      onFieldChange("categoryAr", opt.ar);
+                      setOpenCategory(false);
                     }}
                     className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
                   >
@@ -659,6 +703,76 @@ export default function FabricAdminFormFields({
           </AnimatedDropdown>
         </FormField>
 
+        <FormField
+          label="Pattern (ENG / AR)"
+          name="pattern"
+          error={fieldErrors.pattern}
+        >
+          <AnimatedDropdown
+            isOpen={openPattern}
+            onClose={() => setOpenPattern(false)}
+            trigger={
+              <SelectTrigger
+                value={formData.pattern}
+                placeholder={
+                  patternsLoading ? "Loading..." : "Select pattern"
+                }
+                displayValue={(() => {
+                  const opt = patternOptions.find(
+                    (o) => o.value === formData.pattern,
+                  );
+                  if (!opt) return "";
+                  return `${opt.en} / ${opt.ar}`;
+                })()}
+                onClick={() => setOpenPattern(!openPattern)}
+              />
+            }
+            dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+            position="bottom-left"
+          >
+            {patternsLoading ? (
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                Loading patterns...
+              </div>
+            ) : patternOptions.length === 0 ? (
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                No patterns found
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onFieldChange("pattern", "");
+                    onFieldChange("patternAr", "");
+                    setOpenPattern(false);
+                  }}
+                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                >
+                  Select pattern
+                </button>
+                {patternOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onFieldChange("pattern", opt.en);
+                      onFieldChange("patternAr", opt.ar);
+                      setOpenPattern(false);
+                    }}
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                  >
+                    <span>{opt.en} / </span>
+                    <span>{opt.ar}</span>
+                  </button>
+                ))}
+              </>
+            )}
+          </AnimatedDropdown>
+        </FormField>
+      </div>
+
+      <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         <FormField
           label="Colors"
           name="colors"
@@ -728,6 +842,136 @@ export default function FabricAdminFormFields({
                 );
               })}
             </div>
+          </AnimatedDropdown>
+        </FormField>
+
+        <FormField label="Tag (ENG / AR)" name="tag" error={fieldErrors.tag}>
+          <AnimatedDropdown
+            isOpen={openTag}
+            onClose={() => setOpenTag(false)}
+            trigger={
+              <SelectTrigger
+                value={formData.tag}
+                placeholder={
+                  tagsLoading ? "Loading..." : "Select tag (optional)"
+                }
+                displayValue={(() => {
+                  const opt = tagOptions.find((o) => o.value === formData.tag);
+                  if (!opt) return "";
+                  return `${opt.en} / ${opt.ar}`;
+                })()}
+                onClick={() => setOpenTag(!openTag)}
+              />
+            }
+            dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+            position="bottom-left"
+          >
+            {tagsLoading ? (
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                Loading tags...
+              </div>
+            ) : tagOptions.length === 0 ? (
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                No tags found
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onFieldChange("tag", "");
+                    onFieldChange("tagAr", "");
+                    setOpenTag(false);
+                  }}
+                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                >
+                  Select tag (optional)
+                </button>
+                {tagOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onFieldChange("tag", opt.en);
+                      onFieldChange("tagAr", opt.ar);
+                      setOpenTag(false);
+                    }}
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                  >
+                    <span>{opt.en} / </span>
+                    <span>{opt.ar}</span>
+                  </button>
+                ))}
+              </>
+            )}
+          </AnimatedDropdown>
+        </FormField>
+
+        <FormField
+          label="Season (ENG / AR)"
+          name="season"
+          error={fieldErrors.season}
+        >
+          <AnimatedDropdown
+            isOpen={openSeason}
+            onClose={() => setOpenSeason(false)}
+            trigger={
+              <SelectTrigger
+                value={formData.season}
+                placeholder={
+                  seasonsLoading ? "Loading..." : "Select season (optional)"
+                }
+                displayValue={(() => {
+                  const opt = seasonOptions.find(
+                    (o) => o.value === formData.season,
+                  );
+                  if (!opt) return "";
+                  return `${opt.en} / ${opt.ar}`;
+                })()}
+                onClick={() => setOpenSeason(!openSeason)}
+              />
+            }
+            dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+            position="bottom-left"
+          >
+            {seasonsLoading ? (
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                Loading seasons...
+              </div>
+            ) : seasonOptions.length === 0 ? (
+              <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                No seasons found
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onFieldChange("season", "");
+                    onFieldChange("seasonAr", "");
+                    setOpenSeason(false);
+                  }}
+                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                >
+                  Select season (optional)
+                </button>
+                {seasonOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onFieldChange("season", opt.en);
+                      onFieldChange("seasonAr", opt.ar);
+                      setOpenSeason(false);
+                    }}
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                  >
+                    <span>{opt.en} / </span>
+                    <span>{opt.ar}</span>
+                  </button>
+                ))}
+              </>
+            )}
           </AnimatedDropdown>
         </FormField>
       </div>
@@ -1002,6 +1246,12 @@ export default function FabricAdminFormFields({
                   images: [""],
                   material: formData.material,
                   materialAr: formData.materialAr,
+                  category: formData.category,
+                  categoryAr: formData.categoryAr,
+                  pattern: formData.pattern,
+                  patternAr: formData.patternAr,
+                  season: formData.season,
+                  seasonAr: formData.seasonAr,
                   colors: [],
                   tag: "",
                   tagAr: "",
@@ -1159,6 +1409,99 @@ export default function FabricAdminFormFields({
                         {dbMaterials.map((m) => (
                           <option key={m._id} value={m.name}>
                             {m.name}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+
+                    <FormField
+                      label="Category"
+                      name={`${prefix}.category`}
+                      error={fieldErrors[`${prefix}.category`]}
+                    >
+                      <select
+                        value={variant.category || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const nextVariants = [...(formData.variants || [])];
+                          const found = dbCategories.find(
+                            (c) => c.name === val || c.nameAr === val,
+                          );
+                          nextVariants[index] = {
+                            ...nextVariants[index],
+                            category: val,
+                            categoryAr: found?.nameAr || "",
+                          };
+                          onFieldChange("variants", nextVariants);
+                        }}
+                        className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none bg-transparent text-xs sm:text-sm hover:cursor-pointer"
+                      >
+                        <option value="">Select category</option>
+                        {dbCategories.map((c) => (
+                          <option key={c._id} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+
+                    <FormField
+                      label="Pattern"
+                      name={`${prefix}.pattern`}
+                      error={fieldErrors[`${prefix}.pattern`]}
+                    >
+                      <select
+                        value={variant.pattern || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const nextVariants = [...(formData.variants || [])];
+                          const found = dbPatterns.find(
+                            (p) => p.name === val || p.nameAr === val,
+                          );
+                          nextVariants[index] = {
+                            ...nextVariants[index],
+                            pattern: val,
+                            patternAr: found?.nameAr || "",
+                          };
+                          onFieldChange("variants", nextVariants);
+                        }}
+                        className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none bg-transparent text-xs sm:text-sm hover:cursor-pointer"
+                      >
+                        <option value="">Select pattern</option>
+                        {dbPatterns.map((p) => (
+                          <option key={p._id} value={p.name}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+
+                    <FormField
+                      label="Season"
+                      name={`${prefix}.season`}
+                      error={fieldErrors[`${prefix}.season`]}
+                    >
+                      <select
+                        value={variant.season || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const nextVariants = [...(formData.variants || [])];
+                          const found = dbSeasons.find(
+                            (s) => s.name === val || s.nameAr === val,
+                          );
+                          nextVariants[index] = {
+                            ...nextVariants[index],
+                            season: val,
+                            seasonAr: found?.nameAr || "",
+                          };
+                          onFieldChange("variants", nextVariants);
+                        }}
+                        className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none bg-transparent text-xs sm:text-sm hover:cursor-pointer"
+                      >
+                        <option value="">Select season</option>
+                        {dbSeasons.map((s) => (
+                          <option key={s._id} value={s.name}>
+                            {s.name}
                           </option>
                         ))}
                       </select>

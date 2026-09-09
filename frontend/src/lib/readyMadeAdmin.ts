@@ -14,6 +14,14 @@ export interface ReadyMadeFormData {
 
   tag: string;
   tagAr: string;
+  category: string;
+  categoryAr: string;
+  material: string;
+  materialAr: string;
+  pattern: string;
+  patternAr: string;
+  season: string;
+  seasonAr: string;
 
   colors: string[];
 
@@ -135,6 +143,14 @@ export function defaultReadyMadeForm(): ReadyMadeFormData {
 
     tag: "",
     tagAr: "",
+    category: "",
+    categoryAr: "",
+    material: "",
+    materialAr: "",
+    pattern: "",
+    patternAr: "",
+    season: "",
+    seasonAr: "",
 
     colors: [],
 
@@ -192,6 +208,17 @@ export function fromApiProduct(
 
     tag: typeof product.tag === "string" ? product.tag : "",
     tagAr: typeof product.tagAr === "string" ? product.tagAr : "",
+    category: typeof product.category === "string" ? product.category : "",
+    categoryAr:
+      typeof product.categoryAr === "string" ? product.categoryAr : "",
+    material: typeof product.material === "string" ? product.material : "",
+    materialAr:
+      typeof product.materialAr === "string" ? product.materialAr : "",
+    pattern: typeof product.pattern === "string" ? product.pattern : "",
+    patternAr:
+      typeof product.patternAr === "string" ? product.patternAr : "",
+    season: typeof product.season === "string" ? product.season : "",
+    seasonAr: typeof product.seasonAr === "string" ? product.seasonAr : "",
 
     colors: Array.isArray(product.colors) ? (product.colors as string[]) : [],
 
@@ -287,6 +314,14 @@ export function toApiPayload(form: ReadyMadeFormData): Record<string, unknown> {
 
     tag: form.tag.trim(),
     tagAr: form.tagAr.trim(),
+    category: form.category.trim(),
+    categoryAr: form.categoryAr.trim(),
+    material: form.material.trim(),
+    materialAr: form.materialAr.trim(),
+    pattern: form.pattern.trim(),
+    patternAr: form.patternAr.trim(),
+    season: form.season.trim(),
+    seasonAr: form.seasonAr.trim(),
 
     colors: form.colors,
 

@@ -40,7 +40,47 @@ const readyMadeProductSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // Tags
+    // Catalog filters
+    category: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    categoryAr: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    material: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    materialAr: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    pattern: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    patternAr: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    season: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    seasonAr: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     tag: {
       type: String,
       default: "",

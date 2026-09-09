@@ -140,6 +140,8 @@ const toDesignListItem = (design) => {
     minCut: snapshot,
     estimatedMeters: lengthInMeters,
     estimatedDays: design.estimatedDays,
+    minAge: Number.isFinite(Number(design.minAge)) ? Number(design.minAge) : 0,
+    maxAge: Number.isFinite(Number(design.maxAge)) ? Number(design.maxAge) : 0,
   };
 };
 

@@ -41,6 +41,8 @@ type FabricDetailViewProps = {
   labels: {
     fabrics: string;
     material: string;
+    category?: string;
+    pattern?: string;
     color: string[];
     city: string;
     perMeter: string;
@@ -505,6 +507,32 @@ export default function FabricDetailView({
                     {formatMaterialLabel(fabric.material, locale)}
                   </p>
                 </div>
+
+                {Boolean(fabric.category?.trim()) && (
+                  <div>
+                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-[#7A7A72]">
+                      {labels.category || "Category"}
+                    </p>
+                    <p className="[font-family:var(--font-body)] text-base text-black mt-1">
+                      {locale === "ar"
+                        ? fabric.categoryAr || fabric.category
+                        : fabric.category}
+                    </p>
+                  </div>
+                )}
+
+                {Boolean(fabric.pattern?.trim()) && (
+                  <div>
+                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-[#7A7A72]">
+                      {labels.pattern || "Pattern"}
+                    </p>
+                    <p className="[font-family:var(--font-body)] text-base text-black mt-1">
+                      {locale === "ar"
+                        ? fabric.patternAr || fabric.pattern
+                        : fabric.pattern}
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-[#7A7A72]">
