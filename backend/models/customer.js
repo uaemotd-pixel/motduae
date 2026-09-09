@@ -87,6 +87,41 @@ const reviewSchema = new mongoose.Schema(
     quoteAr: { type: String, trim: true, default: "" },
     titleEn: { type: String, trim: true, default: "" },
     titleAr: { type: String, trim: true, default: "" },
+    // Moderation: only approved reviews appear on homepage / product pages
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+      index: true,
+    },
+    // Optional link to a purchased product (ready-made / fabric / add-on)
+    productId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ReadyMadeProduct",
+      default: null,
+      index: true,
+    },
+    productKind: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    productName: { type: String, trim: true, default: "" },
+    productNameAr: { type: String, trim: true, default: "" },
+    productSlug: { type: String, trim: true, default: "" },
+    // retail | custom — which order collection orderId points at
+    orderType: {
+      type: String,
+      enum: ["", "retail", "custom"],
+      default: "",
+      index: true,
+    },
+    // RetailOrder._id or CustomOrder._id depending on orderType
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,

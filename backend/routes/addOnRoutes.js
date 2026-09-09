@@ -64,7 +64,32 @@ addOnRoutes.get("/", async (req, res) => {
   }
 });
 
-// GET /api/addons/:slug - Fetch single addon by slug
+const toListItem = (p) => ({
+  _id: p._id,
+  slug: p.slug,
+  images: p.images,
+  name: p.name,
+  nameAr: p.nameAr,
+  description: p.description,
+  descriptionAr: p.descriptionAr,
+  price: p.price,
+  stock: p.stock,
+  thumbnailImage: p.thumbnailImage,
+  tag: p.tag,
+  tagAr: p.tagAr,
+  material: p.material,
+  materialAr: p.materialAr,
+  design: p.design,
+  designAr: p.designAr,
+  season: p.season,
+  seasonAr: p.seasonAr,
+  colors: p.colors,
+  isActive: p.isActive,
+  fabricShopId: p.fabricShopId ? String(p.fabricShopId) : null,
+  ownerName: p.ownerName || "MOTD Admin",
+});
+
+// GET /api/addons/:slug - Fetch single addon by slug (+ related)
 addOnRoutes.get("/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
@@ -81,9 +106,87 @@ addOnRoutes.get("/:slug", async (req, res) => {
       });
     }
 
+    const relatedLimit = 8;
+    const shopKey = addon.fabricShopId ? String(addon.fabricShopId) : "";
+    const material = String(addon.material || "")
+      .trim()
+      .toLowerCase();
+    const design = String(addon.design || "")
+      .trim()
+      .toLowerCase();
+    const season = String(addon.season || "")
+      .trim()
+      .toLowerCase();
+    const tag = String(addon.tag || "")
+      .trim()
+      .toLowerCase();
+    const colorSet = new Set(
+      (addon.colors || [])
+        .map((c) => String(c).trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    const candidates = await AddOn.find({
+      isActive: true,
+      _id: { $ne: addon._id },
+    })
+      .sort({ createdAt: -1 })
+      .limit(48)
+      .select("-__v");
+
+    const scored = candidates
+      .map((item) => {
+        let score = 0;
+        if (
+          material &&
+          String(item.material || "")
+            .trim()
+            .toLowerCase() === material
+        ) {
+          score += 4;
+        }
+        if (
+          design &&
+          String(item.design || "")
+            .trim()
+            .toLowerCase() === design
+        ) {
+          score += 3;
+        }
+        if (
+          season &&
+          String(item.season || "")
+            .trim()
+            .toLowerCase() === season
+        ) {
+          score += 2;
+        }
+        if (
+          tag &&
+          String(item.tag || "")
+            .trim()
+            .toLowerCase() === tag
+        ) {
+          score += 2;
+        }
+        if (shopKey && item.fabricShopId && shopKey === String(item.fabricShopId)) {
+          score += 2;
+        }
+        const sharedColor = (item.colors || []).some((c) =>
+          colorSet.has(String(c).trim().toLowerCase()),
+        );
+        if (sharedColor) score += 2;
+        if (Number(item.stock) > 0) score += 1;
+        return { item, score };
+      })
+      .sort((a, b) => b.score - a.score || 0);
+
+    const related = scored.slice(0, relatedLimit).map(({ item }) => toListItem(item));
+
     res.json({
       success: true,
       item: addon,
+      related,
     });
   } catch (error) {
     console.error("GET /api/addons/:slug error:", error);

@@ -446,7 +446,16 @@ function AccountPageContent() {
                   exit="exit"
                   transition={{ duration: 0.25 }}
                 >
-                  <CustomerReviewsView />
+                  <CustomerReviewsView
+                    initialOrderId={searchParams.get("orderId")}
+                    initialOrderType={
+                      searchParams.get("orderType") === "retail"
+                        ? "retail"
+                        : searchParams.get("orderType") === "custom"
+                          ? "custom"
+                          : null
+                    }
+                  />
                 </motion.div>
               )}
 

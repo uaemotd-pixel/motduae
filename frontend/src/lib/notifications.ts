@@ -216,10 +216,10 @@ export function getNotificationTypeLabel(type: string, t?: (key: string) => stri
     custom_status_in_production: "In production",
     custom_status_ready: "Order ready",
     custom_status_out_for_delivery: "Out for delivery",
-    custom_status_delivered: "Delivered",
+    custom_status_delivered: "Delivered — leave a review",
     retail_status_confirmed: "Order confirmed",
     retail_status_shipped: "Order shipped",
-    retail_status_delivered: "Delivered",
+    retail_status_delivered: "Delivered — leave a review",
     retail_status_cancelled: "Order cancelled",
     custom_review_prompt: "Leave a review",
     retail_review_prompt: "Leave a review",
@@ -476,13 +476,37 @@ export function getOrderDetailHref(
     : `/admin/orders/custom?orderId=${encodedId}`;
 }
 
-export function getReviewHref(): string {
-  return "/account?tab=reviews";
+export function getReviewHref(
+  notification?: Pick<
+    NotificationItem,
+    "orderId" | "order_id" | "orderType" | "type"
+  > | null,
+): string {
+  const params = new URLSearchParams();
+  params.set("tab", "reviews");
+
+  const orderId = notification?.orderId || notification?.order_id;
+  if (orderId) {
+    params.set("orderId", String(orderId));
+    const type = (notification?.type || "").toLowerCase();
+    const isRetail =
+      notification?.orderType === "retail" || type.startsWith("retail_");
+    params.set("orderType", isRetail ? "retail" : "custom");
+  }
+
+  return `/account?${params.toString()}`;
 }
 
 export function isReviewPromptType(type: string): boolean {
   const key = type.toLowerCase();
-  return key === "custom_review_prompt" || key === "retail_review_prompt";
+  // Delivered notifications include the leave-a-review CTA.
+  // Keep legacy *_review_prompt types for older notifications already in the DB.
+  return (
+    key === "custom_status_delivered" ||
+    key === "retail_status_delivered" ||
+    key === "custom_review_prompt" ||
+    key === "retail_review_prompt"
+  );
 }
 
 export function buildNotificationQuery(filters: NotificationFilters = {}) {

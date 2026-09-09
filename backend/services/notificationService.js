@@ -63,7 +63,8 @@ const CUSTOMER_STATUS_TYPES = {
   delivered: {
     type: "custom_status_delivered",
     title: "Order Delivered",
-    message: (id) => `Your custom order ${id} has been delivered.`,
+    message: (id) =>
+      `Your custom order ${id} has been delivered. We'd love to hear your feedback — leave a review!`,
   },
 };
 
@@ -81,7 +82,8 @@ const RETAIL_CUSTOMER_STATUS_TYPES = {
   delivered: {
     type: "retail_status_delivered",
     title: "Order Delivered",
-    message: (id) => `Your order ${id} has been delivered.`,
+    message: (id) =>
+      `Your order ${id} has been delivered. Share your experience with us — leave a review!`,
   },
   cancelled: {
     type: "retail_status_cancelled",
@@ -389,29 +391,11 @@ export async function notifyCustomRefundProcessed(order, createdBy) {
   });
 }
 
-export async function notifyReviewPrompt(order, orderType, createdBy) {
-  const isRetail = orderType === "retail";
-
-  return createNotification({
-    type: isRetail ? "retail_review_prompt" : "custom_review_prompt",
-    title: "Leave a review",
-    message: isRetail
-      ? "Your order has been delivered. Share your experience with us!"
-      : "Your custom order has been delivered. We'd love to hear your feedback!",
-    audience: "customer",
-    recipientUserId: order.userId,
-    orderType,
-    orderId: order._id,
-    createdBy,
-    dedupeKey: `customer:${isRetail ? "retail" : "custom"}_review_prompt:${order._id}`,
-  });
-}
-
 export async function notifyCustomStatusChange(order, status, createdBy) {
   const config = CUSTOMER_STATUS_TYPES[status];
   if (!config) return null;
 
-  const notification = await createNotification({
+  return createNotification({
     type: config.type,
     title: config.title,
     message: config.message(order._id),
@@ -422,19 +406,13 @@ export async function notifyCustomStatusChange(order, status, createdBy) {
     createdBy,
     dedupeKey: `customer:${config.type}:${order._id}`,
   });
-
-  if (status === "delivered") {
-    await notifyReviewPrompt(order, "custom", createdBy);
-  }
-
-  return notification;
 }
 
 export async function notifyRetailStatusChange(order, status, createdBy) {
   const config = RETAIL_CUSTOMER_STATUS_TYPES[status];
   if (!config) return null;
 
-  const notification = await createNotification({
+  return createNotification({
     type: config.type,
     title: config.title,
     message: config.message(order._id),
@@ -445,12 +423,6 @@ export async function notifyRetailStatusChange(order, status, createdBy) {
     createdBy,
     dedupeKey: `customer:${config.type}:${order._id}`,
   });
-
-  if (status === "delivered") {
-    await notifyReviewPrompt(order, "retail", createdBy);
-  }
-
-  return notification;
 }
 
 export function formatPayoutAmount(amount) {

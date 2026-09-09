@@ -44,6 +44,7 @@ interface SubAdminForm {
     payments: boolean;
     addons: boolean;
     notifications: boolean;
+    reviews: boolean;
   };
 }
 
@@ -80,6 +81,7 @@ export default function CreateSubAdminPage() {
       payments: false,
       addons: false,
       notifications: false,
+      reviews: false,
     },
   });
 

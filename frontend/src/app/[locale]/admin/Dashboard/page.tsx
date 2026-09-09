@@ -458,7 +458,7 @@ export default function AdminDashboardPage() {
             type="button"
             onClick={() => fetchStats(true)}
             disabled={isRefreshing}
-            className="inline-flex items-center gap-2 rounded-xl border border-(--dash-border) bg-(--dash-surface) px-3 py-2 text-xs text-(--dash-ink) transition hover:border-black hover:bg-black hover:text-white"
+            className="inline-flex items-center gap-2 rounded-xl border border-(--dash-border) bg-(--dash-surface) px-3 py-2 text-xs text-(--dash-ink) transition hover:border-black hover:bg-black hover:text-white hover:cursor-pointer"
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}

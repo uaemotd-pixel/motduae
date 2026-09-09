@@ -41,6 +41,7 @@ import {
   Tags,
   Ruler,
   Wallet,
+  Star,
 } from "lucide-react";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 
@@ -118,6 +119,12 @@ export default function AdminLayout({
         href: "/admin/customers",
         icon: UserRoundPlus,
         perm: "customers",
+      },
+      {
+        label: "Reviews",
+        href: "/admin/reviews",
+        icon: Star,
+        perm: "reviews",
       },
       {
         label: "Ready-Made",
@@ -217,7 +224,7 @@ export default function AdminLayout({
           <img
             src={white_logo.src}
             alt="MOTD Admin Logo"
-            className="h-3 xs:h-[13px] sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-[24px] w-auto object-contain"
+            className="h-3 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6 w-auto object-contain"
           />
           <span className="sr-only">MOTD Admin</span>
         </Link>
@@ -377,7 +384,7 @@ export default function AdminLayout({
       >
         <button
           onClick={() => setIsSidebarOpen(true)}
-          className="lg:hidden fixed safe-fixed-top start-4 z-20 rounded-md bg-black p-2 shadow-md transition hover:bg-(--dash-charcoal-deep)"
+          className="lg:hidden fixed safe-fixed-top inset-s-4 z-20 rounded-md bg-black p-2 shadow-md transition hover:bg-(--dash-charcoal-deep)"
           aria-label="Open menu"
         >
           <Menu className="w-5 h-5 text-white" />
