@@ -5,7 +5,10 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { api, getApiErrorMessage } from "@/lib/api/client";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
+import { useSearchParams } from "next/navigation";
+import { isLowStockQty } from "@/lib/lowStock";
+import { LowStockBadge } from "@/components/shared/LowStockBadge";
 import {
   Plus,
   Edit,
@@ -38,11 +41,16 @@ interface ReadyMadeItem {
 
 export default function FabricReadyMadePage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [items, setItems] = useState<ReadyMadeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shopMissing, setShopMissing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [stockFilter, setStockFilter] = useState<"all" | "low">(
+    searchParams.get("stock") === "low" ? "low" : "all",
+  );
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [menuItem, setMenuItem] = useState<ReadyMadeItem | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
@@ -90,6 +98,19 @@ export default function FabricReadyMadePage() {
     fetchItems();
   }, []);
 
+  useEffect(() => {
+    if (searchParams.get("stock") === "low") setStockFilter("low");
+  }, [searchParams]);
+
+  const applyStockFilter = (next: "all" | "low") => {
+    setStockFilter(next);
+    if (next === "low") {
+      router.replace("/fabric/ready-made?stock=low");
+    } else if (searchParams.get("stock") === "low") {
+      router.replace("/fabric/ready-made");
+    }
+  };
+
   const fetchItems = async () => {
     try {
       setLoading(true);
@@ -110,9 +131,13 @@ export default function FabricReadyMadePage() {
   };
 
   const filteredItems = useMemo(() => {
-    if (!searchTerm) return items;
+    let list = items;
+    if (stockFilter === "low") {
+      list = list.filter((item) => isLowStockQty(item.availableFabricStock));
+    }
+    if (!searchTerm) return list;
     const term = searchTerm.toLowerCase();
-    return items.filter((item) => {
+    return list.filter((item) => {
       const name = item.name?.toLowerCase() || "";
       const fabricType = item.fabricType?.toLowerCase() || "";
       const tailorName = item.tailorName?.toLowerCase() || "";
@@ -126,7 +151,7 @@ export default function FabricReadyMadePage() {
         status.includes(term)
       );
     });
-  }, [items, searchTerm]);
+  }, [items, searchTerm, stockFilter]);
 
   const availableItems = items.filter((i) => i.availableFabricStock > 0).length;
   const soldItems = items.filter((i) => i.availableFabricStock === 0).length;
@@ -361,23 +386,49 @@ export default function FabricReadyMadePage() {
 
       {/* Search & refresh */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by name, fabric, tailor, price, or status..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
-          />
+        <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => applyStockFilter("all")}
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
+              stockFilter === "all"
+                ? "border-b-2 border-black text-black"
+                : "text-gray-500 hover:text-black"
+            }`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => applyStockFilter("low")}
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
+              stockFilter === "low"
+                ? "border-b-2 border-black text-black"
+                : "text-gray-500 hover:text-black"
+            }`}
+          >
+            Low stock
+          </button>
         </div>
-        <button
-          onClick={fetchItems}
-          className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by name, fabric, tailor, price, or status..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-72 pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
+            />
+          </div>
+          <button
+            onClick={fetchItems}
+            className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -431,17 +482,29 @@ export default function FabricReadyMadePage() {
                 {filteredItems.map((item) => {
                   const status =
                     item.availableFabricStock > 0 ? "available" : "sold";
+                  const itemLow = isLowStockQty(item.availableFabricStock);
                   return (
                     <tr
                       key={item._id}
-                      className="group hover:bg-gray-50 transition-all duration-200"
+                      className={`group transition-all duration-200 ${
+                        itemLow
+                          ? "bg-rose-50/80 hover:bg-rose-50"
+                          : "hover:bg-gray-50"
+                      }`}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           {getItemImage(item)}
-                          <span className="text-sm font-medium text-black">
-                            {item.name || "—"}
-                          </span>
+                          <div>
+                            <span className="text-sm font-medium text-black">
+                              {item.name || "—"}
+                            </span>
+                            {itemLow && (
+                              <div className="mt-1">
+                                <LowStockBadge label="Low stock" />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -455,8 +518,25 @@ export default function FabricReadyMadePage() {
                           AED {item.finalSellingPriceAED}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {item.availableFabricStock}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span
+                            className={`tabular-nums font-semibold ${
+                              itemLow ? "text-rose-800" : "text-gray-700"
+                            }`}
+                          >
+                            {item.availableFabricStock}
+                          </span>
+                          {item.availableFabricStock <= 0 ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                              Out
+                            </span>
+                          ) : itemLow ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-rose-100 text-rose-800 border border-rose-200">
+                              Low
+                            </span>
+                          ) : null}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <StatusBadge status={status} />

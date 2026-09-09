@@ -5,7 +5,10 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { api, getApiErrorMessage } from "@/lib/api/client";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
+import { useSearchParams } from "next/navigation";
+import { isLowStockQty } from "@/lib/lowStock";
+import { LowStockBadge } from "@/components/shared/LowStockBadge";
 import {
   Plus,
   Edit,
@@ -35,11 +38,16 @@ interface AddOnItem {
 
 export default function FabricAddOnsPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [items, setItems] = useState<AddOnItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shopMissing, setShopMissing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [stockFilter, setStockFilter] = useState<"all" | "low">(
+    searchParams.get("stock") === "low" ? "low" : "all",
+  );
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [menuItem, setMenuItem] = useState<AddOnItem | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
@@ -102,6 +110,19 @@ export default function FabricAddOnsPage() {
     fetchItems();
   }, []);
 
+  useEffect(() => {
+    if (searchParams.get("stock") === "low") setStockFilter("low");
+  }, [searchParams]);
+
+  const applyStockFilter = (next: "all" | "low") => {
+    setStockFilter(next);
+    if (next === "low") {
+      router.replace("/fabric/addons?stock=low");
+    } else if (searchParams.get("stock") === "low") {
+      router.replace("/fabric/addons");
+    }
+  };
+
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
     try {
       const data = await api.patch<{ success: boolean; isActive: boolean }>(
@@ -152,14 +173,16 @@ export default function FabricAddOnsPage() {
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
+      if (stockFilter === "low" && !isLowStockQty(item.stock)) return false;
       const term = searchTerm.toLowerCase();
+      if (!term) return true;
       return (
         item.name.toLowerCase().includes(term) ||
         item.nameAr.toLowerCase().includes(term) ||
         item._id.toLowerCase().includes(term)
       );
     });
-  }, [items, searchTerm]);
+  }, [items, searchTerm, stockFilter]);
 
   const activeCount = useMemo(
     () => items.filter((i) => i.isActive).length,
@@ -322,23 +345,49 @@ export default function FabricAddOnsPage() {
 
       {/* Filters & Search */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search add-ons by name or ID..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
-          />
+        <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => applyStockFilter("all")}
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
+              stockFilter === "all"
+                ? "border-b-2 border-black text-black"
+                : "text-gray-500 hover:text-black"
+            }`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => applyStockFilter("low")}
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
+              stockFilter === "low"
+                ? "border-b-2 border-black text-black"
+                : "text-gray-500 hover:text-black"
+            }`}
+          >
+            Low stock
+          </button>
         </div>
-        <button
-          onClick={fetchItems}
-          className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search add-ons by name or ID..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-64 pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
+            />
+          </div>
+          <button
+            onClick={fetchItems}
+            className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Error State */}
@@ -384,20 +433,53 @@ export default function FabricAddOnsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredItems.map((item) => (
-                  <tr key={item._id} className="hover:bg-gray-50/50 transition">
+                {filteredItems.map((item) => {
+                  const itemLow = isLowStockQty(item.stock);
+                  return (
+                  <tr
+                    key={item._id}
+                    className={`transition ${
+                      itemLow ? "bg-rose-50/80 hover:bg-rose-50" : "hover:bg-gray-50/50"
+                    }`}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         {getItemImage(item)}
-                        <span className="text-sm font-medium text-black">
-                          {item.name || "—"}
-                        </span>
+                        <div>
+                          <span className="text-sm font-medium text-black">
+                            {item.name || "—"}
+                          </span>
+                          {itemLow && (
+                            <div className="mt-1">
+                              <LowStockBadge label="Low stock" />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 font-medium text-black">
                       {item.price.toFixed(2)}
                     </td>
-                    <td className="px-6 py-4 text-black">{item.stock}</td>
+                    <td className="px-6 py-4 text-black">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span
+                          className={`tabular-nums font-semibold ${
+                            itemLow ? "text-rose-800" : "text-black"
+                          }`}
+                        >
+                          {item.stock}
+                        </span>
+                        {item.stock <= 0 ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                            Out
+                          </span>
+                        ) : itemLow ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-rose-100 text-rose-800 border border-rose-200">
+                            Low
+                          </span>
+                        ) : null}
+                      </span>
+                    </td>
                     <td className="px-6 py-4">
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -426,7 +508,8 @@ export default function FabricAddOnsPage() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

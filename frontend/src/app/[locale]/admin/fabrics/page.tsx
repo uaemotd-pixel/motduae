@@ -10,9 +10,9 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { getTranslation } from "@/lib/getTranslation";
 import {
   Plus,
@@ -20,12 +20,12 @@ import {
   Trash2,
   Package,
   AlertCircle,
+  AlertTriangle,
   Search,
   RefreshCw,
   Eye,
   Image as ImageIcon,
   MoreVertical,
-  Box,
   Tag,
   Store,
   MapPin,
@@ -80,6 +80,24 @@ interface ApiResponse {
   totalPages: number;
 }
 
+type FabricStatusFilter = "all" | "available" | "sold" | "low";
+
+/** Must match backend LOW_FABRIC_CUT_STOCK_THRESHOLD. */
+const LOW_FABRIC_CUT_STOCK = 5;
+
+function isLowCutStock(stock: number) {
+  return stock <= LOW_FABRIC_CUT_STOCK;
+}
+
+function cutsHaveLowStock(cuts?: FabricCutRow[]) {
+  return (cuts || []).some((entry) => isLowCutStock(Number(entry.stock) || 0));
+}
+
+function fabricHasLowStock(item: FabricItem) {
+  if (cutsHaveLowStock(item.cuts)) return true;
+  return (item.variants || []).some((variant) => cutsHaveLowStock(variant.cuts));
+}
+
 function getAdminCutLabel(
   entry: FabricCutRow,
   locale: string,
@@ -98,41 +116,80 @@ function FabricCutsCell({
   cuts,
   locale,
   stockLabel,
+  lowLabel,
+  outLabel,
 }: {
   cuts?: FabricCutRow[];
   locale: string;
   stockLabel: string;
+  lowLabel: string;
+  outLabel: string;
 }) {
   if (!cuts?.length) {
     return <span className="text-gray-400">—</span>;
   }
 
   return (
-    <div className="space-y-1.5 max-w-xs">
-      {cuts.map((entry) => (
-        <div
-          key={entry.cutId}
-          className="text-xs text-gray-600 leading-snug"
-        >
-          <span className="font-medium text-black">
-            {getAdminCutLabel(entry, locale)}
-          </span>
-          <span className="text-gray-400 mx-1">·</span>
-          <span className="font-mono">
-            AED {Number(entry.price).toLocaleString()}
-          </span>
-          <span className="text-gray-400 mx-1">·</span>
-          <span>
-            {entry.stock} {stockLabel}
-          </span>
-        </div>
-      ))}
+    <div className="space-y-1.5 min-w-[12rem] max-w-xs">
+      {cuts.map((entry) => {
+        const stock = Number(entry.stock) || 0;
+        const low = isLowCutStock(stock);
+        const out = stock <= 0;
+        return (
+          <div
+            key={entry.cutId}
+            className={`rounded-lg border px-2 py-1.5 ${
+              low
+                ? "border-rose-200 bg-rose-50"
+                : "border-gray-100 bg-gray-50/80"
+            }`}
+          >
+            <p className="text-xs font-medium text-black leading-snug">
+              {getAdminCutLabel(entry, locale)}
+            </p>
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <span className="font-mono text-[11px] text-gray-500">
+                AED {Number(entry.price).toLocaleString()}
+              </span>
+              <span className="inline-flex items-center gap-1 shrink-0">
+                <span
+                  className={`tabular-nums text-xs font-semibold ${
+                    low ? "text-rose-800" : "text-black"
+                  }`}
+                >
+                  {stock} {stockLabel}
+                </span>
+                {out ? (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    {outLabel}
+                  </span>
+                ) : low ? (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-rose-100 text-rose-800 border border-rose-200">
+                    {lowLabel}
+                  </span>
+                ) : null}
+              </span>
+            </div>
+          </div>
+        );
+      })}
     </div>
+  );
+}
+
+function LowStockNameBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-rose-100 text-rose-800 border border-rose-200 whitespace-nowrap">
+      <AlertTriangle className="w-2.5 h-2.5" />
+      {label}
+    </span>
   );
 }
 
 export default function AdminFabricsPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const localeParam = params.locale as string;
   const t = getTranslation(localeParam);
 
@@ -163,10 +220,10 @@ export default function AdminFabricsPage() {
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
 
-  // Filter tabs (All / Available / Sold) — same pattern as ready-made admin
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "available" | "sold"
-  >("all");
+  // Filter tabs (All / Available / Sold / Low stock)
+  const [statusFilter, setStatusFilter] = useState<FabricStatusFilter>(
+    searchParams.get("stock") === "low" ? "low" : "all",
+  );
 
   // pop up image function
   const handleImageClick = (imageUrl: string) => {
@@ -253,6 +310,39 @@ export default function AdminFabricsPage() {
     [searchTerm, limit, t.adminFabrics.list.load_error_title, statusFilter],
   );
 
+  const applyStatusFilter = (status: FabricStatusFilter) => {
+    setStatusFilter(status);
+    setCurrentPage(1);
+    fetchItems(1, limit, status);
+    if (status === "low") {
+      router.replace("/admin/fabrics?stock=low");
+    } else if (searchParams.get("stock") === "low") {
+      router.replace("/admin/fabrics");
+    }
+  };
+
+  // Dashboard "Low Stock" lands here with ?stock=low
+  useEffect(() => {
+    if (searchParams.get("stock") !== "low") return;
+    if (statusFilter === "low") return;
+    setStatusFilter("low");
+    fetchItems(1, limit, "low");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (statusFilter !== "low") return;
+    const next: Record<string, boolean> = {};
+    for (const item of items) {
+      const variantLow = (item.variants || []).some((variant) =>
+        cutsHaveLowStock(variant.cuts),
+      );
+      if (variantLow) next[item._id] = true;
+    }
+    if (Object.keys(next).length === 0) return;
+    setExpandedRows((prev) => ({ ...prev, ...next }));
+  }, [items, statusFilter]);
+
   // Initial load
   useEffect(() => {
     fetchItems(1);
@@ -316,6 +406,12 @@ export default function AdminFabricsPage() {
 
   const activeCount = items.filter((i) => i.isActive).length;
   const inactiveCount = items.filter((i) => !i.isActive).length;
+  const cutsCellProps = {
+    locale: localeParam,
+    stockLabel: t.adminFabrics.list.stock_label,
+    lowLabel: t.adminFabrics.list.low_badge,
+    outLabel: t.adminFabrics.list.out_badge,
+  };
 
   const handleMenuOpen = (
     e: React.MouseEvent<HTMLButtonElement>,
@@ -536,11 +632,7 @@ export default function AdminFabricsPage() {
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
           <button
-            onClick={() => {
-              setStatusFilter("all");
-              setCurrentPage(1);
-              fetchItems(1, limit, "all");
-            }}
+            onClick={() => applyStatusFilter("all")}
             className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
               statusFilter === "all"
                 ? "border-b-2 border-black text-black"
@@ -550,11 +642,7 @@ export default function AdminFabricsPage() {
             All
           </button>
           <button
-            onClick={() => {
-              setStatusFilter("available");
-              setCurrentPage(1);
-              fetchItems(1, limit, "available");
-            }}
+            onClick={() => applyStatusFilter("available")}
             className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
               statusFilter === "available"
                 ? "border-b-2 border-black text-black"
@@ -564,11 +652,7 @@ export default function AdminFabricsPage() {
             Available
           </button>
           <button
-            onClick={() => {
-              setStatusFilter("sold");
-              setCurrentPage(1);
-              fetchItems(1, limit, "sold");
-            }}
+            onClick={() => applyStatusFilter("sold")}
             className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
               statusFilter === "sold"
                 ? "border-b-2 border-black text-black"
@@ -576,6 +660,16 @@ export default function AdminFabricsPage() {
             }`}
           >
             Sold
+          </button>
+          <button
+            onClick={() => applyStatusFilter("low")}
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
+              statusFilter === "low"
+                ? "border-b-2 border-black text-black"
+                : "text-gray-500 hover:text-black"
+            }`}
+          >
+            {t.adminFabrics.list.tab_low_stock}
           </button>
         </div>
 
@@ -600,13 +694,31 @@ export default function AdminFabricsPage() {
         </div>
       </div>
 
+      {statusFilter === "low" && (
+        <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-700">
+            <AlertTriangle className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-rose-700/80">
+              {t.adminFabrics.list.tab_low_stock}
+            </p>
+            <p className="text-sm text-rose-900 mt-0.5">
+              {t.adminFabrics.list.low_stock_hint}
+            </p>
+          </div>
+        </div>
+      )}
+
       {items.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sm:p-12 text-center">
           <Package className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500 text-sm sm:text-base">
             {searchTerm
               ? t.adminFabrics.list.empty_search
-              : t.adminFabrics.list.empty}
+              : statusFilter === "low"
+                ? t.adminFabrics.list.empty_low_stock
+                : t.adminFabrics.list.empty}
           </p>
           {!searchTerm && statusFilter === "all" && (
             <Link
@@ -649,15 +761,33 @@ export default function AdminFabricsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {items.map((item) => (
+                  {items.map((item) => {
+                    const itemLow = fabricHasLowStock(item);
+                    return (
                     <Fragment key={item._id}>
-                      <tr className="group hover:bg-gray-50 transition-all duration-200">
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                      <tr
+                        data-low-stock={itemLow ? "true" : undefined}
+                        className={`group transition-all duration-200 ${
+                          itemLow
+                            ? "bg-rose-50/80 hover:bg-rose-50"
+                            : "hover:bg-gray-50"
+                        }`}
+                      >
+                        <td className="px-4 sm:px-6 py-4">
                           <div className="flex items-center gap-3">
                             {getItemImage(item)}
-                            <span className="text-sm font-medium text-black">
-                              {item.name || "—"}
-                            </span>
+                            <div className="min-w-0">
+                              <span className="text-sm font-medium text-black">
+                                {item.name || "—"}
+                              </span>
+                              {itemLow && (
+                                <div className="mt-1">
+                                  <LowStockNameBadge
+                                    label={t.adminFabrics.list.low_badge}
+                                  />
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -666,8 +796,7 @@ export default function AdminFabricsPage() {
                         <td className="px-4 sm:px-6 py-4 text-sm text-gray-500">
                           <FabricCutsCell
                             cuts={item.cuts}
-                            locale={localeParam}
-                            stockLabel={t.adminFabrics.list.stock_label}
+                            {...cutsCellProps}
                           />
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -742,12 +871,20 @@ export default function AdminFabricsPage() {
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 bg-white">
-                                      {item.variants.map((v) => (
+                                      {item.variants.map((v) => {
+                                        const variantLow = cutsHaveLowStock(
+                                          v.cuts,
+                                        );
+                                        return (
                                         <tr
                                           key={v._id}
-                                          className="hover:bg-gray-50/60 transition-colors"
+                                          className={
+                                            variantLow
+                                              ? "bg-rose-50/80 hover:bg-rose-50"
+                                              : "hover:bg-gray-50/60 transition-colors"
+                                          }
                                         >
-                                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs font-semibold text-black">
+                                          <td className="px-3 sm:px-4 py-3 text-xs font-semibold text-black">
                                             <div className="flex items-center gap-2">
                                               {v.images &&
                                               v.images.length > 0 ? (
@@ -773,9 +910,21 @@ export default function AdminFabricsPage() {
                                                   <ImageIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-400" />
                                                 </div>
                                               )}
-                                              <span className="text-xs sm:text-sm">
-                                                {v.name}
-                                              </span>
+                                              <div className="min-w-0">
+                                                <span className="text-xs sm:text-sm">
+                                                  {v.name}
+                                                </span>
+                                                {variantLow && (
+                                                  <div className="mt-1">
+                                                    <LowStockNameBadge
+                                                      label={
+                                                        t.adminFabrics.list
+                                                          .low_badge
+                                                      }
+                                                    />
+                                                  </div>
+                                                )}
+                                              </div>
                                             </div>
                                           </td>
                                           <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-600">
@@ -784,10 +933,7 @@ export default function AdminFabricsPage() {
                                           <td className="px-3 sm:px-4 py-3 text-xs text-gray-600">
                                             <FabricCutsCell
                                               cuts={v.cuts}
-                                              locale={localeParam}
-                                              stockLabel={
-                                                t.adminFabrics.list.stock_label
-                                              }
+                                              {...cutsCellProps}
                                             />
                                           </td>
                                           <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-600">
@@ -814,7 +960,8 @@ export default function AdminFabricsPage() {
                                             </button>
                                           </td>
                                         </tr>
-                                      ))}
+                                        );
+                                      })}
                                     </tbody>
                                   </table>
                                 </div>
@@ -823,7 +970,8 @@ export default function AdminFabricsPage() {
                           </tr>
                         )}
                     </Fragment>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -831,10 +979,16 @@ export default function AdminFabricsPage() {
 
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3 sm:space-y-4">
-            {items.map((item) => (
+            {items.map((item) => {
+              const itemLow = fabricHasLowStock(item);
+              return (
               <div
                 key={item._id}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4"
+                className={`rounded-2xl shadow-sm border p-3 sm:p-4 ${
+                  itemLow
+                    ? "bg-rose-50 border-rose-200"
+                    : "bg-white border-gray-100"
+                }`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -843,7 +997,14 @@ export default function AdminFabricsPage() {
                       <h3 className="text-xs sm:text-sm font-medium text-black truncate">
                         {item.name || "—"}
                       </h3>
-                      <StatusBadge isActive={item.isActive} />
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <StatusBadge isActive={item.isActive} />
+                        {itemLow && (
+                          <LowStockNameBadge
+                            label={t.adminFabrics.list.low_badge}
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
                   <button
@@ -863,8 +1024,7 @@ export default function AdminFabricsPage() {
                   <div className="text-gray-600">
                     <FabricCutsCell
                       cuts={item.cuts}
-                      locale={localeParam}
-                      stockLabel={t.adminFabrics.list.stock_label}
+                      {...cutsCellProps}
                     />
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
@@ -897,10 +1057,16 @@ export default function AdminFabricsPage() {
                     </button>
                     {expandedRows[item._id] && (
                       <div className="mt-2 space-y-2">
-                        {item.variants.map((v) => (
+                        {item.variants.map((v) => {
+                          const variantLow = cutsHaveLowStock(v.cuts);
+                          return (
                           <div
                             key={v._id}
-                            className="bg-gray-50 rounded-lg p-3"
+                            className={`rounded-lg p-3 ${
+                              variantLow
+                                ? "bg-white border border-rose-200"
+                                : "bg-gray-50"
+                            }`}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2 min-w-0">
@@ -925,9 +1091,16 @@ export default function AdminFabricsPage() {
                                     <ImageIcon className="w-3 h-3 text-gray-400" />
                                   </div>
                                 )}
-                                <span className="text-xs font-medium truncate">
-                                  {v.name}
-                                </span>
+                                <div className="min-w-0">
+                                  <span className="text-xs font-medium truncate block">
+                                    {v.name}
+                                  </span>
+                                  {variantLow && (
+                                    <LowStockNameBadge
+                                      label={t.adminFabrics.list.low_badge}
+                                    />
+                                  )}
+                                </div>
                               </div>
                               <button
                                 onClick={(e) => handleMenuOpen(e, v)}
@@ -942,10 +1115,7 @@ export default function AdminFabricsPage() {
                                 <span className="shrink-0">Cuts:</span>
                                 <FabricCutsCell
                                   cuts={v.cuts}
-                                  locale={localeParam}
-                                  stockLabel={
-                                    t.adminFabrics.list.stock_label
-                                  }
+                                  {...cutsCellProps}
                                 />
                               </div>
                               <span>
@@ -956,13 +1126,15 @@ export default function AdminFabricsPage() {
                               </span>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
