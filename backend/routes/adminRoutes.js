@@ -749,6 +749,7 @@ adminRouter.get(
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
     const type = req.query.type || "all";
+    const status = req.query.status || "all";
 
     // Build filter for users with fabric_store role
     const filter = { role: "fabric_store" };
@@ -757,6 +758,11 @@ adminRouter.get(
     // Type filter
     if (type === "approved") {
       filter.approvalStatus = "approved";
+      if (status === "active") {
+        filter.isActive = true;
+      } else if (status === "inactive") {
+        filter.isActive = false;
+      }
     } else if (type === "pending") {
       filter.approvalStatus = "pending";
       filter.applicationSubmittedAt = { $exists: true, $ne: null };

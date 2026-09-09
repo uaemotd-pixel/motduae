@@ -66,6 +66,9 @@ interface RejectedUser {
   requestNumber?: string;
 }
 
+type TailorTab = "all" | "approved" | "pending" | "rejected";
+type ApprovedStatusTab = "all" | "active" | "inactive";
+
 type TailorRow = {
   id: string;
   name: string;
@@ -98,6 +101,9 @@ export default function AdminTailorsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<TailorTab>("all");
+  const [approvedStatusTab, setApprovedStatusTab] =
+    useState<ApprovedStatusTab>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
@@ -372,9 +378,21 @@ export default function AdminTailorsPage() {
 
   // ---------- Filter & formatting ----------
   const filteredRows = useMemo(() => {
-    if (!searchTerm.trim()) return rows;
+    const byTab =
+      activeTab === "all"
+        ? rows
+        : rows.filter((row) => row.type === activeTab);
+
+    const byStatus =
+      activeTab === "approved" && approvedStatusTab !== "all"
+        ? byTab.filter((row) =>
+            approvedStatusTab === "active" ? Boolean(row.isActive) : !row.isActive,
+          )
+        : byTab;
+
+    if (!searchTerm.trim()) return byStatus;
     const term = searchTerm.toLowerCase();
-    return rows.filter((row) => {
+    return byStatus.filter((row) => {
       const name = row.name?.toLowerCase() || "";
       const email = row.email?.toLowerCase() || "";
       const shop = row.shopName?.toLowerCase() || "";
@@ -386,7 +404,7 @@ export default function AdminTailorsPage() {
         requestNumber.includes(term)
       );
     });
-  }, [rows, searchTerm]);
+  }, [rows, searchTerm, activeTab, approvedStatusTab]);
 
   const totalItems = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / limit));
@@ -398,7 +416,20 @@ export default function AdminTailorsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, activeTab, approvedStatusTab]);
+
+  const handleTabChange = (tab: TailorTab) => {
+    setActiveTab(tab);
+    if (tab !== "approved") {
+      setApprovedStatusTab("all");
+    }
+    setCurrentPage(1);
+  };
+
+  const handleApprovedStatusChange = (tab: ApprovedStatusTab) => {
+    setApprovedStatusTab(tab);
+    setCurrentPage(1);
+  };
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -537,21 +568,34 @@ export default function AdminTailorsPage() {
             {stats.pending}
           </p>
         </div>
-        <Link
-          href={`/admin/tailors/rejected`}
-          className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100"
-        >
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
           <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wider">
             Rejected
           </p>
           <p className="text-xl sm:text-2xl font-light text-black mt-1">
             {stats.rejected}
           </p>
-        </Link>
+        </div>
       </div>
 
-      {/* Search + Refresh — right-aligned like customers / ready-made / fabrics */}
-      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-end">
+      {/* Tabs & Search */}
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        <div className="flex w-full sm:w-auto gap-0.5 sm:gap-2 border-b border-gray-200">
+          {(["all", "approved", "pending", "rejected"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => handleTabChange(tab)}
+              className={`flex-1 sm:flex-none px-1.5 sm:px-3 md:px-4 py-2 text-[10px] sm:text-xs md:text-sm font-medium transition-colors hover:cursor-pointer capitalize text-center ${
+                activeTab === tab
+                  ? "border-b-2 border-black text-black"
+                  : "text-gray-500 hover:text-black"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
         <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-none">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
@@ -573,11 +617,31 @@ export default function AdminTailorsPage() {
         </div>
       </div>
 
+      {activeTab === "approved" && (
+        <div className="flex w-full sm:w-auto gap-0.5 sm:gap-2 border-b border-gray-200">
+          {(["all", "active", "inactive"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => handleApprovedStatusChange(tab)}
+              className={`flex-1 sm:flex-none px-1.5 sm:px-3 md:px-4 py-2 text-[10px] sm:text-xs md:text-sm font-medium transition-colors hover:cursor-pointer capitalize text-center ${
+                approvedStatusTab === tab
+                  ? "border-b-2 border-black text-black"
+                  : "text-gray-500 hover:text-black"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      )}
+
       {totalItems === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sm:p-12 text-center">
           <Users className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500 text-sm sm:text-base">
-            {searchTerm ? "No tailors match your search." : "No tailors found."}
+            {searchTerm
+              ? "No tailors match your search."
+              : "No tailors found matching the criteria."}
           </p>
         </div>
       ) : (

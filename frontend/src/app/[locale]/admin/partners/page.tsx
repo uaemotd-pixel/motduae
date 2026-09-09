@@ -220,6 +220,9 @@ export default function AdminPartnersPage() {
   const [activeTab, setActiveTab] = useState<
     "all" | "approved" | "pending" | "rejected"
   >("all");
+  const [approvedStatusTab, setApprovedStatusTab] = useState<
+    "all" | "active" | "inactive"
+  >("all");
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -300,6 +303,7 @@ export default function AdminPartnersPage() {
       limitOverride?: number,
       tabOverride = activeTab,
       showLoading = true,
+      statusOverride = approvedStatusTab,
     ) => {
       if (showLoading) {
         setLoading(true);
@@ -311,9 +315,13 @@ export default function AdminPartnersPage() {
           ? `&search=${encodeURIComponent(searchTerm)}`
           : "";
         const tabFilter = tabOverride !== "all" ? `&type=${tabOverride}` : "";
+        const statusFilter =
+          tabOverride === "approved" && statusOverride !== "all"
+            ? `&status=${statusOverride}`
+            : "";
 
         const res = await api.get<ApiResponse>(
-          `/api/admin/partners?page=${page}&limit=${l}${search}${tabFilter}`,
+          `/api/admin/partners?page=${page}&limit=${l}${search}${tabFilter}${statusFilter}`,
         );
 
         setRows(res.items || []);
@@ -346,7 +354,7 @@ export default function AdminPartnersPage() {
         }
       }
     },
-    [searchTerm, activeTab, limit],
+    [searchTerm, activeTab, approvedStatusTab, limit],
   );
 
   // Initial load - runs once
@@ -508,8 +516,18 @@ export default function AdminPartnersPage() {
     tab: "all" | "approved" | "pending" | "rejected",
   ) => {
     setActiveTab(tab);
+    const nextStatus = tab === "approved" ? approvedStatusTab : "all";
+    if (tab !== "approved") {
+      setApprovedStatusTab("all");
+    }
     setCurrentPage(1);
-    fetchData(1, undefined, tab, false);
+    fetchData(1, undefined, tab, false, nextStatus);
+  };
+
+  const handleApprovedStatusChange = (tab: "all" | "active" | "inactive") => {
+    setApprovedStatusTab(tab);
+    setCurrentPage(1);
+    fetchData(1, undefined, "approved", false, tab);
   };
 
   const filteredRows = useMemo(() => {
@@ -747,6 +765,24 @@ export default function AdminPartnersPage() {
           </button>
         </div>
       </div>
+
+      {activeTab === "approved" && (
+        <div className="flex w-full sm:w-auto gap-0.5 sm:gap-2 border-b border-gray-200">
+          {(["all", "active", "inactive"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => handleApprovedStatusChange(tab)}
+              className={`flex-1 sm:flex-none px-1.5 sm:px-3 md:px-4 py-2 text-[10px] sm:text-xs md:text-sm font-medium transition-colors hover:cursor-pointer capitalize text-center ${
+                approvedStatusTab === tab
+                  ? "border-b-2 border-black text-black"
+                  : "text-gray-500 hover:text-black"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Table / Cards */}
       {filteredRows.length === 0 ? (
