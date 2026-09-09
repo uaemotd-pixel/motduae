@@ -72,7 +72,8 @@
     "reviewsEmpty": "No reviews for this fabric yet.",
     "reviewsLoading": "Loading reviews…",
     "reviewsAverage": "Average {rating}",
-    "reviewsCount": "{count} reviews"
+    "reviewsCount": "{count} reviews",
+    "verifiedPurchase": "Verified purchase"
   },
   "AddonDetail": {
     "relatedEyebrow": "More to explore",
@@ -83,7 +84,8 @@
     "reviewsEmpty": "No reviews for this add-on yet.",
     "reviewsLoading": "Loading reviews…",
     "reviewsAverage": "Average {rating}",
-    "reviewsCount": "{count} reviews"
+    "reviewsCount": "{count} reviews",
+    "verifiedPurchase": "Verified purchase"
   },
   "DesignDetail": {
     "loading": "Loading design...",
@@ -107,7 +109,13 @@
     "partnerNote": "Custom order will be tailored and fulfilled by this MOTD partner shop.",
     "relatedEyebrow": "More to explore",
     "relatedTitle": "You May Also Like",
-    "relatedExplore": "View all designs"
+    "relatedExplore": "View all designs",
+    "reviewsTitle": "Customer Reviews",
+    "reviewsEmpty": "No reviews for this design yet.",
+    "reviewsLoading": "Loading reviews…",
+    "reviewsAverage": "Average {rating}",
+    "reviewsCount": "{count} reviews",
+    "verifiedPurchase": "Verified purchase"
   },
   "PremiumFabrics": {
     "ariaLabel": "Premium Fabrics",
@@ -521,7 +529,8 @@
     "btn": "Download Guide"
   },
   "Testimonials": {
-    "title": "The Client Experience"
+    "title": "The Client Experience",
+    "verifiedPurchase": "Verified purchase"
   },
   "TailorRegister": {
     "eyebrow": "Partner with MOTD",
@@ -1580,6 +1589,7 @@
         "tailorPayoutRequested": "Tailor payout request",
         "tailorPayoutApproved": "Tailor payout approved",
         "tailorPayoutRejected": "Tailor payout declined",
+        "reviewSubmitted": "New review pending",
         "default": "Notification"
       }
     }
@@ -1612,6 +1622,7 @@
       "orderStatus": "Status",
       "timelineTitle": "Order progress",
       "leaveReview": "Leave a review",
+      "viewReview": "View review",
       "bellLabel": "Notifications",
       "previewTitle": "Recent updates",
       "previewSubtitle": "{count} unread",
@@ -1645,12 +1656,14 @@
         "retailStatusCancelled": "Order cancelled",
         "customReviewPrompt": "Leave a review",
         "retailReviewPrompt": "Leave a review",
+        "reviewApproved": "Review approved",
+        "reviewRejected": "Review not published",
         "default": "Notification"
       }
     },
     "Reviews": {
       "writeTitle": "Write a Review",
-      "writeSubtitle": "Share your experience with MOTD. Product reviews appear on that product’s page; custom-order reviews cover the whole tailor + fabric journey as one.",
+      "writeSubtitle": "Share your experience with MOTD. Product reviews appear on that product’s page after approval.",
       "rating": "Rating",
       "starLabel": "{count} stars",
       "halfStarHint": "Click the left or right half of a star for values like 3.5.",
@@ -1661,12 +1674,18 @@
       "productLabel": "Link to (optional)",
       "productGeneral": "General MOTD experience",
       "productPlaceholder": "Select a product",
-      "productHint": "Link a delivered retail item or a custom order. Custom orders use one overall review — not separate ratings for tailor and fabric stores.",
+      "productHint": "Link a delivered item. Custom orders let you review the design, fabric, and add-ons separately.",
       "productRequired": "Please select a product to review.",
       "productLockedLabel": "Reviewing",
       "productLockedHint": "This review is for the item from your delivered order.",
-      "customOrderLockedHint": "One review for this custom order (design, fabric, and any add-ons together).",
-      "orderAlreadyReviewed": "You've already reviewed this order.",
+      "customOrderLockedHint": "Rate each part of this custom order. Empty cards are skipped.",
+      "multiCardHint": "Leave a rating and comment for each part you want to review. You can skip any card.",
+      "kindDesign": "Design",
+      "kindFabric": "Fabric",
+      "kindAddon": "Add-on",
+      "kindProduct": "Product",
+      "verifiedPurchase": "Verified purchase",
+      "orderAlreadyReviewed": "You've already reviewed everything from this order.",
       "noEligibleProducts": "No delivered items or custom orders available to link. You can still leave a general MOTD review.",
       "reviewedProduct": "Linked: {name}",
       "submit": "Submit Review",
@@ -1694,7 +1713,7 @@
       "confirmDelete": "Delete this review? It will be removed from the homepage and product page.",
       "deleteSuccess": "Review deleted.",
       "deleteFailed": "Failed to delete review.",
-      "registeredOnly": "Only registered customers can leave a review. Please sign in or create an account.",
+      "registeredOnly": "Sign in to leave a review, or continue as a guest after checkout.",
       "loginCta": "Sign in",
       "signupCta": "Create account"
     }
@@ -1745,7 +1764,8 @@
         "return_approved": "Return approved",
         "return_rejected": "Return Rejected",
         "refund_processed": "Refund processed"
-      }
+      },
+      "leaveReview": "Leave a review"
     },
     "retail": {
       "loading": "Loading ready-made orders...",
@@ -1762,7 +1782,8 @@
         "shipped": "Shipped",
         "delivered": "Delivered",
         "cancelled": "Cancelled"
-      }
+      },
+      "leaveReview": "Leave a review"
     },
     "timeline": {
       "ariaLabel": "Custom order progress timeline",

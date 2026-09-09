@@ -21,7 +21,8 @@
             "reviewsEmpty": "No reviews for this product yet.",
             "reviewsLoading": "Loading reviews…",
             "reviewsAverage": "Average {rating}",
-            "reviewsCount": "{count} reviews"
+            "reviewsCount": "{count} reviews",
+            "verifiedPurchase": "Verified purchase"
         }
     }
 }

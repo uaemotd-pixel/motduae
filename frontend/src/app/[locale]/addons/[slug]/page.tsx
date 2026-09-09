@@ -791,6 +791,7 @@ export default function AddonDetailPage() {
           loading: t("reviewsLoading"),
           averageLabel: t.raw("reviewsAverage"),
           countLabel: t.raw("reviewsCount"),
+          verifiedLabel: t("verifiedPurchase"),
         }}
       />
     </MainLayout>

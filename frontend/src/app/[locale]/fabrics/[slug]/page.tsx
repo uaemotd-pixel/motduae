@@ -374,6 +374,7 @@ export default function FabricDetailPage() {
           // Use raw templates — ProductReviewsSection fills {rating}/{count}
           averageLabel: t.raw("reviewsAverage"),
           countLabel: t.raw("reviewsCount"),
+          verifiedLabel: t("verifiedPurchase"),
         }}
       />
     </MainLayout>

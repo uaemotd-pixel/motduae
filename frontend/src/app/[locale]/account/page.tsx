@@ -99,7 +99,7 @@ function AccountSidebar({
 
       <nav className="flex-1 space-y-1.5">
         {NAV_ITEMS.map((item) => {
-          if (isGuest && item.id !== "orders") return null;
+          if (isGuest && item.id !== "orders" && item.id !== "reviews") return null;
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           return (
@@ -238,7 +238,10 @@ function AccountPageContent() {
 
   useEffect(() => {
     if (user?.isGuest) {
-      if (!isAccountTab(tabFromUrl) || tabFromUrl !== "orders") {
+      const allowed =
+        isAccountTab(tabFromUrl) &&
+        (tabFromUrl === "orders" || tabFromUrl === "reviews");
+      if (!allowed) {
         setActiveTab("orders");
       } else if (tabFromUrl !== activeTab) {
         setActiveTab(tabFromUrl);

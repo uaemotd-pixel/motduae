@@ -9,6 +9,7 @@ import { useNotificationUnreadCount } from "@/hooks/useNotifications";
 import AdminNotificationBell from "@/components/admin/notifications/AdminNotificationBell";
 import { DashboardPanelSkeleton } from "@/components/ui/Skeleton";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
+import { api } from "@/lib/api/client";
 import {
   hasAdminPerm,
   isFullAdmin,
@@ -71,14 +72,41 @@ export default function AdminLayout({
     Boolean(user) &&
     (isFullAdmin(user) || hasAdminPerm(user, "notifications"));
 
+  const canSeeReviews =
+    Boolean(user) && (isFullAdmin(user) || hasAdminPerm(user, "reviews"));
+
   const { count: unreadNotificationCount } = useNotificationUnreadCount(
     "admin",
     canSeeNotifications,
   );
+  const [pendingReviewCount, setPendingReviewCount] = useState(0);
 
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!canSeeReviews) {
+      setPendingReviewCount(0);
+      return;
+    }
+    let cancelled = false;
+    api
+      .get<{ counts?: { pending?: number } }>(
+        "/api/admin/reviews?status=pending&limit=1",
+      )
+      .then((data) => {
+        if (!cancelled) {
+          setPendingReviewCount(Number(data?.counts?.pending) || 0);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPendingReviewCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canSeeReviews, pathname]);
 
   useEffect(() => {
     document.documentElement.classList.remove("lenis", "lenis-smooth");
@@ -253,6 +281,11 @@ export default function AdminLayout({
                 <Icon className="w-4 h-4" />
               </div>
               {item.label}
+              {item.href === "/admin/reviews" && pendingReviewCount > 0 && (
+                <span className="min-w-5 h-5 px-1 rounded-full bg-(--dash-danger) text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
+                  {pendingReviewCount > 99 ? "99+" : pendingReviewCount}
+                </span>
+              )}
               {item.href === "/admin/notifications" &&
                 unreadNotificationCount > 0 && (
                   <span className="min-w-5 h-5 px-1 rounded-full bg-(--dash-danger) text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
