@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronUp } from "lucide-react";
+import { scrollPageToTop } from "@/lib/scroll";
 
 const SCROLL_THRESHOLD = 200;
 
@@ -19,7 +20,7 @@ export default function ScrollToTop() {
   }, []);
 
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollPageToTop();
   };
 
   return (
