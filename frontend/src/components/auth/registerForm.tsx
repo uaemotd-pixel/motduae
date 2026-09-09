@@ -2,7 +2,6 @@
 
 import { useState, FormEvent } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import Image from "next/image";
 import { Link } from "@/i18n/navigation";
 import { useLocale } from "next-intl";
 import { motion } from "framer-motion";
@@ -14,8 +13,8 @@ import {
   getPasswordValidationMessage,
   isPasswordValid,
 } from "@/lib/auth/passwordValidation";
-import logoBlack from "../../../public/PNG/Black/MOTD_Wordmark_Black.png";
 import * as images from "../../../public/images/ImageIndex";
+import { AuthSplitHero } from "@/components/auth/AuthSplitHero";
 
 export default function RegisterForm() {
   const params = useParams();
@@ -93,30 +92,10 @@ export default function RegisterForm() {
 
   return (
     <main className="min-h-screen w-full flex flex-col md:flex-row bg-white overflow-x-clip">
-      {/* Left Side - Image Section */}
-      <section className="hidden md:sticky md:top-0 md:block md:w-[55%] h-screen overflow-hidden relative">
-        <img
-          src={images.register_image.src}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover object-[28%_center]"
-        />
-        <div className="absolute inset-0 bg-linear-to-r from-black/15 via-black/5 to-transparent"></div>
-        <div className="absolute inset-0 bg-linear-to-t from-black/20 via-transparent to-black/5"></div>
-        <div className="absolute top-7.5 left-7.5 z-10 fade-in">
-          <Link href="/" className="shrink-0 flex items-center p-7.5 -m-7.5">
-            <img
-              src="/PNG/White/MOTD_Wordmark_White.png"
-              alt="logoAlt"
-              className="h-3 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6 w-auto object-contain"
-            />
-          </Link>
-        </div>
-        <div className="absolute bottom-7.5 left-7.5 hidden md:block fade-in">
-          <p className="font-label-sm text-[11px] md:text-[12px] text-white/50 uppercase tracking-[0.3em]">
-            {t.signup.imageText}
-          </p>
-        </div>
-      </section>
+      <AuthSplitHero
+        src={images.register_image.src}
+        caption={t.signup.imageText}
+      />
 
       {/* Right Side - Sign Up Form */}
       <section className="w-full md:w-[45%] bg-white h-auto flex flex-col justify-center items-center py-10 px-5 sm:px-8 md:px-12 lg:px-16 xl:px-20">
@@ -126,17 +105,6 @@ export default function RegisterForm() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
           >
-            {/* Mobile logo */}
-            <div className="md:hidden flex justify-center mb-10 fade-in">
-              <Image
-                src={logoBlack}
-                alt="MOTD — Mukhawar of the Day"
-                height={35}
-                width={100}
-                className="h-auto w-auto object-contain"
-              />
-            </div>
-
             {/* Header */}
             <header className="mb-10 md:mb-12 fade-in md:mt-6 lg:mt-8">
               <div className="flex items-center gap-2 mb-4">

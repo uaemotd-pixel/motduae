@@ -370,7 +370,7 @@ export default function FabricNewAddOnPage() {
         onSubmit={handleSubmit}
         className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6"
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-6">
           <FormField
             label="Name (EN)"
             name="name"
@@ -429,7 +429,7 @@ export default function FabricNewAddOnPage() {
             />
           </FormField>
 
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+          <div className="col-span-2 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
             <FormField
               label="Material (ENG / AR)"
               name="material"

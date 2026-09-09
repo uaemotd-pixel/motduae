@@ -70,7 +70,7 @@ function TailorPortraitCard({
       href={`/tailors/${tailor.slug}`}
       className="group relative block h-full overflow-hidden bg-(--color-near-black) transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_24px_48px_-12px_rgba(0,0,0,0.35)]"
     >
-      <div className="aspect-3/4 sm:aspect-4/5 relative overflow-hidden">
+      <div className="aspect-4/5 relative overflow-hidden">
         <img
           src={imageUrl}
           alt={name}

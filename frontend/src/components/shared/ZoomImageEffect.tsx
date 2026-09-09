@@ -13,7 +13,7 @@ interface ZoomImageEffectProps {
 export default function ZoomImageEffect({
   src,
   alt = "Image",
-  className = "w-full h-auto",
+  className = "h-full w-full object-cover object-top",
   lensSize = 120,
   zoomLevel = 3,
 }: ZoomImageEffectProps) {
@@ -159,7 +159,7 @@ export default function ZoomImageEffect({
   return (
     <div
       ref={containerRef}
-      className="relative inline-block w-full select-none cursor-crosshair"
+      className="relative block h-full w-full select-none cursor-crosshair"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onMouseMove={handleMouseMove}

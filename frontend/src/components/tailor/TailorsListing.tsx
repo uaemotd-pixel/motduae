@@ -118,12 +118,12 @@ export default function TailorsListing() {
                     href={`/tailors/${tailor.slug}`}
                     className="group bg-white border border-[#E4E0D8] overflow-hidden transition-all duration-500 hover:shadow-2xl hover:-translate-y-1"
                   >
-                    <div className="aspect-4/3 max-h-64 sm:max-h-72 relative overflow-hidden bg-[#F0EBE3]">
+                    <div className="aspect-4/5 relative overflow-hidden bg-[#F0EBE3]">
                       <img
                         src={imageUrl}
                         alt={name}
                         loading="lazy"
-                        className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105"
+                        className="w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-105"
                       />
                       <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                       {badge && (

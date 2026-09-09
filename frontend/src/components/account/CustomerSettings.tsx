@@ -77,7 +77,7 @@ export default function CustomerSettings({
 
   if (showChangeEmail && canChangeEmail) {
     return (
-      <div className="mx-auto px-4 sm:px-6">
+      <div>
         <PartnerChangeEmailCard
           locale={locale}
           nextPath="/account?tab=settings"
@@ -89,20 +89,20 @@ export default function CustomerSettings({
   }
 
   return (
-    <div className="mx-auto space-y-8 px-4 sm:px-6">
+    <div className="space-y-6">
       <div>
-        <h2 className="text-2xl sm:text-3xl font-light text-black tracking-tight">
+        <h2 className="text-xl sm:text-2xl font-light text-black tracking-tight">
           Settings
         </h2>
-        <p className="text-gray-500 text-sm mt-1">
+        <p className="text-gray-500 text-sm mt-0.5">
           Manage your account settings
         </p>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-100">
+      <div className="divide-y divide-gray-100 border-t border-gray-100">
         {/* Change email */}
         {canChangeEmail ? (
-          <div className="p-4 sm:p-6 space-y-4">
+          <div className="py-4 sm:py-5 space-y-4">
             <EmailChangePendingBanner
               locale={locale}
               nextPath="/account?tab=settings"
@@ -134,7 +134,7 @@ export default function CustomerSettings({
         ) : null}
 
         {/* Password Section */}
-        <div className="p-4 sm:p-6">
+        <div className="py-4 sm:py-5">
           <div className="flex items-start sm:items-center gap-3">
             <Lock
               className="w-5 h-5 text-gray-400 shrink-0 mt-0.5 sm:mt-0"
@@ -185,7 +185,7 @@ export default function CustomerSettings({
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label
                   htmlFor="settings-new-password"
@@ -203,11 +203,6 @@ export default function CustomerSettings({
                     placeholder="Enter new password"
                   />
                 </div>
-                {password && (
-                  <div className="mt-3 sm:col-span-2">
-                    <PasswordChecklist password={password} />
-                  </div>
-                )}
               </div>
 
               <div>
@@ -233,11 +228,7 @@ export default function CustomerSettings({
               </div>
             </div>
 
-            {password && (
-              <div className="sm:hidden">
-                <PasswordChecklist password={password} />
-              </div>
-            )}
+            {password ? <PasswordChecklist password={password} /> : null}
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
               <label className="flex items-center gap-2 text-sm text-gray-600 hover:cursor-pointer">

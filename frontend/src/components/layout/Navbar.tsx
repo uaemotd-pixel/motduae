@@ -19,7 +19,7 @@ const NAV_LINKS = [
 ] as const;
 
 const MOBILE_NAV_LINKS = [
-  { key: "designs", href: "/#designs" },
+  { key: "designs", href: "/designs/designShop" },
   { key: "fabrics", href: "/fabrics/fabricStore" },
   { key: "brands", href: "/tailors" },
 ] as const;

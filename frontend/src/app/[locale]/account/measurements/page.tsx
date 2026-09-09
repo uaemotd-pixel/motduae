@@ -98,7 +98,7 @@ function MeasurementInput({
             error ? "border-red-500" : "border-gray-200"
           } ${
             disabled ? "bg-gray-50 text-gray-700" : "bg-white text-black"
-          } px-2.5 sm:px-4 py-2.5 sm:py-3 font-body text-[15px] sm:text-[16px] focus:outline-none focus:border-black transition rounded-lg w-full`}
+          } px-2.5 sm:px-4 py-2 sm:py-3 font-body text-[15px] sm:text-[16px] focus:outline-none focus:border-black transition rounded-lg w-full`}
         />
         <span className="font-ui text-[10px] sm:text-[11px] uppercase tracking-[0.2em] text-gray-400 shrink-0">
           {t("unit")}
@@ -108,7 +108,7 @@ function MeasurementInput({
         <p className="text-red-500 text-[11px] sm:text-[12px] mt-1">{error}</p>
       )}
       {!disabled && (
-        <p className="font-body text-[11px] sm:text-[12px] text-gray-400 mt-1">
+        <p className="hidden sm:block font-body text-[11px] sm:text-[12px] text-gray-400 mt-1">
           {t(`fields.${field}Hint`)}
         </p>
       )}
@@ -384,7 +384,7 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-8">
+      <div className="mx-auto max-w-7xl">
         <AccountPanelSkeleton />
       </div>
     );
@@ -400,10 +400,10 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
   };
 
   return (
-    <div className="mx-auto max-w-7xl w-full space-y-4 sm:space-y-6 px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-        <div className="w-full sm:w-auto">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-light text-black tracking-tight">
+    <div className="w-full space-y-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="w-full sm:w-auto min-w-0">
+          <h1 className="text-xl sm:text-3xl md:text-4xl font-light text-black tracking-tight">
             {selectedMemberId && selectedMember
               ? `${selectedMember.name}'s Measurements`
               : isViewMode
@@ -506,9 +506,9 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 lg:p-8">
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)] gap-6 lg:gap-8 xl:gap-12 mb-8 sm:mb-10">
-          <div className="space-y-8 sm:space-y-10">
+      <div>
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)] gap-5 lg:gap-8 xl:gap-12 mb-6 sm:mb-8">
+          <div className="space-y-6 sm:space-y-8">
             <section>
               <h2 className="font-display text-[18px] sm:text-[20px] md:text-[22px] font-normal mb-1.5 sm:mb-2">
                 {t("bodySection")}
@@ -518,12 +518,12 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
                   {t("bodySectionHint")}
                 </p>
               )}
-              <div className="xl:hidden mb-4 sm:mb-6 flex justify-center overflow-hidden">
-                <div className="w-full max-w-70 sm:max-w-[320px] md:max-w-90 lg:max-w-100 mx-auto">
+              <div className="xl:hidden mb-4 flex justify-center overflow-hidden">
+                <div className="w-full max-w-44 sm:max-w-[280px] md:max-w-80 mx-auto">
                   <MeasurementBodyDiagram />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5 md:gap-6">
                 {BODY_MEASUREMENT_FIELDS.map((field) => (
                   <MeasurementInput
                     key={field}
@@ -547,13 +547,13 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
                   {t("neckSectionHint")}
                 </p>
               )}
-              <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-start">
-                <div className="shrink-0 flex justify-center w-full sm:w-auto">
-                  <div className="w-full max-w-50 sm:max-w-55 md:max-w-60 lg:max-w-65">
+              <div className="flex flex-row gap-3 sm:gap-8 items-start">
+                <div className="shrink-0 flex justify-center w-28 sm:w-auto">
+                  <div className="w-full sm:max-w-55 md:max-w-60 lg:max-w-65">
                     <MeasurementNeckDiagram />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-4 sm:gap-5 md:gap-6 flex-1 min-w-0 w-full sm:max-w-sm">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5 md:gap-6 flex-1 min-w-0 w-full sm:max-w-none">
                   {NECK_MEASUREMENT_FIELDS.map((field) => (
                     <MeasurementInput
                       key={field}
@@ -578,13 +578,13 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
                   {t("fields.arabicSleeveSectionHint")}
                 </p>
               )}
-              <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-start">
-                <div className="shrink-0 flex justify-center w-full sm:w-auto">
-                  <div className="w-full max-w-50 sm:max-w-55 md:max-w-60 lg:max-w-65">
+              <div className="flex flex-row gap-3 sm:gap-8 items-start">
+                <div className="shrink-0 flex justify-center w-28 sm:w-auto">
+                  <div className="w-full sm:max-w-55 md:max-w-60 lg:max-w-65">
                     <MeasurementSleeveDiagram />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-4 sm:gap-5 md:gap-6 flex-1 min-w-0 w-full sm:max-w-sm">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5 md:gap-6 flex-1 min-w-0 w-full sm:max-w-none">
                   {SLEEVE_MEASUREMENT_FIELDS.map((field) => (
                     <MeasurementInput
                       key={field}
@@ -611,7 +611,7 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
           </aside>
         </div>
 
-        <div className="mb-8 sm:mb-10">
+        <div className="mb-6 sm:mb-8">
           <label
             htmlFor="measurement-notes"
             className="block font-ui text-[10px] uppercase tracking-[0.24em] text-black mb-1.5 sm:mb-2"
@@ -620,12 +620,12 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
           </label>
           <textarea
             id="measurement-notes"
-            rows={4}
+            rows={3}
             value={measurements.notes}
             onChange={(e) => handleNotesChange(e.target.value)}
             placeholder={t("fields.notesPlaceholder")}
             disabled={isViewMode}
-            className={`w-full border border-gray-200 px-3 sm:px-4 py-2.5 sm:py-3 font-body text-[14px] sm:text-[15px] focus:outline-none focus:border-black transition resize-y min-h-25 sm:min-h-30 rounded-lg ${
+            className={`w-full border border-gray-200 px-3 sm:px-4 py-2.5 sm:py-3 font-body text-[14px] sm:text-[15px] focus:outline-none focus:border-black transition resize-y min-h-20 sm:min-h-28 rounded-lg ${
               isViewMode ? "bg-gray-50 text-gray-700" : "bg-white text-black"
             }`}
           />

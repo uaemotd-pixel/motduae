@@ -27,7 +27,6 @@ import {
   Store,
   Settings,
   LogOut,
-  Menu,
   X,
   UserRoundPlus,
   UserRoundPen,
@@ -44,6 +43,7 @@ import {
   Wallet,
   Star,
 } from "lucide-react";
+import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 
 type NavItem = {
@@ -415,15 +415,9 @@ export default function AdminLayout({
       <main
         className="admin-canvas min-h-screen bg-white p-4 pb-16 text-black transition-all duration-300 xs:p-6 sm:p-8 md:p-10 lg:ml-72"
       >
-        <button
-          onClick={() => setIsSidebarOpen(true)}
-          className="lg:hidden fixed safe-fixed-top inset-s-4 z-20 rounded-md bg-black p-2 shadow-md transition hover:bg-(--dash-charcoal-deep)"
-          aria-label="Open menu"
-        >
-          <Menu className="w-5 h-5 text-white" />
-        </button>
+        <DashboardMobileMenuBar onOpen={() => setIsSidebarOpen(true)} />
 
-        <div className="lg:pt-0 pt-12">
+        <div>
           {canSeeNotifications && (
             <div className="mb-6 flex items-center justify-end gap-3">
               <AdminNotificationBell />

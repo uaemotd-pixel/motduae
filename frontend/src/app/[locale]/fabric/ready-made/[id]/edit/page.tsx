@@ -316,7 +316,7 @@ export default function EditReadyMadePage() {
         onSubmit={handleSubmit}
         className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6"
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-6">
           {/* NAME */}
           <FormField
             label="Name (ENG)"
@@ -547,7 +547,7 @@ export default function EditReadyMadePage() {
             </div>
           </div>
 
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="col-span-2 grid grid-cols-3 gap-3 sm:gap-4">
             <FormField
               label="Fabric Price AED"
               error={fieldErrors.fabricPriceAED}
@@ -602,7 +602,7 @@ export default function EditReadyMadePage() {
           </div>
 
           {/* Category + Material + Pattern + Tag + Season */}
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+          <div className="col-span-2 grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <FormField label="Category (ENG / AR)" name="category">
               <AnimatedDropdown
                 isOpen={categoryOpen}
@@ -948,7 +948,7 @@ export default function EditReadyMadePage() {
           </div>
 
           {/* Color + User */}
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+          <div className="col-span-2 grid grid-cols-3 gap-3 sm:gap-4">
             <FormField label="Colors" name="colors" required>
               <div className="relative" ref={colorsDropdownRef}>
                 <button

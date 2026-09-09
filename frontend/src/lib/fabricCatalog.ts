@@ -180,7 +180,7 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
   return {
     name: form.name.trim(),
     nameAr: form.nameAr.trim(),
-    slug: form.slug.trim().toLowerCase(),
+    slug: slugifyFabricName(form.name),
     description: form.description.trim(),
     descriptionAr: form.descriptionAr.trim(),
     images: form.images.map((image) => image.trim()).filter(Boolean),
@@ -210,7 +210,7 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
       _id: v._id,
       name: v.name.trim(),
       nameAr: v.nameAr.trim(),
-      slug: v.slug.trim().toLowerCase(),
+      slug: slugifyFabricName(v.name),
       description: v.description.trim(),
       descriptionAr: v.descriptionAr.trim(),
       images: v.images.map((image) => image.trim()).filter(Boolean),

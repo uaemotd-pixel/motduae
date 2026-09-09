@@ -23,7 +23,6 @@ import {
   type FabricCutFormEntry,
 } from "@/lib/createFabricAdmin";
 import {
-  SLUG_PATTERN,
   createFabricItem,
   fabricToForm,
   emptyFabricForm,
@@ -249,7 +248,6 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     Partial<Record<string, string>>
   >({});
   const [formData, setFormData] = useState<FabricFormData>(emptyFabricForm());
-  const [slugTouched, setSlugTouched] = useState(false);
   const [shopName, setShopName] = useState<string>("");
   const [isColorDropdownOpen, setIsColorDropdownOpen] = useState(false);
   const [openVariantColorDropdown, setOpenVariantColorDropdown] = useState<
@@ -473,7 +471,6 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
           const fabric = await fetchFabricItem(fabricId);
           if (cancelled) return;
           setFormData(fabricToForm(fabric));
-          setSlugTouched(true);
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -497,12 +494,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     setFormData((prev) => {
       const next = { ...prev, [field]: value } as FabricFormData;
 
-      if (
-        field === "name" &&
-        !isEditMode &&
-        !slugTouched &&
-        typeof value === "string"
-      ) {
+      if (field === "name" && typeof value === "string") {
         next.slug = slugifyFabricName(value);
       }
 
@@ -520,8 +512,6 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
 
       return next;
     });
-
-    if (field === "slug") setSlugTouched(true);
   };
 
   const handleVariantChange = (
@@ -536,11 +526,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         [field]: value,
       } as FabricFormData;
 
-      if (
-        field === "name" &&
-        !nextVariants[index].slug &&
-        typeof value === "string"
-      ) {
+      if (field === "name" && typeof value === "string") {
         nextVariants[index].slug = slugifyFabricName(value);
       }
 
@@ -649,11 +635,6 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
 
     if (!formData.name.trim()) errors.name = t("validation.nameRequired");
     if (!formData.nameAr.trim()) errors.nameAr = t("validation.nameArRequired");
-    if (!formData.slug.trim()) {
-      errors.slug = t("validation.slugRequired");
-    } else if (!SLUG_PATTERN.test(formData.slug.trim().toLowerCase())) {
-      errors.slug = t("validation.slugInvalid");
-    }
     if (!formData.images.some((image) => image.trim())) {
       errors.images = t("validation.imagesRequired");
     }
@@ -697,11 +678,6 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
           errors[`${prefix}.name`] = t("validation.nameRequired");
         if (!v.nameAr.trim())
           errors[`${prefix}.nameAr`] = t("validation.nameArRequired");
-        if (!v.slug.trim()) {
-          errors[`${prefix}.slug`] = t("validation.slugRequired");
-        } else if (!SLUG_PATTERN.test(v.slug.trim().toLowerCase())) {
-          errors[`${prefix}.slug`] = t("validation.slugInvalid");
-        }
         if (!v.images.some((img) => img.trim())) {
           errors[`${prefix}.images`] = t("validation.imagesRequired");
         }
@@ -828,7 +804,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
   const selectedColors = formData.colors || [];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-0">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
       <div className="mb-8">
         <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-3">
           {t("eyebrow")}
@@ -847,7 +823,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           <FormSection title={t("sections.identity")}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-6">
               <FormField
                 label="NAME (EN)"
                 name="name"
@@ -913,7 +889,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
           </FormSection>
 
           <FormSection title={t("sections.tags")}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 items-start">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-4 sm:gap-5 items-start">
               <BilingualUnderlineDropdown
                 label="MATERIAL (EN / AR)"
                 name="material"
@@ -1160,7 +1136,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
               }
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start pt-1">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-4 items-start pt-1">
               <FormField
                 label="MIN AGE (YEARS)"
                 name="minAge"
@@ -1206,7 +1182,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
           </FormSection>
 
           <FormSection title="Store pickup address">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-4">
               {/* EMIRATE */}
               <FormField
                 label="EMIRATE"
@@ -1457,7 +1433,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-6">
                       {/* VARIANT NAME (EN) */}
                       <FormField
                         label="Name (EN)"
@@ -1492,24 +1468,6 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                           className={`${INPUT_CLASS} text-right hover:cursor-text`}
                           placeholder="مثال: حرير أحمر"
                           dir="rtl"
-                        />
-                      </FormField>
-
-                      {/* VARIANT SLUG */}
-                      <FormField
-                        label="Slug"
-                        name={`${prefix}.slug`}
-                        error={fieldErrors[`${prefix}.slug`]}
-                        required
-                      >
-                        <input
-                          type="text"
-                          value={variant.slug}
-                          onChange={(e) =>
-                            handleVariantChange(index, "slug", e.target.value)
-                          }
-                          className={`${INPUT_CLASS} hover:cursor-text`}
-                          placeholder="e.g. red-silk"
                         />
                       </FormField>
 

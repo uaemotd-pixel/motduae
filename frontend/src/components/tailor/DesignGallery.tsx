@@ -42,11 +42,11 @@ export default function DesignGallery({
 
   return (
     <div>
-      <h2 className="[font-family:var(--font-display)] text-[28px] sm:text-[32px] font-normal tracking-[-0.01em] text-black mb-8">
+      <h2 className="[font-family:var(--font-display)] text-[24px] sm:text-[32px] font-normal tracking-[-0.01em] text-black mb-5 sm:mb-8">
         {labels.title}
       </h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5 lg:gap-6">
         {designs.map((design) => {
           const { name, description, category } = getDesignDisplayFields(
             design,
@@ -65,25 +65,25 @@ export default function DesignGallery({
                 <img
                   src={imageUrl}
                   alt={name}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <div className="absolute top-3 left-3">
-                  <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[12px] uppercase tracking-[0.24em] bg-[#8B6F47] text-white px-2.5 xs:px-3 py-1 xs:py-1.25 font-bold">
+                <div className="absolute top-2 start-2">
+                  <span className="[font-family:var(--font-ui)] text-[8px] sm:text-[10px] uppercase tracking-[0.18em] bg-[#8B6F47] text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1 font-bold max-w-[calc(100%-0.5rem)] truncate">
                     {category}
                   </span>
                 </div>
               </div>
 
-              <div className="p-5">
-                <h3 className="[font-family:var(--font-display)] text-[18px] font-normal leading-[1.2] text-black mb-2 line-clamp-2">
+              <div className="p-3 sm:p-5">
+                <h3 className="[font-family:var(--font-display)] text-[15px] sm:text-[18px] font-normal leading-[1.2] text-black mb-1 sm:mb-2 line-clamp-2">
                   {name}
                 </h3>
-                <p className="[font-family:var(--font-body)] text-[13px] leading-relaxed text-[#7A7A72] mb-4 line-clamp-2">
+                <p className="hidden sm:block [font-family:var(--font-body)] text-[13px] leading-relaxed text-[#7A7A72] mb-4 line-clamp-2">
                   {description}
                 </p>
 
-                <div className="flex items-center justify-between text-[10px] tracking-[0.16em] uppercase text-[#7A7A72] [font-family:var(--font-ui)]">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-[8px] sm:text-[10px] tracking-[0.16em] uppercase text-[#7A7A72] [font-family:var(--font-ui)]">
                   <span>
                     {labels.fromPrice}{" "}
                     <span className="text-black font-medium">

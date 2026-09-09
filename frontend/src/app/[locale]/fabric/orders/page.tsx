@@ -471,7 +471,7 @@ export default function FabricOrdersPage() {
       </div>
 
       {/* Filters Section */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div>
           <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider [font-family:var(--font-ui)]">
             {locale === "ar" ? "البحث" : "Search"}
@@ -1121,7 +1121,7 @@ export default function FabricOrdersPage() {
                   ) : null}
 
                   {hasFabric && isExpanded && (
-                    <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50 grid grid-cols-1 sm:grid-cols-3 gap-4 [font-family:var(--font-body)]">
+                    <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50 grid grid-cols-3 gap-3 sm:gap-4 [font-family:var(--font-body)]">
                       <div className="bg-white p-3 border border-gray-100 rounded-lg sm:col-span-3">
                         <p className="text-3xs text-gray-400 uppercase font-medium">
                           {t("quantityRequested")}
@@ -1209,7 +1209,7 @@ export default function FabricOrdersPage() {
                           )}
                         </p>
                       </div>
-                      <div className="bg-white p-3 border border-gray-100 rounded-lg sm:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="bg-white p-3 border border-gray-100 rounded-lg sm:col-span-3 grid grid-cols-3 gap-3">
                         {(() => {
                           const fabricOnlyGross =
                             Number(scope?.fabricGross) ||

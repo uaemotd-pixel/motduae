@@ -166,7 +166,7 @@ function RelatedAddonsSection({
                   href={hrefPath}
                   className="block h-full border border-(--color-border) bg-(--bg-page) rounded-lg overflow-hidden transition-all duration-500 hover:shadow-xl hover:-translate-y-1"
                 >
-                  <div className="relative aspect-3/4 overflow-hidden bg-[#F5F5F0]">
+                  <div className="relative aspect-4/5 overflow-hidden bg-[#F5F5F0]">
                     <img
                       src={image}
                       alt={title}
@@ -413,13 +413,13 @@ function AddonDetailContent({
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5, delay: 0.1 }}
-                  className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group"
+                  className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group aspect-4/5"
                 >
                   <ZoomImageEffect
                     key={selectedImage}
                     src={selectedImage}
                     alt={title}
-                    className="w-full h-auto"
+                    className="h-full w-full object-cover object-top"
                     lensSize={185}
                     zoomLevel={3.5}
                   />
