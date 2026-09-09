@@ -292,7 +292,7 @@ export function getPriorityStyles(priority: NotificationPriority): string {
 
 export function getAdminDeepLinkHref(
   notification: NotificationItem,
-  locale?: string,
+  _locale?: string,
 ): { href: string; label: string } | null {
   const type = (notification.type || "").toLowerCase();
 
@@ -345,16 +345,7 @@ export function getAdminDeepLinkHref(
     };
   }
 
-  if (notification.orderId) {
-    const orderHref = getOrderDetailHref(
-      { ...notification, audience: "admin" },
-      locale,
-    );
-    if (orderHref) {
-      return { href: orderHref, label: "View order" };
-    }
-  }
-
+  // Order notifications already have a "View order" link in Order Details.
   return null;
 }
 

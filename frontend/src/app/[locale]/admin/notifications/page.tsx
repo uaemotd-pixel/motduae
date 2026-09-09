@@ -527,6 +527,9 @@ export default function AdminNotificationsPage() {
               locale,
             );
             const deepLink = getAdminDeepLinkHref(n, locale);
+            const showQuickAction =
+              deepLink != null &&
+              (!orderHref || deepLink.href !== orderHref);
             const priority = getNotificationPriority(n);
             const aging =
               isReturnRequest && isNotificationAging(n.createdAt, 2) && isPending;
@@ -720,7 +723,7 @@ export default function AdminNotificationsPage() {
                           </div>
                         )}
 
-                        {deepLink && (
+                        {showQuickAction && deepLink && (
                           <div className="border-t border-gray-200 pt-3">
                             <div className="flex items-center justify-between gap-3">
                               <div className="flex items-center gap-2 text-xs font-medium text-gray-600">
