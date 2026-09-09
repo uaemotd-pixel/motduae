@@ -900,6 +900,7 @@ export default function ReadyMadeDetailPage() {
           loading: t.reviewsLoading,
           averageLabel: t.reviewsAverage,
           countLabel: t.reviewsCount,
+          verifiedLabel: t.verifiedPurchase,
         }}
       />
 

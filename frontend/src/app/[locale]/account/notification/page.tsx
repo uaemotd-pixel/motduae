@@ -451,7 +451,10 @@ export default function CustomerNotificationPage() {
                             className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 hover:text-amber-800"
                           >
                             <Star className="w-3.5 h-3.5" />
-                            {t("leaveReview")}
+                            {n.type.toLowerCase() === "review_approved" ||
+                            n.type.toLowerCase() === "review_rejected"
+                              ? t("viewReview")
+                              : t("leaveReview")}
                           </Link>
                         )}
                       </div>

@@ -97,6 +97,7 @@ import {
 import { splitMotdCommission } from "../services/pricingService.js";
 import { hydrateRetailOrders } from "../services/retailOrderHydrate.js";
 import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
+import { recomputeShopRatingsForReview } from "../services/reviewShopRatings.js";
 
 const adminRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -5368,47 +5369,124 @@ function isValidHalfStarRatingAdmin(rating) {
   return Math.abs(n * 2 - Math.round(n * 2)) < 1e-9;
 }
 
-// GET /api/admin/reviews?status=pending|approved|rejected|all&search=
+async function notifyCustomerReviewModeration(customer, review, nextStatus) {
+  if (nextStatus !== "approved" && nextStatus !== "rejected") return;
+  if (!customer?.userId) return;
+  try {
+    await createNotification({
+      type: nextStatus === "approved" ? "review_approved" : "review_rejected",
+      title:
+        nextStatus === "approved" ? "Review approved" : "Review not published",
+      message:
+        nextStatus === "approved"
+          ? "Your review is now visible on MOTD."
+          : "Your review was not published. You can edit it and submit again.",
+      audience: "customer",
+      recipientUserId: customer.userId,
+    });
+  } catch (err) {
+    console.error("Failed to notify customer of review moderation:", err);
+  }
+}
+
+// GET /api/admin/reviews?status=pending|approved|rejected|all&search=&page=&limit=
 adminRouter.get(
   "/reviews",
   expressAsyncHandler(async (req, res) => {
     const statusFilter = String(req.query.status || "all").toLowerCase();
     const search =
       typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(
+      50,
+      Math.max(1, parseInt(req.query.limit, 10) || 20),
+    );
+    const skip = (page - 1) * limit;
 
-    const customers = await Customer.find({
+    const preMatch = {
       "reviews.0": { $exists: true },
       ...(search
-        ? { name: new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") }
+        ? {
+            name: new RegExp(
+              search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+              "i",
+            ),
+          }
         : {}),
-    })
-      .select("name userId reviews")
-      .lean();
+    };
 
-    const allItems = [];
-    for (const customer of customers) {
-      for (const rev of customer.reviews || []) {
-        allItems.push(serializeAdminReview(customer, rev));
-      }
+    const unwindMatch =
+      statusFilter === "all" || !["pending", "approved", "rejected"].includes(statusFilter)
+        ? {}
+        : { "reviews.status": statusFilter };
+
+    const [facet] = await Customer.aggregate([
+      { $match: preMatch },
+      { $unwind: "$reviews" },
+      {
+        $facet: {
+          counts: [
+            {
+              $group: {
+                _id: { $ifNull: ["$reviews.status", "approved"] },
+                count: { $sum: 1 },
+              },
+            },
+          ],
+          items: [
+            ...(Object.keys(unwindMatch).length
+              ? [{ $match: unwindMatch }]
+              : []),
+            { $sort: { "reviews.createdAt": -1 } },
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $project: {
+                name: 1,
+                userId: 1,
+                reviews: 1,
+              },
+            },
+          ],
+          filteredTotal: [
+            ...(Object.keys(unwindMatch).length
+              ? [{ $match: unwindMatch }]
+              : []),
+            { $count: "count" },
+          ],
+        },
+      },
+    ]);
+
+    const countMap = { pending: 0, approved: 0, rejected: 0 };
+    for (const row of facet?.counts || []) {
+      const key = row._id || "approved";
+      if (key in countMap) countMap[key] = row.count;
     }
+    const allCount =
+      countMap.pending + countMap.approved + countMap.rejected;
 
-    const items =
-      statusFilter === "all"
-        ? allItems
-        : allItems.filter((r) => r.status === statusFilter);
-
-    items.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    const items = (facet?.items || []).map((row) =>
+      serializeAdminReview(
+        { _id: row._id, userId: row.userId, name: row.name },
+        row.reviews,
+      ),
     );
+
+    const total = facet?.filteredTotal?.[0]?.count || 0;
 
     res.json({
       success: true,
       items,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 0,
       counts: {
-        pending: allItems.filter((r) => r.status === "pending").length,
-        approved: allItems.filter((r) => r.status === "approved").length,
-        rejected: allItems.filter((r) => r.status === "rejected").length,
-        all: allItems.length,
+        pending: countMap.pending,
+        approved: countMap.approved,
+        rejected: countMap.rejected,
+        all: allCount,
       },
     });
   }),
@@ -5442,8 +5520,13 @@ adminRouter.patch(
       return;
     }
 
+    const prevStatus = review.status;
     review.status = nextStatus;
     await customer.save();
+    await recomputeShopRatingsForReview(review);
+    if (prevStatus !== nextStatus) {
+      await notifyCustomerReviewModeration(customer, review, nextStatus);
+    }
 
     res.json({
       success: true,
@@ -5489,6 +5572,7 @@ adminRouter.put(
       return;
     }
 
+    const prevStatus = review.status;
     review.rating = Number(rating);
     review.quoteEn = trimmedQuoteEn || trimmedQuoteAr;
     review.quoteAr = trimmedQuoteAr || trimmedQuoteEn;
@@ -5508,6 +5592,10 @@ adminRouter.put(
     }
 
     await customer.save();
+    await recomputeShopRatingsForReview(review);
+    if (prevStatus !== review.status) {
+      await notifyCustomerReviewModeration(customer, review, review.status);
+    }
 
     res.json({
       success: true,
@@ -5533,16 +5621,19 @@ adminRouter.delete(
       return;
     }
 
-    const before = customer.reviews.length;
-    customer.reviews = customer.reviews.filter(
-      (rev) => String(rev._id) !== String(id),
-    );
-    if (customer.reviews.length === before) {
+    const review = customer.reviews.id(id);
+    if (!review) {
       res.status(404).json({ message: "Review not found" });
       return;
     }
 
+    const snapshot = review.toObject();
+    customer.reviews = customer.reviews.filter(
+      (rev) => String(rev._id) !== String(id),
+    );
+
     await customer.save();
+    await recomputeShopRatingsForReview(snapshot);
     res.json({ success: true });
   }),
 );

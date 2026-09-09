@@ -352,40 +352,42 @@ export function Navbar() {
             </div>
           </Link>
 
-          {/* Login / Account – always visible */}
-          {user && user.isGuest ? (
-            <button
-              onClick={() => {
-                closeMenu();
-                void logout();
-              }}
-              className={`flex ${navIconClass} text-red-600 hover:cursor-pointer bg-transparent border-0`}
-              title={
-                localParams === "ar"
-                  ? "تسجيل الخروج كضيف"
-                  : "Sign out from Guest"
-              }
-            >
-              <LogOutIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
-            </button>
-          ) : accountHref ? (
-            <Link
-              href={accountHref}
-              className={`flex ${navIconClass}`}
-              aria-label={accountLabel}
-              onClick={closeMenu}
-            >
-              <UserIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
-            </Link>
-          ) : (
-            <span
-              className={`flex ${navIconClass} opacity-50`}
-              aria-label={t.navbar.actions.account}
-              aria-busy="true"
-            >
-              <UserIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
-            </span>
-          )}
+          {/* Login / Account – after cart on mobile; far right of the icon cluster on desktop */}
+          <div className="flex items-center lg:order-last">
+            {user && user.isGuest ? (
+              <button
+                onClick={() => {
+                  closeMenu();
+                  void logout();
+                }}
+                className={`flex ${navIconClass} text-red-600 hover:cursor-pointer bg-transparent border-0`}
+                title={
+                  localParams === "ar"
+                    ? "تسجيل الخروج كضيف"
+                    : "Sign out from Guest"
+                }
+              >
+                <LogOutIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
+              </button>
+            ) : accountHref ? (
+              <Link
+                href={accountHref}
+                className={`flex ${navIconClass}`}
+                aria-label={accountLabel}
+                onClick={closeMenu}
+              >
+                <UserIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
+              </Link>
+            ) : (
+              <span
+                className={`flex ${navIconClass} opacity-50`}
+                aria-label={t.navbar.actions.account}
+                aria-busy="true"
+              >
+                <UserIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
+              </span>
+            )}
+          </div>
 
           {/* Wishlist Icon – desktop */}
           <Link

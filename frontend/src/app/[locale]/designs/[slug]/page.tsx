@@ -9,6 +9,7 @@ import { api, type ApiError } from "@/lib/api/client";
 import DesignDetailView, {
   type DesignDetailItem,
 } from "@/components/tailor/DesignDetailView";
+import { ProductReviewsSection } from "@/components/reviews/CustomerReviewsView";
 import MainLayout from "../../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 import { Link } from "@/i18n/navigation";
@@ -333,6 +334,19 @@ export default function DesignDetailPage() {
           }}
         />
       </FadeInSection>
+
+      <ProductReviewsSection
+        productId={String(design._id)}
+        locale={locale}
+        labels={{
+          title: t("reviewsTitle"),
+          empty: t("reviewsEmpty"),
+          loading: t("reviewsLoading"),
+          averageLabel: t.raw("reviewsAverage"),
+          countLabel: t.raw("reviewsCount"),
+          verifiedLabel: t("verifiedPurchase"),
+        }}
+      />
 
       <RelatedDesignsSection
         items={related}

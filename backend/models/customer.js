@@ -122,6 +122,18 @@ const reviewSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    tailorShopId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TailorShop",
+      default: null,
+      index: true,
+    },
+    fabricShopId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "FabricShop",
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,
