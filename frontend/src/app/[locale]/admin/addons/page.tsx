@@ -16,6 +16,7 @@ import {
   MoreVertical,
   Image as ImageIcon,
   Package,
+  Store,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
@@ -32,6 +33,7 @@ interface AddOnItem {
   isActive: boolean;
   thumbnailImage: string;
   createdAt: string;
+  fabricShopId?: string | { _id: string; name?: string; nameAr?: string } | null;
 }
 
 interface ApiResponse {
@@ -46,6 +48,12 @@ const formatAED = (value: number) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+
+const getStoreDisplay = (shop: AddOnItem["fabricShopId"]) => {
+  if (!shop) return "MOTD";
+  if (typeof shop === "object" && shop.name?.trim()) return shop.name.trim();
+  return "MOTD";
+};
 
 export default function AdminAddOnsPage() {
   const [items, setItems] = useState<AddOnItem[]>([]);
@@ -273,7 +281,7 @@ export default function AdminAddOnsPage() {
             <Skeleton key={i} className="h-24 rounded-2xl" />
           ))}
         </div>
-        <TableSkeleton rows={5} cols={5} className="rounded-2xl" />
+        <TableSkeleton rows={5} cols={6} className="rounded-2xl" />
       </div>
     );
   }
@@ -468,6 +476,7 @@ export default function AdminAddOnsPage() {
                 <thead className="bg-gray-50/70 text-[10px] uppercase tracking-wider text-gray-400 font-semibold border-b border-gray-100">
                   <tr>
                     <th className="px-4 sm:px-6 py-3">Name</th>
+                    <th className="px-4 sm:px-6 py-3">Store</th>
                     <th className="px-4 sm:px-6 py-3">Price</th>
                     <th className="px-4 sm:px-6 py-3">Stock</th>
                     <th className="px-4 sm:px-6 py-3">Status</th>
@@ -497,6 +506,9 @@ export default function AdminAddOnsPage() {
                             )}
                           </div>
                         </div>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 text-black text-xs sm:text-sm">
+                        {getStoreDisplay(item.fabricShopId)}
                       </td>
                       <td className="px-4 sm:px-6 py-4 font-medium text-black text-xs sm:text-sm">
                         {formatAED(item.price)}
@@ -598,6 +610,12 @@ export default function AdminAddOnsPage() {
                 </div>
 
                 <div className="mt-2 sm:mt-3 space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
+                  <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
+                    <Store className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                    <span className="truncate">
+                      {getStoreDisplay(item.fabricShopId)}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
                     <span className="font-medium text-black">
                       {formatAED(item.price)}

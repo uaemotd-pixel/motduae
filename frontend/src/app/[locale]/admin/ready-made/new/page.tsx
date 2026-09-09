@@ -14,10 +14,13 @@ import {
 } from "@/lib/readyMadeAdmin";
 import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddressFields";
 import toast from "react-hot-toast";
-import { useAuth } from "@/context/AuthContext";
 import colors from "@/components/shared/colors";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 import { UAE_EMIRATES } from "@/lib/uaeAddress";
+import {
+  emptyShopPickupAddress,
+  shopToCourierPickup,
+} from "@/lib/fabricShop";
 
 const COLOR_OPTIONS = colors;
 
@@ -25,8 +28,6 @@ const sanitizeName = (value: string) =>
   value.replace(/[^a-zA-Z0-9\u0600-\u06FF\s\-']/g, "");
 
 export default function NewReadyMadePage() {
-  const { user } = useAuth();
-  const userName = user?.name || "MOTD Admin";
   const router = useRouter();
   const params = useParams();
   const localeParam = params.locale as string;
@@ -137,8 +138,47 @@ export default function NewReadyMadePage() {
     });
   }, [allDesigns, formData.tailorShopId]);
 
+  const clearPickupFieldErrors = () => {
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next["pickupAddress.fullName"];
+      delete next["pickupAddress.phone"];
+      delete next["pickupAddress.line1"];
+      delete next["pickupAddress.line2"];
+      delete next["pickupAddress.city"];
+      delete next["pickupAddress.emirate"];
+      return next;
+    });
+  };
+
   const handleChange = (field: keyof ReadyMadeFormData, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    if (field === "pickupAddress") {
+      clearPickupFieldErrors();
+    } else if (fieldErrors[field]) {
+      setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+    }
+  };
+
+  const selectFabricShop = (shopId: string) => {
+    const shop = fabricShops.find((s) => s._id === shopId);
+    setFormData((prev) => ({
+      ...prev,
+      fabricShopId: shopId,
+      fabricId: "",
+      pickupAddress: shop
+        ? shopToCourierPickup(shop)
+        : emptyShopPickupAddress(),
+    }));
+    clearPickupFieldErrors();
+    if (fieldErrors.fabricShopId || fieldErrors.fabricId) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        fabricShopId: "",
+        fabricId: "",
+      }));
+    }
+    setFabricShopOpen(false);
   };
 
   const handleNameChange = (
@@ -242,7 +282,6 @@ export default function NewReadyMadePage() {
       thumbnailImage: firstImage,
     });
     (payload as any).fabricWidth = fabricWidth;
-    (payload as any).ownerName = userName;
 
     try {
       await api.post("/api/admin/ready-made", payload);
@@ -415,15 +454,7 @@ export default function NewReadyMadePage() {
             </FormField>
           </div>
 
-          <ReadyMadePickupAddressFields
-            value={formData.pickupAddress}
-            onChange={(pickupAddress) =>
-              handleChange("pickupAddress", pickupAddress)
-            }
-            fieldErrors={fieldErrors}
-          />
-
-          {/* FABRIC STORE (optional — MOTD-owned listings need none) */}
+          {/* FABRIC STORE + FABRIC */}
           <FormField
             label="Fabric Store"
             name="fabricShopId"
@@ -448,11 +479,7 @@ export default function NewReadyMadePage() {
             >
               <button
                 type="button"
-                onClick={() => {
-                  handleChange("fabricShopId", "");
-                  handleChange("fabricId", "");
-                  setFabricShopOpen(false);
-                }}
+                onClick={() => selectFabricShop("")}
                 className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
               >
                 Select Fabric Store
@@ -461,11 +488,7 @@ export default function NewReadyMadePage() {
                 <button
                   key={shop._id}
                   type="button"
-                  onClick={() => {
-                    handleChange("fabricShopId", shop._id);
-                    handleChange("fabricId", "");
-                    setFabricShopOpen(false);
-                  }}
+                  onClick={() => selectFabricShop(shop._id)}
                   className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
                 >
                   {shop.name}
@@ -474,7 +497,6 @@ export default function NewReadyMadePage() {
             </AnimatedDropdown>
           </FormField>
 
-          {/* FABRIC */}
           <FormField
             label="Fabric"
             name="fabricId"
@@ -522,6 +544,16 @@ export default function NewReadyMadePage() {
               ))}
             </AnimatedDropdown>
           </FormField>
+
+          <div className="md:col-span-2">
+            <ReadyMadePickupAddressFields
+              value={formData.pickupAddress}
+              onChange={(pickupAddress) =>
+                handleChange("pickupAddress", pickupAddress)
+              }
+              fieldErrors={fieldErrors}
+            />
+          </div>
 
           {/* TAILOR SHOP */}
           <FormField
@@ -700,7 +732,7 @@ export default function NewReadyMadePage() {
             </FormField>
           </div>
 
-          {/* Category + Material + Pattern + Tag + Season */}
+          {/* Category + Material + Pattern + Tag + Season + Colors */}
           <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <FormField label="Category (ENG / AR)" name="category">
               <AnimatedDropdown
@@ -1047,11 +1079,7 @@ export default function NewReadyMadePage() {
                 ))}
               </AnimatedDropdown>
             </FormField>
-          </div>
 
-          {/* Color + User */}
-          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-            {/* COLORS */}
             <FormField label="Colors" name="colors" required>
               <AnimatedDropdown
                 isOpen={colorsOpen}
@@ -1119,16 +1147,6 @@ export default function NewReadyMadePage() {
                   })}
                 </div>
               </AnimatedDropdown>
-            </FormField>
-
-            {/* USER */}
-            <FormField label="User" name="ownerName">
-              <input
-                value={userName}
-                disabled
-                readOnly
-                className="w-full py-1 border-b border-gray-300 focus:border-black outline-none bg-gray-50 text-gray-500 cursor-not-allowed text-start text-xs sm:text-sm"
-              />
             </FormField>
           </div>
 

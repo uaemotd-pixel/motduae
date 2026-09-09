@@ -1,7 +1,7 @@
 // components/admin/FabricAdminFormFields.tsx
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import FormField from "@/components/admin/FormField";
@@ -17,6 +17,10 @@ import {
   createEmptyFabricCutRow,
 } from "@/lib/createFabricAdmin";
 import { api } from "@/lib/api/client";
+import {
+  shopPickupToFabricStorePickup,
+  type FabricShopProfile,
+} from "@/lib/fabricShop";
 import { formatCutLabel } from "@/lib/fabricUnits";
 import {
   isValidUaePhone,
@@ -30,6 +34,34 @@ import {
   getEmirateEn,
   getEmirateAr,
 } from "@/lib/uaeAddress";
+
+type AdminFabricShop = FabricShopProfile & {
+  ownerId?: string | { _id: string } | null;
+};
+
+const emptyPickupAddress = (): PickupAddress => ({
+  emirate: "",
+  city: "",
+  street: "",
+  building: "",
+  phone: "",
+});
+
+function ownerIdFromShop(shop: AdminFabricShop): string {
+  if (!shop.ownerId) return "";
+  if (typeof shop.ownerId === "object") {
+    return String(shop.ownerId._id || "");
+  }
+  return String(shop.ownerId);
+}
+
+function pickupFromShop(shop: AdminFabricShop): PickupAddress {
+  const mapped = shopPickupToFabricStorePickup(shop);
+  return {
+    ...mapped,
+    emirate: normalizeEmirate(mapped.emirate) || mapped.emirate,
+  };
+}
 
 const COLOR_OPTIONS = colors;
 
@@ -319,6 +351,11 @@ export default function FabricAdminFormFields({
   const [seasonsLoading, setSeasonsLoading] = useState(true);
   const [catalogCuts, setCatalogCuts] = useState<CatalogCut[]>([]);
   const [cutsLoading, setCutsLoading] = useState(true);
+  const [shopsByOwnerId, setShopsByOwnerId] = useState<
+    Record<string, AdminFabricShop>
+  >({});
+  const shopsLoadedRef = useRef(false);
+  const pendingPickupPartnerIdRef = useRef<string | null>(null);
 
   const [openMaterial, setOpenMaterial] = useState(false);
   const [openCategory, setOpenCategory] = useState(false);
@@ -327,6 +364,65 @@ export default function FabricAdminFormFields({
   const [openSeason, setOpenSeason] = useState(false);
   const [openEmirate, setOpenEmirate] = useState(false);
   const [openColors, setOpenColors] = useState(false);
+
+  const applyPickupForPartner = useCallback(
+    (partnerId: string, shops: Record<string, AdminFabricShop>) => {
+      if (!partnerId) {
+        onFieldChange("pickupAddress", emptyPickupAddress());
+        return;
+      }
+      const shop = shops[partnerId];
+      if (!shop) return;
+      onFieldChange("pickupAddress", pickupFromShop(shop));
+    },
+    [onFieldChange],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchShops = async () => {
+      try {
+        const data = await api.get<{ items?: AdminFabricShop[] }>(
+          "/api/admin/fabric-shops",
+        );
+        if (cancelled) return;
+        const map: Record<string, AdminFabricShop> = {};
+        for (const shop of data.items || []) {
+          const ownerId = ownerIdFromShop(shop);
+          if (ownerId) map[ownerId] = shop;
+        }
+        setShopsByOwnerId(map);
+        shopsLoadedRef.current = true;
+        const pendingId = pendingPickupPartnerIdRef.current;
+        if (pendingId) {
+          pendingPickupPartnerIdRef.current = null;
+          applyPickupForPartner(pendingId, map);
+        }
+      } catch {
+        if (!cancelled) {
+          shopsLoadedRef.current = true;
+        }
+      }
+    };
+    void fetchShops();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyPickupForPartner]);
+
+  const handleStorePartnerChange = (partnerId: string) => {
+    onFieldChange("listedByStore", partnerId);
+    if (!partnerId) {
+      pendingPickupPartnerIdRef.current = null;
+      onFieldChange("pickupAddress", emptyPickupAddress());
+      return;
+    }
+    if (!shopsLoadedRef.current) {
+      pendingPickupPartnerIdRef.current = partnerId;
+      return;
+    }
+    applyPickupForPartner(partnerId, shopsByOwnerId);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1035,7 +1131,7 @@ export default function FabricAdminFormFields({
       <div className="md:col-span-2">
         <StorePartnerPicker
           value={formData.listedByStore}
-          onChange={(partnerId) => onFieldChange("listedByStore", partnerId)}
+          onChange={handleStorePartnerChange}
           error={fieldErrors.listedByStore}
           label="Store Partner"
           placeholder="Select store partner"

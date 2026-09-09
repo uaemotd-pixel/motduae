@@ -378,6 +378,19 @@ function optionalObjectId(value) {
   return mongoose.Types.ObjectId.isValid(str) && str.length === 24 ? str : null;
 }
 
+/**
+ * Partner-owned listings use the shop name as ownerName so they appear in the
+ * fabric portal (which excludes ownerName === "MOTD Admin").
+ * MOTD platform listings (no fabricShopId) stay "MOTD Admin".
+ */
+async function resolveListingOwnerName(fabricShopId) {
+  const shopId = optionalObjectId(fabricShopId);
+  if (!shopId) return "MOTD Admin";
+  const shop = await FabricShop.findById(shopId).select("name").lean();
+  const shopName = String(shop?.name || "").trim();
+  return shopName || "MOTD Admin";
+}
+
 function parseReadyMadePickup(address) {
   return normalizeShopPickupAddress(address);
 }
@@ -636,7 +649,7 @@ adminRouter.post(
       minAge: minAge !== undefined ? minAge : 0,
       maxAge: maxAge !== undefined ? maxAge : 0,
       isActive: isActive !== undefined ? isActive : true,
-      ownerName: req.body.ownerName || "MOTD Admin",
+      ownerName: await resolveListingOwnerName(fabricShopId),
       pickupAddress,
     });
 
@@ -706,6 +719,9 @@ adminRouter.put(
     product.designId =
       req.body.designId !== undefined ? req.body.designId : product.designId;
 
+    // Keep portal visibility in sync with assigned store
+    product.ownerName = await resolveListingOwnerName(product.fabricShopId);
+
     if (req.body.pickupAddress !== undefined) {
       const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);
       if (!pickupAddress) {
@@ -734,7 +750,6 @@ adminRouter.put(
       req.body.finalSellingPriceAED ?? product.finalSellingPriceAED;
     product.availableFabricStock =
       req.body.availableFabricStock ?? product.availableFabricStock;
-    product.ownerName = req.body.ownerName ?? product.ownerName;
 
     // --- Age range ---
     product.minAge = req.body.minAge ?? product.minAge;
@@ -3534,7 +3549,11 @@ adminRouter.get(
     }
 
     const [addons, total] = await Promise.all([
-      AddOn.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      AddOn.find(filter)
+        .populate("fabricShopId", "name nameAr")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
       AddOn.countDocuments(filter),
     ]);
 
@@ -3646,8 +3665,8 @@ adminRouter.post(
       seasonAr,
       colors: Array.isArray(colors) ? colors : [],
       isActive: isActive !== undefined ? isActive : true,
-      // Platform listings are owned by MOTD, not the signed-in admin's display name.
-      ownerName: "MOTD Admin",
+      ownerName: await resolveListingOwnerName(req.body.fabricShopId),
+      fabricShopId: optionalObjectId(req.body.fabricShopId) ?? null,
       pickupAddress,
     });
 
@@ -3740,9 +3759,10 @@ adminRouter.put(
       addon.colors = Array.isArray(colors) ? colors : [];
     }
     addon.isActive = isActive !== undefined ? isActive : addon.isActive;
-    if (!addon.fabricShopId) {
-      addon.ownerName = "MOTD Admin";
+    if (req.body.fabricShopId !== undefined) {
+      addon.fabricShopId = optionalObjectId(req.body.fabricShopId);
     }
+    addon.ownerName = await resolveListingOwnerName(addon.fabricShopId);
 
     if (req.body.pickupAddress !== undefined) {
       const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);

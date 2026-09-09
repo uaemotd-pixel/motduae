@@ -39,14 +39,14 @@ export default function StorePartnerPicker({
       try {
         setLoading(true);
         const data = await api.get<{ items: FabricStorePartner[] }>(
-          "/api/admin/partners",
+          "/api/admin/partners?type=approved&status=active&limit=1000",
         );
         // The /api/admin/partners endpoint returns items with { id, name, email, shopName, ... }
         // Map to FabricStorePartner interface expected by the picker
         setPartners(
           (data.items || []).map((p: any) => ({
             _id: p.id || p._id,
-            name: p.name || "",
+            name: p.name || p.shopName || "",
             email: p.email || "",
           })),
         );
