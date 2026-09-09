@@ -2023,20 +2023,20 @@ fabricPortalRouter.get(
     ).length;
     const activeSkus =
       activeFabricSkus + activeReadyMadeSkus + activeAddonSkus;
-    const lowStock =
-      countLowStockCutRowsFromFabrics(
-        storeFabricIds.filter(
-          (f) => isParentFabric(f) && f.isActive !== false,
-        ),
-        LOW_STOCK,
-      ) +
-      storeProducts.filter(
-        (p) =>
-          (p.availableFabricStock || 0) <= LOW_STOCK && p.isActive !== false,
-      ).length +
-      storeAddonIds.filter(
-        (a) => (a.stock || 0) <= LOW_STOCK && a.isActive !== false,
-      ).length;
+    const lowFabrics = countLowStockCutRowsFromFabrics(
+      storeFabricIds.filter(
+        (f) => isParentFabric(f) && f.isActive !== false,
+      ),
+      LOW_STOCK,
+    );
+    const lowReadyMade = storeProducts.filter(
+      (p) =>
+        (p.availableFabricStock || 0) <= LOW_STOCK && p.isActive !== false,
+    ).length;
+    const lowAddons = storeAddonIds.filter(
+      (a) => (a.stock || 0) <= LOW_STOCK && a.isActive !== false,
+    ).length;
+    const lowStock = lowFabrics + lowReadyMade + lowAddons;
 
     const topFabrics = Array.from(fabricRevenueMap.entries())
       .map(([name, data], i) => ({
@@ -2200,6 +2200,9 @@ fabricPortalRouter.get(
         piecesSold,
         activeSkus,
         lowStock,
+        lowFabrics,
+        lowReadyMade,
+        lowAddons,
         paid: paidInWindow,
         pending: pendingInWindow,
         netDue: Number(fabricRevenue.toFixed(2)),

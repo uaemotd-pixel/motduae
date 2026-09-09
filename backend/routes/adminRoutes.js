@@ -46,6 +46,7 @@ import {
   enrichFabricWithCuts,
   normalizeFabricCutsPayload,
   countLowStockFabricCutRows,
+  findLowStockFabricParentIds,
   LOW_FABRIC_CUT_STOCK_THRESHOLD,
 } from "../utils/fabricCuts.js";
 import PartnerPayout, {
@@ -993,7 +994,7 @@ async function prepareFabricCutsInput(cutsInput) {
 
 // GET /api/admin/fabrics
 // Admin can view all fabrics in the catalog (including inactive)
-// Supports ?page=1&limit=10&search=...&status=available|sold
+// Supports ?page=1&limit=10&search=...&status=available|sold|low
 adminRouter.get(
   "/fabrics",
   expressAsyncHandler(async (req, res) => {
@@ -1002,6 +1003,7 @@ adminRouter.get(
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
     const status = req.query.status || "";
+    const isLowStock = status === "low";
 
     const filter = {
       $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
@@ -1011,7 +1013,14 @@ adminRouter.get(
       filter.listedByStore = req.query.listedByStore;
     }
 
-    if (status === "available") {
+    if (isLowStock) {
+      const parentIds = await findLowStockFabricParentIds(
+        LOW_FABRIC_CUT_STOCK_THRESHOLD,
+      );
+      filter._id = {
+        $in: parentIds.map((id) => new mongoose.Types.ObjectId(id)),
+      };
+    } else if (status === "available") {
       filter.isActive = true;
     } else if (status === "sold") {
       filter.isActive = false;

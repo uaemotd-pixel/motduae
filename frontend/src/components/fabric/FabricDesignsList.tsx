@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useMemo, Fragment } from "react";
 import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { getApiErrorMessage } from "@/lib/api/client";
 import {
   deleteFabricItem,
@@ -12,7 +12,9 @@ import {
   type FabricProfile,
   type FabricVariantProfile,
 } from "@/lib/fabricCatalog";
-import { useParams } from "next/navigation";
+import { isLowStockQty } from "@/lib/lowStock";
+import { LowStockBadge } from "@/components/shared/LowStockBadge";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   Plus,
   Edit,
@@ -22,6 +24,7 @@ import {
   RefreshCw,
   Image as ImageIcon,
   Maximize2,
+  AlertTriangle,
 } from "lucide-react";
 import { ImageModal } from "../shared/ImageModal";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
@@ -49,39 +52,80 @@ function getCutLabel(entry: FabricCutRow, locale: string): string {
   return entry.cutId;
 }
 
+function cutsHaveLowStock(cuts?: FabricCutRow[]) {
+  return (cuts || []).some((entry) => isLowStockQty(Number(entry.stock) || 0));
+}
+
+function fabricHasLowStock(
+  item: Pick<FabricProfile, "cuts" | "variants">,
+) {
+  if (cutsHaveLowStock(item.cuts as FabricCutRow[] | undefined)) return true;
+  return (item.variants || []).some((variant) =>
+    cutsHaveLowStock(variant.cuts as FabricCutRow[] | undefined),
+  );
+}
+
 function FabricCutsCell({
   cuts,
   locale,
   stockLabel,
+  lowLabel,
+  outLabel,
 }: {
   cuts?: FabricCutRow[];
   locale: string;
   stockLabel: string;
+  lowLabel: string;
+  outLabel: string;
 }) {
   if (!cuts?.length) {
     return <span className="text-gray-400">—</span>;
   }
 
   return (
-    <div className="space-y-1.5 max-w-xs">
-      {cuts.map((entry) => (
-        <div
-          key={entry.cutId}
-          className="text-xs text-gray-600 leading-snug [font-family:var(--font-body)]"
-        >
-          <span className="font-medium text-black">
-            {getCutLabel(entry, locale)}
-          </span>
-          <span className="text-gray-400 mx-1">·</span>
-          <span className="font-mono">
-            AED {Number(entry.price).toLocaleString()}
-          </span>
-          <span className="text-gray-400 mx-1">·</span>
-          <span>
-            {entry.stock} {stockLabel}
-          </span>
-        </div>
-      ))}
+    <div className="space-y-1.5 min-w-[12rem] max-w-xs">
+      {cuts.map((entry) => {
+        const stock = Number(entry.stock) || 0;
+        const low = isLowStockQty(stock);
+        const out = stock <= 0;
+        return (
+          <div
+            key={entry.cutId}
+            className={`rounded-lg border px-2 py-1.5 ${
+              low
+                ? "border-rose-200 bg-rose-50"
+                : "border-gray-100 bg-gray-50/80"
+            }`}
+          >
+            <p className="text-xs font-medium text-black leading-snug">
+              {getCutLabel(entry, locale)}
+            </p>
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <span className="font-mono text-[11px] text-gray-500">
+                AED {Number(entry.price).toLocaleString()}
+              </span>
+              <span className="inline-flex items-center gap-1 shrink-0">
+                <span
+                  className={`tabular-nums text-xs font-semibold ${
+                    low ? "text-rose-800" : "text-black"
+                  }`}
+                >
+                  {stock} {stockLabel}
+                </span>
+                {out ? (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    {outLabel}
+                  </span>
+                ) : low ? (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-rose-100 text-rose-800 border border-rose-200">
+                    {lowLabel}
+                  </span>
+                ) : null}
+              </span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -124,6 +168,8 @@ const ERROR_TOAST = {
 export default function FabricDesignsList() {
   const t = useTranslations("FabricPortal.fabrics");
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const locale = params.locale === "ar" ? "ar" : "en";
 
   const [fabrics, setFabrics] = useState<FabricProfile[]>([]);
@@ -134,6 +180,9 @@ export default function FabricDesignsList() {
     Pick<FabricProfile, "_id" | "name" | "nameAr"> | FabricVariantProfile | null
   >(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [stockFilter, setStockFilter] = useState<"all" | "low">(
+    searchParams.get("stock") === "low" ? "low" : "all",
+  );
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [modalImage, setModalImage] = useState<{
     url: string;
@@ -164,6 +213,27 @@ export default function FabricDesignsList() {
   useEffect(() => {
     loadFabrics();
   }, [loadFabrics]);
+
+  useEffect(() => {
+    if (searchParams.get("stock") !== "low") return;
+    setStockFilter("low");
+  }, [searchParams]);
+
+  const applyStockFilter = (next: "all" | "low") => {
+    setStockFilter(next);
+    if (next === "low") {
+      router.replace("/fabric/fabrics?stock=low");
+    } else if (searchParams.get("stock") === "low") {
+      router.replace("/fabric/fabrics");
+    }
+  };
+
+  const cutsCellProps = {
+    locale,
+    stockLabel: t("stockLabel"),
+    lowLabel: t("lowBadge"),
+    outLabel: t("outBadge"),
+  };
 
   const openDeleteModal = (
     fabric: Pick<FabricProfile, "_id" | "name" | "nameAr"> | FabricVariantProfile,
@@ -209,9 +279,13 @@ export default function FabricDesignsList() {
     : "";
 
   const filteredFabrics = useMemo(() => {
-    if (!searchTerm) return fabrics;
+    let list = fabrics;
+    if (stockFilter === "low") {
+      list = list.filter((item) => fabricHasLowStock(item) && item.isActive);
+    }
+    if (!searchTerm) return list;
     const term = searchTerm.toLowerCase();
-    return fabrics.filter((item) => {
+    return list.filter((item) => {
       const name = (
         locale === "ar" ? item.nameAr || item.name : item.name
       ).toLowerCase();
@@ -220,7 +294,20 @@ export default function FabricDesignsList() {
       ).toLowerCase();
       return name.includes(term) || material.includes(term);
     });
-  }, [fabrics, searchTerm, locale]);
+  }, [fabrics, searchTerm, locale, stockFilter]);
+
+  useEffect(() => {
+    if (stockFilter !== "low") return;
+    const next: Record<string, boolean> = {};
+    for (const item of filteredFabrics) {
+      const variantLow = (item.variants || []).some((variant) =>
+        cutsHaveLowStock(variant.cuts as FabricCutRow[] | undefined),
+      );
+      if (variantLow) next[item._id] = true;
+    }
+    if (Object.keys(next).length === 0) return;
+    setExpandedRows((prev) => ({ ...prev, ...next }));
+  }, [filteredFabrics, stockFilter]);
 
   const activeCount = fabrics.filter((i) => i.isActive).length;
   const inactiveCount = fabrics.filter((i) => !i.isActive).length;
@@ -303,28 +390,68 @@ export default function FabricDesignsList() {
 
       {/* Search and Refresh */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder={
-              locale === "ar"
-                ? "البحر بالاسم أو المادة..."
-                : "Search by name or material..."
-            }
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition [font-family:var(--font-body)]"
-          />
+        <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => applyStockFilter("all")}
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
+              stockFilter === "all"
+                ? "border-b-2 border-black text-black"
+                : "text-gray-500 hover:text-black"
+            }`}
+          >
+            {t("tabAll")}
+          </button>
+          <button
+            type="button"
+            onClick={() => applyStockFilter("low")}
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
+              stockFilter === "low"
+                ? "border-b-2 border-black text-black"
+                : "text-gray-500 hover:text-black"
+            }`}
+          >
+            {t("tabLowStock")}
+          </button>
         </div>
-        <button
-          onClick={loadFabrics}
-          className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white [font-family:var(--font-ui)]"
-        >
-          <RefreshCw className="w-4 h-4" />{" "}
-          {locale === "ar" ? "تحديث" : "Refresh"}
-        </button>
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder={
+                locale === "ar"
+                  ? "البحث بالاسم أو المادة..."
+                  : "Search by name or material..."
+              }
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-64 pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition [font-family:var(--font-body)]"
+            />
+          </div>
+          <button
+            onClick={loadFabrics}
+            className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white [font-family:var(--font-ui)]"
+          >
+            <RefreshCw className="w-4 h-4" />{" "}
+            {locale === "ar" ? "تحديث" : "Refresh"}
+          </button>
+        </div>
       </div>
+
+      {stockFilter === "low" && (
+        <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-700">
+            <AlertTriangle className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-rose-700/80">
+              {t("tabLowStock")}
+            </p>
+            <p className="text-sm text-rose-900 mt-0.5">{t("lowStockHint")}</p>
+          </div>
+        </div>
+      )}
 
       {filteredFabrics.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
@@ -334,9 +461,11 @@ export default function FabricDesignsList() {
               ? locale === "ar"
                 ? "لم يتم العثور على أقمشة تطابق بحثك."
                 : "No fabrics matched your search."
-              : t("empty")}
+              : stockFilter === "low"
+                ? t("emptyLowStock")
+                : t("empty")}
           </p>
-          {!searchTerm && (
+          {!searchTerm && stockFilter === "all" && (
             <Link
               href="/fabric/fabrics/new"
               className="inline-block mt-4 text-black underline underline-offset-4 hover:text-gray-600 [font-family:var(--font-ui)]"
@@ -381,9 +510,16 @@ export default function FabricDesignsList() {
                     locale === "ar"
                       ? fabric.materialAr || fabric.material
                       : fabric.material;
+                  const itemLow = fabricHasLowStock(fabric);
                   return (
                     <Fragment key={fabric._id}>
-                      <tr className="group hover:bg-gray-50 transition-all duration-200">
+                      <tr
+                        className={`group transition-all duration-200 ${
+                          itemLow
+                            ? "bg-rose-50/80 hover:bg-rose-50"
+                            : "hover:bg-gray-50"
+                        }`}
+                      >
                         <td className="px-6 py-4 whitespace-nowrap">
                           {fabric.images && fabric.images.length > 0 ? (
                             <button
@@ -405,8 +541,15 @@ export default function FabricDesignsList() {
                             </div>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-black [font-family:var(--font-body)]">
-                          {name}
+                        <td className="px-6 py-4 text-sm font-medium text-black [font-family:var(--font-body)]">
+                          <div>
+                            {name}
+                            {itemLow && (
+                              <div className="mt-1">
+                                <LowStockBadge label={t("lowBadge")} />
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 [font-family:var(--font-body)]">
                           {materialDisplay}
@@ -414,8 +557,7 @@ export default function FabricDesignsList() {
                         <td className="px-6 py-4 text-sm text-gray-600 [font-family:var(--font-body)]">
                           <FabricCutsCell
                             cuts={fabric.cuts as FabricCutRow[] | undefined}
-                            locale={locale}
-                            stockLabel={locale === "ar" ? "قطعة" : "pcs"}
+                            {...cutsCellProps}
                           />
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -522,12 +664,19 @@ export default function FabricDesignsList() {
                                           locale === "ar"
                                             ? v.materialAr || v.material
                                             : v.material;
+                                        const variantLow = cutsHaveLowStock(
+                                          v.cuts as FabricCutRow[] | undefined,
+                                        );
                                         return (
                                           <tr
                                             key={v._id}
-                                            className="hover:bg-gray-50/60 transition-colors"
+                                            className={
+                                              variantLow
+                                                ? "bg-rose-50/80 hover:bg-rose-50"
+                                                : "hover:bg-gray-50/60 transition-colors"
+                                            }
                                           >
-                                            <td className="px-4 py-3 whitespace-nowrap text-xs font-semibold text-black [font-family:var(--font-body)]">
+                                            <td className="px-4 py-3 text-xs font-semibold text-black [font-family:var(--font-body)]">
                                               <div className="flex items-center gap-2">
                                                 {v.images &&
                                                 v.images.length > 0 ? (
@@ -552,7 +701,16 @@ export default function FabricDesignsList() {
                                                     <ImageIcon className="w-3.5 h-3.5 text-gray-400" />
                                                   </div>
                                                 )}
-                                                <span>{vName}</span>
+                                                <div>
+                                                  <span>{vName}</span>
+                                                  {variantLow && (
+                                                    <div className="mt-1">
+                                                      <LowStockBadge
+                                                        label={t("lowBadge")}
+                                                      />
+                                                    </div>
+                                                  )}
+                                                </div>
                                               </div>
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600 [font-family:var(--font-body)]">
@@ -565,12 +723,7 @@ export default function FabricDesignsList() {
                                                     | FabricCutRow[]
                                                     | undefined
                                                 }
-                                                locale={locale}
-                                                stockLabel={
-                                                  locale === "ar"
-                                                    ? "قطعة"
-                                                    : "pcs"
-                                                }
+                                                {...cutsCellProps}
                                               />
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap">

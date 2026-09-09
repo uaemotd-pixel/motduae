@@ -338,3 +338,24 @@ export async function countLowStockFabricCutRows(
   ]);
   return result[0]?.total ?? 0;
 }
+
+/**
+ * Parent fabric ids whose own cuts or variant cuts are at or below threshold.
+ * Matches the admin dashboard low-stock KPI (active fabrics only).
+ */
+export async function findLowStockFabricParentIds(
+  threshold = LOW_FABRIC_CUT_STOCK_THRESHOLD,
+) {
+  const docs = await Fabric.find({
+    isActive: true,
+    "cuts.stock": { $lte: threshold },
+  })
+    .select("_id isVariantOf")
+    .lean();
+
+  const ids = new Set();
+  for (const doc of docs) {
+    ids.add(String(doc.isVariantOf || doc._id));
+  }
+  return [...ids];
+}

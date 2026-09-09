@@ -430,6 +430,12 @@ export default function AdminDashboardPage() {
     (stats.partners?.pendingFabricStores ?? 0)
       ? "/admin/tailors"
       : "/admin/partners";
+  const lowStockHref =
+    (stats.inventory?.lowFabrics ?? 0) > 0
+      ? "/admin/fabrics?stock=low"
+      : (stats.inventory?.lowReadyMade ?? 0) > 0
+        ? "/admin/ready-made"
+        : "/admin/addons";
 
   return (
     <div className="space-y-6">
@@ -517,15 +523,17 @@ export default function AdminDashboardPage() {
           delay={0.2}
           accent="amber"
         />
-        <StatCard
-          icon={AlertTriangle}
-          label="Low Stock"
-          value={String(lowStockTotal)}
-          subValue={`${stats.inventory?.lowFabrics ?? 0} fabrics · ${stats.inventory?.lowReadyMade ?? 0} ready`}
-          compact
-          delay={0.25}
-          accent="rose"
-        />
+        <Link href={lowStockHref} className="block h-full cursor-pointer">
+          <StatCard
+            icon={AlertTriangle}
+            label="Low Stock"
+            value={String(lowStockTotal)}
+            subValue={`${stats.inventory?.lowFabrics ?? 0} fabrics · ${stats.inventory?.lowReadyMade ?? 0} ready`}
+            compact
+            delay={0.25}
+            accent="rose"
+          />
+        </Link>
       </div>
 
       {(pendingTotal > 0 || lowStockTotal > 0) && (
@@ -554,7 +562,7 @@ export default function AdminDashboardPage() {
           )}
           {lowStockTotal > 0 && (
             <Link
-              href="/admin/fabrics"
+              href={lowStockHref}
               className="group flex items-center justify-between gap-3 rounded-(--dash-radius) border border-rose-200 bg-rose-50 px-4 py-3 transition hover:border-rose-300 hover:bg-rose-100/80"
             >
               <div className="flex items-center gap-3">

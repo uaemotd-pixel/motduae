@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Ruler,
   Trash2,
+  ArrowRight,
 } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
 import Chart from "chart.js/auto";
@@ -67,6 +68,9 @@ interface FabricDashboardData {
     piecesSold: number;
     activeSkus: number;
     lowStock: number;
+    lowFabrics?: number;
+    lowReadyMade?: number;
+    lowAddons?: number;
     paid?: number;
     pending?: number;
     netDue?: number;
@@ -425,6 +429,9 @@ export default function FabricDashboardPage() {
     piecesSold: 0,
     activeSkus: 0,
     lowStock: 0,
+    lowFabrics: 0,
+    lowReadyMade: 0,
+    lowAddons: 0,
     paid: 0,
     pending: 0,
     netDue: 0,
@@ -433,6 +440,13 @@ export default function FabricDashboardPage() {
   const payoutPending = data?.payout?.pending ?? kpis.pending ?? 0;
   const totalEarnings =
     data?.payout?.netDue ?? kpis.netDue ?? payoutPaid + payoutPending;
+  const lowStockTotal = kpis.lowStock ?? 0;
+  const lowStockHref =
+    (kpis.lowFabrics ?? 0) > 0
+      ? "/fabric/fabrics?stock=low"
+      : (kpis.lowReadyMade ?? 0) > 0
+        ? "/fabric/ready-made?stock=low"
+        : "/fabric/addons?stock=low";
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -576,15 +590,43 @@ export default function FabricDashboardPage() {
           delay={0.2}
           accent="sky"
         />
-        <StatCard
-          icon={AlertTriangle}
-          label={t("kpiLowStock")}
-          value={String(kpis.lowStock)}
-          compact
-          delay={0.25}
-          accent="rose"
-        />
+        <Link href={lowStockHref} className="block h-full cursor-pointer">
+          <StatCard
+            icon={AlertTriangle}
+            label={t("kpiLowStock")}
+            value={String(kpis.lowStock)}
+            subValue={t("kpiLowStockSub", {
+              fabrics: kpis.lowFabrics ?? 0,
+              ready: kpis.lowReadyMade ?? 0,
+            })}
+            compact
+            delay={0.25}
+            accent="rose"
+          />
+        </Link>
       </div>
+
+      {lowStockTotal > 0 && (
+        <Link
+          href={lowStockHref}
+          className="group flex items-center justify-between gap-3 rounded-(--dash-radius) border border-rose-200 bg-rose-50 px-4 py-3 transition hover:border-rose-300 hover:bg-rose-100/80"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/15 text-rose-700">
+              <AlertTriangle className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-rose-900">
+                {lowStockTotal === 1
+                  ? t("lowStockBanner", { count: lowStockTotal })
+                  : t("lowStockBannerPlural", { count: lowStockTotal })}
+              </p>
+              <p className="text-xs text-rose-700/80">{t("lowStockBannerSub")}</p>
+            </div>
+          </div>
+          <ArrowRight className="h-4 w-4 text-rose-700 transition group-hover:translate-x-0.5" />
+        </Link>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-3">
