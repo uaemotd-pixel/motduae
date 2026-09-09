@@ -9,7 +9,6 @@ import FormField from "@/components/admin/FormField";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import { UAE_EMIRATES, getEmirateEn, getEmirateAr } from "@/lib/uaeAddress";
 import {
-  SLUG_PATTERN,
   createFabricShop,
   emptyFabricShopForm,
   fetchOwnFabricShop,
@@ -80,7 +79,6 @@ export default function FabricShopForm() {
     emptyFabricShopForm(),
   );
   const [shop, setShop] = useState<FabricShopProfile | null>(null);
-  const [slugTouched, setSlugTouched] = useState(false);
   const [emirateOpen, setEmirateOpen] = useState(false);
 
   const isCreateMode = shop === null;
@@ -104,11 +102,9 @@ export default function FabricShopForm() {
             form.phone = normalizeUaePhone(form.phone);
           }
           setFormData(form);
-          setSlugTouched(Boolean(form.slug?.trim()));
         } else {
           setShop(null);
           setFormData(emptyFabricShopForm());
-          setSlugTouched(false);
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -147,16 +143,12 @@ export default function FabricShopForm() {
     setFormData((prev) => {
       const next = { ...prev, [field]: val };
 
-      if (field === "name" && !slugTouched) {
+      if (field === "name") {
         next.slug = slugifyShopName(val);
       }
 
       return next;
     });
-
-    if (field === "slug") {
-      setSlugTouched(true);
-    }
 
     if (fieldErrors[field]) {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -193,11 +185,6 @@ export default function FabricShopForm() {
 
     if (!payload.name.trim()) errors.name = t("validation.nameRequired");
     if (!payload.nameAr.trim()) errors.nameAr = t("validation.nameArRequired");
-    if (!payload.slug.trim()) {
-      errors.slug = t("validation.slugRequired");
-    } else if (!SLUG_PATTERN.test(payload.slug.trim().toLowerCase())) {
-      errors.slug = t("validation.slugInvalid");
-    }
     if (!payload.phone.trim()) {
       errors.phone = t("validation.phoneRequired");
     } else {
@@ -319,14 +306,14 @@ export default function FabricShopForm() {
 
       <form
         onSubmit={handleSubmit}
-        className="border border-(--color-border) bg-white p-6 sm:p-8 space-y-8"
+        className="border border-(--color-border) bg-white p-4 sm:p-8 space-y-6 sm:space-y-8"
       >
         <section className="space-y-5">
           <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
             {t("sections.identity")}
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5">
             <FormField
               label={t("fields.name")}
               name="name"
@@ -360,28 +347,6 @@ export default function FabricShopForm() {
               />
             </FormField>
           </div>
-
-          <FormField
-            label={t("fields.slug")}
-            name="slug"
-            error={fieldErrors.slug}
-            hint={t("hints.slug")}
-            required
-          >
-            <div className="flex">
-              <span className="inline-flex items-center px-4 border border-r-0 border-(--color-border) bg-neutral-50 text-neutral-400 text-xs [font-family:var(--font-ui)]">
-                /partners/
-              </span>
-              <input
-                id="slug"
-                value={formData.slug}
-                onChange={(e) => handleChange("slug", e.target.value)}
-                placeholder={t("placeholders.slug")}
-                className={INPUT_CLASS}
-                required
-              />
-            </div>
-          </FormField>
         </section>
 
         <hr className="border-(--color-border)" />
@@ -428,7 +393,7 @@ export default function FabricShopForm() {
             {t("sections.contact")}
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-3 gap-y-4 sm:gap-5">
             <FormField
               label={t("fields.city")}
               name="city"
@@ -496,7 +461,7 @@ export default function FabricShopForm() {
             {t("hints.pickupAddress")}
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5">
             <FormField
               label={t("fields.pickupFullName")}
               name="pickupFullName"

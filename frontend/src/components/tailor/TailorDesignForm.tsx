@@ -648,7 +648,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-0">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
           {isEditMode ? t("editTitle") : t("createTitle")}
@@ -662,7 +662,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
         onSubmit={handleSubmit}
         className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6"
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-6">
           <FormField
             label={t("fields.name")}
             name="name"
@@ -723,8 +723,8 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
             />
           </FormField>
 
-          <div className="md:col-span-2 rounded-xl space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          <div className="col-span-2 rounded-xl space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-4 sm:gap-5">
               <BilingualFilterDropdown
                 label={t("fields.category")}
                 name="category"
@@ -785,7 +785,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-4 sm:gap-5">
               <BilingualFilterDropdown
                 label={t("fields.season")}
                 name="season"
@@ -863,8 +863,8 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
             </div>
           </div>
 
-          <div className="md:col-span-2 space-y-4 sm:space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
+          <div className="col-span-2 space-y-4 sm:space-y-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-4 sm:gap-5">
               <FormField
                 label={t("fields.price")}
                 name="basePrice"

@@ -396,7 +396,7 @@ export default function TailorOrdersPage() {
       </div>
 
       {/* Filters Section */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div>
           <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">
             {locale === "ar" ? "البحث" : "Search"}

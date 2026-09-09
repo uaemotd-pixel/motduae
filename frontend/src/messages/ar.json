@@ -89,7 +89,8 @@
     "reviewsEmpty": "لا توجد تقييمات لهذا القماش بعد.",
     "reviewsLoading": "جاري تحميل التقييمات…",
     "reviewsAverage": "المتوسط {rating}",
-    "reviewsCount": "{count} تقييمات"
+    "reviewsCount": "{count} تقييمات",
+    "verifiedPurchase": "شراء موثّق"
   },
   "AddonDetail": {
     "relatedEyebrow": "المزيد للاستكشاف",
@@ -100,7 +101,8 @@
     "reviewsEmpty": "لا توجد تقييمات لهذا الإكسسوار بعد.",
     "reviewsLoading": "جاري تحميل التقييمات…",
     "reviewsAverage": "المتوسط {rating}",
-    "reviewsCount": "{count} تقييمات"
+    "reviewsCount": "{count} تقييمات",
+    "verifiedPurchase": "شراء موثّق"
   },
   "DesignDetail": {
     "loading": "جاري تحميل التصميم...",
@@ -124,7 +126,13 @@
     "partnerNote": "سيتم تفصيل الطلب المخصص وإتمامه بواسطة متجر شريك MOTD.",
     "relatedEyebrow": "المزيد للاستكشاف",
     "relatedTitle": "قد يعجبك أيضاً",
-    "relatedExplore": "عرض كل التصاميم"
+    "relatedExplore": "عرض كل التصاميم",
+    "reviewsTitle": "تقييمات العملاء",
+    "reviewsEmpty": "لا توجد تقييمات لهذا التصميم بعد.",
+    "reviewsLoading": "جاري تحميل التقييمات…",
+    "reviewsAverage": "المتوسط {rating}",
+    "reviewsCount": "{count} تقييمات",
+    "verifiedPurchase": "شراء موثّق"
   },
   "PremiumFabrics": {
     "ariaLabel": "أقمشة فاخرة",
@@ -489,7 +497,8 @@
     "awaitingFabric": "القماش لاحقاً",
     "awaitingDesign": "التصميم لاحقاً",
     "ownFabric": "قماشك الخاص",
-    "moreItems": "+{count} المزيد"
+    "moreItems": "+{count} المزيد",
+    "nextStep": "التالي"
   },
   "CustomOrderFabric": {
     "stepLabel": "الخطوة {step} من {total}",
@@ -619,6 +628,7 @@
   "Testimonials": {
     "ariaLabel": "تجربة العملاء",
     "title": "تجربة العميل",
+    "verifiedPurchase": "شراء موثّق",
     "cards": {
       "kauser-al-qayyum": {
         "quote": "دقة القياس عبر الهاتف الذكي راقية حقاً. القطعة تبدو مفصّلة على حركة الجسد — هادئة ودقيقة وشخصية.",
@@ -1800,6 +1810,7 @@
         "tailorPayoutRequested": "طلب مستحقات خياط",
         "tailorPayoutApproved": "تمت الموافقة على مستحقات الخياط",
         "tailorPayoutRejected": "تم رفض مستحقات الخياط",
+        "reviewSubmitted": "تقييم جديد بانتظار المراجعة",
         "default": "إشعار"
       }
     }
@@ -1821,6 +1832,7 @@
       "loadMore": "تحميل المزيد",
       "markedAsRead": "تم التعليم كمقروء",
       "markedAllAsRead": "تم تعليم جميع الإشعارات كمقروءة",
+      "markAllRead": "تعليم الكل كمقروء",
       "deleteSuccess": "تم حذف الإشعار",
       "deleteFailed": "فشل حذف الإشعار",
       "markReadFailed": "فشل التعليم كمقروء",
@@ -1832,6 +1844,7 @@
       "orderStatus": "الحالة",
       "timelineTitle": "تقدم الطلب",
       "leaveReview": "اترك تقييماً",
+      "viewReview": "عرض التقييم",
       "bellLabel": "الإشعارات",
       "previewTitle": "آخر التحديثات",
       "previewSubtitle": "{count} غير مقروء",
@@ -1865,12 +1878,14 @@
         "retailStatusCancelled": "تم إلغاء الطلب",
         "customReviewPrompt": "اترك تقييماً",
         "retailReviewPrompt": "اترك تقييماً",
+        "reviewApproved": "تم نشر تقييمك",
+        "reviewRejected": "لم يُنشر تقييمك",
         "default": "إشعار"
       }
     },
     "Reviews": {
       "writeTitle": "اكتب تقييماً",
-      "writeSubtitle": "شاركنا تجربتك مع MOTD. تظهر تقييمات المنتجات في صفحة المنتج، وتقييم الطلب المخصص يغطي رحلة الخياط والقماش معاً كتقييم واحد.",
+      "writeSubtitle": "شاركنا تجربتك مع MOTD. تظهر تقييمات المنتجات في صفحة المنتج بعد الموافقة.",
       "rating": "التقييم",
       "starLabel": "{count} نجوم",
       "halfStarHint": "انقر على النصف الأيسر أو الأيمن من النجمة لقيم مثل 3.5.",
@@ -1881,12 +1896,18 @@
       "productLabel": "الربط (اختياري)",
       "productGeneral": "تجربة MOTD العامة",
       "productPlaceholder": "اختر منتجاً",
-      "productHint": "اربط قطعة تجزئة مُسلَّمة أو طلباً مخصصاً. الطلب المخصص له تقييم واحد شامل — دون تقييمات منفصلة للخياط ومتاجر الأقمشة.",
+      "productHint": "اربط صنفاً مُسلَّماً. الطلب المخصص يتيح تقييم التصميم والقماش والإكسسوارات بشكل منفصل.",
       "productRequired": "يرجى اختيار منتج للتقييم.",
       "productLockedLabel": "تقييم لـ",
       "productLockedHint": "هذا التقييم للصنف من طلبك المُسلَّم.",
-      "customOrderLockedHint": "تقييم واحد لهذا الطلب المخصص (التصميم والقماش وأي إكسسوارات معاً).",
-      "orderAlreadyReviewed": "لقد قيّمت هذا الطلب بالفعل.",
+      "customOrderLockedHint": "قيّم كل جزء من هذا الطلب المخصص. البطاقات الفارغة تُتخطى.",
+      "multiCardHint": "اترك تقييماً وتعليقاً لكل جزء تريد مراجعته. يمكنك تخطي أي بطاقة.",
+      "kindDesign": "تصميم",
+      "kindFabric": "قماش",
+      "kindAddon": "إكسسوار",
+      "kindProduct": "منتج",
+      "verifiedPurchase": "شراء موثّق",
+      "orderAlreadyReviewed": "لقد قيّمت كل أجزاء هذا الطلب بالفعل.",
       "noEligibleProducts": "لا توجد أصناف أو طلبات مخصصة مُسلَّمة لربطها. يمكنك ترك تقييم عام لـ MOTD.",
       "reviewedProduct": "مرتبط: {name}",
       "submit": "إرسال التقييم",
@@ -1914,7 +1935,7 @@
       "confirmDelete": "حذف هذا التقييم؟ ستتم إزالته من الصفحة الرئيسية وصفحة المنتج.",
       "deleteSuccess": "تم حذف التقييم.",
       "deleteFailed": "فشل حذف التقييم.",
-      "registeredOnly": "يمكن للعملاء المسجّلين فقط ترك تقييم. يرجى تسجيل الدخول أو إنشاء حساب.",
+      "registeredOnly": "سجّل الدخول لترك تقييم، أو أكمل كضيف بعد الدفع.",
       "loginCta": "تسجيل الدخول",
       "signupCta": "إنشاء حساب"
     }
@@ -1965,7 +1986,8 @@
         "return_approved": "تمت الموافقة على الإرجاع",
         "return_rejected": "تم رفض الإرجاع",
         "refund_processed": "تمت معالجة الاسترداد"
-      }
+      },
+      "leaveReview": "اترك تقييماً"
     },
     "retail": {
       "loading": "جاري تحميل الطلبات الجاهزة...",
@@ -1982,7 +2004,8 @@
         "shipped": "تم الشحن",
         "delivered": "تم التسليم",
         "cancelled": "ملغى"
-      }
+      },
+      "leaveReview": "اترك تقييماً"
     },
     "timeline": {
       "ariaLabel": "خط زمني لتقدّم الطلب المخصص",

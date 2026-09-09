@@ -175,6 +175,9 @@ const TYPE_I18N_KEYS: Record<string, string> = {
   retail_status_cancelled: "retailStatusCancelled",
   custom_review_prompt: "customReviewPrompt",
   retail_review_prompt: "retailReviewPrompt",
+  review_submitted: "reviewSubmitted",
+  review_approved: "reviewApproved",
+  review_rejected: "reviewRejected",
   fabric_payout_requested: "fabricPayoutRequested",
   fabric_payout_approved: "fabricPayoutApproved",
   fabric_payout_rejected: "fabricPayoutRejected",
@@ -223,6 +226,9 @@ export function getNotificationTypeLabel(type: string, t?: (key: string) => stri
     retail_status_cancelled: "Order cancelled",
     custom_review_prompt: "Leave a review",
     retail_review_prompt: "Leave a review",
+    review_submitted: "New review pending",
+    review_approved: "Review approved",
+    review_rejected: "Review not published",
     fabric_payout_requested: "Fabric payout request",
     fabric_payout_approved: "Payout approved",
     fabric_payout_rejected: "Payout declined",
@@ -324,6 +330,13 @@ export function getAdminDeepLinkHref(
         ? `/admin/partners/${userId}/application`
         : "/admin/partners",
       label: "View application",
+    };
+  }
+
+  if (type === "review_submitted") {
+    return {
+      href: "/admin/reviews?status=pending",
+      label: "Moderate reviews",
     };
   }
 
@@ -496,7 +509,9 @@ export function isReviewPromptType(type: string): boolean {
     key === "custom_status_delivered" ||
     key === "retail_status_delivered" ||
     key === "custom_review_prompt" ||
-    key === "retail_review_prompt"
+    key === "retail_review_prompt" ||
+    key === "review_approved" ||
+    key === "review_rejected"
   );
 }
 

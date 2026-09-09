@@ -100,14 +100,14 @@ export default function WishlistPage() {
                   return (
                     <div
                       key={item.id}
-                      className="p-4 xs:p-5 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6"
+                      className="p-4 xs:p-5 sm:p-6 flex flex-row gap-4 sm:gap-6"
                     >
                       {/* Image with click to enlarge */}
-                      <div className="w-full sm:w-28 h-28 bg-[#F5F5F0] rounded-md overflow-hidden shrink-0 relative group">
+                      <div className="w-24 h-24 sm:w-28 sm:h-28 bg-[#F5F5F0] rounded-md overflow-hidden shrink-0 relative group">
                         <img
                           src={imageUrl || "/placeholder.png"}
                           alt={item.name}
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 hover:cursor-pointer"
+                          className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105 hover:cursor-pointer"
                         />
                         {imageUrl && (
                           <button

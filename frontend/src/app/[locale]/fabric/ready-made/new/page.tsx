@@ -302,7 +302,7 @@ export default function NewReadyMadePage() {
         onSubmit={handleSubmit}
         className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6"
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-6">
           {/* NAME */}
           <FormField
             label="Name (ENG)"

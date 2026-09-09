@@ -363,14 +363,14 @@ export default function FabricReadyMadePage() {
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Total items
           </p>
           <p className="text-2xl font-light text-black mt-1">{items.length}</p>
         </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Available
           </p>
@@ -378,7 +378,7 @@ export default function FabricReadyMadePage() {
             {availableItems}
           </p>
         </div>
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">Sold</p>
           <p className="text-2xl font-light text-black mt-1">{soldItems}</p>
         </div>
@@ -450,7 +450,60 @@ export default function FabricReadyMadePage() {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <>
+          <div className="space-y-3 sm:hidden">
+            {filteredItems.map((item) => {
+              const status =
+                item.availableFabricStock > 0 ? "available" : "sold";
+              const itemLow = isLowStockQty(item.availableFabricStock);
+              return (
+                <div
+                  key={item._id}
+                  className={`rounded-xl border p-3 ${
+                    itemLow
+                      ? "border-rose-200 bg-rose-50/80"
+                      : "border-gray-200 bg-white"
+                  }`}
+                >
+                  <div className="flex gap-3 min-w-0">
+                    <div className="shrink-0">{getItemImage(item)}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium text-black leading-snug">
+                          {item.name || "—"}
+                        </p>
+                        <StatusBadge status={status} />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">
+                        {item.fabricType || "—"}
+                        {item.tailorName ? ` · ${item.tailorName}` : ""}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1 font-mono">
+                        AED {item.finalSellingPriceAED} · {item.availableFabricStock}{" "}
+                        in stock
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <Link
+                      href={`/fabric/ready-made/${item._id}/edit`}
+                      className="flex-1 text-center px-3 py-2 border border-black text-black text-[10px] tracking-[0.16em] uppercase"
+                    >
+                      Edit
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => openDeleteModal(item)}
+                      className="flex-1 px-3 py-2 border border-red-300 text-red-700 text-[10px] tracking-[0.16em] uppercase"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden sm:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
@@ -565,6 +618,7 @@ export default function FabricReadyMadePage() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {/* Image Modal */}

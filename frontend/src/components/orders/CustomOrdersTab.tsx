@@ -1059,8 +1059,19 @@ export default function CustomOrdersTab({
               )}
 
               {isDelivered && (
-                <div className="px-4 sm:px-6 pb-4">
-                  <div className="mt-2 border border-gray-200 rounded-xl bg-white p-4">
+                <div className="mt-6">
+                  <Link
+                    href={`/account?tab=reviews&orderId=${encodeURIComponent(order.id)}&orderType=custom`}
+                    className="inline-block px-6 py-2 border border-black text-black text-[10px] tracking-[0.2em] uppercase hover:bg-black hover:text-white transition font-ui rounded-lg"
+                  >
+                    {t("leaveReview")}
+                  </Link>
+                </div>
+              )}
+
+              {isDelivered && (
+                <div className="mt-4">
+                  <div className="border border-gray-200 rounded-xl bg-white p-4">
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input
                         type="checkbox"
@@ -1111,7 +1122,7 @@ export default function CustomOrdersTab({
                           className="mt-4 pt-4 border-t border-gray-200"
                         >
                           <div className="space-y-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-4">
                               <div>
                                 <label className="text-[11px] uppercase tracking-[0.14em] text-gray-400 block mb-1.5">
                                   Condition{" "}
@@ -1239,7 +1250,7 @@ export default function CustomOrdersTab({
                               <h5 className="font-display text-sm mb-3">
                                 Pickup Address Details
                               </h5>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-4">
                                 <div>
                                   <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">
                                     Full Name{" "}
@@ -1952,6 +1963,14 @@ export default function CustomOrdersTab({
               )}
 
               <div className="mt-4 border-t border-gray-100 pt-4 w-full">
+                {order.status === "delivered" && (
+                  <Link
+                    href={`/account?tab=reviews&orderId=${encodeURIComponent(order.id)}&orderType=retail`}
+                    className="inline-block mb-4 px-6 py-2 border border-black text-black text-[10px] tracking-[0.2em] uppercase hover:bg-black hover:text-white transition font-ui rounded-lg"
+                  >
+                    {tRetail("leaveReview")}
+                  </Link>
+                )}
                 <button
                   type="button"
                   onClick={() => handleToggleRetailProgress(order.id)}

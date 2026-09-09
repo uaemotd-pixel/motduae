@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { useAuth, needsEmailVerification } from "@/context/AuthContext";
-import { LayoutDashboard, LogOut, Menu, Scissors, Store, X, ShoppingBag, Bell, Edit } from "lucide-react";
+import { LayoutDashboard, LogOut, Scissors, Store, X, ShoppingBag, Bell, Edit } from "lucide-react";
+import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
 import white_logo from "../../../public/PNG/White/MOTD_Wordmark_White.png";
 import {
   buildVerifyEmailHref,
@@ -216,15 +217,8 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
             {/* See FabricPortalShell: below `lg` this must not be a scroll
                 container, or Android refuses to chain one-finger scrolls to the
                 document and only a two-finger pan moves the page. */}
-            <main className="min-h-dvh flex-1 overflow-x-clip p-4 pb-40 pt-14 xs:p-6 sm:p-8 md:p-10 lg:min-h-0 lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-y-contain lg:pt-10">
-                <button
-                    type="button"
-                    onClick={() => setIsSidebarOpen(true)}
-                    className="fixed safe-fixed-top inset-s-4 z-20 bg-black p-2 text-white transition hover:bg-(--dash-charcoal-deep) lg:hidden rounded-md"
-                    aria-label="Open menu"
-                >
-                    <Menu className="w-5 h-5" />
-                </button>
+            <main className="min-h-dvh flex-1 overflow-x-clip p-4 pb-40 xs:p-6 sm:p-8 md:p-10 lg:min-h-0 lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-y-contain lg:pt-10">
+                <DashboardMobileMenuBar onOpen={() => setIsSidebarOpen(true)} />
 
                 {showChangeEmail && canChangeEmail ? (
                     <PartnerChangeEmailCard

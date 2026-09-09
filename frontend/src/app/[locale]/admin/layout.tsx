@@ -9,6 +9,7 @@ import { useNotificationUnreadCount } from "@/hooks/useNotifications";
 import AdminNotificationBell from "@/components/admin/notifications/AdminNotificationBell";
 import { DashboardPanelSkeleton } from "@/components/ui/Skeleton";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
+import { api } from "@/lib/api/client";
 import {
   hasAdminPerm,
   isFullAdmin,
@@ -26,7 +27,6 @@ import {
   Store,
   Settings,
   LogOut,
-  Menu,
   X,
   UserRoundPlus,
   UserRoundPen,
@@ -43,6 +43,7 @@ import {
   Wallet,
   Star,
 } from "lucide-react";
+import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 
 type NavItem = {
@@ -71,14 +72,41 @@ export default function AdminLayout({
     Boolean(user) &&
     (isFullAdmin(user) || hasAdminPerm(user, "notifications"));
 
+  const canSeeReviews =
+    Boolean(user) && (isFullAdmin(user) || hasAdminPerm(user, "reviews"));
+
   const { count: unreadNotificationCount } = useNotificationUnreadCount(
     "admin",
     canSeeNotifications,
   );
+  const [pendingReviewCount, setPendingReviewCount] = useState(0);
 
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!canSeeReviews) {
+      setPendingReviewCount(0);
+      return;
+    }
+    let cancelled = false;
+    api
+      .get<{ counts?: { pending?: number } }>(
+        "/api/admin/reviews?status=pending&limit=1",
+      )
+      .then((data) => {
+        if (!cancelled) {
+          setPendingReviewCount(Number(data?.counts?.pending) || 0);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPendingReviewCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canSeeReviews, pathname]);
 
   useEffect(() => {
     document.documentElement.classList.remove("lenis", "lenis-smooth");
@@ -253,6 +281,11 @@ export default function AdminLayout({
                 <Icon className="w-4 h-4" />
               </div>
               {item.label}
+              {item.href === "/admin/reviews" && pendingReviewCount > 0 && (
+                <span className="min-w-5 h-5 px-1 rounded-full bg-(--dash-danger) text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
+                  {pendingReviewCount > 99 ? "99+" : pendingReviewCount}
+                </span>
+              )}
               {item.href === "/admin/notifications" &&
                 unreadNotificationCount > 0 && (
                   <span className="min-w-5 h-5 px-1 rounded-full bg-(--dash-danger) text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
@@ -382,15 +415,9 @@ export default function AdminLayout({
       <main
         className="admin-canvas min-h-screen bg-white p-4 pb-16 text-black transition-all duration-300 xs:p-6 sm:p-8 md:p-10 lg:ml-72"
       >
-        <button
-          onClick={() => setIsSidebarOpen(true)}
-          className="lg:hidden fixed safe-fixed-top inset-s-4 z-20 rounded-md bg-black p-2 shadow-md transition hover:bg-(--dash-charcoal-deep)"
-          aria-label="Open menu"
-        >
-          <Menu className="w-5 h-5 text-white" />
-        </button>
+        <DashboardMobileMenuBar onOpen={() => setIsSidebarOpen(true)} />
 
-        <div className="lg:pt-0 pt-12">
+        <div>
           {canSeeNotifications && (
             <div className="mb-6 flex items-center justify-end gap-3">
               <AdminNotificationBell />

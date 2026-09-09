@@ -60,6 +60,8 @@ export default function AdminReviewsPage() {
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminReview | null>(null);
   const [editTarget, setEditTarget] = useState<AdminReview | null>(null);
@@ -77,20 +79,28 @@ export default function AdminReviewsPage() {
       setLoading(true);
       const params = new URLSearchParams();
       params.set("status", status);
+      params.set("page", String(page));
+      params.set("limit", "20");
       if (search.trim()) params.set("search", search.trim());
       const data = await api.get<{
         success: boolean;
         items: AdminReview[];
         counts: Counts;
+        totalPages?: number;
       }>(`/api/admin/reviews?${params.toString()}`);
       setItems(Array.isArray(data?.items) ? data.items : []);
       if (data?.counts) setCounts(data.counts);
+      setTotalPages(Number(data?.totalPages) || 0);
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Failed to load reviews"), TOAST);
       setItems([]);
     } finally {
       setLoading(false);
     }
+  }, [status, search, page]);
+
+  useEffect(() => {
+    setPage(1);
   }, [status, search]);
 
   useEffect(() => {
@@ -224,7 +234,10 @@ export default function AdminReviewsPage() {
             <button
               key={tab.key}
               type="button"
-              onClick={() => setStatus(tab.key)}
+              onClick={() => {
+                setPage(1);
+                setStatus(tab.key);
+              }}
               className={`px-3 py-1.5 text-xs uppercase tracking-wider border transition ${
                 status === tab.key
                   ? "bg-black text-white border-black"
@@ -272,10 +285,16 @@ export default function AdminReviewsPage() {
                     </div>
                     {(rev.productName || rev.productNameAr) && (
                       <p className="text-xs text-gray-500">
-                        {rev.orderType === "custom" ||
-                        rev.productKind === "custom"
-                          ? "Custom order: "
-                          : "Product: "}
+                        {rev.productKind === "design"
+                          ? "Design: "
+                          : rev.productKind === "fabric"
+                            ? "Fabric: "
+                            : rev.productKind === "addon"
+                              ? "Add-on: "
+                              : rev.orderType === "custom" ||
+                                  rev.productKind === "custom"
+                                ? "Custom order: "
+                                : "Product: "}
                         {rev.productName || rev.productNameAr}
                       </p>
                     )}
@@ -341,6 +360,30 @@ export default function AdminReviewsPage() {
           </ul>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <button
+            type="button"
+            disabled={page <= 1 || loading}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="px-3 py-1.5 text-xs uppercase tracking-wider border border-gray-200 disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <span className="text-xs text-gray-500">
+            Page {page} of {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={page >= totalPages || loading}
+            onClick={() => setPage((p) => p + 1)}
+            className="px-3 py-1.5 text-xs uppercase tracking-wider border border-gray-200 disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
+      )}
 
       {editTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

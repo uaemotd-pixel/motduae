@@ -272,7 +272,7 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
     value?: string | null;
     icon?: React.ReactNode;
   }) => (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       <label className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
         {label}
       </label>
@@ -427,7 +427,7 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
           <hr className="my-4 sm:my-6 border-gray-200" />
 
           {/* Personal Info */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-4 sm:gap-6">
             <DisplayField
               label="Full Name"
               value={profile.name}
@@ -457,7 +457,7 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
               Default Address
             </h4>
             {defaultAddress ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-4 sm:gap-6">
                 <DisplayField
                   label="Full Name"
                   value={defaultAddress.fullName}
@@ -551,7 +551,7 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
                             className="overflow-hidden"
                           >
                             <div className="p-4 pt-0 border-t border-gray-100">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-4">
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-4 sm:gap-6 pt-4">
                                 <DisplayField
                                   label="Full Name"
                                   value={address.fullName}
@@ -620,7 +620,7 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
               Body Measurements
             </h4>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-3 sm:gap-4 sm:gap-6">
               {measurementFields.map((field) => {
                 const value = measurements?.[field.key as keyof Measurements];
                 let displayValue: string = "—";
@@ -643,7 +643,7 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
                 );
               })}
               {measurements?.notes && (
-                <div className="sm:col-span-2 lg:col-span-3">
+                <div className="col-span-2 lg:col-span-3">
                   <DisplayField
                     label="Notes"
                     value={measurements.notes}
