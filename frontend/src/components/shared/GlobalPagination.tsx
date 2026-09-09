@@ -1,6 +1,8 @@
 "use client";
 
+import { useRef } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { scrollPageToTop } from "@/lib/scroll";
 
 type GlobalPaginationProps = {
   currentPage: number;
@@ -27,11 +29,14 @@ export default function GlobalPagination({
   itemsPerPageOptions = [1, 2, 3, 5, 10, 20, 50, 100], // Include 1, 2, 3 for testing
   totalItems,
 }: GlobalPaginationProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+
   if (totalPages <= 1 && !showItemsPerPage) return null;
 
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages && page !== currentPage) {
       onPageChange(page);
+      scrollPageToTop(rootRef.current);
     }
   };
 
@@ -79,6 +84,7 @@ export default function GlobalPagination({
 
   return (
     <div
+      ref={rootRef}
       className={`flex flex-col items-center gap-4 pt-4 border-t border-gray-100 ${className}`}
     >
       {/* Pagination */}
@@ -146,6 +152,7 @@ export default function GlobalPagination({
               onChange={(e) => {
                 const newValue = Number(e.target.value);
                 onItemsPerPageChange(newValue);
+                scrollPageToTop(rootRef.current);
               }}
               className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-offset-1 hover:cursor-pointer bg-white transition-shadow"
             >

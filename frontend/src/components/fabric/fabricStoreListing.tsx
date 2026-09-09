@@ -19,9 +19,11 @@ import {
 } from "@/lib/fabrics";
 import { Share2, ChevronDown, ChevronUp } from "lucide-react";
 import FadeInSection from "@/components/shared/fadeInSection";
+import CatalogFilterSidebar from "@/components/shared/CatalogFilterSidebar";
 import WishlistButton from "@/components/shared/wishlistButton";
 import colors from "../shared/colors";
 import { ProductGridSkeleton } from "@/components/ui/Skeleton";
+import { useCatalogScrollReset } from "@/hooks/useCatalogScrollReset";
 
 interface FilterOption {
   _id: string;
@@ -559,6 +561,7 @@ export default function FabricsCatalogPage() {
   );
 
   const [mounted, setMounted] = useState(false);
+  const catalogAnchorRef = useRef<HTMLDivElement>(null);
   const [fabrics, setFabrics] = useState<FabricCatalogItem[]>([]);
   const [categories, setCategories] = useState<FilterOption[]>([]);
   const [materials, setMaterials] = useState<FilterOption[]>([]);
@@ -973,9 +976,16 @@ export default function FabricsCatalogPage() {
     setCurrentPage(1);
   };
 
+  useCatalogScrollReset(
+    mounted,
+    catalogAnchorRef,
+    currentPage,
+    sortBy,
+    filters,
+  );
+
   const handlePageChange = (value: number) => {
     setCurrentPage(value);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   if (!mounted) return null;
@@ -1191,8 +1201,8 @@ export default function FabricsCatalogPage() {
   );
 
   return (
-    <FadeInSection>
-      <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white" data-catalog-shop>
+      <FadeInSection>
         {/* Hero Section */}
         <div className="py-12 sm:py-16 lg:py-24 border-b border-[#E4E0D8] px-4 sm:px-8 lg:px-12">
           <div className="w-full text-left">
@@ -1215,9 +1225,19 @@ export default function FabricsCatalogPage() {
             </p>
           </div>
         </div>
+      </FadeInSection>
 
         {/* Filter Bar */}
-        <div className="sticky sticky-below-nav z-30 bg-white border-b border-[#E4E0D8] px-4 sm:px-8 lg:px-12">
+        <div
+          ref={catalogAnchorRef}
+          id="catalog-listings"
+          className="scroll-mt-[calc(var(--nav-height)+var(--safe-top))]"
+          aria-hidden
+        />
+        <div
+          data-catalog-toolbar
+          className="sticky sticky-below-nav z-30 bg-white border-b border-[#E4E0D8] px-4 sm:px-8 lg:px-12"
+        >
           <div className="py-4">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-4">
@@ -1538,18 +1558,7 @@ export default function FabricsCatalogPage() {
 
         {/* Main Content */}
         <div className="flex flex-col lg:flex-row min-h-screen relative">
-          <aside
-            data-lenis-prevent
-            className="hidden lg:block w-80 shrink-0 border-r border-[#E4E0D8] p-8 h-screen sticky top-34 overflow-y-auto scrollbar-hide"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          >
-            <style jsx>{`
-              .scrollbar-hide::-webkit-scrollbar {
-                display: none;
-              }
-            `}</style>
-            {sidebarContent}
-          </aside>
+          <CatalogFilterSidebar>{sidebarContent}</CatalogFilterSidebar>
 
           <div className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
             {loading ? (
@@ -1739,6 +1748,5 @@ export default function FabricsCatalogPage() {
           </div>
         </div>
       </div>
-    </FadeInSection>
   );
 }
