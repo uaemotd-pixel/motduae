@@ -272,7 +272,6 @@ export default function TailorShopForm() {
       setShop(savedShop);
       const form = tailorShopToForm(savedShop);
       setFormData(form);
-      setSlugTouched(true);
       toast.success(
         isCreateMode ? t("successCreated") : t("successUpdated"),
         SUCCESS_TOAST,
