@@ -100,9 +100,9 @@ export default function RetailOrderTimeline({
               )}
             </div>
 
-            <div className={`pb-4 sm:pb-6 ${isPending ? "opacity-50" : ""}`}>
+            <div className={`pb-4 sm:pb-6 min-w-0 ${isPending ? "opacity-50" : ""}`}>
               <p
-                className={`[font-family:var(--font-ui)] text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.18em] ${textClass}`}
+                className={`[font-family:var(--font-ui)] text-[10px] sm:text-[11px] uppercase tracking-[0.12em] sm:tracking-[0.18em] break-words ${textClass}`}
               >
                 {tRetail(status, { defaultValue: status })}
               </p>

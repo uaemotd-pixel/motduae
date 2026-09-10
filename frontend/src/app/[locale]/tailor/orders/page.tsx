@@ -657,29 +657,29 @@ export default function TailorOrdersPage() {
 
                 {/* Sizing measurements details block */}
                 <div className="px-5 pb-5">
-                  <div className="flex gap-4">
+                  <div className="flex flex-col items-start gap-1 sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-1">
                     <button
                       type="button"
                       onClick={() => toggleExpand(order._id)}
-                      className="inline-flex items-center gap-1.5 text-xs text-black/60 hover:text-black font-medium transition py-1 hover:cursor-pointer"
+                      className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-black/60 hover:text-black font-medium transition py-1 hover:cursor-pointer"
                     >
-                      <Ruler className="w-3.5 h-3.5" />
+                      <Ruler className="w-3.5 h-3.5 shrink-0" />
                       {isExpanded
                         ? t("hideMeasurements")
                         : t("showMeasurements")}
                       {isExpanded ? (
-                        <ChevronUp className="w-3 h-3" />
+                        <ChevronUp className="w-3 h-3 shrink-0" />
                       ) : (
-                        <ChevronDown className="w-3 h-3" />
+                        <ChevronDown className="w-3 h-3 shrink-0" />
                       )}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => toggleExpandOptions(order._id)}
-                      className="inline-flex items-center gap-1.5 text-xs text-black/60 hover:text-black font-medium transition py-1 hover:cursor-pointer"
+                      className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-black/60 hover:text-black font-medium transition py-1 hover:cursor-pointer"
                     >
-                      <Sliders className="w-3.5 h-3.5" />
+                      <Sliders className="w-3.5 h-3.5 shrink-0" />
                       {locale === "ar"
                         ? isOptionsExpanded
                           ? "إخفاء خيارات الطلب"
@@ -688,18 +688,18 @@ export default function TailorOrdersPage() {
                           ? "Hide Order Options"
                           : "Show Order Options"}
                       {isOptionsExpanded ? (
-                        <ChevronUp className="w-3 h-3" />
+                        <ChevronUp className="w-3 h-3 shrink-0" />
                       ) : (
-                        <ChevronDown className="w-3 h-3" />
+                        <ChevronDown className="w-3 h-3 shrink-0" />
                       )}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => toggleExpandShipments(order._id)}
-                      className="inline-flex items-center gap-1.5 text-xs text-black/60 hover:text-black font-medium transition py-1 hover:cursor-pointer"
+                      className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-black/60 hover:text-black font-medium transition py-1 hover:cursor-pointer"
                     >
-                      <Package className="w-3.5 h-3.5" />
+                      <Package className="w-3.5 h-3.5 shrink-0" />
                       {locale === "ar"
                         ? isShipmentsExpanded
                           ? "إخفاء الشحنات"
@@ -708,9 +708,9 @@ export default function TailorOrdersPage() {
                           ? "Hide Shipments"
                           : "Show Shipments"}
                       {isShipmentsExpanded ? (
-                        <ChevronUp className="w-3 h-3" />
+                        <ChevronUp className="w-3 h-3 shrink-0" />
                       ) : (
-                        <ChevronDown className="w-3 h-3" />
+                        <ChevronDown className="w-3 h-3 shrink-0" />
                       )}
                     </button>
                   </div>

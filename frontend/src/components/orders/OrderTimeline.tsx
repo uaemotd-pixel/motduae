@@ -115,9 +115,9 @@ export default function OrderTimeline({
               )}
             </div>
 
-            <div className={`pb-4 sm:pb-6 ${tone.content}`}>
+            <div className={`pb-4 sm:pb-6 min-w-0 ${tone.content}`}>
               <p
-                className={`[font-family:var(--font-ui)] text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.18em] ${tone.text}`}
+                className={`[font-family:var(--font-ui)] text-[10px] sm:text-[11px] uppercase tracking-[0.12em] sm:tracking-[0.18em] break-words ${tone.text}`}
               >
                 {t(`statuses.${status}.title`)}
               </p>

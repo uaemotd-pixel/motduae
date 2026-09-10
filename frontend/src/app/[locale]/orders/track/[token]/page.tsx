@@ -282,11 +282,11 @@ function CustomPublicCard({
             {formatOrderDate(dateValue, locale)}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="inline-flex items-center text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <span className="inline-flex items-center text-[9px] uppercase tracking-[0.12em] sm:tracking-[0.18em] px-2 py-0.5 font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md whitespace-nowrap">
             {locale === "ar" ? "تفصيل" : "Custom Order"}
           </span>
-          <span className="text-[10px] uppercase tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
+          <span className="text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
             {tCustom(`statuses.${order.status}`)}
           </span>
         </div>

@@ -313,7 +313,7 @@ export default function FabricAddOnsPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/fabric/addons/new"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 transition shadow-sm"
+            className="inline-flex w-fit max-w-full items-center justify-center gap-2 self-start px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 transition shadow-sm"
           >
             <Plus className="w-4 h-4" />
             Add Add-On

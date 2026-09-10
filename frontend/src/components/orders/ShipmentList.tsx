@@ -84,8 +84,8 @@ export default function ShipmentList({
                 compact ? "p-3" : "p-4"
               }`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2 min-w-0">
+              <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-3">
+                <div className="flex items-start gap-2 min-w-0 flex-1">
                   <Package
                     className={`shrink-0 text-gray-400 ${
                       compact ? "w-3.5 h-3.5 mt-0.5" : "w-4 h-4 mt-0.5"
@@ -94,7 +94,7 @@ export default function ShipmentList({
                   />
                   <div className="min-w-0">
                     <p
-                      className={`font-medium text-black truncate [font-family:var(--font-body)] ${
+                      className={`font-medium text-black break-words [font-family:var(--font-body)] ${
                         compact ? "text-xs" : "text-sm"
                       }`}
                     >
