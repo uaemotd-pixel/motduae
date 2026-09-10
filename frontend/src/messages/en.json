@@ -172,6 +172,36 @@
     "empty": "There are no approved tailor shops available right now. Please check back soon.",
     "errorTitle": "Unable to Load Tailors"
   },
+  "BrandsListing": {
+    "eyebrow": "Curated Fabric Houses",
+    "title": "Fabric Brands of the UAE",
+    "description": "Browse approved fabric stores across the Emirates. Discover premium textiles from MOTD partner houses for your next custom mukhawar.",
+    "showing": "Showing {count} fabric brands",
+    "viewShop": "View Brand",
+    "reviews": "reviews",
+    "loading": "Loading fabric brands...",
+    "emptyTitle": "No Fabric Brands",
+    "empty": "There are no approved fabric stores available right now. Please check back soon.",
+    "errorTitle": "Unable to Load Brands"
+  },
+  "BrandDetail": {
+    "brands": "Brands",
+    "reviews": "reviews",
+    "aboutTitle": "About the brand",
+    "fabricsTitle": "Fabrics",
+    "fabricsCount": "{count} fabrics",
+    "fabricsEmpty": "No fabrics available from this brand yet.",
+    "notFound": "Brand not found",
+    "notFoundTitle": "Brand Not Found",
+    "browseAll": "Browse All Brands",
+    "goBack": "Go Back",
+    "reviewsTitle": "Customer Reviews",
+    "reviewsEmpty": "No reviews for this brand yet.",
+    "reviewsLoading": "Loading reviews…",
+    "reviewsAverage": "Average {rating}",
+    "reviewsCount": "{count} reviews",
+    "verifiedPurchase": "Verified purchase"
+  },
   "CustomOrderCheckout": {
     "title": "Checkout",
     "description": "Enter your UAE delivery address and confirm your custom order. Pay by card or Apple Pay.",
@@ -509,7 +539,20 @@
     "fromPrice": "From",
     "estimatedDays": "Est.",
     "days": "days",
-    "startOrder": "Start Custom Order"
+    "startOrder": "Start Custom Order",
+    "aboutTitle": "About the shop",
+    "designsCount": "{count} designs",
+    "callShop": "Call shop",
+    "viewDesigns": "View designs",
+    "connectTitle": "Connect",
+    "website": "Website",
+    "noSocial": "No social or portfolio links yet.",
+    "reviewsTitle": "Customer Reviews",
+    "reviewsEmpty": "No reviews for this tailor yet.",
+    "reviewsLoading": "Loading reviews…",
+    "reviewsAverage": "Average {rating}",
+    "reviewsCount": "{count} reviews",
+    "verifiedPurchase": "Verified purchase"
   },
   "MeasurementGuide": {
     "eyebrow": "PERFECT FIT GUARANTEE",

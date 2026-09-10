@@ -18,34 +18,60 @@ readyMadeRoutes.get("/", async (req, res) => {
 
         const skip = (Number(page) - 1) * Number(limit);
 
-        const products = await ReadyMadeProduct.find(filter).skip(skip).limit(Number(limit)).sort({ createdAt: -1 });
+        const products = await ReadyMadeProduct.find(filter)
+            .populate("fabricShopId", "_id name nameAr slug")
+            .skip(skip)
+            .limit(Number(limit))
+            .sort({ createdAt: -1 });
         const total = await ReadyMadeProduct.countDocuments(filter);
 
         // language switch
-        const items = products.map((p) => ({
-            _id: p._id,
-            slug: p.slug,
-            images: p.images,
-            colors: p.colors,
-            name: p.name,
-            nameAr: p.nameAr,
-            description: p.description,
-            descriptionAr: p.descriptionAr,
-            finalSellingPriceAED: p.finalSellingPriceAED,
-            tag: p.tag,
-            tagAr: p.tagAr,
-            category: p.category || "",
-            categoryAr: p.categoryAr || "",
-            material: p.material || "",
-            materialAr: p.materialAr || "",
-            pattern: p.pattern || "",
-            patternAr: p.patternAr || "",
-            season: p.season || "",
-            seasonAr: p.seasonAr || "",
-            fabricType: p.fabricType || "",
-            fabricTypeAr: p.fabricTypeAr || "",
-            availableFabricStock: p.availableFabricStock
-        }));
+        const items = products.map((p) => {
+            const shop =
+                p.fabricShopId &&
+                typeof p.fabricShopId === "object" &&
+                p.fabricShopId._id
+                    ? {
+                          _id: p.fabricShopId._id,
+                          name: p.fabricShopId.name || "",
+                          nameAr: p.fabricShopId.nameAr || "",
+                          slug: p.fabricShopId.slug || "",
+                      }
+                    : null;
+
+            return {
+                _id: p._id,
+                slug: p.slug,
+                images: p.images,
+                colors: p.colors,
+                name: p.name,
+                nameAr: p.nameAr,
+                description: p.description,
+                descriptionAr: p.descriptionAr,
+                finalSellingPriceAED: p.finalSellingPriceAED,
+                tag: p.tag,
+                tagAr: p.tagAr,
+                category: p.category || "",
+                categoryAr: p.categoryAr || "",
+                material: p.material || "",
+                materialAr: p.materialAr || "",
+                pattern: p.pattern || "",
+                patternAr: p.patternAr || "",
+                season: p.season || "",
+                seasonAr: p.seasonAr || "",
+                fabricType: p.fabricType || "",
+                fabricTypeAr: p.fabricTypeAr || "",
+                availableFabricStock: p.availableFabricStock,
+                metersPerFabric: p.metersPerFabric,
+                fabricShopId: shop?._id
+                    ? String(shop._id)
+                    : p.fabricShopId
+                      ? String(p.fabricShopId)
+                      : null,
+                fabricShop: shop,
+                ownerName: p.ownerName || "",
+            };
+        });
 
         res.json({
             success: true,
@@ -89,8 +115,9 @@ readyMadeRoutes.get("/:slug", async (req, res) => {
             isActive: true,
             _id: { $ne: product._id },
         })
+            .populate("fabricShopId", "_id name nameAr slug")
             .select(
-                "slug images colors name nameAr finalSellingPriceAED tag tagAr availableFabricStock fabricType fabricTypeAr fabricShopId createdAt",
+                "slug images colors name nameAr finalSellingPriceAED tag tagAr availableFabricStock fabricType fabricTypeAr fabricShopId ownerName createdAt",
             )
             .sort({ createdAt: -1 })
             .limit(48)
@@ -101,7 +128,7 @@ readyMadeRoutes.get("/:slug", async (req, res) => {
         );
         const productPrice = Number(product.finalSellingPriceAED) || 0;
         const productFabricShopId = product.fabricShopId
-            ? String(product.fabricShopId)
+            ? String(product.fabricShopId._id || product.fabricShopId)
             : "";
 
         const scored = candidates
@@ -122,8 +149,11 @@ readyMadeRoutes.get("/:slug", async (req, res) => {
                 ) {
                     score += 3;
                 }
-                if (productFabricShopId && item.fabricShopId) {
-                    if (String(item.fabricShopId) === productFabricShopId) score += 2;
+                const itemShopId = item.fabricShopId
+                    ? String(item.fabricShopId._id || item.fabricShopId)
+                    : "";
+                if (productFabricShopId && itemShopId) {
+                    if (itemShopId === productFabricShopId) score += 2;
                 }
                 const sharedColor = (item.colors || []).some((c) =>
                     productColors.has(String(c).trim().toLowerCase()),
@@ -146,28 +176,49 @@ readyMadeRoutes.get("/:slug", async (req, res) => {
                 );
             });
 
-        const related = scored.slice(0, relatedLimit).map(({ item }) => ({
-            _id: item._id,
-            slug: item.slug,
-            images: item.images,
-            colors: item.colors,
-            name: item.name,
-            nameAr: item.nameAr,
-            finalSellingPriceAED: item.finalSellingPriceAED,
-            tag: item.tag,
-            tagAr: item.tagAr,
-            category: item.category || "",
-            categoryAr: item.categoryAr || "",
-            material: item.material || "",
-            materialAr: item.materialAr || "",
-            pattern: item.pattern || "",
-            patternAr: item.patternAr || "",
-            season: item.season || "",
-            seasonAr: item.seasonAr || "",
-            availableFabricStock: item.availableFabricStock,
-            fabricType: item.fabricType,
-            fabricTypeAr: item.fabricTypeAr,
-        }));
+        const related = scored.slice(0, relatedLimit).map(({ item }) => {
+            const shop =
+                item.fabricShopId &&
+                typeof item.fabricShopId === "object" &&
+                item.fabricShopId._id
+                    ? {
+                          _id: item.fabricShopId._id,
+                          name: item.fabricShopId.name || "",
+                          nameAr: item.fabricShopId.nameAr || "",
+                          slug: item.fabricShopId.slug || "",
+                      }
+                    : null;
+
+            return {
+                _id: item._id,
+                slug: item.slug,
+                images: item.images,
+                colors: item.colors,
+                name: item.name,
+                nameAr: item.nameAr,
+                finalSellingPriceAED: item.finalSellingPriceAED,
+                tag: item.tag,
+                tagAr: item.tagAr,
+                category: item.category || "",
+                categoryAr: item.categoryAr || "",
+                material: item.material || "",
+                materialAr: item.materialAr || "",
+                pattern: item.pattern || "",
+                patternAr: item.patternAr || "",
+                season: item.season || "",
+                seasonAr: item.seasonAr || "",
+                availableFabricStock: item.availableFabricStock,
+                fabricType: item.fabricType,
+                fabricTypeAr: item.fabricTypeAr,
+                fabricShopId: shop?._id
+                    ? String(shop._id)
+                    : item.fabricShopId
+                      ? String(item.fabricShopId)
+                      : null,
+                fabricShop: shop,
+                ownerName: item.ownerName || "",
+            };
+        });
 
         res.json({
             success: true,

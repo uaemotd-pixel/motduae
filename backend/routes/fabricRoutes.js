@@ -32,12 +32,16 @@ const toListItem = (fabric) => ({
     ? {
         _id: fabric.fabricShopId._id,
         name: fabric.fabricShopId.name,
+        nameAr: fabric.fabricShopId.nameAr || "",
+        slug: fabric.fabricShopId.slug || "",
         role: "fabric_store",
       }
     : fabric.listedByStore
       ? {
           _id: fabric.listedByStore._id,
           name: fabric.listedByStore.name,
+          nameAr: fabric.listedByStore.nameAr || "",
+          slug: fabric.listedByStore.slug || "",
           role: fabric.listedByStore.role,
         }
       : null,
@@ -110,8 +114,8 @@ fabricRoutes.get("/", async (req, res) => {
 
     const [fabrics, total] = await Promise.all([
       Fabric.find(filter)
-        .populate("listedByStore", "_id name role")
-        .populate("fabricShopId", "_id name")
+        .populate("listedByStore", "_id name nameAr role slug")
+        .populate("fabricShopId", "_id name nameAr slug")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNumber)
@@ -171,12 +175,16 @@ const toDetailItem = (fabric) => ({
     ? {
         _id: fabric.fabricShopId._id,
         name: fabric.fabricShopId.name,
+        nameAr: fabric.fabricShopId.nameAr || "",
+        slug: fabric.fabricShopId.slug || "",
         role: "fabric_store",
       }
     : fabric.listedByStore
       ? {
           _id: fabric.listedByStore._id,
           name: fabric.listedByStore.name,
+          nameAr: fabric.listedByStore.nameAr || "",
+          slug: fabric.listedByStore.slug || "",
           role: fabric.listedByStore.role,
         }
       : null,
@@ -198,8 +206,8 @@ fabricRoutes.get("/:slug", async (req, res) => {
       slug: slug.toLowerCase(),
       isActive: true,
     })
-      .populate("listedByStore", "_id name role")
-      .populate("fabricShopId", "_id name")
+      .populate("listedByStore", "_id name nameAr role slug")
+      .populate("fabricShopId", "_id name nameAr slug")
       .select("-__v");
 
     if (!fabric) {
@@ -259,8 +267,8 @@ fabricRoutes.get("/:slug", async (req, res) => {
     };
 
     const candidates = await Fabric.find(relatedFilter)
-      .populate("listedByStore", "_id name role")
-      .populate("fabricShopId", "_id name")
+      .populate("listedByStore", "_id name nameAr role slug")
+      .populate("fabricShopId", "_id name nameAr slug")
       .sort({ createdAt: -1 })
       .limit(48)
       .select("-__v");

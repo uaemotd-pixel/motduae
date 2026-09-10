@@ -24,6 +24,14 @@ export interface ReadyMadeListItem {
   mukhawarPriceAED?: number;
   availableFabricStock?: number;
   isActive?: boolean;
+  fabricShopId?: string | null;
+  fabricShop?: {
+    _id: string;
+    name: string;
+    nameAr?: string;
+    slug?: string;
+  } | null;
+  ownerName?: string;
 }
 
 // Legacy image path mapping (if needed)

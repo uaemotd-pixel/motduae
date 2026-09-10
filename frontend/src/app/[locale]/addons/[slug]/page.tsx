@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { Share2 } from "lucide-react";
+import { Share2, ArrowUpRight } from "lucide-react";
 import { api } from "@/lib/api/client";
 import MainLayout from "@/app/[locale]/main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
@@ -18,6 +18,28 @@ import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 import WishlistButton from "@/components/shared/wishlistButton";
 import AddToCartButton from "@/components/shared/addToCartButton";
 import { ProductReviewsSection } from "@/components/reviews/CustomerReviewsView";
+import colorPalette from "@/components/shared/colors";
+
+const getColorHex = (colorName: string): string => {
+  const normalized = String(colorName || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) return "#CCCCCC";
+
+  if (
+    /^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(normalized)
+  ) {
+    return normalized;
+  }
+
+  const found = colorPalette.find(
+    (c) =>
+      c.value.toLowerCase() === normalized ||
+      c.en.toLowerCase() === normalized ||
+      c.ar === colorName.trim(),
+  );
+  return found?.hex ?? "#CCCCCC";
+};
 
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
   new: { bg: "#2D5A3D", text: "#FFFFFF" },
@@ -46,6 +68,13 @@ type AddonListItem = {
   images?: string[];
   tag?: string;
   tagAr?: string;
+  ownerName?: string;
+  fabricShop?: {
+    _id: string;
+    name: string;
+    nameAr?: string;
+    slug?: string;
+  } | null;
 };
 
 function RelatedAddonsSection({
@@ -235,6 +264,27 @@ function RelatedAddonsSection({
                     <h3 className="[font-family:var(--font-display)] text-sm xs:text-base text-black leading-snug line-clamp-2 mb-1.5">
                       {title}
                     </h3>
+                    {(() => {
+                      const fromShop = String(
+                        lang === "ar"
+                          ? item.fabricShop?.nameAr ||
+                              item.fabricShop?.name ||
+                              ""
+                          : item.fabricShop?.name || "",
+                      ).trim();
+                      const fallback = String(item.ownerName || "").trim();
+                      const storeName =
+                        fromShop ||
+                        (fallback.toLowerCase() === "motd admin"
+                          ? ""
+                          : fallback);
+                      return storeName ? (
+                        <p className="mb-1 [font-family:var(--font-ui)] text-[8px] uppercase tracking-[0.18em] text-(--color-grey-muted) truncate xs:text-[9px]">
+                          {lang === "ar" ? "المتجر: " : "Store: "}
+                          {storeName}
+                        </p>
+                      ) : null;
+                    })()}
                     <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-(--color-grey-muted)">
                       {formatCurrency(price, lang)}
                     </p>
@@ -373,6 +423,44 @@ function AddonDetailContent({
   const stock = addon.stock || 0;
   const tag = isAr ? addon.tagAr || addon.tag : addon.tag;
   const tagStyles = getTagStyles(addon.tag);
+  const store = addon.fabricShop;
+  const storeName = store
+    ? isAr
+      ? store.nameAr || store.name
+      : store.name
+    : "";
+  const storeSlug = String(store?.slug || "").trim();
+
+  const pickText = (...candidates: unknown[]) => {
+    for (const candidate of candidates) {
+      const value = String(candidate ?? "").trim();
+      if (value) return value;
+    }
+    return null;
+  };
+
+  const category = isAr
+    ? pickText(addon.categoryAr, addon.category)
+    : pickText(addon.category);
+  const material = isAr
+    ? pickText(addon.materialAr, addon.material)
+    : pickText(addon.material);
+  const pattern = isAr
+    ? pickText(
+        addon.patternAr,
+        addon.designAr,
+        addon.pattern,
+        addon.design,
+      )
+    : pickText(addon.pattern, addon.design);
+  const season = isAr
+    ? pickText(addon.seasonAr, addon.season)
+    : pickText(addon.season);
+  const colors = Array.isArray(addon.colors)
+    ? addon.colors.map((c: string) => String(c).trim()).filter(Boolean)
+    : [];
+  const hasStock =
+    typeof addon.stock === "number" || addon.stock != null;
 
   return (
     <FadeInSection>
@@ -485,17 +573,35 @@ function AddonDetailContent({
                 transition={{ duration: 0.5, delay: 0.2 }}
                 className={`${getStickyClass()} flex flex-col`}
               >
-                <div className="flex justify-between items-start gap-4 mb-2">
-                  <h1 className="[font-family:var(--font-display)] text-[28px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[44px] xl:text-[48px] font-normal leading-[1.1] tracking-[-0.01em] text-black">
-                    {title}
-                  </h1>
+                <div className="mb-2 flex items-start justify-between gap-3 sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <h1 className="[font-family:var(--font-display)] text-[28px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[44px] xl:text-[48px] font-normal leading-[1.1] tracking-[-0.01em] text-black">
+                      {title}
+                    </h1>
+                    {storeName && storeSlug ? (
+                      <Link
+                        href={`/brands/${storeSlug}`}
+                        className="group mt-2 inline-flex max-w-full items-center gap-1 [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) transition-colors hover:text-black sm:mt-2.5 sm:gap-1.5 sm:text-sm"
+                      >
+                        <span className="min-w-0 truncate border-b border-transparent transition-colors group-hover:border-black/40">
+                          {storeName}
+                        </span>
+                        <ArrowUpRight
+                          aria-hidden
+                          strokeWidth={1.75}
+                          className="size-3.5 shrink-0 opacity-70 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100 rtl:group-hover:-translate-x-0.5"
+                        />
+                      </Link>
+                    ) : null}
+                  </div>
                   <button
+                    type="button"
                     onClick={onToggleWishlist}
-                    className="shrink-0 p-2 rounded-full hover:bg-black/5 transition-colors duration-200"
+                    className="inline-flex size-9 shrink-0 items-center justify-center rounded-full transition-colors duration-200 hover:bg-black/5 sm:size-10"
                     aria-label="Add to wishlist"
                   >
                     <svg
-                      className={`w-6 h-6 transition-colors ${
+                      className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors ${
                         liked
                           ? "fill-red-500 stroke-red-500"
                           : "stroke-black fill-none"
@@ -516,33 +622,104 @@ function AddonDetailContent({
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-x-6 my-2">
-                  <div>
-                    <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
-                      {isAr ? "المتوفر" : "Availability"}
-                    </span>
-                    <p
-                      className={`[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] font-medium ${
-                        stock > 0 ? "text-green-700" : "text-red-600"
-                      }`}
-                    >
-                      {stock > 0
-                        ? isAr
-                          ? `متوفر في المخزون (${stock})`
-                          : `In stock (${stock})`
-                        : isAr
-                          ? "نفذت الكمية"
-                          : "Out of stock"}
-                    </p>
+                {(category || material) && (
+                  <div className="flex flex-row gap-x-6 my-2">
+                    {category && (
+                      <div className="min-w-0 flex-1">
+                        <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
+                          {isAr ? "الفئة" : "Category"}
+                        </span>
+                        <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
+                          {category}
+                        </p>
+                      </div>
+                    )}
+                    {material && (
+                      <div className="min-w-0 flex-1">
+                        <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
+                          {isAr ? "المادة" : "Material"}
+                        </span>
+                        <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
+                          {material}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
+
+                {(pattern || season) && (
+                  <div className="flex flex-row gap-x-6 my-2">
+                    {pattern && (
+                      <div className="min-w-0 flex-1">
+                        <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
+                          {isAr ? "النمط" : "Pattern"}
+                        </span>
+                        <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
+                          {pattern}
+                        </p>
+                      </div>
+                    )}
+                    {season && (
+                      <div className="min-w-0 flex-1">
+                        <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
+                          {isAr ? "الموسم" : "Season"}
+                        </span>
+                        <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
+                          {season}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {(colors.length > 0 || hasStock) && (
+                  <div className="grid grid-cols-2 gap-x-6 my-2">
+                    {colors.length > 0 && (
+                      <div>
+                        <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-2">
+                          {isAr ? "الألوان" : "Colors"}
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {colors.map((c: string, idx: number) => (
+                            <span
+                              key={`${c}-${idx}`}
+                              className="w-6 h-6 rounded-full border border-black/85 shadow-sm"
+                              style={{ backgroundColor: getColorHex(c) }}
+                              aria-label={`Color ${c}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {hasStock && (
+                      <div>
+                        <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
+                          {isAr ? "التوفر" : "Availability"}
+                        </span>
+                        <p
+                          className={`[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] font-medium ${
+                            stock > 0 ? "text-green-700" : "text-red-600"
+                          }`}
+                        >
+                          {stock > 0
+                            ? isAr
+                              ? `متوفر (${stock})`
+                              : `In stock (${stock})`
+                            : isAr
+                              ? "نفذت الكمية"
+                              : "Out of stock"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {desc && (
                   <div className="my-6">
                     <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-2">
                       {isAr ? "الوصف" : "Description"}
                     </span>
-                    <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] leading-relaxed text-(--color-grey-muted)">
+                    <p className="[font-family:var(--font-body)] text-[14px] text-justify xs:text-[15px] sm:text-[16px] leading-relaxed text-(--color-grey-muted)">
                       {desc}
                     </p>
                   </div>

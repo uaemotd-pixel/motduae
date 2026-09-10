@@ -3,6 +3,8 @@ import TailorShop from "../models/TailorShop.js";
 import Design from "../models/Design.js";
 import User from "../models/User.js";
 import Category from "../models/Category.js";
+import PartnerApplication from "../models/PartnerApplication.js";
+import { normalizeSocialLinks } from "../services/partnerApplication/policy.js";
 import { publicShopSlugFilter } from "../utils/shopReady.js";
 
 const tailorRoutes = express.Router();
@@ -432,7 +434,7 @@ tailorRoutes.get("/:slug/designs", async (req, res) => {
   }
 });
 
-const toDetailItem = (shop) => ({
+const toDetailItem = (shop, extras = {}) => ({
   _id: shop._id,
   slug: shop.slug,
   name: shop.name,
@@ -444,6 +446,12 @@ const toDetailItem = (shop) => ({
   location: shop.location,
   city: shop.city,
   phone: shop.phone,
+  website: extras.website || shop.website || "",
+  social: Array.isArray(extras.social)
+    ? extras.social
+    : Array.isArray(shop.social)
+      ? shop.social
+      : [],
   rating: shop.rating,
   reviewCount: shop.reviewCount,
   owner: shop.ownerId
@@ -470,9 +478,27 @@ tailorRoutes.get("/:slug", async (req, res) => {
       });
     }
 
+    const ownerId = shop.ownerId?._id || shop.ownerId;
+    let website = shop.website || "";
+    let social = Array.isArray(shop.social) ? shop.social : [];
+
+    if (ownerId && (!website || social.length === 0)) {
+      const application = await PartnerApplication.findOne({ ownerId })
+        .select("website social")
+        .lean();
+      if (application) {
+        if (!website) website = application.website || "";
+        if (!social.length) {
+          social = normalizeSocialLinks(application.social);
+        }
+      }
+    } else {
+      social = normalizeSocialLinks(social);
+    }
+
     res.json({
       success: true,
-      item: toDetailItem(shop),
+      item: toDetailItem(shop, { website, social }),
     });
   } catch (error) {
     console.error("GET /api/tailors/:slug error:", error);

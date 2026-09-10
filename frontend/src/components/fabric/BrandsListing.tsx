@@ -6,49 +6,49 @@ import { useParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
 import {
-  type TailorShopListItem,
-  formatTailorRating,
-  getTailorDisplayFields,
-  resolveTailorImage,
-} from "@/lib/tailors";
+  type FabricShopListItem,
+  formatFabricShopRating,
+  getFabricShopDisplayFields,
+  resolveFabricShopImage,
+} from "@/lib/fabricShop";
 import { ProductGridSkeleton } from "@/components/ui/Skeleton";
 
-export default function TailorsListing() {
-  const t = useTranslations("TailorsListing");
+export default function BrandsListing() {
+  const t = useTranslations("BrandsListing");
   const params = useParams();
   const locale = params.locale === "ar" ? "ar" : "en";
 
-  const [tailors, setTailors] = useState<TailorShopListItem[]>([]);
+  const [brands, setBrands] = useState<FabricShopListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchTailors = async () => {
+    const fetchBrands = async () => {
       try {
         setLoading(true);
         setError(null);
 
         const data = await api.get<{
           success: boolean;
-          items: TailorShopListItem[];
-        }>("/api/tailors?limit=100");
+          items: FabricShopListItem[];
+        }>("/api/fabric-shops?limit=100");
 
         if (!data?.success) {
-          throw new Error("Failed to load tailors");
+          throw new Error("Failed to load brands");
         }
 
-        setTailors(data.items || []);
+        setBrands(data.items || []);
       } catch (err: unknown) {
         const message =
           (err as ApiError)?.message ||
-          (err instanceof Error ? err.message : "Failed to load tailors");
+          (err instanceof Error ? err.message : "Failed to load brands");
         setError(message);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTailors();
+    fetchBrands();
   }, []);
 
   return (
@@ -86,7 +86,7 @@ export default function TailorsListing() {
               {error}
             </p>
           </div>
-        ) : tailors.length === 0 ? (
+        ) : brands.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-28 text-center">
             <h2 className="mb-3 text-[18px] uppercase tracking-widest text-black md:text-[22px]">
               {t("emptyTitle")}
@@ -98,24 +98,24 @@ export default function TailorsListing() {
         ) : (
           <>
             <p className="mb-8 font-mono text-[11px] uppercase tracking-[0.18em] text-[#7A7A72]">
-              {t("showing", { count: tailors.length })}
+              {t("showing", { count: brands.length })}
             </p>
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3">
-              {tailors.map((tailor) => {
+              {brands.map((brand) => {
                 const { name, description, location, badge } =
-                  getTailorDisplayFields(tailor, locale);
-                const imageUrl = resolveTailorImage(
-                  tailor.logo,
-                  tailor.coverImage,
+                  getFabricShopDisplayFields(brand, locale);
+                const imageUrl = resolveFabricShopImage(
+                  brand.logo,
+                  brand.coverImage,
                 );
-                const rating = formatTailorRating(tailor.rating);
-                const reviewCount = tailor.reviewCount ?? 0;
+                const rating = formatFabricShopRating(brand.rating);
+                const reviewCount = brand.reviewCount ?? 0;
 
                 return (
                   <Link
-                    key={tailor._id}
-                    href={`/tailors/${tailor.slug}`}
+                    key={brand._id}
+                    href={`/brands/${brand.slug}`}
                     className="group overflow-hidden border border-[#E4E0D8] bg-white transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl"
                   >
                     <div className="relative aspect-4/5 overflow-hidden bg-[#F0EBE3]">

@@ -24,6 +24,13 @@ interface AddOnListItem {
   tagAr?: string;
   description?: string;
   descriptionAr?: string;
+  ownerName?: string;
+  fabricShop?: {
+    _id: string;
+    name: string;
+    nameAr?: string;
+    slug?: string;
+  } | null;
 }
 
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
@@ -219,7 +226,9 @@ export function AddOnsSection() {
             {isAr ? "إضافات مختارة" : "Featured Add-Ons"}
           </h2>
           <p className="text-sm text-(--color-grey-muted) [font-family:var(--font-body)]">
-            {isAr ? "لا توجد إضافات متاحة حالياً" : "No add-ons currently available"}
+            {isAr
+              ? "لا توجد إضافات متاحة حالياً"
+              : "No add-ons currently available"}
           </p>
         </div>
       </section>
@@ -260,8 +269,9 @@ export function AddOnsSection() {
           <button
             onClick={scrollPrev}
             disabled={!prevBtnEnabled}
-            className={`hidden sm:flex absolute left-2 xs:left-3 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/prev ${!prevBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
-              }`}
+            className={`hidden sm:flex absolute left-2 xs:left-3 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/prev ${
+              !prevBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
+            }`}
             aria-label="Previous slide"
           >
             <svg
@@ -280,8 +290,9 @@ export function AddOnsSection() {
           <button
             onClick={scrollNext}
             disabled={!nextBtnEnabled}
-            className={`hidden sm:flex absolute right-2 xs:right-3 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/next ${!nextBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
-              }`}
+            className={`hidden sm:flex absolute right-2 xs:right-3 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/next ${
+              !nextBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
+            }`}
             aria-label="Next slide"
           >
             <svg
@@ -306,6 +317,19 @@ export function AddOnsSection() {
                   ? item.descriptionAr || item.description
                   : item.description;
                 const tagStyles = getTagStyles(item.tag);
+                const storeName = (() => {
+                  const fromShop = String(
+                    isAr
+                      ? item.fabricShop?.nameAr || item.fabricShop?.name || ""
+                      : item.fabricShop?.name || "",
+                  ).trim();
+                  if (fromShop) return fromShop;
+                  const fallback = String(item.ownerName || "").trim();
+                  if (!fallback || fallback.toLowerCase() === "motd admin") {
+                    return "";
+                  }
+                  return fallback;
+                })();
 
                 return (
                   <div
@@ -397,16 +421,23 @@ export function AddOnsSection() {
 
                       <div className="p-3 xs:p-4 sm:p-5 md:p-6 lg:p-(--space-24) flex flex-col grow">
                         <div className="flex flex-col justify-between items-start gap-2 mb-1 xs:mb-1.5 sm:mb-2">
-                          <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-[1.25] tracking-[-0.01em] text-black mb-1 line-clamp-2">
+                          <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-tight tracking-[-0.01em] text-black mb-1 line-clamp-2">
                             {displayName}
                           </h3>
                           <span className="[font-family:var(--font-ui)] text-[12px] xs:text-[13px] sm:text-[14px] md:text-[13px] lg:text-[14px] xl:text-[15px] 2xl:text-[16px] tracking-[0.24em] text-black font-normal whitespace-nowrap">
-                            {item.price.toFixed(2)} {isAr ? "د.إ" : "AED"}
+                            {isAr ? "د.إ" : "AED"} {item.price.toFixed(2)}
                           </span>
                         </div>
 
+                        {storeName ? (
+                          <p className="[font-family:var(--font-ui)] text-[8px] xs:text-[7px] sm:text-[8px] md:text-[7px] lg:text-[8px] xl:text-[9px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-2 xs:mb-2.5 sm:mb-3 font-normal">
+                            {isAr ? "المتجر: " : "Store: "}
+                            {storeName}
+                          </p>
+                        ) : null}
+
                         {displayDesc && (
-                          <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow">
+                          <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-normal sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow">
                             {displayDesc}
                           </p>
                         )}
@@ -425,10 +456,11 @@ export function AddOnsSection() {
               <button
                 key={index}
                 onClick={() => scrollTo(index)}
-                className={`w-1.5 h-1.5 xs:w-2 xs:h-2 rounded-full transition-all mx-0.5 xs:mx-1 ${index === selectedIndex
-                  ? "bg-black scale-125"
-                  : "bg-gray-400 hover:bg-gray-600"
-                  }`}
+                className={`w-1.5 h-1.5 xs:w-2 xs:h-2 rounded-full transition-all mx-0.5 xs:mx-1 ${
+                  index === selectedIndex
+                    ? "bg-black scale-125"
+                    : "bg-gray-400 hover:bg-gray-600"
+                }`}
                 aria-label={`Go to slide ${index + 1}`}
               />
             ))}
@@ -437,7 +469,7 @@ export function AddOnsSection() {
       </div>
 
       {toastMessage && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 bg-black text-white text-xs px-4 py-2.5 shadow-md font-mono tracking-wider uppercase animate-fade-in-up max-w-[calc(100vw-24px)] text-center pointer-events-none mb-[var(--safe-bottom)]">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 bg-black text-white text-xs px-4 py-2.5 shadow-md font-mono tracking-wider uppercase animate-fade-in-up max-w-[calc(100vw-24px)] text-center pointer-events-none mb-(--safe-bottom)">
           {toastMessage}
         </div>
       )}

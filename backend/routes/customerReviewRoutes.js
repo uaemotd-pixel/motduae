@@ -535,7 +535,7 @@ export function registerCustomerReviewRoutes(customerRouter) {
 
   customerRouter.get("/reviews", async (req, res) => {
     try {
-      const { productId } = req.query;
+      const { productId, tailorShopId, fabricShopId } = req.query;
       const { page, limit, skip } = parsePagination(req.query);
 
       const match = {
@@ -552,6 +552,24 @@ export function registerCustomerReviewRoutes(customerRouter) {
         }
         match["reviews.productId"] = new mongoose.Types.ObjectId(
           String(productId),
+        );
+      }
+
+      if (tailorShopId) {
+        if (!mongoose.Types.ObjectId.isValid(String(tailorShopId))) {
+          return res.status(400).json({ error: "Invalid tailorShopId" });
+        }
+        match["reviews.tailorShopId"] = new mongoose.Types.ObjectId(
+          String(tailorShopId),
+        );
+      }
+
+      if (fabricShopId) {
+        if (!mongoose.Types.ObjectId.isValid(String(fabricShopId))) {
+          return res.status(400).json({ error: "Invalid fabricShopId" });
+        }
+        match["reviews.fabricShopId"] = new mongoose.Types.ObjectId(
+          String(fabricShopId),
         );
       }
 

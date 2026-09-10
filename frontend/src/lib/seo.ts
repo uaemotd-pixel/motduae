@@ -170,6 +170,13 @@ export const STATIC_SEO_PAGES: StaticSeoPage[] = [
     descriptionAr: "اعثري على خياطين معتمدين من MOTD في الإمارات.",
   },
   {
+    path: "/brands",
+    titleEn: "Brands",
+    titleAr: "العلامات التجارية",
+    descriptionEn: "Browse approved MOTD fabric store partners across the UAE.",
+    descriptionAr: "تصفّحي متاجر الأقمشة المعتمدة من MOTD في الإمارات.",
+  },
+  {
     path: "/contact-us",
     titleEn: "Contact Us",
     titleAr: "تواصلي معنا",

@@ -15,13 +15,13 @@ import CustomerNotificationBell from "@/components/account/CustomerNotificationB
 const NAV_LINKS = [
   { key: "designs", href: "/designs/designShop" },
   { key: "fabrics", href: "/fabrics/fabricStore" },
-  { key: "brands", href: "/tailors" },
+  { key: "brands", href: "/brands" },
 ] as const;
 
 const MOBILE_NAV_LINKS = [
   { key: "designs", href: "/designs/designShop" },
   { key: "fabrics", href: "/fabrics/fabricStore" },
-  { key: "brands", href: "/tailors" },
+  { key: "brands", href: "/brands" },
 ] as const;
 
 // SVG Icons (unchanged)
@@ -267,9 +267,9 @@ export function Navbar() {
     "p-2 hover:opacity-50 transition items-center justify-center relative touch-manipulation shrink-0";
 
   return (
-    <nav className="fixed top-0 left-0 right-0 w-full z-50 border-b border-(--color-border) nav-blur pt-[var(--safe-top)] ps-[var(--safe-left)] pe-[var(--safe-right)]">
+    <nav className="fixed top-0 left-0 right-0 w-full z-50 border-b border-(--color-border) nav-blur pt-(--safe-top) ps-(--safe-left) pe-(--safe-right)">
       {/* MAIN BAR */}
-      <div className="w-full min-h-14 xs:min-h-[60px] sm:min-h-16 md:min-h-18 flex items-center justify-between gap-2 min-w-0 px-3 xs:px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 3xl:px-24 4xl:px-32">
+      <div className="w-full min-h-14 xs:min-h-15 sm:min-h-16 md:min-h-18 flex items-center justify-between gap-2 min-w-0 px-3 xs:px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 2xl:px-16 3xl:px-24 4xl:px-32">
         {/* LOGO */}
         <Link
           href="/"
@@ -279,7 +279,7 @@ export function Navbar() {
           <img
             src="/PNG/Black/MOTD_Wordmark_Black.png"
             alt={t.navbar.logoAlt}
-            className="h-3.5 xs:h-[13px] sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-[24px] w-auto object-contain"
+            className="h-3.5 xs:h-3.25m:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6to object-contain"
           />
         </Link>
 
@@ -413,7 +413,7 @@ export function Navbar() {
             ref={btnRef}
             type="button"
             id="hamburger-btn"
-            className="lg:hidden flex flex-col gap-[3.5px] xs:gap-[4px] p-2 touch-manipulation shrink-0"
+            className="lg:hidden flex flex-col gap-[3.5px] xs:gap-1 p-2 touch-manipulation shrink-0"
             aria-expanded={mobileOpen}
             aria-label={
               mobileOpen
@@ -505,7 +505,7 @@ export function Navbar() {
 
           {/* Mobile bottom icons – wishlist + alerts (login & cart are in the bar) */}
           <div
-            className={`grid gap-2 border-t border-(--color-border) pt-4 xs:pt-5 pb-[var(--safe-bottom)] ${
+            className={`grid gap-2 border-t border-(--color-border) pt-4 xs:pt-5 pb-(--safe-bottom) ${
               isCustomerAccount ? "grid-cols-2" : "grid-cols-1"
             }`}
           >
@@ -518,7 +518,7 @@ export function Navbar() {
               >
                 <div className="relative">
                   <svg
-                    className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5"
+                    className="w-4.5 h-4.5 xs:w-5 xs:h-5-5.5 sm:h-5.5"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -546,7 +546,7 @@ export function Navbar() {
               onClick={closeMenu}
             >
               <div className="relative">
-                <WishlistIcon className="w-4.5 h-4.5 xs:w-[20px] xs:h-[20px] sm:w-5.5 sm:h-5.5" />
+                <WishlistIcon className="w-4.5 h-4.5 xs:w-5 xs:h-5 sm:w-5.5 sm:h-5.5" />
                 {wishlistTotalItems > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 w-4 h-4 xs:w-5 xs:h-5 bg-black text-white text-[8px] xs:text-[10px] font-medium rounded-full flex items-center justify-center shadow-sm">
                     {wishlistTotalItems}

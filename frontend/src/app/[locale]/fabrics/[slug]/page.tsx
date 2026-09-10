@@ -121,6 +121,15 @@ function RelatedFabricsSection({
             );
             const hrefPath = `/fabrics/${item.slug}`;
             const tag = item.tag;
+            const store =
+              item.listedByStore && typeof item.listedByStore === "object"
+                ? item.listedByStore
+                : null;
+            const storeName = store
+              ? lang === "ar"
+                ? store.nameAr || store.name
+                : store.name
+              : "";
 
             return (
               <motion.div
@@ -190,9 +199,14 @@ function RelatedFabricsSection({
                     <h3 className="[font-family:var(--font-display)] text-sm xs:text-base text-black leading-snug line-clamp-2 mb-1.5">
                       {title}
                     </h3>
-                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-(--color-grey-muted)">
+                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-(--color-grey-muted) mb-1">
                       {formatCurrency(price, lang)}
                     </p>
+                    {storeName ? (
+                      <p className="[font-family:var(--font-body)] text-[10px] xs:text-[11px] text-(--color-grey-muted) line-clamp-1">
+                        {storeName}
+                      </p>
+                    ) : null}
                   </div>
                 </Link>
               </motion.div>

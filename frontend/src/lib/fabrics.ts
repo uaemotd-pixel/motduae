@@ -19,6 +19,8 @@ export const FABRIC_FILTER_OPTIONS = [
 export interface FabricStoreInfo {
   _id: string;
   name: string;
+  nameAr?: string;
+  slug?: string;
   role?: string;
 }
 

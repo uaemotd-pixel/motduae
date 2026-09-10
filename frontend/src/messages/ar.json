@@ -218,6 +218,36 @@
     "empty": "لا توجد متاجر خياطة معتمدة متاحة حالياً. يرجى المراجعة لاحقاً.",
     "errorTitle": "تعذر تحميل الخياطين"
   },
+  "BrandsListing": {
+    "eyebrow": "دور أقمشة مختارة",
+    "title": "علامات الأقمشة في الإمارات",
+    "description": "تصفّحي متاجر الأقمشة المعتمدة في الإمارات واكتشفي أقمشة فاخرة من شركاء MOTD لمخورّك المخصص القادم.",
+    "showing": "عرض {count} علامة تجارية",
+    "viewShop": "عرض العلامة",
+    "reviews": "مراجعة",
+    "loading": "جاري تحميل العلامات التجارية...",
+    "emptyTitle": "لا توجد علامات تجارية",
+    "empty": "لا توجد متاجر أقمشة معتمدة متاحة حالياً. يرجى المراجعة لاحقاً.",
+    "errorTitle": "تعذر تحميل العلامات التجارية"
+  },
+  "BrandDetail": {
+    "brands": "العلامات التجارية",
+    "reviews": "مراجعة",
+    "aboutTitle": "عن العلامة",
+    "fabricsTitle": "الأقمشة",
+    "fabricsCount": "{count} أقمشة",
+    "fabricsEmpty": "لا توجد أقمشة متاحة من هذه العلامة حالياً.",
+    "notFound": "العلامة غير موجودة",
+    "notFoundTitle": "العلامة غير موجودة",
+    "browseAll": "تصفح جميع العلامات",
+    "goBack": "رجوع",
+    "reviewsTitle": "تقييمات العملاء",
+    "reviewsEmpty": "لا توجد تقييمات لهذه العلامة بعد.",
+    "reviewsLoading": "جاري تحميل التقييمات…",
+    "reviewsAverage": "المتوسط {rating}",
+    "reviewsCount": "{count} تقييمات",
+    "verifiedPurchase": "شراء موثّق"
+  },
   "CustomOrderCheckout": {
     "title": "الدفع",
     "description": "أدخل عنوان التوصيل في الإمارات وأكد طلبك المخصص. ادفع بالبطاقة أو Apple Pay.",
@@ -555,7 +585,20 @@
     "fromPrice": "من",
     "estimatedDays": "تقريباً",
     "days": "يوم",
-    "startOrder": "ابدأ الطلب المخصص"
+    "startOrder": "ابدأ الطلب المخصص",
+    "aboutTitle": "عن المتجر",
+    "designsCount": "{count} تصاميم",
+    "callShop": "اتصل بالمتجر",
+    "viewDesigns": "عرض التصاميم",
+    "connectTitle": "تواصل",
+    "website": "الموقع",
+    "noSocial": "لا توجد روابط اجتماعية أو محفظة أعمال بعد.",
+    "reviewsTitle": "تقييمات العملاء",
+    "reviewsEmpty": "لا توجد تقييمات لهذا الخياط بعد.",
+    "reviewsLoading": "جاري تحميل التقييمات…",
+    "reviewsAverage": "المتوسط {rating}",
+    "reviewsCount": "{count} تقييمات",
+    "verifiedPurchase": "شراء موثّق"
   },
   "MeasurementGuide": {
     "ariaLabel": "قِس بثقة",
