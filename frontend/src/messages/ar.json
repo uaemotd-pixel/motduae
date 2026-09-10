@@ -392,8 +392,6 @@
     "cutStockLimitHint": "لا مزيد من المخزون لهذه القطعة",
     "cutStockLabel": "{count} متوفر",
     "pieceLabel": "قطعة",
-    "increaseQuantity": "زيادة الكمية",
-    "decreaseQuantity": "إنقاص الكمية",
     "cutsUnavailableLegend": "القطع المعطّلة أقصر مما يتطلبه التصميم.",
     "cutsCombineLegend": "زد كمية أي قطعة (حتى حد المخزون). تُجمع الأطوال حتى يُستوفى متطلب التصميم.",
     "cutsLockedLegend": "تم استيفاء المطلوب. أنقص الكمية إذا أردت تغيير التحديد.",
@@ -898,7 +896,12 @@
       "requestHistoryDeleteConfirm": "حذف طلب {status} بمبلغ {amount} من السجل نهائياً؟",
       "requestHistoryDeleteCta": "حذف",
       "requestHistoryDeleting": "جاري الحذف…",
-      "requestHistoryDeleteError": "تعذر حذف الطلب. حاول مرة أخرى."
+      "requestHistoryDeleteError": "تعذر حذف الطلب. حاول مرة أخرى.",
+      "releasesTitle": "المدفوعات المستلمة",
+      "releasesDesc": "كل دفعة حرّرتها MOTD لمتجر — بما في ذلك الدفعات متعددة الطلبات.",
+      "releasesOrders": "الطلبات",
+      "releasesOrderCount": "{count} طلب/طلبات",
+      "releasesPaid": "تم الصرف"
     },
     "shop": {
       "loading": "جاري تحميل ملف المتجر...",

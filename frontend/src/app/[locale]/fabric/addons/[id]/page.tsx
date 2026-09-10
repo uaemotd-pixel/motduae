@@ -12,6 +12,7 @@ import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddr
 import { pickupAddressErrors } from "@/lib/readyMadeAdmin";
 import {
   emptyShopPickupAddress,
+  fetchOwnFabricShop,
   normalizeShopPickupAddress,
   type ShopPickupAddress,
 } from "@/lib/fabricShop";
@@ -48,6 +49,16 @@ interface AddOnFormData {
 
 type FilterItem = { name: string; nameAr: string; _id: string };
 
+function isUsablePickup(address: ShopPickupAddress) {
+  return Boolean(
+    address.fullName.trim() &&
+      address.phone.trim() &&
+      address.line1.trim() &&
+      address.city.trim() &&
+      address.emirate.trim(),
+  );
+}
+
 export default function FabricEditAddOnPage() {
   const { user } = useAuth();
   const userName = user?.name || "";
@@ -59,6 +70,7 @@ export default function FabricEditAddOnPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [pickupFromShop, setPickupFromShop] = useState(false);
 
   const [dbMaterials, setDbMaterials] = useState<FilterItem[]>([]);
   const [dbCategories, setDbCategories] = useState<FilterItem[]>([]);
@@ -188,9 +200,10 @@ export default function FabricEditAddOnPage() {
     const fetchAddOn = async () => {
       try {
         setLoading(true);
-        const data = await api.get<Record<string, unknown>>(
-          `/api/fabric/addons/${id}`,
-        );
+        const [data, shop] = await Promise.all([
+          api.get<Record<string, unknown>>(`/api/fabric/addons/${id}`),
+          fetchOwnFabricShop().catch(() => null),
+        ]);
         if (data) {
           const gallery =
             Array.isArray(data.images) && data.images.length > 0
@@ -198,6 +211,12 @@ export default function FabricEditAddOnPage() {
               : typeof data.thumbnailImage === "string" && data.thumbnailImage
                 ? [data.thumbnailImage]
                 : [""];
+
+          const shopPickup = normalizeShopPickupAddress(shop?.pickupAddress);
+          const addonPickup = normalizeShopPickupAddress(
+            data.pickupAddress as Partial<ShopPickupAddress> | null,
+          );
+          const useShopPickup = isUsablePickup(shopPickup);
 
           setFormData({
             name: (data.name as string) || "",
@@ -226,10 +245,9 @@ export default function FabricEditAddOnPage() {
             images: gallery,
             isActive:
               data.isActive !== undefined ? Boolean(data.isActive) : true,
-            pickupAddress: normalizeShopPickupAddress(
-              data.pickupAddress as Partial<ShopPickupAddress> | null,
-            ),
+            pickupAddress: useShopPickup ? shopPickup : addonPickup,
           });
+          setPickupFromShop(useShopPickup);
         }
       } catch (err: unknown) {
         setError(getApiErrorMessage(err, "Failed to load addon details"));
@@ -951,6 +969,11 @@ export default function FabricEditAddOnPage() {
                 handleChange("pickupAddress", pickupAddress)
               }
               fieldErrors={fieldErrors}
+              description={
+                pickupFromShop
+                  ? "Loaded from your fabric store profile. You can edit it for this add-on before saving."
+                  : "Shipa collects this listing from this address. Complete your store profile pickup address to auto-fill."
+              }
             />
           </div>
 

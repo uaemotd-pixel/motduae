@@ -72,7 +72,10 @@ interface PartnerShareBreakdown {
 interface OrderBreakdownLine {
   orderId: string;
   channel: string;
+  /** Original partner net for this order (before prior releases). */
   amount: number;
+  /** Still unpaid after prior releases for this partner+order. */
+  remaining?: number;
   gross: number;
   commission: number;
   percent: number;
@@ -411,6 +414,40 @@ export default function AdminPaymentsPage() {
     );
   };
 
+  const readOwnerName = (value: any) => {
+    if (!value) return "";
+    if (typeof value === "string") return value.trim();
+    if (typeof value?.ownerName === "string") return value.ownerName.trim();
+    if (typeof value?.productId?.ownerName === "string") {
+      return value.productId.ownerName.trim();
+    }
+    return "";
+  };
+
+  /** Platform / admin catalog lines — full gross stays with MOTD (no partner cut). */
+  const isMotdOwnedRetailItem = (item: any) => {
+    if (!item) return false;
+    if (item.motdOwned === true) return true;
+    if (readOwnerName(item) === "MOTD Admin") return true;
+    const shopId =
+      readPartnerId(item.fabricShopId) ||
+      readPartnerId(item.productId?.fabricShopId);
+    if (shopId) return false;
+    const kind = String(item.kind || "").toLowerCase();
+    // No shop on add-on / ready-made / fabric line → MOTD keeps it.
+    return kind === "addon" || kind === "readymade" || kind === "fabric" || !kind;
+  };
+
+  const isMotdOwnedCustomAddon = (addon: any) => {
+    if (!addon) return false;
+    if (readOwnerName(addon) === "MOTD Admin") return true;
+    const shopId =
+      readPartnerId(addon.fabricShopId) ||
+      readPartnerId(addon.fabricShop) ||
+      readPartnerId(addon.fabricShop?.shopId);
+    return !shopId;
+  };
+
   const sumAddonList = (list: any) => {
     if (!Array.isArray(list) || list.length === 0) return 0;
     return list.reduce(
@@ -420,7 +457,17 @@ export default function AdminPaymentsPage() {
   };
 
   /** Custom orders store purchased add-ons on `order.addons` (fabric-shop products). */
-  const getOrderAddOnsTotal = (order: any) => sumAddonList(getOrderAddonList(order));
+  const getOrderAddOnsTotal = (order: any) => {
+    const list = getOrderAddonList(order);
+    return sumAddonList(list.filter((a: any) => !isMotdOwnedCustomAddon(a)));
+  };
+
+  const getOrderMotdOwnedAddOnsTotal = (order: any) => {
+    if (isRetailOrder(order)) return 0;
+    return sumAddonList(
+      getOrderAddonList(order).filter((a: any) => isMotdOwnedCustomAddon(a)),
+    );
+  };
 
   const getAddonNamesLabel = (list: any[]) => {
     const names = (list || [])
@@ -430,54 +477,88 @@ export default function AdminPaymentsPage() {
   };
 
   const getOrderAddOnsLabel = (order: any) =>
-    getAddonNamesLabel(getOrderAddonList(order));
+    getAddonNamesLabel(
+      getOrderAddonList(order).filter((a: any) => !isMotdOwnedCustomAddon(a)),
+    );
 
   const getOrderFees = (order: any) => {
     const shippingFee = getOrderShippingFee(order);
-    const addOnsTotal = getOrderAddOnsTotal(order);
 
     if (isRetailOrder(order)) {
-      // Retail line items (ready-made / add-ons / fabric-by-meter) already include
-      // purchased add-on products in orderItems — do not double-count.
-      const fabricFee = (order.orderItems || []).reduce(
-        (sum: number, item: any) =>
-          sum + (Number(item.price) || 0) * (Number(item.quantity) || 0),
-        0,
-      );
+      let partnerFabricFee = 0;
+      let motdOwnedGross = 0;
+      for (const item of order.orderItems || []) {
+        const line =
+          (Number(item.price) || 0) * (Number(item.quantity) || 0);
+        if (isMotdOwnedRetailItem(item)) {
+          motdOwnedGross += line;
+        } else {
+          partnerFabricFee += line;
+        }
+      }
       return {
         tailorFee: 0,
         tailoringFee: 0,
-        fabricFee,
+        fabricFee: partnerFabricFee,
         shippingFee,
         addOnsTotal: 0,
+        motdOwnedGross: Number(motdOwnedGross.toFixed(2)),
       };
     }
 
+    const partnerAddOnsTotal = getOrderAddOnsTotal(order);
+    const motdOwnedAddOns = getOrderMotdOwnedAddOnsTotal(order);
+    // Customer-supplied fabric (self) is MOTD revenue, not a fabric-store payout.
+    const isSelfFabric = String(order?.fabricSource || "") === "self";
+
     if (order.items && order.items.length > 0) {
+      const fabricFee = isSelfFabric
+        ? 0
+        : order.items.reduce(
+            (sum: number, item: any) =>
+              sum + (item.pricing?.fabricCost || 0),
+            0,
+          );
+      const selfFabricGross = isSelfFabric
+        ? order.items.reduce(
+            (sum: number, item: any) =>
+              sum + (item.pricing?.fabricCost || 0),
+            0,
+          )
+        : 0;
       return {
         tailorFee: order.items.reduce(
           (sum: number, item: any) => sum + (item.pricing?.designBase || 0),
           0,
         ),
         tailoringFee: order.items.reduce(
-          (sum: number, item: any) => sum + (item.pricing?.tailoringFee || 0),
+          (sum: number, item: any) =>
+            sum + (item.pricing?.tailoringFee || 0),
           0,
         ),
-        fabricFee: order.items.reduce(
-          (sum: number, item: any) => sum + (item.pricing?.fabricCost || 0),
-          0,
-        ),
+        fabricFee,
         shippingFee,
-        addOnsTotal,
+        addOnsTotal: partnerAddOnsTotal,
+        motdOwnedGross: Number(
+          (selfFabricGross + motdOwnedAddOns).toFixed(2),
+        ),
       };
     }
+
+    const fabricFee = isSelfFabric
+      ? 0
+      : order.pricing?.fabricCost || 0;
+    const selfFabricGross = isSelfFabric
+      ? Number(order.pricing?.fabricCost) || 0
+      : 0;
 
     return {
       tailorFee: order.pricing?.designBase || 0,
       tailoringFee: order.pricing?.tailoringFee || 0,
-      fabricFee: order.pricing?.fabricCost || 0,
+      fabricFee,
       shippingFee,
-      addOnsTotal,
+      addOnsTotal: partnerAddOnsTotal,
+      motdOwnedGross: Number((selfFabricGross + motdOwnedAddOns).toFixed(2)),
     };
   };
 
@@ -489,7 +570,7 @@ export default function AdminPaymentsPage() {
     const fees = getOrderFees(order);
     const tailorGross = fees.tailorFee + fees.tailoringFee;
     const tailor = splitFabricCommission(tailorGross, tailorCommissionPercent);
-    // Default combined view (before same/different shop split in getOrderPayees)
+    // Partner fabric only (MOTD-owned catalog lines are kept in full below).
     const fabricGross = fees.fabricFee + fees.addOnsTotal;
     const fabric = splitFabricCommission(
       fabricGross,
@@ -503,8 +584,9 @@ export default function AdminPaymentsPage() {
       percent: 0,
     };
 
+    const motdOwnedGross = Number(fees.motdOwnedGross) || 0;
     const motdEarns = Number(
-      (tailor.commission + fabric.commission).toFixed(2),
+      (tailor.commission + fabric.commission + motdOwnedGross).toFixed(2),
     );
 
     return {
@@ -515,6 +597,7 @@ export default function AdminPaymentsPage() {
       fabric,
       shipping,
       motdEarns,
+      motdOwnedGross,
       addOnsTotal: fees.addOnsTotal,
     };
   };
@@ -648,6 +731,11 @@ export default function AdminPaymentsPage() {
     >();
 
     for (const addon of getOrderAddonList(order)) {
+      // Platform / admin add-ons: full price stays with MOTD (handled via motdOwnedGross).
+      if (isMotdOwnedCustomAddon(addon)) {
+        continue;
+      }
+
       const shop = addon?.fabricShop || null;
       const addonShopIds = collectPartnerIds(
         addon?.fabricShopId,
@@ -656,8 +744,7 @@ export default function AdminPaymentsPage() {
         shop?.ownerId,
       );
 
-      // No owning shop on the add-on: keep with order fabric store when present
-      // (legacy snapshots); otherwise MOTD-owned → no partner payout line.
+      // Partner add-on with no shop snapshot: attribute to order fabric store when present.
       if (addonShopIds.size === 0) {
         if (primaryFabricIds.size > 0) sameStoreAddOns.push(addon);
         continue;
@@ -732,11 +819,13 @@ export default function AdminPaymentsPage() {
       (sum, row) => sum + (row.share.commission || 0),
       0,
     );
+    const motdOwnedGross = Number(shares.motdOwnedGross) || 0;
     const motdEarns = Number(
       (
         shares.tailor.commission +
         primaryFabricShare.commission +
-        separateAddOnsCommission
+        separateAddOnsCommission +
+        motdOwnedGross
       ).toFixed(2),
     );
 
@@ -746,6 +835,7 @@ export default function AdminPaymentsPage() {
         fabricGross: primaryFabricGross,
         fabric: primaryFabricShare,
         motdEarns,
+        motdOwnedGross,
         addOnsTotal: sameStoreAddOnsTotal,
       },
       channel: isRetailOrder(order) ? "retail" : "custom",
@@ -1065,42 +1155,155 @@ export default function AdminPaymentsPage() {
       shipping: 2,
     };
 
-    return Array.from(map.values())
-      .map((row) => {
-        const paidSummary = paidByPartnerKey[row.key];
-        const byOrderId = paidSummary?.byOrderId || {};
-        let paidFromOrders = 0;
-        let remainingFromOrders = 0;
+    const resolvePaidSummary = (row: PartnerRow): PartnerPaidSummary => {
+      const merged: PartnerPaidSummary = {
+        paid: 0,
+        releaseCount: 0,
+        lastReleasedAt: undefined,
+        byOrderId: {},
+      };
 
-        for (const order of row.orders) {
-          const orderPaid = Math.min(
-            Number(order.amount) || 0,
-            Number(byOrderId[order.orderId]) || 0,
-          );
-          paidFromOrders += orderPaid;
-          remainingFromOrders += Math.max(
-            0,
-            Number(((Number(order.amount) || 0) - orderPaid).toFixed(2)),
+      const absorb = (summary?: PartnerPaidSummary) => {
+        if (!summary) return;
+        merged.paid = Number(
+          ((Number(merged.paid) || 0) + (Number(summary.paid) || 0)).toFixed(2),
+        );
+        merged.releaseCount += Number(summary.releaseCount) || 0;
+        if (
+          summary.lastReleasedAt &&
+          (!merged.lastReleasedAt ||
+            new Date(summary.lastReleasedAt) >
+              new Date(merged.lastReleasedAt))
+        ) {
+          merged.lastReleasedAt = summary.lastReleasedAt;
+        }
+        for (const [orderId, amount] of Object.entries(
+          summary.byOrderId || {},
+        )) {
+          merged.byOrderId![orderId] = Number(
+            (
+              (Number(merged.byOrderId![orderId]) || 0) + (Number(amount) || 0)
+            ).toFixed(2),
           );
         }
+      };
 
+      const nameNorm = normalizePartnerLabel(row.name);
+      const payeeNorm = normalizePartnerLabel(row.payeeName);
+
+      for (const [key, summary] of Object.entries(paidByPartnerKey)) {
+        if (!key.startsWith(`${row.kind}:`)) continue;
+        if (key === row.key) {
+          absorb(summary);
+          continue;
+        }
+
+        const suffix = key.slice(row.kind.length + 1);
+        if (!suffix) continue;
+
+        // Historical releases may use fabric:<id> while the live row uses
+        // fabric:name:<normalized> (or the reverse). Merge both.
+        if (row.ids.has(suffix)) {
+          absorb(summary);
+          continue;
+        }
+        if (suffix.startsWith("name:")) {
+          const paidName = suffix.slice(5);
+          if (
+            (nameNorm && paidName === nameNorm) ||
+            (payeeNorm && paidName === payeeNorm)
+          ) {
+            absorb(summary);
+          }
+        }
+      }
+
+      return merged;
+    };
+
+    return Array.from(map.values())
+      .map((row) => {
+        const paidSummary = resolvePaidSummary(row);
+        const byOrderId = { ...(paidSummary.byOrderId || {}) };
         // Prefer per-order settlement. Fall back to partner total only when
         // no order-level paid rows exist (legacy releases without order lines).
         const hasOrderAttribution = Object.keys(byOrderId).length > 0;
+
+        let paidFromOrders = 0;
+        let remainingFromOrders = 0;
+        const unsettledOrders: OrderBreakdownLine[] = [];
+
+        for (const order of row.orders) {
+          const orderDue = Number(order.amount) || 0;
+          const previouslyPaid = Number(byOrderId[order.orderId]) || 0;
+          const orderPaid = hasOrderAttribution
+            ? Math.min(orderDue, previouslyPaid)
+            : 0;
+          // Consume paid credit so duplicate lines for the same orderId cannot
+          // each claim the full released amount.
+          if (hasOrderAttribution && orderPaid > 0) {
+            byOrderId[order.orderId] = Number(
+              Math.max(0, previouslyPaid - orderPaid).toFixed(2),
+            );
+          }
+          const orderRemaining = Number(
+            Math.max(0, orderDue - orderPaid).toFixed(2),
+          );
+          paidFromOrders += orderPaid;
+          remainingFromOrders += orderRemaining;
+
+          // Keep only orders that still need payout — already-released orders
+          // must not appear under View orders / Release payment.
+          if (orderRemaining > 0) {
+            unsettledOrders.push({
+              ...order,
+              amount: orderDue,
+              remaining: orderRemaining,
+            });
+          }
+        }
+
         const paid = hasOrderAttribution
           ? paidFromOrders
-          : Number(paidSummary?.paid) || 0;
-        const remaining = hasOrderAttribution
+          : Number(paidSummary.paid) || 0;
+        let remaining = hasOrderAttribution
           ? Number(remainingFromOrders.toFixed(2))
           : Math.max(0, Number((row.due - paid).toFixed(2)));
 
+        // Legacy releases (no order lines): subtract partner-level paid from
+        // orders in FIFO order and drop fully covered lines from the UI.
+        let visibleOrders = unsettledOrders;
+        if (!hasOrderAttribution && paid > 0 && unsettledOrders.length > 0) {
+          let creditLeft = paid;
+          const afterLegacy: OrderBreakdownLine[] = [];
+          for (const order of unsettledOrders) {
+            const orderRemainingBefore = Number(order.remaining) || 0;
+            const covered = Math.min(orderRemainingBefore, creditLeft);
+            creditLeft = Number((creditLeft - covered).toFixed(2));
+            const orderRemaining = Number(
+              Math.max(0, orderRemainingBefore - covered).toFixed(2),
+            );
+            if (orderRemaining > 0) {
+              afterLegacy.push({ ...order, remaining: orderRemaining });
+            }
+          }
+          visibleOrders = afterLegacy;
+          remaining = Number(
+            visibleOrders
+              .reduce((sum, o) => sum + (Number(o.remaining) || 0), 0)
+              .toFixed(2),
+          );
+        }
+
         return {
           ...row,
+          orders: visibleOrders,
+          orderCount: visibleOrders.length,
           due: Number(row.due.toFixed(2)),
           paid: Number(Math.min(paid, row.due).toFixed(2)),
           remaining,
-          releaseCount: paidSummary?.releaseCount || 0,
-          lastReleasedAt: paidSummary?.lastReleasedAt,
+          releaseCount: paidSummary.releaseCount || 0,
+          lastReleasedAt: paidSummary.lastReleasedAt,
         };
       })
       .sort(
@@ -1118,7 +1321,7 @@ export default function AdminPaymentsPage() {
 
   const partnerPayoutRows = useMemo(() => {
     return allPartnerPayoutRows.filter((row) => {
-      if (row.remaining <= 0) return false;
+      if (row.remaining <= 0 || row.orderCount <= 0) return false;
       if (!pricingSearch.trim()) return true;
       const term = pricingSearch.toLowerCase();
       return (
@@ -1282,25 +1485,48 @@ export default function AdminPaymentsPage() {
 
   const releasePartnerPayment = async (row: ReleaseConfirmRow) => {
     if (row.remaining <= 0 || releasingKey) return;
+    const unsettledOrders = row.orders
+      .map((o) => {
+        const releaseAmount = Number(
+          (o.remaining ?? o.amount ?? 0).toFixed(2),
+        );
+        return {
+          orderId: o.orderId,
+          orderType: o.channel,
+          amount: releaseAmount,
+        };
+      })
+      .filter((o) => o.orderId && o.amount > 0);
+
+    if (unsettledOrders.length === 0) {
+      toast.error("No unsettled orders left to release for this partner.");
+      return;
+    }
+
+    // Prefer a stable shop/object id when multiple ids were merged onto the row.
+    const partnerIds = Array.from(row.ids).filter(Boolean);
+    const partnerId = partnerIds[0] || "";
+
     try {
       setReleasingKey(row.key);
       await api.post("/api/admin/partner-payouts", {
         partnerKey: row.key,
         partnerKind: row.kind,
-        partnerId: Array.from(row.ids)[0] || "",
+        partnerId,
         partnerName: row.name,
         payeeName: row.payeeName,
         amount: row.remaining,
         currency: stats?.currency || "AED",
-        orders: row.orders.map((o) => ({
-          orderId: o.orderId,
-          orderType: o.channel,
-          amount: o.amount,
-        })),
+        orders: unsettledOrders,
       });
       if (expandedPartnerKey === row.key) setExpandedPartnerKey(null);
       setReleaseConfirmRow(null);
       await Promise.all([fetchPartnerPayouts(), fetchPayoutRequests()]);
+      toast.success(
+        `Released ${formatCurrency(row.remaining)} across ${unsettledOrders.length} order${
+          unsettledOrders.length === 1 ? "" : "s"
+        }.`,
+      );
     } catch (err: any) {
       console.error("Release payment error:", err);
       toast.error(
@@ -1397,7 +1623,7 @@ export default function AdminPaymentsPage() {
       value: earningsSummary.motdProfit,
       status: null,
       icon: Wallet,
-      hint: "Commission kept by MOTD",
+      hint: "Commission + MOTD-owned catalog profit",
       accent: "teal",
       delay: 0.05,
     },
@@ -1852,7 +2078,9 @@ export default function AdminPaymentsPage() {
                                 ) : null}
                               </div>
                               <p className="text-base font-medium text-(--dash-ink)">
-                                {formatCurrency(orderLine.amount)}
+                                {formatCurrency(
+                                  orderLine.remaining ?? orderLine.amount,
+                                )}
                               </p>
                             </div>
 
@@ -1860,8 +2088,10 @@ export default function AdminPaymentsPage() {
                               <div className="mt-2 space-y-1 text-[11px] text-(--dash-muted)">
                                 <p>
                                   Delivery fee collected ={" "}
-                                  {formatKpiCurrency(orderLine.amount)} (paid in
-                                  full to {SHIPPING_COMPANY_NAME})
+                                  {formatKpiCurrency(
+                                    orderLine.remaining ?? orderLine.amount,
+                                  )}{" "}
+                                  (paid in full to {SHIPPING_COMPANY_NAME})
                                 </p>
                                 {(orderLine.deliveryLines || [])
                                   .filter(
@@ -1883,6 +2113,12 @@ export default function AdminPaymentsPage() {
                                   {formatCurrency(orderLine.commission)} (
                                   {orderLine.percent}%) ={" "}
                                   {formatCurrency(orderLine.amount)}
+                                  {(orderLine.remaining ?? orderLine.amount) <
+                                  orderLine.amount
+                                    ? ` · still due ${formatCurrency(
+                                        orderLine.remaining ?? orderLine.amount,
+                                      )}`
+                                    : ""}
                                 </p>
                                 {row.kind === "fabric" &&
                                 (orderLine.addOnsTotal || 0) > 0 ? (

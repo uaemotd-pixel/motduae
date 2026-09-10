@@ -71,7 +71,7 @@ export async function hydrateRetailOrders(orders) {
     uniqueProductIds.length
       ? ReadyMadeProduct.find({ _id: { $in: uniqueProductIds } })
           .select(
-            "thumbnailImage images fabricShopId name nameAr fabricType fabricTypeAr fabricId designId",
+            "thumbnailImage images fabricShopId name nameAr fabricType fabricTypeAr fabricId designId ownerName",
           )
           .populate("fabricId", "name nameAr images slug")
           .populate("designId", "name nameAr images slug")
@@ -79,7 +79,7 @@ export async function hydrateRetailOrders(orders) {
       : [],
     uniqueProductIds.length
       ? AddOn.find({ _id: { $in: uniqueProductIds } })
-          .select("thumbnailImage images fabricShopId name nameAr")
+          .select("thumbnailImage images fabricShopId name nameAr ownerName")
           .lean()
       : [],
     uniqueProductIds.length
@@ -155,6 +155,19 @@ export async function hydrateRetailOrders(orders) {
         fabricStores.push(shop);
       }
 
+      const ownerName =
+        typeof productDoc?.ownerName === "string"
+          ? productDoc.ownerName.trim()
+          : "";
+      const isMotdOwned =
+        ownerName === "MOTD Admin" ||
+        (!shop &&
+          (kind === "addon" ||
+            kind === "readyMade" ||
+            // Fabric/cut lines with no store attribution stay with MOTD —
+            // never invent a fabric-partner payout ghost.
+            kind === "fabric"));
+
       const populatedProduct = productDoc
         ? {
             _id: productDoc._id,
@@ -167,6 +180,7 @@ export async function hydrateRetailOrders(orders) {
             fabricTypeAr: productDoc.fabricTypeAr,
             fabricId: productDoc.fabricId || null,
             designId: productDoc.designId || null,
+            ownerName: ownerName || undefined,
           }
         : item.productId;
 
@@ -175,6 +189,8 @@ export async function hydrateRetailOrders(orders) {
         kind,
         productId: populatedProduct,
         fabricShopId: shop || item.fabricShopId || null,
+        ownerName: ownerName || item.ownerName || "",
+        motdOwned: isMotdOwned,
       };
     });
 

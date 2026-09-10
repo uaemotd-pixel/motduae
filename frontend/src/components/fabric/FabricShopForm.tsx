@@ -248,7 +248,6 @@ export default function FabricShopForm() {
         form.phone = normalizeUaePhone(form.phone);
       }
       setFormData(form);
-      setSlugTouched(true);
       toast.success(
         isCreateMode ? t("successCreated") : t("successUpdated"),
         SUCCESS_TOAST,

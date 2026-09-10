@@ -11,6 +11,7 @@ import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddr
 import { pickupAddressErrors } from "@/lib/readyMadeAdmin";
 import {
   emptyShopPickupAddress,
+  fetchOwnFabricShop,
   normalizeShopPickupAddress,
   type ShopPickupAddress,
 } from "@/lib/fabricShop";
@@ -45,6 +46,16 @@ interface AddOnFormData {
 
 type FilterItem = { name: string; nameAr: string; _id: string };
 
+function isUsablePickup(address: ShopPickupAddress) {
+  return Boolean(
+    address.fullName.trim() &&
+      address.phone.trim() &&
+      address.line1.trim() &&
+      address.city.trim() &&
+      address.emirate.trim(),
+  );
+}
+
 export default function FabricNewAddOnPage() {
   const { user } = useAuth();
   const userName = user?.name || "";
@@ -52,6 +63,7 @@ export default function FabricNewAddOnPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [pickupFromShop, setPickupFromShop] = useState(false);
 
   const [dbMaterials, setDbMaterials] = useState<FilterItem[]>([]);
   const [dbCategories, setDbCategories] = useState<FilterItem[]>([]);
@@ -97,23 +109,28 @@ export default function FabricNewAddOnPage() {
   });
 
   useEffect(() => {
-    const loadShop = async () => {
+    let cancelled = false;
+
+    const loadShopPickup = async () => {
       try {
-        const shopRes = await api.get<{
-          success: boolean;
-          item: { pickupAddress?: Partial<ShopPickupAddress> };
-        }>("/api/fabric/shop");
+        const shop = await fetchOwnFabricShop();
+        if (cancelled || !shop) return;
+        const shopPickup = normalizeShopPickupAddress(shop.pickupAddress);
+        if (!isUsablePickup(shopPickup)) return;
         setFormData((prev) => ({
           ...prev,
-          pickupAddress: prev.pickupAddress.line1
-            ? prev.pickupAddress
-            : normalizeShopPickupAddress(shopRes.item?.pickupAddress),
+          pickupAddress: shopPickup,
         }));
+        setPickupFromShop(true);
       } catch {
         // Shop address is optional prefill
       }
     };
-    void loadShop();
+
+    void loadShopPickup();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -885,6 +902,11 @@ export default function FabricNewAddOnPage() {
                 handleChange("pickupAddress", pickupAddress)
               }
               fieldErrors={fieldErrors}
+              description={
+                pickupFromShop
+                  ? "Loaded from your fabric store profile. You can edit it for this add-on before saving."
+                  : "Shipa collects this listing from this address. Complete your store profile pickup address to auto-fill."
+              }
             />
           </div>
 

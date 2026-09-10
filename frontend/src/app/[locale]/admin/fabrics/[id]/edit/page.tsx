@@ -92,6 +92,16 @@ export default function EditFabricPage() {
 
           return { ...nextErrors, ...ageErrors };
         });
+      } else if (field === "pickupAddress") {
+        setFieldErrors((prevErrors) => {
+          const nextErrors = { ...prevErrors };
+          delete nextErrors["pickupAddress.emirate"];
+          delete nextErrors["pickupAddress.city"];
+          delete nextErrors["pickupAddress.street"];
+          delete nextErrors["pickupAddress.building"];
+          delete nextErrors["pickupAddress.phone"];
+          return nextErrors;
+        });
       } else if (fieldErrors[field]) {
         setFieldErrors((prevErrors) => ({ ...prevErrors, [field]: "" }));
       }

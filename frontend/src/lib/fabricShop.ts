@@ -40,14 +40,49 @@ export function toUaeLocalPhoneDigits(phone?: string | null): string {
 }
 
 /**
+ * Map shop profile → courier pickupAddress shape used by ready-made / add-ons.
+ */
+export function shopToCourierPickup(
+  shop?:
+    | (Pick<FabricShopProfile, "name" | "pickupAddress"> &
+        Partial<Pick<FabricShopProfile, "city" | "location" | "phone">>)
+    | null,
+): ShopPickupAddress {
+  const pickup = normalizeShopPickupAddress(shop?.pickupAddress);
+  if (
+    pickup.fullName ||
+    pickup.phone ||
+    pickup.line1 ||
+    pickup.city ||
+    pickup.emirate
+  ) {
+    return {
+      ...pickup,
+      fullName: pickup.fullName || shop?.name?.trim() || "",
+      phone: pickup.phone || toUaeLocalPhoneDigits(shop?.phone),
+      city: pickup.city || shop?.city?.trim() || "",
+    };
+  }
+
+  return {
+    fullName: shop?.name?.trim() || "",
+    phone: toUaeLocalPhoneDigits(shop?.phone),
+    line1: shop?.location?.trim() || "",
+    line2: "",
+    city: shop?.city?.trim() || "",
+    emirate: "",
+  };
+}
+
+/**
  * Map shop courier pickupAddress → fabric.storePickupAddress shape
  * (emirate, city, street, building, phone).
  */
 export function shopPickupToFabricStorePickup(
-  shop?: Pick<
-    FabricShopProfile,
-    "pickupAddress" | "city" | "location" | "phone"
-  > | null,
+  shop?:
+    | (Pick<FabricShopProfile, "pickupAddress"> &
+        Partial<Pick<FabricShopProfile, "city" | "location" | "phone">>)
+    | null,
 ): {
   emirate: string;
   city: string;

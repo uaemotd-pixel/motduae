@@ -106,7 +106,7 @@ export function buildFabricPartnerIdentity(shop, ownerUserId) {
   };
 }
 
-async function getFabricSettlement(shop, ownerUserId) {
+export async function getFabricSettlement(shop, ownerUserId) {
   const ownerIdStr = String(ownerUserId);
   const partnerIds = [ownerIdStr];
   const keys = [`fabric:${ownerIdStr}`];
@@ -119,15 +119,37 @@ async function getFabricSettlement(shop, ownerUserId) {
     if (nameNorm) keys.push(`fabric:name:${nameNorm}`);
   }
 
+  const partnerNameMatchers = [];
+  if (shop?.name) {
+    partnerNameMatchers.push(String(shop.name).trim());
+  }
+
+  const identityOr = [
+    { partnerId: { $in: partnerIds } },
+    { partnerKey: { $in: keys } },
+  ];
+  if (partnerNameMatchers.length > 0) {
+    identityOr.push({ partnerName: { $in: partnerNameMatchers } });
+  }
+
   const match = {
     partnerKind: "fabric",
-    $or: [{ partnerId: { $in: partnerIds } }, { partnerKey: { $in: keys } }],
+    $and: [
+      { $or: identityOr },
+      {
+        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
+      },
+    ],
   };
 
   const [payouts, credits] = await Promise.all([
-    PartnerPayout.find(match).select("amount orders").lean(),
+    PartnerPayout.find(match)
+      .select("amount currency orders releasedAt note partnerKey partnerId")
+      .sort({ releasedAt: -1 })
+      .lean(),
     PartnerPayoutCredit.find({
-      ...match,
+      partnerKind: "fabric",
+      $or: identityOr,
       "orders.0": { $exists: true },
     })
       .select("amount orders")
@@ -135,6 +157,7 @@ async function getFabricSettlement(shop, ownerUserId) {
   ]);
 
   const paidByOrderId = new Map();
+  let paidTotal = 0;
 
   const addOrders = (orders) => {
     for (const order of orders || []) {
@@ -149,10 +172,38 @@ async function getFabricSettlement(shop, ownerUserId) {
     }
   };
 
-  for (const payout of payouts) addOrders(payout.orders);
-  for (const credit of credits) addOrders(credit.orders);
+  for (const payout of payouts) {
+    paidTotal += Number(payout.amount) || 0;
+    addOrders(payout.orders);
+  }
+  for (const credit of credits) {
+    paidTotal += Number(credit.amount) || 0;
+    addOrders(credit.orders);
+  }
 
-  return { paidByOrderId };
+  const releases = payouts.map((payout) => {
+    const orders = Array.isArray(payout.orders) ? payout.orders : [];
+    return {
+      _id: payout._id,
+      amount: Number(payout.amount) || 0,
+      currency: payout.currency || "AED",
+      orderCount: orders.length,
+      orders: orders.map((o) => ({
+        orderId: String(o.orderId || ""),
+        orderType: o.orderType || "custom",
+        amount: Number(o.amount) || 0,
+      })),
+      releasedAt: payout.releasedAt,
+      note: payout.note || "",
+      partnerKey: payout.partnerKey || "",
+    };
+  });
+
+  return {
+    paidByOrderId,
+    paidTotal: Number(paidTotal.toFixed(2)),
+    releases,
+  };
 }
 
 function isPayoutEligibleOrder(order) {

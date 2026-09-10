@@ -10,6 +10,7 @@ import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddr
 import { pickupAddressErrors } from "@/lib/readyMadeAdmin";
 import {
   emptyShopPickupAddress,
+  shopToCourierPickup,
   type ShopPickupAddress,
 } from "@/lib/fabricShop";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
@@ -38,10 +39,19 @@ interface AddOnFormData {
   tagAr: string;
   colors: string[];
   images: string[];
+  fabricShopId: string;
   pickupAddress: ShopPickupAddress;
 }
 
 type FilterItem = { name: string; nameAr: string; _id: string };
+type FabricShopOption = {
+  _id: string;
+  name: string;
+  pickupAddress?: ShopPickupAddress;
+  city?: string;
+  location?: string;
+  phone?: string;
+};
 
 export default function AdminNewAddOnPage() {
   const router = useRouter();
@@ -67,6 +77,8 @@ export default function AdminNewAddOnPage() {
   const [openSeason, setOpenSeason] = useState(false);
   const [openTag, setOpenTag] = useState(false);
   const [openColors, setOpenColors] = useState(false);
+  const [fabricShopOpen, setFabricShopOpen] = useState(false);
+  const [fabricShops, setFabricShops] = useState<FabricShopOption[]>([]);
 
   const [formData, setFormData] = useState<AddOnFormData>({
     name: "",
@@ -89,6 +101,7 @@ export default function AdminNewAddOnPage() {
     tagAr: "",
     colors: [],
     images: [""],
+    fabricShopId: "",
     pickupAddress: emptyShopPickupAddress(),
   });
 
@@ -161,22 +174,65 @@ export default function AdminNewAddOnPage() {
       }
     };
 
+    const fetchFabricShops = async () => {
+      try {
+        const data = await api.get<{ items?: FabricShopOption[] }>(
+          "/api/admin/fabric-shops",
+        );
+        if (!cancelled) setFabricShops(data.items || []);
+      } catch {
+        if (!cancelled) setFabricShops([]);
+      }
+    };
+
     void fetchMaterials();
     void fetchCategories();
     void fetchDesigns();
     void fetchSeasons();
     void fetchTags();
+    void fetchFabricShops();
 
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const clearPickupFieldErrors = () => {
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next["pickupAddress.fullName"];
+      delete next["pickupAddress.phone"];
+      delete next["pickupAddress.line1"];
+      delete next["pickupAddress.line2"];
+      delete next["pickupAddress.city"];
+      delete next["pickupAddress.emirate"];
+      return next;
+    });
+  };
+
   const handleChange = (field: keyof AddOnFormData, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    if (fieldErrors[field]) {
+    if (field === "pickupAddress") {
+      clearPickupFieldErrors();
+    } else if (fieldErrors[field]) {
       setFieldErrors((prev) => ({ ...prev, [field]: "" }));
     }
+  };
+
+  const selectFabricShop = (shopId: string) => {
+    const shop = fabricShops.find((s) => s._id === shopId);
+    setFormData((prev) => ({
+      ...prev,
+      fabricShopId: shopId,
+      pickupAddress: shop
+        ? shopToCourierPickup(shop)
+        : emptyShopPickupAddress(),
+    }));
+    clearPickupFieldErrors();
+    if (fieldErrors.fabricShopId) {
+      setFieldErrors((prev) => ({ ...prev, fabricShopId: "" }));
+    }
+    setFabricShopOpen(false);
   };
 
   const handleNumberChange = (field: "price" | "stock", value: string) => {
@@ -258,6 +314,7 @@ export default function AdminNewAddOnPage() {
       const payload = {
         ...formData,
         images: cleanImages,
+        fabricShopId: formData.fabricShopId || null,
       };
 
       await api.post("/api/admin/addons", payload);
@@ -849,6 +906,50 @@ export default function AdminNewAddOnPage() {
                     );
                   })}
                 </div>
+              </AnimatedDropdown>
+            </FormField>
+          </div>
+
+          <div className="md:col-span-2">
+            <FormField
+              label="Fabric Store"
+              name="fabricShopId"
+              error={fieldErrors.fabricShopId}
+            >
+              <AnimatedDropdown
+                isOpen={fabricShopOpen}
+                onClose={() => setFabricShopOpen(false)}
+                trigger={
+                  <SelectTrigger
+                    value={formData.fabricShopId}
+                    placeholder="Select Fabric Store"
+                    displayValue={
+                      fabricShops.find((s) => s._id === formData.fabricShopId)
+                        ?.name || ""
+                    }
+                    onClick={() => setFabricShopOpen(!fabricShopOpen)}
+                  />
+                }
+                dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+                position="bottom-left"
+              >
+                <button
+                  type="button"
+                  onClick={() => selectFabricShop("")}
+                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                >
+                  Select Fabric Store
+                </button>
+                {fabricShops.map((shop) => (
+                  <button
+                    key={shop._id}
+                    type="button"
+                    onClick={() => selectFabricShop(shop._id)}
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                  >
+                    {shop.name}
+                  </button>
+                ))}
               </AnimatedDropdown>
             </FormField>
           </div>
