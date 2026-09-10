@@ -442,20 +442,20 @@ export default function EditSubAdminPage() {
           </div>
         </div>
 
-        <div className="flex flex-row-reverse gap-3 pt-6 mt-3 border-t border-gray-100">
-          <button
-            type="submit"
-            disabled={saving}
-            className="px-6 py-2 bg-black text-white rounded-lg hover:cursor-pointer disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Update Sub‑Admin"}
-          </button>
+        <div className="grid grid-cols-2 gap-3 pt-6 mt-3 border-t border-gray-100">
           <button
             type="button"
             onClick={() => router.back()}
-            className="px-6 py-2 border border-gray-300 rounded-lg hover:cursor-pointer"
+            className="inline-flex min-h-11 w-full items-center justify-center px-4 py-2.5 border border-gray-300 rounded-lg text-sm text-center hover:cursor-pointer"
           >
             Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex min-h-11 w-full items-center justify-center px-4 py-2.5 bg-black text-white rounded-lg text-sm text-center leading-snug hover:cursor-pointer disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Update Sub-Admin"}
           </button>
         </div>
       </form>

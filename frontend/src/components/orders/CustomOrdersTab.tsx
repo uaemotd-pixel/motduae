@@ -679,17 +679,17 @@ export default function CustomOrdersTab({
                     {formatOrderDate(order.date, locale)}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <span className="inline-flex items-center text-[9px] uppercase tracking-[0.12em] sm:tracking-[0.18em] px-2 py-0.5 font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md whitespace-nowrap">
                     {locale === "ar" ? "تفصيل" : "Custom Order"}
                   </span>
-                  <span className="text-[10px] uppercase tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                  <span className="text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
                     {t(`statuses.${order.status}`)}
                   </span>
                   <button
                     type="button"
                     onClick={() => handleToggleTimeline(order.id)}
-                    className="text-[10px] uppercase tracking-[0.18em] text-gray-400 hover:text-black transition hover:cursor-pointer whitespace-nowrap"
+                    className="basis-full sm:basis-auto text-left text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.18em] text-gray-400 hover:text-black transition hover:cursor-pointer"
                     aria-expanded={isExpanded}
                   >
                     {isExpanded ? t("hideTimeline") : t("viewTimeline")}
@@ -1550,11 +1550,11 @@ export default function CustomOrdersTab({
                     {formatOrderDate(order.date.toString(), locale)}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 font-semibold bg-amber-50 text-amber-700 border border-amber-200 rounded-md">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <span className="inline-flex items-center text-[9px] uppercase tracking-[0.12em] sm:tracking-[0.18em] px-2 py-0.5 font-semibold bg-amber-50 text-amber-700 border border-amber-200 rounded-md whitespace-nowrap">
                     {locale === "ar" ? "جاهز" : "Ready-Made Order"}
                   </span>
-                  <span className="text-[10px] uppercase tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                  <span className="text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
                     {tRetail(`statuses.${order.status}`, {
                       defaultValue: order.status,
                     })}
@@ -1565,7 +1565,7 @@ export default function CustomOrdersTab({
                       onClick={() =>
                         setRetailExpandedId(isExpanded ? null : order.id)
                       }
-                      className="text-[10px] uppercase tracking-[0.18em] text-gray-400 hover:text-black transition hover:cursor-pointer whitespace-nowrap"
+                      className="basis-full sm:basis-auto text-left text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.18em] text-gray-400 hover:text-black transition hover:cursor-pointer"
                       aria-expanded={isExpanded}
                     >
                       {isExpanded ? "Hide items" : "Show all items"}

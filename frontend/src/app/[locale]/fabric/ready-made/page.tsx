@@ -355,7 +355,7 @@ export default function FabricReadyMadePage() {
         </div>
         <Link
           href="/fabric/ready-made/new"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition text-sm shadow-sm"
+          className="inline-flex w-fit max-w-full items-center justify-center gap-2 self-start px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition text-sm shadow-sm"
         >
           <Plus className="w-4 h-4" />
           Create new

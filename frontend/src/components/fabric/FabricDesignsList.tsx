@@ -354,7 +354,7 @@ export default function FabricDesignsList() {
         </div>
         <Link
           href="/fabric/fabrics/new"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition text-sm shadow-sm [font-family:var(--font-ui)]"
+          className="inline-flex w-fit max-w-full items-center justify-center gap-2 self-start px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition text-sm shadow-sm [font-family:var(--font-ui)]"
         >
           <Plus className="w-4 h-4" /> {t("addFabric")}
         </Link>
