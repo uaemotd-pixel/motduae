@@ -384,8 +384,6 @@
     "cutStockLimitHint": "لا مزيد من المخزون لهذه القطعة",
     "cutStockLabel": "{count} متوفر",
     "pieceLabel": "قطعة",
-    "increaseQuantity": "زيادة الكمية",
-    "decreaseQuantity": "إنقاص الكمية",
     "cutsUnavailableLegend": "القطع المعطّلة أقصر مما يتطلبه التصميم.",
     "cutsCombineLegend": "زد كمية أي قطعة (حتى حد المخزون). تُجمع الأطوال حتى يُستوفى متطلب التصميم.",
     "cutsLockedLegend": "تم استيفاء المطلوب. أنقص الكمية إذا أردت تغيير التحديد.",

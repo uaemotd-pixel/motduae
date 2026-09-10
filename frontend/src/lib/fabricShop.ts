@@ -43,10 +43,10 @@ export function toUaeLocalPhoneDigits(phone?: string | null): string {
  * Map shop profile → courier pickupAddress shape used by ready-made / add-ons.
  */
 export function shopToCourierPickup(
-  shop?: Pick<
-    FabricShopProfile,
-    "name" | "pickupAddress" | "city" | "location" | "phone"
-  > | null,
+  shop?:
+    | (Pick<FabricShopProfile, "name" | "pickupAddress"> &
+        Partial<Pick<FabricShopProfile, "city" | "location" | "phone">>)
+    | null,
 ): ShopPickupAddress {
   const pickup = normalizeShopPickupAddress(shop?.pickupAddress);
   if (
@@ -79,10 +79,10 @@ export function shopToCourierPickup(
  * (emirate, city, street, building, phone).
  */
 export function shopPickupToFabricStorePickup(
-  shop?: Pick<
-    FabricShopProfile,
-    "pickupAddress" | "city" | "location" | "phone"
-  > | null,
+  shop?:
+    | (Pick<FabricShopProfile, "pickupAddress"> &
+        Partial<Pick<FabricShopProfile, "city" | "location" | "phone">>)
+    | null,
 ): {
   emirate: string;
   city: string;
