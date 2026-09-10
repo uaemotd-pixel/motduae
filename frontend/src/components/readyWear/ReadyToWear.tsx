@@ -13,6 +13,7 @@ import {
   resolveReadyMadeImage,
 } from "@/lib/readyMade";
 import WishlistButton from "../shared/wishlistButton";
+import AddToCartButton from "../shared/addToCartButton";
 import { Share2 } from "lucide-react";
 import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import { HomeSectionSkeleton } from "@/components/ui/Skeleton";
@@ -377,11 +378,27 @@ export function ReadyToWearSection() {
                             className="p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 flex h-8 w-8 items-center justify-center xs:h-9 xs:w-9"
                             iconClassName="h-4 w-4"
                           />
+
+                          <AddToCartButton
+                            item={{
+                              id: item._id,
+                              slug: item.slug,
+                              name: title,
+                              image,
+                              price,
+                              size: formatLength(item.metersPerFabric),
+                              itemType: "readyMade",
+                              maxStock: item.availableFabricStock ?? 0,
+                            }}
+                            inline
+                            className="p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 flex h-8 w-8 items-center justify-center xs:h-9 xs:w-9"
+                            iconClassName="h-4 w-4"
+                          />
                         </div>
 
                         {tag && (
                           <div
-                            className="absolute top-1.5 left-1.5 z-10 px-1.5 py-px text-[8px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.12em] font-medium shadow-sm max-w-[calc(100%-3.75rem)] truncate"
+                            className="absolute top-1.5 left-1.5 z-10 px-1.5 py-px text-[8px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.12em] font-medium shadow-sm max-w-[calc(100%-8.5rem)] truncate"
                             style={{ backgroundColor: bg, color: text }}
                           >
                             {tag}

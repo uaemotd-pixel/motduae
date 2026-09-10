@@ -22,6 +22,7 @@ import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import colorPalette from "@/components/shared/colors";
 import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 import WishlistButton from "@/components/shared/wishlistButton";
+import AddToCartButton from "@/components/shared/addToCartButton";
 import { Share2 } from "lucide-react";
 import { ProductReviewsSection } from "@/components/reviews/CustomerReviewsView";
 
@@ -183,18 +184,13 @@ function RelatedProductsSection({
                     />
                     {tag && (
                       <div
-                        className="absolute top-2 left-2 z-10 px-1.5 py-px text-[8px] [font-family:var(--font-ui)] tracking-[0.12em] font-medium uppercase max-w-[calc(100%-5.5rem)] truncate"
+                        className="absolute top-2 left-2 z-10 px-1.5 py-px text-[8px] [font-family:var(--font-ui)] tracking-[0.12em] font-medium uppercase max-w-[calc(100%-7.5rem)] truncate"
                         style={{
                           backgroundColor: tagStyles.bg,
                           color: tagStyles.text,
                         }}
                       >
                         {tag}
-                      </div>
-                    )}
-                    {stock < 1 && (
-                      <div className="absolute bottom-2 left-2 z-10 bg-black/75 text-white text-[8px] [font-family:var(--font-ui)] tracking-[0.16em] uppercase px-2 py-1">
-                        {t.outOfStock}
                       </div>
                     )}
                     <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5">
@@ -223,6 +219,21 @@ function RelatedProductsSection({
                           ...(Number.isFinite(item.availableFabricStock)
                             ? { maxStock: item.availableFabricStock }
                             : {}),
+                        }}
+                        inline
+                        className="p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-sm border-0 flex h-8 w-8 items-center justify-center"
+                        iconClassName="h-3.5 w-3.5"
+                      />
+                      <AddToCartButton
+                        item={{
+                          id: item._id,
+                          slug: item.slug,
+                          name: title,
+                          image,
+                          price,
+                          size: formatLength(item.metersPerFabric),
+                          itemType: "readyMade",
+                          maxStock: stock,
                         }}
                         inline
                         className="p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-sm border-0 flex h-8 w-8 items-center justify-center"
