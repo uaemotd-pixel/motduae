@@ -15,7 +15,7 @@ import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import { useWishlist } from "@/context/WishlistContext";
 import { useCustomOrder } from "@/context/CustomOrderContext";
 import { buildCustomOrderHrefFromDesign } from "@/lib/customOrder";
-import { Share2 } from "lucide-react";
+import { Share2, ArrowUpRight, Heart } from "lucide-react";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "hand-embroidered": "#8B6B4D",
@@ -209,6 +209,25 @@ export default function DesignDetailView({
   const imageScale = useTransform(scrollYProgress, [0, 0.5], [1, 0.95]);
   const imageOpacity = useTransform(scrollYProgress, [0, 0.6], [1, 0.85]);
 
+  const categoryValue = String(category || "").trim();
+  const metersValue = design.minCutSnapshot?.name
+    ? `${
+        locale === "ar"
+          ? design.minCutSnapshot.nameAr || design.minCutSnapshot.name
+          : design.minCutSnapshot.name
+      } (${formatLength(design.minCutSnapshot.lengthInMeters)})`
+    : design.estimatedMeters != null
+      ? formatLength(design.estimatedMeters)
+      : "";
+  const daysValue =
+    design.estimatedDays != null && Number(design.estimatedDays) >= 0
+      ? `${design.estimatedDays} ${labels.days}`
+      : "";
+  const ageValue =
+    design.minAge != null || design.maxAge != null
+      ? `${Number(design.minAge) || 0}–${Number(design.maxAge) || 0} ${labels.years}`
+      : "";
+
   const handleShare = useCallback(async () => {
     const shareUrl = typeof window !== "undefined" ? window.location.href : "";
     if (!shareUrl) return;
@@ -297,8 +316,10 @@ export default function DesignDetailView({
   };
 
   return (
-    <div ref={containerRef} className="bg-(--bg-page) min-h-screen pt-20 pb-12">
-      {/* Image Modal */}
+    <div
+      ref={containerRef}
+      className="bg-(--bg-page) min-h-screen pt-16 sm:pt-20 pb-10 sm:pb-12"
+    >
       <ImageModal
         isOpen={imageModalOpen}
         imageUrl={selectedImage}
@@ -306,26 +327,28 @@ export default function DesignDetailView({
         onClose={() => setImageModalOpen(false)}
       />
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="flex items-center gap-2 text-[10px] tracking-[0.2em] uppercase text-(--color-grey-muted) mb-6"
+          className="mb-4 flex min-w-0 items-center gap-2 text-[9px] uppercase tracking-[0.16em] text-(--color-grey-muted) sm:mb-6 sm:text-[10px] sm:tracking-[0.2em]"
         >
           <Link
             href="/designs/designShop"
-            className="hover:text-black transition"
+            className="shrink-0 transition hover:text-black"
           >
             {labels.designs}
           </Link>
-          <span>/</span>
-          <span className="text-black">{category}</span>
+          <span className="shrink-0" aria-hidden>
+            /
+          </span>
+          <span className="min-w-0 truncate text-black">{category}</span>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+        <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-2 lg:gap-12">
           {/* Left Column */}
-          <div className="relative">
+          <div className="relative min-w-0">
             <motion.div
               ref={leftRef}
               style={
@@ -333,25 +356,28 @@ export default function DesignDetailView({
                   ? { scale: imageScale, opacity: imageOpacity }
                   : {}
               }
-              className={`${getStickyClass()} space-y-4`}
+              className={`${getStickyClass()} space-y-3 sm:space-y-4`}
             >
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
-                className="w-full relative bg-[#F5F5F0] rounded-lg group aspect-4/5 overflow-hidden"
+                className="group relative aspect-4/5 w-full overflow-hidden rounded-md bg-[#F5F5F0] sm:rounded-lg"
               >
                 <button
                   type="button"
-                  aria-label="Share"
+                  aria-label={isAr ? "مشاركة" : "Share"}
                   onClick={handleShare}
-                  className="absolute top-3 right-3 z-10 inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/90 text-black shadow-sm hover:bg-white focus:outline-none focus:ring-2 focus:ring-black/20 hover:cursor-pointer"
+                  className="absolute top-2.5 inset-e-2.5 z-20 inline-flex size-9 items-center justify-center rounded-full border-0 bg-white/90 text-black shadow-sm backdrop-blur-sm transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20 sm:top-3 sm:inset-e-3 sm:size-10"
                 >
-                  <Share2 className="w-5 h-5" />
+                  <Share2
+                    className="size-4 sm:size-4.5"
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
                 </button>
 
-                {/* Main Image with Zoom Effect */}
-                <div className="relative h-full w-full">
+                <div className="relative h-full w-full touch-pan-y">
                   <ZoomImageEffect
                     src={images[activeImage]}
                     alt={name}
@@ -367,14 +393,16 @@ export default function DesignDetailView({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.4, delay: 0.3 }}
-                  className="flex gap-2 overflow-x-auto"
+                  className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 scrollbar-thin"
                 >
                   {images.map((image, index) => (
                     <button
                       key={`${design._id}-image-${index}`}
                       type="button"
+                      aria-label={`${isAr ? "صورة" : "Image"} ${index + 1}`}
+                      aria-pressed={index === activeImage}
                       onClick={() => setActiveImage(index)}
-                      className={`w-16 h-16 shrink-0 overflow-hidden border-2 transition ${
+                      className={`size-14 shrink-0 overflow-hidden border-2 transition sm:size-16 ${
                         index === activeImage
                           ? "border-black"
                           : "border-(--color-border)"
@@ -383,7 +411,7 @@ export default function DesignDetailView({
                       <img
                         src={image}
                         alt=""
-                        className="w-full h-full object-cover"
+                        className="h-full w-full object-cover"
                       />
                     </button>
                   ))}
@@ -393,17 +421,17 @@ export default function DesignDetailView({
           </div>
 
           {/* Right Column */}
-          <div className="relative">
+          <div className="relative min-w-0">
             <motion.div
               ref={rightRef}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className={`${getStickyClass()} space-y-6`}
+              className={`${getStickyClass()} space-y-4 sm:space-y-6`}
             >
-              <div className="flex flex-wrap gap-2 items-center">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <span
-                  className="inline-block text-white text-[10px] uppercase tracking-[0.25em] px-2.5 py-1.5 rounded-none"
+                  className="inline-block max-w-full truncate px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-white sm:px-2.5 sm:py-1.5 sm:text-[10px] sm:tracking-[0.25em]"
                   style={{
                     backgroundColor:
                       CATEGORY_COLORS[design.category] || "#000000",
@@ -412,10 +440,10 @@ export default function DesignDetailView({
                   {category}
                 </span>
                 <span
-                  className={`inline-block text-[10px] uppercase tracking-[0.25em] px-2.5 py-1.5 font-semibold rounded-none border ${
+                  className={`inline-block max-w-full truncate border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] sm:px-2.5 sm:py-1.5 sm:text-[10px] sm:tracking-[0.25em] ${
                     design.priceType === "per_meter"
-                      ? "bg-amber-50 text-amber-800 border-amber-200"
-                      : "bg-gray-50 text-gray-800 border-gray-200"
+                      ? "border-amber-200 bg-amber-50 text-amber-800"
+                      : "border-gray-200 bg-gray-50 text-gray-800"
                   }`}
                 >
                   {design.priceType === "per_meter"
@@ -433,31 +461,54 @@ export default function DesignDetailView({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.15 }}
               >
-                <div className="flex justify-between items-start gap-4 mb-2">
-                  <h1 className="[font-family:var(--font-display)] text-3xl sm:text-4xl text-black leading-tight font-normal">
-                    {name}
-                  </h1>
+                <div className="mb-2 flex items-start justify-between gap-3 sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <h1 className="[font-family:var(--font-display)] text-[26px] leading-[1.15] font-normal text-black sm:text-3xl md:text-4xl">
+                      {name}
+                    </h1>
+                    {tailorShopName && design.tailorShop?.slug ? (
+                      <Link
+                        href={`/tailors/${design.tailorShop.slug}`}
+                        className="group mt-2 inline-flex max-w-full items-center gap-1 [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) transition-colors hover:text-black sm:mt-2.5 sm:gap-1.5 sm:text-sm"
+                      >
+                        <span className="min-w-0 truncate border-b border-transparent transition-colors group-hover:border-black/40">
+                          {tailorShopName}
+                        </span>
+                        <ArrowUpRight
+                          aria-hidden
+                          strokeWidth={1.75}
+                          className="size-3.5 shrink-0 opacity-70 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100 rtl:group-hover:-translate-x-0.5"
+                        />
+                      </Link>
+                    ) : null}
+                  </div>
                   <button
+                    type="button"
                     onClick={toggleWishlist}
-                    className="shrink-0 p-2 rounded-full hover:bg-black/5 transition-colors duration-200"
-                    aria-label="Add to wishlist"
+                    className="inline-flex size-9 shrink-0 items-center justify-center rounded-full transition-colors duration-200 hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20 sm:size-10"
+                    aria-label={
+                      liked
+                        ? isAr
+                          ? "إزالة من المفضلة"
+                          : "Remove from wishlist"
+                        : isAr
+                          ? "إضافة إلى المفضلة"
+                          : "Add to wishlist"
+                    }
+                    aria-pressed={liked}
                   >
-                    <svg
-                      className={`w-6 h-6 transition-colors ${
+                    <Heart
+                      aria-hidden
+                      strokeWidth={1.5}
+                      className={`size-4.5 transition-colors sm:size-5 ${
                         liked
                           ? "fill-red-500 stroke-red-500"
-                          : "stroke-black fill-none"
+                          : "fill-none stroke-black"
                       }`}
-                      viewBox="0 0 24 24"
-                      strokeWidth="1.5"
-                      stroke="currentColor"
-                      fill="none"
-                    >
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                    </svg>
+                    />
                   </button>
                 </div>
-                <p className="[font-family:var(--font-ui)] text-2xl text-black">
+                <p className="[font-family:var(--font-ui)] text-xl text-black sm:text-2xl">
                   {formatDesignBasePrice(
                     design.basePrice,
                     locale,
@@ -467,74 +518,82 @@ export default function DesignDetailView({
                 </p>
               </motion.div>
 
-              {description && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.5, delay: 0.2 }}
-                  className="[font-family:var(--font-body)] text-sm sm:text-base text-(--color-grey-muted) leading-relaxed text-justify [text-justify:inter-word]"
-                >
-                  {description}
-                </motion.p>
+              {(categoryValue || metersValue) && (
+                <div className="flex flex-row gap-x-6 my-2">
+                  {categoryValue && (
+                    <div className="min-w-0 flex-1">
+                      <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
+                        {labels.category}
+                      </span>
+                      <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
+                        {categoryValue}
+                      </p>
+                    </div>
+                  )}
+                  {metersValue && (
+                    <div className="min-w-0 flex-1">
+                      <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
+                        {labels.estimatedMeters}
+                      </span>
+                      <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
+                        {metersValue}
+                      </p>
+                    </div>
+                  )}
+                </div>
               )}
 
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.25 }}
-                className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-5 border-y border-(--color-border)"
-              >
-                <div>
-                  <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted)">
-                    {labels.category}
-                  </p>
-                  <p className="[font-family:var(--font-body)] text-base text-black mt-1 font-normal">
-                    {category}
+              {(daysValue || ageValue) && (
+                <div className="grid grid-cols-2 gap-x-6 my-2">
+                  {daysValue && (
+                    <div>
+                      <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
+                        {labels.estimatedDays}
+                      </span>
+                      <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
+                        {daysValue}
+                      </p>
+                    </div>
+                  )}
+                  {ageValue && (
+                    <div>
+                      <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
+                        {labels.ageRange}
+                      </span>
+                      <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
+                        {ageValue}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {description && (
+                <div className="my-6">
+                  <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-2">
+                    {isAr ? "الوصف" : "Description"}
+                  </span>
+                  <p className="[font-family:var(--font-body)] text-[14px] text-justify xs:text-[15px] sm:text-[16px] leading-relaxed text-(--color-grey-muted)">
+                    {description}
                   </p>
                 </div>
-                <div>
-                  <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted)">
-                    {labels.estimatedMeters}
-                  </p>
-                  <p className="[font-family:var(--font-body)] text-base text-black mt-1 font-normal">
-                    {design.minCutSnapshot?.name
-                      ? `${locale === "ar" ? design.minCutSnapshot.nameAr || design.minCutSnapshot.name : design.minCutSnapshot.name} (${formatLength(design.minCutSnapshot.lengthInMeters)})`
-                      : formatLength(design.estimatedMeters)}
-                  </p>
-                </div>
-                <div>
-                  <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted)">
-                    {labels.estimatedDays}
-                  </p>
-                  <p className="[font-family:var(--font-body)] text-base text-black mt-1 font-normal">
-                    {design.estimatedDays} {labels.days}
-                  </p>
-                </div>
-                <div>
-                  <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted)">
-                    {labels.ageRange}
-                  </p>
-                  <p className="[font-family:var(--font-body)] text-base text-black mt-1 font-normal">
-                    {Number(design.minAge) || 0}–{Number(design.maxAge) || 0}{" "}
-                    {labels.years}
-                  </p>
-                </div>
-              </motion.div>
+              )}
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.4 }}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
+                className="sticky bottom-0 z-20 -mx-4 border-t border-(--color-border) bg-(--bg-page)/95 px-4 py-3 backdrop-blur-sm sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none"
               >
-                <Link
-                  href={customOrderHref}
-                  onClick={handleSelectForCustomOrder}
-                  className="block w-full py-3 sm:py-4 px-4 sm:px-6 bg-black text-white text-center text-xs sm:text-sm tracking-[0.2em] sm:tracking-[0.22em] uppercase hover:bg-[#1A1A1A] transition-colors"
-                >
-                  {labels.selectForCustomOrder}
-                </Link>
+                <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                  <Link
+                    href={customOrderHref}
+                    onClick={handleSelectForCustomOrder}
+                    className="block w-full bg-black px-4 py-3.5 text-center text-[11px] uppercase tracking-[0.18em] text-white transition-colors hover:bg-[#1A1A1A] sm:px-6 sm:py-4 sm:text-sm sm:tracking-[0.22em]"
+                  >
+                    {labels.selectForCustomOrder}
+                  </Link>
+                </motion.div>
               </motion.div>
             </motion.div>
           </div>

@@ -22,7 +22,7 @@ import {
   getCutLengthLabel,
   parseFabricCutCartId,
 } from "@/lib/fabrics";
-import { Share2 } from "lucide-react";
+import { Share2, ArrowUpRight, Heart } from "lucide-react";
 import StoreAttribution from "@/components/fabric/StoreAttribution";
 import { resolveMediaUrl } from "@/lib/media";
 import ZoomImageEffect from "../shared/ZoomImageEffect";
@@ -60,6 +60,16 @@ export default function FabricDetailView({
   labels,
 }: FabricDetailViewProps) {
   const { title, description } = getFabricDisplayFields(fabric, locale);
+  const store =
+    fabric.listedByStore && typeof fabric.listedByStore === "object"
+      ? fabric.listedByStore
+      : null;
+  const storeName = store
+    ? locale === "ar"
+      ? store.nameAr || store.name
+      : store.name
+    : "";
+  const storeSlug = store?.slug?.trim() || "";
   const router = useRouter();
   const cuts = getFabricCuts(fabric);
   const [cutSelections, setCutSelections] = useState<Record<string, number>>(
@@ -443,30 +453,54 @@ export default function FabricDetailView({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.15 }}
               >
-                <div className="flex justify-between items-start gap-4 mb-2">
-                  <h1 className="[font-family:var(--font-display)] text-3xl sm:text-4xl text-black leading-tight mb-3">
-                    {title}
-                  </h1>
+                <div className="mb-2 flex items-start justify-between gap-3 sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <h1 className="[font-family:var(--font-display)] text-[26px] leading-[1.15] font-normal text-black sm:text-3xl md:text-4xl">
+                      {title}
+                    </h1>
+                    {storeName && storeSlug ? (
+                      <Link
+                        href={`/brands/${storeSlug}`}
+                        className="group mt-2 inline-flex max-w-full items-center gap-1 [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) transition-colors hover:text-black sm:mt-2.5 sm:gap-1.5 sm:text-sm"
+                      >
+                        <span className="min-w-0 truncate border-b border-transparent transition-colors group-hover:border-black/40">
+                          {storeName}
+                        </span>
+                        <ArrowUpRight
+                          aria-hidden
+                          strokeWidth={1.75}
+                          className="size-3.5 shrink-0 opacity-70 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100 rtl:group-hover:-translate-x-0.5"
+                        />
+                      </Link>
+                    ) : null}
+                  </div>
                   <button
+                    type="button"
                     onClick={toggleWishlist}
-                    className="shrink-0 p-2 rounded-full hover:bg-black/5 transition-colors duration-200"
-                    aria-label="Add to wishlist"
+                    className="inline-flex size-9 shrink-0 items-center justify-center rounded-full transition-colors duration-200 hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20 sm:size-10"
+                    aria-label={
+                      liked
+                        ? locale === "ar"
+                          ? "إزالة من المفضلة"
+                          : "Remove from wishlist"
+                        : locale === "ar"
+                          ? "إضافة إلى المفضلة"
+                          : "Add to wishlist"
+                    }
+                    aria-pressed={liked}
                   >
-                    <svg
-                      className={`w-6 h-6 transition-colors ${liked
+                    <Heart
+                      aria-hidden
+                      strokeWidth={1.5}
+                      className={`size-4.5 transition-colors sm:size-5 ${
+                        liked
                           ? "fill-red-500 stroke-red-500"
-                          : "stroke-black fill-none"
-                        }`}
-                      viewBox="0 0 24 24"
-                      strokeWidth="1.5"
-                      stroke="currentColor"
-                      fill="none"
-                    >
-                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                    </svg>
+                          : "fill-none stroke-black"
+                      }`}
+                    />
                   </button>
                 </div>
-                <p className="[font-family:var(--font-ui)] text-2xl text-black font-medium">
+                <p className="[font-family:var(--font-ui)] text-xl text-black font-medium sm:text-2xl">
                   {selectedCutEntries.length === 0 &&
                     formatFabricListingPrice(fabric, locale)}
                   {selectedCutEntries.length === 1 &&

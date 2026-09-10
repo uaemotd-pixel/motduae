@@ -56,9 +56,7 @@ function cutsHaveLowStock(cuts?: FabricCutRow[]) {
   return (cuts || []).some((entry) => isLowStockQty(Number(entry.stock) || 0));
 }
 
-function fabricHasLowStock(
-  item: Pick<FabricProfile, "cuts" | "variants">,
-) {
+function fabricHasLowStock(item: Pick<FabricProfile, "cuts" | "variants">) {
   if (cutsHaveLowStock(item.cuts as FabricCutRow[] | undefined)) return true;
   return (item.variants || []).some((variant) =>
     cutsHaveLowStock(variant.cuts as FabricCutRow[] | undefined),
@@ -83,7 +81,7 @@ function FabricCutsCell({
   }
 
   return (
-    <div className="space-y-1.5 min-w-[12rem] max-w-xs">
+    <div className="space-y-1.5 min-w-48 max-w-xs">
       {cuts.map((entry) => {
         const stock = Number(entry.stock) || 0;
         const low = isLowStockQty(stock);
@@ -236,7 +234,9 @@ export default function FabricDesignsList() {
   };
 
   const openDeleteModal = (
-    fabric: Pick<FabricProfile, "_id" | "name" | "nameAr"> | FabricVariantProfile,
+    fabric:
+      | Pick<FabricProfile, "_id" | "name" | "nameAr">
+      | FabricVariantProfile,
   ) => {
     setItemToDelete(fabric);
   };
@@ -257,7 +257,9 @@ export default function FabricDesignsList() {
           .filter((item) => item._id !== fabric._id)
           .map((item) => ({
             ...item,
-            variants: item.variants?.filter((variant) => variant._id !== fabric._id),
+            variants: item.variants?.filter(
+              (variant) => variant._id !== fabric._id,
+            ),
           })),
       );
       toast.success(t("deleted"), SUCCESS_TOAST);
@@ -479,9 +481,7 @@ export default function FabricDesignsList() {
           <div className="space-y-3 sm:hidden">
             {filteredFabrics.map((fabric) => {
               const name =
-                locale === "ar"
-                  ? fabric.nameAr || fabric.name
-                  : fabric.name;
+                locale === "ar" ? fabric.nameAr || fabric.name : fabric.name;
               const materialDisplay =
                 locale === "ar"
                   ? fabric.materialAr || fabric.material
@@ -564,322 +564,327 @@ export default function FabricDesignsList() {
             })}
           </div>
           <div className="hidden sm:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                    {locale === "ar" ? "الصورة" : "IMAGE"}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                    {locale === "ar" ? "الاسم" : "NAME"}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                    {locale === "ar" ? "المادة" : "MATERIAL"}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                    {locale === "ar" ? "القصات" : "CUTS"}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                    {locale === "ar" ? "الحالة" : "STATUS"}
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                    {locale === "ar" ? "الإجراءات" : "ACTIONS"}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 bg-white">
-                {filteredFabrics.map((fabric) => {
-                  const name =
-                    locale === "ar"
-                      ? fabric.nameAr || fabric.name
-                      : fabric.name;
-                  const materialDisplay =
-                    locale === "ar"
-                      ? fabric.materialAr || fabric.material
-                      : fabric.material;
-                  const itemLow = fabricHasLowStock(fabric);
-                  return (
-                    <Fragment key={fabric._id}>
-                      <tr
-                        className={`group transition-all duration-200 ${
-                          itemLow
-                            ? "bg-rose-50/80 hover:bg-rose-50"
-                            : "hover:bg-gray-50"
-                        }`}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {fabric.images && fabric.images.length > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setModalImage({ url: fabric.images[0], name })
-                              }
-                              className="cursor-pointer"
-                            >
-                              <img
-                                src={fabric.images[0]}
-                                alt={name}
-                                className="w-10 h-10 rounded-lg object-cover hover:ring-2 hover:ring-black/20 transition-all"
-                              />
-                            </button>
-                          ) : (
-                            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                              <ImageIcon className="w-4 h-4 text-gray-400" />
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-sm font-medium text-black [font-family:var(--font-body)]">
-                          <div>
-                            {name}
-                            {itemLow && (
-                              <div className="mt-1">
-                                <LowStockBadge label={t("lowBadge")} />
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 [font-family:var(--font-body)]">
-                          {materialDisplay}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 [font-family:var(--font-body)]">
-                          <FabricCutsCell
-                            cuts={fabric.cuts as FabricCutRow[] | undefined}
-                            {...cutsCellProps}
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium [font-family:var(--font-ui)] ${
-                              fabric.isActive
-                                ? "bg-white text-black border border-black/30"
-                                : "bg-gray-100 text-gray-500 border border-gray-200"
-                            }`}
-                          >
-                            {fabric.isActive
-                              ? t("statusActive")
-                              : t("statusInactive")}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="flex items-center justify-end gap-3">
-                            {fabric.variants && fabric.variants.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
+                      {locale === "ar" ? "الصورة" : "IMAGE"}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
+                      {locale === "ar" ? "الاسم" : "NAME"}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
+                      {locale === "ar" ? "المادة" : "MATERIAL"}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
+                      {locale === "ar" ? "القصات" : "CUTS"}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
+                      {locale === "ar" ? "الحالة" : "STATUS"}
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
+                      {locale === "ar" ? "الإجراءات" : "ACTIONS"}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 bg-white">
+                  {filteredFabrics.map((fabric) => {
+                    const name =
+                      locale === "ar"
+                        ? fabric.nameAr || fabric.name
+                        : fabric.name;
+                    const materialDisplay =
+                      locale === "ar"
+                        ? fabric.materialAr || fabric.material
+                        : fabric.material;
+                    const itemLow = fabricHasLowStock(fabric);
+                    return (
+                      <Fragment key={fabric._id}>
+                        <tr
+                          className={`group transition-all duration-200 ${
+                            itemLow
+                              ? "bg-rose-50/80 hover:bg-rose-50"
+                              : "hover:bg-gray-50"
+                          }`}
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {fabric.images && fabric.images.length > 0 ? (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setExpandedRows((prev) => ({
-                                    ...prev,
-                                    [fabric._id]: !prev[fabric._id],
-                                  }));
-                                }}
-                                className="px-2 py-1 border border-black/25 text-[10px] font-semibold uppercase tracking-wider hover:bg-black hover:text-white transition rounded cursor-pointer"
+                                onClick={() =>
+                                  setModalImage({ url: fabric.images[0], name })
+                                }
+                                className="cursor-pointer"
                               >
-                                {expandedRows[fabric._id]
-                                  ? locale === "ar"
-                                    ? "إخفاء الخيارات"
-                                    : "Hide variants"
-                                  : locale === "ar"
-                                    ? `عرض الخيارات (${fabric.variants.length})`
-                                    : `Show variant (${fabric.variants.length})`}
+                                <img
+                                  src={fabric.images[0]}
+                                  alt={name}
+                                  className="w-10 h-10 rounded-lg object-cover hover:ring-2 hover:ring-black/20 transition-all"
+                                />
                               </button>
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                                <ImageIcon className="w-4 h-4 text-gray-400" />
+                              </div>
                             )}
-                            <Link
-                              href={`/fabric/fabrics/${fabric._id}/edit`}
-                              className="text-gray-400 hover:text-black transition-colors"
-                              title={locale === "ar" ? "تعديل" : "Edit"}
+                          </td>
+                          <td className="px-6 py-4 text-sm font-medium text-black [font-family:var(--font-body)]">
+                            <div>
+                              {name}
+                              {itemLow && (
+                                <div className="mt-1">
+                                  <LowStockBadge label={t("lowBadge")} />
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 [font-family:var(--font-body)]">
+                            {materialDisplay}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600 [font-family:var(--font-body)]">
+                            <FabricCutsCell
+                              cuts={fabric.cuts as FabricCutRow[] | undefined}
+                              {...cutsCellProps}
+                            />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium [font-family:var(--font-ui)] ${
+                                fabric.isActive
+                                  ? "bg-white text-black border border-black/30"
+                                  : "bg-gray-100 text-gray-500 border border-gray-200"
+                              }`}
                             >
-                              <Edit className="w-4.5 h-4.5" />
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={() => openDeleteModal(fabric)}
-                              disabled={deletingId === fabric._id}
-                              className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
-                              title={locale === "ar" ? "حذف" : "Delete"}
-                            >
-                              <Trash2 className="w-4.5 h-4.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      {expandedRows[fabric._id] &&
-                        fabric.variants &&
-                        fabric.variants.length > 0 && (
-                          <tr className="bg-[#FAF9F5]/45">
-                            <td colSpan={6} className="px-6 py-4">
-                              <div
-                                className={`space-y-2.5 ${locale === "ar" ? "pr-8 text-right" : "pl-8 text-left"}`}
+                              {fabric.isActive
+                                ? t("statusActive")
+                                : t("statusInactive")}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-3">
+                              {fabric.variants &&
+                                fabric.variants.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setExpandedRows((prev) => ({
+                                        ...prev,
+                                        [fabric._id]: !prev[fabric._id],
+                                      }));
+                                    }}
+                                    className="px-2 py-1 border border-black/25 text-[10px] font-semibold uppercase tracking-wider hover:bg-black hover:text-white transition rounded cursor-pointer"
+                                  >
+                                    {expandedRows[fabric._id]
+                                      ? locale === "ar"
+                                        ? "إخفاء الخيارات"
+                                        : "Hide variants"
+                                      : locale === "ar"
+                                        ? `عرض الخيارات (${fabric.variants.length})`
+                                        : `Show variant (${fabric.variants.length})`}
+                                  </button>
+                                )}
+                              <Link
+                                href={`/fabric/fabrics/${fabric._id}/edit`}
+                                className="text-gray-400 hover:text-black transition-colors"
+                                title={locale === "ar" ? "تعديل" : "Edit"}
                               >
-                                <span className="text-[10px] font-semibold uppercase tracking-widest text-black/55 block">
-                                  {locale === "ar"
-                                    ? "الخيارات البديلة"
-                                    : "Variations"}
-                                </span>
-                                <div className="border border-gray-200/60 rounded-xl bg-white shadow-sm overflow-hidden">
-                                  <table className="min-w-full divide-y divide-gray-100">
-                                    <thead className="bg-gray-50/70">
-                                      <tr>
-                                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                                          {locale === "ar" ? "الاسم" : "NAME"}
-                                        </th>
-                                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                                          {locale === "ar"
-                                            ? "المادة"
-                                            : "MATERIAL"}
-                                        </th>
-                                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                                          {locale === "ar" ? "القصات" : "CUTS"}
-                                        </th>
-                                        <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                                          {locale === "ar"
-                                            ? "الحالة"
-                                            : "STATUS"}
-                                        </th>
-                                        <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
-                                          {locale === "ar"
-                                            ? "الإجراءات"
-                                            : "ACTIONS"}
-                                        </th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100 bg-white">
-                                      {fabric.variants.map((v) => {
-                                        const vName =
-                                          locale === "ar"
-                                            ? v.nameAr || v.name
-                                            : v.name;
-                                        const vMaterial =
-                                          locale === "ar"
-                                            ? v.materialAr || v.material
-                                            : v.material;
-                                        const variantLow = cutsHaveLowStock(
-                                          v.cuts as FabricCutRow[] | undefined,
-                                        );
-                                        return (
-                                          <tr
-                                            key={v._id}
-                                            className={
-                                              variantLow
-                                                ? "bg-rose-50/80 hover:bg-rose-50"
-                                                : "hover:bg-gray-50/60 transition-colors"
-                                            }
-                                          >
-                                            <td className="px-4 py-3 text-xs font-semibold text-black [font-family:var(--font-body)]">
-                                              <div className="flex items-center gap-2">
-                                                {v.images &&
-                                                v.images.length > 0 ? (
+                                <Edit className="w-4.5 h-4.5" />
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => openDeleteModal(fabric)}
+                                disabled={deletingId === fabric._id}
+                                className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
+                                title={locale === "ar" ? "حذف" : "Delete"}
+                              >
+                                <Trash2 className="w-4.5 h-4.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {expandedRows[fabric._id] &&
+                          fabric.variants &&
+                          fabric.variants.length > 0 && (
+                            <tr className="bg-[#FAF9F5]/45">
+                              <td colSpan={6} className="px-6 py-4">
+                                <div
+                                  className={`space-y-2.5 ${locale === "ar" ? "pr-8 text-right" : "pl-8 text-left"}`}
+                                >
+                                  <span className="text-[10px] font-semibold uppercase tracking-widest text-black/55 block">
+                                    {locale === "ar"
+                                      ? "الخيارات البديلة"
+                                      : "Variations"}
+                                  </span>
+                                  <div className="border border-gray-200/60 rounded-xl bg-white shadow-sm overflow-hidden">
+                                    <table className="min-w-full divide-y divide-gray-100">
+                                      <thead className="bg-gray-50/70">
+                                        <tr>
+                                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
+                                            {locale === "ar" ? "الاسم" : "NAME"}
+                                          </th>
+                                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
+                                            {locale === "ar"
+                                              ? "المادة"
+                                              : "MATERIAL"}
+                                          </th>
+                                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
+                                            {locale === "ar"
+                                              ? "القصات"
+                                              : "CUTS"}
+                                          </th>
+                                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
+                                            {locale === "ar"
+                                              ? "الحالة"
+                                              : "STATUS"}
+                                          </th>
+                                          <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider [font-family:var(--font-ui)]">
+                                            {locale === "ar"
+                                              ? "الإجراءات"
+                                              : "ACTIONS"}
+                                          </th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-gray-100 bg-white">
+                                        {fabric.variants.map((v) => {
+                                          const vName =
+                                            locale === "ar"
+                                              ? v.nameAr || v.name
+                                              : v.name;
+                                          const vMaterial =
+                                            locale === "ar"
+                                              ? v.materialAr || v.material
+                                              : v.material;
+                                          const variantLow = cutsHaveLowStock(
+                                            v.cuts as
+                                              | FabricCutRow[]
+                                              | undefined,
+                                          );
+                                          return (
+                                            <tr
+                                              key={v._id}
+                                              className={
+                                                variantLow
+                                                  ? "bg-rose-50/80 hover:bg-rose-50"
+                                                  : "hover:bg-gray-50/60 transition-colors"
+                                              }
+                                            >
+                                              <td className="px-4 py-3 text-xs font-semibold text-black [font-family:var(--font-body)]">
+                                                <div className="flex items-center gap-2">
+                                                  {v.images &&
+                                                  v.images.length > 0 ? (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() =>
+                                                        setModalImage({
+                                                          url: v.images[0],
+                                                          name,
+                                                        })
+                                                      }
+                                                      className="cursor-pointer"
+                                                    >
+                                                      <img
+                                                        src={v.images[0]}
+                                                        alt={vName}
+                                                        className="w-8 h-8 rounded-lg object-cover"
+                                                      />
+                                                    </button>
+                                                  ) : (
+                                                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                                                      <ImageIcon className="w-3.5 h-3.5 text-gray-400" />
+                                                    </div>
+                                                  )}
+                                                  <div>
+                                                    <span>{vName}</span>
+                                                    {variantLow && (
+                                                      <div className="mt-1">
+                                                        <LowStockBadge
+                                                          label={t("lowBadge")}
+                                                        />
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </td>
+                                              <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600 [font-family:var(--font-body)]">
+                                                {vMaterial}
+                                              </td>
+                                              <td className="px-4 py-3 text-xs text-gray-600 [font-family:var(--font-body)]">
+                                                <FabricCutsCell
+                                                  cuts={
+                                                    v.cuts as
+                                                      | FabricCutRow[]
+                                                      | undefined
+                                                  }
+                                                  {...cutsCellProps}
+                                                />
+                                              </td>
+                                              <td className="px-4 py-3 whitespace-nowrap">
+                                                <span
+                                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-medium [font-family:var(--font-ui)] ${
+                                                    v.isActive
+                                                      ? "bg-white text-black border border-black/30"
+                                                      : "bg-gray-100 text-gray-500"
+                                                  }`}
+                                                >
+                                                  {v.isActive
+                                                    ? locale === "ar"
+                                                      ? "نشط"
+                                                      : "Active"
+                                                    : locale === "ar"
+                                                      ? "غير نشط"
+                                                      : "Inactive"}
+                                                </span>
+                                              </td>
+                                              <td className="px-4 py-3 whitespace-nowrap text-right text-xs">
+                                                <div className="flex items-center justify-end gap-3">
+                                                  <Link
+                                                    href={`/fabric/fabrics/${v._id}/edit`}
+                                                    className="text-gray-400 hover:text-black transition-colors"
+                                                    title={
+                                                      locale === "ar"
+                                                        ? "تعديل"
+                                                        : "Edit"
+                                                    }
+                                                  >
+                                                    <Edit className="w-4 h-4" />
+                                                  </Link>
                                                   <button
                                                     type="button"
                                                     onClick={() =>
-                                                      setModalImage({
-                                                        url: v.images[0],
-                                                        name,
-                                                      })
+                                                      openDeleteModal(v)
                                                     }
-                                                    className="cursor-pointer"
+                                                    disabled={
+                                                      deletingId === v._id
+                                                    }
+                                                    className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
+                                                    title={
+                                                      locale === "ar"
+                                                        ? "حذف"
+                                                        : "Delete"
+                                                    }
                                                   >
-                                                    <img
-                                                      src={v.images[0]}
-                                                      alt={vName}
-                                                      className="w-8 h-8 rounded-lg object-cover"
-                                                    />
+                                                    <Trash2 className="w-4 h-4" />
                                                   </button>
-                                                ) : (
-                                                  <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                                                    <ImageIcon className="w-3.5 h-3.5 text-gray-400" />
-                                                  </div>
-                                                )}
-                                                <div>
-                                                  <span>{vName}</span>
-                                                  {variantLow && (
-                                                    <div className="mt-1">
-                                                      <LowStockBadge
-                                                        label={t("lowBadge")}
-                                                      />
-                                                    </div>
-                                                  )}
                                                 </div>
-                                              </div>
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-600 [font-family:var(--font-body)]">
-                                              {vMaterial}
-                                            </td>
-                                            <td className="px-4 py-3 text-xs text-gray-600 [font-family:var(--font-body)]">
-                                              <FabricCutsCell
-                                                cuts={
-                                                  v.cuts as
-                                                    | FabricCutRow[]
-                                                    | undefined
-                                                }
-                                                {...cutsCellProps}
-                                              />
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap">
-                                              <span
-                                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-medium [font-family:var(--font-ui)] ${
-                                                  v.isActive
-                                                    ? "bg-white text-black border border-black/30"
-                                                    : "bg-gray-100 text-gray-500"
-                                                }`}
-                                              >
-                                                {v.isActive
-                                                  ? locale === "ar"
-                                                    ? "نشط"
-                                                    : "Active"
-                                                  : locale === "ar"
-                                                    ? "غير نشط"
-                                                    : "Inactive"}
-                                              </span>
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-right text-xs">
-                                              <div className="flex items-center justify-end gap-3">
-                                                <Link
-                                                  href={`/fabric/fabrics/${v._id}/edit`}
-                                                  className="text-gray-400 hover:text-black transition-colors"
-                                                  title={
-                                                    locale === "ar"
-                                                      ? "تعديل"
-                                                      : "Edit"
-                                                  }
-                                                >
-                                                  <Edit className="w-4 h-4" />
-                                                </Link>
-                                                <button
-                                                  type="button"
-                                                  onClick={() =>
-                                                    openDeleteModal(v)
-                                                  }
-                                                  disabled={
-                                                    deletingId === v._id
-                                                  }
-                                                  className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
-                                                  title={
-                                                    locale === "ar"
-                                                      ? "حذف"
-                                                      : "Delete"
-                                                  }
-                                                >
-                                                  <Trash2 className="w-4 h-4" />
-                                                </button>
-                                              </div>
-                                            </td>
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
                                 </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+                              </td>
+                            </tr>
+                          )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
         </>
       )}
 

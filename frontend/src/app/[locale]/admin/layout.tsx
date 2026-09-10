@@ -149,12 +149,6 @@ export default function AdminLayout({
         perm: "customers",
       },
       {
-        label: "Reviews",
-        href: "/admin/reviews",
-        icon: Star,
-        perm: "reviews",
-      },
-      {
         label: "Ready-Made",
         href: "/admin/ready-made",
         icon: Shirt,
@@ -197,6 +191,12 @@ export default function AdminLayout({
         perm: "subAdmins",
       },
       {
+        label: "Reviews",
+        href: "/admin/reviews",
+        icon: Star,
+        perm: "reviews",
+      },
+      {
         label: "Notifications",
         href: "/admin/notifications",
         icon: Bell,
@@ -227,9 +227,9 @@ export default function AdminLayout({
 
   const settingsSubItems = [
     { label: "General", href: "/admin/settings/general", icon: Settings },
+    { label: "Cuts", href: "/admin/settings/cuts", icon: Ruler },
     { label: "Categories", href: "/admin/settings/categories", icon: Tag },
     { label: "Materials", href: "/admin/settings/materials", icon: Layers },
-    { label: "Cuts", href: "/admin/settings/cuts", icon: Ruler },
     { label: "Patterns", href: "/admin/settings/patterns", icon: Palette },
     { label: "Seasons", href: "/admin/settings/seasons", icon: Leaf },
     { label: "Tags", href: "/admin/settings/tags", icon: Tags },

@@ -15,6 +15,8 @@ export interface TailorShopListItem {
   location?: string;
   city?: string;
   phone?: string;
+  website?: string;
+  social?: { name: string; url: string }[];
   rating?: number;
   reviewCount?: number;
   ownerId?: string;

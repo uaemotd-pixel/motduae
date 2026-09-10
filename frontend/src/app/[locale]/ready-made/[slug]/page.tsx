@@ -252,6 +252,27 @@ function RelatedProductsSection({
                     <h3 className="[font-family:var(--font-display)] text-[14px] xs:text-[15px] sm:text-[16px] font-normal text-black leading-snug line-clamp-2">
                       {title}
                     </h3>
+                    {(() => {
+                      const fromShop = String(
+                        lang === "ar"
+                          ? item.fabricShop?.nameAr ||
+                              item.fabricShop?.name ||
+                              ""
+                          : item.fabricShop?.name || "",
+                      ).trim();
+                      const fallback = String(item.ownerName || "").trim();
+                      const storeName =
+                        fromShop ||
+                        (fallback.toLowerCase() === "motd admin"
+                          ? ""
+                          : fallback);
+                      return storeName ? (
+                        <p className="[font-family:var(--font-ui)] text-[8px] uppercase tracking-[0.18em] text-(--color-grey-muted) truncate xs:text-[9px]">
+                          {lang === "ar" ? "المتجر: " : "Store: "}
+                          {storeName}
+                        </p>
+                      ) : null;
+                    })()}
                     <p className="[font-family:var(--font-ui)] text-[12px] xs:text-[13px] tracking-[0.12em] text-black pt-0.5">
                       AED {Number(price).toLocaleString()}
                     </p>
@@ -595,7 +616,7 @@ function ReadyMadeDetailContent({
                     <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-2">
                       Description
                     </span>
-                    <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] leading-relaxed text-(--color-grey-muted)">
+                    <p className="[font-family:var(--font-body)] text-[14px] text-justify xs:text-[15px] sm:text-[16px] leading-relaxed text-(--color-grey-muted)">
                       {desc}
                     </p>
                   </div>

@@ -414,14 +414,22 @@ export function ReadyToWearSection() {
                           AED {price.toFixed(2)}
                         </span>
                         {(() => {
-                          const tName =
+                          const storeName =
                             locale === "ar"
-                              ? item.tailorNameAr || item.tailorName
-                              : item.tailorName;
-                          return tName ? (
-                            <p className="[font-family:var(--font-ui)] text-[9px] xs:text-[8px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3 font-normal">
-                              {locale === "ar" ? "الخياط: " : "TAILOR: "}
-                              {tName.toUpperCase()}
+                              ? item.fabricShop?.nameAr ||
+                                item.fabricShop?.name ||
+                                ""
+                              : item.fabricShop?.name || "";
+                          const fallback = String(item.ownerName || "").trim();
+                          const label =
+                            String(storeName || "").trim() ||
+                            (fallback.toLowerCase() === "motd admin"
+                              ? ""
+                              : fallback);
+                          return label ? (
+                            <p className="[font-family:var(--font-ui)] text-[8px] xs:text-[7px] sm:text-[8px] md:text-[7px] lg:text-[8px] xl:text-[9px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-2 xs:mb-2.5 sm:mb-3 font-normal">
+                              {locale === "ar" ? "المتجر: " : "Store: "}
+                              {label}
                             </p>
                           ) : null;
                         })()}

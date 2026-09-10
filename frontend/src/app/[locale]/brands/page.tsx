@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import TailorsListing from "@/components/tailor/TailorsListing";
+import BrandsListing from "@/components/fabric/BrandsListing";
 import MainLayout from "../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 import { buildStaticPageMetadata } from "@/lib/seo";
@@ -10,14 +10,14 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
-  return buildStaticPageMetadata(locale, "/tailors");
+  return buildStaticPageMetadata(locale, "/brands");
 }
 
-export default function TailorsPage() {
+export default function BrandsPage() {
   return (
     <MainLayout>
       <FadeInSection>
-        <TailorsListing />
+        <BrandsListing />
       </FadeInSection>
     </MainLayout>
   );

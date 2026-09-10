@@ -93,32 +93,32 @@ function RelatedDesignsSection({
   if (!items.length) return null;
 
   return (
-    <section className="bg-(--bg-page) border-t border-(--color-border) pt-12 xs:pt-14 sm:pt-16 pb-16 xs:pb-20 sm:pb-24">
+    <section className="border-t border-(--color-border) bg-(--bg-page) pt-10 pb-14 xs:pt-14 xs:pb-20 sm:pt-16 sm:pb-24">
       {toastMessage && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 bg-black text-white px-4 py-2.5 rounded-lg shadow-lg [font-family:var(--font-ui)] text-xs sm:text-sm tracking-wide max-w-[calc(100vw-24px)] text-center pointer-events-none">
+        <div className="pointer-events-none fixed bottom-24 left-1/2 z-40 max-w-[calc(100vw-24px)] -translate-x-1/2 rounded-lg bg-black px-4 py-2.5 text-center text-xs tracking-wide text-white shadow-lg [font-family:var(--font-ui)] sm:text-sm">
           {toastMessage}
         </div>
       )}
-      <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto max-w-7xl">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8 xs:mb-10">
-          <div>
-            <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-2 flex items-center gap-3">
-              <span className="block w-5 h-px bg-(--color-grey-muted)" />
+      <div className="mx-auto w-full max-w-7xl px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40)">
+        <div className="mb-6 flex flex-col gap-3 xs:mb-8 xs:gap-4 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <span className="mb-2 flex items-center gap-2 text-[9px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)] xs:gap-3 xs:text-[10px] xs:tracking-[0.28em]">
+              <span className="block h-px w-4 bg-(--color-grey-muted) xs:w-5" />
               {labels.relatedEyebrow}
             </span>
-            <h2 className="[font-family:var(--font-display)] text-[28px] xs:text-[32px] sm:text-[36px] md:text-[40px] font-normal leading-[1.1] tracking-[-0.01em] text-black">
+            <h2 className="[font-family:var(--font-display)] text-[24px] font-normal leading-[1.1] tracking-[-0.01em] text-black xs:text-[32px] sm:text-[36px] md:text-[40px]">
               {labels.relatedTitle}
             </h2>
           </div>
           <Link
             href="/designs/designShop"
-            className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-1 hover:opacity-50 transition-opacity whitespace-nowrap self-start sm:self-auto"
+            className="self-start whitespace-nowrap border-b border-black pb-1 text-[9px] uppercase tracking-[0.2em] text-black transition-opacity hover:opacity-50 [font-family:var(--font-ui)] xs:text-[10px] xs:tracking-[0.24em] sm:self-auto"
           >
             {labels.relatedExplore}
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 xs:gap-4 sm:gap-5 lg:gap-6">
+        <div className="grid grid-cols-2 gap-2.5 xs:gap-4 sm:gap-5 md:grid-cols-3 lg:grid-cols-4 lg:gap-6">
           {items.map((item, idx) => {
             const { name, category } = getDesignDisplayFields(item, locale);
             const image = resolveDesignImage(item.images?.[0]);
@@ -146,11 +146,11 @@ function RelatedDesignsSection({
                   duration: 0.45,
                   delay: Math.min(idx * 0.06, 0.3),
                 }}
-                className="group"
+                className="group min-w-0"
               >
                 <Link
                   href={hrefPath}
-                  className="block h-full border border-(--color-border) bg-(--bg-page) rounded-lg overflow-hidden transition-all duration-500 hover:shadow-xl hover:-translate-y-1"
+                  className="block h-full overflow-hidden rounded-md border border-(--color-border) bg-(--bg-page) transition-all duration-500 sm:rounded-lg md:hover:-translate-y-1 md:hover:shadow-xl"
                 >
                   <div className="relative aspect-4/5 overflow-hidden bg-[#F5F5F0]">
                     <img
@@ -158,17 +158,17 @@ function RelatedDesignsSection({
                       alt={name}
                       loading="lazy"
                       decoding="async"
-                      className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
+                      className="h-full w-full object-cover object-top transition-transform duration-700 md:group-hover:scale-105"
                     />
                     {category && (
                       <div
-                        className="absolute top-2 left-2 z-10 px-1.5 py-px text-[8px] [font-family:var(--font-ui)] tracking-[0.12em] font-medium uppercase max-w-[calc(100%-5.5rem)] truncate text-white"
+                        className="absolute top-1.5 inset-s-1.5 z-10 max-w-[calc(100%-4.25rem)] truncate px-1 py-px text-[7px] font-medium uppercase tracking-widest text-white [font-family:var(--font-ui)] xs:top-2 xs:inset-s-2 xs:max-w-[calc(100%-5rem)] xs:px-1.5 xs:text-[8px] xs:tracking-[0.12em] sm:max-w-[calc(100%-5.5rem)]"
                         style={{ backgroundColor: categoryColor }}
                       >
                         {category}
                       </div>
                     )}
-                    <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5">
+                    <div className="absolute top-1.5 inset-e-1.5 z-20 flex items-center gap-1 xs:top-2 xs:inset-e-2 xs:gap-1.5">
                       <button
                         type="button"
                         aria-label={locale === "ar" ? "مشاركة" : "Share"}
@@ -177,9 +177,13 @@ function RelatedDesignsSection({
                           e.stopPropagation();
                           await handleShare(hrefPath);
                         }}
-                        className="p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer border-0 flex items-center justify-center w-8 h-8"
+                        className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:cursor-pointer xs:size-8 sm:hover:scale-105"
                       >
-                        <Share2 className="w-3.5 h-3.5 text-black" />
+                        <Share2
+                          className="size-3 text-black xs:size-3.5"
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
                       </button>
                       <WishlistButton
                         item={{
@@ -193,20 +197,20 @@ function RelatedDesignsSection({
                           type: "design",
                         }}
                         inline
-                        className="p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-sm border-0 flex h-8 w-8 items-center justify-center"
-                        iconClassName="h-3.5 w-3.5"
+                        className="size-7! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-8!"
+                        iconClassName="size-3! xs:size-3.5!"
                       />
                     </div>
                   </div>
-                  <div className="p-3 xs:p-4">
-                    <h3 className="[font-family:var(--font-display)] text-sm xs:text-base text-black leading-snug line-clamp-2 mb-1.5">
+                  <div className="p-2.5 xs:p-3 sm:p-4">
+                    <h3 className="mb-1 line-clamp-2 text-[13px] leading-snug text-black [font-family:var(--font-display)] xs:mb-1.5 xs:text-sm sm:text-base">
                       {name}
                     </h3>
-                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-(--color-grey-muted) mb-1">
+                    <p className="mb-0.5 text-[9px] uppercase tracking-[0.14em] text-(--color-grey-muted) [font-family:var(--font-ui)] xs:mb-1 xs:text-[10px] xs:tracking-[0.16em]">
                       {priceText}
                     </p>
                     {tailorName ? (
-                      <p className="[font-family:var(--font-body)] text-[11px] text-(--color-grey-muted) line-clamp-1">
+                      <p className="line-clamp-1 text-[10px] text-(--color-grey-muted) [font-family:var(--font-body)] xs:text-[11px]">
                         {tailorName}
                       </p>
                     ) : null}

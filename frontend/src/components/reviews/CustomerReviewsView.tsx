@@ -160,10 +160,14 @@ type ProductReview = {
 
 export function ProductReviewsSection({
   productId,
+  tailorShopId,
+  fabricShopId,
   locale,
   labels,
 }: {
-  productId: string;
+  productId?: string;
+  tailorShopId?: string;
+  fabricShopId?: string;
   locale: string;
   labels: {
     title: string;
@@ -184,11 +188,14 @@ export function ProductReviewsSection({
     const load = async () => {
       try {
         setLoading(true);
+        const params = new URLSearchParams({ limit: "50" });
+        if (productId) params.set("productId", productId);
+        if (tailorShopId) params.set("tailorShopId", tailorShopId);
+        if (fabricShopId) params.set("fabricShopId", fabricShopId);
+
         const data = await api.get<
           ProductReview[] | { items?: ProductReview[] }
-        >(
-          `/api/customer/reviews?productId=${encodeURIComponent(productId)}&limit=50`,
-        );
+        >(`/api/customer/reviews?${params.toString()}`);
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data?.items)
@@ -205,11 +212,11 @@ export function ProductReviewsSection({
       }
     };
 
-    if (productId) load();
+    if (productId || tailorShopId || fabricShopId) load();
     return () => {
       cancelled = true;
     };
-  }, [productId]);
+  }, [productId, tailorShopId, fabricShopId]);
 
   const average =
     reviews.length > 0

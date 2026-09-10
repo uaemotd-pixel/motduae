@@ -365,8 +365,21 @@ export function PremiumFabrics() {
             <div className="overflow-hidden py-8 -my-8" ref={emblaRef}>
               <div className="flex will-change-transform -mx-1 xs:-mx-1.5 sm:-mx-2 md:-mx-2.5 lg:-mx-3">
                 {filteredItems.map((item) => {
-                  const { title, description, location } =
-                    getFabricDisplayFields(item, locale);
+                  const { title, description } = getFabricDisplayFields(
+                    item,
+                    locale,
+                  );
+                  const store =
+                    item.listedByStore && typeof item.listedByStore === "object"
+                      ? item.listedByStore
+                      : null;
+                  const storeName = store
+                    ? locale === "ar"
+                      ? store.nameAr || store.name
+                      : store.name
+                    : typeof item.listedByStore === "string"
+                      ? item.listedByStore
+                      : "";
                   const imageUrl = resolveMediaUrl(item.images?.[0]);
                   const materialLabel = getMaterialLabel(
                     item.material,
@@ -420,11 +433,15 @@ export function PremiumFabrics() {
                               iconClassName="h-4 w-4"
                               item={{
                                 id: listingCut
-                                  ? buildFabricCutCartId(item._id, listingCut.cutId)
+                                  ? buildFabricCutCartId(
+                                      item._id,
+                                      listingCut.cutId,
+                                    )
                                   : item._id,
                                 name: title,
                                 image: imageUrl || "",
-                                price: listingCut?.price ?? item.pricePerMeter ?? 0,
+                                price:
+                                  listingCut?.price ?? item.pricePerMeter ?? 0,
                                 slug: item.slug,
                                 size: cutLabel,
                                 quantity: 1,
@@ -447,7 +464,7 @@ export function PremiumFabrics() {
 
                         <div className="p-3 xs:p-4 sm:p-5 md:p-6 lg:p-(--space-24) flex flex-col grow">
                           <div className="flex flex-col justify-between items-start gap-2 mb-1 xs:mb-1.5 sm:mb-2">
-                            <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-[1.25] tracking-[-0.01em] text-black mb-1 line-clamp-2">
+                            <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-tight tracking-[-0.01em] text-black mb-1 line-clamp-2">
                               {title}
                             </h3>
                             <span className="[font-family:var(--font-ui)] text-[12px] xs:text-[13px] sm:text-[14px] md:text-[13px] lg:text-[14px] xl:text-[15px] 2xl:text-[16px] tracking-[0.24em] text-black font-normal whitespace-nowrap">
@@ -455,11 +472,14 @@ export function PremiumFabrics() {
                             </span>
                           </div>
 
-                          <p className="[font-family:var(--font-ui)] text-[8px] xs:text-[7px] sm:text-[8px] md:text-[7px] lg:text-[8px] xl:text-[9px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-2 xs:mb-2.5 sm:mb-3 font-normal">
-                            {location}
-                          </p>
+                          {storeName ? (
+                            <p className="[font-family:var(--font-ui)] text-[8px] xs:text-[7px] sm:text-[8px] md:text-[7px] lg:text-[8px] xl:text-[9px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-2 xs:mb-2.5 sm:mb-3 font-normal">
+                              {locale === "ar" ? "المتجر: " : "Store: "}
+                              {storeName}
+                            </p>
+                          ) : null}
 
-                          <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow">
+                          <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-normal sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow">
                             {description}
                           </p>
                         </div>
