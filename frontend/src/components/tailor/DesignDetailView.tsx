@@ -362,7 +362,7 @@ export default function DesignDetailView({
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
-                className="group relative aspect-4/5 w-full overflow-hidden rounded-md bg-[#F5F5F0] sm:rounded-lg"
+                className="group relative w-full overflow-hidden rounded-md bg-[#F5F5F0] sm:rounded-lg"
               >
                 <button
                   type="button"
@@ -377,11 +377,11 @@ export default function DesignDetailView({
                   />
                 </button>
 
-                <div className="relative h-full w-full touch-pan-y">
+                <div className="relative w-full touch-pan-y">
                   <ZoomImageEffect
                     src={images[activeImage]}
                     alt={name}
-                    className="h-full w-full object-cover object-top"
+                    className="block h-auto w-full object-contain object-center"
                     lensSize={185}
                     zoomLevel={4.5}
                   />

@@ -463,13 +463,13 @@ function ReadyMadeDetailContent({
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5, delay: 0.1 }}
-                  className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group aspect-4/5"
+                  className="w-full relative overflow-hidden bg-[#F5F5F0] rounded-lg group"
                 >
                   <ZoomImageEffect
                     key={selectedImage}
                     src={selectedImage}
                     alt={title}
-                    className="h-full w-full object-cover object-top"
+                    className="block h-auto w-full object-contain object-center"
                     lensSize={185}
                     zoomLevel={3.5}
                   />

@@ -380,7 +380,7 @@ export default function FabricDetailView({
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
-                className="bg-[#F5F4F0] overflow-hidden rounded-sm relative aspect-4/5"
+                className="bg-[#F5F4F0] overflow-hidden rounded-sm relative"
               >
                 <button
                   type="button"
@@ -393,7 +393,7 @@ export default function FabricDetailView({
                 <ZoomImageEffect
                   src={images[activeImage]}
                   alt={fabric.name}
-                  className="h-full w-full object-cover object-top"
+                  className="block h-auto w-full object-contain object-center"
                   lensSize={185}
                   zoomLevel={4.5}
                 />
