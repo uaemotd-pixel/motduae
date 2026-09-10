@@ -9,6 +9,7 @@ import { api } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
 import { Share2 } from "lucide-react";
 import WishlistButton from "../shared/wishlistButton";
+import AddToCartButton from "../shared/addToCartButton";
 import { HomeSectionSkeleton } from "@/components/ui/Skeleton";
 
 interface AddOnListItem {
@@ -359,12 +360,28 @@ export function AddOnsSection() {
                                 : {}),
                             }}
                           />
+
+                          <AddToCartButton
+                            item={{
+                              id: item._id,
+                              slug: item.slug,
+                              name: displayName,
+                              image: resolveMediaUrl(item.thumbnailImage) || "",
+                              price: item.price,
+                              size: "N/A",
+                              itemType: "addon",
+                              maxStock: item.stock || 0,
+                            }}
+                            inline
+                            className="p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 flex h-8 w-8 items-center justify-center xs:h-9 xs:w-9"
+                            iconClassName="h-4 w-4"
+                          />
                         </div>
 
                         <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
                         {displayTag && (
-                          <div className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-3.75rem)]">
+                          <div className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-8.5rem)]">
                             <span
                               style={{
                                 backgroundColor: tagStyles.bg,

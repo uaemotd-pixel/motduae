@@ -16,7 +16,6 @@ import {
   getCutDisplayName,
   getFabricDisplayFields,
   buildFabricCutCartId,
-  getCutLengthLabel,
   filterPublicFabrics,
 } from "@/lib/fabrics";
 import { resolveMediaUrl } from "@/lib/media";

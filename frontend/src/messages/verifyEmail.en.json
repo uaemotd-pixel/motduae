@@ -43,7 +43,7 @@
     "guestEmailRequired": "Email is required.",
     "guestEmailInvalid": "Enter a valid email address.",
     "guestEmailInUse": "This email already has an account. Please sign in.",
-    "guestEmailTaken": "This email cannot be used for guest checkout.",
+    "guestEmailTaken": "An account already exists with this email. This email cannot be used for guest checkout.",
     "guestEmailGeneric": "This email cannot be used for this order. Try a different address."
   }
 }
