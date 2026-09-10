@@ -444,7 +444,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
             <h3 className="text-sm sm:text-base font-medium flex items-center gap-2">
               <User className="w-4 h-4 sm:w-5 sm:h-5" /> Personal Information
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4 sm:gap-5">
               <FormField
                 label="Full Name"
                 name="name"
@@ -640,7 +640,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4 sm:gap-5">
                     <FormField
                       label="Full Name"
                       name={`address.${index}.fullName`}

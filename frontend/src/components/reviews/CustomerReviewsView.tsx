@@ -155,6 +155,7 @@ type ProductReview = {
   quoteAr: string;
   rating: number;
   createdAt: string;
+  verified?: boolean;
 };
 
 export function ProductReviewsSection({
@@ -170,6 +171,7 @@ export function ProductReviewsSection({
     loading: string;
     averageLabel: string;
     countLabel: string;
+    verifiedLabel?: string;
   };
 }) {
   const isArabic = locale === "ar";
@@ -182,11 +184,18 @@ export function ProductReviewsSection({
     const load = async () => {
       try {
         setLoading(true);
-        const data = await api.get<ProductReview[]>(
-          `/api/customer/reviews?productId=${encodeURIComponent(productId)}`,
+        const data = await api.get<
+          ProductReview[] | { items?: ProductReview[] }
+        >(
+          `/api/customer/reviews?productId=${encodeURIComponent(productId)}&limit=50`,
         );
-        if (!cancelled && Array.isArray(data)) {
-          setReviews(data);
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.items)
+            ? data.items
+            : [];
+        if (!cancelled) {
+          setReviews(list);
         }
       } catch (err) {
         console.error("Failed to load product reviews:", err);
@@ -262,6 +271,11 @@ export function ProductReviewsSection({
                     rating={rev.rating}
                     sizeClassName="w-3.5 h-3.5 sm:w-4 sm:h-4"
                   />
+                  {rev.verified ? (
+                    <span className="text-[9px] sm:text-[10px] uppercase tracking-wider px-1.5 py-0.5 border border-gray-200 text-gray-600 [font-family:var(--font-ui)]">
+                      {labels.verifiedLabel || "Verified purchase"}
+                    </span>
+                  ) : null}
                   <span className="text-[10px] sm:text-xs text-gray-400 [font-family:var(--font-body)]">
                     {new Date(rev.createdAt).toLocaleDateString(
                       isArabic ? "ar" : "en",
@@ -312,27 +326,31 @@ interface Review {
 type EligibleProduct = {
   productId: string;
   orderId: string;
-  kind?: "readyMade" | "fabric" | "addon" | string;
+  orderType?: "retail" | "custom" | string;
+  kind?: "readyMade" | "fabric" | "addon" | "design" | string;
   name: string;
   nameAr: string;
   slug: string;
   image: string;
 };
 
-type EligibleCustomOrder = {
-  orderId: string;
-  kind: "custom";
-  name: string;
-  nameAr: string;
-  image?: string;
+type CardDraft = {
+  rating: number;
+  quote: string;
 };
 
-/** Dropdown / submit target: general | product:<id> | custom:<orderId> */
 function targetKeyProduct(productId: string) {
   return `product:${productId}`;
 }
-function targetKeyCustom(orderId: string) {
-  return `custom:${orderId}`;
+
+function kindLabel(
+  t: (key: "kindDesign" | "kindFabric" | "kindAddon" | "kindProduct") => string,
+  kind?: string,
+) {
+  if (kind === "design") return t("kindDesign");
+  if (kind === "fabric") return t("kindFabric");
+  if (kind === "addon") return t("kindAddon");
+  return t("kindProduct");
 }
 
 const TOAST_BASE = {
@@ -395,23 +413,25 @@ export default function CustomerReviewsView({
   const [eligibleProducts, setEligibleProducts] = useState<EligibleProduct[]>(
     [],
   );
-  const [eligibleCustomOrders, setEligibleCustomOrders] = useState<
-    EligibleCustomOrder[]
-  >([]);
+  const [cardDrafts, setCardDrafts] = useState<Record<string, CardDraft>>({});
 
   const [rating, setRating] = useState<number>(5);
   const [quote, setQuote] = useState("");
   const [title, setTitle] = useState("");
-  /** "" | product:<id> | custom:<orderId> */
+  /** "" | product:<id> */
   const [selectedTarget, setSelectedTarget] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingProductLabel, setEditingProductLabel] = useState("");
 
-  const isRegisteredCustomer =
-    Boolean(user) &&
-    !user?.isGuest &&
-    String(user?.role || "").toLowerCase() === "customer";
+  const canReview =
+    Boolean(user) && String(user?.role || "").toLowerCase() === "customer";
+
+  const customEligible = eligibleProducts.filter(
+    (p) => p.orderType === "custom",
+  );
+  const showMultiCard =
+    !editingId && isCustomContext && customEligible.length > 0;
 
   const lockedProduct =
     fromNotification && isRetailContext
@@ -422,30 +442,17 @@ export default function CustomerReviewsView({
         null
       : null;
 
-  const lockedCustomOrder =
-    fromNotification && isCustomContext
-      ? eligibleCustomOrders.find(
-          (o) => selectedTarget === targetKeyCustom(o.orderId),
-        ) ||
-        eligibleCustomOrders[0] ||
-        null
-      : null;
-
-  const lockedLabel = lockedCustomOrder
+  const lockedLabel = lockedProduct
     ? isArabic
-      ? lockedCustomOrder.nameAr || lockedCustomOrder.name
-      : lockedCustomOrder.name || lockedCustomOrder.nameAr
-    : lockedProduct
-      ? isArabic
-        ? lockedProduct.nameAr || lockedProduct.name
-        : lockedProduct.name || lockedProduct.nameAr
-      : null;
+      ? lockedProduct.nameAr || lockedProduct.name
+      : lockedProduct.name || lockedProduct.nameAr
+    : null;
 
   const notificationAlreadyReviewed =
     fromNotification &&
     !editingId &&
     ((isRetailContext && !lockedProduct) ||
-      (isCustomContext && !lockedCustomOrder));
+      (isCustomContext && customEligible.length === 0));
 
   const fetchProfileAndReviews = async () => {
     try {
@@ -465,12 +472,10 @@ export default function CustomerReviewsView({
           .get<{
             success: boolean;
             products: EligibleProduct[];
-            customOrders?: EligibleCustomOrder[];
           }>(`/api/customer/reviews/eligible-products${eligibleQuery}`)
           .catch(() => ({
             success: false,
             products: [] as EligibleProduct[],
-            customOrders: [] as EligibleCustomOrder[],
           })),
       ]);
 
@@ -485,16 +490,19 @@ export default function CustomerReviewsView({
       const products = Array.isArray(eligible?.products)
         ? eligible.products
         : [];
-      const customs = Array.isArray(eligible?.customOrders)
-        ? eligible.customOrders
-        : [];
       setEligibleProducts(products);
-      setEligibleCustomOrders(customs);
+      setCardDrafts((prev) => {
+        const next: Record<string, CardDraft> = { ...prev };
+        for (const product of products) {
+          if (!next[product.productId]) {
+            next[product.productId] = { rating: 5, quote: "" };
+          }
+        }
+        return next;
+      });
 
       if (fromNotification && isRetailContext && products.length > 0) {
         setSelectedTarget(targetKeyProduct(products[0].productId));
-      } else if (fromNotification && isCustomContext && customs.length > 0) {
-        setSelectedTarget(targetKeyCustom(customs[0].orderId));
       } else if (fromNotification) {
         setSelectedTarget("");
       }
@@ -506,13 +514,13 @@ export default function CustomerReviewsView({
   };
 
   useEffect(() => {
-    if (!isRegisteredCustomer) {
+    if (!canReview) {
       setLoading(false);
       return;
     }
     fetchProfileAndReviews();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when notification context changes
-  }, [isRegisteredCustomer, initialOrderId, initialOrderType]);
+  }, [canReview, initialOrderId, initialOrderType]);
 
   const resetForm = () => {
     setQuote("");
@@ -536,9 +544,7 @@ export default function CustomerReviewsView({
         ? rev.titleAr || rev.titleEn || ""
         : rev.titleEn || rev.titleAr || "",
     );
-    if (rev.orderType === "custom" && rev.orderId) {
-      setSelectedTarget(targetKeyCustom(String(rev.orderId)));
-    } else if (rev.productId) {
+    if (rev.productId) {
       setSelectedTarget(targetKeyProduct(String(rev.productId)));
     } else {
       setSelectedTarget("");
@@ -556,8 +562,50 @@ export default function CustomerReviewsView({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!isRegisteredCustomer) {
+    if (!canReview) {
       toast.error(t("registeredOnly"), ERROR_TOAST);
+      return;
+    }
+
+    if (showMultiCard) {
+      const filled = customEligible.filter((product) =>
+        (cardDrafts[product.productId]?.quote || "").trim(),
+      );
+      if (filled.length === 0) {
+        toast.error(t("commentRequired"), ERROR_TOAST);
+        return;
+      }
+
+      setSubmitting(true);
+      try {
+        const trimmedTitle = title.trim();
+        const items = filled.map((product) => {
+          const draft = cardDrafts[product.productId];
+          const payload: Record<string, unknown> = {
+            productId: product.productId,
+            rating: draft.rating,
+          };
+          if (isArabic) {
+            payload.quoteAr = draft.quote.trim();
+            if (trimmedTitle) payload.titleAr = trimmedTitle;
+          } else {
+            payload.quoteEn = draft.quote.trim();
+            if (trimmedTitle) payload.titleEn = trimmedTitle;
+          }
+          return payload;
+        });
+        await api.post("/api/customer/reviews", { items });
+        toast.success(t("submitSuccess"), SUCCESS_TOAST);
+        resetForm();
+        setCardDrafts({});
+        fetchProfileAndReviews();
+      } catch (err: unknown) {
+        const msg =
+          err instanceof Error && err.message ? err.message : t("submitFailed");
+        toast.error(msg, ERROR_TOAST);
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
 
@@ -589,17 +637,9 @@ export default function CustomerReviewsView({
         });
         toast.success(t("editSuccess"), SUCCESS_TOAST);
       } else {
-        const linkPayload: { productId?: string; customOrderId?: string } = {};
-        if (selectedTarget.startsWith("custom:")) {
-          linkPayload.customOrderId = selectedTarget.slice("custom:".length);
-        } else if (selectedTarget.startsWith("product:")) {
+        const linkPayload: { productId?: string } = {};
+        if (selectedTarget.startsWith("product:")) {
           linkPayload.productId = selectedTarget.slice("product:".length);
-        } else if (
-          fromNotification &&
-          isCustomContext &&
-          lockedCustomOrder?.orderId
-        ) {
-          linkPayload.customOrderId = lockedCustomOrder.orderId;
         } else if (
           fromNotification &&
           isRetailContext &&
@@ -632,7 +672,7 @@ export default function CustomerReviewsView({
   };
 
   const handleDelete = async (reviewId: string) => {
-    if (!isRegisteredCustomer || !reviewId) return;
+    if (!canReview || !reviewId) return;
     if (!window.confirm(t("confirmDelete"))) return;
 
     setDeletingId(reviewId);
@@ -664,7 +704,7 @@ export default function CustomerReviewsView({
     );
   }
 
-  if (!isRegisteredCustomer) {
+  if (!canReview) {
     return (
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 md:p-8 shadow-sm space-y-4">
         <h2 className="text-lg sm:text-xl md:text-2xl font-['Ivy_Ora'] text-black">
@@ -693,7 +733,7 @@ export default function CustomerReviewsView({
 
   return (
     <div
-      className="space-y-6 sm:space-y-8 md:space-y-10"
+      className="space-y-4 sm:space-y-6"
       dir={isArabic ? "rtl" : "ltr"}
     >
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 md:p-8 shadow-sm">
@@ -710,10 +750,7 @@ export default function CustomerReviewsView({
           </p>
         ) : null}
 
-        {!fromNotification &&
-        !editingId &&
-        eligibleProducts.length === 0 &&
-        eligibleCustomOrders.length === 0 ? (
+        {!fromNotification && !editingId && eligibleProducts.length === 0 ? (
           <p className="text-gray-500 text-xs sm:text-sm font-['TT_Norms_Pro'] mb-4 sm:mb-6">
             {t("noEligibleProducts")}
           </p>
@@ -732,7 +769,7 @@ export default function CustomerReviewsView({
             </div>
           ) : null}
 
-          {!editingId && fromNotification && lockedLabel ? (
+          {!editingId && fromNotification && lockedLabel && !showMultiCard ? (
             <div className="space-y-1.5 sm:space-y-2">
               <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
                 {t("productLockedLabel")}
@@ -741,16 +778,68 @@ export default function CustomerReviewsView({
                 {lockedLabel}
               </p>
               <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
-                {isCustomContext
-                  ? t("customOrderLockedHint")
-                  : t("productLockedHint")}
+                {t("productLockedHint")}
               </p>
+            </div>
+          ) : null}
+
+          {showMultiCard ? (
+            <div className="space-y-4">
+              <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
+                {t("multiCardHint")}
+              </p>
+              {customEligible.map((product) => {
+                const draft = cardDrafts[product.productId] || {
+                  rating: 5,
+                  quote: "",
+                };
+                const label = isArabic
+                  ? product.nameAr || product.name
+                  : product.name || product.nameAr;
+                return (
+                  <div
+                    key={product.productId}
+                    className="border border-gray-200 p-3 sm:p-4 space-y-3"
+                  >
+                    <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.18em] font-medium text-gray-700 [font-family:var(--font-ui)]">
+                      {kindLabel(t, product.kind)} · {label}
+                    </p>
+                    <StarRatingInput
+                      value={draft.rating}
+                      onChange={(value) =>
+                        setCardDrafts((prev) => ({
+                          ...prev,
+                          [product.productId]: { ...draft, rating: value },
+                        }))
+                      }
+                      labelForValue={(value) => t("starLabel", { count: value })}
+                      sizeClassName="w-6 h-6 sm:w-7 sm:h-7"
+                    />
+                    <textarea
+                      value={draft.quote}
+                      onChange={(e) =>
+                        setCardDrafts((prev) => ({
+                          ...prev,
+                          [product.productId]: {
+                            ...draft,
+                            quote: e.target.value,
+                          },
+                        }))
+                      }
+                      placeholder={t("commentPlaceholder")}
+                      className={TEXTAREA_CLASS}
+                      dir={isArabic ? "rtl" : "ltr"}
+                    />
+                  </div>
+                );
+              })}
             </div>
           ) : null}
 
           {!editingId &&
           !fromNotification &&
-          (eligibleProducts.length > 0 || eligibleCustomOrders.length > 0) ? (
+          !showMultiCard &&
+          eligibleProducts.length > 0 ? (
             <div className="space-y-1.5 sm:space-y-2">
               <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
                 {t("productLabel")}
@@ -761,21 +850,12 @@ export default function CustomerReviewsView({
                 className={INPUT_CLASS}
               >
                 <option value="">{t("productGeneral")}</option>
-                {eligibleCustomOrders.map((order) => (
-                  <option
-                    key={order.orderId}
-                    value={targetKeyCustom(order.orderId)}
-                  >
-                    {isArabic
-                      ? order.nameAr || order.name
-                      : order.name || order.nameAr}
-                  </option>
-                ))}
                 {eligibleProducts.map((product) => (
                   <option
                     key={product.productId}
                     value={targetKeyProduct(product.productId)}
                   >
+                    {kindLabel(t, product.kind)} ·{" "}
                     {isArabic
                       ? product.nameAr || product.name
                       : product.name || product.nameAr}
@@ -788,21 +868,39 @@ export default function CustomerReviewsView({
             </div>
           ) : null}
 
-          <div className="space-y-1.5 sm:space-y-2">
-            <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
-              {t("rating")} ({rating})
-            </label>
-            <StarRatingInput
-              value={rating}
-              onChange={setRating}
-              labelForValue={(value) => t("starLabel", { count: value })}
-              sizeClassName="w-6 h-6 sm:w-7 sm:h-7"
-            />
-            <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
-              {t("halfStarHint")}
-            </p>
+          {showMultiCard ? null : (
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
+                {t("rating")} ({rating})
+              </label>
+              <StarRatingInput
+                value={rating}
+                onChange={setRating}
+                labelForValue={(value) => t("starLabel", { count: value })}
+                sizeClassName="w-6 h-6 sm:w-7 sm:h-7"
+              />
+              <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
+                {t("halfStarHint")}
+              </p>
+            </div>
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
+                {t("titleLabel")}
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t("titlePlaceholder")}
+                className={INPUT_CLASS}
+                dir={isArabic ? "rtl" : "ltr"}
+              />
+            </div>
           </div>
+          )}
 
+          {showMultiCard ? null : (
           <div className="space-y-1.5 sm:space-y-2">
             <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
               {t("commentLabel")} *
@@ -813,23 +911,26 @@ export default function CustomerReviewsView({
               placeholder={t("commentPlaceholder")}
               className={TEXTAREA_CLASS}
               dir={isArabic ? "rtl" : "ltr"}
-              required
+              required={!showMultiCard}
             />
           </div>
+          )}
 
-          <div className="space-y-1.5 sm:space-y-2">
-            <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
-              {t("titleLabel")}
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={t("titlePlaceholder")}
-              className={INPUT_CLASS}
-              dir={isArabic ? "rtl" : "ltr"}
-            />
-          </div>
+          {showMultiCard ? (
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
+                {t("titleLabel")}
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t("titlePlaceholder")}
+                className={INPUT_CLASS}
+                dir={isArabic ? "rtl" : "ltr"}
+              />
+            </div>
+          ) : null}
 
           <div className="pt-1 sm:pt-2 flex flex-wrap gap-3">
             <button

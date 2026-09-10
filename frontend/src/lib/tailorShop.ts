@@ -134,7 +134,7 @@ export function toTailorShopPayload(
   return {
     name: form.name.trim(),
     nameAr: form.nameAr.trim(),
-    slug: form.slug.trim().toLowerCase(),
+    slug: slugifyShopName(form.name),
     description: form.description.trim(),
     descriptionAr: form.descriptionAr.trim(),
     logo: form.logo.trim(),

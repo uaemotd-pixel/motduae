@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useParams, useSearchParams } from "next/navigation";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -25,6 +25,7 @@ import {
 } from "@/lib/tailors";
 import { type FabricListItem, getFabricMaxCutLength } from "@/lib/fabrics";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
+import CustomOrderFloatingNext from "@/components/custom-order/CustomOrderFloatingNext";
 import { CustomOrderStepSkeleton, ProductGridSkeleton } from "@/components/ui/Skeleton";
 
 export default function TailorDesignSelectionStep() {
@@ -185,6 +186,7 @@ export default function TailorDesignSelectionStep() {
 
     const selectedCount = draft.selectedDesigns.length;
     const canContinue = isTailorStepComplete(draft);
+    const footerContinueRef = useRef<HTMLButtonElement>(null);
     const stepNumber = getCustomOrderStepNumber("tailor", draft.firstStep);
     const nextPath = getNextPathAfterTailor(draft);
     const continueLabel = nextPath.includes("/meters")
@@ -403,6 +405,7 @@ export default function TailorDesignSelectionStep() {
 
                     <button
                         type="button"
+                        ref={footerContinueRef}
                         onClick={handleContinue}
                         disabled={!canContinue}
                         className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)]"
@@ -411,6 +414,13 @@ export default function TailorDesignSelectionStep() {
                     </button>
                 </div>
             </div>
+
+            <CustomOrderFloatingNext
+                enabled={canContinue}
+                onClick={handleContinue}
+                ariaLabel={continueLabel}
+                footerRef={footerContinueRef}
+            />
         </div>
     );
 }

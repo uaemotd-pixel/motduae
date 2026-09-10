@@ -124,7 +124,7 @@ const ViewFabricDetails = ({ product }: FabricDetailsProps) => {
                   <img
                     src={images[activeImage]}
                     alt={product.name}
-                    className="w-full h-full object-cover transition-opacity duration-700"
+                    className="w-full h-full object-cover object-top transition-opacity duration-700"
                   />
                   <AnimatePresence>
                     {showMagnifier && (
@@ -426,11 +426,11 @@ const ViewFabricDetails = ({ product }: FabricDetailsProps) => {
         {/* MOBILE & TABLET */}
         <div className="lg:hidden max-w-screen-2xl mx-auto px-4 sm:px-6 md:px-8">
           {/* Hero image */}
-          <div className="relative w-full h-[60vh] sm:h-[70vh] bg-[#F5F4F0] mb-8 rounded-sm overflow-hidden">
+          <div className="relative w-full aspect-4/5 max-h-[70vh] bg-[#F5F4F0] mb-8 rounded-sm overflow-hidden">
             <motion.img
               src={images[activeImage]}
               alt={product.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-top"
               initial={{ scale: 1.1 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.8 }}
@@ -640,11 +640,11 @@ const ViewFabricDetails = ({ product }: FabricDetailsProps) => {
                 className="group cursor-pointer"
               >
                 <Link href={`/fabrics/${item.id}`} className="block space-y-4">
-                  <div className="relative aspect-3/4 bg-[#F2F2F0] overflow-hidden rounded-sm">
+                  <div className="relative aspect-4/5 bg-[#F2F2F0] overflow-hidden rounded-sm">
                     <img
                       src={item.image}
                       alt={item.name}
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 flex items-end justify-center pb-4 opacity-0 group-hover:opacity-100">
                       <button

@@ -16,6 +16,7 @@ interface Testimonial {
   quoteEn: string;
   quoteAr: string;
   rating: number;
+  verified?: boolean;
 }
 
 const testimonialsData: Testimonial[] = [
@@ -132,7 +133,7 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 // Testimonial Card Component
-function TestimonialCard({ testimonial, language }: { testimonial: Testimonial; language: "en" | "ar" }) {
+function TestimonialCard({ testimonial, language, verifiedLabel }: { testimonial: Testimonial; language: "en" | "ar"; verifiedLabel: string }) {
   const displayName = language === "ar" ? testimonial.nameAr : testimonial.nameEn;
   const displayTitle = language === "ar" ? testimonial.titleAr : testimonial.titleEn;
   const displayQuote = language === "ar" ? testimonial.quoteAr : testimonial.quoteEn;
@@ -142,6 +143,11 @@ function TestimonialCard({ testimonial, language }: { testimonial: Testimonial; 
       <div className="mb-6 xs:mb-7 sm:mb-8 md:mb-9 lg:mb-10">
         {/* Stars */}
         <StarRating rating={testimonial.rating} />
+        {testimonial.verified ? (
+          <p className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.2em] text-(--color-grey-muted) mt-2">
+            {verifiedLabel}
+          </p>
+        ) : null}
         {/* Quote */}
         <p className="[font-family:var(--font-body)] text-[14px] xs:text-[12px] sm:text-[13px] md:text-[12px] lg:text-[13px] xl:text-[14px] leading-[1.6] xs:leading-[1.7] sm:leading-[1.8] md:leading-[1.9] italic text-(--color-grey-muted) font-normal mt-4 xs:mt-5 sm:mt-6">
           &quot;{displayQuote}&quot;
@@ -182,12 +188,18 @@ export function Testimonials() {
   useEffect(() => {
     const fetchReviews = async () => {
       try {
-        const fetched = await api.get<Testimonial[]>("/api/customer/reviews");
-        if (fetched && Array.isArray(fetched)) {
-          setAllTestimonials([...testimonialsData, ...fetched]);
-        }
+        const fetched = await api.get<
+          Testimonial[] | { items?: Testimonial[] }
+        >("/api/customer/reviews?limit=12");
+        const items = Array.isArray(fetched)
+          ? fetched
+          : Array.isArray(fetched?.items)
+            ? fetched.items
+            : [];
+        setAllTestimonials(items.length > 0 ? items : testimonialsData);
       } catch (err) {
         console.error("Failed to load customer reviews:", err);
+        setAllTestimonials(testimonialsData);
       }
     };
     fetchReviews();
@@ -236,6 +248,7 @@ export function Testimonials() {
               <TestimonialCard
                 testimonial={testimonial}
                 language={currentLanguage}
+                verifiedLabel={t("verifiedPurchase")}
               />
             </div>
           ))}

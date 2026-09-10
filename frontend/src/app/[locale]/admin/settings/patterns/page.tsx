@@ -277,12 +277,12 @@ export default function AdminSettingsPatternsPage() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-gray-900 to-gray-700 flex items-center justify-center shadow-lg">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-linear-to-br from-gray-900 to-gray-700 flex items-center justify-center shadow-lg">
               <Palette className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">
+            <div className="min-w-0 pt-1">
+              <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight leading-tight">
                 Patterns
               </h1>
               <p className="text-gray-500 text-sm">

@@ -125,7 +125,7 @@ export default function TailorDesignsList() {
 
   return (
     <div className="max-w-5xl">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 sm:gap-4 mb-6 sm:mb-8">
         <div>
           <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-3">
             {t("eyebrow")}
@@ -169,62 +169,64 @@ export default function TailorDesignsList() {
             return (
               <div
                 key={design._id}
-                className="border border-(--color-border) bg-white p-4 sm:p-5 flex flex-col sm:flex-row gap-4 sm:gap-6"
+                className="border border-(--color-border) bg-white p-3 sm:p-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-5"
               >
-                <div className="w-full sm:w-28 h-28 shrink-0 bg-[#F0EBE3] overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setModalImage({ url: design.images[0], name })
-                    }
-                    className="cursor-pointer"
-                  >
-                    <img
-                      src={imageSrc}
-                      alt={name}
-                      loading="lazy"
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-start gap-2 mb-2">
-                    <h2 className="[font-family:var(--font-display)] text-[20px] text-black">
-                      {name}
-                    </h2>
-                    <span
-                      className={`[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.2em] px-2 py-0.5 ${
-                        design.isActive
-                          ? "bg-black text-white"
-                          : "border border-(--color-border) text-(--color-grey-muted)"
-                      }`}
+                <div className="flex gap-3 min-w-0 flex-1">
+                  <div className="w-20 h-20 sm:w-28 sm:h-28 shrink-0 bg-[#F0EBE3] overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setModalImage({ url: design.images[0], name })
+                      }
+                      className="block w-full h-full cursor-pointer"
                     >
-                      {design.isActive
-                        ? t("statusActive")
-                        : t("statusInactive")}
-                    </span>
+                      <img
+                        src={imageSrc}
+                        alt={name}
+                        loading="lazy"
+                        className="w-full h-full object-cover object-top"
+                      />
+                    </button>
                   </div>
-                  <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.18em] text-(--color-grey-muted) mb-2">
-                    {category} · {locale === "ar" ? "من" : "From"}{" "}
-                    {formatDesignBasePrice(
-                      design.basePrice,
-                      locale,
-                      design.priceType,
-                    )}{" "}
-                    · {t("estimatedDays", { days: design.estimatedDays })}
-                  </p>
-                  <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) line-clamp-2">
-                    {locale === "ar"
-                      ? design.descriptionAr || design.description
-                      : design.description}
-                  </p>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start gap-2 mb-1.5">
+                      <h2 className="[font-family:var(--font-display)] text-[16px] sm:text-[20px] leading-snug text-black min-w-0">
+                        {name}
+                      </h2>
+                      <span
+                        className={`shrink-0 [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.16em] px-1.5 py-0.5 mt-0.5 ${
+                          design.isActive
+                            ? "bg-black text-white"
+                            : "border border-(--color-border) text-(--color-grey-muted)"
+                        }`}
+                      >
+                        {design.isActive
+                          ? t("statusActive")
+                          : t("statusInactive")}
+                      </span>
+                    </div>
+                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.14em] text-(--color-grey-muted)">
+                      {category} · {locale === "ar" ? "من" : "From"}{" "}
+                      {formatDesignBasePrice(
+                        design.basePrice,
+                        locale,
+                        design.priceType,
+                      )}{" "}
+                      · {t("estimatedDays", { days: design.estimatedDays })}
+                    </p>
+                    <p className="hidden sm:block [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) line-clamp-2 mt-1.5">
+                      {locale === "ar"
+                        ? design.descriptionAr || design.description
+                        : design.description}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex sm:flex-col gap-3 shrink-0">
+                <div className="flex gap-2 sm:flex-col sm:shrink-0 sm:w-28">
                   <Link
                     href={`/tailor/designs/${design._id}/edit`}
-                    className="text-center px-5 py-2.5 border border-black text-black text-[10px] tracking-[0.2em] uppercase hover:bg-black hover:text-white transition [font-family:var(--font-ui)]"
+                    className="flex-1 sm:flex-none text-center px-3 py-2 border border-black text-black text-[10px] tracking-[0.16em] uppercase hover:bg-black hover:text-white transition [font-family:var(--font-ui)]"
                   >
                     {t("edit")}
                   </Link>
@@ -232,7 +234,7 @@ export default function TailorDesignsList() {
                     type="button"
                     onClick={() => openDeleteModal(design)}
                     disabled={deletingId === design._id}
-                    className="px-5 py-2.5 border border-red-300 text-red-700 text-[10px] tracking-[0.2em] uppercase hover:bg-red-50 transition disabled:opacity-50 [font-family:var(--font-ui)]"
+                    className="flex-1 sm:flex-none px-3 py-2 border border-red-300 text-red-700 text-[10px] tracking-[0.16em] uppercase hover:bg-red-50 transition disabled:opacity-50 [font-family:var(--font-ui)]"
                   >
                     {deletingId === design._id ? t("deleting") : t("delete")}
                   </button>

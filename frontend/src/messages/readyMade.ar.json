@@ -21,7 +21,8 @@
             "reviewsEmpty": "لا توجد تقييمات لهذا المنتج بعد.",
             "reviewsLoading": "جاري تحميل التقييمات…",
             "reviewsAverage": "المتوسط {rating}",
-            "reviewsCount": "{count} تقييمات"
+            "reviewsCount": "{count} تقييمات",
+            "verifiedPurchase": "شراء موثّق"
         }
     }
 }

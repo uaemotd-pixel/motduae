@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useParams, useSearchParams } from "next/navigation";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -38,6 +38,7 @@ import {
     getDesignMinCutLength,
 } from "@/lib/tailors";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
+import CustomOrderFloatingNext from "@/components/custom-order/CustomOrderFloatingNext";
 import { CustomOrderStepSkeleton, ProductGridSkeleton } from "@/components/ui/Skeleton";
 import { resolveMediaUrl } from "@/lib/media";
 
@@ -208,6 +209,7 @@ export default function FabricSelectionStep() {
 
     const selectedCount = draft.selectedFabrics.length;
     const canContinue = isFabricStepComplete(draft);
+    const footerContinueRef = useRef<HTMLButtonElement>(null);
     const hasSelectedOutOfStock = draft.selectedFabrics.some(
         (f) => !isFabricInStock(f),
     );
@@ -426,11 +428,11 @@ export default function FabricSelectionStep() {
                                                   : "border-(--color-border) bg-white hover:border-black hover:shadow-2xl hover:-translate-y-2"
                                         }`}
                                     >
-                                        <div className="aspect-square bg-neutral-100 overflow-hidden relative rounded-t-lg">
+                                        <div className="aspect-4/5 bg-neutral-100 overflow-hidden relative rounded-t-lg">
                                             <img
                                                 src={imageUrl}
                                                 alt={title}
-                                                className={`w-full h-full object-cover transition-all duration-700 ${
+                                                className={`w-full h-full object-cover object-top transition-all duration-700 ${
                                                     isOutOfStock ? "grayscale-30" : "group-hover:scale-105"
                                                 }`}
                                             />
@@ -521,6 +523,7 @@ export default function FabricSelectionStep() {
 
                     <button
                         type="button"
+                        ref={footerContinueRef}
                         onClick={handleContinue}
                         disabled={!canContinue}
                         className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)]"
@@ -529,6 +532,13 @@ export default function FabricSelectionStep() {
                     </button>
                 </div>
             </div>
+
+            <CustomOrderFloatingNext
+                enabled={canContinue}
+                onClick={handleContinue}
+                ariaLabel={continueLabel}
+                footerRef={footerContinueRef}
+            />
         </div>
     );
 }

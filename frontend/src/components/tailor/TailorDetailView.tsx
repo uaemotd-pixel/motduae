@@ -50,30 +50,30 @@ export default function TailorDetailView({
                     <span className="text-black">{badge || name}</span>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,420px)_1fr] gap-8 lg:gap-12 mb-16">
-                    <div className="aspect-4/3 max-w-md lg:max-w-none mx-auto lg:mx-0 w-full bg-[#F0EBE3] overflow-hidden rounded-sm">
+                <div className="flex flex-col sm:flex-row gap-5 sm:gap-8 lg:gap-10 mb-10 sm:mb-14">
+                    <div className="w-32 xs:w-36 sm:w-44 lg:w-52 shrink-0 aspect-4/5 bg-[#F0EBE3] overflow-hidden rounded-sm mx-auto sm:mx-0">
                         <img
                             src={coverImage}
                             alt={name}
                             loading="lazy"
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover object-top"
                         />
                     </div>
 
-                    <div className="flex flex-col justify-center">
+                    <div className="flex flex-col justify-center min-w-0 text-center sm:text-start">
                         {badge && (
                             <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
                                 {badge}
                             </span>
                         )}
-                        <h1 className="[font-family:var(--font-display)] text-[32px] sm:text-[40px] lg:text-[44px] font-normal leading-[1.1] tracking-[-0.01em] text-black mb-3">
+                        <h1 className="[font-family:var(--font-display)] text-[26px] sm:text-[36px] lg:text-[40px] font-normal leading-[1.1] tracking-[-0.01em] text-black mb-2 sm:mb-3">
                             {name}
                         </h1>
                         <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-4">
                             {location}
                         </p>
 
-                        <div className="flex items-center gap-2 mb-6">
+                        <div className="flex items-center justify-center sm:justify-start gap-2 mb-4 sm:mb-6">
                             <svg
                                 className="w-4 h-4 text-black fill-black"
                                 viewBox="0 0 24 24"
