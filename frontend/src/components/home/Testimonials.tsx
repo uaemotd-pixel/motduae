@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api/client";
 import useEmblaCarousel from "embla-carousel-react";
@@ -224,9 +224,45 @@ export function Testimonials() {
     ]
   );
 
+  const [prevBtnEnabled, setPrevBtnEnabled] = useState(false);
+  const [nextBtnEnabled, setNextBtnEnabled] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [scrollSnaps, setScrollSnaps] = useState<number[]>([]);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setPrevBtnEnabled(emblaApi.canScrollPrev());
+    setNextBtnEnabled(emblaApi.canScrollNext());
+    setSelectedIndex(emblaApi.selectedScrollSnap());
+  }, [emblaApi]);
+
+  const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
+  const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
+  const scrollTo = useCallback(
+    (index: number) => emblaApi?.scrollTo(index),
+    [emblaApi],
+  );
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    const syncSnaps = () => {
+      setScrollSnaps(emblaApi.scrollSnapList());
+      onSelect();
+    };
+    syncSnaps();
+    emblaApi.on("select", onSelect);
+    emblaApi.on("reInit", syncSnaps);
+    return () => {
+      emblaApi.off("select", onSelect);
+      emblaApi.off("reInit", syncSnaps);
+    };
+  }, [emblaApi, onSelect]);
+
   useEffect(() => {
     if (emblaApi) emblaApi.reInit();
-  }, [emblaApi, allTestimonials]);
+  }, [emblaApi, allTestimonials, isArabic]);
+
+  const showNav = scrollSnaps.length > 1;
 
   return (
     <section className="py-12 xs:py-16 sm:py-20 md:py-24 lg:py-section-gap px-4 xs:px-6 sm:px-8 md:px-12 lg:px-margin-desktop max-w-container-max mx-auto bg-(--bg-page) mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-(--space-80)">
@@ -237,23 +273,91 @@ export function Testimonials() {
         </h2>
       </div>
 
-      {/* Embla Carousel Viewport */}
-      <div className="overflow-hidden py-4 -my-4" ref={emblaRef}>
-        <div className="flex -mx-2.5 md:-mx-4 lg:-mx-5">
-          {allTestimonials.map((testimonial) => (
-            <div
-              key={testimonial.id}
-              className="flex-[0_0_100%] sm:flex-[0_0_50%] lg:flex-[0_0_33.333%] xl:flex-[0_0_25%] px-2.5 md:px-4 lg:px-5 py-4"
+      <div className="relative group/carousel">
+        {showNav && (
+          <>
+            <button
+              type="button"
+              onClick={scrollPrev}
+              disabled={!prevBtnEnabled}
+              className={`hidden sm:flex absolute ${isArabic ? "right-2 xs:right-3 sm:right-4" : "left-2 xs:left-3 sm:left-4"} top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] hover:cursor-pointer group/prev ${
+                !prevBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+              aria-label="Previous review"
             >
-              <TestimonialCard
-                testimonial={testimonial}
-                language={currentLanguage}
-                verifiedLabel={t("verifiedPurchase")}
-              />
-            </div>
-          ))}
+              <svg
+                className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-[#1A2A3A] group-hover/prev:text-white transition-colors duration-200"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d={isArabic ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"} />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={scrollNext}
+              disabled={!nextBtnEnabled}
+              className={`hidden sm:flex absolute ${isArabic ? "left-2 xs:left-3 sm:left-4" : "right-2 xs:right-3 sm:right-4"} top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] hover:cursor-pointer group/next ${
+                !nextBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+              aria-label="Next review"
+            >
+              <svg
+                className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-[#1A2A3A] group-hover/next:text-white transition-colors duration-200"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d={isArabic ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"} />
+              </svg>
+            </button>
+          </>
+        )}
+
+        {/* Embla Carousel Viewport */}
+        <div className="overflow-hidden py-4 -my-4" ref={emblaRef}>
+          <div className="flex -mx-2.5 md:-mx-4 lg:-mx-5">
+            {allTestimonials.map((testimonial) => (
+              <div
+                key={testimonial.id}
+                className="flex-[0_0_100%] sm:flex-[0_0_50%] lg:flex-[0_0_33.333%] xl:flex-[0_0_25%] px-2.5 md:px-4 lg:px-5 py-4"
+              >
+                <TestimonialCard
+                  testimonial={testimonial}
+                  language={currentLanguage}
+                  verifiedLabel={t("verifiedPurchase")}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+
+      {showNav && (
+        <div className="flex justify-center gap-1.5 xs:gap-2 sm:gap-2.5 md:gap-3 mt-6 xs:mt-8 sm:mt-10 md:mt-12 lg:mt-(--space-32)">
+          {scrollSnaps.map((_, index) => (
+            <button
+              type="button"
+              key={index}
+              onClick={() => scrollTo(index)}
+              className={`w-1.5 h-1.5 xs:w-2 xs:h-2 rounded-full transition-all mx-0.5 xs:mx-1 hover:cursor-pointer ${
+                index === selectedIndex
+                  ? "bg-black scale-125"
+                  : "bg-gray-400 hover:bg-gray-600"
+              }`}
+              aria-label={`Go to review ${index + 1}`}
+              aria-current={index === selectedIndex ? "true" : undefined}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
