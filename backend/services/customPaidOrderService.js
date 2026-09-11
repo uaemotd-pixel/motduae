@@ -25,6 +25,11 @@ import {
 } from "./publicTrackingToken.js";
 import { sendPaidOrderPlacedEmail } from "./orderPlacedEmail.js";
 import { notifyPaidOrderVendors } from "./vendorOrderNotify.js";
+import PlatformSettings from "../models/PlatformSettings.js";
+import {
+  customerPriceForPartnerItem,
+  sumCustomerAddonPrices,
+} from "../utils/motdCommission.js";
 
 const isApprovedTailorOwner = (owner) =>
   owner?.role === "tailor" && owner?.approvalStatus === "approved";
@@ -610,7 +615,9 @@ async function buildMultiItemOrderData(orderInput, deliveryType = "delivery", ad
 async function getAddonsCost(addonIds = []) {
   if (!Array.isArray(addonIds) || addonIds.length === 0) return 0;
   const dbAddons = await AddOn.find({ _id: { $in: addonIds }, isActive: true });
-  return dbAddons.reduce((sum, item) => sum + item.price, 0);
+  const settings = await PlatformSettings.getSettings();
+  const percent = Number(settings.motdCommissionFromFabricStore) || 0;
+  return sumCustomerAddonPrices(dbAddons, percent);
 }
 
 export async function getCustomOrderTotalFromBody(body) {
@@ -736,16 +743,19 @@ export async function createPaidCustomOrder({
 
   let dbAddons = [];
   let addonsCost = 0;
+  let fabricCommission = 0;
   if (addonIds && addonIds.length > 0) {
     dbAddons = await AddOn.find({ _id: { $in: addonIds }, isActive: true });
-    addonsCost = dbAddons.reduce((sum, item) => sum + item.price, 0);
+    const settings = await PlatformSettings.getSettings();
+    fabricCommission = Number(settings.motdCommissionFromFabricStore) || 0;
+    addonsCost = sumCustomerAddonPrices(dbAddons, fabricCommission);
   }
 
   const addonDocs = dbAddons.map((a) => ({
     addonId: a._id,
     name: a.name,
     nameAr: a.nameAr,
-    price: a.price,
+    price: customerPriceForPartnerItem(a.price, a, fabricCommission),
     thumbnailImage: a.thumbnailImage,
     fabricShopId: a.fabricShopId || null,
   }));

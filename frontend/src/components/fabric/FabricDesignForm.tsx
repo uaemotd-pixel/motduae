@@ -48,6 +48,7 @@ import {
   normalizeUaePhone,
 } from "@/lib/uaePhone";
 import colors from "../shared/colors";
+import { fetchMotdCommissionPercents, DEFAULT_FABRIC_COMMISSION } from "@/lib/motdCommission";
 
 const INPUT_CLASS =
   "w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none bg-transparent text-xs sm:text-sm";
@@ -288,6 +289,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
   const [tagsLoading, setTagsLoading] = useState(true);
   const [catalogCuts, setCatalogCuts] = useState<CatalogCut[]>([]);
   const [cutsLoading, setCutsLoading] = useState(true);
+  const [commissionPercent, setCommissionPercent] = useState(
+    DEFAULT_FABRIC_COMMISSION,
+  );
   const colorDropdownRef = useRef<HTMLDivElement>(null);
   const materialDropdownRef = useRef<HTMLDivElement>(null);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
@@ -518,6 +522,18 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
       }
     };
     void fetchCuts();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCommission = async () => {
+      const rates = await fetchMotdCommissionPercents();
+      if (!cancelled) setCommissionPercent(rates.fabricStore);
+    };
+    void loadCommission();
     return () => {
       cancelled = true;
     };
@@ -1198,12 +1214,20 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
           </FormSection>
 
           <FormSection title={t("sections.pricing")}>
+            {commissionPercent > 0 && (
+              <p className="text-xs text-gray-500 -mt-1">
+                {t("fields.finalPriceHint", { percent: commissionPercent })}
+              </p>
+            )}
             <FabricCutsEditor
               cuts={formData.cuts}
               catalogCuts={catalogCuts}
               errorPrefix="cuts"
               fieldErrors={fieldErrors as Record<string, string>}
               loading={cutsLoading}
+              commissionPercent={commissionPercent}
+              priceLabel={t("fields.yourPrice")}
+              finalPriceLabel={t("fields.finalPrice")}
               onChange={(cuts: FabricCutFormEntry[]) =>
                 handleChange("cuts", cuts)
               }
@@ -1725,6 +1749,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                           fieldErrors={fieldErrors as Record<string, string>}
                           loading={cutsLoading}
                           showTitle={false}
+                          commissionPercent={commissionPercent}
+                          priceLabel={t("fields.yourPrice")}
+                          finalPriceLabel={t("fields.finalPrice")}
                           onChange={(cuts: FabricCutFormEntry[]) =>
                             handleVariantChange(index, "cuts", cuts)
                           }

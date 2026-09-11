@@ -22,6 +22,7 @@ import {
   type FabricShopProfile,
 } from "@/lib/fabricShop";
 import { formatCutLabel } from "@/lib/fabricUnits";
+import { applyMotdCommission } from "@/lib/motdCommission";
 import {
   isValidUaePhone,
   normalizeUaePhone,
@@ -84,6 +85,9 @@ export function FabricCutsEditor({
   onChange,
   loading,
   showTitle = true,
+  commissionPercent,
+  priceLabel = "Price (AED)",
+  finalPriceLabel = "Final price (AED)",
 }: {
   cuts: FabricCutFormEntry[];
   catalogCuts: CatalogCut[];
@@ -92,6 +96,9 @@ export function FabricCutsEditor({
   onChange: (cuts: FabricCutFormEntry[]) => void;
   loading?: boolean;
   showTitle?: boolean;
+  commissionPercent?: number;
+  priceLabel?: string;
+  finalPriceLabel?: string;
 }) {
   const rows =
     cuts.length > 0 ? cuts : [createEmptyFabricCutRow()];
@@ -159,6 +166,7 @@ export function FabricCutsEditor({
 
   const rowInputClass =
     "w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm bg-transparent";
+  const showFinalPrice = typeof commissionPercent === "number";
 
   return (
     <div className="space-y-3">
@@ -169,7 +177,9 @@ export function FabricCutsEditor({
               Cuts — Price & Stock
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Select cut, set price per piece and stock.
+              {showFinalPrice
+                ? "Select cut, set your price per piece and stock. Final price includes MOTD commission."
+                : "Select cut, set price per piece and stock."}
             </p>
           </div>
         ) : (
@@ -244,7 +254,7 @@ export function FabricCutsEditor({
                   <label
                     className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1"
                   >
-                    Price (AED) *
+                    {priceLabel}
                   </label>
                   <input
                     type="number"
@@ -263,6 +273,32 @@ export function FabricCutsEditor({
                     </p>
                   )}
                 </div>
+
+                {showFinalPrice && (
+                  <div className="w-full sm:w-28 shrink-0">
+                    <label
+                      className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1"
+                    >
+                      {finalPriceLabel}
+                    </label>
+                    <input
+                      type="text"
+                      readOnly
+                      tabIndex={-1}
+                      value={(() => {
+                        const partnerPrice = Number(entry.price);
+                        if (!Number.isFinite(partnerPrice) || partnerPrice <= 0) {
+                          return "";
+                        }
+                        return applyMotdCommission(
+                          partnerPrice,
+                          commissionPercent ?? 0,
+                        ).toFixed(2);
+                      })()}
+                      className={`${rowInputClass} text-black/60 cursor-default`}
+                    />
+                  </div>
+                )}
 
                 <div className="w-full sm:w-28 shrink-0">
                   <label

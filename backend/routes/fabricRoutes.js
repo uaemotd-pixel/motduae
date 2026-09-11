@@ -2,6 +2,8 @@ import express from "express";
 import Fabric from "../models/Fabric.js";
 import Material from "../models/Material.js";
 import { enrichFabricWithCuts } from "../utils/fabricCuts.js";
+import PlatformSettings from "../models/PlatformSettings.js";
+import { withCustomerFabricPrices } from "../utils/motdCommission.js";
 
 const fabricRoutes = express.Router();
 
@@ -121,6 +123,10 @@ fabricRoutes.get("/", async (req, res) => {
       Fabric.countDocuments(filter),
     ]);
 
+    const settings = await PlatformSettings.getSettings();
+    const fabricCommission =
+      Number(settings.motdCommissionFromFabricStore) || 0;
+
     const enriched = await Promise.all(
       fabrics.map((fabric) => enrichFabricWithCuts(fabric)),
     );
@@ -131,7 +137,9 @@ fabricRoutes.get("/", async (req, res) => {
       limit: limitNumber,
       total,
       totalPages: Math.ceil(total / limitNumber) || 0,
-      items: enriched.map(toListItem),
+      items: enriched.map((fabric) =>
+        toListItem(withCustomerFabricPrices(fabric, fabricCommission)),
+      ),
     });
   } catch (error) {
     console.error("GET /api/fabrics error:", error);
@@ -222,6 +230,10 @@ fabricRoutes.get("/:slug", async (req, res) => {
       isActive: true,
     }).select("_id name nameAr slug images colors material");
 
+    const settings = await PlatformSettings.getSettings();
+    const fabricCommission =
+      Number(settings.motdCommissionFromFabricStore) || 0;
+
     const enrichedFabric = await enrichFabricWithCuts(fabric);
     if (!enrichedFabric.cuts?.length) {
       return res.status(404).json({
@@ -229,7 +241,9 @@ fabricRoutes.get("/:slug", async (req, res) => {
         message: "Fabric not found",
       });
     }
-    const detailItem = toDetailItem(enrichedFabric);
+    const detailItem = toDetailItem(
+      withCustomerFabricPrices(enrichedFabric, fabricCommission),
+    );
     detailItem.variations = variants.map((v) => ({
       _id: v._id,
       slug: v.slug,
@@ -352,7 +366,9 @@ fabricRoutes.get("/:slug", async (req, res) => {
 
     const related = scored
       .slice(0, relatedLimit)
-      .map(({ item }) => toListItem(item));
+      .map(({ item }) =>
+        toListItem(withCustomerFabricPrices(item, fabricCommission)),
+      );
 
     res.json({
       success: true,

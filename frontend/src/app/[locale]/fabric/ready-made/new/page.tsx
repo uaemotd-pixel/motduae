@@ -18,6 +18,9 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import colors from "@/components/shared/colors";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
+import CommissionFinalPriceField, {
+  useFabricStoreCommission,
+} from "@/components/partner/CommissionFinalPriceField";
 
 const COLOR_OPTIONS = colors;
 
@@ -62,6 +65,7 @@ export default function NewReadyMadePage() {
   const [dbTags, setDbTags] = useState<FilterItem[]>([]);
   const [dbSeasons, setDbSeasons] = useState<FilterItem[]>([]);
   const [filtersLoading, setFiltersLoading] = useState(true);
+  const commissionPercent = useFabricStoreCommission();
 
   // Load dropdown data
   useEffect(() => {
@@ -582,7 +586,7 @@ export default function NewReadyMadePage() {
           </FormField>
 
           {/* LENGTH + PRICES - in one row */}
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
             <FormField
               label="Fabric length"
               error={fieldErrors.metersPerFabric}
@@ -640,7 +644,7 @@ export default function NewReadyMadePage() {
             </FormField>
 
             <FormField
-              label="Final Price"
+              label="Your price (AED)"
               error={fieldErrors.finalSellingPriceAED}
               required
             >
@@ -656,6 +660,12 @@ export default function NewReadyMadePage() {
                 className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-xs sm:text-sm hover:cursor-text"
               />
             </FormField>
+
+            <CommissionFinalPriceField
+              partnerPrice={formData.finalSellingPriceAED}
+              commissionPercent={commissionPercent}
+              inputClassName="w-full py-1 border-b border-gray-200 outline-none text-xs sm:text-sm text-black/60 cursor-default"
+            />
           </div>
 
           {/* Category + Material + Pattern + Tag + Season + Colors */}

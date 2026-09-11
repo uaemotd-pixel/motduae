@@ -3142,7 +3142,7 @@ adminRouter.get(
     if (!settings) {
       settings = await PlatformSettings.create({
         defaultDeliveryFee: 30,
-        defaultTailoringFee: 150,
+        defaultTailoringFee: 0,
         motdCommissionFromTailor: 12,
         motdCommissionFromFabricStore: 15,
 

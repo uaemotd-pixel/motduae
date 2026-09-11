@@ -714,14 +714,16 @@ export default function OrderReviewStep() {
                     </span>
                   </div>
 
-                  <div className="flex justify-between gap-4">
-                    <span className="text-(--color-grey-muted)">
-                      {t("lines.tailoringFee")}
-                    </span>
-                    <span className="text-black shrink-0">
-                      {formatCurrency(pricing.tailoringFee, locale)}
-                    </span>
-                  </div>
+                  {pricing.tailoringFee > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-(--color-grey-muted)">
+                        {t("lines.tailoringFee")}
+                      </span>
+                      <span className="text-black shrink-0">
+                        {formatCurrency(pricing.tailoringFee, locale)}
+                      </span>
+                    </div>
+                  )}
 
                   {selectedAddonsCost > 0 && (
                     <div className="flex justify-between gap-4">

@@ -5,6 +5,7 @@ import Cut from '../models/Cut.js';
 import { cutValueToMeters } from '../utils/fabricUnits.js';
 import { FABRIC_SOURCES } from '../models/CustomOrder.js';
 import { planCustomOrderParcels } from './parcelPlanService.js';
+import { applyMotdCommission } from '../utils/motdCommission.js';
 
 export class PricingValidationError extends Error {
   constructor(message) {
@@ -14,6 +15,27 @@ export class PricingValidationError extends Error {
 }
 
 const roundMoney = (amount) => Number(amount.toFixed(2));
+
+function withCustomerFacingCatalogPrices({
+  designBase,
+  fabricPricing,
+  fabric,
+  settings,
+}) {
+  const tailorPercent = Number(settings?.motdCommissionFromTailor) || 0;
+  const fabricPercent = fabric?.fabricShopId
+    ? Number(settings?.motdCommissionFromFabricStore) || 0
+    : 0;
+
+  return {
+    designBase: applyMotdCommission(designBase, tailorPercent),
+    fabricCost: applyMotdCommission(fabricPricing.fabricCost, fabricPercent),
+    fabricPricePerMeter: applyMotdCommission(
+      fabricPricing.fabricPricePerMeter,
+      fabricPercent,
+    ),
+  };
+}
 
 function getDesignMinimumMeters(design) {
   const fromSnapshot = design?.minCutSnapshot?.lengthInMeters;
@@ -281,6 +303,11 @@ export function getPerParcelDeliveryFee(settings) {
   return typeof fee === 'number' && fee >= 0 ? fee : 30;
 }
 
+export function getDefaultTailoringFee(settings) {
+  const fee = Number(settings?.defaultTailoringFee);
+  return Number.isFinite(fee) && fee >= 0 ? fee : 0;
+}
+
 export function resolveDeliveryFee(defaultDeliveryFee, deliveryType = 'delivery') {
   if (deliveryType === 'pickup') {
     throw new PricingValidationError(
@@ -297,7 +324,7 @@ export function resolveDeliveryFee(defaultDeliveryFee, deliveryType = 'delivery'
  *
  * @param {object} params
  * @param {number} params.designBase - Design.basePrice
- * @param {number} params.tailoringFee - Design.tailoringFee
+ * @param {number} params.tailoringFee - PlatformSettings.defaultTailoringFee
  * @param {number} params.fabricMeters - Meters of fabric required
  * @param {'storefront'|'self'} params.fabricSource
  * @param {number} [params.fabricPricePerMeter=0] - Fabric.pricePerMeter (storefront only)
@@ -562,7 +589,7 @@ export function buildCustomOrderPricing({
     throw new PricingValidationError('fabric must not be provided when fabricSource is self');
   }
 
-  const calculatedDesignBase = design.priceType === 'per_meter'
+  const netDesignBase = design.priceType === 'per_meter'
     ? roundMoney(design.basePrice * fabricMeters)
     : design.basePrice;
 
@@ -573,7 +600,7 @@ export function buildCustomOrderPricing({
       ? deliveryFee
       : parcelPlan?.deliveryFee ?? getPerParcelDeliveryFee(settings);
 
-  const fabricPricing =
+  const netFabricPricing =
     fabricSource === 'storefront'
       ? resolveStorefrontFabricPricing({
           fabric,
@@ -585,6 +612,13 @@ export function buildCustomOrderPricing({
         })
       : { fabricCost: 0, fabricPricePerMeter: 0 };
 
+  const fabricPricing = withCustomerFacingCatalogPrices({
+    designBase: netDesignBase,
+    fabricPricing: netFabricPricing,
+    fabric,
+    settings,
+  });
+
   const designMinCutLength = getDesignMinimumMeters(design);
   const leftoverMeters =
     fabricSource === 'storefront' && fabricMeters > designMinCutLength && designMinCutLength > 0
@@ -592,8 +626,8 @@ export function buildCustomOrderPricing({
       : 0;
 
   const pricing = calculateCustomOrderPricing({
-    designBase: calculatedDesignBase,
-    tailoringFee: design.tailoringFee,
+    designBase: fabricPricing.designBase,
+    tailoringFee: getDefaultTailoringFee(settings),
     fabricMeters,
     fabricSource,
     fabricPricePerMeter: fabricPricing.fabricPricePerMeter,
@@ -730,11 +764,11 @@ export function buildCustomOrderItemPricing({
     throw new PricingValidationError('fabric must not be provided when fabricSource is self');
   }
 
-  const calculatedDesignBase = design.priceType === 'per_meter'
+  const netDesignBase = design.priceType === 'per_meter'
     ? roundMoney(design.basePrice * fabricMeters)
     : design.basePrice;
 
-  const fabricPricing =
+  const netFabricPricing =
     fabricSource === 'storefront'
       ? resolveStorefrontFabricPricing({
           fabric,
@@ -746,6 +780,13 @@ export function buildCustomOrderItemPricing({
         })
       : { fabricCost: 0, fabricPricePerMeter: 0 };
 
+  const fabricPricing = withCustomerFacingCatalogPrices({
+    designBase: netDesignBase,
+    fabricPricing: netFabricPricing,
+    fabric,
+    settings,
+  });
+
   const designMinCutLength = getDesignMinimumMeters(design);
   const leftoverMeters =
     fabricSource === 'storefront' && fabricMeters > designMinCutLength && designMinCutLength > 0
@@ -753,8 +794,8 @@ export function buildCustomOrderItemPricing({
       : 0;
 
   return calculateCustomOrderItemPricing({
-    designBase: calculatedDesignBase,
-    tailoringFee: design.tailoringFee,
+    designBase: fabricPricing.designBase,
+    tailoringFee: getDefaultTailoringFee(settings),
     fabricMeters,
     fabricSource,
     fabricPricePerMeter: fabricPricing.fabricPricePerMeter,

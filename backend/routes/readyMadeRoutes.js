@@ -1,5 +1,7 @@
 import express from "express";
 import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
+import PlatformSettings from "../models/PlatformSettings.js";
+import { withCustomerReadyMadePrice } from "../utils/motdCommission.js";
 
 const readyMadeRoutes = express.Router();
 
@@ -24,6 +26,9 @@ readyMadeRoutes.get("/", async (req, res) => {
             .limit(Number(limit))
             .sort({ createdAt: -1 });
         const total = await ReadyMadeProduct.countDocuments(filter);
+        const settings = await PlatformSettings.getSettings();
+        const fabricCommission =
+            Number(settings.motdCommissionFromFabricStore) || 0;
 
         // language switch
         const items = products.map((p) => {
@@ -39,7 +44,8 @@ readyMadeRoutes.get("/", async (req, res) => {
                       }
                     : null;
 
-            return {
+            return withCustomerReadyMadePrice(
+                {
                 _id: p._id,
                 slug: p.slug,
                 images: p.images,
@@ -70,7 +76,9 @@ readyMadeRoutes.get("/", async (req, res) => {
                       : null,
                 fabricShop: shop,
                 ownerName: p.ownerName || "",
-            };
+                },
+                fabricCommission,
+            );
         });
 
         res.json({
@@ -176,6 +184,10 @@ readyMadeRoutes.get("/:slug", async (req, res) => {
                 );
             });
 
+        const settings = await PlatformSettings.getSettings();
+        const fabricCommission =
+            Number(settings.motdCommissionFromFabricStore) || 0;
+
         const related = scored.slice(0, relatedLimit).map(({ item }) => {
             const shop =
                 item.fabricShopId &&
@@ -189,7 +201,8 @@ readyMadeRoutes.get("/:slug", async (req, res) => {
                       }
                     : null;
 
-            return {
+            return withCustomerReadyMadePrice(
+                {
                 _id: item._id,
                 slug: item.slug,
                 images: item.images,
@@ -217,12 +230,14 @@ readyMadeRoutes.get("/:slug", async (req, res) => {
                       : null,
                 fabricShop: shop,
                 ownerName: item.ownerName || "",
-            };
+                },
+                fabricCommission,
+            );
         });
 
         res.json({
             success: true,
-            item: product,
+            item: withCustomerReadyMadePrice(product, fabricCommission),
             related,
         })
     } catch (error) {

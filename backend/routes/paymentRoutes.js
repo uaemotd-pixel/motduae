@@ -17,6 +17,8 @@ import {
 } from "../services/pricingService.js";
 import { FABRIC_SOURCES } from "../models/CustomOrder.js";
 import AddOn from "../models/AddOn.js";
+import PlatformSettings from "../models/PlatformSettings.js";
+import { sumCustomerAddonPrices } from "../utils/motdCommission.js";
 import PendingCheckout from "../models/PendingCheckout.js";
 import {
   savePendingCheckout,
@@ -120,7 +122,9 @@ function isMultiItemPayload(body) {
 async function getAddonsCost(addonIds = []) {
   if (!Array.isArray(addonIds) || addonIds.length === 0) return 0;
   const dbAddons = await AddOn.find({ _id: { $in: addonIds }, isActive: true });
-  return dbAddons.reduce((sum, item) => sum + item.price, 0);
+  const settings = await PlatformSettings.getSettings();
+  const percent = Number(settings.motdCommissionFromFabricStore) || 0;
+  return sumCustomerAddonPrices(dbAddons, percent);
 }
 
 async function getCustomOrderTotal(body) {
