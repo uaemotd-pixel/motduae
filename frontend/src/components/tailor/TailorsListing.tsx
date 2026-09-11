@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
@@ -12,6 +12,19 @@ import {
   resolveTailorImage,
 } from "@/lib/tailors";
 import { ProductGridSkeleton } from "@/components/ui/Skeleton";
+import GlobalPagination from "@/components/shared/GlobalPagination";
+
+const DEFAULT_LIMIT = 12;
+const LIMIT_OPTIONS = [6, 12, 24, 48];
+
+type TailorsListResponse = {
+  success: boolean;
+  items: TailorShopListItem[];
+  page?: number;
+  limit?: number;
+  total?: number;
+  totalPages?: number;
+};
 
 export default function TailorsListing() {
   const t = useTranslations("TailorsListing");
@@ -21,35 +34,58 @@ export default function TailorsListing() {
   const [tailors, setTailors] = useState<TailorShopListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [limit, setLimit] = useState(DEFAULT_LIMIT);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
-  useEffect(() => {
-    const fetchTailors = async () => {
+  const fetchTailors = useCallback(
+    async (page = 1, limitOverride?: number) => {
       try {
         setLoading(true);
         setError(null);
 
-        const data = await api.get<{
-          success: boolean;
-          items: TailorShopListItem[];
-        }>("/api/tailors?limit=100");
+        const pageLimit = limitOverride ?? limit;
+        const data = await api.get<TailorsListResponse>(
+          `/api/tailors?page=${page}&limit=${pageLimit}`,
+        );
 
         if (!data?.success) {
           throw new Error("Failed to load tailors");
         }
 
         setTailors(data.items || []);
+        setCurrentPage(data.page || page);
+        setTotalItems(data.total || 0);
+        setTotalPages(data.totalPages || 0);
       } catch (err: unknown) {
         const message =
           (err as ApiError)?.message ||
           (err instanceof Error ? err.message : "Failed to load tailors");
         setError(message);
+        setTailors([]);
+        setTotalItems(0);
+        setTotalPages(0);
       } finally {
         setLoading(false);
       }
-    };
+    },
+    [limit],
+  );
 
-    fetchTailors();
-  }, []);
+  useEffect(() => {
+    fetchTailors(1, limit);
+  }, [fetchTailors, limit]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    fetchTailors(page);
+  };
+
+  const handleLimitChange = (nextLimit: number) => {
+    setLimit(nextLimit);
+    setCurrentPage(1);
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -74,7 +110,7 @@ export default function TailorsListing() {
       <div className="px-4 py-8 sm:px-8 sm:py-12 lg:px-12 lg:py-16">
         {loading ? (
           <ProductGridSkeleton
-            count={6}
+            count={Math.min(limit, 6)}
             columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
           />
         ) : error ? (
@@ -98,7 +134,7 @@ export default function TailorsListing() {
         ) : (
           <>
             <p className="mb-8 font-mono text-[11px] uppercase tracking-[0.18em] text-[#7A7A72]">
-              {t("showing", { count: tailors.length })}
+              {t("showing", { count: totalItems })}
             </p>
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3">
@@ -185,6 +221,21 @@ export default function TailorsListing() {
                 );
               })}
             </div>
+
+            {totalPages > 0 && totalItems > 0 ? (
+              <div className="mt-10">
+                <GlobalPagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                  showItemsPerPage
+                  itemsPerPage={limit}
+                  onItemsPerPageChange={handleLimitChange}
+                  itemsPerPageOptions={LIMIT_OPTIONS}
+                  totalItems={totalItems}
+                />
+              </div>
+            ) : null}
           </>
         )}
       </div>

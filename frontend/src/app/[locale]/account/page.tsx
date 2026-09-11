@@ -16,6 +16,7 @@ import {
   Shirt,
   Users,
   Star,
+  Heart,
   PanelLeft,
 } from "lucide-react";
 import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
@@ -25,6 +26,7 @@ import ProfileTab from "./profile/page";
 import EditProfileForm from "./profile/edit/page";
 import FamilyMembersPage from "./family-members/page";
 import CustomerReviewsView from "@/components/reviews/CustomerReviewsView";
+import CustomerFavouritesView from "@/components/account/CustomerFavouritesView";
 import CustomerSettings from "@/components/account/CustomerSettings";
 import BrandLoader from "@/components/shared/BrandLoader";
 import MeasurementsForm from "./measurements/page";
@@ -35,6 +37,7 @@ const NAV_ITEMS = [
   { id: "profile", label: "Profile", icon: User },
   { id: "orders", label: "Orders", icon: ShoppingBag },
   { id: "reviews", label: "My Reviews", icon: Star },
+  { id: "favourites", label: "Favourites", icon: Heart },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "measurements", label: "Measurements", icon: Shirt },
   { id: "family-members", label: "Add Members", icon: Users },
@@ -450,6 +453,19 @@ function AccountPageContent() {
                           : null
                     }
                   />
+                </motion.div>
+              )}
+
+              {activeTab === "favourites" && (
+                <motion.div
+                  key="favourites"
+                  variants={pageVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={{ duration: 0.25 }}
+                >
+                  <CustomerFavouritesView />
                 </motion.div>
               )}
 

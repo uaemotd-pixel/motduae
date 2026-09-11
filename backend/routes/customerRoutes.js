@@ -16,6 +16,7 @@ import {
   normalizeAddress,
 } from "../utils/uaeAddress.js";
 import { registerCustomerReviewRoutes } from "./customerReviewRoutes.js";
+import { registerCustomerFavouriteRoutes } from "./customerFavouriteRoutes.js";
 import { omitReviewsModerationFields } from "../services/reviewTargets.js";
 
 const calculateAge = (dob) => {
@@ -455,6 +456,7 @@ customerRouter.delete("/family-members/:id", isAuth, async (req, res) => {
 });
 
 registerCustomerReviewRoutes(customerRouter);
+registerCustomerFavouriteRoutes(customerRouter);
 
 // Route for customer to add her own measurements
 customerRouter.post(
