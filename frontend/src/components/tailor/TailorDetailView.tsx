@@ -25,6 +25,7 @@ import {
 import { getSocialPlatform } from "@/lib/tailorShop";
 import { resolveMediaUrl } from "@/lib/media";
 import { formatPartnerExperience } from "@/lib/partnerExperience";
+import FavouriteShopButton from "@/components/shared/FavouriteShopButton";
 
 const SOCIAL_LINK_BASE_CLASS =
   "inline-flex size-11 items-center justify-center rounded-full border bg-white transition-all duration-300";
@@ -229,6 +230,11 @@ export default function TailorDetailView({
                     {labels.callShop}
                   </a>
                 ) : null}
+                <FavouriteShopButton
+                  type="tailor"
+                  shopId={String(shop._id)}
+                  variant="onDark"
+                />
               </div>
             </motion.div>
           </div>

@@ -43,7 +43,7 @@
     "ariaLabel": "Trending Mukhawar Designs",
     "eyebrow": "Most Popular",
     "title": "Trending Designs",
-    "exploreLink": "Browse All 500+ Designs →"
+    "exploreLink": "Browse Designs →"
   },
   "FabricDetail": {
     "loading": "Loading fabric...",
@@ -172,6 +172,15 @@
     "empty": "There are no approved tailor shops available right now. Please check back soon.",
     "errorTitle": "Unable to Load Tailors"
   },
+  "ShopFavourites": {
+    "add": "Add to My Favourites",
+    "saved": "Saved to Favourites",
+    "saving": "Saving…",
+    "added": "Added to your favourites",
+    "removed": "Removed from favourites",
+    "loginRequired": "Sign in to save favourites",
+    "error": "Could not update favourites"
+  },
   "BrandsListing": {
     "eyebrow": "Curated Fabric Houses",
     "title": "Fabric Brands of the UAE",
@@ -198,6 +207,8 @@
     "fabricsTitle": "Fabrics",
     "fabricsCount": "{count} fabrics",
     "fabricsEmpty": "No fabrics available from this brand yet.",
+    "viewProducts": "View products",
+    "callShop": "Call shop",
     "readyMadeTitle": "Ready-Made",
     "readyMadeCount": "{count} ready-made",
     "readyMadeEmpty": "No ready-made products available from this brand yet.",
@@ -1758,6 +1769,25 @@
   },
   "Account": {
     "loading": "Loading…",
+    "Favourites": {
+      "eyebrow": "Saved partners",
+      "title": "My Favourites",
+      "description": "Tailors and fabric stores you have saved for later.",
+      "loadError": "Failed to load favourites",
+      "emptyTitle": "No favourites yet",
+      "empty": "Save a tailor or fabric store from their profile page to see them here.",
+      "browseTailors": "Browse tailors",
+      "browseStores": "Browse stores",
+      "tailorsSection": "Favourite tailors",
+      "storesSection": "Favourite fabric stores",
+      "noTailors": "No favourite tailors saved.",
+      "noStores": "No favourite fabric stores saved.",
+      "viewShop": "View",
+      "remove": "Remove from favourites",
+      "removed": "Removed from favourites",
+      "removeError": "Could not remove favourite",
+      "reviews": "reviews"
+    },
     "Notifications": {
       "title": "Notifications",
       "subtitle": "Updates about your orders and returns.",

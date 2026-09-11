@@ -32,11 +32,12 @@ import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 import WishlistButton from "@/components/shared/wishlistButton";
 import AddToCartButton from "@/components/shared/addToCartButton";
 import { ProductReviewsSection } from "@/components/reviews/CustomerReviewsView";
-import { MapPin, Star, Share2, Globe, ExternalLink } from "lucide-react";
+import { MapPin, Star, Share2, Globe, ExternalLink, Phone, ArrowUpRight } from "lucide-react";
 import { motion } from "framer-motion";
 import SocialPlatformIcon, {
   SOCIAL_PLATFORM_LINK_CLASS,
 } from "@/components/shared/SocialPlatformIcon";
+import FavouriteShopButton from "@/components/shared/FavouriteShopButton";
 
 const SOCIAL_LINK_BASE_CLASS =
   "inline-flex size-11 items-center justify-center rounded-full border bg-white transition-all duration-300";
@@ -365,6 +366,37 @@ export default function BrandDetailPage() {
                     {t("addonsCount", { count: addons.length })}
                   </span>
                 </div>
+                <div className="mt-7 flex flex-col items-stretch gap-2.5 xs:flex-row xs:flex-wrap xs:items-center xs:justify-center sm:justify-start">
+                  <a
+                    href="#products"
+                    className="inline-flex items-center justify-center gap-2 bg-white px-5 py-3.5 text-[10px] uppercase tracking-[0.2em] text-black transition hover:bg-white/90 [font-family:var(--font-ui)] sm:px-6"
+                  >
+                    {t("viewProducts")}
+                    <ArrowUpRight
+                      className="size-3.5 shrink-0"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                  </a>
+                  {shop.phone ? (
+                    <a
+                      href={`tel:${shop.phone}`}
+                      className="inline-flex items-center justify-center gap-2 border border-white/35 bg-white/5 px-5 py-3.5 text-[10px] uppercase tracking-[0.2em] text-white backdrop-blur-sm transition hover:bg-white/15 [font-family:var(--font-ui)] sm:px-6"
+                    >
+                      <Phone
+                        className="size-3.5 shrink-0"
+                        strokeWidth={1.75}
+                        aria-hidden
+                      />
+                      {t("callShop")}
+                    </a>
+                  ) : null}
+                  <FavouriteShopButton
+                    type="fabricShop"
+                    shopId={String(shop._id)}
+                    variant="onDark"
+                  />
+                </div>
                 </motion.div>
               </div>
             </div>
@@ -449,7 +481,10 @@ export default function BrandDetailPage() {
           ) : null}
 
           {/* Fabrics */}
-          <section className="border-b border-(--color-border) px-4 py-12 sm:px-8 sm:py-16 lg:px-(--space-40)">
+          <section
+            id="products"
+            className="scroll-mt-24 border-b border-(--color-border) px-4 py-12 sm:px-8 sm:py-16 lg:px-(--space-40)"
+          >
             <div className="mx-auto max-w-7xl">
               <div className="mb-8">
                 <span className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">

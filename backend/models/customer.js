@@ -168,6 +168,20 @@ const customerSchema = new mongoose.Schema(
 
     // Customer measurements
     measurements: measurementsSchema,
+
+    /** Saved partner shops (refs only — no separate favourites collection) */
+    favouriteTailors: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "TailorShop",
+      },
+    ],
+    favouriteFabricShops: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "FabricShop",
+      },
+    ],
   },
   {
     timestamps: true,
