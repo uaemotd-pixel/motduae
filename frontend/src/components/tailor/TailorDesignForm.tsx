@@ -196,14 +196,6 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     DesignCategoryOption[]
   >([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [materialOptions, setMaterialOptions] = useState<DesignFilterOption[]>(
-    [],
-  );
-  const [patternOptions, setPatternOptions] = useState<DesignFilterOption[]>(
-    [],
-  );
-  const [seasonOptions, setSeasonOptions] = useState<DesignFilterOption[]>([]);
-  const [tagOptions, setTagOptions] = useState<DesignFilterOption[]>([]);
   const [cutOptions, setCutOptions] = useState<
     {
       _id: string;
@@ -216,12 +208,21 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
       lengthInMeters?: number;
     }[]
   >([]);
+  const [cutsLoading, setCutsLoading] = useState(true);
+  const [openCategory, setOpenCategory] = useState(false);
+  const [materialOptions, setMaterialOptions] = useState<DesignFilterOption[]>(
+    [],
+  );
+  const [patternOptions, setPatternOptions] = useState<DesignFilterOption[]>(
+    [],
+  );
+  const [seasonOptions, setSeasonOptions] = useState<DesignFilterOption[]>([]);
+  const [tagOptions, setTagOptions] = useState<DesignFilterOption[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
   const [patternsLoading, setPatternsLoading] = useState(true);
   const [seasonsLoading, setSeasonsLoading] = useState(true);
   const [tagsLoading, setTagsLoading] = useState(true);
-  const [cutsLoading, setCutsLoading] = useState(true);
-  const [openCategory, setOpenCategory] = useState(false);
+
   const [openMaterial, setOpenMaterial] = useState(false);
   const [openPattern, setOpenPattern] = useState(false);
   const [openSeason, setOpenSeason] = useState(false);
@@ -230,85 +231,23 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
   const formActionsRef = useRef<HTMLDivElement>(null);
   const previousImageCountRef = useRef(formData.images.length);
 
-  const getAgeErrors = (
-    minAge: number,
-    maxAge: number,
-    changedField?: "minAge" | "maxAge",
-  ): { minAge?: string; maxAge?: string } => {
-    const minOk =
-      Number.isFinite(minAge) &&
-      Number.isInteger(minAge) &&
-      minAge >= 0 &&
-      minAge <= 150;
-    const maxOk =
-      Number.isFinite(maxAge) &&
-      Number.isInteger(maxAge) &&
-      maxAge >= 0 &&
-      maxAge <= 150;
-
-    // One error at a time — prefer the field the user just changed.
-    if (!minOk || !maxOk) {
-      if (changedField === "maxAge" && !maxOk) {
-        return { maxAge: t("validation.maxAgeInvalid") };
-      }
-      if (changedField === "minAge" && !minOk) {
-        return { minAge: t("validation.minAgeInvalid") };
-      }
-      if (!minOk) return { minAge: t("validation.minAgeInvalid") };
-      if (!maxOk) return { maxAge: t("validation.maxAgeInvalid") };
-    }
-
-    if (maxAge < minAge) {
-      if (changedField === "minAge") {
-        return { minAge: t("validation.minAgeCannotExceedMax") };
-      }
-      return { maxAge: t("validation.maxAgeCannotBeLessThanMin") };
-    }
-
-    return {};
-  };
-
-  const applyAgeErrors = (
-    minAge: number,
-    maxAge: number,
-    changedField?: "minAge" | "maxAge",
-  ) => {
-    const ageErrors = getAgeErrors(minAge, maxAge, changedField);
-    setFieldErrors((prev) => ({
-      ...prev,
-      minAge: ageErrors.minAge,
-      maxAge: ageErrors.maxAge,
-    }));
-  };
-
   const handleNumberChange = (
-    field: "basePrice" | "tailoringFee" | "estimatedDays" | "minAge" | "maxAge",
+    field: "basePrice" | "tailoringFee" | "estimatedDays",
     value: string,
   ) => {
     if (value === "") {
       handleChange(field, 0);
-      if (field === "minAge" || field === "maxAge") {
-        const nextMin = field === "minAge" ? 0 : formData.minAge;
-        const nextMax = field === "maxAge" ? 0 : formData.maxAge;
-        applyAgeErrors(nextMin, nextMax, field);
-      }
       return;
     }
 
     const num =
-      field === "estimatedDays" || field === "minAge" || field === "maxAge"
+      field === "estimatedDays"
         ? parseInt(value, 10)
         : parseFloat(value);
 
     if (Number.isNaN(num) || num < 0) return;
 
     handleChange(field, num);
-
-    if (field === "minAge" || field === "maxAge") {
-      const nextMin = field === "minAge" ? num : formData.minAge;
-      const nextMax = field === "maxAge" ? num : formData.maxAge;
-      applyAgeErrors(nextMin, nextMax, field);
-    }
   };
 
   const getNumberDisplay = (value: number): string =>
@@ -503,11 +442,14 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
       cutOptions.map((cut) => {
         const meters = cut.metersEquivalent ?? cut.lengthInMeters ?? cut.value;
         const unitLabelEn = cut.unit === "war" ? "war" : "m";
+        const unitLabelAr = cut.unit === "war" ? "وار" : "م";
         const enLabel = `${cut.name} (${cut.value} ${unitLabelEn} ≈ ${meters}m)`;
+        const arName = cut.nameAr || cut.name;
+        const arLabel = `${arName} (${cut.value} ${unitLabelAr} ≈ ${meters}م)`;
         return {
           value: cut._id,
           en: enLabel,
-          ar: enLabel,
+          ar: arLabel,
         };
       }),
     [cutOptions],
@@ -559,10 +501,6 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     ) {
       errors.estimatedDays = t("validation.estimatedDaysInvalid");
     }
-
-    const ageErrors = getAgeErrors(formData.minAge, formData.maxAge);
-    if (ageErrors.minAge) errors.minAge = ageErrors.minAge;
-    if (ageErrors.maxAge) errors.maxAge = ageErrors.maxAge;
 
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -785,7 +723,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
               />
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-4 sm:gap-5">
+            <div className="grid grid-cols-2 lg:grid-cols-2 gap-x-3 gap-y-4 sm:gap-5">
               <BilingualFilterDropdown
                 label={t("fields.season")}
                 name="season"
@@ -824,42 +762,6 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
                 }
                 onClear={() => clearBilingualSelect("tag", "tagAr")}
               />
-              <FormField
-                label={t("fields.minAge")}
-                name="minAge"
-                required
-                error={fieldErrors.minAge}
-              >
-                <input
-                  id="minAge"
-                  type="number"
-                  min={0}
-                  max={150}
-                  step={1}
-                  value={getNumberDisplay(formData.minAge)}
-                  onChange={(e) => handleNumberChange("minAge", e.target.value)}
-                  className={INPUT_CLASS}
-                  placeholder="0"
-                />
-              </FormField>
-              <FormField
-                label={t("fields.maxAge")}
-                name="maxAge"
-                required
-                error={fieldErrors.maxAge}
-              >
-                <input
-                  id="maxAge"
-                  type="number"
-                  min={0}
-                  max={150}
-                  step={1}
-                  value={getNumberDisplay(formData.maxAge)}
-                  onChange={(e) => handleNumberChange("maxAge", e.target.value)}
-                  className={INPUT_CLASS}
-                  placeholder="0"
-                />
-              </FormField>
             </div>
           </div>
 

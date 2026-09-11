@@ -18,14 +18,17 @@ import { getTranslation } from "@/lib/getTranslation";
 
 type CustomerSettingsProps = {
   hasPassword?: boolean;
+  nextPath?: string;
 };
 
 export default function CustomerSettings({
   hasPassword = true,
+  nextPath = "/account?tab=settings",
 }: CustomerSettingsProps) {
   const { user } = useAuth();
   const params = useParams();
   const locale = (params.locale as string) || "en";
+  const isAr = locale === "ar";
   const tVerify = getTranslation(locale).verifyEmail;
   const canChangeEmail = canChangeAccountEmail(user);
   const [showChangeEmail, setShowChangeEmail] = useState(false);
@@ -34,6 +37,15 @@ export default function CustomerSettings({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const checklistLabels = isAr
+    ? {
+        minLength: "8 أحرف على الأقل",
+        uppercase: "حرف كبير واحد",
+        number: "رقم واحد",
+        special: "رمز خاص واحد",
+      }
+    : undefined;
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -45,12 +57,16 @@ export default function CustomerSettings({
     }
 
     if (password !== confirmPassword) {
-      toast.error("Passwords do not match.");
+      toast.error(
+        isAr ? "كلمات المرور غير متطابقة." : "Passwords do not match.",
+      );
       return;
     }
 
     if (hasPassword && !currentPassword) {
-      toast.error("Current password is required.");
+      toast.error(
+        isAr ? "كلمة المرور الحالية مطلوبة." : "Current password is required.",
+      );
       return;
     }
 
@@ -60,7 +76,11 @@ export default function CustomerSettings({
         currentPassword: hasPassword ? currentPassword : undefined,
         password,
       });
-      toast.success("Password updated successfully.");
+      toast.success(
+        isAr
+          ? "تم تحديث كلمة المرور بنجاح."
+          : "Password updated successfully.",
+      );
       setCurrentPassword("");
       setPassword("");
       setConfirmPassword("");
@@ -68,7 +88,9 @@ export default function CustomerSettings({
       const message =
         err && typeof err === "object" && "message" in err
           ? String((err as { message: string }).message)
-          : "Failed to update password.";
+          : isAr
+            ? "فشل في تحديث كلمة المرور."
+            : "Failed to update password.";
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -80,7 +102,7 @@ export default function CustomerSettings({
       <div>
         <PartnerChangeEmailCard
           locale={locale}
-          nextPath="/account?tab=settings"
+          nextPath={nextPath}
           currentEmail={user?.email}
           onCancel={() => setShowChangeEmail(false)}
         />
@@ -92,10 +114,10 @@ export default function CustomerSettings({
     <div className="space-y-6">
       <div>
         <h2 className="text-xl sm:text-2xl font-light text-black tracking-tight">
-          Settings
+          {isAr ? "الإعدادات" : "Settings"}
         </h2>
         <p className="text-gray-500 text-sm mt-0.5">
-          Manage your account settings
+          {isAr ? "إدارة إعدادات حسابك" : "Manage your account settings"}
         </p>
       </div>
 
@@ -105,7 +127,7 @@ export default function CustomerSettings({
           <div className="py-4 sm:py-5 space-y-4">
             <EmailChangePendingBanner
               locale={locale}
-              nextPath="/account?tab=settings"
+              nextPath={nextPath}
               variant="account"
             />
             <div className="flex items-start sm:items-center gap-3">
@@ -117,7 +139,7 @@ export default function CustomerSettings({
                 <h3 className="text-sm font-medium text-black">
                   {tVerify.changeEmailHeading}
                 </h3>
-                <p className="text-sm text-gray-500 truncate">
+                <p className="text-sm text-gray-500 truncate" dir="ltr">
                   {user?.email}
                 </p>
               </div>
@@ -142,12 +164,22 @@ export default function CustomerSettings({
             />
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-medium text-black">
-                {hasPassword ? "Change Password" : "Set Password"}
+                {hasPassword
+                  ? isAr
+                    ? "تغيير كلمة المرور"
+                    : "Change Password"
+                  : isAr
+                    ? "تعيين كلمة المرور"
+                    : "Set Password"}
               </h3>
               <p className="text-sm text-gray-500">
                 {hasPassword
-                  ? "Update your account password"
-                  : "Set a password to sign in with email"}
+                  ? isAr
+                    ? "تحديث كلمة المرور لحسابك"
+                    : "Update your account password"
+                  : isAr
+                    ? "تعيين كلمة مرور لتسجيل الدخول بالبريد الإلكتروني"
+                    : "Set a password to sign in with email"}
               </p>
             </div>
           </div>
@@ -159,7 +191,7 @@ export default function CustomerSettings({
                   htmlFor="current-password"
                   className="block text-sm font-medium text-gray-700 mb-1.5"
                 >
-                  Current password
+                  {isAr ? "كلمة المرور الحالية" : "Current password"}
                 </label>
                 <div className="relative">
                   <input
@@ -167,13 +199,22 @@ export default function CustomerSettings({
                     type={showPassword ? "text" : "password"}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 px-4 py-2.5 pr-10 text-sm focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition"
-                    placeholder="Enter current password"
+                    dir="ltr"
+                    className={`w-full rounded-lg border border-gray-200 py-2.5 text-sm focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition ${
+                      isAr ? "pl-10 pr-4 text-right" : "pr-10 pl-4 text-left"
+                    }`}
+                    placeholder={
+                      isAr
+                        ? "أدخل كلمة المرور الحالية"
+                        : "Enter current password"
+                    }
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                    className={`absolute top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition ${
+                      isAr ? "left-3" : "right-3"
+                    }`}
                   >
                     {showPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -185,13 +226,13 @@ export default function CustomerSettings({
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label
                   htmlFor="settings-new-password"
                   className="block text-sm font-medium text-gray-700 mb-1.5"
                 >
-                  New password
+                  {isAr ? "كلمة المرور الجديدة" : "New password"}
                 </label>
                 <div className="relative">
                   <input
@@ -199,8 +240,13 @@ export default function CustomerSettings({
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 px-4 py-2.5 pr-10 text-sm focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition"
-                    placeholder="Enter new password"
+                    dir="ltr"
+                    className={`w-full rounded-lg border border-gray-200 py-2.5 text-sm focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition ${
+                      isAr ? "pl-10 pr-4 text-right" : "pr-10 pl-4 text-left"
+                    }`}
+                    placeholder={
+                      isAr ? "أدخل كلمة المرور الجديدة" : "Enter new password"
+                    }
                   />
                 </div>
               </div>
@@ -210,7 +256,7 @@ export default function CustomerSettings({
                   htmlFor="settings-confirm-password"
                   className="block text-sm font-medium text-gray-700 mb-1.5"
                 >
-                  Confirm new password
+                  {isAr ? "تأكيد كلمة المرور الجديدة" : "Confirm new password"}
                 </label>
                 <div className="relative">
                   <input
@@ -218,17 +264,33 @@ export default function CustomerSettings({
                     type={showPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 px-4 py-2.5 pr-10 text-sm focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition"
-                    placeholder="Confirm new password"
+                    dir="ltr"
+                    className={`w-full rounded-lg border border-gray-200 py-2.5 text-sm focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition ${
+                      isAr ? "pl-10 pr-4 text-right" : "pr-10 pl-4 text-left"
+                    }`}
+                    placeholder={
+                      isAr
+                        ? "تأكيد كلمة المرور الجديدة"
+                        : "Confirm new password"
+                    }
                   />
                   {confirmPassword && password === confirmPassword && (
-                    <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                    <Check
+                      className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 text-green-500 ${
+                        isAr ? "left-3" : "right-3"
+                      }`}
+                    />
                   )}
                 </div>
               </div>
             </div>
 
-            {password ? <PasswordChecklist password={password} /> : null}
+            {password ? (
+              <PasswordChecklist
+                password={password}
+                labels={checklistLabels}
+              />
+            ) : null}
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
               <label className="flex items-center gap-2 text-sm text-gray-600 hover:cursor-pointer">
@@ -238,7 +300,7 @@ export default function CustomerSettings({
                   onChange={(e) => setShowPassword(e.target.checked)}
                   className="w-4 h-4 accent-black hover:cursor-pointer shrink-0"
                 />
-                Show passwords
+                {isAr ? "إظهار كلمات المرور" : "Show passwords"}
               </label>
 
               <button
@@ -249,12 +311,12 @@ export default function CustomerSettings({
                 {isLoading ? (
                   <>
                     <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Saving...
+                    {isAr ? "جارٍ الحفظ..." : "Saving..."}
                   </>
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    Save password
+                    {isAr ? "حفظ كلمة المرور" : "Save password"}
                   </>
                 )}
               </button>

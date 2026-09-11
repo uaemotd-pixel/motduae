@@ -26,6 +26,7 @@ import MeasurementNeckDiagram from "@/components/custom-order/measurement-diagra
 import MeasurementSleeveDiagram from "@/components/custom-order/measurement-diagram/MeasurementSleeveDiagram";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
 
 function parseOptionalNumber(value: string): number | null {
   if (value.trim() === "") return null;
@@ -42,6 +43,7 @@ type MeasurementInputProps = {
   value: number | null;
   onChange: (field: CustomOrderMeasurementField, value: string) => void;
   t: ReturnType<typeof useTranslations<"CustomOrderMeasurements">>;
+  hasError?: boolean;
 };
 
 function MeasurementInput({
@@ -49,6 +51,7 @@ function MeasurementInput({
   value,
   onChange,
   t,
+  hasError = false,
 }: MeasurementInputProps) {
   const letter = getMeasurementLetter(field);
 
@@ -62,6 +65,7 @@ function MeasurementInput({
           {letter}
         </span>
         <span className="wrap-break-word">{t(`fields.${field}`)}</span>
+        <span className="text-red-500">*</span>
       </label>
       <div className="flex items-center gap-2 sm:gap-3">
         <input
@@ -72,12 +76,19 @@ function MeasurementInput({
           inputMode="decimal"
           value={formatMeasurementValue(value)}
           onChange={(e) => onChange(field, e.target.value)}
-          className="flex-1 min-w-0 border border-gray-200 bg-white px-3 sm:px-4 py-2.5 sm:py-3 font-body text-[15px] sm:text-[16px] text-black focus:outline-none focus:border-black transition rounded-lg w-full"
+          className={`flex-1 min-w-0 border ${
+            hasError ? "border-red-500 bg-red-50/20" : "border-gray-200 bg-white"
+          } px-3 sm:px-4 py-2.5 sm:py-3 font-body text-[15px] sm:text-[16px] text-black focus:outline-none focus:border-black transition rounded-lg w-full`}
         />
         <span className="font-ui text-[10px] sm:text-[11px] uppercase tracking-[0.2em] text-gray-400 shrink-0">
           {t("unit")}
         </span>
       </div>
+      {hasError && (
+        <p className="text-red-500 font-body text-[11px] sm:text-[12px] mt-1">
+          {t("fieldRequired")}
+        </p>
+      )}
       <p className="font-body text-[11px] sm:text-[12px] text-gray-400 mt-2">
         {t(`fields.${field}Hint`)}
       </p>
@@ -114,6 +125,7 @@ export default function MeasurementsStep() {
   const [selectedMemberId, setSelectedMemberId] = useState<string>("");
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [memberDropdownOpen, setMemberDropdownOpen] = useState(false);
+  const [attemptedContinue, setAttemptedContinue] = useState(false);
   const memberRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on click outside
@@ -323,7 +335,11 @@ export default function MeasurementsStep() {
   };
 
   const handleContinue = () => {
-    if (!canContinue) return;
+    setAttemptedContinue(true);
+    if (!canContinue) {
+      toast.error(t("requiredError"));
+      return;
+    }
     router.push("/custom-order/review");
   };
 
@@ -463,6 +479,11 @@ export default function MeasurementsStep() {
                   value={draft.measurements[field]}
                   onChange={handleNumberChange}
                   t={t}
+                  hasError={
+                    attemptedContinue &&
+                    (!draft.measurements[field] ||
+                      (draft.measurements[field] ?? 0) <= 0)
+                  }
                 />
               ))}
             </div>
@@ -489,6 +510,11 @@ export default function MeasurementsStep() {
                     value={draft.measurements[field]}
                     onChange={handleNumberChange}
                     t={t}
+                    hasError={
+                      attemptedContinue &&
+                      (!draft.measurements[field] ||
+                        (draft.measurements[field] ?? 0) <= 0)
+                    }
                   />
                 ))}
               </div>
@@ -516,6 +542,11 @@ export default function MeasurementsStep() {
                     value={draft.measurements[field]}
                     onChange={handleNumberChange}
                     t={t}
+                    hasError={
+                      attemptedContinue &&
+                      (!draft.measurements[field] ||
+                        (draft.measurements[field] ?? 0) <= 0)
+                    }
                   />
                 ))}
               </div>
@@ -561,8 +592,7 @@ export default function MeasurementsStep() {
         <button
           type="button"
           onClick={handleContinue}
-          disabled={!canContinue}
-          className="w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 bg-black text-white text-[11px] sm:text-[12px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed font-ui hover:cursor-pointer rounded-lg"
+          className="w-full sm:w-auto px-6 sm:px-8 py-2.5 sm:py-3 bg-black text-white text-[11px] sm:text-[12px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition font-ui hover:cursor-pointer rounded-lg"
         >
           {t("continue")}
         </button>

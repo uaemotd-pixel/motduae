@@ -47,14 +47,27 @@ function isFabricRetailLine(item: {
 
 function fabricRetailCutLabel(
   item: {
-    cutSnapshot?: { name?: string; value?: number; unit?: string } | null;
+    cutSnapshot?: { name?: string; nameAr?: string; value?: number; unit?: string } | null;
     size?: string;
   },
   locale: string,
 ) {
   const snap = item.cutSnapshot;
-  if (snap?.name) return snap.name;
-  if (snap?.value != null && snap?.unit) return `${snap.value} ${snap.unit}`;
+  if (snap) {
+    const cutName = locale === "ar" ? snap.nameAr || snap.name : snap.name;
+    if (cutName?.trim()) return cutName.trim();
+    if (snap.value != null && snap.unit) {
+      const unitLabel =
+        snap.unit === "war"
+          ? locale === "ar"
+            ? "وار"
+            : "war"
+          : locale === "ar"
+            ? "متر"
+            : "meter";
+      return `${snap.value} ${unitLabel}`;
+    }
+  }
   return item.size && item.size !== "Per Meter"
     ? item.size
     : locale === "ar"

@@ -616,7 +616,8 @@ fabricPortalRouter.post(
 
     if (Array.isArray(req.body.variants)) {
       for (const variant of req.body.variants) {
-        if (!variant.name || !variant.nameAr || !variant.material) continue;
+        const variantMaterial = variant.material || fabric.material || material;
+        if (!variant.name || !variant.nameAr || !variantMaterial) continue;
         const vSlug = await ensureUniqueSlug(
           Fabric,
           variant.slug || variant.name,
@@ -639,8 +640,8 @@ fabricPortalRouter.post(
           description: variant.description || fabric.description,
           descriptionAr: variant.descriptionAr || fabric.descriptionAr,
           images: variant.images,
-          material: variant.material,
-          materialAr: variant.materialAr || fabric.materialAr,
+          material: variantMaterial,
+          materialAr: variant.materialAr || fabric.materialAr || materialAr || "",
           category: variant.category || fabric.category || "",
           categoryAr: variant.categoryAr || fabric.categoryAr || "",
           pattern: variant.pattern || fabric.pattern || "",
@@ -806,9 +807,17 @@ fabricPortalRouter.put(
             if (variant.descriptionAr !== undefined)
               existing.descriptionAr = variant.descriptionAr;
             if (variant.images) existing.images = variant.images;
-            if (variant.material) existing.material = variant.material;
-            if (variant.materialAr !== undefined)
-              existing.materialAr = variant.materialAr;
+            if (variant.material !== undefined) {
+              existing.material = variant.material || updatedFabric.material;
+            } else if (!existing.material) {
+              existing.material = updatedFabric.material;
+            }
+            if (variant.materialAr !== undefined) {
+              existing.materialAr =
+                variant.materialAr || updatedFabric.materialAr || "";
+            } else if (!existing.materialAr) {
+              existing.materialAr = updatedFabric.materialAr || "";
+            }
             if (variant.category !== undefined)
               existing.category = variant.category || "";
             if (variant.categoryAr !== undefined)
@@ -849,7 +858,8 @@ fabricPortalRouter.put(
             await existing.save();
           }
         } else {
-          if (!variant.name || !variant.nameAr || !variant.material) continue;
+          const variantMaterial = variant.material || updatedFabric.material;
+          if (!variant.name || !variant.nameAr || !variantMaterial) continue;
           const vSlug = await ensureUniqueSlug(
             Fabric,
             variant.slug || variant.name,
@@ -872,8 +882,9 @@ fabricPortalRouter.put(
             description: variant.description || updatedFabric.description,
             descriptionAr: variant.descriptionAr || updatedFabric.descriptionAr,
             images: variant.images,
-            material: variant.material,
-            materialAr: variant.materialAr || updatedFabric.materialAr,
+            material: variantMaterial,
+            materialAr:
+              variant.materialAr || updatedFabric.materialAr || "",
             category: variant.category || updatedFabric.category || "",
             categoryAr: variant.categoryAr || updatedFabric.categoryAr || "",
             pattern: variant.pattern || updatedFabric.pattern || "",

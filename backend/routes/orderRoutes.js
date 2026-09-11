@@ -43,7 +43,10 @@ import {
   fulfillPaidCheckout,
   savePendingCheckout,
 } from "../services/pendingCheckoutService.js";
-import { getCustomOrderTotalFromBody } from "../services/customPaidOrderService.js";
+import {
+  getCustomOrderTotalFromBody,
+  validateCustomMeasurements,
+} from "../services/customPaidOrderService.js";
 import { resolveCheckoutContactEmail } from "../services/emailVerification/guestContactOtpService.js";
 import { EmailVerificationError } from "../services/emailVerification/emailVerificationService.js";
 import { hasActiveCustomerShipments } from "../services/shipmentService.js";
@@ -769,6 +772,8 @@ orderRoutes.post("/custom", isAuth, requireEmailVerified, async (req, res) => {
       req,
       customPayload.contactEmail,
     );
+
+    validateCustomMeasurements(customPayload.measurements);
 
     // Refresh snapshot in case address/measurements changed after PI create
     const amountAed = await getCustomOrderTotalFromBody(customPayload);

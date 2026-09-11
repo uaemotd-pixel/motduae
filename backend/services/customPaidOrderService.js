@@ -29,6 +29,51 @@ import { notifyPaidOrderVendors } from "./vendorOrderNotify.js";
 const isApprovedTailorOwner = (owner) =>
   owner?.role === "tailor" && owner?.approvalStatus === "approved";
 
+export const REQUIRED_MEASUREMENT_FIELDS = [
+  "totalLength",
+  "shoulderWidth",
+  "armLength",
+  "chestWidth",
+  "waist",
+  "hips",
+  "neckWidth",
+  "neckDepth",
+  "armholeHeight",
+  "sleeveOpeningWidth",
+  "cuffWidth",
+  "cuffLength",
+];
+
+export function validateCustomMeasurements(measurements) {
+  if (!measurements || typeof measurements !== "object") {
+    throw new PricingValidationError("Measurements are required to place a custom order");
+  }
+
+  for (const field of REQUIRED_MEASUREMENT_FIELDS) {
+    const rawVal = measurements[field];
+    const val = Number(rawVal);
+    if (rawVal === null || rawVal === undefined || rawVal === "" || Number.isNaN(val) || val <= 0) {
+      throw new PricingValidationError(`Measurement '${field}' is required and must be greater than 0`);
+    }
+  }
+
+  return {
+    totalLength: Number(measurements.totalLength),
+    shoulderWidth: Number(measurements.shoulderWidth),
+    armLength: Number(measurements.armLength),
+    chestWidth: Number(measurements.chestWidth),
+    waist: Number(measurements.waist),
+    hips: Number(measurements.hips),
+    neckWidth: Number(measurements.neckWidth),
+    neckDepth: Number(measurements.neckDepth),
+    armholeHeight: Number(measurements.armholeHeight),
+    sleeveOpeningWidth: Number(measurements.sleeveOpeningWidth),
+    cuffWidth: Number(measurements.cuffWidth),
+    cuffLength: Number(measurements.cuffLength),
+    notes: typeof measurements.notes === "string" ? measurements.notes.trim() : "",
+  };
+}
+
 function parseFabricMeters(fabricMeters) {
   const meters = Number(fabricMeters);
   if (!fabricMeters || Number.isNaN(meters) || meters <= 0) {
@@ -664,6 +709,8 @@ export async function createPaidCustomOrder({
     );
   }
 
+  const validatedMeasurements = validateCustomMeasurements(measurements);
+
   const orderTotal = await getCustomOrderTotalFromBody({
     ...payload,
     deliveryType: "delivery",
@@ -728,7 +775,7 @@ export async function createPaidCustomOrder({
         fabricSource: orderInput.fabricSource,
         ...legacyFields,
         items: orderItems,
-        measurements: measurements || {},
+        measurements: validatedMeasurements,
         customerDeliveryAddress: deliveryAddr,
         contactEmail: String(contactEmail || "").toLowerCase().trim(),
         pickupAddress: selfPickupAddress,
@@ -829,7 +876,7 @@ export async function createPaidCustomOrder({
         tailorShopId: shop._id,
         designId: design._id,
         designSnapshot: buildDesignSnapshot(design),
-        measurements: measurements || {},
+        measurements: validatedMeasurements,
         customerDeliveryAddress: deliveryAddr,
         contactEmail: String(contactEmail || "").toLowerCase().trim(),
         pickupAddress: selfPickupAddress,

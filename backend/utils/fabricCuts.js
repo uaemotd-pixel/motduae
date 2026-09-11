@@ -30,6 +30,16 @@ export function normalizeFabricCutsPayload(cutsInput) {
     }
     seenCutIds.add(cutIdStr);
 
+    if (
+      entry.price === undefined ||
+      entry.price === null ||
+      entry.price === ""
+    ) {
+      return {
+        ok: false,
+        message: "Each cut must have a price",
+      };
+    }
     const price = Number(entry.price);
     if (!Number.isFinite(price) || price <= 0) {
       return {
@@ -38,7 +48,17 @@ export function normalizeFabricCutsPayload(cutsInput) {
       };
     }
 
-    const stock = Number(entry.stock ?? 0);
+    if (
+      entry.stock === undefined ||
+      entry.stock === null ||
+      entry.stock === ""
+    ) {
+      return {
+        ok: false,
+        message: "Each cut must have a stock specified",
+      };
+    }
+    const stock = Number(entry.stock);
     if (!Number.isFinite(stock) || stock < 0) {
       return { ok: false, message: "Each cut stock must be 0 or greater" };
     }
