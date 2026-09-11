@@ -16,6 +16,7 @@ import {
   Shirt,
   Plus,
   Edit,
+  Settings,
 } from "lucide-react";
 import white_logo from "../../../public/PNG/White/MOTD_Wordmark_White.png";
 import {
@@ -78,6 +79,11 @@ export default function FabricPortalShell({
       label: t("nav.notifications") || "Notifications",
       href: "/fabric/notifications",
       icon: Bell,
+    },
+    {
+      label: t("nav.settings") || "Settings",
+      href: "/fabric/settings",
+      icon: Settings,
     },
   ];
 

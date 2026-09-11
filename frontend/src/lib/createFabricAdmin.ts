@@ -203,19 +203,25 @@ function mapApiCutEntry(entry: Record<string, unknown>): FabricCutFormEntry | nu
 
 export function serializeFabricCuts(cuts: FabricCutFormEntry[]) {
   return cuts
+    .filter(
+      (entry) =>
+        Boolean(entry.cutId) &&
+        entry.price !== "" &&
+        entry.price !== undefined &&
+        entry.price !== null &&
+        Number.isFinite(Number(entry.price)) &&
+        Number(entry.price) > 0 &&
+        entry.stock !== "" &&
+        entry.stock !== undefined &&
+        entry.stock !== null &&
+        Number.isFinite(Number(entry.stock)) &&
+        Number(entry.stock) >= 0,
+    )
     .map((entry) => ({
       cutId: entry.cutId,
       price: Number(Number(entry.price).toFixed(2)),
-      stock: Math.floor(Number(entry.stock) || 0),
-    }))
-    .filter(
-      (entry) =>
-        entry.cutId &&
-        Number.isFinite(entry.price) &&
-        entry.price > 0 &&
-        Number.isFinite(entry.stock) &&
-        entry.stock >= 0,
-    );
+      stock: Math.floor(Number(entry.stock)),
+    }));
 }
 
 export function fromApiFabric(
@@ -435,37 +441,51 @@ export function validateFabricCuts(
   errors: Record<string, string>,
   prefix = "cuts",
 ) {
-  const validCuts = cuts.filter((entry) => {
-    const price = Number(entry.price);
-    return entry.cutId && Number.isFinite(price) && price > 0;
-  });
-
-  if (validCuts.length === 0) {
-    errors[prefix] = "At least one cut with a valid price is required";
+  if (!cuts || cuts.length === 0) {
+    errors[prefix] = "At least one cut with price and stock is required";
     return;
   }
 
+  let hasCompleteCut = false;
+
   cuts.forEach((entry, index) => {
-    const price = Number(entry.price);
-    const stock = Number(entry.stock);
     const rowPrefix = `${prefix}.${index}`;
+    const priceStr = String(entry.price ?? "").trim();
+    const stockStr = String(entry.stock ?? "").trim();
+    const price = Number(priceStr);
+    const stock = Number(stockStr);
 
-    if (!entry.cutId) {
+    let rowHasError = false;
+
+    if (!entry.cutId || entry.cutId.trim() === "") {
       errors[`${rowPrefix}.cutId`] = "Cut is required";
+      rowHasError = true;
     }
 
-    if (entry.price !== "" && entry.price !== undefined) {
-      if (!Number.isFinite(price) || price <= 0) {
-        errors[`${rowPrefix}.price`] = "Enter a valid price greater than 0";
-      }
+    if (priceStr === "") {
+      errors[`${rowPrefix}.price`] = "Price is required";
+      rowHasError = true;
+    } else if (!Number.isFinite(price) || price <= 0) {
+      errors[`${rowPrefix}.price`] = "Enter a valid price greater than 0";
+      rowHasError = true;
     }
 
-    if (entry.stock !== "" && entry.stock !== undefined) {
-      if (!Number.isFinite(stock) || stock < 0) {
-        errors[`${rowPrefix}.stock`] = "Stock must be 0 or greater";
-      }
+    if (stockStr === "") {
+      errors[`${rowPrefix}.stock`] = "Stock is required";
+      rowHasError = true;
+    } else if (!Number.isFinite(stock) || stock < 0) {
+      errors[`${rowPrefix}.stock`] = "Stock must be 0 or greater";
+      rowHasError = true;
+    }
+
+    if (!rowHasError) {
+      hasCompleteCut = true;
     }
   });
+
+  if (!hasCompleteCut && !errors[prefix]) {
+    errors[prefix] = "At least one cut with price and stock is required";
+  }
 }
 
 export function validateFabricForm(

@@ -202,13 +202,15 @@ export default function FabricDetailsPage() {
                       {fabric.cuts.map((cut) => (
                         <tr key={cut.cutId} className="border-t border-gray-50">
                           <td className="py-2 pr-4 font-medium">
-                            {cut.cutName || cut.cutId}
+                            {isAr
+                              ? cut.cutNameAr || cut.cutName || cut.cutId
+                              : cut.cutName || cut.cutId}
                           </td>
                           <td className="py-2 pr-4 text-gray-600">
                             {cut.cutValue && cut.cutUnit
-                              ? `${cut.cutValue} ${cut.cutUnit}`
+                              ? `${cut.cutValue} ${isAr ? (cut.cutUnit === "war" ? "وار" : "متر") : cut.cutUnit}`
                               : cut.lengthInMeters
-                                ? `${cut.lengthInMeters} m`
+                                ? `${cut.lengthInMeters} ${isAr ? "م" : "m"}`
                                 : "—"}
                           </td>
                           <td className="py-2 pr-4">{cut.price}</td>

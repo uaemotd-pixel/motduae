@@ -214,7 +214,7 @@ export function FabricCutsEditor({
                   <label
                     className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1"
                   >
-                    Select cut
+                    Select cut *
                   </label>
                   <div className="relative">
                     <select
@@ -225,7 +225,7 @@ export function FabricCutsEditor({
                       <option value="">Choose a cut...</option>
                       {availableCuts.map((cut) => (
                         <option key={cut._id} value={cut._id}>
-                          {cut.name} · {formatCutLabel(cut.value, cut.unit)}
+                          {cut.name}
                         </option>
                       ))}
                     </select>
@@ -244,7 +244,7 @@ export function FabricCutsEditor({
                   <label
                     className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1"
                   >
-                    Price (AED)
+                    Price (AED) *
                   </label>
                   <input
                     type="number"
@@ -268,7 +268,7 @@ export function FabricCutsEditor({
                   <label
                     className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1"
                   >
-                    Stock
+                    Stock *
                   </label>
                   <input
                     type="number"

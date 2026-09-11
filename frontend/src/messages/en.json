@@ -331,9 +331,11 @@
   "CustomOrderMeasurements": {
     "stepLabel": "Step {step} of {total}",
     "title": "Your Measurements",
-    "description": "Enter garment measurements using the same fields as our thobe measurement guide. All fields are optional — you can refine these with your tailor later.",
+    "description": "Enter garment measurements using the same fields as our thobe measurement guide. Measurements are required to tailor your order.",
     "loading": "Loading...",
-    "optionalNote": "All fields are optional. Measurements are in inches. Each input matches a numbered point on the measurement guide.",
+    "optionalNote": "Measurements are in inches. Each input matches a numbered point on the measurement guide. All measurements are required to proceed.",
+    "requiredError": "Please fill in all required measurements to proceed.",
+    "fieldRequired": "Required",
     "diagramGuide": "Measurement guide",
     "clickToZoom": "Click to enlarge",
     "zoomHint": "Click the image to activate the zoom lens. Drag to inspect labels and measurement points.",
@@ -784,7 +786,8 @@
       "ready-made": "Ready Made",
       "addons": "Add-Ons",
       "orders": "Orders",
-      "notifications": "Notifications"
+      "notifications": "Notifications",
+      "settings": "Settings"
     },
     "pending": {
       "eyebrow": "Fabric Portal",
@@ -1185,7 +1188,8 @@
       "designs": "Designs",
       "orders": "Orders",
       "pricing": "Pricing",
-      "notifications": "Notifications"
+      "notifications": "Notifications",
+      "settings": "Settings"
     },
     "orders": {
       "title": "Custom Orders",

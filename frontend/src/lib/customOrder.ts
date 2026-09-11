@@ -334,6 +334,7 @@ export function getCustomOrderResumePath(draft: CustomOrderDraft): string {
     if (!isTailorStepComplete(draft)) return "/custom-order/tailor";
   }
   if (!isMetersStepComplete(draft)) return "/custom-order/meters";
+  if (!isMeasurementsStepComplete(draft)) return "/custom-order/measurements";
   return "/custom-order/review";
 }
 
@@ -851,15 +852,23 @@ export function isMetersStepComplete(draft: CustomOrderDraft): boolean {
   );
 }
 
-export function isMeasurementsStepComplete(_draft: CustomOrderDraft): boolean {
-  return true;
+export function isMeasurementsStepComplete(draft: CustomOrderDraft): boolean {
+  if (!draft?.measurements) return false;
+  return CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS.every((field) => {
+    const val = draft.measurements[field];
+    return typeof val === "number" && Number.isFinite(val) && val > 0;
+  });
 }
 
 export function isReviewStepComplete(
   draft: CustomOrderDraft,
   hasPricing: boolean,
 ): boolean {
-  return buildCustomOrderPreviewPayload(draft) !== null && hasPricing;
+  return (
+    buildCustomOrderPreviewPayload(draft) !== null &&
+    hasPricing &&
+    isMeasurementsStepComplete(draft)
+  );
 }
 
 export function createLineItemId(

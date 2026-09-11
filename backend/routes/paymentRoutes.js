@@ -26,6 +26,7 @@ import {
 import { buildPublicOrderTrackingUrl } from "../services/publicTrackingToken.js";
 import { resolveCheckoutContactEmail } from "../services/emailVerification/guestContactOtpService.js";
 import { EmailVerificationError } from "../services/emailVerification/emailVerificationService.js";
+import { validateCustomMeasurements } from "../services/customPaidOrderService.js";
 
 const paymentRoutes = express.Router();
 
@@ -274,6 +275,7 @@ paymentRoutes.post(
     }
 
     try {
+      validateCustomMeasurements(req.body?.measurements);
       const storedContactEmail = resolveCheckoutContactEmail(
         req,
         req.body?.contactEmail,

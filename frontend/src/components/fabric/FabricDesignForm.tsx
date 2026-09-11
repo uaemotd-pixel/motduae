@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode, type MutableRefObject } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+  type MutableRefObject,
+} from "react";
 import { useTranslations, useLocale } from "next-intl";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,7 +35,6 @@ import {
   fabricToForm,
   emptyFabricForm,
   fetchFabricItem,
-  getFabricAgeFieldErrors,
   isShopMissingError,
   mapFabricApiErrorToFieldErrors,
   slugifyFabricName,
@@ -356,6 +363,141 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
   }, []);
 
   useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        colorDropdownRef.current &&
+        !colorDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsColorDropdownOpen(false);
+      }
+      if (
+        materialDropdownRef.current &&
+        !materialDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsMaterialDropdownOpen(false);
+      }
+      if (
+        categoryDropdownRef.current &&
+        !categoryDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsCategoryDropdownOpen(false);
+      }
+      if (
+        patternDropdownRef.current &&
+        !patternDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsPatternDropdownOpen(false);
+      }
+      if (
+        seasonDropdownRef.current &&
+        !seasonDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsSeasonDropdownOpen(false);
+      }
+      if (
+        tagDropdownRef.current &&
+        !tagDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsTagDropdownOpen(false);
+      }
+      if (
+        emirateDropdownRef.current &&
+        !emirateDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsEmirateDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const allMaterials = useMemo<FilterOpt[]>(() => {
+    const fromDb = dbMaterials.map((m) => ({
+      value: m.name,
+      en: m.name,
+      ar: m.nameAr || m.name,
+    }));
+    if (
+      formData.material &&
+      !fromDb.some((x) => x.value === formData.material)
+    ) {
+      fromDb.unshift({
+        value: formData.material,
+        en: formData.material,
+        ar: formData.materialAr || formData.material,
+      });
+    }
+    return fromDb;
+  }, [dbMaterials, formData.material, formData.materialAr]);
+
+  const allCategories = useMemo<FilterOpt[]>(() => {
+    const fromDb = dbCategories.map((c) => ({
+      value: c.name,
+      en: c.name,
+      ar: c.nameAr || c.name,
+    }));
+    if (
+      formData.category &&
+      !fromDb.some((x) => x.value === formData.category)
+    ) {
+      fromDb.unshift({
+        value: formData.category,
+        en: formData.category,
+        ar: formData.categoryAr || formData.category,
+      });
+    }
+    return fromDb;
+  }, [dbCategories, formData.category, formData.categoryAr]);
+
+  const allPatterns = useMemo<FilterOpt[]>(() => {
+    const fromDb = dbPatterns.map((p) => ({
+      value: p.name,
+      en: p.name,
+      ar: p.nameAr || p.name,
+    }));
+    if (formData.pattern && !fromDb.some((x) => x.value === formData.pattern)) {
+      fromDb.unshift({
+        value: formData.pattern,
+        en: formData.pattern,
+        ar: formData.patternAr || formData.pattern,
+      });
+    }
+    return fromDb;
+  }, [dbPatterns, formData.pattern, formData.patternAr]);
+
+  const allSeasons = useMemo<FilterOpt[]>(() => {
+    const fromDb = dbSeasons.map((s) => ({
+      value: s.name,
+      en: s.name,
+      ar: s.nameAr || s.name,
+    }));
+    if (formData.season && !fromDb.some((x) => x.value === formData.season)) {
+      fromDb.unshift({
+        value: formData.season,
+        en: formData.season,
+        ar: formData.seasonAr || formData.season,
+      });
+    }
+    return fromDb;
+  }, [dbSeasons, formData.season, formData.seasonAr]);
+
+  const allTags = useMemo<FilterOpt[]>(() => {
+    const fromDb = dbTags.map((t) => ({
+      value: t.name,
+      en: t.name,
+      ar: t.nameAr || t.name,
+    }));
+    if (formData.tag && !fromDb.some((x) => x.value === formData.tag)) {
+      fromDb.unshift({
+        value: formData.tag,
+        en: formData.tag,
+        ar: formData.tagAr || formData.tag,
+      });
+    }
+    return fromDb;
+  }, [dbTags, formData.tag, formData.tagAr]);
+
+  useEffect(() => {
     let cancelled = false;
     const fetchCuts = async () => {
       try {
@@ -398,36 +540,6 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         !colorDropdownRef.current.contains(event.target as Node)
       ) {
         setIsColorDropdownOpen(false);
-      }
-      if (
-        materialDropdownRef.current &&
-        !materialDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsMaterialDropdownOpen(false);
-      }
-      if (
-        categoryDropdownRef.current &&
-        !categoryDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsCategoryDropdownOpen(false);
-      }
-      if (
-        patternDropdownRef.current &&
-        !patternDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsPatternDropdownOpen(false);
-      }
-      if (
-        seasonDropdownRef.current &&
-        !seasonDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsSeasonDropdownOpen(false);
-      }
-      if (
-        tagDropdownRef.current &&
-        !tagDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsTagDropdownOpen(false);
       }
       if (
         emirateDropdownRef.current &&
@@ -498,15 +610,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         next.slug = slugifyFabricName(value);
       }
 
-      if (field === "minAge" || field === "maxAge") {
-        const ageErrors = getFabricAgeFieldErrors(next);
-        setFieldErrors((prevErrors) => {
-          const nextErrors = { ...prevErrors };
-          delete nextErrors.minAge;
-          delete nextErrors.maxAge;
-          return { ...nextErrors, ...ageErrors };
-        });
-      } else if (fieldErrors[field]) {
+      if (fieldErrors[field]) {
         setFieldErrors((prevErrors) => ({ ...prevErrors, [field]: undefined }));
       }
 
@@ -638,19 +742,14 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     if (!formData.images.some((image) => image.trim())) {
       errors.images = t("validation.imagesRequired");
     }
-
-    if (!formData.material) {
-      errors.material = "Material (EN) is required";
-    }
-    if (!formData.materialAr) {
-      errors.materialAr = "Material (AR) is required";
+    if (!formData.material?.trim()) {
+      errors.material = t("validation.materialRequired");
     }
 
     validateFabricCuts(formData.cuts || [], errors, "cuts");
     if (!formData.colors || formData.colors.length === 0) {
       errors.colors = t("validation.colorRequired");
     }
-    Object.assign(errors, getFabricAgeFieldErrors(formData));
 
     if (!formData.storePickupAddress.emirate) {
       errors["storePickupAddress.emirate"] = "Emirate is required";
@@ -774,32 +873,6 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
       </div>
     );
   }
-
-  const allMaterials = dbMaterials.map((m) => ({
-    value: m.name,
-    en: m.name,
-    ar: m.nameAr || m.name,
-  }));
-  const allCategories = dbCategories.map((c) => ({
-    value: c.name,
-    en: c.name,
-    ar: c.nameAr || c.name,
-  }));
-  const allPatterns = dbPatterns.map((p) => ({
-    value: p.name,
-    en: p.name,
-    ar: p.nameAr || p.name,
-  }));
-  const allSeasons = dbSeasons.map((s) => ({
-    value: s.name,
-    en: s.name,
-    ar: s.nameAr || s.name,
-  }));
-  const allTags = dbTags.map((tag) => ({
-    value: tag.name,
-    en: tag.name,
-    ar: tag.nameAr || tag.name,
-  }));
 
   const selectedColors = formData.colors || [];
 
@@ -1135,50 +1208,6 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 handleChange("cuts", cuts)
               }
             />
-
-            <div className="grid grid-cols-2 gap-x-3 gap-y-4 items-start pt-1">
-              <FormField
-                label="MIN AGE (YEARS)"
-                name="minAge"
-                error={fieldErrors.minAge}
-              >
-                <input
-                  type="number"
-                  min="0"
-                  max="150"
-                  value={formData.minAge ?? ""}
-                  onChange={(e) =>
-                    handleChange(
-                      "minAge",
-                      e.target.value === "" ? null : Number(e.target.value),
-                    )
-                  }
-                  className={`${INPUT_CLASS} hover:cursor-text`}
-                  placeholder="0"
-                />
-              </FormField>
-
-              <FormField
-                label="MAX AGE (YEARS)"
-                name="maxAge"
-                error={fieldErrors.maxAge}
-              >
-                <input
-                  type="number"
-                  min="0"
-                  max="150"
-                  value={formData.maxAge ?? ""}
-                  onChange={(e) =>
-                    handleChange(
-                      "maxAge",
-                      e.target.value === "" ? null : Number(e.target.value),
-                    )
-                  }
-                  className={`${INPUT_CLASS} hover:cursor-text`}
-                  placeholder="150"
-                />
-              </FormField>
-            </div>
           </FormSection>
 
           <FormSection title="Store pickup address">
@@ -1471,40 +1500,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                         />
                       </FormField>
 
-                      {/* VARIANT MATERIAL - from DB */}
-                      <FormField
-                        label="Material"
-                        name={`${prefix}.material`}
-                        error={fieldErrors[`${prefix}.material`]}
-                        required
-                      >
-                        <select
-                          value={variant.material}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            handleVariantChange(index, "material", val);
-                            const found = dbMaterials.find(
-                              (m) => m.name === val,
-                            );
-                            if (found) {
-                              handleVariantChange(
-                                index,
-                                "materialAr",
-                                found.nameAr || "",
-                              );
-                            }
-                          }}
-                          className={`${INPUT_CLASS} hover:cursor-pointer`}
-                        >
-                          <option value="">Select material</option>
-                          {dbMaterials.map((m) => (
-                            <option key={m._id} value={m.name}>
-                              {m.name}
-                            </option>
-                          ))}
-                        </select>
-                      </FormField>
-
+                      {/* VARIANT CATEGORY */}
                       <FormField
                         label="Category"
                         name={`${prefix}.category`}
@@ -1535,6 +1531,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                         </select>
                       </FormField>
 
+                      {/* VARIANT PATTERN */}
                       <FormField
                         label="Pattern"
                         name={`${prefix}.pattern`}
@@ -1565,6 +1562,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                         </select>
                       </FormField>
 
+                      {/* VARIANT SEASON */}
                       <FormField
                         label="Season"
                         name={`${prefix}.season`}

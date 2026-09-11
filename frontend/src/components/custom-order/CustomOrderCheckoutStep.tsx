@@ -14,6 +14,7 @@ import {
   buildCustomOrderCreatePayload,
   buildCustomOrderPreviewPayload,
   getCustomOrderResumePath,
+  isMeasurementsStepComplete,
   type CustomOrderDeliveryAddress,
   type CustomOrderPricingBreakdown,
   useOwnFabric,
@@ -301,7 +302,7 @@ export default function CustomOrderCheckoutStep() {
     )
       return;
 
-    if (!previewPayload) {
+    if (!previewPayload || !isMeasurementsStepComplete(draft)) {
       router.push(getCustomOrderResumePath(draft));
     }
   }, [
@@ -548,8 +549,9 @@ export default function CustomOrderCheckoutStep() {
   } | null> => {
     if (!requireEmailVerified()) return null;
 
-    if (!previewPayload) {
+    if (!previewPayload || !isMeasurementsStepComplete(draft)) {
       toast.error(t("incompleteDraft"), ERROR_TOAST);
+      router.push(getCustomOrderResumePath(draft));
       throw new Error(t("incompleteDraft"));
     }
 

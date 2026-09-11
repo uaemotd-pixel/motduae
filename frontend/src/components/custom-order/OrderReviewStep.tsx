@@ -15,6 +15,7 @@ import {
   getFabricCutLengthInMeters,
   getLineItemCutSelections,
   isLineItemComplete,
+  isMeasurementsStepComplete,
   isMetersStepComplete,
   isReviewStepComplete,
   type CustomOrderMeasurements,
@@ -259,6 +260,13 @@ export default function OrderReviewStep() {
     fetchPreview();
   }, [isHydrated, previewPayload, t, shippingFee, vatRate, draft.addonIds]);
 
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (!isMeasurementsStepComplete(draft)) {
+      router.replace("/custom-order/measurements");
+    }
+  }, [isHydrated, draft, router]);
+
   const canContinue = isReviewStepComplete(draft, pricing !== null) && !settingsError && vatRate !== null;
 
   const getDisplayName = (name?: string, nameAr?: string) =>
@@ -269,6 +277,10 @@ export default function OrderReviewStep() {
   const editOrderPath = getCustomOrderEntryPath(draft.firstStep);
 
   const handleContinue = () => {
+    if (!isMeasurementsStepComplete(draft)) {
+      router.replace("/custom-order/measurements");
+      return;
+    }
     if (!canContinue) return;
     router.push("/custom-order/checkout");
   };
@@ -499,9 +511,17 @@ export default function OrderReviewStep() {
 
           <dl className="space-y-4 pt-4 border-t border-(--color-border)">
             <div>
-              <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1">
-                {t("measurements")}
-              </dt>
+              <div className="flex items-center justify-between mb-1">
+                <dt className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted)">
+                  {t("measurements")}
+                </dt>
+                <Link
+                  href="/custom-order/measurements"
+                  className="[font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.18em] text-black hover:opacity-60 transition-opacity underline"
+                >
+                  {locale === "ar" ? "تعديل القياسات" : "Edit Measurements"}
+                </Link>
+              </div>
               <dd className="[font-family:var(--font-body)] text-[15px] text-black">
                 {hasAnyMeasurements(draft.measurements) ? (
                   <ul className="space-y-1 mt-1">
