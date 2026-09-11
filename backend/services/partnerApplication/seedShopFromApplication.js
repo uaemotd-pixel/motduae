@@ -2,7 +2,11 @@ import TailorShop from "../../models/TailorShop.js";
 import FabricShop from "../../models/FabricShop.js";
 import PartnerApplication from "../../models/PartnerApplication.js";
 import { ensureUniqueSlug } from "../../utils/uniqueSlug.js";
-import { normalizeUaePhone, trimText } from "./policy.js";
+import {
+  normalizeSocialLinks,
+  normalizeUaePhone,
+  trimText,
+} from "./policy.js";
 
 function shopModelForRole(role) {
   if (role === "tailor") return TailorShop;
@@ -22,6 +26,8 @@ export function shopFieldsFromApplication(doc) {
     location: trimText(doc.location || doc.area),
     city: trimText(doc.city),
     phone: normalizeUaePhone(doc.phone) || trimText(doc.phone),
+    website: trimText(doc.website),
+    social: normalizeSocialLinks(doc.social),
   };
 }
 
@@ -44,10 +50,21 @@ export async function seedShopFromApplication(user) {
     fallback: "shop",
   });
 
-  return Model.create({
-    ...fields,
+  const payload = {
+    name: fields.name,
+    nameAr: fields.nameAr,
+    description: fields.description,
+    descriptionAr: fields.descriptionAr,
+    logo: fields.logo,
+    location: fields.location,
+    city: fields.city,
+    phone: fields.phone,
+    website: fields.website,
+    social: fields.social,
     slug,
     ownerId: user._id,
     isActive: true,
-  });
+  };
+
+  return Model.create(payload);
 }

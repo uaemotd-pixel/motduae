@@ -12,6 +12,9 @@ import {
   ExternalLink,
 } from "lucide-react";
 import DesignGallery from "@/components/tailor/DesignGallery";
+import SocialPlatformIcon, {
+  SOCIAL_PLATFORM_LINK_CLASS,
+} from "@/components/shared/SocialPlatformIcon";
 import {
   type TailorDesignListItem,
   type TailorShopDetailItem,
@@ -19,7 +22,12 @@ import {
   getTailorDisplayFields,
   resolveTailorImage,
 } from "@/lib/tailors";
+import { getSocialPlatform } from "@/lib/tailorShop";
 import { resolveMediaUrl } from "@/lib/media";
+import { formatPartnerExperience } from "@/lib/partnerExperience";
+
+const SOCIAL_LINK_BASE_CLASS =
+  "inline-flex size-11 items-center justify-center rounded-full border bg-white transition-all duration-300";
 
 type SocialLink = { name: string; url: string };
 
@@ -42,6 +50,11 @@ type TailorDetailViewProps = {
     viewDesigns: string;
     connectTitle: string;
     website: string;
+    experienceTitle: string;
+    experienceYear: string;
+    experienceYears: string;
+    experienceMonth: string;
+    experienceMonths: string;
   };
 };
 
@@ -50,71 +63,6 @@ function ensureHttpUrl(url: string): string {
   if (!trimmed) return "";
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
-}
-
-function SocialGlyph({ name }: { name: string }) {
-  const key = name.toLowerCase();
-  const common = "size-4.5";
-
-  if (key.includes("instagram")) {
-    return (
-      <svg viewBox="0 0 24 24" className={common} fill="none" aria-hidden>
-        <rect
-          x="3"
-          y="3"
-          width="18"
-          height="18"
-          rx="5"
-          stroke="currentColor"
-          strokeWidth="1.75"
-        />
-        <circle
-          cx="12"
-          cy="12"
-          r="4"
-          stroke="currentColor"
-          strokeWidth="1.75"
-        />
-        <circle cx="17.5" cy="6.5" r="1" fill="currentColor" />
-      </svg>
-    );
-  }
-
-  if (key.includes("facebook")) {
-    return (
-      <svg
-        viewBox="0 0 24 24"
-        className={common}
-        fill="currentColor"
-        aria-hidden
-      >
-        <path d="M14 9h3V6h-3c-1.7 0-3 1.3-3 3v2H9v3h2v7h3v-7h2.5l.5-3H14V9z" />
-      </svg>
-    );
-  }
-
-  if (key.includes("tiktok")) {
-    return (
-      <svg
-        viewBox="0 0 24 24"
-        className={common}
-        fill="currentColor"
-        aria-hidden
-      >
-        <path d="M16.5 4c.4 1.8 1.7 3.2 3.5 3.6v2.5c-1.3-.1-2.5-.5-3.5-1.2v5.6c0 3.3-2.7 6-6 6s-6-2.7-6-6 2.7-6 6-6c.3 0 .7 0 1 .1v2.7c-.3-.1-.7-.1-1-.1-1.8 0-3.2 1.5-3.2 3.3s1.4 3.3 3.2 3.3 3.2-1.5 3.2-3.3V4h2.8z" />
-      </svg>
-    );
-  }
-
-  if (
-    key.includes("website") ||
-    key.includes("portfolio") ||
-    key.includes("site")
-  ) {
-    return <Globe className={common} strokeWidth={1.75} aria-hidden />;
-  }
-
-  return <ExternalLink className={common} strokeWidth={1.75} aria-hidden />;
 }
 
 export default function TailorDetailView({
@@ -141,6 +89,12 @@ export default function TailorDetailView({
     .filter((link) => link.name && link.url);
 
   const hasConnect = Boolean(websiteUrl || socialLinks.length);
+  const experienceLabel = formatPartnerExperience(shop.experience, {
+    year: labels.experienceYear,
+    years: labels.experienceYears,
+    month: labels.experienceMonth,
+    months: labels.experienceMonths,
+  });
 
   return (
     <div className="min-h-screen bg-(--bg-page)">
@@ -215,6 +169,13 @@ export default function TailorDetailView({
                     aria-hidden
                   />
                   <span className="min-w-0 truncate">{location}</span>
+                </p>
+              ) : null}
+
+              {experienceLabel ? (
+                <p className="mt-2 text-[11px] uppercase tracking-[0.2em] text-white/75 [font-family:var(--font-ui)] sm:text-[12px]">
+                  <span className="text-white/55">{labels.experienceTitle}: </span>
+                  {experienceLabel}
                 </p>
               ) : null}
 
@@ -313,7 +274,7 @@ export default function TailorDetailView({
                 <p className="mb-4 text-[10px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
                   {labels.connectTitle}
                 </p>
-                <div className="flex flex-wrap gap-2.5">
+                <div className="flex flex-wrap gap-3">
                   {websiteUrl ? (
                     <a
                       href={websiteUrl}
@@ -321,7 +282,7 @@ export default function TailorDetailView({
                       rel="noopener noreferrer"
                       aria-label={labels.website}
                       title={labels.website}
-                      className="inline-flex size-11 items-center justify-center border border-(--color-border) bg-white text-black transition hover:border-black hover:bg-black hover:text-white"
+                      className={`${SOCIAL_LINK_BASE_CLASS} border-(--color-border) text-black hover:border-black hover:bg-black hover:text-white`}
                     >
                       <Globe
                         className="size-4.5"
@@ -330,19 +291,34 @@ export default function TailorDetailView({
                       />
                     </a>
                   ) : null}
-                  {socialLinks.map((link) => (
-                    <a
-                      key={`${link.name}-${link.url}`}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={link.name}
-                      title={link.name}
-                      className="inline-flex size-11 items-center justify-center border border-(--color-border) bg-white text-black transition hover:border-black hover:bg-black hover:text-white"
-                    >
-                      <SocialGlyph name={link.name} />
-                    </a>
-                  ))}
+                  {socialLinks.map((link) => {
+                    const platform = getSocialPlatform(link.name);
+                    const brandClass = platform
+                      ? SOCIAL_PLATFORM_LINK_CLASS[platform.value]
+                      : "border-(--color-border) text-black hover:border-black hover:bg-black hover:text-white";
+
+                    return (
+                      <a
+                        key={`${link.name}-${link.url}`}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={link.name}
+                        title={link.name}
+                        className={`${SOCIAL_LINK_BASE_CLASS} ${brandClass}`}
+                      >
+                        {platform ? (
+                          <SocialPlatformIcon platform={platform.value} />
+                        ) : (
+                          <ExternalLink
+                            className="size-4.5"
+                            strokeWidth={1.75}
+                            aria-hidden
+                          />
+                        )}
+                      </a>
+                    );
+                  })}
                 </div>
               </motion.div>
             ) : null}

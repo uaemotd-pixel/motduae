@@ -30,6 +30,11 @@ export interface TailorShopOwner {
 
 export interface TailorShopDetailItem extends TailorShopListItem {
   owner: TailorShopOwner | null;
+  experience?: {
+    years: number;
+    months: number;
+    yearsOperating?: string;
+  } | null;
   createdAt?: string;
   updatedAt?: string;
 }

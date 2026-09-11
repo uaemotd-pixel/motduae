@@ -120,6 +120,11 @@ export default function TailorShopDetailPage() {
             viewDesigns: t("viewDesigns"),
             connectTitle: t("connectTitle"),
             website: t("website"),
+            experienceTitle: t("experienceTitle"),
+            experienceYear: t("experienceYear"),
+            experienceYears: t("experienceYears"),
+            experienceMonth: t("experienceMonth"),
+            experienceMonths: t("experienceMonths"),
           }}
         />
       </FadeInSection>

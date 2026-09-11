@@ -12,12 +12,15 @@ export function PartnerRequestNumber({
   label,
   value,
   className = "mb-6",
+  emptyFallback,
 }: {
   label: string;
   value?: string | null;
   className?: string;
+  /** When set, always render and show this if value is empty */
+  emptyFallback?: string;
 }) {
-  if (!value) return null;
+  if (!value && emptyFallback == null) return null;
   return (
     <div
       className={`text-left border border-(--color-border) bg-white px-4 py-3 ${className}`}
@@ -26,7 +29,7 @@ export function PartnerRequestNumber({
         {label}
       </p>
       <p className="[font-family:var(--font-body)] text-[14px] leading-relaxed text-black">
-        {value}
+        {value || emptyFallback}
       </p>
     </div>
   );

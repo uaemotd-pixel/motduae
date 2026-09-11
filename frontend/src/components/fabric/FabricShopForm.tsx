@@ -4,8 +4,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
+import { Trash2 } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import FormField from "@/components/admin/FormField";
+import ImageUpload from "@/components/admin/ImageUpload";
+import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
+import SocialPlatformIcon from "@/components/shared/SocialPlatformIcon";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import { UAE_EMIRATES, getEmirateEn, getEmirateAr } from "@/lib/uaeAddress";
 import {
@@ -15,10 +19,23 @@ import {
   slugifyShopName,
   fabricShopToForm,
   updateFabricShop,
+  SOCIAL_MAX,
+  SOCIAL_PLATFORMS,
+  getSocialPlatform,
+  isKnownSocialPlatform,
+  isOtherSocialPlatform,
+  isValidHttpUrl,
+  isValidSocialPlatformUrl,
+  normalizeHttpUrl,
   type FabricShopFormData,
   type FabricShopProfile,
+  type FabricShopSocialLink,
   type ShopPickupAddress,
 } from "@/lib/fabricShop";
+import { resolveMediaUrl } from "@/lib/media";
+import { formatPartnerExperience } from "@/lib/partnerExperience";
+import { PartnerRequestNumber } from "@/components/partner/PartnerGateScreen";
+import { OFFERINGS } from "@/lib/partnerApplication";
 import {
   isValidUaePhone,
   normalizeUaePhone,
@@ -28,10 +45,26 @@ import {
 const INPUT_CLASS =
   "w-full border border-(--color-border) bg-white px-4 py-3 text-[14px] [font-family:var(--font-body)] text-black focus:border-black focus:outline-none";
 const TEXTAREA_CLASS = `${INPUT_CLASS} min-h-[120px] resize-y`;
+const READONLY_INPUT_CLASS = `${INPUT_CLASS} cursor-not-allowed bg-gray-50 text-(--color-grey-muted)`;
+
+const APPLICATION_FORM_KEYS = [
+  "licenceNumber",
+  "licenceFileUrl",
+  "experience",
+  "yearsOperating",
+  "offering",
+  "partnerNote",
+  "requestNumber",
+] as const;
 
 type FieldKey =
-  | keyof Omit<FabricShopFormData, "pickupAddress">
-  | `pickupAddress.${keyof ShopPickupAddress}`;
+  | keyof Omit<
+      FabricShopFormData,
+      "pickupAddress" | "social" | (typeof APPLICATION_FORM_KEYS)[number]
+    >
+  | `pickupAddress.${keyof ShopPickupAddress}`
+  | `social.${number}.name`
+  | `social.${number}.url`;
 
 const TOAST_BASE = {
   duration: 6000,
@@ -69,6 +102,7 @@ const ERROR_TOAST = {
 
 export default function FabricShopForm() {
   const t = useTranslations("FabricPortal.shop");
+  const tApply = useTranslations("PartnerApply");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -80,6 +114,12 @@ export default function FabricShopForm() {
   );
   const [shop, setShop] = useState<FabricShopProfile | null>(null);
   const [emirateOpen, setEmirateOpen] = useState(false);
+  const [socialPlatformOpenIndex, setSocialPlatformOpenIndex] = useState<
+    number | null
+  >(null);
+  const [otherSocialRows, setOtherSocialRows] = useState<Set<number>>(
+    () => new Set(),
+  );
 
   const isCreateMode = shop === null;
 
@@ -97,14 +137,23 @@ export default function FabricShopForm() {
         if (existingShop) {
           setShop(existingShop);
           const form = fabricShopToForm(existingShop);
-          // Normalize phone if it exists
           if (form.phone) {
             form.phone = normalizeUaePhone(form.phone);
           }
           setFormData(form);
+          setOtherSocialRows(
+            new Set(
+              form.social
+                .map((row, i) =>
+                  row.name.trim() && !isKnownSocialPlatform(row.name) ? i : -1,
+                )
+                .filter((i) => i >= 0),
+            ),
+          );
         } else {
           setShop(null);
           setFormData(emptyFabricShopForm());
+          setOtherSocialRows(new Set());
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -127,7 +176,10 @@ export default function FabricShopForm() {
   }, [t]);
 
   const handleChange = (
-    field: keyof Omit<FabricShopFormData, "pickupAddress">,
+    field: keyof Omit<
+      FabricShopFormData,
+      "pickupAddress" | "social" | (typeof APPLICATION_FORM_KEYS)[number]
+    >,
     value: string,
   ) => {
     let val = value;
@@ -179,6 +231,73 @@ export default function FabricShopForm() {
     }
   };
 
+  const handleSocialChange = (
+    index: number,
+    field: keyof FabricShopSocialLink,
+    value: string,
+  ) => {
+    setFormData((prev) => {
+      const next = [...prev.social];
+      next[index] = { ...next[index], [field]: value };
+      return { ...prev, social: next };
+    });
+
+    const nameKey = `social.${index}.name` as FieldKey;
+    const urlKey = `social.${index}.url` as FieldKey;
+    if (fieldErrors[nameKey] || fieldErrors[urlKey]) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        [nameKey]: undefined,
+        [urlKey]: undefined,
+      }));
+    }
+  };
+
+  const addSocialLink = () => {
+    setFormData((prev) => {
+      if (prev.social.length >= SOCIAL_MAX) return prev;
+      const used = new Set(
+        prev.social.map((row) => row.name.trim().toLowerCase()).filter(Boolean),
+      );
+      const nextPlatform =
+        SOCIAL_PLATFORMS.find((p) => !used.has(p.value.toLowerCase()))?.value ||
+        "";
+      return {
+        ...prev,
+        social: [...prev.social, { name: nextPlatform, url: "" }],
+      };
+    });
+  };
+
+  const removeSocialLink = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      social: prev.social.filter((_, i) => i !== index),
+    }));
+    setOtherSocialRows((prev) => {
+      const next = new Set<number>();
+      prev.forEach((i) => {
+        if (i < index) next.add(i);
+        else if (i > index) next.add(i - 1);
+      });
+      return next;
+    });
+    if (socialPlatformOpenIndex === index) {
+      setSocialPlatformOpenIndex(null);
+    } else if (
+      socialPlatformOpenIndex !== null &&
+      socialPlatformOpenIndex > index
+    ) {
+      setSocialPlatformOpenIndex(socialPlatformOpenIndex - 1);
+    }
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next[`social.${index}.name` as FieldKey];
+      delete next[`social.${index}.url` as FieldKey];
+      return next;
+    });
+  };
+
   const validate = (): boolean => {
     const errors: Partial<Record<FieldKey, string>> = {};
     const payload = formData;
@@ -193,6 +312,54 @@ export default function FabricShopForm() {
         errors.phone = t("validation.phoneInvalid");
       }
     }
+
+    if (payload.website.trim() && !isValidHttpUrl(payload.website)) {
+      errors.website = t("validation.websiteInvalid");
+    }
+
+    const usedPlatforms = new Set<string>();
+    payload.social.forEach((row, index) => {
+      const name = row.name.trim();
+      const url = row.url.trim();
+      const nameKey = `social.${index}.name` as FieldKey;
+      const urlKey = `social.${index}.url` as FieldKey;
+      const isOtherRow =
+        otherSocialRows.has(index) ||
+        isOtherSocialPlatform(name) ||
+        name.toLowerCase() === "other";
+
+      if (!name && !url && !otherSocialRows.has(index)) return;
+
+      if (isOtherRow) {
+        if (!name || name.toLowerCase() === "other") {
+          errors[nameKey] = t("validation.socialOtherNameRequired");
+        } else {
+          const key = name.toLowerCase();
+          if (usedPlatforms.has(key)) {
+            errors[nameKey] = t("validation.socialPlatformDuplicate");
+          } else {
+            usedPlatforms.add(key);
+          }
+        }
+      } else if (!name) {
+        errors[nameKey] = t("validation.socialPlatformRequired");
+      } else if (!isKnownSocialPlatform(name)) {
+        errors[nameKey] = t("validation.socialPlatformInvalid");
+      } else {
+        const key = name.toLowerCase();
+        if (usedPlatforms.has(key)) {
+          errors[nameKey] = t("validation.socialPlatformDuplicate");
+        } else {
+          usedPlatforms.add(key);
+        }
+      }
+
+      if (!url) {
+        errors[urlKey] = t("validation.socialUrlRequired");
+      } else if (!isValidSocialPlatformUrl(name, url)) {
+        errors[urlKey] = t("validation.socialUrlInvalid");
+      }
+    });
 
     if (!payload.pickupAddress.fullName.trim()) {
       errors["pickupAddress.fullName"] = t("validation.pickupFullNameRequired");
@@ -225,6 +392,46 @@ export default function FabricShopForm() {
     return digits.slice(0, 9);
   };
 
+  const handleImageChange = async (
+    field: "logo" | "coverImage",
+    url: string,
+  ) => {
+    const nextForm = { ...formData, [field]: url };
+    setFormData(nextForm);
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+    }
+
+    if (!shop) return;
+
+    setSubmitting(true);
+
+    try {
+      const payload = {
+        ...nextForm,
+        phone: normalizeUaePhone(nextForm.phone),
+      };
+      const savedShop = await updateFabricShop(payload);
+      setShop(savedShop);
+      const form = fabricShopToForm(savedShop);
+      if (form.phone) {
+        form.phone = normalizeUaePhone(form.phone);
+      }
+      setFormData(form);
+      toast.success(
+        url.trim() ? t("imageSaved") : t("imageRemoved"),
+        SUCCESS_TOAST,
+      );
+    } catch (err: unknown) {
+      toast.error(
+        getApiErrorMessage(err, t("errors.updateFailed")),
+        ERROR_TOAST,
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
@@ -232,7 +439,6 @@ export default function FabricShopForm() {
     setSubmitting(true);
 
     try {
-      // Normalize phone before sending
       const payload = {
         ...formData,
         phone: normalizeUaePhone(formData.phone),
@@ -248,6 +454,15 @@ export default function FabricShopForm() {
         form.phone = normalizeUaePhone(form.phone);
       }
       setFormData(form);
+      setOtherSocialRows(
+        new Set(
+          form.social
+            .map((row, i) =>
+              row.name.trim() && !isKnownSocialPlatform(row.name) ? i : -1,
+            )
+            .filter((i) => i >= 0),
+        ),
+      );
       toast.success(
         isCreateMode ? t("successCreated") : t("successUpdated"),
         SUCCESS_TOAST,
@@ -271,7 +486,7 @@ export default function FabricShopForm() {
 
   if (loading) {
     return (
-      <div className="max-w-3xl border border-(--color-border) bg-white p-8">
+      <div className="w-full max-w-5xl border border-(--color-border) bg-white p-8">
         <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
           {t("loading")}
         </p>
@@ -281,7 +496,7 @@ export default function FabricShopForm() {
 
   if (loadError) {
     return (
-      <div className="max-w-3xl border border-red-200 bg-red-50 p-8">
+      <div className="w-full max-w-5xl border border-red-200 bg-red-50 p-8">
         <p className="[font-family:var(--font-body)] text-[14px] text-red-700">
           {loadError}
         </p>
@@ -290,7 +505,7 @@ export default function FabricShopForm() {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full max-w-5xl">
       <div className="mb-8">
         <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-3">
           {t("eyebrow")}
@@ -301,7 +516,50 @@ export default function FabricShopForm() {
         <p className="[font-family:var(--font-body)] text-[14px] leading-relaxed text-(--color-grey-muted)">
           {isCreateMode ? t("createDescription") : t("editDescription")}
         </p>
+        <PartnerRequestNumber
+          label={t("requestNumberLabel")}
+          value={formData.requestNumber}
+          emptyFallback="—"
+          className="mt-4 mb-0"
+        />
+        {!isCreateMode && shop?.slug && (
+          <Link
+            href={`/brands/${shop.slug}`}
+            className="inline-block mt-4 [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-black underline underline-offset-4 hover:text-(--color-grey-muted) transition"
+          >
+            {t("viewPublicProfile")}
+          </Link>
+        )}
       </div>
+
+      {!isCreateMode && shop && (
+        <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="border border-(--color-border) bg-white p-4">
+            <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) mb-1">
+              {t("meta.rating")}
+            </p>
+            <p className="[font-family:var(--font-display)] text-[20px] text-black">
+              {Number(shop.rating ?? 0).toFixed(1)}
+            </p>
+          </div>
+          <div className="border border-(--color-border) bg-white p-4">
+            <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) mb-1">
+              {t("meta.reviews")}
+            </p>
+            <p className="[font-family:var(--font-display)] text-[20px] text-black">
+              {shop.reviewCount ?? 0}
+            </p>
+          </div>
+          <div className="border border-(--color-border) bg-white p-4">
+            <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-(--color-grey-muted) mb-1">
+              {t("meta.status")}
+            </p>
+            <p className="[font-family:var(--font-display)] text-[20px] text-black">
+              {shop.isActive ? t("meta.active") : t("meta.inactive")}
+            </p>
+          </div>
+        </div>
+      )}
 
       <form
         onSubmit={handleSubmit}
@@ -389,6 +647,48 @@ export default function FabricShopForm() {
 
         <section className="space-y-5">
           <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
+            {t("sections.media")}
+          </h2>
+
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5">
+            <FormField
+              label={t("fields.logo")}
+              name="logo"
+              hint={t("hints.logoUpload")}
+            >
+              <ImageUpload
+                value={formData.logo}
+                onChange={(url) => handleImageChange("logo", url)}
+                uploadEndpoint="/api/fabric/uploads/shop-image?variant=logo"
+                chooseFileLabel={t("upload.chooseFile")}
+                uploadingLabel={t("upload.uploading")}
+                uploadFailedLabel={t("upload.failed")}
+                removeLabel={t("upload.remove")}
+              />
+            </FormField>
+
+            <FormField
+              label={t("fields.coverImage")}
+              name="coverImage"
+              hint={t("hints.coverUpload")}
+            >
+              <ImageUpload
+                value={formData.coverImage}
+                onChange={(url) => handleImageChange("coverImage", url)}
+                uploadEndpoint="/api/fabric/uploads/shop-image?variant=cover"
+                chooseFileLabel={t("upload.chooseFile")}
+                uploadingLabel={t("upload.uploading")}
+                uploadFailedLabel={t("upload.failed")}
+                removeLabel={t("upload.remove")}
+              />
+            </FormField>
+          </div>
+        </section>
+
+        <hr className="border-(--color-border)" />
+
+        <section className="space-y-5">
+          <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
             {t("sections.contact")}
           </h2>
 
@@ -451,6 +751,426 @@ export default function FabricShopForm() {
             </FormField>
           </div>
         </section>
+
+        <hr className="border-(--color-border)" />
+
+        <section className="space-y-5">
+          <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
+            {t("sections.online")}
+          </h2>
+
+          <FormField
+            label={t("fields.website")}
+            name="website"
+            error={fieldErrors.website}
+          >
+            <input
+              id="website"
+              type="url"
+              value={formData.website}
+              onChange={(e) => handleChange("website", e.target.value)}
+              onBlur={(e) => {
+                const value = e.target.value.trim();
+                if (value && isValidHttpUrl(value)) {
+                  handleChange("website", normalizeHttpUrl(value));
+                }
+              }}
+              placeholder={t("placeholders.website")}
+              className={INPUT_CLASS}
+            />
+          </FormField>
+
+          <div className="space-y-4">
+            {formData.social.map((row, index) => {
+              const knownPlatform = isKnownSocialPlatform(row.name)
+                ? getSocialPlatform(row.name)
+                : null;
+              const isOtherRow =
+                otherSocialRows.has(index) ||
+                (!!row.name.trim() && !knownPlatform);
+              const selectedPlatform = isOtherRow
+                ? getSocialPlatform("Other")
+                : knownPlatform;
+              const usedPlatforms = new Set(
+                formData.social
+                  .map((item, i) => {
+                    if (i === index) return "";
+                    if (!isKnownSocialPlatform(item.name)) return "";
+                    return item.name.trim().toLowerCase();
+                  })
+                  .filter(Boolean),
+              );
+
+              return (
+                <div
+                  key={`social-${index}`}
+                  className="flex items-start gap-2 sm:gap-3"
+                >
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <FormField
+                        label={t("fields.socialName")}
+                        name={`social-name-${index}`}
+                        error={
+                          isOtherRow
+                            ? undefined
+                            : fieldErrors[`social.${index}.name` as FieldKey]
+                        }
+                      >
+                        <AnimatedDropdown
+                          isOpen={socialPlatformOpenIndex === index}
+                          onClose={() => setSocialPlatformOpenIndex(null)}
+                          position="bottom-left"
+                          className="w-full"
+                          dropdownClassName="w-full left-0 right-0 bg-white border border-(--color-border) shadow-lg max-h-60 overflow-y-auto"
+                          trigger={
+                            <button
+                              type="button"
+                              id={`social-name-${index}`}
+                              aria-haspopup="listbox"
+                              aria-expanded={socialPlatformOpenIndex === index}
+                              onClick={() =>
+                                setSocialPlatformOpenIndex((prev) =>
+                                  prev === index ? null : index,
+                                )
+                              }
+                              className={`${INPUT_CLASS} flex items-center justify-between gap-3 hover:cursor-pointer`}
+                            >
+                              <span className="flex min-w-0 items-center gap-3">
+                                {selectedPlatform ? (
+                                  <>
+                                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-(--color-border) text-black">
+                                      <SocialPlatformIcon
+                                        platform={selectedPlatform.value}
+                                        className="w-3.5 h-3.5 fill-current"
+                                      />
+                                    </span>
+                                    <span className="truncate text-black">
+                                      {selectedPlatform.value === "Other"
+                                        ? t("platforms.other")
+                                        : selectedPlatform.value}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="text-gray-400">
+                                    {t("placeholders.selectPlatform")}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="shrink-0 text-gray-400">▾</span>
+                            </button>
+                          }
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOtherSocialRows((prev) => {
+                                const next = new Set(prev);
+                                next.delete(index);
+                                return next;
+                              });
+                              handleSocialChange(index, "name", "");
+                              setSocialPlatformOpenIndex(null);
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-[13px] text-gray-400 hover:bg-gray-50 hover:cursor-pointer [font-family:var(--font-body)]"
+                          >
+                            {t("placeholders.selectPlatform")}
+                          </button>
+                          {SOCIAL_PLATFORMS.map((platform) => {
+                            const isUsed =
+                              platform.value !== "Other" &&
+                              usedPlatforms.has(platform.value.toLowerCase());
+                            const isSelected =
+                              selectedPlatform?.value === platform.value;
+
+                            return (
+                              <button
+                                key={platform.value}
+                                type="button"
+                                disabled={isUsed}
+                                onClick={() => {
+                                  if (isUsed) return;
+                                  if (platform.value === "Other") {
+                                    setOtherSocialRows((prev) =>
+                                      new Set(prev).add(index),
+                                    );
+                                    handleSocialChange(index, "name", "");
+                                  } else {
+                                    setOtherSocialRows((prev) => {
+                                      const next = new Set(prev);
+                                      next.delete(index);
+                                      return next;
+                                    });
+                                    handleSocialChange(
+                                      index,
+                                      "name",
+                                      platform.value,
+                                    );
+                                  }
+                                  setSocialPlatformOpenIndex(null);
+                                }}
+                                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-[13px] [font-family:var(--font-body)] ${
+                                  isUsed
+                                    ? "cursor-not-allowed text-gray-300"
+                                    : "hover:bg-gray-50 hover:cursor-pointer text-black"
+                                } ${isSelected ? "bg-gray-50" : ""}`}
+                              >
+                                <span
+                                  className={`flex size-8 shrink-0 items-center justify-center rounded-full border ${
+                                    isUsed
+                                      ? "border-gray-200 text-gray-300"
+                                      : "border-(--color-border) text-black"
+                                  }`}
+                                >
+                                  <SocialPlatformIcon
+                                    platform={platform.value}
+                                    className="w-3.5 h-3.5 fill-current"
+                                  />
+                                </span>
+                                <span>
+                                  {platform.value === "Other"
+                                    ? t("platforms.other")
+                                    : platform.value}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </AnimatedDropdown>
+                      </FormField>
+                      {isOtherRow ? (
+                        <FormField
+                          label={t("fields.socialCustomName")}
+                          name={`social-custom-name-${index}`}
+                          required
+                          error={
+                            fieldErrors[`social.${index}.name` as FieldKey]
+                          }
+                        >
+                          <input
+                            id={`social-custom-name-${index}`}
+                            type="text"
+                            value={
+                              row.name.trim().toLowerCase() === "other"
+                                ? ""
+                                : row.name
+                            }
+                            onChange={(e) =>
+                              handleSocialChange(index, "name", e.target.value)
+                            }
+                            placeholder={t("placeholders.socialCustomName")}
+                            className={INPUT_CLASS}
+                          />
+                        </FormField>
+                      ) : (
+                        <FormField
+                          label={t("fields.socialUrl")}
+                          name={`social-url-${index}`}
+                          error={
+                            fieldErrors[`social.${index}.url` as FieldKey]
+                          }
+                        >
+                          <input
+                            id={`social-url-${index}`}
+                            type="url"
+                            value={row.url}
+                            onChange={(e) =>
+                              handleSocialChange(index, "url", e.target.value)
+                            }
+                            onBlur={(e) => {
+                              const value = e.target.value.trim();
+                              if (value && isValidHttpUrl(value)) {
+                                handleSocialChange(
+                                  index,
+                                  "url",
+                                  normalizeHttpUrl(value),
+                                );
+                              }
+                            }}
+                            placeholder={
+                              selectedPlatform?.placeholder ||
+                              t("placeholders.website")
+                            }
+                            className={INPUT_CLASS}
+                          />
+                        </FormField>
+                      )}
+                    </div>
+
+                    {isOtherRow ? (
+                      <FormField
+                        label={t("fields.socialUrl")}
+                        name={`social-url-${index}`}
+                        required
+                        error={fieldErrors[`social.${index}.url` as FieldKey]}
+                      >
+                        <input
+                          id={`social-url-${index}`}
+                          type="url"
+                          value={row.url}
+                          onChange={(e) =>
+                            handleSocialChange(index, "url", e.target.value)
+                          }
+                          onBlur={(e) => {
+                            const value = e.target.value.trim();
+                            if (value && isValidHttpUrl(value)) {
+                              handleSocialChange(
+                                index,
+                                "url",
+                                normalizeHttpUrl(value),
+                              );
+                            }
+                          }}
+                          placeholder={t("placeholders.website")}
+                          className={INPUT_CLASS}
+                        />
+                      </FormField>
+                    ) : null}
+                  </div>
+                  <div className="shrink-0 space-y-1.5 sm:space-y-2">
+                    <span
+                      className="block text-[11px] md:text-[12px] uppercase tracking-[0.2em] invisible select-none"
+                      aria-hidden
+                    >
+                      &nbsp;
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeSocialLink(index)}
+                      className="flex h-11.5 w-11 items-center justify-center text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 hover:cursor-pointer"
+                      aria-label={t("removeSocial")}
+                      title={t("removeSocial")}
+                    >
+                      <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {formData.social.length < SOCIAL_MAX ? (
+              <button
+                type="button"
+                onClick={addSocialLink}
+                className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.18em] text-black underline underline-offset-4 hover:text-(--color-grey-muted)"
+              >
+                {t("addSocial")}
+              </button>
+            ) : null}
+          </div>
+        </section>
+
+        <>
+          <hr className="border-(--color-border)" />
+          <section className="space-y-5">
+            <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
+              {t("sections.operations")}
+            </h2>
+            <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted)">
+              {t("hints.applicationReadonly")}
+            </p>
+
+            <FormField label={t("fields.experience")} name="experience">
+              <input
+                id="experience"
+                type="text"
+                value={
+                  formData.experience
+                    ? formatPartnerExperience(formData.experience, {
+                        year: t("experience.year"),
+                        years: t("experience.years"),
+                        month: t("experience.month"),
+                        months: t("experience.months"),
+                      })
+                    : "—"
+                }
+                readOnly
+                disabled
+                className={READONLY_INPUT_CLASS}
+              />
+            </FormField>
+
+            <FormField label={t("fields.offering")} name="offering">
+              <input
+                id="offering"
+                type="text"
+                value={
+                  (OFFERINGS as readonly string[]).includes(formData.offering)
+                    ? tApply(
+                        `offering.${formData.offering as (typeof OFFERINGS)[number]}`,
+                      )
+                    : formData.offering || "—"
+                }
+                readOnly
+                disabled
+                className={READONLY_INPUT_CLASS}
+              />
+            </FormField>
+          </section>
+        </>
+
+        <>
+          <hr className="border-(--color-border)" />
+          <section className="space-y-5">
+            <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
+              {t("sections.licence")}
+            </h2>
+            <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted)">
+              {t("hints.licenceReadonly")}
+            </p>
+
+            <FormField label={t("fields.licenceNumber")} name="licenceNumber">
+              <input
+                id="licenceNumber"
+                type="text"
+                value={formData.licenceNumber || "—"}
+                readOnly
+                disabled
+                className={READONLY_INPUT_CLASS}
+              />
+            </FormField>
+
+            <FormField label={t("fields.licenceFile")} name="licenceFile">
+              {formData.licenceFileUrl ? (
+                <a
+                  href={resolveMediaUrl(formData.licenceFileUrl) || "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex [font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.16em] text-black underline underline-offset-4 hover:text-(--color-grey-muted)"
+                >
+                  {t("viewLicenceFile")}
+                </a>
+              ) : (
+                <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted)">
+                  {t("noLicenceFile")}
+                </p>
+              )}
+            </FormField>
+          </section>
+        </>
+
+        <>
+          <hr className="border-(--color-border)" />
+          <section className="space-y-5">
+            <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">
+              {t("sections.comments")}
+            </h2>
+            <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted)">
+              {t("hints.applicationReadonly")}
+            </p>
+            <FormField label={t("fields.partnerNote")} name="partnerNote">
+              <textarea
+                id="partnerNote"
+                value={formData.partnerNote || "—"}
+                readOnly
+                disabled
+                rows={4}
+                className={`${TEXTAREA_CLASS} cursor-not-allowed bg-gray-50 text-(--color-grey-muted)`}
+              />
+            </FormField>
+          </section>
+        </>
+
+        <hr className="border-(--color-border)" />
 
         <section className="space-y-5">
           <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black">

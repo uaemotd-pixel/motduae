@@ -1,6 +1,11 @@
 // lib/tailorShop.ts
 import { api, type ApiError } from "@/lib/api/client";
-import { isValidUaePhone, normalizeUaePhone, extractDigits } from "./uaePhone";
+import { extractDigits } from "./uaePhone";
+
+export interface TailorShopSocialLink {
+  name: string;
+  url: string;
+}
 
 export interface TailorShopProfile {
   _id: string;
@@ -14,6 +19,15 @@ export interface TailorShopProfile {
   location: string;
   city: string;
   phone: string;
+  website?: string;
+  social?: TailorShopSocialLink[];
+  licenceNumber?: string;
+  licenceFileUrl?: string;
+  experience?: {
+    years: number;
+    months: number;
+    yearsOperating?: string;
+  } | null;
   pickupAddress?: ShopPickupAddress;
   rating?: number;
   reviewCount?: number;
@@ -42,10 +56,193 @@ export interface TailorShopFormData {
   location: string;
   city: string;
   phone: string;
+  website: string;
+  social: TailorShopSocialLink[];
+  licenceNumber: string;
+  licenceFileUrl: string;
+  experience: {
+    years: number;
+    months: number;
+    yearsOperating?: string;
+  } | null;
   pickupAddress: ShopPickupAddress;
 }
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const SOCIAL_MAX = 12;
+
+export const SOCIAL_PLATFORMS = [
+  {
+    value: "Instagram",
+    hosts: ["instagram.com"],
+    placeholder: "https://www.instagram.com/yourshop",
+  },
+  {
+    value: "Facebook",
+    hosts: ["facebook.com", "fb.com", "fb.me"],
+    placeholder: "https://www.facebook.com/yourshop",
+  },
+  {
+    value: "TikTok",
+    hosts: ["tiktok.com"],
+    placeholder: "https://www.tiktok.com/@yourshop",
+  },
+  {
+    value: "YouTube",
+    hosts: ["youtube.com", "youtu.be"],
+    placeholder: "https://www.youtube.com/@yourshop",
+  },
+  {
+    value: "Pinterest",
+    hosts: ["pinterest.com", "pin.it"],
+    placeholder: "https://www.pinterest.com/yourshop",
+  },
+  {
+    value: "LinkedIn",
+    hosts: ["linkedin.com"],
+    placeholder: "https://www.linkedin.com/company/yourshop",
+  },
+  {
+    value: "X",
+    hosts: ["x.com", "twitter.com"],
+    placeholder: "https://x.com/yourshop",
+  },
+  {
+    value: "Snapchat",
+    hosts: ["snapchat.com"],
+    placeholder: "https://www.snapchat.com/add/yourshop",
+  },
+  {
+    value: "Telegram",
+    hosts: ["t.me", "telegram.me", "telegram.org"],
+    placeholder: "https://t.me/yourshop",
+  },
+  {
+    value: "Behance",
+    hosts: ["behance.net"],
+    placeholder: "https://www.behance.net/yourshop",
+  },
+  {
+    value: "Other",
+    hosts: [],
+    placeholder: "https://",
+  },
+] as const;
+
+export type SocialPlatformValue = (typeof SOCIAL_PLATFORMS)[number]["value"];
+
+export function getSocialPlatform(name: string) {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const aliases: Record<string, SocialPlatformValue> = {
+    instagram: "Instagram",
+    ig: "Instagram",
+    facebook: "Facebook",
+    fb: "Facebook",
+    tiktok: "TikTok",
+    youtube: "YouTube",
+    yt: "YouTube",
+    pinterest: "Pinterest",
+    linkedin: "LinkedIn",
+    x: "X",
+    twitter: "X",
+    snapchat: "Snapchat",
+    telegram: "Telegram",
+    behance: "Behance",
+    other: "Other",
+  };
+
+  if (aliases[normalized]) {
+    return (
+      SOCIAL_PLATFORMS.find((p) => p.value === aliases[normalized]) || null
+    );
+  }
+
+  return (
+    SOCIAL_PLATFORMS.find((p) => p.value.toLowerCase() === normalized) || null
+  );
+}
+
+/** True when the row is the free-text "Other" platform (or a custom saved name). */
+export function isOtherSocialPlatform(name: string): boolean {
+  const platform = getSocialPlatform(name);
+  if (!name.trim()) return false;
+  if (platform?.value === "Other") return true;
+  return !platform;
+}
+
+export function isKnownSocialPlatform(name: string): boolean {
+  const platform = getSocialPlatform(name);
+  return Boolean(platform && platform.value !== "Other");
+}
+
+export function normalizeSocialPlatformName(name: string): string {
+  const platform = getSocialPlatform(name);
+  if (platform?.value === "Other") return name.trim();
+  return platform?.value || name.trim();
+}
+
+export function normalizeHttpUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+export function isValidHttpUrl(value: string): boolean {
+  const normalized = normalizeHttpUrl(value);
+  if (!normalized) return false;
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return false;
+    }
+    if (!parsed.hostname.includes(".")) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function isValidSocialPlatformUrl(
+  platformName: string,
+  url: string,
+): boolean {
+  if (!isValidHttpUrl(url)) return false;
+
+  const platform = getSocialPlatform(platformName);
+  // Custom / Other names: any valid http(s) URL
+  if (!platform || platform.value === "Other" || platform.hosts.length === 0) {
+    return true;
+  }
+
+  try {
+    const hostname = new URL(normalizeHttpUrl(url)).hostname
+      .toLowerCase()
+      .replace(/^www\./, "");
+    return platform.hosts.some(
+      (host) => hostname === host || hostname.endsWith(`.${host}`),
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function normalizeShopSocialLinks(
+  social: unknown,
+): TailorShopSocialLink[] {
+  if (!Array.isArray(social)) return [];
+  return social
+    .map((item) => ({
+      name: normalizeSocialPlatformName(
+        String((item as TailorShopSocialLink)?.name || ""),
+      ),
+      url: String((item as TailorShopSocialLink)?.url || "").trim(),
+    }))
+    .filter((item) => item.name || item.url)
+    .slice(0, SOCIAL_MAX);
+}
 
 export function emptyTailorShopForm(): TailorShopFormData {
   return {
@@ -59,6 +256,11 @@ export function emptyTailorShopForm(): TailorShopFormData {
     location: "",
     city: "",
     phone: "",
+    website: "",
+    social: [],
+    licenceNumber: "",
+    licenceFileUrl: "",
+    experience: null,
     pickupAddress: emptyShopPickupAddress(),
   };
 }
@@ -91,6 +293,11 @@ export function tailorShopToForm(shop: TailorShopProfile): TailorShopFormData {
     location: shop.location ?? "",
     city: shop.city ?? "",
     phone: phone,
+    website: shop.website ?? "",
+    social: normalizeShopSocialLinks(shop.social),
+    licenceNumber: shop.licenceNumber ?? "",
+    licenceFileUrl: shop.licenceFileUrl ?? "",
+    experience: shop.experience ?? null,
     pickupAddress: shop.pickupAddress ?? emptyShopPickupAddress(),
   };
 }
@@ -123,7 +330,10 @@ export function normalizePhoneNumber(value: string): string {
 
 export function toTailorShopPayload(
   form: TailorShopFormData,
-): TailorShopFormData {
+): Omit<
+  TailorShopFormData,
+  "licenceNumber" | "licenceFileUrl" | "experience"
+> {
   // Normalize phone to exactly 9 digits
   const phoneDigits = extractDigits(form.phone);
   // If starts with 971, remove it
@@ -142,6 +352,20 @@ export function toTailorShopPayload(
     location: form.location.trim(),
     city: form.city.trim(),
     phone: normalizedPhone,
+    website: form.website.trim()
+      ? normalizeHttpUrl(form.website.trim())
+      : "",
+    social: normalizeShopSocialLinks(form.social)
+      .filter(
+        (link) =>
+          link.name &&
+          link.url &&
+          link.name.trim().toLowerCase() !== "other",
+      )
+      .map((link) => ({
+        name: normalizeSocialPlatformName(link.name),
+        url: normalizeHttpUrl(link.url),
+      })),
     pickupAddress: form.pickupAddress,
   };
 }

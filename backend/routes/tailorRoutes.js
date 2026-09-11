@@ -6,6 +6,7 @@ import Category from "../models/Category.js";
 import PartnerApplication from "../models/PartnerApplication.js";
 import { normalizeSocialLinks } from "../services/partnerApplication/policy.js";
 import { publicShopSlugFilter } from "../utils/shopReady.js";
+import { computePartnerExperience } from "../utils/partnerExperience.js";
 
 const tailorRoutes = express.Router();
 
@@ -452,6 +453,7 @@ const toDetailItem = (shop, extras = {}) => ({
     : Array.isArray(shop.social)
       ? shop.social
       : [],
+  experience: extras.experience ?? null,
   rating: shop.rating,
   reviewCount: shop.reviewCount,
   owner: shop.ownerId
@@ -481,24 +483,28 @@ tailorRoutes.get("/:slug", async (req, res) => {
     const ownerId = shop.ownerId?._id || shop.ownerId;
     let website = shop.website || "";
     let social = Array.isArray(shop.social) ? shop.social : [];
+    let experience = null;
 
-    if (ownerId && (!website || social.length === 0)) {
+    if (ownerId) {
       const application = await PartnerApplication.findOne({ ownerId })
-        .select("website social")
+        .select(
+          "website social yearsOperating experienceBaselineMonths experienceAnchorAt submittedAt createdAt",
+        )
         .lean();
       if (application) {
         if (!website) website = application.website || "";
         if (!social.length) {
           social = normalizeSocialLinks(application.social);
         }
+        experience = computePartnerExperience(application);
       }
-    } else {
-      social = normalizeSocialLinks(social);
     }
+
+    social = normalizeSocialLinks(social);
 
     res.json({
       success: true,
-      item: toDetailItem(shop, { website, social }),
+      item: toDetailItem(shop, { website, social, experience }),
     });
   } catch (error) {
     console.error("GET /api/tailors/:slug error:", error);

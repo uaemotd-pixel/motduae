@@ -4,8 +4,11 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
+import { Trash2 } from "lucide-react";
 import FormField from "@/components/admin/FormField";
 import PartnerFileUpload from "@/components/partner/PartnerFileUpload";
+import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
+import SocialPlatformIcon from "@/components/shared/SocialPlatformIcon";
 import { useAuth, needsEmailVerification } from "@/context/AuthContext";
 import { api, getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import {
@@ -26,7 +29,18 @@ import {
   submitPartnerApplication,
   type PartnerApplication,
   type PartnerRole,
+  type PartnerSocialLink,
 } from "@/lib/partnerApplication";
+import {
+  SOCIAL_PLATFORMS,
+  getSocialPlatform,
+  isKnownSocialPlatform,
+  isOtherSocialPlatform,
+  isValidHttpUrl,
+  isValidSocialPlatformUrl,
+  normalizeHttpUrl,
+  normalizeSocialPlatformName,
+} from "@/lib/tailorShop";
 import { PartnerRequestNumber } from "@/components/partner/PartnerGateScreen";
 
 const INPUT_CLASS =
@@ -75,19 +89,47 @@ export default function PartnerApplicationForm({ role }: Props) {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [socialPlatformOpenIndex, setSocialPlatformOpenIndex] = useState<
+    number | null
+  >(null);
+  const [otherSocialRows, setOtherSocialRows] = useState<Set<number>>(
+    () => new Set(),
+  );
 
   const requiredErrors = useMemo(
     () => collectRequiredFieldErrors(form, role),
     [form, role],
   );
-  const fieldsComplete = Object.keys(requiredErrors).length === 0;
+  const hasOpenOtherRow = useMemo(
+    () =>
+      [...otherSocialRows].some((index) => {
+        const row = form.social[index];
+        if (!row) return false;
+        const name = row.name.trim();
+        return !name || name.toLowerCase() === "other" || !row.url.trim();
+      }),
+    [form.social, otherSocialRows],
+  );
+  const fieldsComplete =
+    Object.keys(requiredErrors).length === 0 && !hasOpenOtherRow;
   const canSubmit = fieldsComplete && confirmed && !saving && !submitting;
 
   useEffect(() => {
     let cancelled = false;
     fetchPartnerApplication()
       .then((application) => {
-        if (!cancelled && application) setForm(application);
+        if (!cancelled && application) {
+          setForm(application);
+          setOtherSocialRows(
+            new Set(
+              application.social
+                .map((row, i) =>
+                  row.name.trim() && !isKnownSocialPlatform(row.name) ? i : -1,
+                )
+                .filter((i) => i >= 0),
+            ),
+          );
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -126,8 +168,83 @@ export default function PartnerApplicationForm({ role }: Props) {
     });
   };
 
-  const showRequired = (key: string) =>
-    fieldErrors[key] ? t("requiredField") : undefined;
+  const showRequired = (key: string) => {
+    const value = fieldErrors[key];
+    if (!value) return undefined;
+    if (value === "required") return t("requiredField");
+    if (value === "duplicate") return t("validation.socialPlatformDuplicate");
+    if (value === "invalid") {
+      if (key === "website") return t("validation.websiteInvalid");
+      if (key.endsWith(".url")) return t("validation.socialUrlInvalid");
+      return t("validation.socialPlatformInvalid");
+    }
+    return value;
+  };
+
+  const clearSocialFieldErrors = (index: number) => {
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next[`social.${index}`];
+      delete next[`social.${index}.name`];
+      delete next[`social.${index}.url`];
+      return next;
+    });
+  };
+
+  const handleSocialChange = (
+    index: number,
+    field: keyof PartnerSocialLink,
+    value: string,
+  ) => {
+    setForm((prev) => {
+      const next = [...prev.social];
+      next[index] = { ...next[index], [field]: value };
+      return { ...prev, social: next };
+    });
+    clearSocialFieldErrors(index);
+  };
+
+  const addSocialLink = () => {
+    setForm((prev) => {
+      if (prev.social.length >= SOCIAL_MAX) return prev;
+      const used = new Set(
+        prev.social.map((row) => row.name.trim().toLowerCase()).filter(Boolean),
+      );
+      const nextPlatform =
+        SOCIAL_PLATFORMS.find(
+          (p) =>
+            p.value !== "Other" && !used.has(p.value.toLowerCase()),
+        )?.value || "";
+      return {
+        ...prev,
+        social: [...prev.social, { name: nextPlatform, url: "" }],
+      };
+    });
+  };
+
+  const removeSocialLink = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      social: prev.social.filter((_, i) => i !== index),
+    }));
+    setOtherSocialRows((prev) => {
+      const next = new Set<number>();
+      prev.forEach((i) => {
+        if (i < index) next.add(i);
+        else if (i > index) next.add(i - 1);
+      });
+      return next;
+    });
+    if (socialPlatformOpenIndex === index) {
+      setSocialPlatformOpenIndex(null);
+    } else if (
+      socialPlatformOpenIndex !== null &&
+      socialPlatformOpenIndex > index
+    ) {
+      setSocialPlatformOpenIndex(socialPlatformOpenIndex - 1);
+    }
+    clearSocialFieldErrors(index);
+  };
 
   const payloadFromForm = () => ({
     businessName: form.businessName,
@@ -139,8 +256,20 @@ export default function PartnerApplicationForm({ role }: Props) {
     aboutAr: form.aboutAr,
     yearsOperating: form.yearsOperating,
     logoUrl: form.logoUrl.trim() ? undefined : "",
-    website: form.website,
-    social: form.social,
+    website: form.website.trim()
+      ? normalizeHttpUrl(form.website.trim())
+      : "",
+    social: form.social
+      .map((link) => ({
+        name: normalizeSocialPlatformName(link.name),
+        url: link.url.trim() ? normalizeHttpUrl(link.url.trim()) : "",
+      }))
+      .filter(
+        (link) =>
+          link.name &&
+          link.url &&
+          link.name.trim().toLowerCase() !== "other",
+      ),
     licenceNumber: form.licenceNumber,
     licenceFileUrl: form.licenceFileUrl.trim() ? undefined : "",
     makeTime: form.makeTime,
@@ -148,6 +277,59 @@ export default function PartnerApplicationForm({ role }: Props) {
     offering: form.offering,
     partnerNote: form.partnerNote,
   });
+
+  const validateOnlineFields = (): FieldErrors => {
+    const errors: FieldErrors = {};
+    if (form.website.trim() && !isValidHttpUrl(form.website)) {
+      errors.website = t("validation.websiteInvalid");
+    }
+
+    const usedPlatforms = new Set<string>();
+    form.social.forEach((row, index) => {
+      const name = row.name.trim();
+      const url = row.url.trim();
+      const nameKey = `social.${index}.name`;
+      const urlKey = `social.${index}.url`;
+      const isOtherRow =
+        otherSocialRows.has(index) ||
+        isOtherSocialPlatform(name) ||
+        name.toLowerCase() === "other";
+
+      if (!name && !url && !otherSocialRows.has(index)) return;
+
+      if (isOtherRow) {
+        if (!name || name.toLowerCase() === "other") {
+          errors[nameKey] = t("validation.socialOtherNameRequired");
+        } else {
+          const key = name.toLowerCase();
+          if (usedPlatforms.has(key)) {
+            errors[nameKey] = t("validation.socialPlatformDuplicate");
+          } else {
+            usedPlatforms.add(key);
+          }
+        }
+      } else if (!name) {
+        errors[nameKey] = t("validation.socialPlatformRequired");
+      } else if (!isKnownSocialPlatform(name)) {
+        errors[nameKey] = t("validation.socialPlatformInvalid");
+      } else {
+        const key = name.toLowerCase();
+        if (usedPlatforms.has(key)) {
+          errors[nameKey] = t("validation.socialPlatformDuplicate");
+        } else {
+          usedPlatforms.add(key);
+        }
+      }
+
+      if (!url) {
+        errors[urlKey] = t("validation.socialUrlRequired");
+      } else if (!isValidSocialPlatformUrl(name, url)) {
+        errors[urlKey] = t("validation.socialUrlInvalid");
+      }
+    });
+
+    return errors;
+  };
 
   const saveDraft = async () => {
     setSaving(true);
@@ -164,7 +346,10 @@ export default function PartnerApplicationForm({ role }: Props) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const errors = collectRequiredFieldErrors(form, role);
+    const errors = {
+      ...collectRequiredFieldErrors(form, role),
+      ...validateOnlineFields(),
+    };
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       toast.error(t("incomplete"), TOAST_BASE);
@@ -236,7 +421,7 @@ export default function PartnerApplicationForm({ role }: Props) {
         <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.28em] text-(--color-grey-muted) mb-3">
           {t("eyebrow")}
         </p>
-        <h1 className="[font-family:var(--font-display)] text-[26px] sm:text-[32px] lg:text-[36px] text-black mb-3 break-words">
+        <h1 className="[font-family:var(--font-display)] text-[26px] sm:text-[32px] lg:text-[36px] text-black mb-3 wrap-break-word">
           {role === "fabric_store" ? t("fabricTitle") : t("tailorTitle")}
         </h1>
         <p className="[font-family:var(--font-body)] text-[14px] leading-relaxed text-(--color-grey-muted) mb-4">
@@ -514,77 +699,301 @@ export default function PartnerApplicationForm({ role }: Props) {
           <FormField
             label={`${t("fields.website")} (${t("optional")})`}
             name="website"
+            error={fieldErrors.website}
           >
             <input
               id="website"
+              type="url"
               value={form.website}
               onChange={(e) => setField("website", e.target.value)}
+              onBlur={(e) => {
+                const value = e.target.value.trim();
+                if (value && isValidHttpUrl(value)) {
+                  setField("website", normalizeHttpUrl(value));
+                }
+              }}
               placeholder={t("placeholders.website")}
               className={INPUT_CLASS}
             />
           </FormField>
           <div className="space-y-4">
-            {form.social.map((row, index) => (
-              <div
-                key={`social-${index}`}
-                className="border border-(--color-border) p-3 sm:p-4 space-y-3 min-w-0"
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
-                  <FormField
-                    label={t("fields.socialName")}
-                    name={`social-name-${index}`}
-                    error={showRequired(`social.${index}`)}
-                  >
-                    <input
-                      id={`social-name-${index}`}
-                      value={row.name}
-                      onChange={(e) => {
-                        const next = [...form.social];
-                        next[index] = { ...next[index], name: e.target.value };
-                        setField("social", next);
-                      }}
-                      placeholder={t("placeholders.socialName")}
-                      className={INPUT_CLASS}
-                    />
-                  </FormField>
-                  <FormField
-                    label={t("fields.socialUrl")}
-                    name={`social-url-${index}`}
-                    error={showRequired(`social.${index}`)}
-                  >
-                    <input
-                      id={`social-url-${index}`}
-                      value={row.url}
-                      onChange={(e) => {
-                        const next = [...form.social];
-                        next[index] = { ...next[index], url: e.target.value };
-                        setField("social", next);
-                      }}
-                      placeholder={t("placeholders.website")}
-                      className={INPUT_CLASS}
-                    />
-                  </FormField>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setField(
-                      "social",
-                      form.social.filter((_, i) => i !== index),
-                    )
-                  }
-                  className="text-[10px] uppercase tracking-[0.16em] [font-family:var(--font-ui)] text-(--color-grey-muted) hover:text-black"
+            {form.social.map((row, index) => {
+              const knownPlatform = isKnownSocialPlatform(row.name)
+                ? getSocialPlatform(row.name)
+                : null;
+              const isOtherRow =
+                otherSocialRows.has(index) ||
+                (!!row.name.trim() && !knownPlatform);
+              const selectedPlatform = isOtherRow
+                ? getSocialPlatform("Other")
+                : knownPlatform;
+              const usedPlatforms = new Set(
+                form.social
+                  .map((item, i) => {
+                    if (i === index) return "";
+                    if (!isKnownSocialPlatform(item.name)) return "";
+                    return item.name.trim().toLowerCase();
+                  })
+                  .filter(Boolean),
+              );
+
+              return (
+                <div
+                  key={`social-${index}`}
+                  className="flex items-start gap-2 sm:gap-3"
                 >
-                  {t("removeSocial")}
-                </button>
-              </div>
-            ))}
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <FormField
+                        label={t("fields.socialName")}
+                        name={`social-name-${index}`}
+                        error={
+                          isOtherRow
+                            ? undefined
+                            : showRequired(`social.${index}.name`) ||
+                              showRequired(`social.${index}`)
+                        }
+                      >
+                        <AnimatedDropdown
+                          isOpen={socialPlatformOpenIndex === index}
+                          onClose={() => setSocialPlatformOpenIndex(null)}
+                          position="bottom-left"
+                          className="w-full"
+                          dropdownClassName="w-full left-0 right-0 bg-white border border-(--color-border) shadow-lg max-h-60 overflow-y-auto"
+                          trigger={
+                            <button
+                              type="button"
+                              id={`social-name-${index}`}
+                              aria-haspopup="listbox"
+                              aria-expanded={
+                                socialPlatformOpenIndex === index
+                              }
+                              onClick={() =>
+                                setSocialPlatformOpenIndex((prev) =>
+                                  prev === index ? null : index,
+                                )
+                              }
+                              className={`${INPUT_CLASS} flex items-center justify-between gap-3 hover:cursor-pointer`}
+                            >
+                              <span className="flex min-w-0 items-center gap-3">
+                                {selectedPlatform ? (
+                                  <>
+                                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-(--color-border) text-black">
+                                      <SocialPlatformIcon
+                                        platform={selectedPlatform.value}
+                                        className="w-3.5 h-3.5 fill-current"
+                                      />
+                                    </span>
+                                    <span className="truncate text-black">
+                                      {selectedPlatform.value === "Other"
+                                        ? t("platforms.other")
+                                        : selectedPlatform.value}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="text-gray-400">
+                                    {t("placeholders.selectPlatform")}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="shrink-0 text-gray-400">▾</span>
+                            </button>
+                          }
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOtherSocialRows((prev) => {
+                                const next = new Set(prev);
+                                next.delete(index);
+                                return next;
+                              });
+                              handleSocialChange(index, "name", "");
+                              setSocialPlatformOpenIndex(null);
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-[13px] text-gray-400 hover:bg-gray-50 hover:cursor-pointer [font-family:var(--font-body)]"
+                          >
+                            {t("placeholders.selectPlatform")}
+                          </button>
+                          {SOCIAL_PLATFORMS.map((platform) => {
+                            const isUsed =
+                              platform.value !== "Other" &&
+                              usedPlatforms.has(platform.value.toLowerCase());
+                            const isSelected =
+                              selectedPlatform?.value === platform.value;
+
+                            return (
+                              <button
+                                key={platform.value}
+                                type="button"
+                                disabled={isUsed}
+                                onClick={() => {
+                                  if (isUsed) return;
+                                  if (platform.value === "Other") {
+                                    setOtherSocialRows((prev) =>
+                                      new Set(prev).add(index),
+                                    );
+                                    handleSocialChange(index, "name", "");
+                                  } else {
+                                    setOtherSocialRows((prev) => {
+                                      const next = new Set(prev);
+                                      next.delete(index);
+                                      return next;
+                                    });
+                                    handleSocialChange(
+                                      index,
+                                      "name",
+                                      platform.value,
+                                    );
+                                  }
+                                  setSocialPlatformOpenIndex(null);
+                                }}
+                                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-[13px] [font-family:var(--font-body)] ${
+                                  isUsed
+                                    ? "cursor-not-allowed text-gray-300"
+                                    : "hover:bg-gray-50 hover:cursor-pointer text-black"
+                                } ${isSelected ? "bg-gray-50" : ""}`}
+                              >
+                                <span
+                                  className={`flex size-8 shrink-0 items-center justify-center rounded-full border ${
+                                    isUsed
+                                      ? "border-gray-200 text-gray-300"
+                                      : "border-(--color-border) text-black"
+                                  }`}
+                                >
+                                  <SocialPlatformIcon
+                                    platform={platform.value}
+                                    className="w-3.5 h-3.5 fill-current"
+                                  />
+                                </span>
+                                <span>
+                                  {platform.value === "Other"
+                                    ? t("platforms.other")
+                                    : platform.value}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </AnimatedDropdown>
+                      </FormField>
+                      {isOtherRow ? (
+                        <FormField
+                          label={t("fields.socialCustomName")}
+                          name={`social-custom-name-${index}`}
+                          required
+                          error={
+                            showRequired(`social.${index}.name`) ||
+                            showRequired(`social.${index}`)
+                          }
+                        >
+                          <input
+                            id={`social-custom-name-${index}`}
+                            type="text"
+                            value={
+                              row.name.trim().toLowerCase() === "other"
+                                ? ""
+                                : row.name
+                            }
+                            onChange={(e) =>
+                              handleSocialChange(index, "name", e.target.value)
+                            }
+                            placeholder={t("placeholders.socialCustomName")}
+                            className={INPUT_CLASS}
+                          />
+                        </FormField>
+                      ) : (
+                        <FormField
+                          label={t("fields.socialUrl")}
+                          name={`social-url-${index}`}
+                          error={
+                            showRequired(`social.${index}.url`) ||
+                            showRequired(`social.${index}`)
+                          }
+                        >
+                          <input
+                            id={`social-url-${index}`}
+                            type="url"
+                            value={row.url}
+                            onChange={(e) =>
+                              handleSocialChange(index, "url", e.target.value)
+                            }
+                            onBlur={(e) => {
+                              const value = e.target.value.trim();
+                              if (value && isValidHttpUrl(value)) {
+                                handleSocialChange(
+                                  index,
+                                  "url",
+                                  normalizeHttpUrl(value),
+                                );
+                              }
+                            }}
+                            placeholder={
+                              selectedPlatform?.placeholder ||
+                              t("placeholders.website")
+                            }
+                            className={INPUT_CLASS}
+                          />
+                        </FormField>
+                      )}
+                    </div>
+
+                    {isOtherRow ? (
+                      <FormField
+                        label={t("fields.socialUrl")}
+                        name={`social-url-${index}`}
+                        required
+                        error={
+                          showRequired(`social.${index}.url`) ||
+                          showRequired(`social.${index}`)
+                        }
+                      >
+                        <input
+                          id={`social-url-${index}`}
+                          type="url"
+                          value={row.url}
+                          onChange={(e) =>
+                            handleSocialChange(index, "url", e.target.value)
+                          }
+                          onBlur={(e) => {
+                            const value = e.target.value.trim();
+                            if (value && isValidHttpUrl(value)) {
+                              handleSocialChange(
+                                index,
+                                "url",
+                                normalizeHttpUrl(value),
+                              );
+                            }
+                          }}
+                          placeholder={t("placeholders.website")}
+                          className={INPUT_CLASS}
+                        />
+                      </FormField>
+                    ) : null}
+                  </div>
+                  <div className="shrink-0 space-y-1.5 sm:space-y-2">
+                    <span
+                      className="block text-[11px] md:text-[12px] uppercase tracking-[0.2em] invisible select-none"
+                      aria-hidden
+                    >
+                      &nbsp;
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeSocialLink(index)}
+                      className="flex h-11.5 w-11 items-center justify-center text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 hover:cursor-pointer"
+                      aria-label={t("removeSocial")}
+                      title={t("removeSocial")}
+                    >
+                      <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
             {form.social.length < SOCIAL_MAX ? (
               <button
                 type="button"
-                onClick={() =>
-                  setField("social", [...form.social, { name: "", url: "" }])
-                }
+                onClick={addSocialLink}
                 className="w-full sm:w-auto px-4 py-2.5 border border-black text-black text-[10px] tracking-[0.18em] uppercase [font-family:var(--font-ui)] hover:bg-black hover:text-white transition"
               >
                 {t("addSocial")}

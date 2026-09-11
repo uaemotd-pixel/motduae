@@ -30,6 +30,10 @@ import {
 } from "../services/notificationService.js";
 import { computeTailorUnpaidBreakdown } from "../services/tailorPayoutRequestService.js";
 import { isShopProfileComplete, isValidShopSlug } from "../utils/shopReady.js";
+import PartnerApplication from "../models/PartnerApplication.js";
+import { normalizeSocialLinks } from "../services/partnerApplication/policy.js";
+import { shopFieldsFromApplication } from "../services/partnerApplication/seedShopFromApplication.js";
+import { computePartnerExperience } from "../utils/partnerExperience.js";
 
 const tailorPortalRouter = express.Router();
 
@@ -131,7 +135,16 @@ const SHOP_FIELDS = [
   "location",
   "city",
   "phone",
+  "website",
 ];
+
+const firstNonEmpty = (...values) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+    if (value != null && typeof value !== "string" && value !== "") return value;
+  }
+  return typeof values[0] === "string" ? "" : values[0] ?? "";
+};
 
 const formatShop = (shop) => ({
   _id: shop._id,
@@ -145,6 +158,13 @@ const formatShop = (shop) => ({
   location: shop.location,
   city: shop.city,
   phone: shop.phone,
+  website: shop.website || "",
+  social: Array.isArray(shop.social)
+    ? shop.social.map((link) => ({
+        name: link?.name || "",
+        url: link?.url || "",
+      }))
+    : [],
   pickupAddress: shop.pickupAddress
     ? {
         fullName: shop.pickupAddress.fullName || "",
@@ -163,6 +183,50 @@ const formatShop = (shop) => ({
   createdAt: shop.createdAt,
   updatedAt: shop.updatedAt,
 });
+
+const enrichShopWithApplication = async (shop) => {
+  const base = formatShop(shop);
+  const application = await PartnerApplication.findOne({
+    ownerId: shop.ownerId,
+  })
+    .select(
+      "businessName businessNameAr about aboutAr logoUrl location area city phone website social licenceNumber licenceFileUrl yearsOperating experienceBaselineMonths experienceAnchorAt submittedAt createdAt",
+    )
+    .lean();
+
+  if (!application) {
+    return {
+      ...base,
+      licenceNumber: "",
+      licenceFileUrl: "",
+      experience: null,
+    };
+  }
+
+  const appFields = shopFieldsFromApplication(application);
+  const shopSocial = normalizeSocialLinks(shop.social);
+  const appSocial = normalizeSocialLinks(application.social);
+
+  return {
+    ...base,
+    name: firstNonEmpty(shop.name, appFields.name),
+    nameAr: firstNonEmpty(shop.nameAr, appFields.nameAr),
+    description: firstNonEmpty(shop.description, appFields.description),
+    descriptionAr: firstNonEmpty(
+      shop.descriptionAr,
+      appFields.descriptionAr,
+    ),
+    logo: firstNonEmpty(shop.logo, appFields.logo),
+    location: firstNonEmpty(shop.location, appFields.location),
+    city: firstNonEmpty(shop.city, appFields.city),
+    phone: firstNonEmpty(shop.phone, appFields.phone),
+    website: firstNonEmpty(shop.website, application.website),
+    social: shopSocial.length ? shopSocial : appSocial,
+    licenceNumber: application.licenceNumber || "",
+    licenceFileUrl: application.licenceFileUrl || "",
+    experience: computePartnerExperience(application),
+  };
+};
 
 const normalizePhoneNumber = (value) => {
   if (typeof value !== "string") return "";
@@ -195,6 +259,10 @@ const pickShopFields = (body) => {
 
   if (data.phone !== undefined) {
     data.phone = normalizePhoneNumber(data.phone);
+  }
+
+  if (body.social !== undefined) {
+    data.social = normalizeSocialLinks(body.social);
   }
 
   if (body.pickupAddress !== undefined) {
@@ -320,7 +388,7 @@ tailorPortalRouter.get(
 
     res.json({
       success: true,
-      item: formatShop(shop),
+      item: await enrichShopWithApplication(shop),
     });
   }),
 );
@@ -368,7 +436,7 @@ tailorPortalRouter.post(
 
     res.status(201).json({
       success: true,
-      item: formatShop(shop),
+      item: await enrichShopWithApplication(shop),
     });
   }),
 );
@@ -456,7 +524,7 @@ tailorPortalRouter.put(
 
     res.json({
       success: true,
-      item: formatShop(updatedShop),
+      item: await enrichShopWithApplication(updatedShop),
     });
   }),
 );
