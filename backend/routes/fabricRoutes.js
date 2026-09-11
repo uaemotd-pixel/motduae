@@ -51,8 +51,6 @@ const toListItem = (fabric) => ({
     : fabric.listedByStore
       ? String(fabric.listedByStore._id || fabric.listedByStore)
       : null,
-  minAge: fabric.minAge,
-  maxAge: fabric.maxAge,
 });
 
 // GET /api/fabrics/materials — public list of active materials
@@ -168,8 +166,6 @@ const toDetailItem = (fabric) => ({
   cuts: fabric.cuts || [],
   pricePerMeter: fabric.pricePerMeter,
   stockInMeters: fabric.stockInMeters,
-  minAge: fabric.minAge,
-  maxAge: fabric.maxAge,
   storePickupAddress: fabric.storePickupAddress,
   listedByStore: fabric.fabricShopId
     ? {
@@ -224,7 +220,7 @@ fabricRoutes.get("/:slug", async (req, res) => {
         { isVariantOf: parentId }
       ],
       isActive: true,
-    }).select("_id name nameAr slug images colors material minAge maxAge");
+    }).select("_id name nameAr slug images colors material");
 
     const enrichedFabric = await enrichFabricWithCuts(fabric);
     if (!enrichedFabric.cuts?.length) {
@@ -242,8 +238,6 @@ fabricRoutes.get("/:slug", async (req, res) => {
       images: v.images,
       colors: v.colors,
       material: v.material,
-      minAge: v.minAge,
-      maxAge: v.maxAge,
     }));
 
     const variantIds = new Set(variants.map((v) => String(v._id)));

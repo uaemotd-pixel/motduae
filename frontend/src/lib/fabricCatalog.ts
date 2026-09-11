@@ -41,8 +41,6 @@ export interface FabricProfile {
   cuts?: FabricCutFormEntry[];
   pricePerMeter?: number;
   stockInMeters?: number;
-  minAge: number | null;
-  maxAge: number | null;
   storePickupAddress?: PickupAddress;
   isActive: boolean;
   createdAt?: string;
@@ -50,12 +48,9 @@ export interface FabricProfile {
   variants?: FabricVariantProfile[];
 }
 
-export type FabricVariantProfile = Omit<
-  FabricProfile,
-  "minAge" | "maxAge" | "variants"
->;
+export type FabricVariantProfile = Omit<FabricProfile, "variants">;
 
-export type FabricVariantFormData = Omit<FabricFormData, "minAge" | "maxAge">;
+export type FabricVariantFormData = FabricFormData;
 
 export interface FabricFormData {
   _id?: string;
@@ -77,8 +72,6 @@ export interface FabricFormData {
   tag: string;
   tagAr: string;
   cuts: FabricCutFormEntry[];
-  minAge: number | null;
-  maxAge: number | null;
   storePickupAddress: PickupAddress;
   isActive: boolean;
   variants?: FabricVariantFormData[];
@@ -106,8 +99,6 @@ export function emptyFabricForm(): FabricFormData {
     tag: "",
     tagAr: "",
     cuts: [createEmptyFabricCutRow()],
-    minAge: null,
-    maxAge: null,
     storePickupAddress: {
       emirate: "",
       city: "",
@@ -151,14 +142,6 @@ export function fabricToForm(fabric: FabricProfile): FabricFormData {
     tag: fabric.tag ?? "",
     tagAr: fabric.tagAr ?? "",
     cuts: mappedCuts.length > 0 ? mappedCuts : [createEmptyFabricCutRow()],
-    minAge:
-      fabric.minAge !== undefined && fabric.minAge !== null
-        ? Number(fabric.minAge)
-        : null,
-    maxAge:
-      fabric.maxAge !== undefined && fabric.maxAge !== null
-        ? Number(fabric.maxAge)
-        : null,
     storePickupAddress: {
       emirate: fabric.storePickupAddress?.emirate ?? "",
       city: fabric.storePickupAddress?.city ?? "",
@@ -168,11 +151,9 @@ export function fabricToForm(fabric: FabricProfile): FabricFormData {
     },
     isActive: fabric.isActive ?? true,
     variants:
-      fabric.variants?.map((variant) => {
-        const { minAge: _, maxAge: __, ...variantWithoutAge } =
-          fabricToForm(variant as FabricProfile);
-        return variantWithoutAge;
-      }) ?? [],
+      fabric.variants?.map((variant) =>
+        fabricToForm(variant as FabricProfile),
+      ) ?? [],
   };
 }
 
@@ -196,8 +177,6 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
     tag: form.tag?.trim() || "",
     tagAr: form.tagAr?.trim() || "",
     cuts: serializeFabricCuts(form.cuts || []),
-    minAge: 0,
-    maxAge: 0,
     storePickupAddress: {
       emirate: form.storePickupAddress.emirate.trim(),
       city: form.storePickupAddress.city.trim(),
@@ -214,8 +193,6 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
       description: v.description.trim(),
       descriptionAr: v.descriptionAr.trim(),
       images: v.images.map((image) => image.trim()).filter(Boolean),
-      material: form.material.trim() || "Fabric",
-      materialAr: form.materialAr?.trim() || "",
       category: v.category?.trim() || "",
       categoryAr: v.categoryAr?.trim() || "",
       pattern: v.pattern?.trim() || "",
@@ -277,44 +254,10 @@ export function isShopMissingError(error: unknown): boolean {
   return isShopIncompleteError(error);
 }
 
-export function getFabricAgeFieldErrors(
-  form: Pick<FabricFormData, "minAge" | "maxAge">,
-): Record<string, string> {
-  const errors: Record<string, string> = {};
-
-  if (form.minAge != null && (isNaN(form.minAge) || form.minAge < 0)) {
-    errors.minAge = "Min age must be a positive number";
-  }
-  if (form.maxAge != null && (isNaN(form.maxAge) || form.maxAge < 0)) {
-    errors.maxAge = "Max age must be a positive number";
-  }
-  if (
-    form.minAge != null &&
-    form.maxAge != null &&
-    form.minAge > form.maxAge
-  ) {
-    errors.minAge = "Min age cannot exceed max age";
-    errors.maxAge = "Max age cannot be smaller than min age";
-  }
-
-  return errors;
-}
-
 export function mapFabricApiErrorToFieldErrors(
   message: string,
 ): Record<string, string> {
   const trimmedMessage = message.trim();
-
-  if (
-    trimmedMessage === "Max age must be greater than or equal to min age" ||
-    trimmedMessage === "Max age cannot be smaller than min age" ||
-    trimmedMessage === "Min age cannot exceed max age"
-  ) {
-    return {
-      minAge: "Min age cannot exceed max age",
-      maxAge: "Max age cannot be smaller than min age",
-    };
-  }
 
   if (trimmedMessage.includes("At least one cut")) {
     return { cuts: trimmedMessage };

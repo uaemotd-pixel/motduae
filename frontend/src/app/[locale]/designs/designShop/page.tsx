@@ -33,12 +33,9 @@ interface DesignCatalogItem extends TailorDesignListItem {
   seasonAr?: string;
   tag?: string;
   tagAr?: string;
-  minAge?: number | null;
-  maxAge?: number | null;
 }
 
 const PRICE_MAX = 100000;
-const AGE_MAX = 120;
 
 interface FilterOption {
   _id: string;
@@ -375,8 +372,6 @@ type FilterState = {
   tags: string[];
   minPrice: number;
   maxPrice: number;
-  ageMin: number;
-  ageMax: number;
 };
 
 export default function DesignShopCatalogPage() {
@@ -441,27 +436,7 @@ export default function DesignShopCatalogPage() {
     tags: [],
     minPrice: 0,
     maxPrice: PRICE_MAX,
-    ageMin: 0,
-    ageMax: AGE_MAX,
   });
-
-  const setAgeMin = (value: number) => {
-    setFilters((prev) => {
-      const clampedMin = Math.max(0, Math.min(AGE_MAX, value));
-      const clampedMax = Math.max(clampedMin, Math.min(AGE_MAX, prev.ageMax));
-      return { ...prev, ageMin: clampedMin, ageMax: clampedMax };
-    });
-    setCurrentPage(1);
-  };
-
-  const setAgeMax = (value: number) => {
-    setFilters((prev) => {
-      const clampedMax = Math.max(0, Math.min(AGE_MAX, value));
-      const clampedMin = Math.min(clampedMax, Math.max(0, prev.ageMin));
-      return { ...prev, ageMax: clampedMax, ageMin: clampedMin };
-    });
-    setCurrentPage(1);
-  };
 
   const productsPerPage = 12;
 
@@ -666,19 +641,6 @@ export default function DesignShopCatalogPage() {
       const price = item.basePrice ?? 0;
       if (price < filters.minPrice || price > filters.maxPrice) return false;
 
-      const hasAgeFilter = filters.ageMin !== 0 || filters.ageMax !== AGE_MAX;
-      if (hasAgeFilter) {
-        const itemMin = item.minAge;
-        const itemMax = item.maxAge;
-        if (itemMin != null || itemMax != null) {
-          const rangeMin = itemMin ?? 0;
-          const rangeMax = itemMax ?? AGE_MAX;
-          if (rangeMax < filters.ageMin || rangeMin > filters.ageMax) {
-            return false;
-          }
-        }
-      }
-
       return true;
     });
 
@@ -719,9 +681,7 @@ export default function DesignShopCatalogPage() {
     filters.seasons.length > 0 ||
     filters.tags.length > 0 ||
     filters.minPrice > 0 ||
-    filters.maxPrice < PRICE_MAX ||
-    filters.ageMin > 0 ||
-    filters.ageMax < AGE_MAX;
+    filters.maxPrice < PRICE_MAX;
 
   const toggleCategory = (id: string) => {
     setFilters((prev) => ({
@@ -777,8 +737,6 @@ export default function DesignShopCatalogPage() {
       tags: [],
       minPrice: 0,
       maxPrice: PRICE_MAX,
-      ageMin: 0,
-      ageMax: AGE_MAX,
     });
     setCurrentPage(1);
   };
@@ -923,21 +881,6 @@ export default function DesignShopCatalogPage() {
           onMinChange={setMinPrice}
           onMaxChange={setMaxPrice}
           formatValue={(value) => `AED ${value.toLocaleString()}`}
-        />
-      </div>
-
-      {/* Age Range */}
-      <div className="border-b border-[#E4E0D8] pb-4">
-        <FilterLabel>{isAr ? "الفئة العمرية" : "Age Range"}</FilterLabel>
-        <RangeSlider
-          min={0}
-          max={AGE_MAX}
-          step={1}
-          minValue={filters.ageMin}
-          maxValue={filters.ageMax}
-          onMinChange={setAgeMin}
-          onMaxChange={setAgeMax}
-          formatValue={(value) => (isAr ? `${value} سنة` : `${value} yrs`)}
         />
       </div>
 
@@ -1190,35 +1133,6 @@ export default function DesignShopCatalogPage() {
                             onClick={() => {
                               setMinPrice(0);
                               setMaxPrice(PRICE_MAX);
-                            }}
-                            className="hover:opacity-70 flex items-center justify-center cursor-pointer"
-                          >
-                            <svg
-                              className="w-3 h-3"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={2}
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M6 18L18 6M6 6l12 12"
-                              />
-                            </svg>
-                          </button>
-                        </span>
-                      )}
-                      {(filters.ageMin > 0 || filters.ageMax < AGE_MAX) && (
-                        <span className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full">
-                          {isAr
-                            ? `${filters.ageMin}-${filters.ageMax} سنة`
-                            : `${filters.ageMin}-${filters.ageMax} yrs`}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAgeMin(0);
-                              setAgeMax(AGE_MAX);
                             }}
                             className="hover:opacity-70 flex items-center justify-center cursor-pointer"
                           >

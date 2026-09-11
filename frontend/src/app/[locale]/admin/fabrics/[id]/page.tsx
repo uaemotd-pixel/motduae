@@ -10,7 +10,7 @@ import {
   fromApiFabric,
 } from "@/lib/createFabricAdmin";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
-import { ChevronLeft, Edit, MapPin, Layers, Tag, Calendar } from "lucide-react";
+import { ChevronLeft, Edit, MapPin, Layers, Tag } from "lucide-react";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { resolveMediaUrl } from "@/lib/media";
 
@@ -295,23 +295,6 @@ export default function FabricDetailsPage() {
                 </p>
               </div>
 
-              {(fabric.minAge !== null || fabric.maxAge !== null) && (
-                <div className="col-span-2">
-                  <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-gray-400">
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>Age Recommendations</span>
-                  </div>
-                  <p className="text-sm font-medium text-black mt-0.5">
-                    {fabric.minAge !== null
-                      ? `${fabric.minAge} years`
-                      : "No minimum"}{" "}
-                    —{" "}
-                    {fabric.maxAge !== null
-                      ? `${fabric.maxAge} years`
-                      : "No maximum"}
-                  </p>
-                </div>
-              )}
             </div>
 
             {fabric.colors && fabric.colors.length > 0 && (

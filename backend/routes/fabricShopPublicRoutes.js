@@ -97,8 +97,6 @@ const toFabricListItem = (fabric) => ({
   fabricShopId: fabric.fabricShopId
     ? String(fabric.fabricShopId._id || fabric.fabricShopId)
     : null,
-  minAge: fabric.minAge,
-  maxAge: fabric.maxAge,
 });
 
 const toReadyMadeListItem = (p) => ({
