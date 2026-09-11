@@ -213,7 +213,7 @@ export function isValidSocialPlatformUrl(
 
   const platform = getSocialPlatform(platformName);
   // Custom / Other names: any valid http(s) URL
-  if (!platform || platform.value === "Other" || platform.hosts.length === 0) {
+  if (!platform || platform.value === "Other") {
     return true;
   }
 
