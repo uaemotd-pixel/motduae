@@ -1,5 +1,13 @@
 import { api } from "@/lib/api/client";
 import { isValidUaePhone, normalizeUaePhone } from "@/lib/uaePhone";
+import {
+  isKnownSocialPlatform,
+  isOtherSocialPlatform,
+  isValidHttpUrl,
+  isValidSocialPlatformUrl,
+  normalizeHttpUrl,
+  normalizeSocialPlatformName,
+} from "@/lib/tailorShop";
 
 export type PartnerRole = "tailor" | "fabric_store";
 
@@ -76,12 +84,15 @@ export function normalizeSocialLinks(social: unknown): PartnerSocialLink[] {
       .map((item) => {
         if (!item || typeof item !== "object") return null;
         const row = item as { name?: unknown; url?: unknown };
+        const name = normalizeSocialPlatformName(String(row.name || ""));
+        const url = String(row.url || "").trim();
         return {
-          name: String(row.name || "").trim(),
-          url: String(row.url || "").trim(),
+          name,
+          url: url ? normalizeHttpUrl(url) : "",
         };
       })
       .filter((row): row is PartnerSocialLink => Boolean(row))
+      .filter((row) => row.name || row.url)
       .slice(0, SOCIAL_MAX);
   }
 
@@ -89,8 +100,10 @@ export function normalizeSocialLinks(social: unknown): PartnerSocialLink[] {
     const record = social as Record<string, unknown>;
     return (["instagram", "facebook", "tiktok", "other"] as const)
       .map((key) => ({
-        name: key,
-        url: String(record[key] || "").trim(),
+        name: normalizeSocialPlatformName(key),
+        url: String(record[key] || "").trim()
+          ? normalizeHttpUrl(String(record[key] || "").trim())
+          : "",
       }))
       .filter((row) => row.url)
       .slice(0, SOCIAL_MAX);
@@ -134,11 +147,43 @@ export function collectRequiredFieldErrors(
     }
   }
 
+  if (form.website.trim() && !isValidHttpUrl(form.website)) {
+    errors.website = "invalid";
+  }
+
+  const usedPlatforms = new Set<string>();
   form.social.forEach((row, index) => {
     const name = row.name.trim();
     const url = row.url.trim();
-    if ((name && !url) || (!name && url)) {
-      errors[`social.${index}`] = "required";
+    if (!name && !url) return;
+
+    const nameKey = `social.${index}.name`;
+    const urlKey = `social.${index}.url`;
+    const isOther =
+      isOtherSocialPlatform(name) || name.toLowerCase() === "other";
+
+    if (isOther) {
+      if (!name || name.toLowerCase() === "other") {
+        errors[nameKey] = "required";
+      } else if (usedPlatforms.has(name.toLowerCase())) {
+        errors[nameKey] = "duplicate";
+      } else {
+        usedPlatforms.add(name.toLowerCase());
+      }
+    } else if (!name) {
+      errors[nameKey] = "required";
+    } else if (!isKnownSocialPlatform(name)) {
+      errors[nameKey] = "invalid";
+    } else if (usedPlatforms.has(name.toLowerCase())) {
+      errors[nameKey] = "duplicate";
+    } else {
+      usedPlatforms.add(name.toLowerCase());
+    }
+
+    if (!url) {
+      errors[urlKey] = "required";
+    } else if (!isValidSocialPlatformUrl(name, url)) {
+      errors[urlKey] = "invalid";
     }
   });
 

@@ -33,6 +33,9 @@ const partnerApplicationSchema = new mongoose.Schema(
       enum: [...YEARS_OPERATING, ""],
       default: "",
     },
+    /** Total months of experience recorded at experienceAnchorAt */
+    experienceBaselineMonths: { type: Number, default: undefined },
+    experienceAnchorAt: { type: Date, default: undefined },
     logoUrl: { type: String, default: "", trim: true },
     website: { type: String, default: "", trim: true },
     social: { type: mongoose.Schema.Types.Mixed, default: [] },

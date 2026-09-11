@@ -24,6 +24,16 @@ const fabricShopSchema = new mongoose.Schema(
     location: { type: String, default: "", trim: true },
     city: { type: String, default: "", trim: true },
     phone: { type: String, default: "", trim: true },
+    website: { type: String, default: "", trim: true },
+    social: {
+      type: [
+        {
+          name: { type: String, default: "", trim: true },
+          url: { type: String, default: "", trim: true },
+        },
+      ],
+      default: [],
+    },
     pickupAddress: {
       type: shopPickupAddressSchema,
       default: () => ({}),

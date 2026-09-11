@@ -2,6 +2,33 @@ import { api, type ApiError } from "@/lib/api/client";
 import { normalizeUaePhone } from "@/lib/uaePhone";
 import { resolveMediaUrl } from "@/lib/media";
 import type { Locale } from "@/i18n/routing";
+import {
+  SOCIAL_MAX,
+  SOCIAL_PLATFORMS,
+  getSocialPlatform,
+  isKnownSocialPlatform,
+  isOtherSocialPlatform,
+  isValidHttpUrl,
+  isValidSocialPlatformUrl,
+  normalizeHttpUrl,
+  normalizeShopSocialLinks,
+  normalizeSocialPlatformName,
+  type TailorShopSocialLink,
+} from "@/lib/tailorShop";
+
+export type FabricShopSocialLink = TailorShopSocialLink;
+
+export {
+  SOCIAL_MAX,
+  SOCIAL_PLATFORMS,
+  getSocialPlatform,
+  isKnownSocialPlatform,
+  isOtherSocialPlatform,
+  isValidHttpUrl,
+  isValidSocialPlatformUrl,
+  normalizeHttpUrl,
+  normalizeShopSocialLinks,
+};
 
 export const SHOP_EMIRATES = [
   "Abu Dhabi",
@@ -142,6 +169,20 @@ export interface FabricShopProfile {
   location: string;
   city: string;
   phone: string;
+  website?: string;
+  social?: FabricShopSocialLink[];
+  licenceNumber?: string;
+  licenceFileUrl?: string;
+  experience?: {
+    years: number;
+    months: number;
+    yearsOperating?: string;
+  } | null;
+  /** From partner application — readonly on shop profile */
+  yearsOperating?: string;
+  offering?: string;
+  partnerNote?: string;
+  requestNumber?: string;
   pickupAddress?: ShopPickupAddress;
   rating?: number;
   reviewCount?: number;
@@ -161,6 +202,19 @@ export interface FabricShopFormData {
   location: string;
   city: string;
   phone: string;
+  website: string;
+  social: FabricShopSocialLink[];
+  licenceNumber: string;
+  licenceFileUrl: string;
+  experience: {
+    years: number;
+    months: number;
+    yearsOperating?: string;
+  } | null;
+  yearsOperating: string;
+  offering: string;
+  partnerNote: string;
+  requestNumber: string;
   pickupAddress: ShopPickupAddress;
 }
 
@@ -178,6 +232,15 @@ export function emptyFabricShopForm(): FabricShopFormData {
     location: "",
     city: "",
     phone: "",
+    website: "",
+    social: [],
+    licenceNumber: "",
+    licenceFileUrl: "",
+    experience: null,
+    yearsOperating: "",
+    offering: "",
+    partnerNote: "",
+    requestNumber: "",
     pickupAddress: emptyShopPickupAddress(),
   };
 }
@@ -194,6 +257,15 @@ export function fabricShopToForm(shop: FabricShopProfile): FabricShopFormData {
     location: shop.location ?? "",
     city: shop.city ?? "",
     phone: shop.phone ?? "",
+    website: shop.website ?? "",
+    social: normalizeShopSocialLinks(shop.social),
+    licenceNumber: shop.licenceNumber ?? "",
+    licenceFileUrl: shop.licenceFileUrl ?? "",
+    experience: shop.experience ?? null,
+    yearsOperating: shop.yearsOperating ?? "",
+    offering: shop.offering ?? "",
+    partnerNote: shop.partnerNote ?? "",
+    requestNumber: shop.requestNumber ?? "",
     pickupAddress: normalizeShopPickupAddress(shop.pickupAddress),
   };
 }
@@ -208,7 +280,18 @@ export function slugifyShopName(name: string): string {
     .replace(/^-|-$/g, "");
 }
 
-export function toFabricShopPayload(form: FabricShopFormData): FabricShopFormData {
+export function toFabricShopPayload(
+  form: FabricShopFormData,
+): Omit<
+  FabricShopFormData,
+  | "licenceNumber"
+  | "licenceFileUrl"
+  | "experience"
+  | "yearsOperating"
+  | "offering"
+  | "partnerNote"
+  | "requestNumber"
+> {
   return {
     name: form.name.trim(),
     nameAr: form.nameAr.trim(),
@@ -220,6 +303,20 @@ export function toFabricShopPayload(form: FabricShopFormData): FabricShopFormDat
     location: form.location.trim(),
     city: form.city.trim(),
     phone: form.phone.trim(),
+    website: form.website.trim()
+      ? normalizeHttpUrl(form.website.trim())
+      : "",
+    social: normalizeShopSocialLinks(form.social)
+      .filter(
+        (link) =>
+          link.name &&
+          link.url &&
+          link.name.trim().toLowerCase() !== "other",
+      )
+      .map((link) => ({
+        name: normalizeSocialPlatformName(link.name),
+        url: normalizeHttpUrl(link.url),
+      })),
     pickupAddress: normalizeShopPickupAddress(form.pickupAddress),
   };
 }
@@ -270,6 +367,13 @@ export interface FabricShopListItem {
   location?: string;
   city?: string;
   phone?: string;
+  website?: string;
+  social?: FabricShopSocialLink[];
+  experience?: {
+    years: number;
+    months: number;
+    yearsOperating?: string;
+  } | null;
   rating?: number;
   reviewCount?: number;
   ownerId?: string;

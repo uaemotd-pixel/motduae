@@ -21,6 +21,11 @@ import {
   trimUrl,
 } from "./policy.js";
 import { mintRequestNumber } from "./requestNumber.js";
+import {
+  computePartnerExperience,
+  syncExperienceAnchor,
+  baselineMonthsFromYearsOperating,
+} from "../../utils/partnerExperience.js";
 
 const PATCH_KEYS = [
   "businessName",
@@ -44,6 +49,7 @@ export function toApplicationDto(doc) {
   if (!doc) {
     return null;
   }
+  const plain = typeof doc.toObject === "function" ? doc.toObject() : doc;
   return {
     ownerId: String(doc.ownerId),
     role: doc.role,
@@ -55,6 +61,7 @@ export function toApplicationDto(doc) {
     about: doc.about || "",
     aboutAr: doc.aboutAr || "",
     yearsOperating: doc.yearsOperating || "",
+    experience: computePartnerExperience(plain),
     logoUrl: doc.logoUrl || "",
     website: doc.website || "",
     social: normalizeSocialLinks(doc.social),
@@ -156,6 +163,19 @@ export function applySubmitMutation(owner, doc, now, mintedNumber) {
   owner.requestNumber = doc.requestNumber;
   doc.submittedAt = now;
   doc.confirmedAt = now;
+
+  // Lock experience clock on first submit so draft delays do not inflate tenure.
+  const isFirstSubmit = !owner.applicationSubmittedAt;
+  if (doc.yearsOperating) {
+    const baseline = baselineMonthsFromYearsOperating(doc.yearsOperating);
+    if (baseline != null) {
+      doc.experienceBaselineMonths = baseline;
+      if (isFirstSubmit || !doc.experienceAnchorAt) {
+        doc.experienceAnchorAt = now;
+      }
+    }
+  }
+
   if (owner.approvalStatus === "rejected") {
     doc.resubmitCount = (Number(doc.resubmitCount) || 0) + 1;
     doc.resubmittedAt = now;
@@ -202,7 +222,15 @@ export function applyPatch(doc, body = {}) {
     }
     if (key === "yearsOperating") {
       const value = String(body.yearsOperating || "").trim();
-      doc.yearsOperating = YEARS_OPERATING.includes(value) ? value : "";
+      const next = YEARS_OPERATING.includes(value) ? value : "";
+      if (next !== doc.yearsOperating) {
+        doc.yearsOperating = next;
+        syncExperienceAnchor(doc, next);
+      } else if (next && !doc.experienceAnchorAt) {
+        syncExperienceAnchor(doc, next);
+      } else {
+        doc.yearsOperating = next;
+      }
       continue;
     }
     if (key === "makeTime") {
