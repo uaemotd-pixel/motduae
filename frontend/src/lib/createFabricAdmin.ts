@@ -28,7 +28,7 @@ export interface FabricCutFormEntry {
   lengthInMeters?: number;
 }
 
-export type FabricVariantFormData = Omit<FabricFormData, "minAge" | "maxAge">;
+export type FabricVariantFormData = FabricFormData;
 
 export interface FabricFormData {
   _id?: string;
@@ -53,8 +53,6 @@ export interface FabricFormData {
   /** Computed on API for listing/display — not sent on create */
   pricePerMeter?: number;
   stockInMeters?: number;
-  minAge: number | null;
-  maxAge: number | null;
   listedByStore: string;
   pickupAddress: PickupAddress;
   isActive: boolean;
@@ -81,8 +79,6 @@ export function defaultFabricForm(): FabricFormData {
     tag: "",
     tagAr: "",
     cuts: [],
-    minAge: null,
-    maxAge: null,
     listedByStore: "",
     pickupAddress: {
       emirate: "",
@@ -266,14 +262,6 @@ export function fromApiFabric(
         )
         .filter((entry): entry is FabricCutFormEntry => entry !== null)
     : defaultForm.cuts;
-  const minAge =
-    product.minAge !== undefined && product.minAge !== null
-      ? Number(product.minAge)
-      : null;
-  const maxAge =
-    product.maxAge !== undefined && product.maxAge !== null
-      ? Number(product.maxAge)
-      : null;
   const listedByStore =
     typeof product.listedByStore === "string" ? product.listedByStore : "";
 
@@ -304,11 +292,7 @@ export function fromApiFabric(
       : defaultForm.isActive;
 
   const rawVariants = Array.isArray(product.variants) ? product.variants : [];
-  const variants = rawVariants.map((v: any) => {
-    const base = fromApiFabric(v);
-    const { minAge: _, maxAge: __, ...variantWithoutAge } = base;
-    return variantWithoutAge;
-  });
+  const variants = rawVariants.map((v: any) => fromApiFabric(v));
 
   return {
     _id: typeof product._id === "string" ? product._id : undefined,
@@ -338,8 +322,6 @@ export function fromApiFabric(
       typeof product.stockInMeters === "number"
         ? product.stockInMeters
         : undefined,
-    minAge,
-    maxAge,
     listedByStore,
     pickupAddress,
     isActive,
@@ -390,8 +372,6 @@ export function toFabricApiPayload(
       description: v.description.trim(),
       descriptionAr: v.descriptionAr.trim() || v.description.trim(),
       images: v.images.filter((url) => url.trim() !== "" && !isDataUrl(url)),
-      material: v.material,
-      materialAr: v.materialAr.trim(),
       category: v.category.trim(),
       categoryAr: v.categoryAr.trim(),
       pattern: v.pattern.trim(),
@@ -414,13 +394,6 @@ export function toFabricApiPayload(
         : undefined,
     })),
   };
-
-  if (form.minAge !== null && form.minAge !== undefined) {
-    payload.minAge = Number(form.minAge);
-  }
-  if (form.maxAge !== null && form.maxAge !== undefined) {
-    payload.maxAge = Number(form.maxAge);
-  }
 
   if (options?.includeIsActive && form.isActive !== undefined) {
     payload.isActive = form.isActive;
@@ -542,8 +515,6 @@ export function validateFabricForm(
 
   validateFabricCuts(form.cuts || [], errors, "cuts");
 
-  Object.assign(errors, getFabricAgeFieldErrors(form));
-
   if (!form.pickupAddress.emirate?.trim()) {
     errors["pickupAddress.emirate"] =
       validation.emirate_required || "Emirate is required";
@@ -600,13 +571,6 @@ export function validateFabricForm(
       ) {
         errors[`${prefix}.slug`] = "Slug is invalid for variant";
       }
-      if (!v.material) {
-        errors[`${prefix}.material`] = "Material (EN) is required for variant";
-      }
-      if (!v.materialAr?.trim()) {
-        errors[`${prefix}.materialAr`] =
-          "Material (AR) is required for variant";
-      }
       validateFabricCuts(v.cuts || [], errors, `${prefix}.cuts`);
 
       if (!v.images?.some((img) => img.trim())) {
@@ -643,42 +607,10 @@ export function validateFabricForm(
   return errors;
 }
 
-export function getFabricAgeFieldErrors(
-  form: Pick<FabricFormData, "minAge" | "maxAge">,
-): Record<string, string> {
-  const errors: Record<string, string> = {};
-  const minAge = form.minAge;
-  const maxAge = form.maxAge;
-
-  if (minAge != null && (isNaN(minAge) || minAge < 0)) {
-    errors.minAge = "Min age must be a positive number";
-  }
-  if (maxAge != null && (isNaN(maxAge) || maxAge < 0)) {
-    errors.maxAge = "Max age must be a positive number";
-  }
-  if (minAge != null && maxAge != null && minAge > maxAge) {
-    errors.minAge = "Min age cannot exceed max age";
-    errors.maxAge = "Max age cannot be smaller than min age";
-  }
-
-  return errors;
-}
-
 export function mapFabricApiErrorToFieldErrors(
   message: string,
 ): Record<string, string> {
   const trimmedMessage = message.trim();
-
-  if (
-    trimmedMessage === "Max age must be greater than or equal to min age" ||
-    trimmedMessage === "Max age cannot be smaller than min age" ||
-    trimmedMessage === "Min age cannot exceed max age"
-  ) {
-    return {
-      minAge: "Min age cannot exceed max age",
-      maxAge: "Max age cannot be smaller than min age",
-    };
-  }
 
   if (trimmedMessage.includes("cut")) {
     return { cuts: trimmedMessage };

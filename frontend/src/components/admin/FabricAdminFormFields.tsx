@@ -1084,50 +1084,6 @@ export default function FabricAdminFormFields({
         />
       </div>
 
-      <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-2 gap-4 sm:gap-6">
-        <FormField
-          label="Min Age (years)"
-          name="minAge"
-          error={fieldErrors.minAge}
-        >
-          <input
-            type="number"
-            min="0"
-            max="150"
-            value={formData.minAge ?? ""}
-            onChange={(e) =>
-              onFieldChange(
-                "minAge",
-                e.target.value === "" ? null : Number(e.target.value),
-              )
-            }
-            className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
-            placeholder="0"
-          />
-        </FormField>
-
-        <FormField
-          label="Max Age (years)"
-          name="maxAge"
-          error={fieldErrors.maxAge}
-        >
-          <input
-            type="number"
-            min="0"
-            max="150"
-            value={formData.maxAge ?? ""}
-            onChange={(e) =>
-              onFieldChange(
-                "maxAge",
-                e.target.value === "" ? null : Number(e.target.value),
-              )
-            }
-            className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
-            placeholder="150"
-          />
-        </FormField>
-      </div>
-
       <div className="md:col-span-2">
         <StorePartnerPicker
           value={formData.listedByStore}
@@ -1475,39 +1431,6 @@ export default function FabricAdminFormFields({
                         className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none bg-transparent text-xs sm:text-sm hover:cursor-text"
                         placeholder="e.g. red-silk"
                       />
-                    </FormField>
-
-                    <FormField
-                      label="Material"
-                      name={`${prefix}.material`}
-                      error={fieldErrors[`${prefix}.material`]}
-                      required
-                    >
-                      <select
-                        value={variant.material}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          const nextVariants = [...(formData.variants || [])];
-                          const found = dbMaterials.find(
-                            (m) => m.name === val || m.nameAr === val,
-                          );
-                          const nameAr = found ? found.nameAr : "";
-                          nextVariants[index] = {
-                            ...nextVariants[index],
-                            material: val,
-                            materialAr: nameAr || "",
-                          };
-                          onFieldChange("variants", nextVariants);
-                        }}
-                        className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none bg-transparent text-xs sm:text-sm hover:cursor-pointer"
-                      >
-                        <option value="">Select material</option>
-                        {dbMaterials.map((m) => (
-                          <option key={m._id} value={m.name}>
-                            {m.name}
-                          </option>
-                        ))}
-                      </select>
                     </FormField>
 
                     <FormField

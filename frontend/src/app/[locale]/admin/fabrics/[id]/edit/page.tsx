@@ -9,7 +9,6 @@ import { getTranslation } from "@/lib/getTranslation";
 import {
   FabricFormData,
   fromApiFabric,
-  getFabricAgeFieldErrors,
   mapFabricApiErrorToFieldErrors,
   PickupAddress,
   toFabricApiPayload,
@@ -82,17 +81,7 @@ export default function EditFabricPage() {
 
       const nextFormData = { ...prev, [field]: value };
 
-      if (field === "minAge" || field === "maxAge") {
-        const ageErrors = getFabricAgeFieldErrors(nextFormData);
-        setFieldErrors((prevErrors) => {
-          const nextErrors = { ...prevErrors };
-
-          delete nextErrors.minAge;
-          delete nextErrors.maxAge;
-
-          return { ...nextErrors, ...ageErrors };
-        });
-      } else if (field === "pickupAddress") {
+      if (field === "pickupAddress") {
         setFieldErrors((prevErrors) => {
           const nextErrors = { ...prevErrors };
           delete nextErrors["pickupAddress.emirate"];

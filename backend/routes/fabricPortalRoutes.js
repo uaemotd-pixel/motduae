@@ -203,18 +203,6 @@ const pickShopFields = (body) => {
   return data;
 };
 
-function parseFabricAge(value, fallback = 0) {
-  if (value === null || value === undefined || value === "") {
-    return fallback;
-  }
-  const age = Number(value);
-  return Number.isFinite(age) && age >= 0 ? age : fallback;
-}
-
-function hasInvalidFabricAgeRange(minAge, maxAge) {
-  return Number.isFinite(minAge) && Number.isFinite(maxAge) && maxAge < minAge;
-}
-
 // Backend - store full format
 const validateShopPayload = (data, { requireCore = false } = {}) => {
   const normalizePhone = (phone) => {
@@ -523,8 +511,6 @@ fabricPortalRouter.post(
       tag,
       tagAr,
       cuts,
-      minAge,
-      maxAge,
       storePickupAddress,
       isActive,
     } = req.body;
@@ -532,17 +518,6 @@ fabricPortalRouter.post(
     const cutsResult = await prepareFabricCutsInput(cuts);
     if (!cutsResult.ok) {
       res.status(400).json({ success: false, message: cutsResult.message });
-      return;
-    }
-
-    const normalizedMinAge = parseFabricAge(minAge);
-    const normalizedMaxAge = parseFabricAge(maxAge);
-
-    if (hasInvalidFabricAgeRange(normalizedMinAge, normalizedMaxAge)) {
-      res.status(400).json({
-        success: false,
-        message: "Max age must be greater than or equal to min age",
-      });
       return;
     }
 
@@ -589,8 +564,6 @@ fabricPortalRouter.post(
       tag: tag || "",
       tagAr: tagAr || "",
       cuts: cutsResult.cuts,
-      minAge: normalizedMinAge,
-      maxAge: normalizedMaxAge,
       listedByStore: req.user._id,
       fabricShopId: shop._id,
       storePickupAddress: {
@@ -616,8 +589,7 @@ fabricPortalRouter.post(
 
     if (Array.isArray(req.body.variants)) {
       for (const variant of req.body.variants) {
-        const variantMaterial = variant.material || fabric.material || material;
-        if (!variant.name || !variant.nameAr || !variantMaterial) continue;
+        if (!variant.name || !variant.nameAr || !fabric.material) continue;
         const vSlug = await ensureUniqueSlug(
           Fabric,
           variant.slug || variant.name,
@@ -640,8 +612,8 @@ fabricPortalRouter.post(
           description: variant.description || fabric.description,
           descriptionAr: variant.descriptionAr || fabric.descriptionAr,
           images: variant.images,
-          material: variantMaterial,
-          materialAr: variant.materialAr || fabric.materialAr || materialAr || "",
+          material: fabric.material,
+          materialAr: fabric.materialAr || "",
           category: variant.category || fabric.category || "",
           categoryAr: variant.categoryAr || fabric.categoryAr || "",
           pattern: variant.pattern || fabric.pattern || "",
@@ -652,8 +624,6 @@ fabricPortalRouter.post(
           tag: variant.tag || "",
           tagAr: variant.tagAr || "",
           cuts: variantCutsResult.cuts,
-          minAge: fabric.minAge,
-          maxAge: fabric.maxAge,
           listedByStore: fabric.listedByStore,
           fabricShopId: fabric.fabricShopId,
           storePickupAddress: fabric.storePickupAddress,
@@ -710,22 +680,9 @@ fabricPortalRouter.put(
       tag,
       tagAr,
       cuts,
-      minAge,
-      maxAge,
       storePickupAddress,
       isActive,
     } = req.body;
-
-    const nextMinAge = parseFabricAge(minAge, fabric.minAge);
-    const nextMaxAge = parseFabricAge(maxAge, fabric.maxAge);
-
-    if (hasInvalidFabricAgeRange(nextMinAge, nextMaxAge)) {
-      res.status(400).json({
-        success: false,
-        message: "Max age must be greater than or equal to min age",
-      });
-      return;
-    }
 
     if (slug && slug.toLowerCase() !== fabric.slug) {
       fabric.slug = await ensureUniqueSlug(Fabric, slug, {
@@ -758,8 +715,6 @@ fabricPortalRouter.put(
       }
       fabric.cuts = cutsResult.cuts;
     }
-    fabric.minAge = nextMinAge;
-    fabric.maxAge = nextMaxAge;
     if (isActive !== undefined) fabric.isActive = isActive;
 
     if (storePickupAddress) {
@@ -807,17 +762,8 @@ fabricPortalRouter.put(
             if (variant.descriptionAr !== undefined)
               existing.descriptionAr = variant.descriptionAr;
             if (variant.images) existing.images = variant.images;
-            if (variant.material !== undefined) {
-              existing.material = variant.material || updatedFabric.material;
-            } else if (!existing.material) {
-              existing.material = updatedFabric.material;
-            }
-            if (variant.materialAr !== undefined) {
-              existing.materialAr =
-                variant.materialAr || updatedFabric.materialAr || "";
-            } else if (!existing.materialAr) {
-              existing.materialAr = updatedFabric.materialAr || "";
-            }
+            existing.material = updatedFabric.material;
+            existing.materialAr = updatedFabric.materialAr || "";
             if (variant.category !== undefined)
               existing.category = variant.category || "";
             if (variant.categoryAr !== undefined)
@@ -846,8 +792,6 @@ fabricPortalRouter.put(
               }
               existing.cuts = variantCutsResult.cuts;
             }
-            existing.minAge = updatedFabric.minAge;
-            existing.maxAge = updatedFabric.maxAge;
             if (variant.isActive !== undefined)
               existing.isActive = variant.isActive;
 
@@ -858,8 +802,7 @@ fabricPortalRouter.put(
             await existing.save();
           }
         } else {
-          const variantMaterial = variant.material || updatedFabric.material;
-          if (!variant.name || !variant.nameAr || !variantMaterial) continue;
+          if (!variant.name || !variant.nameAr || !updatedFabric.material) continue;
           const vSlug = await ensureUniqueSlug(
             Fabric,
             variant.slug || variant.name,
@@ -882,9 +825,8 @@ fabricPortalRouter.put(
             description: variant.description || updatedFabric.description,
             descriptionAr: variant.descriptionAr || updatedFabric.descriptionAr,
             images: variant.images,
-            material: variantMaterial,
-            materialAr:
-              variant.materialAr || updatedFabric.materialAr || "",
+            material: updatedFabric.material,
+            materialAr: updatedFabric.materialAr || "",
             category: variant.category || updatedFabric.category || "",
             categoryAr: variant.categoryAr || updatedFabric.categoryAr || "",
             pattern: variant.pattern || updatedFabric.pattern || "",
@@ -895,8 +837,6 @@ fabricPortalRouter.put(
             tag: variant.tag || "",
             tagAr: variant.tagAr || "",
             cuts: variantCutsResult.cuts,
-            minAge: updatedFabric.minAge,
-            maxAge: updatedFabric.maxAge,
             listedByStore: updatedFabric.listedByStore,
             fabricShopId: updatedFabric.fabricShopId,
             storePickupAddress: updatedFabric.storePickupAddress,

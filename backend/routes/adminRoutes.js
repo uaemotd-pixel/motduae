@@ -1074,18 +1074,6 @@ async function assertFabricStorePartner(listedByStore) {
   return { ok: true };
 }
 
-function parseFabricAge(value, fallback = 0) {
-  if (value === null || value === undefined || value === "") {
-    return fallback;
-  }
-  const age = Number(value);
-  return Number.isFinite(age) && age >= 0 ? age : fallback;
-}
-
-function hasInvalidFabricAgeRange(minAge, maxAge) {
-  return Number.isFinite(minAge) && Number.isFinite(maxAge) && maxAge < minAge;
-}
-
 async function prepareFabricCutsInput(cutsInput) {
   const normalized = normalizeFabricCutsPayload(cutsInput);
   if (!normalized.ok) {
@@ -1232,8 +1220,6 @@ adminRouter.post(
       tag,
       tagAr,
       cuts,
-      minAge,
-      maxAge,
       listedByStore,
       storePickupAddress,
       isActive,
@@ -1242,15 +1228,6 @@ adminRouter.post(
     const cutsResult = await prepareFabricCutsInput(cuts);
     if (!cutsResult.ok) {
       return res.status(400).send({ message: cutsResult.message });
-    }
-
-    const normalizedMinAge = parseFabricAge(minAge);
-    const normalizedMaxAge = parseFabricAge(maxAge);
-
-    if (hasInvalidFabricAgeRange(normalizedMinAge, normalizedMaxAge)) {
-      return res.status(400).send({
-        message: "Max age must be greater than or equal to min age",
-      });
     }
 
     const partnerCheck = await assertFabricStorePartner(listedByStore);
@@ -1292,8 +1269,6 @@ adminRouter.post(
       tag,
       tagAr: tagAr || "",
       cuts: cutsResult.cuts,
-      minAge: normalizedMinAge,
-      maxAge: normalizedMaxAge,
       listedByStore,
       storePickupAddress,
       isActive: isActive !== undefined ? isActive : true,
@@ -1303,9 +1278,7 @@ adminRouter.post(
 
     if (Array.isArray(req.body.variants)) {
       for (const variant of req.body.variants) {
-        const variantMaterial =
-          variant.material || createdFabric.material || newFabric.material;
-        if (!variant.name || !variant.nameAr || !variantMaterial) continue;
+        if (!variant.name || !variant.nameAr || !createdFabric.material) continue;
 
         const variantCutsResult = await prepareFabricCutsInput(variant.cuts);
         if (!variantCutsResult.ok) {
@@ -1327,8 +1300,8 @@ adminRouter.post(
           description: variant.description || createdFabric.description,
           descriptionAr: variant.descriptionAr || createdFabric.descriptionAr,
           images: variant.images,
-          material: variantMaterial,
-          materialAr: variant.materialAr || createdFabric.materialAr || "",
+          material: createdFabric.material,
+          materialAr: createdFabric.materialAr || "",
           category: variant.category || createdFabric.category || "",
           categoryAr: variant.categoryAr || createdFabric.categoryAr || "",
           pattern: variant.pattern || createdFabric.pattern || "",
@@ -1339,8 +1312,6 @@ adminRouter.post(
           tag: variant.tag || "",
           tagAr: variant.tagAr || "",
           cuts: variantCutsResult.cuts,
-          minAge: createdFabric.minAge,
-          maxAge: createdFabric.maxAge,
           listedByStore: createdFabric.listedByStore,
           storePickupAddress: createdFabric.storePickupAddress,
           isVariantOf: createdFabric._id,
@@ -1431,18 +1402,6 @@ adminRouter.put(
       fabric.cuts = cutsResult.cuts;
     }
 
-    const nextMinAge = parseFabricAge(req.body.minAge, fabric.minAge);
-    const nextMaxAge = parseFabricAge(req.body.maxAge, fabric.maxAge);
-
-    if (hasInvalidFabricAgeRange(nextMinAge, nextMaxAge)) {
-      return res.status(400).send({
-        message: "Max age must be greater than or equal to min age",
-      });
-    }
-
-    fabric.minAge = nextMinAge;
-    fabric.maxAge = nextMaxAge;
-
     // Update pickup address fields individually (✅ ensures changes are detected)
     if (req.body.storePickupAddress) {
       const addr = req.body.storePickupAddress;
@@ -1484,17 +1443,8 @@ adminRouter.put(
             if (variant.descriptionAr !== undefined)
               existing.descriptionAr = variant.descriptionAr;
             if (variant.images) existing.images = variant.images;
-            if (variant.material !== undefined) {
-              existing.material = variant.material || updatedFabric.material;
-            } else if (!existing.material) {
-              existing.material = updatedFabric.material;
-            }
-            if (variant.materialAr !== undefined) {
-              existing.materialAr =
-                variant.materialAr || updatedFabric.materialAr || "";
-            } else if (!existing.materialAr) {
-              existing.materialAr = updatedFabric.materialAr || "";
-            }
+            existing.material = updatedFabric.material;
+            existing.materialAr = updatedFabric.materialAr || "";
             if (variant.category !== undefined)
               existing.category = variant.category || "";
             if (variant.categoryAr !== undefined)
@@ -1521,8 +1471,6 @@ adminRouter.put(
               }
               existing.cuts = variantCutsResult.cuts;
             }
-            existing.minAge = updatedFabric.minAge;
-            existing.maxAge = updatedFabric.maxAge;
             if (variant.isActive !== undefined)
               existing.isActive = variant.isActive;
 
@@ -1538,8 +1486,7 @@ adminRouter.put(
             await existing.save();
           }
         } else {
-          const variantMaterial = variant.material || updatedFabric.material;
-          if (!variant.name || !variant.nameAr || !variantMaterial) continue;
+          if (!variant.name || !variant.nameAr || !updatedFabric.material) continue;
 
           const variantCutsResult = await prepareFabricCutsInput(variant.cuts);
           if (!variantCutsResult.ok) {
@@ -1561,9 +1508,8 @@ adminRouter.put(
             description: variant.description || updatedFabric.description,
             descriptionAr: variant.descriptionAr || updatedFabric.descriptionAr,
             images: variant.images,
-            material: variantMaterial,
-            materialAr:
-              variant.materialAr || updatedFabric.materialAr || "",
+            material: updatedFabric.material,
+            materialAr: updatedFabric.materialAr || "",
             category: variant.category || updatedFabric.category || "",
             categoryAr: variant.categoryAr || updatedFabric.categoryAr || "",
             pattern: variant.pattern || updatedFabric.pattern || "",
@@ -1574,8 +1520,6 @@ adminRouter.put(
             tag: variant.tag || "",
             tagAr: variant.tagAr || "",
             cuts: variantCutsResult.cuts,
-            minAge: updatedFabric.minAge,
-            maxAge: updatedFabric.maxAge,
             listedByStore: updatedFabric.listedByStore,
             storePickupAddress: updatedFabric.storePickupAddress,
             isVariantOf: updatedFabric._id,

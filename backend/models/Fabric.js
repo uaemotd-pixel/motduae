@@ -107,19 +107,6 @@ const fabricSchema = new mongoose.Schema(
         message: "At least one cut with price and stock is required",
       },
     },
-    minAge: { type: Number, required: true, default: 0, min: 0 },
-    maxAge: {
-      type: Number,
-      required: true,
-      default: 0,
-      max: 150,
-      validate: {
-        validator(value) {
-          return typeof this.minAge !== "number" || value >= this.minAge;
-        },
-        message: "Max age must be greater than or equal to min age",
-      },
-    },
     listedByStore: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -151,22 +138,6 @@ fabricSchema.index({ isVariantOf: 1 });
 fabricSchema.index({ "cuts.cutId": 1 });
 
 fabricSchema.pre("save", async function populateFabricShopId(next) {
-  if (this.isVariantOf) {
-    try {
-      const FabricModel = mongoose.model("Fabric");
-      const parentFabric = await FabricModel.findById(this.isVariantOf)
-        .select("minAge maxAge")
-        .lean();
-
-      if (parentFabric) {
-        this.minAge = parentFabric.minAge;
-        this.maxAge = parentFabric.maxAge;
-      }
-    } catch (err) {
-      console.error("Failed to inherit age range for fabric variant:", err);
-    }
-  }
-
   if (this.listedByStore) {
     try {
       const FabricShop = mongoose.model("FabricShop");
