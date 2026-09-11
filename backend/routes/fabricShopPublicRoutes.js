@@ -7,6 +7,8 @@ import User from "../models/User.js";
 import PartnerApplication from "../models/PartnerApplication.js";
 import { enrichFabricWithCuts } from "../utils/fabricCuts.js";
 import { publicShopSlugFilter } from "../utils/shopReady.js";
+import PlatformSettings from "../models/PlatformSettings.js";
+import { withCustomerFabricPrices, withCustomerReadyMadePrice, withCustomerAddonPrice } from "../utils/motdCommission.js";
 import { normalizeSocialLinks } from "../services/partnerApplication/policy.js";
 import { computePartnerExperience } from "../utils/partnerExperience.js";
 
@@ -215,13 +217,19 @@ fabricShopPublicRoutes.get("/:slug/fabrics", async (req, res) => {
       .limit(100)
       .select("-__v");
 
+    const settings = await PlatformSettings.getSettings();
+    const fabricCommission =
+      Number(settings.motdCommissionFromFabricStore) || 0;
+
     const enriched = await Promise.all(
       fabrics.map((fabric) => enrichFabricWithCuts(fabric)),
     );
 
     res.json({
       success: true,
-      items: enriched.map(toFabricListItem),
+      items: enriched.map((fabric) =>
+        toFabricListItem(withCustomerFabricPrices(fabric, fabricCommission)),
+      ),
     });
   } catch (error) {
     console.error("GET /api/fabric-shops/:slug/fabrics error:", error);
@@ -251,9 +259,17 @@ fabricShopPublicRoutes.get("/:slug/ready-made", async (req, res) => {
       .limit(100)
       .select("-__v");
 
+    const settings = await PlatformSettings.getSettings();
+    const fabricCommission =
+      Number(settings.motdCommissionFromFabricStore) || 0;
+
     res.json({
       success: true,
-      items: products.map(toReadyMadeListItem),
+      items: products.map((product) =>
+        toReadyMadeListItem(
+          withCustomerReadyMadePrice(product, fabricCommission),
+        ),
+      ),
     });
   } catch (error) {
     console.error("GET /api/fabric-shops/:slug/ready-made error:", error);
@@ -283,9 +299,15 @@ fabricShopPublicRoutes.get("/:slug/addons", async (req, res) => {
       .limit(100)
       .select("-__v");
 
+    const settings = await PlatformSettings.getSettings();
+    const fabricCommission =
+      Number(settings.motdCommissionFromFabricStore) || 0;
+
     res.json({
       success: true,
-      items: addons.map(toAddonListItem),
+      items: addons.map((addon) =>
+        toAddonListItem(withCustomerAddonPrice(addon, fabricCommission)),
+      ),
     });
   } catch (error) {
     console.error("GET /api/fabric-shops/:slug/addons error:", error);

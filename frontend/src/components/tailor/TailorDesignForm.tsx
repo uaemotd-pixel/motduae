@@ -13,12 +13,12 @@ import {
   createTailorDesign,
   designToForm,
   emptyTailorDesignForm,
-  fetchDefaultTailoringFee,
   fetchDesignCategories,
   fetchDesignMaterials,
   fetchDesignPatterns,
   fetchDesignSeasons,
   fetchDesignTags,
+  fetchPlatformOrderSettings,
   fetchTailorDesign,
   isShopMissingError,
   slugifyDesignName,
@@ -27,6 +27,7 @@ import {
   type DesignFilterOption,
   type TailorDesignFormData,
 } from "@/lib/tailorDesigns";
+import { formatMotdFinalPrice, DEFAULT_TAILOR_COMMISSION } from "@/lib/motdCommission";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 
 const INPUT_CLASS =
@@ -222,7 +223,9 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
   const [patternsLoading, setPatternsLoading] = useState(true);
   const [seasonsLoading, setSeasonsLoading] = useState(true);
   const [tagsLoading, setTagsLoading] = useState(true);
-
+  const [commissionPercent, setCommissionPercent] = useState(
+    DEFAULT_TAILOR_COMMISSION,
+  );
   const [openMaterial, setOpenMaterial] = useState(false);
   const [openPattern, setOpenPattern] = useState(false);
   const [openSeason, setOpenSeason] = useState(false);
@@ -253,17 +256,23 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
   const getNumberDisplay = (value: number): string =>
     value === 0 ? "" : String(value);
 
+  const finalPriceDisplay = formatMotdFinalPrice(
+    formData.basePrice,
+    commissionPercent,
+  );
+
   useEffect(() => {
-    // Fetch design categories + default tailoring fee from platform settings
+    // Fetch design categories + platform pricing settings
     let cancelled = false;
     const load = async () => {
       try {
-        const [cats, defaultTailoringFee] = await Promise.all([
+        const [cats, settings] = await Promise.all([
           fetchDesignCategories(),
-          isEditMode ? Promise.resolve(null) : fetchDefaultTailoringFee(),
+          fetchPlatformOrderSettings(),
         ]);
         if (cancelled) return;
         setCategoryOptions(cats);
+        setCommissionPercent(settings.motdCommissionFromTailor);
         setFormData((prev) => {
           let next = prev;
           if (prev.category === "" && cats.length > 0) {
@@ -275,10 +284,9 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
           }
           if (
             !isEditMode &&
-            defaultTailoringFee !== null &&
-            Number.isFinite(defaultTailoringFee)
+            Number.isFinite(settings.defaultTailoringFee)
           ) {
-            next = { ...next, tailoringFee: defaultTailoringFee };
+            next = { ...next, tailoringFee: settings.defaultTailoringFee };
           }
           return next;
         });
@@ -766,7 +774,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
           </div>
 
           <div className="col-span-2 space-y-4 sm:space-y-5">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-4 sm:gap-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-4 sm:gap-5">
               <FormField
                 label={t("fields.price")}
                 name="basePrice"
@@ -782,6 +790,24 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
                     handleChange("basePrice", value);
                   }}
                   className={INPUT_CLASS}
+                />
+              </FormField>
+
+              <FormField
+                label={t("fields.finalPrice")}
+                name="finalPrice"
+                hint={
+                  commissionPercent > 0
+                    ? t("fields.finalPriceHint", { percent: commissionPercent })
+                    : undefined
+                }
+              >
+                <input
+                  id="finalPrice"
+                  readOnly
+                  tabIndex={-1}
+                  value={finalPriceDisplay}
+                  className={`${INPUT_CLASS} text-black/60 cursor-default`}
                 />
               </FormField>
 

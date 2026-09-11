@@ -6,6 +6,7 @@ import FabricShop from "../models/FabricShop.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { planRetailOrderParcels } from "./parcelPlanService.js";
 import { getPerParcelDeliveryFee } from "./pricingService.js";
+import { applyMotdCommission } from "../utils/motdCommission.js";
 import {
   isRetailFabricLine,
   resolveRetailFabricCutLine,
@@ -70,6 +71,9 @@ export async function prepareRetailOrder(orderItems) {
 
   let itemsPrice = 0;
   const finalOrderItems = [];
+  const settings = await PlatformSettings.getSettings();
+  const fabricCommissionPercent =
+    Number(settings.motdCommissionFromFabricStore) || 0;
 
   for (const item of orderItems) {
     let product = await ReadyMadeProduct.findOne({
@@ -118,6 +122,14 @@ export async function prepareRetailOrder(orderItems) {
           throw new Error(resolved.message);
         }
 
+        const unitPrice = product.fabricShopId
+          ? applyMotdCommission(resolved.unitPrice, fabricCommissionPercent)
+          : resolved.unitPrice;
+        const lineTotal = Number((unitPrice * resolved.pieceQty).toFixed(2));
+        const cutSnapshot = resolved.cutSnapshot
+          ? { ...resolved.cutSnapshot, price: unitPrice }
+          : resolved.cutSnapshot;
+
         const line = {
           productId: product._id,
           kind: "fabric",
@@ -127,14 +139,14 @@ export async function prepareRetailOrder(orderItems) {
           slug: fallbackSlug(product),
           image: product.images?.[0] || "",
           size: resolved.sizeLabel,
-          price: resolved.unitPrice,
+          price: unitPrice,
           quantity: resolved.pieceQty,
           cutId: resolved.cutId,
-          cutSnapshot: resolved.cutSnapshot,
+          cutSnapshot,
         };
 
         finalOrderItems.push(line);
-        itemsPrice += resolved.lineTotal;
+        itemsPrice += lineTotal;
         continue;
       }
 
@@ -147,6 +159,15 @@ export async function prepareRetailOrder(orderItems) {
       }
 
       const legacyLine = await prepareLegacyMeterFabricLine(product, item);
+      if (product.fabricShopId) {
+        const unitPrice = applyMotdCommission(
+          legacyLine.price,
+          fabricCommissionPercent,
+        );
+        const quantityInMeters = Number(legacyLine.quantityInMeters) || 0;
+        legacyLine.price = unitPrice;
+        legacyLine.lineTotal = Number((unitPrice * quantityInMeters).toFixed(2));
+      }
       finalOrderItems.push(legacyLine);
       itemsPrice += legacyLine.lineTotal;
       continue;
@@ -165,9 +186,16 @@ export async function prepareRetailOrder(orderItems) {
 
     let finalPrice;
     if (isAddon) {
-      finalPrice = product.price;
+      finalPrice = product.fabricShopId
+        ? applyMotdCommission(product.price, fabricCommissionPercent)
+        : product.price;
     } else {
-      finalPrice = product.finalSellingPriceAED;
+      finalPrice = product.fabricShopId
+        ? applyMotdCommission(
+            product.finalSellingPriceAED,
+            fabricCommissionPercent,
+          )
+        : product.finalSellingPriceAED;
     }
 
     const sizeLabel = isAddon ? "N/A" : product.metersPerFabric;
@@ -189,7 +217,6 @@ export async function prepareRetailOrder(orderItems) {
     itemsPrice += (finalPrice || 0) * quantity;
   }
 
-  const settings = await PlatformSettings.getSettings();
   const parcelPlan = await planRetailOrderParcels({
     items: orderItems,
     perParcelFee: getPerParcelDeliveryFee(settings),

@@ -1,5 +1,7 @@
 import express from "express";
 import AddOn from "../models/AddOn.js";
+import PlatformSettings from "../models/PlatformSettings.js";
+import { withCustomerAddonPrice } from "../utils/motdCommission.js";
 
 const addOnRoutes = express.Router();
 
@@ -32,10 +34,14 @@ addOnRoutes.get("/", async (req, res) => {
       .sort({ createdAt: -1 });
 
     const total = await AddOn.countDocuments(filter);
+    const settings = await PlatformSettings.getSettings();
+    const fabricCommission =
+      Number(settings.motdCommissionFromFabricStore) || 0;
 
     const items = products.map((p) => {
       const fabricShop = toShopInfo(p.fabricShopId);
-      return {
+      return withCustomerAddonPrice(
+        {
         _id: p._id,
         slug: p.slug,
         images: p.images,
@@ -67,7 +73,9 @@ addOnRoutes.get("/", async (req, res) => {
             : null,
         fabricShop,
         ownerName: p.ownerName || "MOTD Admin",
-      };
+        },
+        fabricCommission,
+      );
     });
 
     res.json({
@@ -232,13 +240,22 @@ addOnRoutes.get("/:slug", async (req, res) => {
       })
       .sort((a, b) => b.score - a.score || 0);
 
-    const related = scored.slice(0, relatedLimit).map(({ item }) => toListItem(item));
+    const settings = await PlatformSettings.getSettings();
+    const fabricCommission =
+      Number(settings.motdCommissionFromFabricStore) || 0;
 
-    const item = {
-      ...addon.toObject(),
-      fabricShopId: shopKey || null,
-      fabricShop,
-    };
+    const related = scored
+      .slice(0, relatedLimit)
+      .map(({ item }) => withCustomerAddonPrice(toListItem(item), fabricCommission));
+
+    const item = withCustomerAddonPrice(
+      {
+        ...addon.toObject(),
+        fabricShopId: shopKey || null,
+        fabricShop,
+      },
+      fabricCommission,
+    );
 
     res.json({
       success: true,

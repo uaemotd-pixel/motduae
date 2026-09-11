@@ -6,6 +6,8 @@ import Category from "../models/Category.js";
 import PartnerApplication from "../models/PartnerApplication.js";
 import { normalizeSocialLinks } from "../services/partnerApplication/policy.js";
 import { publicShopSlugFilter } from "../utils/shopReady.js";
+import PlatformSettings from "../models/PlatformSettings.js";
+import { withCustomerDesignPrice } from "../utils/motdCommission.js";
 import { computePartnerExperience } from "../utils/partnerExperience.js";
 
 const tailorRoutes = express.Router();
@@ -202,10 +204,13 @@ tailorRoutes.get("/designs/all", async (req, res) => {
       .limit(limitNumber)
       .select("-__v");
 
+    const settings = await PlatformSettings.getSettings();
+    const tailorCommission = Number(settings.motdCommissionFromTailor) || 0;
+
     const items = designs.map((design) => {
       const shop = shopMap[design.tailorShopId.toString()];
       return {
-        ...toDesignListItem(design),
+        ...withCustomerDesignPrice(toDesignListItem(design), tailorCommission),
         tailorShopId: design.tailorShopId,
         tailorSlug: shop?.slug || "",
         tailorName: shop?.name || "",
@@ -358,10 +363,13 @@ tailorRoutes.get("/designs/:slug", async (req, res) => {
       })
       .sort((a, b) => b.score - a.score || 0);
 
+    const settings = await PlatformSettings.getSettings();
+    const tailorCommission = Number(settings.motdCommissionFromTailor) || 0;
+
     const related = scored.slice(0, relatedLimit).map(({ item }) => {
       const relatedShop = shopMap[String(item.tailorShopId)];
       return {
-        ...toDesignListItem(item),
+        ...withCustomerDesignPrice(toDesignListItem(item), tailorCommission),
         tailorShopId: item.tailorShopId,
         tailorSlug: relatedShop?.slug || "",
         tailorName: relatedShop?.name || "",
@@ -372,7 +380,7 @@ tailorRoutes.get("/designs/:slug", async (req, res) => {
     res.json({
       success: true,
       item: {
-        ...toDesignListItem(design),
+        ...withCustomerDesignPrice(toDesignListItem(design), tailorCommission),
         tailorShop: {
           _id: shop._id,
           slug: shop.slug,
@@ -419,12 +427,17 @@ tailorRoutes.get("/:slug/designs", async (req, res) => {
       .sort({ createdAt: -1 })
       .select("-__v");
 
+    const settings = await PlatformSettings.getSettings();
+    const tailorCommission = Number(settings.motdCommissionFromTailor) || 0;
+
     res.json({
       success: true,
       tailorSlug: shop.slug,
       tailorShopId: shop._id,
       total: designs.length,
-      items: designs.map(toDesignListItem),
+      items: designs.map((design) =>
+        withCustomerDesignPrice(toDesignListItem(design), tailorCommission),
+      ),
     });
   } catch (error) {
     console.error("GET /api/tailors/:slug/designs error:", error);

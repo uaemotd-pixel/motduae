@@ -1,5 +1,6 @@
 import { api, type ApiError } from "@/lib/api/client";
 import { isShopIncompleteError } from "@/lib/shopProfile";
+import { DEFAULT_TAILOR_COMMISSION } from "@/lib/motdCommission";
 
 export interface DesignCategoryOption {
   _id: string;
@@ -86,18 +87,37 @@ export interface TailorDesignFormData {
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-export const DEFAULT_TAILORING_FEE = 150;
+export const DEFAULT_TAILORING_FEE = 0;
+
+export async function fetchPlatformOrderSettings(): Promise<{
+  defaultTailoringFee: number;
+  motdCommissionFromTailor: number;
+}> {
+  try {
+    const data = await api.get<{
+      defaultTailoringFee?: number;
+      motdCommissionFromTailor?: number;
+    }>("/api/orders/settings");
+    const fee = Number(data?.defaultTailoringFee);
+    const commission = Number(data?.motdCommissionFromTailor);
+    return {
+      defaultTailoringFee:
+        Number.isFinite(fee) && fee >= 0 ? fee : DEFAULT_TAILORING_FEE,
+      motdCommissionFromTailor: Number.isFinite(commission)
+        ? commission
+        : DEFAULT_TAILOR_COMMISSION,
+    };
+  } catch {
+    return {
+      defaultTailoringFee: DEFAULT_TAILORING_FEE,
+      motdCommissionFromTailor: DEFAULT_TAILOR_COMMISSION,
+    };
+  }
+}
 
 export async function fetchDefaultTailoringFee(): Promise<number> {
-  try {
-    const data = await api.get<{ defaultTailoringFee?: number }>(
-      "/api/orders/settings",
-    );
-    const fee = Number(data?.defaultTailoringFee);
-    return Number.isFinite(fee) && fee >= 0 ? fee : DEFAULT_TAILORING_FEE;
-  } catch {
-    return DEFAULT_TAILORING_FEE;
-  }
+  const settings = await fetchPlatformOrderSettings();
+  return settings.defaultTailoringFee;
 }
 
 export function emptyTailorDesignForm(

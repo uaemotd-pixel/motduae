@@ -569,12 +569,14 @@ function CustomPublicCard({
                 {formatCurrency(order.pricing.fabricCost, locale)}
               </span>
             </div>
-            <div className="flex justify-between">
-              <span>{tReview("lines.tailoringFee")}</span>
-              <span className="font-semibold text-black">
-                {formatCurrency(order.pricing.tailoringFee, locale)}
-              </span>
-            </div>
+            {order.pricing.tailoringFee > 0 && (
+              <div className="flex justify-between">
+                <span>{tReview("lines.tailoringFee")}</span>
+                <span className="font-semibold text-black">
+                  {formatCurrency(order.pricing.tailoringFee, locale)}
+                </span>
+              </div>
+            )}
             {order.pricing.deliveryFee > 0 && (
               <div className="flex justify-between">
                 <span>{tReview("lines.deliveryFee")}</span>

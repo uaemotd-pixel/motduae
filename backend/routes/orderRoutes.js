@@ -38,6 +38,10 @@ import {
 import PlatformSettings from "../models/PlatformSettings.js";
 import { prepareRetailOrder } from "../services/retailOrderService.js";
 import { hydrateRetailOrders } from "../services/retailOrderHydrate.js";
+import {
+  customerPriceForPartnerItem,
+  sumCustomerAddonPrices,
+} from "../utils/motdCommission.js";
 import { isStripeConfigured } from "../services/stripeService.js";
 import {
   fulfillPaidCheckout,
@@ -629,7 +633,9 @@ async function buildMultiItemOrderData(
 async function getAddonsCost(addonIds = []) {
   if (!Array.isArray(addonIds) || addonIds.length === 0) return 0;
   const dbAddons = await AddOn.find({ _id: { $in: addonIds }, isActive: true });
-  return dbAddons.reduce((sum, item) => sum + item.price, 0);
+  const settings = await PlatformSettings.getSettings();
+  const percent = Number(settings.motdCommissionFromFabricStore) || 0;
+  return sumCustomerAddonPrices(dbAddons, percent);
 }
 
 orderRoutes.post("/custom/preview", async (req, res) => {
@@ -645,10 +651,22 @@ orderRoutes.post("/custom/preview", async (req, res) => {
 
     let dbAddons = [];
     let addonsCost = 0;
+    let fabricCommission = 0;
     if (addonIds && addonIds.length > 0) {
       dbAddons = await AddOn.find({ _id: { $in: addonIds }, isActive: true });
-      addonsCost = dbAddons.reduce((sum, item) => sum + item.price, 0);
+      const settings = await PlatformSettings.getSettings();
+      fabricCommission = Number(settings.motdCommissionFromFabricStore) || 0;
+      addonsCost = sumCustomerAddonPrices(dbAddons, fabricCommission);
     }
+
+    const addonPayload = dbAddons.map((a) => ({
+      addonId: a._id,
+      name: a.name,
+      nameAr: a.nameAr,
+      price: customerPriceForPartnerItem(a.price, a, fabricCommission),
+      thumbnailImage: a.thumbnailImage,
+      fabricShopId: a.fabricShopId || null,
+    }));
 
     if (isMultiItemPayload(req.body)) {
       const orderInput = validateMultiItemOrderInput(req.body);
@@ -666,14 +684,7 @@ orderRoutes.post("/custom/preview", async (req, res) => {
       return res.json({
         success: true,
         pricing,
-        addons: dbAddons.map((a) => ({
-          addonId: a._id,
-          name: a.name,
-          nameAr: a.nameAr,
-          price: a.price,
-          thumbnailImage: a.thumbnailImage,
-          fabricShopId: a.fabricShopId || null,
-        })),
+        addons: addonPayload,
       });
     }
 
@@ -692,14 +703,7 @@ orderRoutes.post("/custom/preview", async (req, res) => {
     res.json({
       success: true,
       pricing,
-      addons: dbAddons.map((a) => ({
-        addonId: a._id,
-        name: a.name,
-        nameAr: a.nameAr,
-        price: a.price,
-        thumbnailImage: a.thumbnailImage,
-        fabricShopId: a.fabricShopId || null,
-      })),
+      addons: addonPayload,
     });
   } catch (error) {
     if (error instanceof PricingValidationError) {
@@ -1090,7 +1094,7 @@ orderRoutes.get(
     if (!settings) {
       settings = await PlatformSettings.create({
         defaultDeliveryFee: 30,
-        defaultTailoringFee: 150,
+        defaultTailoringFee: 0,
         motdCommissionFromTailor: 12,
         motdCommissionFromFabricStore: 15,
         vatRate: 0.05,

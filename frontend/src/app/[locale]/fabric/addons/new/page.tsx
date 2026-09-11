@@ -17,6 +17,9 @@ import {
 } from "@/lib/fabricShop";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 import colors from "@/components/shared/colors";
+import CommissionFinalPriceField, {
+  useFabricStoreCommission,
+} from "@/components/partner/CommissionFinalPriceField";
 
 const COLOR_OPTIONS = colors;
 
@@ -83,6 +86,7 @@ export default function FabricNewAddOnPage() {
   const [openSeason, setOpenSeason] = useState(false);
   const [openTag, setOpenTag] = useState(false);
   const [openColors, setOpenColors] = useState(false);
+  const commissionPercent = useFabricStoreCommission();
 
   const [formData, setFormData] = useState<AddOnFormData>({
     name: "",
@@ -789,9 +793,9 @@ export default function FabricNewAddOnPage() {
             </FormField>
           </div>
 
-          <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+          <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             <FormField
-              label="Price (AED)"
+              label="Your price (AED)"
               name="price"
               required
               error={fieldErrors.price}
@@ -806,6 +810,11 @@ export default function FabricNewAddOnPage() {
                 placeholder="85"
               />
             </FormField>
+
+            <CommissionFinalPriceField
+              partnerPrice={formData.price}
+              commissionPercent={commissionPercent}
+            />
 
             <FormField
               label="Stock Qty"
