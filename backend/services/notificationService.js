@@ -748,17 +748,22 @@ export async function getCustomerOrderIds(userId) {
 
 export function buildCustomerNotificationFilter(userId, orderIds, query = {}) {
   return {
-    audience: "customer",
-    ...buildListFilters(query),
-    $or: [
-      { recipientUserId: userId },
+    $and: [
       {
-        orderId: { $in: orderIds },
+        audience: "customer",
+        ...buildListFilters(query),
         $or: [
-          { recipientUserId: { $exists: false } },
-          { recipientUserId: null },
+          { recipientUserId: userId },
+          {
+            orderId: { $in: orderIds },
+            $or: [
+              { recipientUserId: { $exists: false } },
+              { recipientUserId: null },
+            ],
+          },
         ],
       },
+      { type: { $nin: ["review_approved", "review_rejected"] } },
     ],
   };
 }

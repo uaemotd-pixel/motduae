@@ -14,6 +14,8 @@ import {
   findTargetInCustomOrder,
   findOrCreateCustomer,
   isReviewCustomerRole,
+  omitReviewModerationFields,
+  omitReviewsModerationFields,
   reviewedProductIdSet,
   toObjectIdOrNull,
 } from "../services/reviewTargets.js";
@@ -329,8 +331,11 @@ export function registerCustomerReviewRoutes(customerRouter) {
 
       return res.status(201).json({
         success: true,
-        review: created.length === 1 ? created[0] : undefined,
-        reviews: created,
+        review:
+          created.length === 1
+            ? omitReviewModerationFields(created[0])
+            : undefined,
+        reviews: omitReviewsModerationFields(created),
       });
     } catch (err) {
       console.error(err);
@@ -380,7 +385,10 @@ export function registerCustomerReviewRoutes(customerRouter) {
         await recomputeShopRatingsForReview(review);
       }
 
-      return res.json({ success: true, review });
+      return res.json({
+        success: true,
+        review: omitReviewModerationFields(review),
+      });
     } catch (err) {
       console.error(err);
       return res.status(500).json({ error: err.message || "Server error" });

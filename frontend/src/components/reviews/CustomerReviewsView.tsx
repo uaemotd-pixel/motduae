@@ -320,7 +320,6 @@ interface Review {
   titleEn: string;
   titleAr: string;
   createdAt: string;
-  status?: "pending" | "approved" | "rejected";
   productId?: string | null;
   productKind?: string;
   productName?: string;
@@ -1004,21 +1003,6 @@ export default function CustomerReviewsView({
                         {new Date(rev.createdAt).toLocaleDateString(
                           isArabic ? "ar" : "en",
                         )}
-                      </span>
-                      <span
-                        className={`text-[9px] sm:text-[10px] uppercase tracking-wider px-1.5 py-0.5 border ${
-                          rev.status === "approved"
-                            ? "border-green-200 text-green-700 bg-green-50"
-                            : rev.status === "rejected"
-                              ? "border-red-200 text-red-700 bg-red-50"
-                              : "border-amber-200 text-amber-800 bg-amber-50"
-                        }`}
-                      >
-                        {rev.status === "approved"
-                          ? t("statusApproved")
-                          : rev.status === "rejected"
-                            ? t("statusRejected")
-                            : t("statusPending")}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">

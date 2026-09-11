@@ -16,6 +16,7 @@ import {
   normalizeAddress,
 } from "../utils/uaeAddress.js";
 import { registerCustomerReviewRoutes } from "./customerReviewRoutes.js";
+import { omitReviewsModerationFields } from "../services/reviewTargets.js";
 
 const calculateAge = (dob) => {
   if (!dob || Number.isNaN(new Date(dob).getTime())) return null;
@@ -143,12 +144,14 @@ customerRouter.get("/profile", isAuth, async (req, res) => {
         gender: customer?.gender,
         addresses: customer?.addresses || [],
         defaultAddressId: customer?.defaultAddressId,
-        reviews: customer?.reviews || [],
+        reviews: omitReviewsModerationFields(customer?.reviews || []),
       });
     }
 
     if (customer) {
-      return res.json(customer);
+      const payload = customer.toObject();
+      payload.reviews = omitReviewsModerationFields(payload.reviews || []);
+      return res.json(payload);
     }
 
     const user = await User.findById(userId).select("-password");

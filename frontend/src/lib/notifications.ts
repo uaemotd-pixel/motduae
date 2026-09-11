@@ -509,9 +509,7 @@ export function isReviewPromptType(type: string): boolean {
     key === "custom_status_delivered" ||
     key === "retail_status_delivered" ||
     key === "custom_review_prompt" ||
-    key === "retail_review_prompt" ||
-    key === "review_approved" ||
-    key === "review_rejected"
+    key === "retail_review_prompt"
   );
 }
 

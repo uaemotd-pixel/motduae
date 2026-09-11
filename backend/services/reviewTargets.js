@@ -247,3 +247,15 @@ export function toObjectIdOrNull(value) {
   if (!value || !mongoose.Types.ObjectId.isValid(String(value))) return null;
   return new mongoose.Types.ObjectId(String(value));
 }
+
+/** Customer-facing review payload: hide admin moderation status. */
+export function omitReviewModerationFields(review) {
+  if (!review) return review;
+  const obj = typeof review.toObject === "function" ? review.toObject() : { ...review };
+  delete obj.status;
+  return obj;
+}
+
+export function omitReviewsModerationFields(reviews = []) {
+  return reviews.map((rev) => omitReviewModerationFields(rev));
+}
