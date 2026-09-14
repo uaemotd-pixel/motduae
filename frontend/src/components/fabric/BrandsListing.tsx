@@ -12,6 +12,7 @@ import {
   resolveFabricShopImage,
 } from "@/lib/fabricShop";
 import { ProductGridSkeleton } from "@/components/ui/Skeleton";
+import { Tag } from "@/components/ui/Tag";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 
 const DEFAULT_LIMIT = 12;
@@ -115,7 +116,7 @@ export default function BrandsListing() {
           />
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-28 text-center">
-            <h2 className="mb-3 text-[18px] uppercase tracking-widest text-black md:text-[22px]">
+            <h2 className="mb-3 font-ui text-[18px] uppercase tracking-widest text-black md:text-[22px]">
               {t("errorTitle")}
             </h2>
             <p className="max-w-xs text-[13px] leading-relaxed text-[#7A7A72]">
@@ -124,7 +125,7 @@ export default function BrandsListing() {
           </div>
         ) : brands.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-28 text-center">
-            <h2 className="mb-3 text-[18px] uppercase tracking-widest text-black md:text-[22px]">
+            <h2 className="mb-3 font-ui text-[18px] uppercase tracking-widest text-black md:text-[22px]">
               {t("emptyTitle")}
             </h2>
             <p className="max-w-xs text-[13px] leading-relaxed text-[#7A7A72]">
@@ -164,9 +165,7 @@ export default function BrandsListing() {
                       <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/10 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                       {badge ? (
                         <div className="absolute bottom-4 inset-s-4">
-                          <span className="bg-black px-2.5 py-1 text-[8px] font-normal uppercase tracking-[0.24em] text-white [font-family:var(--font-ui)] xs:text-[9px]">
-                            {badge}
-                          </span>
+                          <Tag elevated>{badge}</Tag>
                         </div>
                       ) : null}
                     </div>
@@ -178,7 +177,7 @@ export default function BrandsListing() {
                       <p className="mb-3 line-clamp-1 [font-family:var(--font-ui)] text-[9px] font-normal uppercase tracking-[0.24em] text-[#7A7A72] sm:text-[10px]">
                         {location}
                       </p>
-                      <p className="mb-4 line-clamp-3 [font-family:var(--font-body)] text-[13px] font-normal leading-[1.6] text-[#7A7A72] sm:text-[14px]">
+                      <p className="mb-4 line-clamp-3 [font-family:var(--font-body)] text-[13px] font-normal leading-[1.6] text-[#7A7A72] sm:text-[14px] text-justify">
                         {description}
                       </p>
 

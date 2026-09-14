@@ -13,6 +13,7 @@ import {
   formatDesignBasePrice,
 } from "@/lib/tailors";
 import { Share2 } from "lucide-react";
+import { Tag } from "@/components/ui/Tag";
 import { HomeSectionSkeleton } from "@/components/ui/Skeleton";
 import { usePathname } from "next/navigation";
 import WishlistButton from "../shared/wishlistButton";
@@ -525,18 +526,19 @@ export function TrendingSection() {
                         </div>
 
                         <div className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-3.75rem)]">
-                          <span
-                            className="block px-1.5 py-px text-[8px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.12em] font-medium shadow-sm text-white truncate"
+                          <Tag
+                            elevated
+                            truncate
                             style={{ backgroundColor: categoryColor }}
                           >
                             {category}
-                          </span>
+                          </Tag>
                         </div>
                       </div>
 
                       <div className="p-3 xs:p-4 sm:p-5 md:p-6 lg:p-(--space-24) flex flex-col grow">
                         <div className="flex flex-col justify-between items-start gap-2 mb-1 xs:mb-1.5 sm:mb-2">
-                          <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-[1.25] tracking-[-0.01em] text-black mb-1 line-clamp-2">
+                          <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-tight tracking-[-0.01em] text-black mb-1 line-clamp-2">
                             {name}
                           </h3>
                           <span className="[font-family:var(--font-ui)] text-[12px] xs:text-[13px] sm:text-[14px] md:text-[13px] lg:text-[14px] xl:text-[15px] 2xl:text-[16px] tracking-[0.24em] text-black font-normal whitespace-nowrap">
@@ -549,7 +551,7 @@ export function TrendingSection() {
                           {tailorName}
                         </p>
 
-                        <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-[1.5] sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow text-justify">
+                        <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-normal sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow text-justify">
                           {description}
                         </p>
                       </div>

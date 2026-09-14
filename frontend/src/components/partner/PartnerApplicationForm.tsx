@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
 import { Trash2 } from "lucide-react";
 import FormField from "@/components/admin/FormField";
+import { Button } from "@/components/ui/Button";
 import PartnerFileUpload from "@/components/partner/PartnerFileUpload";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 import SocialPlatformIcon from "@/components/shared/SocialPlatformIcon";
@@ -1077,25 +1078,30 @@ export default function PartnerApplicationForm({ role }: Props) {
         ) : null}
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="lg"
+            fullWidth
+            className="sm:w-auto"
             onClick={() => void saveDraft()}
             disabled={saving || submitting}
-            className="w-full sm:w-auto whitespace-nowrap px-8 py-3 border border-black text-black text-[10px] tracking-[0.22em] uppercase hover:bg-black hover:text-white transition [font-family:var(--font-ui)] disabled:opacity-50"
           >
             {saving ? t("saving") : t("saveDraft")}
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
+            size="lg"
+            fullWidth
+            className="sm:w-auto"
             disabled={!canSubmit}
-            className="w-full sm:w-auto whitespace-nowrap px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition [font-family:var(--font-ui)] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {submitting
               ? t("submitting")
               : form.requestNumber
                 ? t("resubmit")
                 : t("submit")}
-          </button>
+          </Button>
         </div>
         {!canSubmit && !submitting ? (
           <p className="[font-family:var(--font-body)] text-[12px] text-(--color-grey-muted)">

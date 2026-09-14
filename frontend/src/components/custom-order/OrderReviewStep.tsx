@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { Link, useRouter } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
+import { Button, buttonVariants } from "@/components/ui/Button";
+import { Tag } from "@/components/ui/Tag";
 import { useCustomOrder } from "@/context/CustomOrderContext";
 import {
   buildCustomOrderPreviewPayload,
@@ -603,9 +605,9 @@ export default function OrderReviewStep() {
                                   {name}
                                 </span>
                                 {isFromSelectedStore && (
-                                  <span className="inline-block text-[9px] font-ui uppercase tracking-[0.14em] px-1.5 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300/60 rounded-xs">
+                                  <Tag size="sm" variant="success">
                                     {locale === "ar" ? "من متجر القماش المختار" : "Selected Fabric Store"}
-                                  </span>
+                                  </Tag>
                                 )}
                               </div>
                               <span className="text-[11px] text-gray-500 mt-1 block">
@@ -875,7 +877,11 @@ export default function OrderReviewStep() {
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-6 border-t border-(--color-border)">
         <Link
           href="/custom-order/measurements"
-          className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition text-center sm:text-left"
+          className={buttonVariants({
+            variant: "ghost",
+            size: "md",
+            className: "text-center sm:text-left self-center sm:self-auto",
+          })}
         >
           {t("backToMeasurements")}
         </Link>
@@ -883,19 +889,24 @@ export default function OrderReviewStep() {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
           <Link
             href={editOrderPath}
-            className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) border-b border-(--color-grey-muted) pb-0.5 hover:opacity-50 transition text-center"
+            className={buttonVariants({
+              variant: "ghost",
+              size: "md",
+              className:
+                "text-(--color-grey-muted) border-(--color-grey-muted) text-center",
+            })}
           >
             {t("editOrder")}
           </Link>
 
-          <button
+          <Button
             type="button"
+            size="lg"
             onClick={handleContinue}
             disabled={!canContinue}
-            className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)] hover:cursor-pointer"
           >
             {t("continue")}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

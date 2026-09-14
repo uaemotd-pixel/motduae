@@ -17,6 +17,7 @@ import AddToCartButton from "../shared/addToCartButton";
 import { Share2 } from "lucide-react";
 import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import { HomeSectionSkeleton } from "@/components/ui/Skeleton";
+import { Tag } from "@/components/ui/Tag";
 
 const TAG_COLORS: Record<string, { bg: string; text: string }> = {
   new: { bg: "#2D5A3D", text: "#FFFFFF" },
@@ -397,12 +398,14 @@ export function ReadyToWearSection() {
                         </div>
 
                         {tag && (
-                          <div
-                            className="absolute top-1.5 left-1.5 z-10 px-1.5 py-px text-[8px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.12em] font-medium shadow-sm max-w-[calc(100%-8.5rem)] truncate"
+                          <Tag
+                            elevated
+                            truncate
+                            className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-8.5rem)]"
                             style={{ backgroundColor: bg, color: text }}
                           >
                             {tag}
-                          </div>
+                          </Tag>
                         )}
                       </div>
 
@@ -410,7 +413,7 @@ export function ReadyToWearSection() {
                         <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-tight tracking-[-0.01em] text-black mb-1.5 line-clamp-2">
                           {title}
                         </h3>
-                        <span className="[font-family:var(--font-ui)] text-[13px] xs:text-[14px] sm:text-[15px] md:text-[14px] lg:text-[15px] xl:text-[16px] 2xl:text-[17px] tracking-[0.08em] text-black font-semibold mb-1">
+                        <span className="[font-family:var(--font-ui)] text-[13px] xs:text-[14px] sm:text-[15px] md:text-[14px] lg:text-[15px] xl:text-[16px] 2xl:text-[17px] tracking-[0.08em] text-black font-normal mb-1">
                           AED {price.toFixed(2)}
                         </span>
                         {(() => {

@@ -26,7 +26,7 @@ export default function FormField({
       {/* LABEL */}
       <label
         htmlFor={name}
-        className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block"
+        className="font-ui text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block"
       >
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}

@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { Heart, MapPin, Star, Trash2 } from "lucide-react";
 import { Link } from "@/i18n/navigation";
+import { buttonVariants } from "@/components/ui/Button";
 import { ProductGridSkeleton } from "@/components/ui/Skeleton";
 import {
   favouriteApiErrorMessage,
@@ -220,13 +221,13 @@ export default function CustomerFavouritesView() {
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/tailors"
-              className="inline-flex bg-black px-5 py-3 text-[10px] uppercase tracking-[0.2em] text-white [font-family:var(--font-ui)] hover:bg-[#2A2A28]"
+              className={buttonVariants({ variant: "primary", size: "md" })}
             >
               {t("browseTailors")}
             </Link>
             <Link
               href="/brands"
-              className="inline-flex border border-black px-5 py-3 text-[10px] uppercase tracking-[0.2em] text-black [font-family:var(--font-ui)] hover:bg-black hover:text-white"
+              className={buttonVariants({ variant: "secondary", size: "md" })}
             >
               {t("browseStores")}
             </Link>

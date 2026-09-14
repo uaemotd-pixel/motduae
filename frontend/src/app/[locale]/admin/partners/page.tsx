@@ -137,7 +137,7 @@ function PartnerFormModal({
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100 p-6">
-        <h2 className="text-xl font-light text-black tracking-tight">
+        <h2 className="font-display text-xl font-light text-black tracking-tight">
           Add Fabric Store Partner
         </h2>
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
@@ -674,7 +674,7 @@ export default function AdminPartnersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
+          <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
             Fabric Store Partners
           </h1>
           <p className="text-gray-500 text-xs sm:text-sm mt-1">

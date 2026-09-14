@@ -130,7 +130,7 @@ function NotificationOrderSummary({
           </p>
         )}
         {summary.status && (
-          <p className="text-xs uppercase tracking-wide text-gray-400">
+          <p className="font-ui text-xs uppercase tracking-wide text-gray-400">
             {t("orderStatus")}: {summary.status.replace(/_/g, " ")}
           </p>
         )}
@@ -197,7 +197,7 @@ export default function CustomerNotificationPage() {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
+          <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
             {t("title")}
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">{t("subtitle")}</p>
@@ -310,7 +310,7 @@ export default function CustomerNotificationPage() {
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="text-xs uppercase tracking-wider text-gray-400">
+                    <div className="font-ui text-xs uppercase tracking-wider text-gray-400">
                       {typeLabel(n.type)}
                     </div>
                     <div className="text-base font-medium text-black truncate">
@@ -380,7 +380,7 @@ export default function CustomerNotificationPage() {
 
                       {showTimeline && n.status && (
                         <div className="border-t border-gray-100 pt-3">
-                          <p className="text-xs uppercase tracking-wide text-gray-400 mb-3">
+                          <p className="font-ui text-xs uppercase tracking-wide text-gray-400 mb-3">
                             {t("timelineTitle")}
                           </p>
                           <OrderTimeline

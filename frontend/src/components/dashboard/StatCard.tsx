@@ -66,7 +66,7 @@ export default function StatCard({
             {label}
           </p>
           <p
-            className={`mt-2 font-light leading-snug text-(--dash-ink) ${
+            className={`mt-2 font-display font-light leading-snug text-(--dash-ink) ${
               compact
                 ? "truncate whitespace-nowrap text-[13px] tabular-nums sm:text-sm"
                 : "wrap-break-word text-2xl"

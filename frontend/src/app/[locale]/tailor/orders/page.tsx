@@ -354,7 +354,7 @@ export default function TailorOrdersPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <Loader2 className="w-10 h-10 animate-spin text-black mb-4" />
-        <p className="text-gray-500 font-['TT_Norms_Pro_Mono'] text-sm tracking-widest uppercase">
+        <p className="text-gray-500 font-ui text-sm tracking-widest uppercase">
           {t("loading")}
         </p>
       </div>

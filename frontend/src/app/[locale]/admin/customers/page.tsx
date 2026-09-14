@@ -26,6 +26,7 @@ import { ImageModal } from "@/components/shared/ImageModal";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
+import { Tag } from "@/components/ui/Tag";
 
 // ============================================
 // Types
@@ -309,15 +310,9 @@ export default function AdminCustomersPage() {
   };
 
   const StatusBadge = ({ isActive }: { isActive: boolean }) => (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
-        isActive
-          ? "bg-white text-black border border-black/30"
-          : "bg-gray-100 text-gray-500 border border-gray-200"
-      }`}
-    >
+    <Tag size="md" variant={isActive ? "outline" : "muted"}>
       {isActive ? "Active" : "Inactive"}
-    </span>
+    </Tag>
   );
 
   const getAvatar = (customer: Customer) => {
@@ -489,7 +484,7 @@ export default function AdminCustomersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
+          <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
             Customers
           </h1>
           <p className="text-gray-500 text-xs sm:text-sm mt-1">

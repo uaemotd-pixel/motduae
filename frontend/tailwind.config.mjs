@@ -21,6 +21,15 @@ export default {
         background: "var(--bg-page)",
         foreground: "var(--color-black)",
       },
+      fontFamily: {
+        // Brand tokens from globals.css — keep Tailwind utilities in sync
+        sans: ["var(--font-body)"],
+        body: ["var(--font-body)"],
+        mono: ["var(--font-ui)"],
+        ui: ["var(--font-ui)"],
+        serif: ["var(--font-display)"],
+        display: ["var(--font-display)"],
+      },
     },
   },
   plugins: [],

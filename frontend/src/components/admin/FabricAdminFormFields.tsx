@@ -1256,7 +1256,7 @@ export default function FabricAdminFormFields({
 
       <div className="md:col-span-2">
         <div className="mb-2 flex justify-between items-center">
-          <span className="font-label-sm text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
+          <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
             Images (max 5) *
           </span>
           {formData.images.length < 5 && (
@@ -1378,7 +1378,7 @@ export default function FabricAdminFormFields({
                   className="p-4 sm:p-6 border border-gray-200 bg-[#FAF9F5] space-y-6 relative rounded-none animate-fadeIn"
                 >
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-3 border-b border-gray-200 gap-2">
-                    <span className="font-label-sm text-xs text-black/60 uppercase tracking-widest font-semibold">
+                    <span className="font-ui text-xs text-black/60 uppercase tracking-widest font-semibold">
                       Variant #{index + 1}
                     </span>
                     <button
@@ -1733,7 +1733,7 @@ export default function FabricAdminFormFields({
 
                     <div className="md:col-span-2 space-y-2">
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
-                        <span className="font-label-sm text-[10px] text-black/60 uppercase tracking-widest font-semibold">
+                        <span className="font-ui text-[10px] text-black/60 uppercase tracking-widest font-semibold">
                           Images (Max 5)
                         </span>
                         {variant.images.length < 5 && (

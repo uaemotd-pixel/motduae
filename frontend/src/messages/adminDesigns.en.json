@@ -1,0 +1,75 @@
+{
+  "list": {
+    "title": "Designs Catalog",
+    "subtitle": "Manage tailor designs across all shops",
+    "new_button": "New Design",
+    "total": "Total Designs",
+    "active": "Active",
+    "inactive": "Inactive",
+    "search_placeholder": "Search by name, category, material...",
+    "refresh": "Refresh",
+    "empty_search": "No designs match your search.",
+    "empty": "No designs yet.",
+    "create_first": "Create your first design",
+    "load_error_title": "Unable to load designs",
+    "try_again": "Try again",
+    "delete_confirm": "Are you sure you want to delete this design? This action cannot be undone.",
+    "delete_failed": "Failed to delete design",
+    "status_active": "Active",
+    "status_inactive": "Inactive",
+    "col_name": "Name",
+    "col_tailor": "Tailor",
+    "col_category": "Category",
+    "col_price": "Price (AED)",
+    "col_status": "Status",
+    "col_actions": "Actions",
+    "filter_tailor_all": "All tailors",
+    "filter_tailor_placeholder": "Filter by tailor"
+  },
+  "create": {
+    "title": "Create Design",
+    "subtitle": "Add a design on behalf of a tailor",
+    "submit": "Create Design",
+    "submitting": "Creating..."
+  },
+  "edit": {
+    "title": "Edit Design",
+    "subtitle": "Update design details",
+    "submit": "Save Changes",
+    "submitting": "Saving...",
+    "loading": "Loading...",
+    "not_found": "Design not found",
+    "back_to_list": "Back to List"
+  },
+  "view": {
+    "title": "Design Details",
+    "edit_button": "Edit Design",
+    "back": "Back",
+    "tailor": "Tailor shop",
+    "category": "Category",
+    "material": "Material",
+    "pattern": "Pattern",
+    "season": "Season",
+    "tag": "Tag",
+    "base_price": "Base price",
+    "tailoring_fee": "Tailoring fee",
+    "min_cut": "Minimum cut",
+    "estimated_days": "Estimated days",
+    "status": "Status",
+    "description": "Description",
+    "images": "Images",
+    "age_range": "Age range"
+  },
+  "form": {
+    "tailor_label": "Tailor shop",
+    "tailor_placeholder": "Select tailor",
+    "tailor_loading": "Loading tailors...",
+    "tailor_empty": "No tailor shops found",
+    "tailor_required": "Tailor shop is required"
+  },
+  "errors": {
+    "create_failed": "Failed to create design",
+    "update_failed": "Failed to update design",
+    "load_failed": "Failed to load design"
+  }
+}

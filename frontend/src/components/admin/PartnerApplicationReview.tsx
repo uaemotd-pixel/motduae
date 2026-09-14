@@ -88,13 +88,13 @@ function Pair({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+        <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
           {enLabel}
         </p>
         <p className="text-sm text-black whitespace-pre-wrap">{en || "—"}</p>
       </div>
       <div dir="rtl">
-        <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+        <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
           {arLabel}
         </p>
         <p className="text-sm text-black whitespace-pre-wrap">{ar || "—"}</p>
@@ -112,7 +112,7 @@ function Labeled({
 }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+      <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
         {label}
       </p>
       <div className="text-sm text-black whitespace-pre-wrap break-all">
@@ -146,7 +146,7 @@ function ShopProfileReadout({
       </p>
 
       <div className="space-y-4">
-        <p className="text-[10px] uppercase tracking-wider text-gray-400">
+        <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
           Shop identity
         </p>
         <Pair
@@ -167,7 +167,7 @@ function ShopProfileReadout({
       </div>
 
       <div className="space-y-4">
-        <p className="text-[10px] uppercase tracking-wider text-gray-400">
+        <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
           About your shop
         </p>
         <Pair
@@ -179,12 +179,12 @@ function ShopProfileReadout({
       </div>
 
       <div className="space-y-4">
-        <p className="text-[10px] uppercase tracking-wider text-gray-400">
+        <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
           Images
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">
+            <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-2">
               Shop logo
             </p>
             {logoSrc ? (
@@ -198,7 +198,7 @@ function ShopProfileReadout({
             )}
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">
+            <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-2">
               Cover image
             </p>
             {coverSrc ? (
@@ -215,7 +215,7 @@ function ShopProfileReadout({
       </div>
 
       <div className="space-y-4">
-        <p className="text-[10px] uppercase tracking-wider text-gray-400">
+        <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
           Location & contact
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -226,7 +226,7 @@ function ShopProfileReadout({
       </div>
 
       <div className="space-y-4">
-        <p className="text-[10px] uppercase tracking-wider text-gray-400">
+        <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
           Courier pickup address
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -354,10 +354,10 @@ export default function PartnerApplicationReview({
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-gray-400">
+          <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
             {kind === "tailor" ? "Tailor application" : "Fabric store application"}
           </p>
-          <h1 className="text-2xl font-light text-black mt-1">
+          <h1 className="font-display text-2xl font-light text-black mt-1">
             {data.user.name}
           </h1>
           <p className="text-sm text-gray-500">{data.user.email}</p>
@@ -373,19 +373,19 @@ export default function PartnerApplicationReview({
       <div className="bg-white rounded-2xl border border-gray-100 p-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+            <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
               Status
             </p>
             <p className="text-sm capitalize text-black">{status}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+            <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
               Request number
             </p>
             <p className="text-sm text-black">{requestNumber || "—"}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+            <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
               Queue
             </p>
             <p className="text-sm text-black">
@@ -397,7 +397,7 @@ export default function PartnerApplicationReview({
 
       {status === "approved" && data.user.approvalNote ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-2">
-          <p className="text-xs uppercase tracking-wider text-gray-400">
+          <p className="font-ui text-xs uppercase tracking-wider text-gray-400">
             Approval note
           </p>
           <p className="text-sm text-black whitespace-pre-wrap">
@@ -408,7 +408,7 @@ export default function PartnerApplicationReview({
 
       {previousDecision ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-2">
-          <p className="text-xs uppercase tracking-wider text-gray-400">
+          <p className="font-ui text-xs uppercase tracking-wider text-gray-400">
             Previous decision
           </p>
           <p className="text-sm text-black whitespace-pre-wrap">
@@ -458,7 +458,7 @@ export default function PartnerApplicationReview({
         <>
       {app ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-2">
-          <p className="text-xs uppercase tracking-wider text-gray-400">
+          <p className="font-ui text-xs uppercase tracking-wider text-gray-400">
             Partner comments
           </p>
           <p className="text-sm text-black whitespace-pre-wrap">
@@ -492,18 +492,18 @@ export default function PartnerApplicationReview({
             ar={app.aboutAr}
           />
           <div className="space-y-3">
-            <p className="text-[10px] uppercase tracking-wider text-gray-400">
+            <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
               Location
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+                <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
                   City
                 </p>
                 <p>{app.city || "—"}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+                <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
                   Address / area
                 </p>
                 <p>{app.location || "—"}</p>
@@ -512,13 +512,13 @@ export default function PartnerApplicationReview({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+              <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
                 Phone
               </p>
               <p>{app.phone || "—"}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+              <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
                 Years operating
               </p>
               <p>{app.yearsOperating || "—"}</p>
@@ -527,13 +527,13 @@ export default function PartnerApplicationReview({
           {kind === "tailor" ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+                <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
                   Make time
                 </p>
                 <p>{app.makeTime || "—"}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+                <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
                   Work setup
                 </p>
                 <p>{app.workSetup || "—"}</p>
@@ -541,14 +541,14 @@ export default function PartnerApplicationReview({
             </div>
           ) : (
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">
+              <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
                 Offering
               </p>
               <p className="text-sm">{app.offering || "—"}</p>
             </div>
           )}
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">
+            <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-2">
               Logo
             </p>
             {logoSrc ? (
@@ -562,7 +562,7 @@ export default function PartnerApplicationReview({
             )}
           </div>
           <div className="space-y-2 text-sm min-w-0">
-            <p className="text-[10px] uppercase tracking-wider text-gray-400">
+            <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
               Links
             </p>
             <p className="break-all">
@@ -612,7 +612,7 @@ export default function PartnerApplicationReview({
         <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
           <h2 className="text-lg font-medium">Decision</h2>
           <div>
-            <label className="block text-xs uppercase tracking-wider text-gray-400 mb-2">
+            <label className="block font-ui text-xs uppercase tracking-wider text-gray-400 mb-2">
               Approval note (optional, admin only)
             </label>
             <textarea
@@ -623,7 +623,7 @@ export default function PartnerApplicationReview({
             />
           </div>
           <div>
-            <label className="block text-xs uppercase tracking-wider text-gray-400 mb-2">
+            <label className="block font-ui text-xs uppercase tracking-wider text-gray-400 mb-2">
               Rejection note (required to reject)
             </label>
             <textarea

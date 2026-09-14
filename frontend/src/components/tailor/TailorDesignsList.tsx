@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
 import { Link } from "@/i18n/navigation";
+import { buttonVariants } from "@/components/ui/Button";
 import { getApiErrorMessage } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
 import { ERROR_TOAST, SUCCESS_TOAST } from "@/lib/tailorPortalToast";
@@ -21,6 +22,7 @@ import {
 import { useParams } from "next/navigation";
 import { ImageModal } from "../shared/ImageModal";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import { Tag } from "@/components/ui/Tag";
 
 export default function TailorDesignsList() {
   const t = useTranslations("TailorPortal.designs");
@@ -120,7 +122,7 @@ export default function TailorDesignsList() {
         </p>
         <Link
           href="/tailor/shop"
-          className="inline-block px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition [font-family:var(--font-ui)]"
+          className={buttonVariants({ variant: "primary", size: "lg" })}
         >
           {t("shopRequiredCta")}
         </Link>
@@ -144,7 +146,11 @@ export default function TailorDesignsList() {
         </div>
         <Link
           href="/tailor/designs/new"
-          className="inline-block text-center px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition [font-family:var(--font-ui)] shrink-0"
+          className={buttonVariants({
+            variant: "primary",
+            size: "lg",
+            className: "shrink-0 text-center",
+          })}
         >
           {t("addDesign")}
         </Link>
@@ -157,7 +163,7 @@ export default function TailorDesignsList() {
           </p>
           <Link
             href="/tailor/designs/new"
-            className="inline-block px-8 py-3 border border-black text-black text-[10px] tracking-[0.22em] uppercase hover:bg-black hover:text-white transition [font-family:var(--font-ui)]"
+            className={buttonVariants({ variant: "secondary", size: "lg" })}
           >
             {t("addFirst")}
           </Link>
@@ -199,17 +205,15 @@ export default function TailorDesignsList() {
                       <h2 className="[font-family:var(--font-display)] text-[16px] sm:text-[20px] leading-snug text-black min-w-0">
                         {name}
                       </h2>
-                      <span
-                        className={`shrink-0 [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.16em] px-1.5 py-0.5 mt-0.5 ${
-                          design.isActive
-                            ? "bg-black text-white"
-                            : "border border-(--color-border) text-(--color-grey-muted)"
-                        }`}
+                      <Tag
+                        size="sm"
+                        variant={design.isActive ? "solid" : "muted"}
+                        className="shrink-0 mt-0.5"
                       >
                         {design.isActive
                           ? t("statusActive")
                           : t("statusInactive")}
-                      </span>
+                      </Tag>
                     </div>
                     <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.14em] text-(--color-grey-muted)">
                       {category} · {locale === "ar" ? "من" : "From"}{" "}

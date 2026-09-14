@@ -2,6 +2,7 @@
 @import "lenis/dist/lenis.css";
 @config "../../tailwind.config.mjs";
 
+/* This font is used for body text (Regular) */
 @font-face {
   font-family: "TT Norms Pro";
   src: url("/fonts/TTNormsPro-Regular.otf") format("opentype");
@@ -10,6 +11,7 @@
   font-display: swap;
 }
 
+/* This font is used for sub-headings & additional information (Mono Regular) */
 @font-face {
   font-family: "TT Norms Pro Mono";
   src: url("/fonts/TTNormsProMono-Regular.otf") format("opentype");
@@ -18,9 +20,10 @@
   font-display: swap;
 }
 
+/* This font is used for headlines & emphasis  (Text Regular) */
 @font-face {
   font-family: "Ivy Ora";
-  src: url("/fonts/IvyOraText-Regular.woff2") format("woff2");
+  src: url("/fonts/IvyOraText-Regular.woff2") format("woff2"); 
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -43,12 +46,14 @@
   --bg-surface: var(--color-white);
   --bg-inverse: var(--color-black);
 
-  /* Typography */
+  /* Typography
+     --font-display → headlines & emphasis (Ivy Ora)
+     --font-ui      → nav, labels, subheads (TT Norms Pro Mono)
+     --font-body    → paragraphs & default (TT Norms Pro)
+     Tailwind font-* utilities map to these via tailwind.config.mjs */
   --font-display: "Ivy Ora", serif;
   --font-ui: "TT Norms Pro Mono", monospace;
-  /* nav, subheadings, labels */
   --font-body: "TT Norms Pro", sans-serif;
-  /* paragraphs */
 
   /* Borders */
   --border-thin: 0.5px solid var(--color-border);

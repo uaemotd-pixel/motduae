@@ -107,7 +107,7 @@ export default function FabricDetailsPage() {
             <span>/</span>
             <span className="text-black font-medium">Details</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
+          <h1 className="font-display text-2xl md:text-3xl font-light text-black tracking-tight">
             {isAr ? fabric.nameAr || fabric.name : fabric.name}
           </h1>
         </div>

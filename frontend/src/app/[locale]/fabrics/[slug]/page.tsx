@@ -19,6 +19,7 @@ import FabricDetailView from "@/components/fabric/FabricDetailView";
 import { Link } from "@/i18n/navigation";
 import colors from "@/components/shared/colors";
 import { DetailPageSkeleton } from "@/components/ui/Skeleton";
+import { Tag } from "@/components/ui/Tag";
 import WishlistButton from "@/components/shared/wishlistButton";
 import { ProductReviewsSection } from "@/components/reviews/CustomerReviewsView";
 
@@ -156,9 +157,7 @@ function RelatedFabricsSection({
                       className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
                     />
                     {tag && (
-                      <div className="absolute top-2 left-2 z-10 px-1.5 py-px text-[8px] [font-family:var(--font-ui)] tracking-[0.12em] font-medium uppercase max-w-[calc(100%-5.5rem)] truncate bg-black text-white">
-                        {tag}
-                      </div>
+                      <Tag elevated truncate className="absolute top-2 left-2 z-10 max-w-[calc(100%-5.5rem)]">{tag}</Tag>
                     )}
                     {!inStock && (
                       <div className="absolute bottom-2 left-2 z-10 bg-black/75 text-white text-[8px] [font-family:var(--font-ui)] tracking-[0.16em] uppercase px-2 py-1">

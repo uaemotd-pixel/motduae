@@ -4,7 +4,13 @@ import { useParams } from "next/navigation";
 import MainLayout from "../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 import { Link } from "@/i18n/navigation";
-import { Scissors, Palmtree, ArrowRight, TrendingUp, Award } from "lucide-react";
+import {
+  Scissors,
+  Palmtree,
+  ArrowRight,
+  TrendingUp,
+  Award,
+} from "lucide-react";
 
 export default function PartnersPage() {
   const params = useParams();
@@ -16,7 +22,6 @@ export default function PartnersPage() {
       <FadeInSection>
         <div className="bg-[#FAF9F6] text-black min-h-screen py-16 sm:py-24 antialiased selection:bg-black/10">
           <div className="max-w-6xl mx-auto px-6">
-            
             {/* Header / Hero */}
             <div className="text-center mb-16 max-w-2xl mx-auto">
               <span className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-[#8A8A80] mb-4 block">
@@ -26,7 +31,7 @@ export default function PartnersPage() {
                 {isAr ? "كن شريكاً لنا في MOTD" : "Partner with MOTD"}
               </h1>
               <p className="[font-family:var(--font-body)] text-[#5A5A56] text-sm sm:text-base leading-relaxed font-light">
-                {isAr 
+                {isAr
                   ? "انضم إلى منصتنا الفاخرة لربط دور الخياطة الراقية وموردي الأقمشة الاستثنائيين بالعملاء."
                   : "Connect with discerning clients. Partner with MOTD to list your premium fabrics or tailor bespoke traditional wear."}
               </p>
@@ -57,14 +62,13 @@ export default function PartnersPage() {
 
             {/* Gateway Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto gap-8 mb-20">
-              
               {/* Tailor Card */}
               <div className="bg-white border border-[#EAE6DF] rounded-2xl p-8 flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:border-black/20 group">
                 <div className="space-y-6">
                   <div className="w-12 h-12 bg-[#F5F4F0] text-black border border-[#EAE6DF] rounded-xl flex items-center justify-center transition-colors duration-300 group-hover:bg-black group-hover:text-white group-hover:border-black">
                     <Scissors className="w-5 h-5" />
                   </div>
-                  
+
                   <div className="space-y-2 text-left rtl:text-right">
                     <h3 className="[font-family:var(--font-display)] text-2xl font-light text-black tracking-tight">
                       {isAr ? "دور الخياطة والمصممين" : "Tailoring Houses"}
@@ -75,13 +79,13 @@ export default function PartnersPage() {
                   </div>
 
                   <p className="[font-family:var(--font-body)] text-sm text-[#5A5A56] leading-relaxed font-light text-left rtl:text-right">
-                    {isAr 
+                    {isAr
                       ? "اعرض تصاميمك الفريدة واستقبل طلبات القياس المخصصة من عملاء MOTD."
                       : "Showcase your craftsmanship and receive custom tailoring requests from customers across the region."}
                   </p>
                 </div>
-                
-                <Link 
+
+                <Link
                   href="/partners/tailor"
                   className="mt-10 w-full py-3 px-4 border border-black text-[10px] tracking-[0.2em] uppercase font-medium text-center transition-all duration-200 hover:bg-black hover:text-white hover:cursor-pointer flex items-center justify-center gap-2"
                 >
@@ -96,7 +100,7 @@ export default function PartnersPage() {
                   <div className="w-12 h-12 bg-[#F5F4F0] text-black border border-[#EAE6DF] rounded-xl flex items-center justify-center transition-colors duration-300 group-hover:bg-black group-hover:text-white group-hover:border-black">
                     <Palmtree className="w-5 h-5" />
                   </div>
-                  
+
                   <div className="space-y-2 text-left rtl:text-right">
                     <h3 className="[font-family:var(--font-display)] text-2xl font-light text-black tracking-tight">
                       {isAr ? "موردو الأقمشة الفاخرة" : "Fabric Vendors"}
@@ -107,13 +111,13 @@ export default function PartnersPage() {
                   </div>
 
                   <p className="[font-family:var(--font-body)] text-sm text-[#5A5A56] leading-relaxed font-light text-left rtl:text-right">
-                    {isAr 
+                    {isAr
                       ? "اعرض كتالوج الحرير والصوف والكتان والقطن الفاخر لعملائنا."
                       : "Publish your collection of premium silk, linen, wool, and cotton fabrics to designers and custom buyers."}
                   </p>
                 </div>
-                
-                <Link 
+
+                <Link
                   href="/partners/fabric"
                   className="mt-10 w-full py-3 px-4 border border-black text-[10px] tracking-[0.2em] uppercase font-medium text-center transition-all duration-200 hover:bg-black hover:text-white hover:cursor-pointer flex items-center justify-center gap-2"
                 >
@@ -121,7 +125,6 @@ export default function PartnersPage() {
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
-
             </div>
 
             {/* Steps Section */}
@@ -132,37 +135,48 @@ export default function PartnersPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-left rtl:text-right">
                 <div className="space-y-2">
-                  <div className="text-xl font-serif text-[#C9A96E] font-light">01</div>
-                  <h4 className="text-base font-semibold text-black">{isAr ? "سجل طلبك" : "Register"}</h4>
+                  <div className="text-xl font-serif text-[#C9A96E] font-light">
+                    01
+                  </div>
+                  <h4 className="text-base font-semibold text-black">
+                    {isAr ? "سجل طلبك" : "Register"}
+                  </h4>
                   <p className="text-xs text-[#5A5A56] leading-relaxed font-light">
-                    {isAr 
+                    {isAr
                       ? "شاركنا تفاصيل أعمالك وصوراً لمنتجاتك وخدماتك عبر النموذج."
                       : "Submit your business coordinates and service parameters via our registration portal."}
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="text-xl font-serif text-[#C9A96E] font-light">02</div>
-                  <h4 className="text-base font-semibold text-black">{isAr ? "الموافقة والتفعيل" : "Verification"}</h4>
+                  <div className="text-xl font-serif text-[#C9A96E] font-light">
+                    02
+                  </div>
+                  <h4 className="text-base font-semibold text-black">
+                    {isAr ? "الموافقة والتفعيل" : "Verification"}
+                  </h4>
                   <p className="text-xs text-[#5A5A56] leading-relaxed font-light">
-                    {isAr 
+                    {isAr
                       ? "سنقوم بمراجعة مستنداتك وتفعيل حسابك لتخصيص متجرك الرقمي."
                       : "Our team reviews alignment and credentials for quality and service compliance."}
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="text-xl font-serif text-[#C9A96E] font-light">03</div>
-                  <h4 className="text-base font-semibold text-black">{isAr ? "انطلق وبع" : "Publish & Scale"}</h4>
+                  <div className="text-xl font-serif text-[#C9A96E] font-light">
+                    03
+                  </div>
+                  <h4 className="text-base font-semibold text-black">
+                    {isAr ? "انطلق وبع" : "Publish & Scale"}
+                  </h4>
                   <p className="text-xs text-[#5A5A56] leading-relaxed font-light">
-                    {isAr 
+                    {isAr
                       ? "اعرض خدماتك وابدأ في بيع أقمشتك أو خياطة أثواب عملائنا فوراً."
                       : "Fulfill orders and publish custom options to high-value buyers."}
                   </p>
                 </div>
               </div>
             </div>
-
           </div>
         </div>
       </FadeInSection>

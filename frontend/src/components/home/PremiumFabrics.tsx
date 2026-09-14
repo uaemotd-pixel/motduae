@@ -23,6 +23,7 @@ import { Share2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import WishlistButton from "../shared/wishlistButton";
 import { HomeSectionSkeleton } from "@/components/ui/Skeleton";
+import { Tag } from "@/components/ui/Tag";
 
 async function copyToClipboard(text: string) {
   if (typeof navigator === "undefined") return;
@@ -456,9 +457,9 @@ export function PremiumFabrics() {
                           <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
                           <div className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-3.75rem)]">
-                            <span className="block bg-black text-white px-1.5 py-px text-[8px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.12em] font-medium shadow-sm truncate">
+                            <Tag elevated truncate>
                               {materialLabel}
-                            </span>
+                            </Tag>
                           </div>
                         </div>
 

@@ -110,7 +110,7 @@ function AccountSidebar({
               key={item.id}
               type="button"
               onClick={() => onTabChange(item.id)}
-              className={`relative w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-['TT_Norms_Pro'] transition-colors cursor-pointer
+              className={`relative w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui transition-colors cursor-pointer
                 ${collapsed ? "justify-center px-2" : ""}
                 ${
                   isActive
@@ -145,7 +145,7 @@ function AccountSidebar({
         <button
           type="button"
           onClick={onLogout}
-          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition hover:cursor-pointer ${
+          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui text-red-400 hover:bg-red-500/10 hover:text-red-300 transition hover:cursor-pointer ${
             collapsed ? "justify-center px-2 w-auto" : ""
           }`}
           title={collapsed ? "LogOut" : undefined}
@@ -359,10 +359,10 @@ function AccountPageContent() {
         <div className="p-4 xs:p-6 sm:p-8 md:p-10 lg:p-14">
           <DashboardMobileMenuBar onOpen={() => setSidebarOpen(true)} />
           <div className="mb-8 sm:mb-10">
-            <h1 className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl font-['Ivy_Ora'] tracking-tight">
+            <h1 className="font-display text-2xl xs:text-3xl sm:text-4xl md:text-5xl tracking-tight">
               My Account
             </h1>
-            <p className="text-gray-500 mt-2 sm:mt-3 font-['TT_Norms_Pro'] text-sm sm:text-base md:text-lg">
+            <p className="font-body text-gray-500 mt-2 sm:mt-3 text-sm sm:text-base md:text-lg">
               Manage your profile, orders, notifications &amp; settings
             </p>
           </div>
@@ -370,10 +370,10 @@ function AccountPageContent() {
           {showEmailVerifyBanner ? (
             <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 rounded-2xl border border-gray-200 bg-white px-4 py-3.5 sm:px-5 sm:py-4 shadow-sm">
               <div className="min-w-0">
-                <p className="font-['TT_Norms_Pro'] text-sm sm:text-base font-medium text-gray-900">
+                <p className="font-body text-sm sm:text-base font-medium text-gray-900">
                   {tVerify.bannerTitle}
                 </p>
-                <p className="mt-0.5 font-['TT_Norms_Pro'] text-xs sm:text-sm text-gray-500">
+                <p className="mt-0.5 font-body text-xs sm:text-sm text-gray-500">
                   {tVerify.bannerBody}
                 </p>
               </div>

@@ -417,7 +417,7 @@ export default function AdminCustomOrdersPage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
+          <h1 className="font-display text-2xl md:text-3xl font-light text-black tracking-tight">
             {t("title")}
           </h1>
           <p className="text-gray-500 text-sm mt-1">{t("subtitle")}</p>
