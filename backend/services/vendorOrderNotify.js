@@ -70,16 +70,31 @@ function formatSelectedCutsForNotify(cuts) {
     .join(" + ");
 }
 
+function lineLabel(line) {
+  if (typeof line === "string") return line.trim();
+  return String(line?.label || "").trim();
+}
+
 function uniqueLabels(lines) {
   const seen = new Set();
   const out = [];
   for (const line of lines) {
-    const label = typeof line === "string" ? line : line?.label;
+    const label = lineLabel(line);
     if (!label || seen.has(label)) continue;
     seen.add(label);
     out.push({ label });
   }
   return out;
+}
+
+function addonPrepareLines(lines) {
+  return uniqueLabels(
+    (lines || []).map((line) => {
+      const label = lineLabel(line);
+      if (!label) return "";
+      return label.startsWith("Add-on: ") ? label : `Add-on: ${label}`;
+    }),
+  );
 }
 
 function frontendOrigin() {
@@ -307,7 +322,7 @@ async function resolveCustomFabricRecipients(order) {
         if (existing) {
           existing.lines = uniqueLabels([
             ...(existing.lines || []),
-            ...lines.map((line) => `Add-on: ${line}`),
+            ...addonPrepareLines(lines),
           ]);
           continue;
         }
@@ -319,7 +334,7 @@ async function resolveCustomFabricRecipients(order) {
           notifyTitle: "New add-on order",
           notifyDedupePrefix: "fabric:addon_order_placed",
           user,
-          lines: lines.map((line) => `Add-on: ${line}`),
+          lines: addonPrepareLines(lines),
         });
       }
     }
@@ -393,7 +408,7 @@ function bellMessage(shortId, lines) {
     ? `Paid order ${idLabel}. Please prepare:`
     : "Paid order. Please prepare:";
   const body = (lines || [])
-    .map((line) => line?.label)
+    .map((line) => lineLabel(line))
     .filter(Boolean)
     .map((label) => `• ${label}`)
     .join("\n");
@@ -413,7 +428,7 @@ async function sendVendorMail(recipient) {
     shortOrderId: recipient.shortOrderId,
     portalKind: recipient.portalKind,
     portalUrl: recipient.portalUrl,
-    lines: recipient.lines.map((line) => line.label),
+    lines: (recipient.lines || []).map((line) => lineLabel(line)).filter(Boolean),
   });
 }
 
