@@ -3,77 +3,19 @@ import expressAsyncHandler from "express-async-handler";
 import mongoose from "mongoose";
 import Design from "../models/Design.js";
 import TailorShop from "../models/TailorShop.js";
-import Cut from "../models/Cut.js";
-import PlatformSettings from "../models/PlatformSettings.js";
-import { deleteTailorDesignUpload } from "../utils/uploads.js";
-import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
 import { respondIfShopNotReady } from "../utils/shopReady.js";
-import { cutValueToMeters } from "../utils/fabricUnits.js";
+import {
+  applyCreateDefaults,
+  applyMinCutToDesignData,
+  assignUniqueDesignSlug,
+  cleanupAllDesignImages,
+  cleanupRemovedDesignImages,
+  formatDesign,
+  pickDesignFields,
+  validateDesignPayload,
+} from "../utils/designPayload.js";
 
 const tailorDesignRouter = express.Router();
-
-const DESIGN_FIELDS = [
-  "name",
-  "nameAr",
-  "slug",
-  "description",
-  "descriptionAr",
-  "images",
-  "category",
-  "categoryAr",
-  "material",
-  "materialAr",
-  "season",
-  "seasonAr",
-  "pattern",
-  "patternAr",
-  "tag",
-  "tagAr",
-  "basePrice",
-  "priceType",
-  "tailoringFee",
-  "minCutId",
-  "estimatedMeters",
-  "estimatedDays",
-  "minAge",
-  "maxAge",
-  "isActive",
-];
-
-const formatDesign = (design) => ({
-  _id: design._id,
-  tailorShopId: design.tailorShopId,
-  slug: design.slug,
-  name: design.name,
-  nameAr: design.nameAr,
-  description: design.description,
-  descriptionAr: design.descriptionAr,
-  images: design.images,
-  category: design.category,
-  categoryAr: design.categoryAr || "",
-  material: design.material,
-  materialAr: design.materialAr,
-  season: design.season,
-  seasonAr: design.seasonAr,
-  pattern: design.pattern,
-  patternAr: design.patternAr,
-  tag: design.tag,
-  tagAr: design.tagAr,
-  basePrice: design.basePrice,
-  priceType: design.priceType,
-  tailoringFee: design.tailoringFee,
-  minCutId: design.minCutId?._id || design.minCutId || null,
-  minCutSnapshot: design.minCutSnapshot || null,
-  minCut: design.minCutSnapshot || null,
-  estimatedMeters:
-    design.minCutSnapshot?.lengthInMeters ?? (design.estimatedMeters || 0),
-  estimatedDays: design.estimatedDays,
-  minAge: Number.isFinite(Number(design.minAge)) ? Number(design.minAge) : 0,
-  maxAge: Number.isFinite(Number(design.maxAge)) ? Number(design.maxAge) : 0,
-  isActive: design.isActive,
-  createdAt: design.createdAt,
-  updatedAt: design.updatedAt,
-});
 
 const resolveOwnShop = async (req, res) => {
   const shop = await TailorShop.findOne({ ownerId: req.user._id });
@@ -85,182 +27,6 @@ const resolveOwnShop = async (req, res) => {
     return null;
   }
   return shop;
-};
-
-const slugifyDesignName = (name) =>
-  String(name || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-
-const pickDesignFields = (body) => {
-  const data = {};
-
-  for (const field of DESIGN_FIELDS) {
-    if (body[field] === undefined) continue;
-
-    if (field === "images") {
-      data.images = Array.isArray(body.images)
-        ? body.images.map((image) => String(image).trim()).filter(Boolean)
-        : body.images;
-      continue;
-    }
-
-    if (field === "minCutId") {
-      data.minCutId = String(body.minCutId || "").trim();
-      continue;
-    }
-
-    if (field === "category") {
-      data.category = String(body.category).trim();
-      continue;
-    }
-
-    if (field === "categoryAr") {
-      data.categoryAr = String(body.categoryAr ?? "").trim();
-      continue;
-    }
-
-    if (
-      [
-        "material",
-        "materialAr",
-        "season",
-        "seasonAr",
-        "pattern",
-        "patternAr",
-        "tag",
-        "tagAr",
-      ].includes(field)
-    ) {
-      data[field] = String(body[field] ?? "").trim();
-      continue;
-    }
-
-    if (
-      [
-        "basePrice",
-        "tailoringFee",
-        "estimatedMeters",
-        "estimatedDays",
-        "minAge",
-        "maxAge",
-      ].includes(field)
-    ) {
-      data[field] = Number(body[field]);
-      continue;
-    }
-
-    if (typeof body[field] === "string") {
-      data[field] = body[field].trim();
-      continue;
-    }
-
-    data[field] = body[field];
-  }
-
-  // Slug is always derived from the English name (spaces → dashes)
-  if (data.name !== undefined) {
-    data.slug = slugifyDesignName(data.name);
-  } else if (data.slug) {
-    data.slug = data.slug.toLowerCase();
-  }
-
-  return data;
-};
-
-const validateDesignPayload = (data, { requireCore = false } = {}) => {
-  if (requireCore) {
-    const required = [
-      "name",
-      "nameAr",
-      "slug",
-      "category",
-      "basePrice",
-      "tailoringFee",
-      "minCutId",
-    ];
-
-    for (const field of required) {
-      if (
-        data[field] === undefined ||
-        data[field] === null ||
-        data[field] === ""
-      ) {
-        return `${field} is required`;
-      }
-    }
-
-    if (!Array.isArray(data.images) || data.images.length === 0) {
-      return "At least one image is required";
-    }
-  }
-
-  if (data.minCutId !== undefined) {
-    if (!data.minCutId || !mongoose.Types.ObjectId.isValid(data.minCutId)) {
-      return "Valid minCutId is required";
-    }
-  }
-
-  if (data.name !== undefined && !slugifyDesignName(data.name)) {
-    return "name must include at least one letter or number for the URL";
-  }
-
-  if (data.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(data.slug)) {
-    return "slug must be lowercase letters, numbers, and hyphens only";
-  }
-
-  if (data.images !== undefined) {
-    if (!Array.isArray(data.images) || data.images.length === 0) {
-      return "At least one image is required";
-    }
-  }
-
-  for (const field of ["basePrice", "tailoringFee"]) {
-    if (data[field] !== undefined) {
-      if (!Number.isFinite(data[field]) || data[field] < 0) {
-        return `${field} must be a non-negative number`;
-      }
-    }
-  }
-
-  if (data.priceType !== undefined) {
-    if (!["fixed", "per_meter"].includes(data.priceType)) {
-      return "priceType must be either fixed or per_meter";
-    }
-  }
-
-  if (data.estimatedDays !== undefined) {
-    if (!Number.isFinite(data.estimatedDays) || data.estimatedDays < 1) {
-      return "estimatedDays must be at least 1";
-    }
-  }
-
-  for (const field of ["minAge", "maxAge"]) {
-    if (data[field] !== undefined) {
-      if (
-        !Number.isFinite(data[field]) ||
-        data[field] < 0 ||
-        data[field] > 150 ||
-        !Number.isInteger(data[field])
-      ) {
-        return `${field} must be a whole number between 0 and 150`;
-      }
-    }
-  }
-
-  if (
-    data.minAge !== undefined &&
-    data.maxAge !== undefined &&
-    data.maxAge < data.minAge
-  ) {
-    return "Max age must be greater than or equal to min age";
-  }
-
-  return null;
 };
 
 const findOwnDesign = async (shopId, designId, res) => {
@@ -286,24 +52,6 @@ const findOwnDesign = async (shopId, designId, res) => {
   }
 
   return design;
-};
-
-const cleanupRemovedDesignImages = async (
-  previousImages = [],
-  nextImages = [],
-) => {
-  const nextSet = new Set(nextImages);
-  for (const image of previousImages) {
-    if (!nextSet.has(image)) {
-      await deleteTailorDesignUpload(image);
-    }
-  }
-};
-
-const cleanupAllDesignImages = async (images = []) => {
-  for (const image of images) {
-    await deleteTailorDesignUpload(image);
-  }
 };
 
 // GET /api/tailor/designs — list own shop designs
@@ -334,22 +82,7 @@ tailorDesignRouter.post(
     if (respondIfShopNotReady(shop, res)) return;
 
     const data = pickDesignFields(req.body);
-
-    if (
-      data.tailoringFee === undefined ||
-      data.tailoringFee === null ||
-      Number.isNaN(data.tailoringFee)
-    ) {
-      const settings = await PlatformSettings.getSettings();
-      data.tailoringFee = Number(settings.defaultTailoringFee || 0);
-    }
-
-    if (data.minAge === undefined || Number.isNaN(data.minAge)) {
-      data.minAge = 0;
-    }
-    if (data.maxAge === undefined || Number.isNaN(data.maxAge)) {
-      data.maxAge = 0;
-    }
+    await applyCreateDefaults(data);
 
     const validationError = validateDesignPayload(data, { requireCore: true });
     if (validationError) {
@@ -360,27 +93,16 @@ tailorDesignRouter.post(
       return;
     }
 
-    const cut = await Cut.findOne({ _id: data.minCutId, isActive: true });
-    if (!cut) {
+    const cutError = await applyMinCutToDesignData(data);
+    if (cutError) {
       res.status(400).json({
         success: false,
-        message: "Selected cut not found or is inactive",
+        message: cutError,
       });
       return;
     }
-    const lengthInMeters = cutValueToMeters(cut.value, cut.unit);
-    data.minCutId = cut._id;
-    data.minCutSnapshot = {
-      name: cut.name,
-      nameAr: cut.nameAr || "",
-      lengthInMeters,
-    };
-    data.estimatedMeters = lengthInMeters;
 
-    data.slug = await ensureUniqueSlug(Design, data.slug || data.name, {
-      extraFilter: { tailorShopId: shop._id },
-      fallback: "design",
-    });
+    await assignUniqueDesignSlug(data, shop._id);
 
     const design = await Design.create({
       ...data,
@@ -435,30 +157,18 @@ tailorDesignRouter.put(
     }
 
     if (data.minCutId) {
-      const cut = await Cut.findOne({ _id: data.minCutId, isActive: true });
-      if (!cut) {
+      const cutError = await applyMinCutToDesignData(data);
+      if (cutError) {
         res.status(400).json({
           success: false,
-          message: "Selected cut not found or is inactive",
+          message: cutError,
         });
         return;
       }
-      const lengthInMeters = cutValueToMeters(cut.value, cut.unit);
-      data.minCutId = cut._id;
-      data.minCutSnapshot = {
-        name: cut.name,
-        nameAr: cut.nameAr || "",
-        lengthInMeters,
-      };
-      data.estimatedMeters = lengthInMeters;
     }
 
     if (data.slug && data.slug !== design.slug) {
-      data.slug = await ensureUniqueSlug(Design, data.slug, {
-        excludeId: design._id,
-        extraFilter: { tailorShopId: shop._id },
-        fallback: "design",
-      });
+      await assignUniqueDesignSlug(data, shop._id, { excludeId: design._id });
     }
 
     const previousImages = [...(design.images || [])];

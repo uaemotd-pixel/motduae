@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Link } from "@/i18n/navigation";
 import toast from "react-hot-toast";
 import { Pencil, Trash2 } from "lucide-react";
+import { Tag } from "@/components/ui/Tag";
 
 /* ─── Shared star helpers (display + half-star input) ─── */
 
@@ -279,9 +280,9 @@ export function ProductReviewsSection({
                     sizeClassName="w-3.5 h-3.5 sm:w-4 sm:h-4"
                   />
                   {rev.verified ? (
-                    <span className="text-[9px] sm:text-[10px] uppercase tracking-wider px-1.5 py-0.5 border border-gray-200 text-gray-600 [font-family:var(--font-ui)]">
+                    <Tag size="sm" variant="muted">
                       {labels.verifiedLabel || "Verified purchase"}
-                    </span>
+                    </Tag>
                   ) : null}
                   <span className="text-[10px] sm:text-xs text-gray-400 [font-family:var(--font-body)]">
                     {new Date(rev.createdAt).toLocaleDateString(
@@ -713,10 +714,10 @@ export default function CustomerReviewsView({
   if (!canReview) {
     return (
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 md:p-8 shadow-sm space-y-4">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-['Ivy_Ora'] text-black">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-display text-black">
           {t("writeTitle")}
         </h2>
-        <p className="text-gray-500 text-xs sm:text-sm font-['TT_Norms_Pro']">
+        <p className="text-gray-500 text-xs sm:text-sm font-body">
           {t("registeredOnly")}
         </p>
         <div className="flex flex-wrap gap-3 pt-1">
@@ -743,21 +744,21 @@ export default function CustomerReviewsView({
       dir={isArabic ? "rtl" : "ltr"}
     >
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 md:p-8 shadow-sm">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-['Ivy_Ora'] mb-1.5 sm:mb-2 text-black">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-display mb-1.5 sm:mb-2 text-black">
           {editingId ? t("editTitle") : t("writeTitle")}
         </h2>
-        <p className="text-gray-500 text-xs sm:text-sm font-['TT_Norms_Pro'] mb-4 sm:mb-6">
+        <p className="text-gray-500 text-xs sm:text-sm font-body mb-4 sm:mb-6">
           {editingId ? t("editSubtitle") : t("writeSubtitle")}
         </p>
 
         {notificationAlreadyReviewed ? (
-          <p className="text-gray-500 text-xs sm:text-sm font-['TT_Norms_Pro'] mb-4 sm:mb-6">
+          <p className="text-gray-500 text-xs sm:text-sm font-body mb-4 sm:mb-6">
             {t("orderAlreadyReviewed")}
           </p>
         ) : null}
 
         {!fromNotification && !editingId && eligibleProducts.length === 0 ? (
-          <p className="text-gray-500 text-xs sm:text-sm font-['TT_Norms_Pro'] mb-4 sm:mb-6">
+          <p className="text-gray-500 text-xs sm:text-sm font-body mb-4 sm:mb-6">
             {t("noEligibleProducts")}
           </p>
         ) : null}
@@ -769,7 +770,7 @@ export default function CustomerReviewsView({
               <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
                 {t("productLockedLabel")}
               </label>
-              <p className="text-sm sm:text-[15px] text-black font-['TT_Norms_Pro'] border border-gray-200 bg-gray-50 px-3 sm:px-4 py-2.5 sm:py-3">
+              <p className="text-sm sm:text-[15px] text-black font-body border border-gray-200 bg-gray-50 px-3 sm:px-4 py-2.5 sm:py-3">
                 {editingProductLabel}
               </p>
             </div>
@@ -780,10 +781,10 @@ export default function CustomerReviewsView({
               <label className="block text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.2em] font-medium text-gray-700 [font-family:var(--font-ui)]">
                 {t("productLockedLabel")}
               </label>
-              <p className="text-sm sm:text-[15px] text-black font-['TT_Norms_Pro'] border border-gray-200 bg-gray-50 px-3 sm:px-4 py-2.5 sm:py-3">
+              <p className="text-sm sm:text-[15px] text-black font-body border border-gray-200 bg-gray-50 px-3 sm:px-4 py-2.5 sm:py-3">
                 {lockedLabel}
               </p>
-              <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
+              <p className="text-[10px] sm:text-xs text-gray-400 font-body">
                 {t("productLockedHint")}
               </p>
             </div>
@@ -791,7 +792,7 @@ export default function CustomerReviewsView({
 
           {showMultiCard ? (
             <div className="space-y-4">
-              <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
+              <p className="text-[10px] sm:text-xs text-gray-400 font-body">
                 {t("multiCardHint")}
               </p>
               {customEligible.map((product) => {
@@ -868,7 +869,7 @@ export default function CustomerReviewsView({
                   </option>
                 ))}
               </select>
-              <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
+              <p className="text-[10px] sm:text-xs text-gray-400 font-body">
                 {t("productHint")}
               </p>
             </div>
@@ -886,7 +887,7 @@ export default function CustomerReviewsView({
                 labelForValue={(value) => t("starLabel", { count: value })}
                 sizeClassName="w-6 h-6 sm:w-7 sm:h-7"
               />
-              <p className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
+              <p className="text-[10px] sm:text-xs text-gray-400 font-body">
                 {t("halfStarHint")}
               </p>
             </div>
@@ -966,12 +967,12 @@ export default function CustomerReviewsView({
       </div>
 
       <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 md:p-8 shadow-sm">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-['Ivy_Ora'] mb-4 sm:mb-6 text-black">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-display mb-4 sm:mb-6 text-black">
           {t("pastTitle")}
         </h2>
 
         {reviews.length === 0 ? (
-          <p className="text-gray-500 text-xs sm:text-sm font-['TT_Norms_Pro']">
+          <p className="text-gray-500 text-xs sm:text-sm font-body">
             {t("pastEmpty")}
           </p>
         ) : (
@@ -998,7 +999,7 @@ export default function CustomerReviewsView({
                         rating={rev.rating}
                         sizeClassName="w-3.5 h-3.5 sm:w-4 sm:h-4"
                       />
-                      <span className="text-[10px] sm:text-xs text-gray-400 font-['TT_Norms_Pro']">
+                      <span className="text-[10px] sm:text-xs text-gray-400 font-body">
                         {rev.rating.toFixed(1)} ·{" "}
                         {new Date(rev.createdAt).toLocaleDateString(
                           isArabic ? "ar" : "en",
@@ -1030,12 +1031,12 @@ export default function CustomerReviewsView({
                   </div>
 
                   {productLabel ? (
-                    <p className="text-[10px] sm:text-xs text-gray-500 font-['TT_Norms_Pro'] mb-1">
+                    <p className="text-[10px] sm:text-xs text-gray-500 font-body mb-1">
                       {t("reviewedProduct", { name: productLabel })}
                     </p>
                   ) : null}
 
-                  <p className="text-[10px] sm:text-[13px] text-gray-400 font-['TT_Norms_Pro'] uppercase tracking-widest mb-0.5 sm:mb-1">
+                  <p className="text-[10px] sm:text-[13px] text-gray-400 font-body uppercase tracking-widest mb-0.5 sm:mb-1">
                     {displayTitle}
                   </p>
                   <p className="[font-family:var(--font-body)] text-sm sm:text-[14px] leading-relaxed italic text-gray-800">

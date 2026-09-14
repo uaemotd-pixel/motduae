@@ -149,7 +149,7 @@ export default function AdminLayout({
         perm: "customers",
       },
       {
-        label: "Ready-Made",
+        label: "Ready Made",
         href: "/admin/ready-made",
         icon: Shirt,
         perm: "readyMade",
@@ -159,6 +159,12 @@ export default function AdminLayout({
         href: "/admin/fabrics",
         icon: Scissors,
         perm: "fabrics",
+      },
+      {
+        label: "Designs",
+        href: "/admin/designs",
+        icon: Palette,
+        perm: "designs",
       },
       {
         label: "Tailors",
@@ -256,7 +262,7 @@ export default function AdminLayout({
           />
           <span className="sr-only">MOTD Admin</span>
         </Link>
-        <p className="text-white/50 text-xs mt-3 tracking-wide">
+        <p className="font-ui text-[10px] uppercase tracking-[0.24em] text-white/50 mt-3">
           {isFullAdmin(user) ? "Control Panel" : "Staff Panel"}
         </p>
       </div>
@@ -270,7 +276,7 @@ export default function AdminLayout({
               key={item.href}
               href={item.href}
               onClick={() => setIsSidebarOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui transition
                             ${
                               isActive
                                 ? "bg-white text-black shadow-md font-medium"
@@ -305,7 +311,7 @@ export default function AdminLayout({
                 e.stopPropagation();
                 setSettingsExpanded(!settingsExpanded);
               }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition hover:cursor-pointer
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui transition hover:cursor-pointer
               ${
                 isSettingsActive
                   ? "bg-white text-black shadow-md font-medium"
@@ -345,7 +351,7 @@ export default function AdminLayout({
                           <Link
                             href={subItem.href}
                             onClick={() => setIsSidebarOpen(false)}
-                            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition
+                            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui transition
                             ${
                               isSubActive
                                 ? "bg-white/20 text-white shadow-sm"
@@ -370,7 +376,7 @@ export default function AdminLayout({
         onClick={() => {
           void logout();
         }}
-        className="flex items-center gap-3 px-4 py-3 rounded-xl text-red-400/90 hover:bg-red-500/10 transition hover:cursor-pointer mt-4"
+        className="flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui text-red-400/90 hover:bg-red-500/10 transition hover:cursor-pointer mt-4"
       >
         <LogOut className="w-4 h-4" />
         LogOut

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
 import { Link, useRouter } from "@/i18n/navigation";
+import { buttonVariants } from "@/components/ui/Button";
 import FormField from "@/components/admin/FormField";
 import ImageUpload from "@/components/admin/ImageUpload";
 import NumericInput from "@/components/tailor/NumericInput";
@@ -27,8 +28,18 @@ import {
   type DesignFilterOption,
   type TailorDesignFormData,
 } from "@/lib/tailorDesigns";
+import {
+  createAdminDesign,
+  fetchAdminDesign,
+  fetchAdminTailorShops,
+  getDesignTailorShopId,
+  updateAdminDesign,
+  type AdminTailorShopOption,
+} from "@/lib/adminDesigns";
 import { formatMotdFinalPrice, DEFAULT_TAILOR_COMMISSION } from "@/lib/motdCommission";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
+import { getTranslation } from "@/lib/getTranslation";
+import { useParams } from "next/navigation";
 
 const INPUT_CLASS =
   "w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm bg-transparent";
@@ -174,14 +185,27 @@ function BilingualFilterDropdown({
 
 type TailorDesignFormProps = {
   designId?: string;
+  /** Admin panel creates/edits designs on behalf of a tailor shop */
+  mode?: "tailor" | "admin";
 };
 
 type FieldKey = keyof TailorDesignFormData;
 
-export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
+export default function TailorDesignForm({
+  designId,
+  mode = "tailor",
+}: TailorDesignFormProps) {
   const t = useTranslations("TailorPortal.designs");
   const router = useRouter();
+  const params = useParams();
+  const locale = (params.locale as string) || "en";
+  const adminT = getTranslation(locale).adminDesigns;
+  const isAdminMode = mode === "admin";
   const isEditMode = Boolean(designId);
+  const listHref = isAdminMode ? "/admin/designs" : "/tailor/designs";
+  const uploadEndpoint = isAdminMode
+    ? "/api/admin/uploads/designs"
+    : "/api/tailor/uploads/design-image";
 
   const [loading, setLoading] = useState(isEditMode);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -193,6 +217,10 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
   const [formData, setFormData] = useState<TailorDesignFormData>(
     emptyTailorDesignForm(),
   );
+  const [tailorShopId, setTailorShopId] = useState("");
+  const [tailorShops, setTailorShops] = useState<AdminTailorShopOption[]>([]);
+  const [tailorsLoading, setTailorsLoading] = useState(isAdminMode);
+  const [openTailor, setOpenTailor] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState<
     DesignCategoryOption[]
   >([]);
@@ -260,6 +288,27 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     formData.basePrice,
     commissionPercent,
   );
+
+  useEffect(() => {
+    if (!isAdminMode) return;
+
+    let cancelled = false;
+    const loadTailors = async () => {
+      try {
+        const shops = await fetchAdminTailorShops();
+        if (!cancelled) setTailorShops(shops);
+      } catch {
+        if (!cancelled) setTailorShops([]);
+      } finally {
+        if (!cancelled) setTailorsLoading(false);
+      }
+    };
+
+    void loadTailors();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdminMode]);
 
   useEffect(() => {
     // Fetch design categories + platform pricing settings
@@ -365,9 +414,14 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
       setLoadError(null);
 
       try {
-        const design = await fetchTailorDesign(designId);
+        const design = isAdminMode
+          ? await fetchAdminDesign(designId)
+          : await fetchTailorDesign(designId);
         if (cancelled) return;
         setFormData(designToForm(design));
+        if (isAdminMode) {
+          setTailorShopId(getDesignTailorShopId(design));
+        }
         setFieldErrors({});
       } catch (err: unknown) {
         if (!cancelled) {
@@ -385,7 +439,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     return () => {
       cancelled = true;
     };
-  }, [designId, t]);
+  }, [designId, t, isAdminMode]);
 
   const handleChange = (
     field: FieldKey,
@@ -491,6 +545,10 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
 
+    if (isAdminMode && !tailorShopId.trim()) {
+      errors.tailorShopId = adminT.form.tailor_required;
+    }
+
     if (!formData.name.trim()) errors.name = t("validation.nameRequired");
     if (!formData.nameAr.trim()) errors.nameAr = t("validation.nameArRequired");
     if (!formData.images.some((image) => image.trim())) {
@@ -521,16 +579,24 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     setSubmitting(true);
 
     try {
-      if (isEditMode && designId) {
+      if (isAdminMode) {
+        if (isEditMode && designId) {
+          await updateAdminDesign(designId, formData, tailorShopId);
+          toast.success(t("successUpdated"), SUCCESS_TOAST);
+        } else {
+          await createAdminDesign(formData, tailorShopId);
+          toast.success(t("successCreated"), SUCCESS_TOAST);
+        }
+      } else if (isEditMode && designId) {
         await updateTailorDesign(designId, formData);
         toast.success(t("successUpdated"), SUCCESS_TOAST);
       } else {
         await createTailorDesign(formData);
         toast.success(t("successCreated"), SUCCESS_TOAST);
       }
-      router.push("/tailor/designs");
+      router.push(listHref);
     } catch (err: unknown) {
-      if (!isEditMode && isShopMissingError(err)) {
+      if (!isAdminMode && !isEditMode && isShopMissingError(err)) {
         setShopMissing(true);
       }
 
@@ -565,7 +631,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
           {loadError}
         </p>
         <Link
-          href="/tailor/designs"
+          href={listHref}
           className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.2em] text-black underline"
         >
           {t("backToList")}
@@ -574,7 +640,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
     );
   }
 
-  if (shopMissing) {
+  if (shopMissing && !isAdminMode) {
     return (
       <div className="max-w-2xl border border-(--color-border) bg-white p-8">
         <h1 className="[font-family:var(--font-display)] text-[28px] text-black mb-3">
@@ -585,7 +651,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
         </p>
         <Link
           href="/tailor/shop"
-          className="inline-block px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition [font-family:var(--font-ui)]"
+          className={buttonVariants({ variant: "primary", size: "lg" })}
         >
           {t("shopRequiredCta")}
         </Link>
@@ -596,11 +662,23 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
   return (
     <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
-          {isEditMode ? t("editTitle") : t("createTitle")}
+        <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
+          {isAdminMode
+            ? isEditMode
+              ? adminT.edit.title
+              : adminT.create.title
+            : isEditMode
+              ? t("editTitle")
+              : t("createTitle")}
         </h1>
-        <p className="text-gray-500 text-xs sm:text-sm mt-1">
-          {isEditMode ? t("editDescription") : t("createDescription")}
+        <p className="font-body text-gray-500 text-xs sm:text-sm mt-1">
+          {isAdminMode
+            ? isEditMode
+              ? adminT.edit.subtitle
+              : adminT.create.subtitle
+            : isEditMode
+              ? t("editDescription")
+              : t("createDescription")}
         </p>
       </div>
 
@@ -609,6 +687,77 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
         className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6"
       >
         <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-6">
+          {isAdminMode && (
+            <div className="col-span-2">
+              <FormField
+                label={adminT.form.tailor_label}
+                name="tailorShopId"
+                required
+                error={fieldErrors.tailorShopId}
+              >
+                <AnimatedDropdown
+                  isOpen={openTailor}
+                  onClose={() => setOpenTailor(false)}
+                  trigger={
+                    <FilterSelectTrigger
+                      value={tailorShopId}
+                      placeholder={adminT.form.tailor_placeholder}
+                      displayValue={
+                        tailorsLoading
+                          ? adminT.form.tailor_loading
+                          : tailorShops.find((s) => s._id === tailorShopId)
+                              ?.name || ""
+                      }
+                      onClick={() => setOpenTailor((prev) => !prev)}
+                    />
+                  }
+                  dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+                  position="bottom-left"
+                >
+                  {tailorsLoading ? (
+                    <p className="px-3 py-2 text-xs text-gray-500">
+                      {adminT.form.tailor_loading}
+                    </p>
+                  ) : tailorShops.length === 0 ? (
+                    <p className="px-3 py-2 text-xs text-gray-500">
+                      {adminT.form.tailor_empty}
+                    </p>
+                  ) : (
+                    tailorShops.map((shop) => (
+                      <button
+                        key={shop._id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-xs sm:text-sm hover:bg-gray-50 hover:cursor-pointer"
+                        onClick={() => {
+                          setTailorShopId(shop._id);
+                          setOpenTailor(false);
+                          if (fieldErrors.tailorShopId) {
+                            setFieldErrors((prev) => ({
+                              ...prev,
+                              tailorShopId: undefined,
+                            }));
+                          }
+                        }}
+                      >
+                        <span className="block truncate">{shop.name}</span>
+                        {typeof shop.ownerId === "object" &&
+                        shop.ownerId?.email ? (
+                          <span className="block truncate text-[10px] text-gray-400">
+                            {shop.ownerId.email}
+                          </span>
+                        ) : shop.phone ? (
+                          <span className="block truncate text-[10px] text-gray-400">
+                            {shop.phone}
+                          </span>
+                        ) : null}
+                      </button>
+                    ))
+                  )}
+                </AnimatedDropdown>
+              </FormField>
+            </div>
+          )}
+
           <FormField
             label={t("fields.name")}
             name="name"
@@ -894,7 +1043,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
 
           <div className="md:col-span-2">
             <div className="mb-2 flex justify-between items-center">
-              <span className="font-label-sm text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
+              <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
                 {t("sections.images")} (max 5) *
               </span>
               {formData.images.length < 5 && (
@@ -917,7 +1066,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
                 <ImageUpload
                   value={image}
                   onChange={(url) => handleImageChange(index, url)}
-                  uploadEndpoint="/api/tailor/uploads/design-image"
+                  uploadEndpoint={uploadEndpoint}
                   chooseFileLabel={t("upload.chooseFile")}
                   uploadingLabel={t("upload.uploading")}
                   uploadFailedLabel={t("upload.failed")}
@@ -953,7 +1102,7 @@ export default function TailorDesignForm({ designId }: TailorDesignFormProps) {
                 : t("createCta")}
           </button>
           <Link
-            href="/tailor/designs"
+            href={listHref}
             className="w-full sm:w-auto px-4 sm:px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer text-sm text-center"
           >
             {t("cancel")}

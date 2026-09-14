@@ -282,7 +282,7 @@ export default function AdminSettingsCategoriesPage() {
               <FolderTree className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0 pt-1">
-              <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight leading-tight">
+              <h1 className="font-display text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight leading-tight">
                 Categories
               </h1>
               <p className="text-gray-500 text-sm">
@@ -314,7 +314,7 @@ export default function AdminSettingsCategoriesPage() {
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
                 placeholder="e.g. evening-gowns"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
               <p className="text-xs text-gray-400 mt-1">
                 Will be saved as: {createName ? toSlug(createName) : "..."}
@@ -331,7 +331,7 @@ export default function AdminSettingsCategoriesPage() {
                 onChange={(e) => setCreateNameAr(e.target.value)}
                 dir="rtl"
                 placeholder="مثال: فساتين سهرة"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
             </div>
           </div>
@@ -560,7 +560,7 @@ export default function AdminSettingsCategoriesPage() {
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         placeholder="e.g. evening-gowns"
-                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                       />
                       <p className="text-xs text-gray-400 mt-1">
                         Will be saved as: {editName ? toSlug(editName) : "..."}
@@ -577,7 +577,7 @@ export default function AdminSettingsCategoriesPage() {
                         onChange={(e) => setEditNameAr(e.target.value)}
                         dir="rtl"
                         placeholder="مثال: فساتين سهرة"
-                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                        className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                       />
                     </div>
                   </div>

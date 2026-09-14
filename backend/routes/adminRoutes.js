@@ -14,7 +14,19 @@ import PlatformSettings from "../models/PlatformSettings.js";
 import {
   uploadReadyMadeImageMiddleware,
   processReadyMadeImage,
+  processTailorDesignImage,
 } from "../middleware/uploadReadyMadeImage.js";
+import { respondIfShopNotReady } from "../utils/shopReady.js";
+import {
+  applyCreateDefaults,
+  applyMinCutToDesignData,
+  assignUniqueDesignSlug,
+  cleanupAllDesignImages,
+  cleanupRemovedDesignImages,
+  formatDesign,
+  pickDesignFields,
+  validateDesignPayload,
+} from "../utils/designPayload.js";
 import {
   uploadFabricImageMiddleware,
   processFabricImage,
@@ -535,18 +547,320 @@ adminRouter.get(
   }),
 );
 
+// POST /api/admin/uploads/designs
+// Upload + compress design image; stores under tailor-design folder
+adminRouter.post(
+  "/uploads/designs",
+  uploadReadyMadeImageMiddleware,
+  expressAsyncHandler(async (req, res) => {
+    if (!req.file) {
+      res.status(400).send({ message: "No image file provided" });
+      return;
+    }
+
+    const url = await processTailorDesignImage(req.file);
+    res.status(201).send({ success: true, url });
+  }),
+);
+
+// ==========================================
+// Admin Designs CRUD
+// ==========================================
+
 // GET /api/admin/designs
-// Admin can view all tailor designs in the catalog (optionally filtered by tailorShopId)
+// Without page/limit/search: legacy array for ready-made dropdowns
+// With page (or search): paginated { items, total, page, totalPages }
 adminRouter.get(
   "/designs",
   expressAsyncHandler(async (req, res) => {
-    const filter = req.query.tailorShopId
-      ? { tailorShopId: req.query.tailorShopId }
-      : {};
-    const designs = await Design.find(filter)
-      .populate("tailorShopId", "name email")
-      .sort({ createdAt: -1 });
-    res.send(designs);
+    const filter = {};
+    if (req.query.tailorShopId) {
+      filter.tailorShopId = req.query.tailorShopId;
+    }
+
+    const search = String(req.query.search || "").trim();
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { nameAr: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } },
+        { material: { $regex: search, $options: "i" } },
+        { slug: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const wantsPagination =
+      req.query.page !== undefined ||
+      req.query.limit !== undefined ||
+      Boolean(search);
+
+    if (!wantsPagination) {
+      const designs = await Design.find(filter)
+        .populate("tailorShopId", "name nameAr phone")
+        .sort({ createdAt: -1 });
+      res.send(designs);
+      return;
+    }
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const skip = (page - 1) * limit;
+
+    const [designs, total] = await Promise.all([
+      Design.find(filter)
+        .populate("tailorShopId", "name nameAr phone")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Design.countDocuments(filter),
+    ]);
+
+    res.send({
+      success: true,
+      items: designs.map((d) => {
+        const item = formatDesign(d);
+        const shop = d.tailorShopId;
+        if (shop && typeof shop === "object" && shop._id) {
+          item.tailorShopId = {
+            _id: shop._id,
+            name: shop.name,
+            nameAr: shop.nameAr || "",
+          };
+        }
+        return item;
+      }),
+      total,
+      page,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    });
+  }),
+);
+
+// GET /api/admin/designs/:id
+adminRouter.get(
+  "/designs/:id",
+  expressAsyncHandler(async (req, res) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      res.status(404).send({ message: "Design not found" });
+      return;
+    }
+
+    const design = await Design.findById(req.params.id).populate(
+      "tailorShopId",
+      "name nameAr phone",
+    );
+
+    if (!design) {
+      res.status(404).send({ message: "Design not found" });
+      return;
+    }
+
+    const item = formatDesign(design);
+    const shop = design.tailorShopId;
+    if (shop && typeof shop === "object" && shop._id) {
+      item.tailorShopId = {
+        _id: shop._id,
+        name: shop.name,
+        nameAr: shop.nameAr || "",
+      };
+    }
+
+    res.send({
+      success: true,
+      item,
+    });
+  }),
+);
+
+// POST /api/admin/designs — create design on behalf of a tailor shop
+adminRouter.post(
+  "/designs",
+  expressAsyncHandler(async (req, res) => {
+    const tailorShopId = String(req.body.tailorShopId || "").trim();
+    if (!tailorShopId || !mongoose.Types.ObjectId.isValid(tailorShopId)) {
+      res.status(400).send({
+        success: false,
+        message: "Valid tailorShopId is required",
+      });
+      return;
+    }
+
+    const shop = await TailorShop.findById(tailorShopId);
+    if (!shop) {
+      res.status(404).send({
+        success: false,
+        message: "Tailor shop not found",
+      });
+      return;
+    }
+    if (respondIfShopNotReady(shop, res)) return;
+
+    const data = pickDesignFields(req.body);
+    await applyCreateDefaults(data);
+
+    const validationError = validateDesignPayload(data, { requireCore: true });
+    if (validationError) {
+      res.status(400).send({
+        success: false,
+        message: validationError,
+      });
+      return;
+    }
+
+    const cutError = await applyMinCutToDesignData(data);
+    if (cutError) {
+      res.status(400).send({
+        success: false,
+        message: cutError,
+      });
+      return;
+    }
+
+    await assignUniqueDesignSlug(data, shop._id);
+
+    const design = await Design.create({
+      ...data,
+      tailorShopId: shop._id,
+    });
+
+    const populated = await Design.findById(design._id).populate(
+      "tailorShopId",
+      "name nameAr phone",
+    );
+
+    res.status(201).send({
+      success: true,
+      item: formatDesign(populated || design),
+    });
+  }),
+);
+
+// PUT /api/admin/designs/:id
+adminRouter.put(
+  "/designs/:id",
+  expressAsyncHandler(async (req, res) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      res.status(404).send({ message: "Design not found" });
+      return;
+    }
+
+    const design = await Design.findById(req.params.id);
+    if (!design) {
+      res.status(404).send({ message: "Design not found" });
+      return;
+    }
+
+    let shopId = design.tailorShopId;
+    if (req.body.tailorShopId !== undefined) {
+      const nextShopId = String(req.body.tailorShopId || "").trim();
+      if (!nextShopId || !mongoose.Types.ObjectId.isValid(nextShopId)) {
+        res.status(400).send({
+          success: false,
+          message: "Valid tailorShopId is required",
+        });
+        return;
+      }
+      const shop = await TailorShop.findById(nextShopId);
+      if (!shop) {
+        res.status(404).send({
+          success: false,
+          message: "Tailor shop not found",
+        });
+        return;
+      }
+      if (respondIfShopNotReady(shop, res)) return;
+      shopId = shop._id;
+    }
+
+    const data = pickDesignFields(req.body);
+    if (Object.keys(data).length === 0 && req.body.tailorShopId === undefined) {
+      res.status(400).send({
+        success: false,
+        message: "No design fields provided to update",
+      });
+      return;
+    }
+
+    const validationError = validateDesignPayload(data);
+    if (validationError) {
+      res.status(400).send({
+        success: false,
+        message: validationError,
+      });
+      return;
+    }
+
+    const nextMinAge =
+      data.minAge !== undefined ? data.minAge : Number(design.minAge) || 0;
+    const nextMaxAge =
+      data.maxAge !== undefined ? data.maxAge : Number(design.maxAge) || 0;
+    if (nextMaxAge < nextMinAge) {
+      res.status(400).send({
+        success: false,
+        message: "Max age must be greater than or equal to min age",
+      });
+      return;
+    }
+
+    if (data.minCutId) {
+      const cutError = await applyMinCutToDesignData(data);
+      if (cutError) {
+        res.status(400).send({
+          success: false,
+          message: cutError,
+        });
+        return;
+      }
+    }
+
+    if (data.slug && data.slug !== design.slug) {
+      await assignUniqueDesignSlug(data, shopId, { excludeId: design._id });
+    }
+
+    const previousImages = [...(design.images || [])];
+    Object.assign(design, data);
+    design.tailorShopId = shopId;
+    const updatedDesign = await design.save();
+
+    await cleanupRemovedDesignImages(
+      previousImages,
+      updatedDesign.images || [],
+    );
+
+    const populated = await Design.findById(updatedDesign._id).populate(
+      "tailorShopId",
+      "name nameAr phone",
+    );
+
+    res.send({
+      success: true,
+      item: formatDesign(populated || updatedDesign),
+    });
+  }),
+);
+
+// DELETE /api/admin/designs/:id
+adminRouter.delete(
+  "/designs/:id",
+  expressAsyncHandler(async (req, res) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      res.status(404).send({ message: "Design not found" });
+      return;
+    }
+
+    const design = await Design.findById(req.params.id);
+    if (!design) {
+      res.status(404).send({ message: "Design not found" });
+      return;
+    }
+
+    await cleanupAllDesignImages(design.images || []);
+    await design.deleteOne();
+
+    res.send({
+      success: true,
+      message: "Design deleted successfully",
+    });
   }),
 );
 

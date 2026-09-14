@@ -375,10 +375,10 @@ export default function FamilyMembersForm({
   return (
     <div>
       <div className="border-b border-gray-100 pb-3 sm:pb-4 mb-1">
-        <h1 className="text-xl sm:text-2xl font-medium text-black">
+        <h1 className="font-display text-xl sm:text-2xl font-medium text-black">
           {isEdit ? "Edit Family Member" : "Add Family Member"}
         </h1>
-        <p className="mt-1 text-xs sm:text-sm text-gray-500">
+        <p className="mt-1 font-body text-xs sm:text-sm text-gray-500">
           {isEdit
             ? "Update family member details."
             : "Add a family member who can receive deliveries on your behalf."}
@@ -393,7 +393,7 @@ export default function FamilyMembersForm({
           <h2 className="text-sm sm:text-base font-medium text-black mb-4 sm:mb-6">
             Personal Information
           </h2>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
             <FormField label="Full Name" name="name" required>
               <input
                 type="text"
@@ -401,7 +401,7 @@ export default function FamilyMembersForm({
                 value={form.name}
                 onChange={handleChange}
                 required
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                 placeholder="Fatima Ahmed"
               />
             </FormField>
@@ -421,7 +421,7 @@ export default function FamilyMembersForm({
                 <button
                   type="button"
                   onClick={() => setRelationshipOpen(!relationshipOpen)}
-                  className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none text-black flex items-center justify-between hover:cursor-pointer"
+                  className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none text-black flex items-center justify-between hover:cursor-pointer"
                 >
                   <span
                     className={
@@ -491,7 +491,7 @@ export default function FamilyMembersForm({
                     value={form.customRelationship}
                     onChange={handleChange}
                     placeholder="Please specify relationship..."
-                    className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                    className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                   />
                 </div>
               )}
@@ -504,7 +504,7 @@ export default function FamilyMembersForm({
                 value={form.dob}
                 onChange={handleChange}
                 max={new Date().toISOString().slice(0, 10)}
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
             </FormField>
           </div>
@@ -514,7 +514,7 @@ export default function FamilyMembersForm({
           <h2 className="text-sm sm:text-base font-medium text-black mb-4 sm:mb-6">
             Delivery Address (Optional)
           </h2>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
             <FormField label="Full Name" name="address.fullName">
               <input
                 type="text"
@@ -522,7 +522,7 @@ export default function FamilyMembersForm({
                 value={form.address.fullName}
                 onChange={handleChange}
                 placeholder="Full name"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
             </FormField>
 
@@ -545,7 +545,7 @@ export default function FamilyMembersForm({
                 <button
                   type="button"
                   onClick={() => setEmirateOpen(!emirateOpen)}
-                  className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none text-black flex items-center justify-between hover:cursor-pointer"
+                  className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none text-black flex items-center justify-between hover:cursor-pointer"
                 >
                   <span
                     className={
@@ -617,7 +617,7 @@ export default function FamilyMembersForm({
                 value={form.address.city}
                 onChange={handleChange}
                 placeholder="Dubai"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
             </FormField>
 
@@ -628,7 +628,7 @@ export default function FamilyMembersForm({
                 value={form.address.street}
                 onChange={handleChange}
                 placeholder="Sheikh Zayed Road"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
             </FormField>
 
@@ -639,7 +639,7 @@ export default function FamilyMembersForm({
                 value={form.address.building}
                 onChange={handleChange}
                 placeholder="Burj Khalifa"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
             </FormField>
 
@@ -650,7 +650,7 @@ export default function FamilyMembersForm({
                 value={form.address.postalCode}
                 onChange={handleChange}
                 placeholder="12345"
-                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body-md rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
+                className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
             </FormField>
           </div>

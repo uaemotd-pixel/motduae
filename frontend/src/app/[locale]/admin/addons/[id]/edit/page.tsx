@@ -467,7 +467,7 @@ export default function AdminEditAddOnPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-0">
       <div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
+        <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
           Edit Add-On Product
         </h1>
         <p className="text-gray-500 text-xs sm:text-sm mt-1">
@@ -1070,7 +1070,7 @@ export default function AdminEditAddOnPage() {
 
           <div className="md:col-span-2">
             <div className="mb-2 flex justify-between items-center">
-              <span className="font-label-sm text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
+              <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
                 Images (max 5) *
               </span>
               {formData.images.length < 5 && (

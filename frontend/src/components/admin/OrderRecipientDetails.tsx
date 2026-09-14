@@ -47,7 +47,7 @@ export default function OrderRecipientDetails({
       ) : null}
       {lines.length > 0 ? (
         <div className="mt-2 text-xs text-gray-600 leading-relaxed space-y-0.5">
-          <p className="text-[10px] uppercase tracking-wider text-gray-400">
+          <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
             {isAr ? "عنوان التسليم" : "Delivery address"}
           </p>
           {lines.map((line) => (

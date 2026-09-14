@@ -4,6 +4,7 @@ export type AdminPermKey =
   | "customers"
   | "readyMade"
   | "fabrics"
+  | "designs"
   | "tailors"
   | "orders"
   | "partners"
@@ -17,6 +18,7 @@ export const ADMIN_PERM_KEYS: AdminPermKey[] = [
   "customers",
   "readyMade",
   "fabrics",
+  "designs",
   "tailors",
   "orders",
   "partners",
@@ -31,6 +33,7 @@ export const ADMIN_PERM_LABELS: Record<AdminPermKey, string> = {
   customers: "Customers",
   readyMade: "Ready-Made",
   fabrics: "Fabrics",
+  designs: "Designs",
   tailors: "Tailors",
   orders: "Orders",
   partners: "Fabric Stores",
@@ -86,6 +89,7 @@ export function resolveAdminPagePerm(
   if (path.startsWith("/admin/reviews")) return "reviews";
   if (path.startsWith("/admin/ready-made")) return "readyMade";
   if (path.startsWith("/admin/fabrics")) return "fabrics";
+  if (path.startsWith("/admin/designs")) return "designs";
   if (path.startsWith("/admin/tailors")) return "tailors";
   if (path.startsWith("/admin/addons")) return "addons";
   if (path.startsWith("/admin/orders")) return "orders";

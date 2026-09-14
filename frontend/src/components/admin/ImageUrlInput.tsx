@@ -28,7 +28,7 @@ export default function ImageUrlInput({
                     onChange(e.target.value);
                 }}
                 placeholder={placeholder}
-                className={`w-full h-11 md:h-12 bg-transparent border-b text-[15px] md:text-[16px] font-body-md px-0 transition-all focus:outline-none placeholder:text-black/40 text-black ${error
+                className={`w-full h-11 md:h-12 bg-transparent border-b text-[15px] md:text-[16px] font-body px-0 transition-all focus:outline-none placeholder:text-black/40 text-black ${error
                     ? "border-red-500 focus:border-red-500"
                     : "border-black/15 focus:border-black"
                     }`}

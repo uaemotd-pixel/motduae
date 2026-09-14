@@ -63,7 +63,7 @@ export default function StorePartnerPicker({
 
   return (
     <div>
-      <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block mb-1">
+      <label className="font-ui text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block mb-1">
         {label}
         {required ? " *" : ""}
       </label>

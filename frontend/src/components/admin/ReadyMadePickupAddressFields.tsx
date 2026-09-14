@@ -40,10 +40,10 @@ export default function ReadyMadePickupAddressFields({
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-[10px] uppercase tracking-[0.24em] text-black">
+        <h2 className="font-ui text-[10px] uppercase tracking-[0.24em] text-black">
           {title}
         </h2>
-        <p className="text-[12px] text-gray-500 mt-1">{description}</p>
+        <p className="font-body text-[12px] text-gray-500 mt-1">{description}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

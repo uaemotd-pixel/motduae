@@ -42,6 +42,7 @@ import { resolveMediaUrl } from "@/lib/media";
 import { useMemo } from "react";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Tag } from "@/components/ui/Tag";
 import {
   extractDigits,
   isValidUaePhone,
@@ -680,12 +681,12 @@ export default function CustomOrdersTab({
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 min-w-0">
-                  <span className="inline-flex items-center text-[9px] uppercase tracking-[0.12em] sm:tracking-[0.18em] px-2 py-0.5 font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md whitespace-nowrap">
+                  <Tag size="md" variant="accent">
                     {locale === "ar" ? "تفصيل" : "Custom Order"}
-                  </span>
-                  <span className="text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                  </Tag>
+                  <Tag size="md" variant="solid">
                     {t(`statuses.${order.status}`)}
-                  </span>
+                  </Tag>
                   <button
                     type="button"
                     onClick={() => handleToggleTimeline(order.id)}
@@ -1553,14 +1554,14 @@ export default function CustomOrdersTab({
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 min-w-0">
-                  <span className="inline-flex items-center text-[9px] uppercase tracking-[0.12em] sm:tracking-[0.18em] px-2 py-0.5 font-semibold bg-amber-50 text-amber-700 border border-amber-200 rounded-md whitespace-nowrap">
+                  <Tag size="md" variant="warning">
                     {locale === "ar" ? "جاهز" : "Ready-Made Order"}
-                  </span>
-                  <span className="text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                  </Tag>
+                  <Tag size="md" variant="solid">
                     {tRetail(`statuses.${order.status}`, {
                       defaultValue: order.status,
                     })}
-                  </span>
+                  </Tag>
                   {isMulti && (
                     <button
                       type="button"

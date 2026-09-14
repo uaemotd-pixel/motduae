@@ -330,7 +330,7 @@ export default function EditReadyMadePage() {
   return (
     <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-0">
       <div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
+        <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
           Edit Ready-to-Wear
         </h1>
         <p className="text-gray-500 text-xs sm:text-sm mt-1">

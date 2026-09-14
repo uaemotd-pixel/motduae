@@ -403,7 +403,7 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
     <div className="w-full space-y-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="w-full sm:w-auto min-w-0">
-          <h1 className="text-xl sm:text-3xl md:text-4xl font-light text-black tracking-tight">
+          <h1 className="font-display text-xl sm:text-3xl md:text-4xl font-light text-black tracking-tight">
             {selectedMemberId && selectedMember
               ? `${selectedMember.name}'s Measurements`
               : isViewMode
@@ -519,7 +519,7 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
                 </p>
               )}
               <div className="xl:hidden mb-4 flex justify-center overflow-hidden">
-                <div className="w-full max-w-44 sm:max-w-[280px] md:max-w-80 mx-auto">
+                <div className="w-full max-w-44 sm:max-w-70 md:max-w-80 mx-auto">
                   <MeasurementBodyDiagram />
                 </div>
               </div>

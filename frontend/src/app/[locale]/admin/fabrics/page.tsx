@@ -26,7 +26,7 @@ import {
   Eye,
   Image as ImageIcon,
   MoreVertical,
-  Tag,
+  Tag as TagIcon,
   Store,
   MapPin,
   Maximize2,
@@ -36,6 +36,7 @@ import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
+import { Tag } from "@/components/ui/Tag";
 
 interface FabricCutRow {
   cutId: string;
@@ -130,7 +131,7 @@ function FabricCutsCell({
   }
 
   return (
-    <div className="space-y-1.5 min-w-[12rem] max-w-xs">
+    <div className="space-y-1.5 min-w-48 max-w-xs">
       {cuts.map((entry) => {
         const stock = Number(entry.stock) || 0;
         const low = isLowCutStock(stock);
@@ -427,17 +428,14 @@ export default function AdminFabricsPage() {
   };
 
   const StatusBadge = ({ isActive }: { isActive: boolean }) => (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
-        isActive
-          ? "bg-white text-black border border-black/30"
-          : "bg-gray-100 text-gray-500 border border-gray-200"
-      }`}
+    <Tag
+      size="md"
+      variant={isActive ? "outline" : "muted"}
     >
       {isActive
         ? t.adminFabrics.list.status_active
         : t.adminFabrics.list.status_inactive}
-    </span>
+    </Tag>
   );
 
   const getStoreDisplay = (store: FabricItem["listedByStore"]) => {
@@ -585,7 +583,7 @@ export default function AdminFabricsPage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
+          <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
             {t.adminFabrics.list.title}
           </h1>
           <p className="text-gray-500 text-xs sm:text-sm mt-1">
@@ -1018,7 +1016,7 @@ export default function AdminFabricsPage() {
 
                 <div className="mt-2 sm:mt-3 space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
                   <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 min-w-0">
-                    <Tag className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                    <TagIcon className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                     <span className="truncate">{item.material || "—"}</span>
                   </div>
                   <div className="text-gray-600">

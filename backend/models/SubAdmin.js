@@ -28,6 +28,7 @@ const SubAdminSchema = new mongoose.Schema({
     customers: { type: Boolean, default: false },
     readyMade: { type: Boolean, default: false },
     fabrics: { type: Boolean, default: false },
+    designs: { type: Boolean, default: false },
     tailors: { type: Boolean, default: false },
     orders: { type: Boolean, default: false },
     partners: { type: Boolean, default: false },

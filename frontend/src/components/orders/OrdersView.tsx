@@ -39,10 +39,10 @@ export default function OrdersView({
 
       {embedded && (
         <div className="mb-4 sm:mb-6">
-          <h2 className="text-base sm:text-lg lg:text-xl font-['TT_Norms_Pro_Mono'] mb-1 sm:mb-2">
+          <h2 className="font-display text-base sm:text-lg lg:text-xl mb-1 sm:mb-2">
             {t("title")}
           </h2>
-          <p className="text-xs sm:text-sm text-gray-500 font-['TT_Norms_Pro']">
+          <p className="text-xs sm:text-sm text-gray-500 font-body">
             {t("description")}
           </p>
         </div>

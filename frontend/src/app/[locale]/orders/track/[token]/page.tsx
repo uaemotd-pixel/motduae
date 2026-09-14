@@ -15,6 +15,7 @@ import {
   MapPin,
 } from "lucide-react";
 import MainLayout from "@/app/[locale]/main/layout";
+import { Tag } from "@/components/ui/Tag";
 import { api, type ApiError } from "@/lib/api/client";
 import { formatCurrency } from "@/lib/format";
 import {
@@ -283,12 +284,12 @@ function CustomPublicCard({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 min-w-0">
-          <span className="inline-flex items-center text-[9px] uppercase tracking-[0.12em] sm:tracking-[0.18em] px-2 py-0.5 font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md whitespace-nowrap">
+          <Tag size="md" variant="accent">
             {locale === "ar" ? "تفصيل" : "Custom Order"}
-          </span>
-          <span className="text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full whitespace-nowrap">
+          </Tag>
+          <Tag size="md" variant="solid">
             {tCustom(`statuses.${order.status}`)}
-          </span>
+          </Tag>
         </div>
       </div>
 
@@ -345,9 +346,9 @@ function CustomPublicCard({
                             {tailorName}
                           </p>
                         ) : null}
-                        <span className="mt-2 inline-flex items-center text-[9px] uppercase tracking-[0.18em] bg-black text-white px-2 py-0.5 rounded-full whitespace-nowrap">
+                        <Tag size="md" variant="solid" className="mt-2">
                           {tCustom(`statuses.${pieceStatus}`)}
-                        </span>
+                        </Tag>
                         {item.awaitingRestOfOrder ? (
                           <p className="text-[11px] text-teal-700 [font-family:var(--font-body)] mt-1.5">
                             {tTrack("pieceReadyWaiting")}
@@ -647,15 +648,15 @@ function RetailPublicCard({
             {formatOrderDate(dateValue, locale)}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="inline-flex items-center text-[9px] uppercase tracking-[0.18em] px-2 py-0.5 font-semibold bg-amber-50 text-amber-700 border border-amber-200 rounded-md">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Tag size="md" variant="warning">
             {locale === "ar" ? "جاهز" : "Ready-Made Order"}
-          </span>
-          <span className="text-[10px] uppercase tracking-[0.18em] bg-black text-white px-2.5 py-0.5 rounded-full">
+          </Tag>
+          <Tag size="md" variant="solid">
             {tRetail(`statuses.${order.status}`, {
               defaultValue: order.status,
             })}
-          </span>
+          </Tag>
         </div>
       </div>
 
