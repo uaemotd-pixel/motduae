@@ -17,6 +17,9 @@ import toast from "react-hot-toast";
 import colors from "@/components/shared/colors";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
+import CommissionFinalPriceField, {
+  useFabricStoreCommission,
+} from "@/components/partner/CommissionFinalPriceField";
 import {
   emptyShopPickupAddress,
   shopToCourierPickup,
@@ -33,6 +36,7 @@ export default function EditReadyMadePage() {
   const localeParam = params.locale as string;
   const id = params.id as string;
   const t = getTranslation(localeParam);
+  const fabricCommission = useFabricStoreCommission();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -738,7 +742,7 @@ export default function EditReadyMadePage() {
           </FormField>
 
           {/* LENGTH + PRICES - in one row */}
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <FormField
               label="Fabric length"
               error={fieldErrors.metersPerFabric}
@@ -765,41 +769,7 @@ export default function EditReadyMadePage() {
             </FormField>
 
             <FormField
-              label="Fabric Price"
-              error={fieldErrors.fabricPriceAED}
-            >
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="450"
-                value={getNumberDisplay(formData.fabricPriceAED)}
-                onChange={(e) =>
-                  handleNumberChange("fabricPriceAED", e.target.value)
-                }
-                className="w-full py-1 border-b border-gray-300 focus:border-black outline-none hover:cursor-text text-xs sm:text-sm"
-              />
-            </FormField>
-
-            <FormField
-              label="Mukhawar Price"
-              error={fieldErrors.mukhawarPriceAED}
-            >
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="650"
-                value={getNumberDisplay(formData.mukhawarPriceAED)}
-                onChange={(e) =>
-                  handleNumberChange("mukhawarPriceAED", e.target.value)
-                }
-                className="w-full py-1 border-b border-gray-300 focus:border-black outline-none hover:cursor-text text-xs sm:text-sm"
-              />
-            </FormField>
-
-            <FormField
-              label="Final Price"
+              label="Your price (AED)"
               error={fieldErrors.finalSellingPriceAED}
               required
             >
@@ -815,6 +785,14 @@ export default function EditReadyMadePage() {
                 className="w-full py-1 border-b border-gray-300 focus:border-black outline-none hover:cursor-text text-xs sm:text-sm"
               />
             </FormField>
+
+            <CommissionFinalPriceField
+              partnerPrice={formData.finalSellingPriceAED}
+              commissionPercent={
+                formData.fabricShopId ? fabricCommission : 0
+              }
+              inputClassName="w-full py-1 border-b border-gray-200 outline-none text-xs sm:text-sm text-black/60 cursor-default"
+            />
           </div>
 
           {/* Category + Material + Pattern + Tag + Season + Colors */}
