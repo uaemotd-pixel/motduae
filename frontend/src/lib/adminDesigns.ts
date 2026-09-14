@@ -48,9 +48,11 @@ export function getDesignTailorShopName(
   locale: string = "en",
 ): string {
   const shop = design.tailorShopId;
-  if (!shop || typeof shop !== "object") return "—";
-  if (locale === "ar" && shop.nameAr) return shop.nameAr;
-  return shop.name || "—";
+  if (typeof shop !== "object" || shop === null) return "—";
+
+  const ref: AdminDesignShopRef = shop;
+  if (locale === "ar" && ref.nameAr) return ref.nameAr;
+  return ref.name || "—";
 }
 
 export async function fetchAdminTailorShops(): Promise<AdminTailorShopOption[]> {

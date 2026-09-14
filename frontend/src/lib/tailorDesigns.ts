@@ -163,7 +163,7 @@ export function slugifyDesignName(name: string): string {
 }
 
 export function designToForm(
-  design: TailorDesignProfile,
+  design: Omit<TailorDesignProfile, "tailorShopId">,
 ): TailorDesignFormData {
   const minCutId =
     typeof design.minCutId === "object" && (design.minCutId as any)?._id
