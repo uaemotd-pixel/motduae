@@ -519,7 +519,7 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
                 </p>
               )}
               <div className="xl:hidden mb-4 flex justify-center overflow-hidden">
-                <div className="w-full max-w-44 sm:max-w-[280px] md:max-w-80 mx-auto">
+                <div className="w-full max-w-44 sm:max-w-70 md:max-w-80 mx-auto">
                   <MeasurementBodyDiagram />
                 </div>
               </div>

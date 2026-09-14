@@ -14,14 +14,14 @@ export type AdminTailorShopOption = {
   ownerId?: { email?: string; name?: string } | string;
 };
 
-export type AdminDesignProfile = TailorDesignProfile & {
-  tailorShopId:
-    | string
-    | {
-        _id: string;
-        name?: string;
-        nameAr?: string;
-      };
+export type AdminDesignShopRef = {
+  _id: string;
+  name?: string;
+  nameAr?: string;
+};
+
+export type AdminDesignProfile = Omit<TailorDesignProfile, "tailorShopId"> & {
+  tailorShopId: string | AdminDesignShopRef;
 };
 
 export type AdminDesignListResponse = {
