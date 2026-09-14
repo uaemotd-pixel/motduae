@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { filsToAed } from "../../utils/fils.js";
 import PartnerEarning from "../../models/PartnerEarning.js";
 import PartnerPayoutBatch from "../../models/PartnerPayoutBatch.js";
@@ -6,7 +7,11 @@ import PartnerPayoutRequest from "../../models/PartnerPayoutRequest.js";
 import TailorShop from "../../models/TailorShop.js";
 import FabricShop from "../../models/FabricShop.js";
 import User from "../../models/User.js";
-import { SHIPPING_PARTNER_ID, SHIPPING_PARTNER_NAME } from "./constants.js";
+import {
+  PAYOUT_STATUSES,
+  SHIPPING_PARTNER_ID,
+  SHIPPING_PARTNER_NAME,
+} from "./constants.js";
 import { healDeliveredEarnings, loadExcludedOrderIdSet } from "./available.js";
 import { previewFifo } from "./split.js";
 
@@ -320,23 +325,55 @@ export function previewPartnerFifo(settlement, budgetFils) {
   return previewFifo(earnings, amount);
 }
 
-export async function listPayoutBatches({
-  partnerId,
-  partnerKind,
-  status,
-  limit = 200,
-} = {}) {
-  const filter = {};
-  if (partnerId) filter.partnerId = String(partnerId);
-  if (partnerKind) filter.partnerKind = partnerKind;
-  if (status) filter.status = status;
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
-  const items = await PartnerPayoutBatch.find(filter)
-    .populate("releasedBy", "name email")
-    .sort({ releasedAt: -1 })
-    .limit(Math.min(Math.max(Number(limit) || 200, 1), 500))
-    .lean();
+function parsePayoutStatuses(status) {
+  if (status == null || status === "") return null;
+  const list = String(status)
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => PAYOUT_STATUSES.includes(part));
+  if (list.length === 0) return null;
+  if (list.length === 1) return list[0];
+  return { $in: list };
+}
 
+async function payoutIdsMatchingOrderQuery(q) {
+  const term = String(q || "").trim();
+  if (term.length < 2) return [];
+
+  const ids = new Set();
+  if (/^[a-fA-F0-9]{24}$/.test(term)) {
+    const exact = await PartnerPayoutLine.find({ orderId: term })
+      .select("payoutId")
+      .lean();
+    for (const row of exact) ids.add(String(row.payoutId));
+  }
+
+  const escaped = escapeRegex(term);
+  const matched = await PartnerPayoutLine.aggregate([
+    {
+      $match: {
+        $expr: {
+          $regexMatch: {
+            input: { $toString: "$orderId" },
+            regex: escaped,
+            options: "i",
+          },
+        },
+      },
+    },
+    { $group: { _id: "$payoutId" } },
+  ]);
+  for (const row of matched) {
+    if (row?._id) ids.add(String(row._id));
+  }
+  return [...ids];
+}
+
+async function hydratePayoutBatches(items) {
   const ids = items.map((item) => item._id);
   const lines = ids.length
     ? await PartnerPayoutLine.find({ payoutId: { $in: ids } }).lean()
@@ -377,8 +414,73 @@ export async function listPayoutBatches({
   });
 }
 
+export async function listPayoutBatches({
+  partnerId,
+  partnerKind,
+  status,
+  q,
+  page,
+  limit,
+} = {}) {
+  const filter = {};
+  if (partnerId) filter.partnerId = String(partnerId);
+  if (partnerKind) filter.partnerKind = partnerKind;
+  const statusFilter = parsePayoutStatuses(status);
+  if (statusFilter) filter.status = statusFilter;
+
+  const term = String(q || "").trim();
+  if (term.length >= 2) {
+    const regex = new RegExp(escapeRegex(term), "i");
+    const orderPayoutIds = await payoutIdsMatchingOrderQuery(term);
+    filter.$or = [
+      { partnerName: regex },
+      { payeeName: regex },
+      { bankRef: regex },
+      ...(orderPayoutIds.length
+        ? [
+            {
+              _id: {
+                $in: orderPayoutIds
+                  .filter((id) => mongoose.Types.ObjectId.isValid(id))
+                  .map((id) => new mongoose.Types.ObjectId(id)),
+              },
+            },
+          ]
+        : []),
+    ];
+  }
+
+  const paginated = page != null && page !== "";
+  const pageNum = Math.max(1, Math.trunc(Number(page) || 1));
+  const maxLimit = paginated ? 100 : 500;
+  const defaultLimit = paginated ? 25 : 200;
+  const limitNum = Math.min(
+    Math.max(Number(limit) || defaultLimit, 1),
+    maxLimit,
+  );
+  const skip = paginated ? (pageNum - 1) * limitNum : 0;
+
+  const [total, items] = await Promise.all([
+    PartnerPayoutBatch.countDocuments(filter),
+    PartnerPayoutBatch.find(filter)
+      .populate("releasedBy", "name email")
+      .sort({ releasedAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean(),
+  ]);
+
+  return {
+    items: await hydratePayoutBatches(items),
+    total,
+    page: paginated ? pageNum : 1,
+    limit: limitNum,
+  };
+}
+
 export async function listProcessingPayouts() {
-  return listPayoutBatches({ status: "processing", limit: 200 });
+  const result = await listPayoutBatches({ status: "processing", limit: 200 });
+  return result.items;
 }
 
 export async function getCompletedPayoutTotals(partnerId, partnerKind) {

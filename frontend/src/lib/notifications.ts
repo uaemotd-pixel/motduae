@@ -342,7 +342,7 @@ export function getAdminDeepLinkHref(
 
   if (type.includes("payout_requested")) {
     return {
-      href: "/admin/payments",
+      href: "/admin/payments?tab=requests",
       label: "Review payout",
     };
   }

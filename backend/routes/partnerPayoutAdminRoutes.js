@@ -48,17 +48,19 @@ export function registerPartnerPayoutAdminRoutes(adminRouter) {
   adminRouter.get(
     "/partner-payouts",
     expressAsyncHandler(async (req, res) => {
-      const { partnerId, partnerKind, status, limit } = req.query;
-      const items = await listPayoutBatches({
+      const { partnerId, partnerKind, status, limit, page, q } = req.query;
+      const result = await listPayoutBatches({
         partnerId,
         partnerKind:
           partnerKind && PARTNER_PAYOUT_KINDS.includes(partnerKind)
             ? partnerKind
             : undefined,
-        status,
+        status: Array.isArray(status) ? status.join(",") : status,
+        q: typeof q === "string" ? q : "",
+        page,
         limit,
       });
-      res.send({ items });
+      res.send(result);
     }),
   );
 
@@ -137,12 +139,14 @@ export function registerPartnerPayoutAdminRoutes(adminRouter) {
     expressAsyncHandler(async (req, res) => {
       const { status, partnerKind, limit } = req.query;
       const filter = {};
-      if (
-        status &&
-        typeof status === "string" &&
-        ["pending", "approved", "rejected", "cancelled"].includes(status)
-      ) {
-        filter.status = status;
+      const requestStatuses = ["pending", "approved", "rejected", "cancelled"];
+      if (status && typeof status === "string") {
+        const list = status
+          .split(",")
+          .map((part) => part.trim())
+          .filter((part) => requestStatuses.includes(part));
+        if (list.length === 1) filter.status = list[0];
+        else if (list.length > 1) filter.status = { $in: list };
       }
       if (
         partnerKind &&
