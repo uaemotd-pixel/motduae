@@ -23,6 +23,8 @@ import adminDashboardEn from "@/messages/adminDashboard.en.json";
 import adminDashboardAr from "@/messages/adminDashboard.ar.json";
 import adminFabricsEn from "@/messages/adminFabrics.en.json";
 import adminFabricsAr from "@/messages/adminFabrics.ar.json";
+import adminDesignsEn from "@/messages/adminDesigns.en.json";
+import adminDesignsAr from "@/messages/adminDesigns.ar.json";
 
 import verifyEmailEn from "@/messages/verifyEmail.en.json";
 import verifyEmailAr from "@/messages/verifyEmail.ar.json";
@@ -42,6 +44,7 @@ const translations = {
         navbar: en.Navbar,
         trendingDesigns: en.TrendingDesigns,
         adminFabrics: adminFabricsEn,
+        adminDesigns: adminDesignsEn,
     },
     ar: {
         login: loginAr.login,
@@ -57,6 +60,7 @@ const translations = {
         navbar: ar.Navbar,
         trendingDesigns: ar.TrendingDesigns,
         adminFabrics: adminFabricsAr,
+        adminDesigns: adminDesignsAr,
     },
 };
 

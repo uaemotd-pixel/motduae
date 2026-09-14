@@ -299,22 +299,22 @@ export default function FamilyMembersPage() {
               <table className="min-w-full">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left font-ui text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
+                    <th className="px-6 py-3 text-left font-ui text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                       Relationship
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                    <th className="px-6 py-3 text-left font-ui text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                       Phone
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
+                    <th className="px-6 py-3 text-left font-ui text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                       Email
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
+                    <th className="px-6 py-3 text-left font-ui text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
                       Added
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left font-ui text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>

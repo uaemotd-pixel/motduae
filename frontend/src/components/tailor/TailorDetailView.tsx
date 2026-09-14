@@ -234,6 +234,7 @@ export default function TailorDetailView({
                   type="tailor"
                   shopId={String(shop._id)}
                   variant="onDark"
+                  className="hover:cursor-pointer"
                 />
               </div>
             </motion.div>

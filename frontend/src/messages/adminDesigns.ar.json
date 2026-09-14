@@ -1,0 +1,75 @@
+{
+  "list": {
+    "title": "كتالوج التصاميم",
+    "subtitle": "إدارة تصاميم الخياطين لجميع المحلات",
+    "new_button": "تصميم جديد",
+    "total": "إجمالي التصاميم",
+    "active": "نشط",
+    "inactive": "غير نشط",
+    "search_placeholder": "البحث بالاسم أو الفئة أو المادة...",
+    "refresh": "تحديث",
+    "empty_search": "لا توجد تصاميم مطابقة لبحثك.",
+    "empty": "لا توجد تصاميم بعد.",
+    "create_first": "أنشئ أول تصميم",
+    "load_error_title": "تعذر تحميل التصاميم",
+    "try_again": "حاول مرة أخرى",
+    "delete_confirm": "هل أنت متأكد من حذف هذا التصميم؟ لا يمكن التراجع عن هذا الإجراء.",
+    "delete_failed": "فشل حذف التصميم",
+    "status_active": "نشط",
+    "status_inactive": "غير نشط",
+    "col_name": "الاسم",
+    "col_tailor": "الخياط",
+    "col_category": "الفئة",
+    "col_price": "السعر (درهم)",
+    "col_status": "الحالة",
+    "col_actions": "الإجراءات",
+    "filter_tailor_all": "كل الخياطين",
+    "filter_tailor_placeholder": "تصفية حسب الخياط"
+  },
+  "create": {
+    "title": "إنشاء تصميم",
+    "subtitle": "إضافة تصميم نيابة عن خياط",
+    "submit": "إنشاء التصميم",
+    "submitting": "جاري الإنشاء..."
+  },
+  "edit": {
+    "title": "تعديل التصميم",
+    "subtitle": "تحديث تفاصيل التصميم",
+    "submit": "حفظ التغييرات",
+    "submitting": "جاري الحفظ...",
+    "loading": "جاري التحميل...",
+    "not_found": "التصميم غير موجود",
+    "back_to_list": "العودة للقائمة"
+  },
+  "view": {
+    "title": "تفاصيل التصميم",
+    "edit_button": "تعديل التصميم",
+    "back": "رجوع",
+    "tailor": "محل الخياط",
+    "category": "الفئة",
+    "material": "المادة",
+    "pattern": "النقش",
+    "season": "الموسم",
+    "tag": "الوسم",
+    "base_price": "السعر الأساسي",
+    "tailoring_fee": "رسوم التفصيل",
+    "min_cut": "الحد الأدنى للقصة",
+    "estimated_days": "الأيام المتوقعة",
+    "status": "الحالة",
+    "description": "الوصف",
+    "images": "الصور",
+    "age_range": "الفئة العمرية"
+  },
+  "form": {
+    "tailor_label": "محل الخياط",
+    "tailor_placeholder": "اختر الخياط",
+    "tailor_loading": "جاري تحميل الخياطين...",
+    "tailor_empty": "لا توجد محلات خياطين",
+    "tailor_required": "محل الخياط مطلوب"
+  },
+  "errors": {
+    "create_failed": "فشل إنشاء التصميم",
+    "update_failed": "فشل تحديث التصميم",
+    "load_failed": "فشل تحميل التصميم"
+  }
+}

@@ -21,6 +21,7 @@ import ZoomImageEffect from "@/components/shared/ZoomImageEffect";
 import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import colorPalette from "@/components/shared/colors";
 import { DetailPageSkeleton } from "@/components/ui/Skeleton";
+import { Tag } from "@/components/ui/Tag";
 import WishlistButton from "@/components/shared/wishlistButton";
 import AddToCartButton from "@/components/shared/addToCartButton";
 import { Share2 } from "lucide-react";
@@ -183,15 +184,10 @@ function RelatedProductsSection({
                       className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
                     />
                     {tag && (
-                      <div
-                        className="absolute top-2 left-2 z-10 px-1.5 py-px text-[8px] [font-family:var(--font-ui)] tracking-[0.12em] font-medium uppercase max-w-[calc(100%-7.5rem)] truncate"
-                        style={{
+                      <Tag elevated truncate className="absolute top-2 left-2 z-10 max-w-[calc(100%-7.5rem)]" style={{
                           backgroundColor: tagStyles.bg,
                           color: tagStyles.text,
-                        }}
-                      >
-                        {tag}
-                      </div>
+                        }}>{tag}</Tag>
                     )}
                     <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5">
                       <button
@@ -474,15 +470,10 @@ function ReadyMadeDetailContent({
                     zoomLevel={3.5}
                   />
                   {tag && (
-                    <div
-                      className="absolute top-1.5 left-1.5 z-10 px-1.5 py-px text-[8px] [font-family:var(--font-ui)] tracking-[0.12em] font-medium shadow-sm uppercase max-w-[calc(100%-3.75rem)] truncate"
-                      style={{
+                    <Tag elevated truncate className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-3.75rem)]" style={{
                         backgroundColor: tagStyles.bg,
                         color: tagStyles.text,
-                      }}
-                    >
-                      {tag}
-                    </div>
+                      }}>{tag}</Tag>
                   )}
                 </motion.div>
                 {images.length > 1 && (

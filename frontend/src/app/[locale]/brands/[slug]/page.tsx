@@ -395,6 +395,7 @@ export default function BrandDetailPage() {
                     type="fabricShop"
                     shopId={String(shop._id)}
                     variant="onDark"
+                    className="hover:cursor-pointer"
                   />
                 </div>
                 </motion.div>

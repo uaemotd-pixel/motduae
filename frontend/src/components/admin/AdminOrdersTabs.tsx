@@ -8,7 +8,7 @@ export default function AdminOrdersTabs() {
   const pathname = usePathname();
 
   const tabClass = (active: boolean) =>
-    `px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+    `px-4 py-2 text-[11px] uppercase tracking-[0.18em] font-ui font-medium border-b-2 transition-colors ${
       active
         ? "border-black text-black"
         : "border-transparent text-gray-500 hover:text-black"

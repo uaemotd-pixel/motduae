@@ -1,5 +1,7 @@
 "use client";
 
+import { Tag, type TagVariant } from "@/components/ui/Tag";
+
 type StatusType =
   | "pending"
   | "confirmed"
@@ -11,43 +13,34 @@ type StatusType =
   | "in_production"
   | "ready"
   | "out_for_delivery"
-  | string; // allow any other string
+  | string;
 
 type StatusBadgeProps = {
   status: StatusType;
   label?: string;
 };
 
-const statusStyles: Record<string, string> = {
-  // ---------- Retail order statuses (unchanged) ----------
-  pending: "bg-yellow-50 text-yellow-700 border border-yellow-200",
-  confirmed: "bg-blue-50 text-blue-700 border border-blue-200",
-  shipped: "bg-purple-50 text-purple-700 border border-purple-200",
-  delivered: "bg-green-50 text-green-700 border border-green-200",
-  cancelled: "bg-red-50 text-red-700 border border-red-200",
-
-  // ---------- Custom order logistics statuses ----------
-  fabric_delivered: "bg-indigo-50 text-indigo-700 border border-indigo-200",
-  at_tailor: "bg-amber-50 text-amber-700 border border-amber-200",
-  in_production: "bg-yellow-100 text-yellow-800 border border-yellow-300", // slightly different from pending
-  ready: "bg-teal-50 text-teal-700 border border-teal-200",
-  out_for_delivery: "bg-rose-50 text-rose-700 border border-rose-200",
+const statusVariant: Record<string, TagVariant> = {
+  pending: "warning",
+  confirmed: "info",
+  shipped: "accent",
+  delivered: "success",
+  cancelled: "danger",
+  fabric_delivered: "accent",
+  at_tailor: "warning",
+  in_production: "warning",
+  ready: "success",
+  out_for_delivery: "danger",
 };
 
 export default function StatusBadge({ status, label }: StatusBadgeProps) {
   const normalized = status?.toLowerCase?.() || status;
-
-  const style =
-    statusStyles[normalized] ||
-    "bg-gray-50 text-gray-600 border border-gray-200";
-
-  const display = label || normalized.replace(/_/g, " ");
+  const display = label || String(normalized).replace(/_/g, " ");
+  const variant = statusVariant[normalized] ?? "muted";
 
   return (
-    <span
-      className={`inline-flex items-center px-3 py-1 text-[11px] md:text-xs font-medium uppercase tracking-wide rounded-full ${style}`}
-    >
+    <Tag size="md" variant={variant}>
       {display}
-    </span>
+    </Tag>
   );
 }

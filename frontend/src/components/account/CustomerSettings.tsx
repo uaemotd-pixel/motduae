@@ -113,7 +113,7 @@ export default function CustomerSettings({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl sm:text-2xl font-light text-black tracking-tight">
+        <h2 className="font-display text-xl sm:text-2xl font-light text-black tracking-tight">
           {isAr ? "الإعدادات" : "Settings"}
         </h2>
         <p className="text-gray-500 text-sm mt-0.5">

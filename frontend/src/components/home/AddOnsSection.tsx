@@ -11,6 +11,7 @@ import { Share2 } from "lucide-react";
 import WishlistButton from "../shared/wishlistButton";
 import AddToCartButton from "../shared/addToCartButton";
 import { HomeSectionSkeleton } from "@/components/ui/Skeleton";
+import { Tag } from "@/components/ui/Tag";
 
 interface AddOnListItem {
   _id: string;
@@ -250,11 +251,6 @@ export function AddOnsSection() {
             <h2 className="[font-family:var(--font-display)] text-[32px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[44px] xl:text-[48px] 2xl:text-[56px] font-normal leading-[1.1] xs:leading-[1.09] sm:leading-[1.08] tracking-[-0.01em] text-black">
               {isAr ? "إضافات مختارة" : "Featured Add-Ons"}
             </h2>
-            <p className="[font-family:var(--font-body)] text-xs sm:text-sm text-gray-500 max-w-lg mt-2">
-              {isAr
-                ? "استكشفي مجموعتنا من الإكسسوارات و الإضافات المختارة لإكمال إطلالتك"
-                : "Explore our collection of accessory pieces and optional add-ons to complete your look."}
-            </p>
           </div>
 
           <Link
@@ -406,15 +402,16 @@ export function AddOnsSection() {
 
                         {displayTag && (
                           <div className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-8.5rem)]">
-                            <span
+                            <Tag
+                              elevated
+                              truncate
                               style={{
                                 backgroundColor: tagStyles.bg,
                                 color: tagStyles.text,
                               }}
-                              className="block px-1.5 py-px text-[8px] uppercase whitespace-nowrap [font-family:var(--font-ui)] tracking-[0.12em] font-medium shadow-sm truncate"
                             >
                               {displayTag}
-                            </span>
+                            </Tag>
                           </div>
                         )}
                       </div>

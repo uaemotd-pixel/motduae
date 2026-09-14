@@ -16,7 +16,7 @@ export function JoinOurCommunity({ onApplyClick }: JoinOurCommunityProps) {
     const t = useTranslations("community");
 
     return (
-        <div className="group relative overflow-hidden min-h-112.5 xs:min-h-[480px] sm:min-h-130 md:min-h-137.5 lg:min-h-145 xl:min-h-155 flex items-end p-6 xs:p-8 sm:p-10 md:p-12 lg:p-14 bg-[#111111]">
+        <div className="group relative overflow-hidden min-h-112.5 xs:min-h-120 sm:min-h-130 md:min-h-137.5 lg:min-h-145 xl:min-h-155 flex items-end p-6 xs:p-8 sm:p-10 md:p-12 lg:p-14 bg-[#111111]">
             <Image
                 src={images.sub1}
                 alt="A tailor is stitching mukhawar"

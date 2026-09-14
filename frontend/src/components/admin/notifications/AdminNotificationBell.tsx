@@ -98,7 +98,7 @@ export default function AdminNotificationBell() {
                   onClick={() => setOpen(false)}
                   className="block px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition"
                 >
-                  <p className="text-[11px] uppercase tracking-wide text-gray-400">
+                  <p className="font-ui text-[11px] uppercase tracking-wide text-gray-400">
                     {getNotificationTypeLabel(item.type)}
                   </p>
                   <p className="text-sm font-medium text-black truncate">

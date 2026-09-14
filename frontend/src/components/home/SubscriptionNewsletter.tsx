@@ -75,7 +75,7 @@ export function SubscriptionNewsletter({ onSubscribe }: SubscriptionNewsletterPr
                 <button
                     type="submit"
                     disabled={status === "loading"}
-                    className="[font-family:var(--font-body)] text-[12px] xs:text-[10px] sm:text-[11px] md:text-[12px] lg:text-[13px] uppercase tracking-[0.35em] bg-black text-white py-3.5 xs:py-4 sm:py-4.5 md:py-5 mt-4 xs:mt-5 sm:mt-6 hover:bg-(--color-grey-muted) hover:text-white transition-all duration-300 font-normal disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="[font-family:var(--font-body)] text-[12px] xs:text-[10px] sm:text-[11px] md:text-[12px] lg:text-[13px] uppercase tracking-[0.35em] bg-black text-white py-3.5 xs:py-4 sm:py-4.5 md:py-5 mt-4 xs:mt-5 sm:mt-6 hover:bg-(--color-grey-muted) hover:text-white hover:cursor-pointer transition-all duration-300 font-normal disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                     {status === "loading" ? (
                         <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
@@ -86,19 +86,19 @@ export function SubscriptionNewsletter({ onSubscribe }: SubscriptionNewsletterPr
             </form>
 
             {status === "success" && (
-                <p className="mt-4 text-[12px] sm:text-[13px] text-emerald-600 font-medium tracking-[0.05em] uppercase [font-family:var(--font-ui)] transition-all duration-300">
+                <p className="mt-4 text-[12px] sm:text-[13px] text-emerald-600 font-medium tracking-wider uppercase [font-family:var(--font-ui)] transition-all duration-300">
                     {t("success")}
                 </p>
             )}
 
             {status === "alreadySubscribed" && (
-                <p className="mt-4 text-[12px] sm:text-[13px] text-amber-600 font-medium tracking-[0.05em] uppercase [font-family:var(--font-ui)] transition-all duration-300">
+                <p className="mt-4 text-[12px] sm:text-[13px] text-amber-600 font-medium tracking-wider uppercase [font-family:var(--font-ui)] transition-all duration-300">
                     {t("alreadySubscribed")}
                 </p>
             )}
 
             {status === "error" && (
-                <p className="mt-4 text-[12px] sm:text-[13px] text-rose-600 font-medium tracking-[0.05em] uppercase [font-family:var(--font-ui)] transition-all duration-300">
+                <p className="mt-4 text-[12px] sm:text-[13px] text-rose-600 font-medium tracking-wider uppercase [font-family:var(--font-ui)] transition-all duration-300">
                     {errorMessage || t("error")}
                 </p>
             )}

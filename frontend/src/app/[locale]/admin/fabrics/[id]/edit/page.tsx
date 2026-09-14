@@ -189,7 +189,7 @@ export default function EditFabricPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight">
+        <h1 className="font-display text-2xl md:text-3xl font-light text-black tracking-tight">
           {t.adminFabrics.edit.title}
         </h1>
         <p className="text-gray-500 text-sm mt-1">

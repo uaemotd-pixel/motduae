@@ -150,6 +150,7 @@ export function resolveAdminApiPerm(path = "") {
   if (matchPrefix("/reviews")) return "reviews";
   if (matchPrefix("/ready-made")) return "readyMade";
   if (matchPrefix("/fabrics")) return "fabrics";
+  if (matchPrefix("/designs") || matchPrefix("/uploads/designs")) return "designs";
   if (matchPrefix("/tailors")) return "tailors";
   if (matchPrefix("/addons")) return "addons";
   if (matchPrefix("/orders")) return "orders";

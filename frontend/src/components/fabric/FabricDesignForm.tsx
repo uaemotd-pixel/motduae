@@ -1374,7 +1374,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
 
           <FormSection title={t("sections.images")}>
             <div className="mb-2 flex justify-between items-center">
-              <span className="font-label-sm text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
+              <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
                 IMAGES (MAX 5) <span className="text-red-500 ml-1">*</span>
               </span>
               {formData.images.length < 5 && (
@@ -1472,7 +1472,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                     className="p-4 sm:p-6 border border-gray-200 bg-[#FAF9F5] space-y-4 sm:space-y-6 relative rounded-none"
                   >
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-3 border-b border-gray-200 gap-2">
-                      <span className="font-label-sm text-[10px] sm:text-[11px] text-black/60 uppercase tracking-widest font-semibold">
+                      <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-widest font-semibold">
                         {locale === "ar"
                           ? `الخيار البديل #${index + 1}`
                           : `Variant #${index + 1}`}
@@ -1789,7 +1789,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                       {/* VARIANT IMAGES */}
                       <div className="md:col-span-2 space-y-2">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
-                          <span className="font-label-sm text-[10px] text-black/60 uppercase tracking-widest font-semibold">
+                          <span className="font-ui text-[10px] text-black/60 uppercase tracking-widest font-semibold">
                             Images (Max 5)
                           </span>
                           {variant.images.length < 5 && (

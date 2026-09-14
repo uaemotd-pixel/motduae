@@ -26,6 +26,7 @@ import {
   extractDigits,
 } from "@/lib/uaePhone";
 import { AccountPanelSkeleton } from "@/components/ui/Skeleton";
+import { Button } from "@/components/ui/Button";
 import {
   UAE_EMIRATES,
   getEmirateEn,
@@ -75,7 +76,7 @@ const FormField = ({
   <div className="space-y-1.5">
     <label
       htmlFor={name}
-      className="block text-[10px] sm:text-xs uppercase tracking-widest text-gray-500"
+      className="block font-ui text-[10px] sm:text-xs uppercase tracking-widest text-gray-500"
     >
       {label}{" "}
       {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
@@ -428,7 +429,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
       <div className="p-4 sm:p-6 md:p-8">
         <div className="flex justify-between items-center mb-4 sm:mb-6">
-          <h2 className="text-lg sm:text-xl font-medium">Edit Profile</h2>
+          <h2 className="font-display text-lg sm:text-xl font-medium">Edit Profile</h2>
           {onCancel && (
             <button
               onClick={onCancel}
@@ -441,10 +442,10 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
 
         <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
           <div className="space-y-3 sm:space-y-4">
-            <h3 className="text-sm sm:text-base font-medium flex items-center gap-2">
+            <h3 className="font-ui text-sm sm:text-base font-medium flex items-center gap-2">
               <User className="w-4 h-4 sm:w-5 sm:h-5" /> Personal Information
             </h3>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4 sm:gap-5">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
               <FormField
                 label="Full Name"
                 name="name"
@@ -468,7 +469,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                 error={fieldErrors.phone}
               >
                 <div className="relative">
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-sm sm:text-base">
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 font-ui text-sm sm:text-base">
                     +971
                   </span>
                   <input
@@ -478,7 +479,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                     onChange={(e) => handlePhoneChange("phone", e.target.value)}
                     placeholder="XXXXXXXXX"
                     maxLength={9}
-                    className="w-full py-1 sm:py-1.5 pl-10 sm:pl-12 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent font-mono"
+                    className="w-full py-1 sm:py-1.5 pl-10 sm:pl-12 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent font-ui"
                   />
                 </div>
                 <p className="text-gray-400 mt-1 text-[8px] sm:text-[10px]">
@@ -592,7 +593,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
 
           <div className="space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm sm:text-base font-medium flex items-center gap-2">
+              <h3 className="font-ui text-sm sm:text-base font-medium flex items-center gap-2">
                 <MapPin className="w-4 h-4 sm:w-5 sm:h-5" /> Addresses
               </h3>
               <button
@@ -640,7 +641,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4 sm:gap-5">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
                     <FormField
                       label="Full Name"
                       name={`address.${index}.fullName`}
@@ -664,7 +665,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                       error={fieldErrors[`address.${index}.phone`]}
                     >
                       <div className="relative">
-                        <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-sm sm:text-base">
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 font-ui text-sm sm:text-base">
                           +971
                         </span>
                         <input
@@ -680,7 +681,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                           }
                           placeholder="XXXXXXXXX"
                           maxLength={9}
-                          className="w-full py-1 sm:py-1.5 pl-10 sm:pl-12 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent font-mono"
+                          className="w-full py-1 sm:py-1.5 pl-10 sm:pl-12 text-sm sm:text-base border-b border-gray-300 focus:border-black outline-none bg-transparent font-ui"
                         />
                       </div>
                       <p className="text-[8px] sm:text-[10px] text-gray-400 mt-1">
@@ -832,17 +833,22 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 pt-4 border-t border-gray-200">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="md"
+              fullWidth
+              className="sm:w-auto"
               onClick={() => (onCancel ? onCancel() : router.push("/account"))}
-              className="px-4 sm:px-6 py-1.5 sm:py-2 text-sm sm:text-base border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer w-full sm:w-auto"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
+              size="md"
+              fullWidth
+              className="sm:w-auto"
               disabled={submitting || !form.dob}
-              className="px-4 sm:px-6 py-1.5 sm:py-2 text-sm sm:text-base bg-black text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50 flex items-center justify-center gap-2 hover:cursor-pointer w-full sm:w-auto"
             >
               {submitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -850,7 +856,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                 <Save className="w-4 h-4" />
               )}
               Save Changes
-            </button>
+            </Button>
           </div>
         </form>
       </div>
