@@ -622,7 +622,7 @@ export default function EditReadyMadePage() {
           </FormField>
 
           {/* LENGTH + PRICES - in one row */}
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <FormField
               label="Fabric length"
               error={fieldErrors.metersPerFabric}
@@ -644,37 +644,6 @@ export default function EditReadyMadePage() {
                     }
                   }
                 }}
-                className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-xs sm:text-sm hover:cursor-text"
-              />
-            </FormField>
-
-            <FormField label="Fabric Price" error={fieldErrors.fabricPriceAED}>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="450"
-                value={getNumberDisplay(formData.fabricPriceAED)}
-                onChange={(e) =>
-                  handleNumberChange("fabricPriceAED", e.target.value)
-                }
-                className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-xs sm:text-sm hover:cursor-text"
-              />
-            </FormField>
-
-            <FormField
-              label="Mukhawar Price"
-              error={fieldErrors.mukhawarPriceAED}
-            >
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="650"
-                value={getNumberDisplay(formData.mukhawarPriceAED)}
-                onChange={(e) =>
-                  handleNumberChange("mukhawarPriceAED", e.target.value)
-                }
                 className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-xs sm:text-sm hover:cursor-text"
               />
             </FormField>
