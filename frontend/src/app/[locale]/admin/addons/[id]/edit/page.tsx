@@ -18,6 +18,9 @@ import {
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
 import colors from "@/components/shared/colors";
+import CommissionFinalPriceField, {
+  useFabricStoreCommission,
+} from "@/components/partner/CommissionFinalPriceField";
 
 const COLOR_OPTIONS = colors;
 
@@ -61,6 +64,7 @@ export default function AdminEditAddOnPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
+  const fabricCommission = useFabricStoreCommission();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -883,9 +887,9 @@ export default function AdminEditAddOnPage() {
             </FormField>
           </div>
 
-          <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+          <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
             <FormField
-              label="Price (AED)"
+              label="Your price (AED)"
               name="price"
               required
               error={fieldErrors.price}
@@ -900,6 +904,11 @@ export default function AdminEditAddOnPage() {
                 placeholder="85"
               />
             </FormField>
+
+            <CommissionFinalPriceField
+              partnerPrice={formData.price}
+              commissionPercent={formData.fabricShopId ? fabricCommission : 0}
+            />
 
             <FormField
               label="Stock Qty"

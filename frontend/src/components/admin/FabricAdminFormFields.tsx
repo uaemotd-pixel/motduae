@@ -23,6 +23,7 @@ import {
 } from "@/lib/fabricShop";
 import { formatCutLabel } from "@/lib/fabricUnits";
 import { applyMotdCommission } from "@/lib/motdCommission";
+import { useFabricStoreCommission } from "@/components/partner/CommissionFinalPriceField";
 import {
   isValidUaePhone,
   normalizeUaePhone,
@@ -177,7 +178,7 @@ export function FabricCutsEditor({
               Cuts — Price & Stock
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              {showFinalPrice
+              {showFinalPrice && (commissionPercent ?? 0) > 0
                 ? "Select cut, set your price per piece and stock. Final price includes MOTD commission."
                 : "Select cut, set price per piece and stock."}
             </p>
@@ -400,6 +401,9 @@ export default function FabricAdminFormFields({
   const [openSeason, setOpenSeason] = useState(false);
   const [openEmirate, setOpenEmirate] = useState(false);
   const [openColors, setOpenColors] = useState(false);
+  const fabricCommission = useFabricStoreCommission();
+  const listedBy = (formData.listedByStore || "").trim();
+  const commissionPercent = listedBy === "MOTD" ? 0 : fabricCommission;
 
   const applyPickupForPartner = useCallback(
     (partnerId: string, shops: Record<string, AdminFabricShop>) => {
@@ -1116,6 +1120,8 @@ export default function FabricAdminFormFields({
           errorPrefix="cuts"
           fieldErrors={fieldErrors}
           loading={cutsLoading}
+          commissionPercent={commissionPercent}
+          priceLabel="Your price (AED)"
           onChange={(cuts) => onFieldChange("cuts", cuts)}
         />
       </div>
@@ -1684,6 +1690,8 @@ export default function FabricAdminFormFields({
                         fieldErrors={fieldErrors}
                         loading={cutsLoading}
                         showTitle={false}
+                        commissionPercent={commissionPercent}
+                        priceLabel="Your price (AED)"
                         onChange={(cuts) => {
                           const nextVariants = [...(formData.variants || [])];
                           nextVariants[index] = {
