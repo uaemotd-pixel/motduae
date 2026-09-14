@@ -107,7 +107,7 @@ export async function getPortalPayoutView(ownerUserId, partnerKind) {
     identity.partnerId,
     partnerKind,
   );
-  const releases = await listPayoutBatches({
+  const listed = await listPayoutBatches({
     partnerId: identity.partnerId,
     partnerKind,
     limit: 50,
@@ -128,7 +128,7 @@ export async function getPortalPayoutView(ownerUserId, partnerKind) {
             : 0,
         }
       : null,
-    releases: releases.filter((row) =>
+    releases: listed.items.filter((row) =>
       ["processing", "completed"].includes(row.status),
     ),
   };
