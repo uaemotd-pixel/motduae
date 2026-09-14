@@ -25,6 +25,10 @@ import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
+import {
+  PartnerListingPrice,
+  useFabricStoreCommission,
+} from "@/components/partner/CommissionFinalPriceField";
 
 interface ReadyMadeItem {
   _id: string;
@@ -43,6 +47,7 @@ export default function FabricReadyMadePage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const commissionPercent = useFabricStoreCommission();
   const [items, setItems] = useState<ReadyMadeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -478,9 +483,17 @@ export default function FabricReadyMadePage() {
                         {item.fabricType || "—"}
                         {item.tailorName ? ` · ${item.tailorName}` : ""}
                       </p>
-                      <p className="text-xs text-gray-600 mt-1 font-mono">
-                        AED {item.finalSellingPriceAED} · {item.availableFabricStock}{" "}
-                        in stock
+                      <p className="text-xs text-gray-600 mt-1">
+                        <PartnerListingPrice
+                          netAmount={item.finalSellingPriceAED}
+                          commissionPercent={commissionPercent}
+                          stacked
+                          className="font-mono text-xs"
+                        />
+                        <span className="text-gray-500">
+                          {" "}
+                          · {item.availableFabricStock} in stock
+                        </span>
                       </p>
                     </div>
                   </div>
@@ -566,10 +579,13 @@ export default function FabricReadyMadePage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {item.tailorName || "—"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                        <span className="text-gray-500">
-                          AED {item.finalSellingPriceAED}
-                        </span>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <PartnerListingPrice
+                          netAmount={item.finalSellingPriceAED}
+                          commissionPercent={commissionPercent}
+                          stacked
+                          className="font-mono text-sm"
+                        />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <span className="inline-flex items-center gap-1.5">

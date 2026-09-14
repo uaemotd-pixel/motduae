@@ -28,6 +28,10 @@ import {
 } from "lucide-react";
 import { ImageModal } from "../shared/ImageModal";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import {
+  PartnerListingPrice,
+  useFabricStoreCommission,
+} from "@/components/partner/CommissionFinalPriceField";
 
 type FabricCutRow = {
   cutId: string;
@@ -69,12 +73,14 @@ function FabricCutsCell({
   stockLabel,
   lowLabel,
   outLabel,
+  commissionPercent,
 }: {
   cuts?: FabricCutRow[];
   locale: string;
   stockLabel: string;
   lowLabel: string;
   outLabel: string;
+  commissionPercent: number;
 }) {
   if (!cuts?.length) {
     return <span className="text-gray-400">—</span>;
@@ -98,10 +104,14 @@ function FabricCutsCell({
             <p className="text-xs font-medium text-black leading-snug">
               {getCutLabel(entry, locale)}
             </p>
-            <div className="mt-0.5 flex items-center justify-between gap-2">
-              <span className="font-mono text-[11px] text-gray-500">
-                AED {Number(entry.price).toLocaleString()}
-              </span>
+            <div className="mt-0.5 flex items-end justify-between gap-2">
+              <PartnerListingPrice
+                netAmount={Number(entry.price) || 0}
+                commissionPercent={commissionPercent}
+                locale={locale}
+                stacked
+                className="font-mono text-[11px]"
+              />
               <span className="inline-flex items-center gap-1 shrink-0">
                 <span
                   className={`tabular-nums text-xs font-semibold ${
@@ -169,6 +179,7 @@ export default function FabricDesignsList() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const locale = params.locale === "ar" ? "ar" : "en";
+  const commissionPercent = useFabricStoreCommission();
 
   const [fabrics, setFabrics] = useState<FabricProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -231,6 +242,7 @@ export default function FabricDesignsList() {
     stockLabel: t("stockLabel"),
     lowLabel: t("lowBadge"),
     outLabel: t("outBadge"),
+    commissionPercent,
   };
 
   const openDeleteModal = (
@@ -536,6 +548,12 @@ export default function FabricDesignsList() {
                       <p className="text-xs text-gray-500 mt-0.5 truncate">
                         {materialDisplay}
                       </p>
+                      <div className="mt-2">
+                        <FabricCutsCell
+                          cuts={fabric.cuts as FabricCutRow[] | undefined}
+                          {...cutsCellProps}
+                        />
+                      </div>
                       {itemLow ? (
                         <div className="mt-1">
                           <LowStockBadge label={t("lowBadge")} />

@@ -786,6 +786,10 @@ export default function AdminPaymentsPage() {
       primaryFabricGross,
       fabricCommissionPercent,
     );
+    const sameStoreAddOnsShare = splitFabricCommission(
+      sameStoreAddOnsTotal,
+      fabricCommissionPercent,
+    );
 
     const separateAddOnPayees = Array.from(otherStoreAddOnsByShop.entries()).map(
       ([key, group]) => {
@@ -894,15 +898,8 @@ export default function AdminPaymentsPage() {
       addOns: {
         total: sameStoreAddOnsTotal,
         label: getAddonNamesLabel(sameStoreAddOns),
-        commission: Number(
-          ((sameStoreAddOnsTotal * fabricCommissionPercent) / 100).toFixed(2),
-        ),
-        toFabric: Number(
-          (
-            sameStoreAddOnsTotal *
-            (1 - fabricCommissionPercent / 100)
-          ).toFixed(2),
-        ),
+        commission: sameStoreAddOnsShare.commission,
+        toFabric: sameStoreAddOnsShare.net,
       },
       separateAddOnPayees,
     };

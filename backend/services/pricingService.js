@@ -5,7 +5,10 @@ import Cut from '../models/Cut.js';
 import { cutValueToMeters } from '../utils/fabricUnits.js';
 import { FABRIC_SOURCES } from '../models/CustomOrder.js';
 import { planCustomOrderParcels } from './parcelPlanService.js';
-import { applyMotdCommission } from '../utils/motdCommission.js';
+import {
+  applyMotdCommission,
+  splitMotdCommission as splitPartnerCommission,
+} from '../utils/motdCommission.js';
 
 export class PricingValidationError extends Error {
   constructor(message) {
@@ -267,15 +270,11 @@ export async function validateCustomOrderItemFabric({
 }
 
 /**
- * Split a fabric-store line into gross, MOTD commission, and net store payout.
- * `commissionPercent` is 0–100 (e.g. 15 = 15%).
+ * Split a customer (gross) amount into MOTD commission and partner net payout.
+ * Commission is a markup on the partner price (120 at 20% → net 100).
  */
 export function splitMotdCommission(grossAmount, commissionPercent = 15) {
-  const gross = roundMoney(Math.max(0, Number(grossAmount) || 0));
-  const percent = Math.min(100, Math.max(0, Number(commissionPercent) || 0));
-  const commission = roundMoney((gross * percent) / 100);
-  const net = roundMoney(gross - commission);
-  return { gross, commission, net, percent };
+  return splitPartnerCommission(grossAmount, commissionPercent);
 }
 
 /**

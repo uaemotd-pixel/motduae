@@ -14,6 +14,10 @@ import {
   type TailorDesignProfile,
 } from "@/lib/tailorDesigns";
 import { formatDesignCategory, formatDesignBasePrice } from "@/lib/tailors";
+import { applyMotdCommission } from "@/lib/motdCommission";
+import {
+  useTailorCommission,
+} from "@/components/partner/CommissionFinalPriceField";
 import { useParams } from "next/navigation";
 import { ImageModal } from "../shared/ImageModal";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
@@ -22,6 +26,7 @@ export default function TailorDesignsList() {
   const t = useTranslations("TailorPortal.designs");
   const params = useParams();
   const locale = params.locale === "ar" ? "ar" : "en";
+  const commissionPercent = useTailorCommission();
 
   const [designs, setDesigns] = useState<TailorDesignProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -212,7 +217,21 @@ export default function TailorDesignsList() {
                         design.basePrice,
                         locale,
                         design.priceType,
-                      )}{" "}
+                      )}
+                      {commissionPercent > 0 ? (
+                        <>
+                          {" "}
+                          · {locale === "ar" ? "النهائي" : "Final"}{" "}
+                          {formatDesignBasePrice(
+                            applyMotdCommission(
+                              design.basePrice,
+                              commissionPercent,
+                            ),
+                            locale,
+                            design.priceType,
+                          )}
+                        </>
+                      ) : null}{" "}
                       · {t("estimatedDays", { days: design.estimatedDays })}
                     </p>
                     <p className="hidden sm:block [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) line-clamp-2 mt-1.5">

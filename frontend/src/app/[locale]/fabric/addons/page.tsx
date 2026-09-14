@@ -24,6 +24,10 @@ import {
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import {
+  PartnerListingPrice,
+  useFabricStoreCommission,
+} from "@/components/partner/CommissionFinalPriceField";
 
 interface AddOnItem {
   _id: string;
@@ -40,6 +44,7 @@ export default function FabricAddOnsPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const commissionPercent = useFabricStoreCommission();
   const [items, setItems] = useState<AddOnItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -451,7 +456,16 @@ export default function FabricAddOnsPage() {
                         </span>
                       </div>
                       <p className="text-xs text-gray-600 mt-1">
-                        AED {item.price.toFixed(2)} · {item.stock} in stock
+                        <PartnerListingPrice
+                          netAmount={item.price}
+                          commissionPercent={commissionPercent}
+                          stacked
+                          className="text-xs"
+                        />
+                        <span className="text-gray-500">
+                          {" "}
+                          · {item.stock} in stock
+                        </span>
                       </p>
                     </div>
                   </div>
@@ -511,8 +525,13 @@ export default function FabricAddOnsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-medium text-black">
-                      {item.price.toFixed(2)}
+                    <td className="px-6 py-4">
+                      <PartnerListingPrice
+                        netAmount={item.price}
+                        commissionPercent={commissionPercent}
+                        stacked
+                        className="text-sm"
+                      />
                     </td>
                     <td className="px-6 py-4 text-black">
                       <span className="inline-flex items-center gap-1.5">
