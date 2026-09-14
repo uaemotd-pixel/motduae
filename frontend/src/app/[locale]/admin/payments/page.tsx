@@ -71,13 +71,20 @@ interface PartnerSettlement {
   pickup?: string;
 }
 
-interface PayoutLine {
-  earningId: string;
+interface PayoutOrderLine {
+  earningId?: string;
   orderId: string;
   orderType: string;
+  amount: number;
+  amountFils?: number;
+  amountAed?: number;
+  commissionPercent?: number;
+}
+
+interface PayoutLine extends PayoutOrderLine {
+  earningId: string;
   amountFils: number;
   amountAed: number;
-  amount: number;
   commissionPercent: number;
 }
 
@@ -97,12 +104,7 @@ interface PartnerPayoutTransaction {
   releasedAt: string;
   releasedBy?: { _id?: string; name?: string; email?: string } | string;
   lines?: PayoutLine[];
-  orders?: Array<{
-    orderId: string;
-    orderType: string;
-    amount: number;
-    commissionPercent?: number;
-  }>;
+  orders?: PayoutOrderLine[];
 }
 
 interface FifoPreview {
@@ -154,6 +156,10 @@ interface FabricPayoutRequestItem {
     amount: number;
   }>;
   requestedBy?: { _id?: string; name?: string; email?: string } | string;
+}
+
+function payoutLineAmount(line: PayoutOrderLine) {
+  return Number(line.amountAed ?? line.amount) || 0;
 }
 
 function newIdempotencyKey() {
@@ -1291,7 +1297,7 @@ export default function AdminPaymentsPage() {
                       ? tx.releasedBy.name || tx.releasedBy.email || "Admin"
                       : "Admin";
                   const expanded = expandedTxId === tx._id;
-                  const lines = tx.lines || tx.orders || [];
+                  const lines: PayoutOrderLine[] = tx.lines || tx.orders || [];
                   return (
                     <Fragment key={tx._id}>
                       <tr
@@ -1355,16 +1361,14 @@ export default function AdminPaymentsPage() {
                         >
                           <td colSpan={8} className="px-4 py-3">
                             <div className="space-y-2">
-                              {lines.map((line) => (
+                              {lines.map((line, index) => (
                                 <div
-                                  key={`${tx._id}-${line.orderId}-${line.amountFils || line.amount}`}
+                                  key={`${tx._id}-${line.orderId}-${line.amountFils ?? line.amount}-${index}`}
                                   className="rounded-lg border border-(--dash-border) bg-white px-3 py-2 text-xs"
                                 >
                                   Order #{String(line.orderId).slice(-6)} ·{" "}
                                   {line.orderType} ·{" "}
-                                  {formatCurrency(
-                                    Number(line.amountAed ?? line.amount) || 0,
-                                  )}
+                                  {formatCurrency(payoutLineAmount(line))}
                                   {typeof line.commissionPercent === "number"
                                     ? ` · ${line.commissionPercent}%`
                                     : ""}
