@@ -9,7 +9,8 @@ type ConfirmationModalProps = {
   onConfirm: () => void;
   onCancel: () => void;
   isLoading?: boolean;
-  isDanger?: boolean; // for delete actions
+  isDanger?: boolean;
+  children?: React.ReactNode;
 };
 
 export function ConfirmationModal({
@@ -22,6 +23,7 @@ export function ConfirmationModal({
   onCancel,
   isLoading = false,
   isDanger = false,
+  children,
 }: ConfirmationModalProps) {
   if (!isOpen) return null;
 
@@ -30,10 +32,13 @@ export function ConfirmationModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onCancel()}
     >
-      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100">
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full mx-4 border border-gray-100 max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <h3 className="text-lg font-medium text-black">{title}</h3>
-          <p className="mt-2 text-sm text-gray-600">{message}</p>
+          {message ? (
+            <p className="mt-2 text-sm text-gray-600">{message}</p>
+          ) : null}
+          {children}
           <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={onCancel}

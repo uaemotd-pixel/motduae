@@ -1,11 +1,10 @@
 import TailorShop from "../models/TailorShop.js";
 import CustomOrder from "../models/CustomOrder.js";
 import PlatformSettings from "../models/PlatformSettings.js";
-import PartnerPayout from "../models/PartnerPayout.js";
-import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
 import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
 import { splitMotdCommission } from "./pricingService.js";
 import { normalizePartnerLabel } from "./fabricPayoutRequestService.js";
+import { getCompletedPayoutTotals } from "./partnerPayout/settlement.js";
 
 const DEFAULT_TAILOR_COMMISSION_PERCENT = 12;
 
@@ -39,44 +38,7 @@ async function getTailorSettlement(shop) {
   if (!shop?._id) {
     return { paidByOrderId: new Map() };
   }
-  const shopId = String(shop._id);
-  const nameNorm = normalizePartnerLabel(shop.name);
-  const keys = [`tailor:${shopId}`];
-  if (nameNorm) keys.push(`tailor:name:${nameNorm}`);
-
-  const match = {
-    partnerKind: "tailor",
-    $or: [{ partnerId: shopId }, { partnerKey: { $in: keys } }],
-  };
-
-  const [payouts, credits] = await Promise.all([
-    PartnerPayout.find(match).select("amount orders").lean(),
-    PartnerPayoutCredit.find({
-      ...match,
-      "orders.0": { $exists: true },
-    })
-      .select("amount orders")
-      .lean(),
-  ]);
-
-  const paidByOrderId = new Map();
-  const addOrders = (orders) => {
-    for (const order of orders || []) {
-      const orderId = String(order.orderId || "");
-      if (!orderId) continue;
-      const amount = Number(order.amount) || 0;
-      if (amount <= 0) continue;
-      paidByOrderId.set(
-        orderId,
-        Number(((paidByOrderId.get(orderId) || 0) + amount).toFixed(2)),
-      );
-    }
-  };
-
-  for (const payout of payouts) addOrders(payout.orders);
-  for (const credit of credits) addOrders(credit.orders);
-
-  return { paidByOrderId };
+  return getCompletedPayoutTotals(String(shop._id), "tailor");
 }
 
 function isPayoutEligibleOrder(order) {

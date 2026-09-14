@@ -20,15 +20,17 @@ import {
 import { markCustomTailorReady, presentCustomOrderForTailor } from "../services/shipmentService.js";
 import { getTimeframeWindow } from "../utils/dateRange.js";
 import { splitMotdCommission } from "../services/pricingService.js";
-import PartnerPayout from "../models/PartnerPayout.js";
-import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
 import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
 import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
 import {
   createNotification,
-  ensurePartnerPayoutReleasedNotification,
 } from "../services/notificationService.js";
-import { computeTailorUnpaidBreakdown } from "../services/tailorPayoutRequestService.js";
+import { getCompletedPayoutTotals, PartnerPayoutError } from "../services/partnerPayout/index.js";
+import {
+  createPartnerPayoutRequest,
+  deleteOwnPayoutRequest,
+  getPortalPayoutView,
+} from "../services/partnerPayout/portal.js";
 import { isShopProfileComplete, isValidShopSlug } from "../utils/shopReady.js";
 import PartnerApplication from "../models/PartnerApplication.js";
 import { normalizeSocialLinks } from "../services/partnerApplication/policy.js";
@@ -50,78 +52,14 @@ const resolveTailorCommissionPercent = (settings) => {
   return DEFAULT_TAILOR_COMMISSION_PERCENT;
 };
 
-function normalizePartnerLabel(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\u0600-\u06ff]+/gi, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
 /**
- * Paid totals for this tailor shop from admin PartnerPayout releases
- * (plus settlement credits after history deletes).
+ * Paid totals for this tailor shop from completed / processing ledger batches.
  */
 async function getTailorSettlement(shop) {
-  const shopId = String(shop._id);
-  const nameNorm = normalizePartnerLabel(shop.name);
-  const keys = [`tailor:${shopId}`];
-  if (nameNorm) keys.push(`tailor:name:${nameNorm}`);
-
-  const match = {
-    partnerKind: "tailor",
-    $or: [{ partnerId: shopId }, { partnerKey: { $in: keys } }],
-  };
-
-  const [payouts, credits] = await Promise.all([
-    PartnerPayout.find(match).select("amount orders deletedAt").lean(),
-    PartnerPayoutCredit.find({
-      ...match,
-      "orders.0": { $exists: true },
-    })
-      .select("amount orders")
-      .lean(),
-  ]);
-
-  let paidTotal = 0;
-  const paidByOrderId = new Map();
-
-  for (const payout of payouts) {
-    paidTotal += Number(payout.amount) || 0;
-    for (const order of payout.orders || []) {
-      const orderId = String(order.orderId || "");
-      if (!orderId) continue;
-      paidByOrderId.set(
-        orderId,
-        Number(
-          (
-            (paidByOrderId.get(orderId) || 0) + (Number(order.amount) || 0)
-          ).toFixed(2),
-        ),
-      );
-    }
+  if (!shop?._id) {
+    return { paidTotal: 0, paidByOrderId: new Map() };
   }
-
-  for (const credit of credits) {
-    paidTotal += Number(credit.amount) || 0;
-    for (const order of credit.orders || []) {
-      const orderId = String(order.orderId || "");
-      if (!orderId) continue;
-      paidByOrderId.set(
-        orderId,
-        Number(
-          (
-            (paidByOrderId.get(orderId) || 0) + (Number(order.amount) || 0)
-          ).toFixed(2),
-        ),
-      );
-    }
-  }
-
-  return {
-    paidTotal: Number(paidTotal.toFixed(2)),
-    paidByOrderId,
-  };
+  return getCompletedPayoutTotals(String(shop._id), "tailor");
 }
 
 const SHOP_FIELDS = [
@@ -943,182 +881,100 @@ tailorPortalRouter.get(
 
 // ==========================================
 // GET /api/tailor/payout-requests
-// ==========================================
 tailorPortalRouter.get(
   "/payout-requests",
   expressAsyncHandler(async (req, res) => {
-    const breakdown = await computeTailorUnpaidBreakdown(req.user._id);
-
-    // Heal stale pending requests after a manual admin release (no request approve).
-    if (breakdown.pendingRequest && breakdown.amount <= 0) {
-      const staleRequests = await PartnerPayoutRequest.find({
-        partnerKind: "tailor",
-        status: "pending",
-        $or: [
-          { partnerKey: breakdown.identity.partnerKey },
-          { requestedBy: req.user._id },
-        ],
-      });
-
-      for (const requestDoc of staleRequests) {
-        requestDoc.status = "approved";
-        requestDoc.reviewedAt = new Date();
-        requestDoc.adminNote = "Fulfilled by payment release";
-        await requestDoc.save();
-
-        await ensurePartnerPayoutReleasedNotification({
-          partnerKind: "tailor",
-          amount: requestDoc.amount,
-          partnerKey: requestDoc.partnerKey,
-          partnerId: requestDoc.partnerId,
-          recipientUserId: requestDoc.requestedBy || req.user._id,
-          requestId: requestDoc._id,
-          payoutId: requestDoc.payoutId,
-          approvedRequest: true,
-        });
-      }
-
-      breakdown.pendingRequest = null;
-    }
-
+    const view = await getPortalPayoutView(req.user._id, "tailor");
     const items = await PartnerPayoutRequest.find({
       partnerKind: "tailor",
       $or: [
         { requestedBy: req.user._id },
-        { partnerKey: breakdown.identity.partnerKey },
+        { partnerId: view.identity.partnerId },
+        { partnerKey: view.identity.partnerKey },
       ],
     })
       .sort({ requestedAt: -1 })
       .limit(50)
       .lean();
 
+    const settlement = view.settlement;
     res.json({
       success: true,
       currency: "AED",
-      unpaidAmount: breakdown.amount,
-      unpaidOrderCount: breakdown.orders.length,
-      pendingRequest: breakdown.pendingRequest,
-      identity: breakdown.identity,
+      unpaidAmount: settlement?.availableAed || 0,
+      unpaidOrderCount: settlement?.availableOrders?.length || 0,
+      availableAmount: settlement?.availableAed || 0,
+      availableOrderCount: settlement?.availableOrders?.length || 0,
+      pendingAmount: settlement?.pendingAed || 0,
+      pendingOrderCount: settlement?.pendingOrders?.length || 0,
+      pendingOrders: settlement?.pendingOrders || [],
+      availableOrders: settlement?.availableOrders || [],
+      processingAmount: settlement?.processingAed || 0,
+      pendingRequest: view.pendingRequest,
+      identity: view.identity,
       items,
     });
   }),
 );
 
-// ==========================================
-// POST /api/tailor/payout-requests
-// ==========================================
 tailorPortalRouter.post(
   "/payout-requests",
   expressAsyncHandler(async (req, res) => {
-    const note =
-      typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 500) : "";
-
-    const breakdown = await computeTailorUnpaidBreakdown(req.user._id);
-
-    if (!breakdown.shop) {
-      res.status(400).send({
-        message: "Create your tailor shop before requesting a payout.",
+    try {
+      const note =
+        typeof req.body?.note === "string"
+          ? req.body.note.trim().slice(0, 500)
+          : "";
+      const requestDoc = await createPartnerPayoutRequest({
+        ownerUserId: req.user._id,
+        partnerKind: "tailor",
+        note,
       });
-      return;
-    }
-
-    if (breakdown.pendingRequest) {
-      res.status(409).send({
-        message:
-          "You already have a pending payout request. Wait for MOTD to review it.",
-        pendingRequest: breakdown.pendingRequest,
+      const amountLabel = new Intl.NumberFormat("en-AE", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(requestDoc.amount);
+      await createNotification({
+        type: "tailor_payout_requested",
+        title: `Payout request — ${requestDoc.partnerName}`,
+        message: `${requestDoc.partnerName} requested AED ${amountLabel} for ${(requestDoc.orders || []).length} order${
+          (requestDoc.orders || []).length === 1 ? "" : "s"
+        }. Review it in Payments.`,
+        audience: "admin",
+        createdBy: req.user._id,
+        dedupeKey: `admin:tailor_payout_requested:${requestDoc._id}`,
       });
-      return;
+      res.status(201).json({ success: true, request: requestDoc });
+    } catch (err) {
+      if (err instanceof PartnerPayoutError) {
+        res.status(err.status).send({
+          message: err.message,
+          ...(err.pendingRequest ? { pendingRequest: err.pendingRequest } : {}),
+        });
+        return;
+      }
+      throw err;
     }
-
-    if (breakdown.amount <= 0 || breakdown.orders.length === 0) {
-      res.status(400).send({
-        message: "No unpaid payout balance available to request.",
-      });
-      return;
-    }
-
-    const { identity } = breakdown;
-    const requestDoc = await PartnerPayoutRequest.create({
-      partnerKey: identity.partnerKey,
-      partnerKind: "tailor",
-      partnerId: identity.partnerId,
-      partnerName: identity.partnerName,
-      payeeName: identity.payeeName,
-      amount: breakdown.amount,
-      currency: "AED",
-      orders: breakdown.orders.map((o) => ({
-        orderId: o.orderId,
-        orderType: o.orderType,
-        amount: o.amount,
-      })),
-      status: "pending",
-      note,
-      requestedBy: req.user._id,
-      requestedAt: new Date(),
-    });
-
-    const amountLabel = new Intl.NumberFormat("en-AE", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(breakdown.amount);
-
-    await createNotification({
-      type: "tailor_payout_requested",
-      title: `Payout request — ${identity.partnerName}`,
-      message: `${identity.partnerName} requested AED ${amountLabel} for ${breakdown.orders.length} order${
-        breakdown.orders.length === 1 ? "" : "s"
-      }. Review it in Payments.`,
-      audience: "admin",
-      createdBy: req.user._id,
-      dedupeKey: `admin:tailor_payout_requested:${requestDoc._id}`,
-    });
-
-    res.status(201).json({
-      success: true,
-      request: requestDoc,
-    });
   }),
 );
 
-// ==========================================
-// DELETE /api/tailor/payout-requests/:id
-// ==========================================
 tailorPortalRouter.delete(
   "/payout-requests/:id",
   expressAsyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const requestDoc = await PartnerPayoutRequest.findById(id);
-    if (!requestDoc) {
-      res.status(404).send({ message: "Payout request not found" });
-      return;
-    }
-
-    if (requestDoc.partnerKind !== "tailor") {
-      res.status(403).send({ message: "Not allowed to delete this request" });
-      return;
-    }
-
-    const breakdown = await computeTailorUnpaidBreakdown(req.user._id);
-    const isOwn =
-      requestDoc.partnerKey === breakdown.identity.partnerKey ||
-      String(requestDoc.requestedBy) === String(req.user._id);
-
-    if (!isOwn) {
-      res.status(403).send({ message: "Not allowed to delete this request" });
-      return;
-    }
-
-    if (requestDoc.status === "pending") {
-      res.status(400).send({
-        message:
-          "Pending requests cannot be deleted. Wait for MOTD to review them.",
+    try {
+      await deleteOwnPayoutRequest({
+        requestId: req.params.id,
+        ownerUserId: req.user._id,
+        partnerKind: "tailor",
       });
-      return;
+      res.send({ success: true, message: "Request deleted", id: String(req.params.id) });
+    } catch (err) {
+      if (err instanceof PartnerPayoutError) {
+        res.status(err.status).send({ message: err.message });
+        return;
+      }
+      throw err;
     }
-
-    await requestDoc.deleteOne();
-    res.send({ success: true, message: "Request deleted", id: String(id) });
   }),
 );
 

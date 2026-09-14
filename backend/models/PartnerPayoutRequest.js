@@ -66,6 +66,11 @@ const partnerPayoutRequestSchema = new mongoose.Schema(
       required: true,
       min: 0.01,
     },
+    amountFils: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     currency: {
       type: String,
       default: "AED",
@@ -114,7 +119,7 @@ const partnerPayoutRequestSchema = new mongoose.Schema(
     },
     payoutId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "PartnerPayout",
+      ref: "PartnerPayoutBatch",
       default: null,
     },
   },

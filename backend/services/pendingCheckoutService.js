@@ -13,6 +13,17 @@ import {
   resolveStripePaymentMethod,
   retrieveStripePaymentIntent,
 } from "./stripeService.js";
+import { onPaymentCaptured } from "./partnerPayout/index.js";
+
+async function recordPartnerEarnings(order, orderType, paymentIntentId) {
+  if (!order?._id) return;
+  await onPaymentCaptured({
+    order,
+    orderType,
+    provider: "stripe",
+    providerPaymentId: paymentIntentId,
+  });
+}
 
 export async function savePendingCheckout({
   paymentIntentId,
@@ -129,6 +140,11 @@ export async function fulfillPaidCheckout({
       orderId: existing.order._id,
       fulfilledBy,
     });
+    await recordPartnerEarnings(
+      existing.order,
+      existing.orderType,
+      paymentIntentId,
+    );
     return {
       ...existing,
       created: false,
@@ -216,6 +232,12 @@ export async function fulfillPaidCheckout({
       orderId: result.order._id,
       fulfilledBy,
     });
+
+    await recordPartnerEarnings(
+      result.order,
+      pending.orderType,
+      paymentIntentId,
+    );
 
     return {
       orderType: pending.orderType,
