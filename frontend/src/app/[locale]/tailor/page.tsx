@@ -132,6 +132,11 @@ interface TailorPayoutRequestsResponse {
   currency: string;
   unpaidAmount: number;
   unpaidOrderCount: number;
+  availableAmount?: number;
+  availableOrderCount?: number;
+  pendingAmount?: number;
+  pendingOrderCount?: number;
+  pendingOrders?: Array<{ orderId: string; remainingAed?: number }>;
   pendingRequest: TailorPayoutRequestSummary | null;
   items: TailorPayoutRequestSummary[];
 }
@@ -151,6 +156,11 @@ export default function TailorDashboardPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [unpaidAmount, setUnpaidAmount] = useState(0);
   const [unpaidOrderCount, setUnpaidOrderCount] = useState(0);
+  const [pendingAmount, setPendingAmount] = useState(0);
+  const [pendingOrderCount, setPendingOrderCount] = useState(0);
+  const [pendingOrders, setPendingOrders] = useState<
+    Array<{ orderId: string; remainingAed?: number }>
+  >([]);
   const [pendingRequest, setPendingRequest] =
     useState<TailorPayoutRequestSummary | null>(null);
   const [requestHistory, setRequestHistory] = useState<
@@ -174,8 +184,13 @@ export default function TailorDashboardPage() {
       const res = await api.get<TailorPayoutRequestsResponse>(
         `/api/tailor/payout-requests?t=${Date.now()}`,
       );
-      setUnpaidAmount(Number(res.unpaidAmount) || 0);
-      setUnpaidOrderCount(Number(res.unpaidOrderCount) || 0);
+      setUnpaidAmount(Number(res.availableAmount ?? res.unpaidAmount) || 0);
+      setUnpaidOrderCount(
+        Number(res.availableOrderCount ?? res.unpaidOrderCount) || 0,
+      );
+      setPendingAmount(Number(res.pendingAmount) || 0);
+      setPendingOrderCount(Number(res.pendingOrderCount) || 0);
+      setPendingOrders(Array.isArray(res.pendingOrders) ? res.pendingOrders : []);
       setPendingRequest(res.pendingRequest || null);
       setRequestHistory(Array.isArray(res.items) ? res.items : []);
     } catch (err) {
@@ -613,6 +628,7 @@ export default function TailorDashboardPage() {
             {t("designsCardTitle")}
           </Link>
         </div>
+        <div className="flex w-full max-w-lg flex-col gap-2">
         <button
           type="button"
           disabled={
@@ -626,18 +642,20 @@ export default function TailorDashboardPage() {
             setRequestSuccess(null);
             setShowRequestConfirm(true);
           }}
-          className="inline-flex items-center gap-2 rounded-xl bg-(--dash-charcoal) px-4 py-2.5 text-sm text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex w-full items-center justify-center gap-2 bg-black px-4 py-3 text-[10px] uppercase tracking-[0.22em] text-white transition hover:bg-[#2A2A28] disabled:cursor-not-allowed disabled:opacity-40 whitespace-nowrap [font-family:var(--font-ui)]"
         >
           <Banknote className="h-4 w-4" />
           {pendingRequest ? t("requestPayoutPending") : t("requestPayoutCta")}
         </button>
+        </div>
       </div>
 
       {(requestError ||
         requestSuccess ||
         pendingRequest ||
-        unpaidAmount > 0) && (
-        <div className="rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) px-4 py-3 text-sm">
+        unpaidAmount > 0 ||
+        pendingAmount > 0) && (
+        <div className="border border-(--color-border) bg-white px-4 py-3 text-sm">
           {requestError ? (
             <p className="text-rose-700">{requestError}</p>
           ) : null}
@@ -645,7 +663,7 @@ export default function TailorDashboardPage() {
             <p className="text-emerald-700">{requestSuccess}</p>
           ) : null}
           {pendingRequest ? (
-            <p className="text-(--dash-muted)">
+            <p className="text-(--color-grey-muted)">
               {t("requestPayoutPendingDetail", {
                 amount: formatKpiCurrency(Number(pendingRequest.amount) || 0),
                 date: pendingRequest.requestedAt
@@ -653,14 +671,39 @@ export default function TailorDashboardPage() {
                   : "—",
               })}
             </p>
-          ) : unpaidAmount > 0 ? (
-            <p className="text-(--dash-muted)">
-              {t("requestPayoutAvailable", {
-                amount: formatKpiCurrency(unpaidAmount),
-                count: unpaidOrderCount,
-              })}
-            </p>
-          ) : null}
+          ) : (
+            <div className="space-y-1 text-(--color-grey-muted)">
+              {unpaidAmount > 0 ? (
+                <p>
+                  {t("requestPayoutAvailable", {
+                    amount: formatKpiCurrency(unpaidAmount),
+                    count: unpaidOrderCount,
+                  })}
+                </p>
+              ) : null}
+              {pendingAmount > 0 ? (
+                <div>
+                  <p>
+                    {t("requestPayoutAwaiting", {
+                      amount: formatKpiCurrency(pendingAmount),
+                      count: pendingOrderCount,
+                    })}
+                  </p>
+                  {pendingOrders.length > 0 ? (
+                    <p className="mt-1 text-xs">
+                      {pendingOrders
+                        .slice(0, 8)
+                        .map((row) => `#${String(row.orderId).slice(-6)}`)
+                        .join(" · ")}
+                      {pendingOrders.length > 8
+                        ? ` · +${pendingOrders.length - 8}`
+                        : ""}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
       )}
 

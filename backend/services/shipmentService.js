@@ -24,6 +24,7 @@ import {
   notifyCustomStatusChange,
   notifyRetailStatusChange,
 } from "./notificationService.js";
+import { maybeMarkEarningsAvailable } from "./partnerPayout/index.js";
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 
@@ -679,6 +680,7 @@ async function applyOrderStatusAggregation(order, orderKind, changedBy = null) {
 
     await order.save();
     await notifyCustomStatusChange(order, next, changedBy);
+    await maybeMarkEarningsAvailable(order, "custom");
     return { changed: true, status: next };
   }
 
@@ -699,6 +701,7 @@ async function applyOrderStatusAggregation(order, orderKind, changedBy = null) {
   );
   await order.save();
   await notifyRetailStatusChange(order, next, changedBy);
+  await maybeMarkEarningsAvailable(order, "retail");
   return { changed: true, status: next };
 }
 

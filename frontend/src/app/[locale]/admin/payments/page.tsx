@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api/client";
 import {
   Activity,
@@ -27,65 +27,99 @@ import TimeframePills from "@/components/dashboard/TimeframePills";
 import StatCard from "@/components/dashboard/StatCard";
 import { type DashAccent } from "@/components/dashboard/palette";
 import { TableSkeleton } from "@/components/ui/Skeleton";
-import { splitFabricCommission } from "@/lib/fabricCommission";
 import toast from "react-hot-toast";
-
-/** Courier partner — fixed platform shipping company. */
-const SHIPPING_COMPANY_NAME = "SHIPAA";
 
 type PartnerPayoutKind = "tailor" | "fabric" | "shipping";
 
-interface PartnerPaidSummary {
-  paid: number;
-  releaseCount: number;
-  lastReleasedAt?: string;
-  byOrderId?: Record<string, number>;
+interface SettlementOrderLine {
+  earningId: string;
+  orderId: string;
+  orderType: string;
+  remainingFils: number;
+  remainingAed: number;
+  amount: number;
+  netFils: number;
+  netAed: number;
+  grossFils: number;
+  grossAed: number;
+  commissionFils: number;
+  commissionAed: number;
+  commissionPercent: number;
+  availableAt?: string | null;
+  status: string;
+}
+
+interface PartnerSettlement {
+  partnerId: string;
+  partnerKind: PartnerPayoutKind;
+  partnerName: string;
+  payeeName?: string;
+  availableFils: number;
+  availableAed: number;
+  pendingFils: number;
+  pendingAed: number;
+  processingFils: number;
+  processingAed: number;
+  paidFils: number;
+  paidAed: number;
+  availableOrders: SettlementOrderLine[];
+  pendingOrders: SettlementOrderLine[];
+  contact?: string;
+  email?: string;
+  city?: string;
+  location?: string;
+  pickup?: string;
+}
+
+interface PayoutOrderLine {
+  earningId?: string;
+  orderId: string;
+  orderType: string;
+  amount: number;
+  amountFils?: number;
+  amountAed?: number;
+  commissionPercent?: number;
+}
+
+interface PayoutLine extends PayoutOrderLine {
+  earningId: string;
+  amountFils: number;
+  amountAed: number;
+  commissionPercent: number;
 }
 
 interface PartnerPayoutTransaction {
   _id: string;
-  partnerKey: string;
+  partnerId: string;
   partnerKind: PartnerPayoutKind;
   partnerName: string;
   payeeName?: string;
   amount: number;
+  amountAed?: number;
+  amountFils?: number;
   currency?: string;
-  orders?: Array<{
-    orderId: string;
-    orderType: string;
-    amount: number;
-  }>;
+  status?: string;
+  bankRef?: string;
   note?: string;
   releasedAt: string;
   releasedBy?: { _id?: string; name?: string; email?: string } | string;
+  lines?: PayoutLine[];
+  orders?: PayoutOrderLine[];
 }
 
-interface PartnerShareBreakdown {
-  gross: number;
-  commission: number;
-  net: number;
-  percent: number;
-  customGross?: number;
-  retailGross?: number;
-}
-
-interface OrderBreakdownLine {
-  orderId: string;
-  channel: string;
-  /** Original partner net for this order (before prior releases). */
-  amount: number;
-  /** Still unpaid after prior releases for this partner+order. */
-  remaining?: number;
-  gross: number;
-  commission: number;
-  percent: number;
-  meta?: string;
-  pickup?: string;
-  deliveryLines?: any[];
-  shippingLabel?: string;
-  /** Purchased custom-order add-ons attributed to this fabric payout line. */
-  addOnsTotal?: number;
-  addOnsLabel?: string;
+interface FifoPreview {
+  amountFils: number;
+  amountAed: number;
+  lines: Array<{
+    earningId: string;
+    orderId: string;
+    orderType: string;
+    amountFils: number;
+    amountAed: number;
+    remainingAfterFils: number;
+    remainingAfterAed: number;
+    commissionPercent: number;
+  }>;
 }
 
 interface DashboardStats {
@@ -93,35 +127,20 @@ interface DashboardStats {
   retail?: { orderCount: number; revenue: number; growth?: number };
   custom?: { orderCount: number; revenue: number; growth?: number };
   partnerShares?: {
-    tailor: PartnerShareBreakdown;
-    fabricStore: PartnerShareBreakdown;
-    shipping?: {
-      gross: number;
-      net: number;
-      customGross?: number;
-      retailGross?: number;
-    };
-    motdKeeps: number;
+    tailor?: { net?: number; commission?: number };
+    fabricStore?: { net?: number; commission?: number };
+    motdKeeps?: number;
     motdEarnings?: number;
   };
 }
 
 type PayoutStatStatus = "pending" | "approved";
 
-type ReleaseConfirmRow = {
-  key: string;
-  kind: PartnerPayoutKind;
-  name: string;
-  payeeName: string;
-  ids: Set<string>;
-  remaining: number;
-  orders: OrderBreakdownLine[];
-};
-
 interface FabricPayoutRequestItem {
   _id: string;
   partnerKey: string;
   partnerKind: PartnerPayoutKind;
+  partnerId?: string;
   partnerName: string;
   payeeName?: string;
   amount: number;
@@ -139,6 +158,17 @@ interface FabricPayoutRequestItem {
   requestedBy?: { _id?: string; name?: string; email?: string } | string;
 }
 
+function payoutLineAmount(line: PayoutOrderLine) {
+  return Number(line.amountAed ?? line.amount) || 0;
+}
+
+function newIdempotencyKey() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `payout-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 export default function AdminPaymentsPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -147,25 +177,22 @@ export default function AdminPaymentsPage() {
     "month",
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const [pricingOrders, setPricingOrders] = useState<any[]>([]);
-  const [pricingLoading, setPricingLoading] = useState(true);
   const [pricingSearch, setPricingSearch] = useState("");
   const [expandedPartnerKey, setExpandedPartnerKey] = useState<string | null>(
     null,
   );
-  const [paidByPartnerKey, setPaidByPartnerKey] = useState<
-    Record<string, PartnerPaidSummary>
-  >({});
+  const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
+  const [partners, setPartners] = useState<PartnerSettlement[]>([]);
+  const [settlementLoading, setSettlementLoading] = useState(true);
   const [transactions, setTransactions] = useState<PartnerPayoutTransaction[]>(
     [],
   );
   const [releasingKey, setReleasingKey] = useState<string | null>(null);
-  const [releaseConfirmRow, setReleaseConfirmRow] =
-    useState<ReleaseConfirmRow | null>(null);
-  const [deleteConfirmTx, setDeleteConfirmTx] =
-    useState<PartnerPayoutTransaction | null>(null);
-  const [deletingTxId, setDeletingTxId] = useState<string | null>(null);
+  const [releaseConfirm, setReleaseConfirm] = useState<{
+    partner: PartnerSettlement;
+    preview: FifoPreview;
+    idempotencyKey: string;
+  } | null>(null);
   const [payoutRequests, setPayoutRequests] = useState<
     FabricPayoutRequestItem[]
   >([]);
@@ -183,6 +210,14 @@ export default function AdminPaymentsPage() {
   const [deletingRequestId, setDeletingRequestId] = useState<string | null>(
     null,
   );
+  const [completeConfirm, setCompleteConfirm] =
+    useState<PartnerPayoutTransaction | null>(null);
+  const [completeBankRef, setCompleteBankRef] = useState("");
+  const [completeKey, setCompleteKey] = useState("");
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [cancelConfirm, setCancelConfirm] =
+    useState<PartnerPayoutTransaction | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const fetchStats = async (
     mode: "initial" | "refresh" | "silent" = "initial",
@@ -208,49 +243,25 @@ export default function AdminPaymentsPage() {
     fetchStats("initial");
   }, [timeframe]);
 
-  const fetchPricingOrders = async () => {
+  const fetchSettlement = async () => {
     try {
-      setPricingLoading(true);
-      const [customData, retailData] = await Promise.all([
-        api.get<any>("/api/admin/orders/custom"),
-        api.get<any>("/api/admin/orders/retail?limit=500"),
-      ]);
-      const customItems = (
-        Array.isArray(customData) ? customData : customData.items || []
-      ).map((order: any) => ({
-        ...order,
-        channel: "custom" as const,
-      }));
-      const retailItems = (
-        Array.isArray(retailData) ? retailData : retailData.items || []
-      ).map((order: any) => ({
-        ...order,
-        channel: "retail" as const,
-      }));
-      const merged = [...customItems, ...retailItems].sort((a, b) => {
-        const at = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const bt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return bt - at;
-      });
-      setPricingOrders(merged);
+      setSettlementLoading(true);
+      const data = await api.get<{ partners?: PartnerSettlement[] }>(
+        `/api/admin/partner-settlement?t=${Date.now()}`,
+      );
+      setPartners(Array.isArray(data.partners) ? data.partners : []);
     } catch (err) {
-      console.error("Pricing fetch error:", err);
+      console.error("Settlement fetch error:", err);
     } finally {
-      setPricingLoading(false);
+      setSettlementLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchPricingOrders();
-  }, []);
-
   const fetchPartnerPayouts = async () => {
     try {
-      const data = await api.get<{
-        items?: PartnerPayoutTransaction[];
-        paidByPartnerKey?: Record<string, PartnerPaidSummary>;
-      }>("/api/admin/partner-payouts");
-      setPaidByPartnerKey(data.paidByPartnerKey || {});
+      const data = await api.get<{ items?: PartnerPayoutTransaction[] }>(
+        "/api/admin/partner-payouts",
+      );
       setTransactions(Array.isArray(data.items) ? data.items : []);
     } catch (err) {
       console.error("Partner payouts fetch error:", err);
@@ -271,6 +282,7 @@ export default function AdminPaymentsPage() {
   };
 
   useEffect(() => {
+    fetchSettlement();
     fetchPartnerPayouts();
     fetchPayoutRequests();
   }, []);
@@ -280,7 +292,7 @@ export default function AdminPaymentsPage() {
     try {
       await Promise.all([
         fetchStats("silent"),
-        fetchPricingOrders(),
+        fetchSettlement(),
         fetchPartnerPayouts(),
         fetchPayoutRequests(),
       ]);
@@ -293,12 +305,21 @@ export default function AdminPaymentsPage() {
     if (!request?._id || reviewingRequestId) return;
     try {
       setReviewingRequestId(request._id);
-      await api.post(`/api/admin/payout-requests/${request._id}/approve`, {});
+      await api.post(
+        `/api/admin/payout-requests/${request._id}/approve`,
+        {},
+        { "Idempotency-Key": `payout:request:${request._id}` },
+      );
       setApproveConfirmRequest(null);
-      await Promise.all([fetchPayoutRequests(), fetchPartnerPayouts()]);
+      await Promise.all([
+        fetchPayoutRequests(),
+        fetchPartnerPayouts(),
+        fetchSettlement(),
+      ]);
+      toast.success("Request approved. Complete the bank transfer, then mark the payment as paid.");
     } catch (err: any) {
       console.error("Approve payout request error:", err);
-      toast.error(err?.message || "Failed to approve payout request.");
+      toast.error(err?.message || "Unable to approve this request. Please try again.");
     } finally {
       setReviewingRequestId(null);
     }
@@ -315,7 +336,7 @@ export default function AdminPaymentsPage() {
       await fetchPayoutRequests();
     } catch (err: any) {
       console.error("Reject payout request error:", err);
-      toast.error(err?.message || "Failed to reject payout request.");
+      toast.error(err?.message || "Unable to decline this request. Please try again.");
     } finally {
       setReviewingRequestId(null);
     }
@@ -329,580 +350,10 @@ export default function AdminPaymentsPage() {
       setDeleteConfirmRequest(null);
       await fetchPayoutRequests();
     } catch (err: any) {
-      console.error("Delete payout request error:", err);
-      toast.error(err?.message || "Failed to delete payout request.");
+      toast.error(err?.message || "Unable to delete this request. Please try again.");
     } finally {
       setDeletingRequestId(null);
     }
-  };
-
-  const formatPickupAddress = (addr: any) => {
-    if (!addr || typeof addr !== "object") return "";
-    return [
-      addr.fullName,
-      addr.phone,
-      addr.line1,
-      addr.line2,
-      addr.city,
-      addr.emirate,
-    ]
-      .map((part) => String(part || "").trim())
-      .filter(Boolean)
-      .join(" · ");
-  };
-
-  const isRetailOrder = (order: any) =>
-    order?.channel === "retail" ||
-    order?.orderType === "retail" ||
-    (Array.isArray(order?.orderItems) &&
-      !Array.isArray(order?.items) &&
-      order?.orderType !== "custom");
-
-  const getDeliveryBreakdown = (order: any) => {
-    if (Array.isArray(order?.pricing?.deliveryBreakdown)) {
-      return order.pricing.deliveryBreakdown;
-    }
-    if (Array.isArray(order?.deliveryBreakdown)) {
-      return order.deliveryBreakdown;
-    }
-    return [];
-  };
-
-  /** Shipaa payout = billable delivery legs (what Admin sees), with safe fallbacks. */
-  const getOrderShippingFee = (order: any) => {
-    const breakdown = getDeliveryBreakdown(order);
-    if (breakdown.length > 0) {
-      const sum = breakdown.reduce((total: number, line: any) => {
-        if (line?.billable === false) return total;
-        return total + (Number(line?.fee) || 0);
-      }, 0);
-      return Number(sum.toFixed(2));
-    }
-
-    const parcelCount =
-      Number(order?.pricing?.parcelCount ?? order?.parcelCount) || 0;
-    const perParcel = Number(
-      order?.pricing?.perParcelFee ?? order?.perParcelFee,
-    );
-    if (parcelCount > 0 && Number.isFinite(perParcel) && perParcel >= 0) {
-      return Number((parcelCount * perParcel).toFixed(2));
-    }
-
-    if (isRetailOrder(order)) {
-      return Number(order?.shippingPrice) || 0;
-    }
-    return Number(order?.pricing?.deliveryFee) || 0;
-  };
-
-  const isPayoutEligibleOrder = (order: any) => {
-    if (order?.isPaid === false) return false;
-    const status = String(order?.status || "").toLowerCase();
-    if (status === "cancelled" || status === "refund_processed") return false;
-    return true;
-  };
-
-  const getOrderAddonList = (order: any) => {
-    if (isRetailOrder(order)) return [];
-    if (Array.isArray(order?.addons) && order.addons.length > 0) {
-      return order.addons;
-    }
-    if (Array.isArray(order?.addOns) && order.addOns.length > 0) {
-      return order.addOns;
-    }
-    return (order?.items || []).flatMap(
-      (item: any) => item?.addons || item?.addOns || [],
-    );
-  };
-
-  const readOwnerName = (value: any) => {
-    if (!value) return "";
-    if (typeof value === "string") return value.trim();
-    if (typeof value?.ownerName === "string") return value.ownerName.trim();
-    if (typeof value?.productId?.ownerName === "string") {
-      return value.productId.ownerName.trim();
-    }
-    return "";
-  };
-
-  /** Platform / admin catalog lines — full gross stays with MOTD (no partner cut). */
-  const isMotdOwnedRetailItem = (item: any) => {
-    if (!item) return false;
-    if (item.motdOwned === true) return true;
-    if (readOwnerName(item) === "MOTD Admin") return true;
-    const shopId =
-      readPartnerId(item.fabricShopId) ||
-      readPartnerId(item.productId?.fabricShopId);
-    if (shopId) return false;
-    const kind = String(item.kind || "").toLowerCase();
-    // No shop on add-on / ready-made / fabric line → MOTD keeps it.
-    return kind === "addon" || kind === "readymade" || kind === "fabric" || !kind;
-  };
-
-  const isMotdOwnedCustomAddon = (addon: any) => {
-    if (!addon) return false;
-    if (readOwnerName(addon) === "MOTD Admin") return true;
-    const shopId =
-      readPartnerId(addon.fabricShopId) ||
-      readPartnerId(addon.fabricShop) ||
-      readPartnerId(addon.fabricShop?.shopId);
-    return !shopId;
-  };
-
-  const sumAddonList = (list: any) => {
-    if (!Array.isArray(list) || list.length === 0) return 0;
-    return list.reduce(
-      (sum: number, addOn: any) => sum + (Number(addOn?.price) || 0),
-      0,
-    );
-  };
-
-  /** Custom orders store purchased add-ons on `order.addons` (fabric-shop products). */
-  const getOrderAddOnsTotal = (order: any) => {
-    const list = getOrderAddonList(order);
-    return sumAddonList(list.filter((a: any) => !isMotdOwnedCustomAddon(a)));
-  };
-
-  const getOrderMotdOwnedAddOnsTotal = (order: any) => {
-    if (isRetailOrder(order)) return 0;
-    return sumAddonList(
-      getOrderAddonList(order).filter((a: any) => isMotdOwnedCustomAddon(a)),
-    );
-  };
-
-  const getAddonNamesLabel = (list: any[]) => {
-    const names = (list || [])
-      .map((a: any) => a?.name)
-      .filter((name: any) => typeof name === "string" && name.trim());
-    return [...new Set(names)].join(", ");
-  };
-
-  const getOrderAddOnsLabel = (order: any) =>
-    getAddonNamesLabel(
-      getOrderAddonList(order).filter((a: any) => !isMotdOwnedCustomAddon(a)),
-    );
-
-  const getOrderFees = (order: any) => {
-    const shippingFee = getOrderShippingFee(order);
-
-    if (isRetailOrder(order)) {
-      let partnerFabricFee = 0;
-      let motdOwnedGross = 0;
-      for (const item of order.orderItems || []) {
-        const line =
-          (Number(item.price) || 0) * (Number(item.quantity) || 0);
-        if (isMotdOwnedRetailItem(item)) {
-          motdOwnedGross += line;
-        } else {
-          partnerFabricFee += line;
-        }
-      }
-      return {
-        tailorFee: 0,
-        tailoringFee: 0,
-        fabricFee: partnerFabricFee,
-        shippingFee,
-        addOnsTotal: 0,
-        motdOwnedGross: Number(motdOwnedGross.toFixed(2)),
-      };
-    }
-
-    const partnerAddOnsTotal = getOrderAddOnsTotal(order);
-    const motdOwnedAddOns = getOrderMotdOwnedAddOnsTotal(order);
-    // Customer-supplied fabric (self) is MOTD revenue, not a fabric-store payout.
-    const isSelfFabric = String(order?.fabricSource || "") === "self";
-
-    if (order.items && order.items.length > 0) {
-      const fabricFee = isSelfFabric
-        ? 0
-        : order.items.reduce(
-            (sum: number, item: any) =>
-              sum + (item.pricing?.fabricCost || 0),
-            0,
-          );
-      const selfFabricGross = isSelfFabric
-        ? order.items.reduce(
-            (sum: number, item: any) =>
-              sum + (item.pricing?.fabricCost || 0),
-            0,
-          )
-        : 0;
-      return {
-        tailorFee: order.items.reduce(
-          (sum: number, item: any) => sum + (item.pricing?.designBase || 0),
-          0,
-        ),
-        tailoringFee: order.items.reduce(
-          (sum: number, item: any) =>
-            sum + (item.pricing?.tailoringFee || 0),
-          0,
-        ),
-        fabricFee,
-        shippingFee,
-        addOnsTotal: partnerAddOnsTotal,
-        motdOwnedGross: Number(
-          (selfFabricGross + motdOwnedAddOns).toFixed(2),
-        ),
-      };
-    }
-
-    const fabricFee = isSelfFabric
-      ? 0
-      : order.pricing?.fabricCost || 0;
-    const selfFabricGross = isSelfFabric
-      ? Number(order.pricing?.fabricCost) || 0
-      : 0;
-
-    return {
-      tailorFee: order.pricing?.designBase || 0,
-      tailoringFee: order.pricing?.tailoringFee || 0,
-      fabricFee,
-      shippingFee,
-      addOnsTotal: partnerAddOnsTotal,
-      motdOwnedGross: Number((selfFabricGross + motdOwnedAddOns).toFixed(2)),
-    };
-  };
-
-  const tailorCommissionPercent = stats?.partnerShares?.tailor.percent ?? 12;
-  const fabricCommissionPercent =
-    stats?.partnerShares?.fabricStore.percent ?? 15;
-
-  const getOrderShares = (order: any) => {
-    const fees = getOrderFees(order);
-    const tailorGross = fees.tailorFee + fees.tailoringFee;
-    const tailor = splitFabricCommission(tailorGross, tailorCommissionPercent);
-    // Partner fabric only (MOTD-owned catalog lines are kept in full below).
-    const fabricGross = fees.fabricFee + fees.addOnsTotal;
-    const fabric = splitFabricCommission(
-      fabricGross,
-      fabricCommissionPercent,
-    );
-
-    const shipping = {
-      gross: fees.shippingFee,
-      net: fees.shippingFee,
-      commission: 0,
-      percent: 0,
-    };
-
-    const motdOwnedGross = Number(fees.motdOwnedGross) || 0;
-    const motdEarns = Number(
-      (tailor.commission + fabric.commission + motdOwnedGross).toFixed(2),
-    );
-
-    return {
-      fees,
-      tailorGross,
-      fabricGross,
-      tailor,
-      fabric,
-      shipping,
-      motdEarns,
-      motdOwnedGross,
-      addOnsTotal: fees.addOnsTotal,
-    };
-  };
-
-  const readPartnerName = (value: any, fallback: string) => {
-    if (!value) return fallback;
-    if (typeof value === "string") return value;
-    return value.name || fallback;
-  };
-
-  const readPartnerId = (value: any) => {
-    if (!value) return "";
-    if (typeof value === "string") return value;
-    return String(value._id || value.id || value.shopId || "").trim();
-  };
-
-  const collectPartnerIds = (...values: any[]) => {
-    const ids = new Set<string>();
-    for (const value of values) {
-      if (!value) continue;
-      if (typeof value === "string" || typeof value === "number") {
-        const id = String(value).trim();
-        if (id) ids.add(id);
-        continue;
-      }
-      for (const key of ["_id", "id", "shopId", "ownerId"]) {
-        const nested = value[key];
-        if (!nested) continue;
-        if (typeof nested === "object") {
-          const nestedId = readPartnerId(nested);
-          if (nestedId) ids.add(nestedId);
-        } else {
-          const id = String(nested).trim();
-          if (id) ids.add(id);
-        }
-      }
-    }
-    return ids;
-  };
-
-  const idsOverlap = (a: Set<string>, b: Set<string>) => {
-    for (const id of a) {
-      if (b.has(id)) return true;
-    }
-    return false;
-  };
-
-  const getOrderPayees = (order: any) => {
-    const shares = getOrderShares(order);
-
-    const firstObject = (...values: any[]) =>
-      values.find((v) => v && typeof v === "object") || null;
-
-    const tailorShop = firstObject(
-      order.tailorShopId,
-      ...(order.items || []).map((item: any) => item.tailorShopId),
-    );
-    const tailorOwner =
-      tailorShop?.ownerId && typeof tailorShop.ownerId === "object"
-        ? tailorShop.ownerId
-        : null;
-    const retailFabricShops = [
-      ...(Array.isArray(order.fabricStores) ? order.fabricStores : []),
-      ...(order.orderItems || []).flatMap((item: any) => [
-        item.productId?.fabricShopId,
-        item.fabricShopId,
-      ]),
-    ].filter((shop: any) => shop && typeof shop === "object");
-
-    const fabricStore = firstObject(
-      order.fabricStoreId,
-      ...(order.items || []).map((item: any) => item.fabricStoreId),
-      ...retailFabricShops,
-    );
-
-    const shopNames = (key: "tailorShopId" | "fabricStoreId") =>
-      [
-        readPartnerName(typeof order[key] === "object" ? order[key] : null, ""),
-        ...(order.items || []).map((item: any) =>
-          readPartnerName(typeof item[key] === "object" ? item[key] : null, ""),
-        ),
-      ].filter(Boolean);
-
-    const itemDesigns = (order.items || [])
-      .map((item: any) => item.designSnapshot?.name)
-      .filter(Boolean);
-    const itemFabrics = (order.items || [])
-      .map((item: any) => item.fabricSnapshot?.name)
-      .filter(Boolean);
-    const retailProductNames = (order.orderItems || [])
-      .map((item: any) => item.name)
-      .filter(Boolean);
-
-    const tailorShopName =
-      [...new Set(shopNames("tailorShopId"))].join(", ") ||
-      tailorShop?.name ||
-      (isRetailOrder(order) ? "—" : "Tailor shop not set");
-    const retailFabricShopNames = retailFabricShops
-      .map((shop: any) => shop.shopName || shop.name)
-      .filter(Boolean);
-
-    const fabricShopName =
-      [
-        ...new Set([...shopNames("fabricStoreId"), ...retailFabricShopNames]),
-      ].join(", ") ||
-      fabricStore?.shopName ||
-      fabricStore?.name ||
-      (isRetailOrder(order) ? "Fabric store not set" : "Fabric store not set");
-
-    const parcelCount =
-      Number(order.pricing?.parcelCount || order.parcelCount) || 0;
-    const deliveryLines = getDeliveryBreakdown(order);
-
-    const primaryFabricIds = collectPartnerIds(
-      fabricStore?.shopId,
-      fabricStore,
-      fabricStore?.ownerId,
-      order.fabricStoreId,
-      ...(order.items || []).map((item: any) => item.fabricStoreId),
-      ...(order.items || []).map((item: any) => item.fabricStoreId?.shopId),
-    );
-
-    const sameStoreAddOns: any[] = [];
-    const otherStoreAddOnsByShop = new Map<
-      string,
-      {
-        shopIds: Set<string>;
-        shop: any;
-        addons: any[];
-      }
-    >();
-
-    for (const addon of getOrderAddonList(order)) {
-      // Platform / admin add-ons: full price stays with MOTD (handled via motdOwnedGross).
-      if (isMotdOwnedCustomAddon(addon)) {
-        continue;
-      }
-
-      const shop = addon?.fabricShop || null;
-      const addonShopIds = collectPartnerIds(
-        addon?.fabricShopId,
-        shop,
-        shop?.shopId,
-        shop?.ownerId,
-      );
-
-      // Partner add-on with no shop snapshot: attribute to order fabric store when present.
-      if (addonShopIds.size === 0) {
-        if (primaryFabricIds.size > 0) sameStoreAddOns.push(addon);
-        continue;
-      }
-
-      if (
-        primaryFabricIds.size > 0 &&
-        idsOverlap(primaryFabricIds, addonShopIds)
-      ) {
-        sameStoreAddOns.push(addon);
-        continue;
-      }
-
-      const groupKey =
-        readPartnerId(shop?.shopId) ||
-        readPartnerId(shop) ||
-        readPartnerId(addon?.fabricShopId) ||
-        [...addonShopIds][0] ||
-        `unknown-addon-${otherStoreAddOnsByShop.size}`;
-
-      const existing = otherStoreAddOnsByShop.get(groupKey);
-      if (existing) {
-        existing.addons.push(addon);
-        for (const id of addonShopIds) existing.shopIds.add(id);
-        continue;
-      }
-
-      otherStoreAddOnsByShop.set(groupKey, {
-        shopIds: addonShopIds,
-        shop,
-        addons: [addon],
-      });
-    }
-
-    const sameStoreAddOnsTotal = sumAddonList(sameStoreAddOns);
-    const fabricOnlyGross = shares.fees.fabricFee;
-    const primaryFabricGross = fabricOnlyGross + sameStoreAddOnsTotal;
-    const primaryFabricShare = splitFabricCommission(
-      primaryFabricGross,
-      fabricCommissionPercent,
-    );
-    const sameStoreAddOnsShare = splitFabricCommission(
-      sameStoreAddOnsTotal,
-      fabricCommissionPercent,
-    );
-
-    const separateAddOnPayees = Array.from(otherStoreAddOnsByShop.entries()).map(
-      ([key, group]) => {
-        const gross = sumAddonList(group.addons);
-        const share = splitFabricCommission(gross, fabricCommissionPercent);
-        const shop = group.shop;
-        const shopName =
-          shop?.shopName || shop?.name || "Fabric store (add-ons)";
-        return {
-          key,
-          id:
-            readPartnerId(shop?.shopId) ||
-            readPartnerId(shop) ||
-            readPartnerId(shop?.ownerId) ||
-            key,
-          shopName,
-          payeeName: shop?.ownerName || shopName,
-          phone: shop?.phone || shop?.ownerPhone || "",
-          email: shop?.ownerEmail || "",
-          city: shop?.city || "",
-          location: shop?.location || "",
-          pickup: formatPickupAddress(shop?.pickupAddress),
-          addOnsTotal: gross,
-          addOnsLabel: getAddonNamesLabel(group.addons),
-          share,
-        };
-      },
-    );
-
-    const separateAddOnsCommission = separateAddOnPayees.reduce(
-      (sum, row) => sum + (row.share.commission || 0),
-      0,
-    );
-    const motdOwnedGross = Number(shares.motdOwnedGross) || 0;
-    const motdEarns = Number(
-      (
-        shares.tailor.commission +
-        primaryFabricShare.commission +
-        separateAddOnsCommission +
-        motdOwnedGross
-      ).toFixed(2),
-    );
-
-    return {
-      shares: {
-        ...shares,
-        fabricGross: primaryFabricGross,
-        fabric: primaryFabricShare,
-        motdEarns,
-        motdOwnedGross,
-        addOnsTotal: sameStoreAddOnsTotal,
-      },
-      channel: isRetailOrder(order) ? "retail" : "custom",
-      tailor: {
-        id:
-          readPartnerId(tailorShop) || readPartnerId(order.tailorShopId) || "",
-        shopName: tailorShopName,
-        payeeName: tailorOwner?.name || tailorShop?.name || tailorShopName,
-        phone: tailorShop?.phone || tailorOwner?.phone || "",
-        email: tailorOwner?.email || "",
-        city: tailorShop?.city || "",
-        location: tailorShop?.location || "",
-        pickup: formatPickupAddress(tailorShop?.pickupAddress),
-        designs:
-          [...new Set(itemDesigns)].join(", ") ||
-          order.designSnapshot?.name ||
-          "",
-      },
-      fabric: {
-        id:
-          readPartnerId(fabricStore?.shopId) ||
-          readPartnerId(fabricStore) ||
-          readPartnerId(order.fabricStoreId) ||
-          "",
-        shopName: fabricShopName,
-        payeeName:
-          fabricStore?.ownerName ||
-          fabricStore?.shopName ||
-          fabricStore?.name ||
-          fabricShopName,
-        phone: fabricStore?.phone || fabricStore?.ownerPhone || "",
-        email: fabricStore?.ownerEmail || fabricStore?.email || "",
-        city: fabricStore?.city || "",
-        location: fabricStore?.location || "",
-        pickup: formatPickupAddress(fabricStore?.pickupAddress),
-        fabrics:
-          [...new Set([...itemFabrics, ...retailProductNames])].join(", ") ||
-          order.fabricSnapshot?.name ||
-          "",
-      },
-      shipping: {
-        id: "shipaa",
-        payeeName: SHIPPING_COMPANY_NAME,
-        companyName: SHIPPING_COMPANY_NAME,
-        parcelCount,
-        deliveryLines,
-        label:
-          parcelCount > 0
-            ? `${parcelCount} parcel${parcelCount === 1 ? "" : "s"}`
-            : deliveryLines.length > 0
-              ? `${deliveryLines.length} delivery leg${
-                  deliveryLines.length === 1 ? "" : "s"
-                }`
-              : "Courier delivery",
-      },
-      addOns: {
-        total: sameStoreAddOnsTotal,
-        label: getAddonNamesLabel(sameStoreAddOns),
-        commission: sameStoreAddOnsShare.commission,
-        toFabric: sameStoreAddOnsShare.net,
-      },
-      separateAddOnPayees,
-    };
   };
 
   const partnerKindLabel = (kind: PartnerPayoutKind) =>
@@ -912,521 +363,109 @@ export default function AdminPaymentsPage() {
         ? "Fabric store"
         : "Shipping company";
 
-  const allPartnerPayoutRows = useMemo(() => {
-    type PartnerRow = {
-      key: string;
-      kind: PartnerPayoutKind;
-      name: string;
-      payeeName: string;
-      contact: string;
-      email: string;
-      city: string;
-      location: string;
-      pickup: string;
-      orderCount: number;
-      due: number;
-      ids: Set<string>;
-      orders: OrderBreakdownLine[];
-    };
-
-    const map = new Map<string, PartnerRow>();
-
-    const normalizePartnerLabel = (value: string) =>
-      String(value || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9\u0600-\u06ff]+/gi, " ")
-        .trim()
-        .replace(/\s+/g, " ");
-
-    const isPlaceholderName = (value: string) => {
-      const norm = normalizePartnerLabel(value);
-      return (
-        !norm ||
-        norm === "-" ||
-        norm === "tailor shop not set" ||
-        norm === "fabric store not set"
-      );
-    };
-
-    const findExisting = (
-      kind: PartnerPayoutKind,
-      id: string,
-      name: string,
-      payeeName: string,
-      placeholder: boolean,
-    ) => {
-      const nameNorm = normalizePartnerLabel(name);
-      const payeeNorm = normalizePartnerLabel(payeeName);
-      for (const row of map.values()) {
-        if (row.kind !== kind) continue;
-        if (id && row.ids.has(id)) return row;
-        if (placeholder) continue;
-        const rowNameNorm = normalizePartnerLabel(row.name);
-        const rowPayeeNorm = normalizePartnerLabel(row.payeeName);
-        if (
-          (nameNorm &&
-            (rowNameNorm === nameNorm || rowPayeeNorm === nameNorm)) ||
-          (payeeNorm &&
-            (rowNameNorm === payeeNorm || rowPayeeNorm === payeeNorm))
-        ) {
-          return row;
-        }
-      }
-      return undefined;
-    };
-
-    const bump = (
-      kind: PartnerPayoutKind,
-      id: string,
-      name: string,
-      payeeName: string,
-      contact: string,
-      email: string,
-      city: string,
-      location: string,
-      pickup: string,
-      amount: number,
-      orderLine: OrderBreakdownLine,
-    ) => {
-      if (amount <= 0) return;
-      const displayName = name || payeeName;
-      const placeholder = isPlaceholderName(displayName);
-      const existing = findExisting(
-        kind,
-        id,
-        displayName,
-        payeeName,
-        placeholder,
-      );
-
-      if (existing) {
-        existing.due += amount;
-        existing.orderCount += 1;
-        existing.orders.push(orderLine);
-        if (id) existing.ids.add(id);
-        if (contact && !existing.contact) existing.contact = contact;
-        if (email && !existing.email) existing.email = email;
-        if (city && !existing.city) existing.city = city;
-        if (location && !existing.location) existing.location = location;
-        if (pickup && !existing.pickup) existing.pickup = pickup;
-        if (!isPlaceholderName(name) && name.length >= existing.name.length) {
-          existing.name = name;
-        }
-        if (payeeName && payeeName !== existing.name && !existing.payeeName) {
-          existing.payeeName = payeeName;
-        }
-        return;
-      }
-
-      const nameNorm = normalizePartnerLabel(displayName);
-      const key =
-        kind === "shipping"
-          ? `${kind}:shipaa`
-          : !placeholder && nameNorm
-            ? `${kind}:name:${nameNorm}`
-            : `${kind}:${id || `unknown-${map.size}`}`;
-
-      map.set(key, {
-        key,
-        kind,
-        name: displayName,
-        payeeName,
-        contact,
-        email,
-        city,
-        location,
-        pickup,
-        orderCount: 1,
-        due: amount,
-        ids: new Set(id ? [id] : []),
-        orders: [orderLine],
-      });
-    };
-
-    for (const order of pricingOrders) {
-      if (!isPayoutEligibleOrder(order)) continue;
-      const payees = getOrderPayees(order);
-      const orderId = String(order._id || "");
-
-      bump(
-        "tailor",
-        payees.tailor.id,
-        payees.tailor.shopName,
-        payees.tailor.payeeName,
-        payees.tailor.phone,
-        payees.tailor.email,
-        payees.tailor.city,
-        payees.tailor.location,
-        payees.tailor.pickup,
-        payees.shares.tailor.net,
-        {
-          orderId,
-          channel: payees.channel,
-          amount: payees.shares.tailor.net,
-          gross: payees.shares.tailorGross,
-          commission: payees.shares.tailor.commission,
-          percent: tailorCommissionPercent,
-          meta: payees.tailor.designs || undefined,
-          pickup: payees.tailor.pickup || undefined,
-        },
-      );
-      bump(
-        "fabric",
-        payees.fabric.id,
-        payees.fabric.shopName,
-        payees.fabric.payeeName,
-        payees.fabric.phone,
-        payees.fabric.email,
-        payees.fabric.city,
-        payees.fabric.location,
-        payees.fabric.pickup,
-        payees.shares.fabric.net,
-        {
-          orderId,
-          channel: payees.channel,
-          amount: payees.shares.fabric.net,
-          gross: payees.shares.fabricGross,
-          commission: payees.shares.fabric.commission,
-          percent: fabricCommissionPercent,
-          meta: payees.fabric.fabrics || undefined,
-          pickup: payees.fabric.pickup || undefined,
-          addOnsTotal: payees.addOns.total || undefined,
-          addOnsLabel: payees.addOns.label || undefined,
-        },
-      );
-
-      for (const addonPayee of payees.separateAddOnPayees || []) {
-        bump(
-          "fabric",
-          addonPayee.id,
-          addonPayee.shopName,
-          addonPayee.payeeName,
-          addonPayee.phone,
-          addonPayee.email,
-          addonPayee.city,
-          addonPayee.location,
-          addonPayee.pickup,
-          addonPayee.share.net,
-          {
-            orderId,
-            channel: payees.channel,
-            amount: addonPayee.share.net,
-            gross: addonPayee.share.gross,
-            commission: addonPayee.share.commission,
-            percent: fabricCommissionPercent,
-            meta: "Add-ons only",
-            pickup: addonPayee.pickup || undefined,
-            addOnsTotal: addonPayee.addOnsTotal || undefined,
-            addOnsLabel: addonPayee.addOnsLabel || undefined,
-          },
-        );
-      }
-
-      bump(
-        "shipping",
-        payees.shipping.id,
-        payees.shipping.companyName,
-        payees.shipping.payeeName,
-        SHIPPING_COMPANY_NAME,
-        "",
-        "",
-        "",
-        "",
-        payees.shares.shipping.net,
-        {
-          orderId,
-          channel: payees.channel,
-          amount: payees.shares.shipping.net,
-          gross: payees.shares.shipping.gross,
-          commission: 0,
-          percent: 0,
-          shippingLabel: payees.shipping.label,
-          deliveryLines: payees.shipping.deliveryLines,
-        },
-      );
+  const payoutStatusLabel = (status?: string) => {
+    switch (status) {
+      case "processing":
+        return "In progress";
+      case "completed":
+        return "Completed";
+      case "cancelled":
+        return "Cancelled";
+      case "failed":
+        return "Failed";
+      case "approved":
+        return "Approved";
+      case "rejected":
+        return "Declined";
+      case "pending":
+        return "Pending";
+      default:
+        return status || "Completed";
     }
+  };
 
-    const kindOrder: Record<PartnerPayoutKind, number> = {
-      tailor: 0,
-      fabric: 1,
-      shipping: 2,
-    };
-
-    const resolvePaidSummary = (row: PartnerRow): PartnerPaidSummary => {
-      const merged: PartnerPaidSummary = {
-        paid: 0,
-        releaseCount: 0,
-        lastReleasedAt: undefined,
-        byOrderId: {},
-      };
-
-      const absorb = (summary?: PartnerPaidSummary) => {
-        if (!summary) return;
-        merged.paid = Number(
-          ((Number(merged.paid) || 0) + (Number(summary.paid) || 0)).toFixed(2),
-        );
-        merged.releaseCount += Number(summary.releaseCount) || 0;
-        if (
-          summary.lastReleasedAt &&
-          (!merged.lastReleasedAt ||
-            new Date(summary.lastReleasedAt) >
-              new Date(merged.lastReleasedAt))
-        ) {
-          merged.lastReleasedAt = summary.lastReleasedAt;
-        }
-        for (const [orderId, amount] of Object.entries(
-          summary.byOrderId || {},
-        )) {
-          merged.byOrderId![orderId] = Number(
-            (
-              (Number(merged.byOrderId![orderId]) || 0) + (Number(amount) || 0)
-            ).toFixed(2),
-          );
-        }
-      };
-
-      const nameNorm = normalizePartnerLabel(row.name);
-      const payeeNorm = normalizePartnerLabel(row.payeeName);
-
-      for (const [key, summary] of Object.entries(paidByPartnerKey)) {
-        if (!key.startsWith(`${row.kind}:`)) continue;
-        if (key === row.key) {
-          absorb(summary);
-          continue;
-        }
-
-        const suffix = key.slice(row.kind.length + 1);
-        if (!suffix) continue;
-
-        // Historical releases may use fabric:<id> while the live row uses
-        // fabric:name:<normalized> (or the reverse). Merge both.
-        if (row.ids.has(suffix)) {
-          absorb(summary);
-          continue;
-        }
-        if (suffix.startsWith("name:")) {
-          const paidName = suffix.slice(5);
-          if (
-            (nameNorm && paidName === nameNorm) ||
-            (payeeNorm && paidName === payeeNorm)
-          ) {
-            absorb(summary);
-          }
-        }
-      }
-
-      return merged;
-    };
-
-    return Array.from(map.values())
-      .map((row) => {
-        const paidSummary = resolvePaidSummary(row);
-        const byOrderId = { ...(paidSummary.byOrderId || {}) };
-        // Prefer per-order settlement. Fall back to partner total only when
-        // no order-level paid rows exist (legacy releases without order lines).
-        const hasOrderAttribution = Object.keys(byOrderId).length > 0;
-
-        let paidFromOrders = 0;
-        let remainingFromOrders = 0;
-        const unsettledOrders: OrderBreakdownLine[] = [];
-
-        for (const order of row.orders) {
-          const orderDue = Number(order.amount) || 0;
-          const previouslyPaid = Number(byOrderId[order.orderId]) || 0;
-          const orderPaid = hasOrderAttribution
-            ? Math.min(orderDue, previouslyPaid)
-            : 0;
-          // Consume paid credit so duplicate lines for the same orderId cannot
-          // each claim the full released amount.
-          if (hasOrderAttribution && orderPaid > 0) {
-            byOrderId[order.orderId] = Number(
-              Math.max(0, previouslyPaid - orderPaid).toFixed(2),
-            );
-          }
-          const orderRemaining = Number(
-            Math.max(0, orderDue - orderPaid).toFixed(2),
-          );
-          paidFromOrders += orderPaid;
-          remainingFromOrders += orderRemaining;
-
-          // Keep only orders that still need payout — already-released orders
-          // must not appear under View orders / Release payment.
-          if (orderRemaining > 0) {
-            unsettledOrders.push({
-              ...order,
-              amount: orderDue,
-              remaining: orderRemaining,
-            });
-          }
-        }
-
-        const paid = hasOrderAttribution
-          ? paidFromOrders
-          : Number(paidSummary.paid) || 0;
-        let remaining = hasOrderAttribution
-          ? Number(remainingFromOrders.toFixed(2))
-          : Math.max(0, Number((row.due - paid).toFixed(2)));
-
-        // Legacy releases (no order lines): subtract partner-level paid from
-        // orders in FIFO order and drop fully covered lines from the UI.
-        let visibleOrders = unsettledOrders;
-        if (!hasOrderAttribution && paid > 0 && unsettledOrders.length > 0) {
-          let creditLeft = paid;
-          const afterLegacy: OrderBreakdownLine[] = [];
-          for (const order of unsettledOrders) {
-            const orderRemainingBefore = Number(order.remaining) || 0;
-            const covered = Math.min(orderRemainingBefore, creditLeft);
-            creditLeft = Number((creditLeft - covered).toFixed(2));
-            const orderRemaining = Number(
-              Math.max(0, orderRemainingBefore - covered).toFixed(2),
-            );
-            if (orderRemaining > 0) {
-              afterLegacy.push({ ...order, remaining: orderRemaining });
-            }
-          }
-          visibleOrders = afterLegacy;
-          remaining = Number(
-            visibleOrders
-              .reduce((sum, o) => sum + (Number(o.remaining) || 0), 0)
-              .toFixed(2),
-          );
-        }
-
-        return {
-          ...row,
-          orders: visibleOrders,
-          orderCount: visibleOrders.length,
-          due: Number(row.due.toFixed(2)),
-          paid: Number(Math.min(paid, row.due).toFixed(2)),
-          remaining,
-          releaseCount: paidSummary.releaseCount || 0,
-          lastReleasedAt: paidSummary.lastReleasedAt,
-        };
-      })
-      .sort(
-        (a, b) =>
-          kindOrder[a.kind] - kindOrder[b.kind] ||
-          b.remaining - a.remaining ||
-          a.name.localeCompare(b.name),
-      );
-  }, [
-    pricingOrders,
-    paidByPartnerKey,
-    tailorCommissionPercent,
-    fabricCommissionPercent,
-  ]);
-
-  const partnerPayoutRows = useMemo(() => {
-    return allPartnerPayoutRows.filter((row) => {
-      if (row.remaining <= 0 || row.orderCount <= 0) return false;
-      if (!pricingSearch.trim()) return true;
-      const term = pricingSearch.toLowerCase();
-      return (
-        row.name.toLowerCase().includes(term) ||
-        row.payeeName.toLowerCase().includes(term) ||
-        partnerKindLabel(row.kind).toLowerCase().includes(term) ||
-        row.orders.some((o) => o.orderId.toLowerCase().includes(term))
-      );
-    });
-  }, [allPartnerPayoutRows, pricingSearch]);
-
-  const pendingByKind = useMemo(() => {
-    const totals = { tailor: 0, fabric: 0, shipping: 0 };
-    for (const row of allPartnerPayoutRows) {
-      if (row.remaining <= 0) continue;
-      totals[row.kind] += row.remaining;
-    }
-    return {
-      tailor: Number(totals.tailor.toFixed(2)),
-      fabric: Number(totals.fabric.toFixed(2)),
-      shipping: Number(totals.shipping.toFixed(2)),
-    };
-  }, [allPartnerPayoutRows]);
+  const formatCurrency = (value: number) => {
+    const amount = new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+    return `AED ${amount}`;
+  };
 
   const kindTotals = useMemo(() => {
+    const empty = { available: 0, pending: 0, paid: 0, processing: 0 };
     const totals = {
-      tailor: { due: 0, paid: 0, remaining: 0 },
-      fabric: { due: 0, paid: 0, remaining: 0 },
-      shipping: { due: 0, paid: 0, remaining: 0 },
+      tailor: { ...empty },
+      fabric: { ...empty },
+      shipping: { ...empty },
     };
-    for (const row of allPartnerPayoutRows) {
-      totals[row.kind].due += row.due;
-      totals[row.kind].paid += row.paid;
-      totals[row.kind].remaining += row.remaining;
+    for (const row of partners) {
+      const bucket = totals[row.partnerKind];
+      if (!bucket) continue;
+      bucket.available += row.availableAed || 0;
+      bucket.pending += row.pendingAed || 0;
+      bucket.paid += row.paidAed || 0;
+      bucket.processing += row.processingAed || 0;
     }
-    return {
-      tailor: {
-        due: Number(totals.tailor.due.toFixed(2)),
-        paid: Number(totals.tailor.paid.toFixed(2)),
-        remaining: Number(totals.tailor.remaining.toFixed(2)),
-      },
-      fabric: {
-        due: Number(totals.fabric.due.toFixed(2)),
-        paid: Number(totals.fabric.paid.toFixed(2)),
-        remaining: Number(totals.fabric.remaining.toFixed(2)),
-      },
-      shipping: {
-        due: Number(totals.shipping.due.toFixed(2)),
-        paid: Number(totals.shipping.paid.toFixed(2)),
-        remaining: Number(totals.shipping.remaining.toFixed(2)),
-      },
-    };
-  }, [allPartnerPayoutRows]);
+    return totals;
+  }, [partners]);
 
-  const earningsSummary = useMemo(() => {
-    let totalEarnings = 0;
-    let motdProfit = 0;
-    for (const order of pricingOrders) {
-      if (!isPayoutEligibleOrder(order)) continue;
-      const payees = getOrderPayees(order);
-      const shares = payees.shares;
-      const separateAddOnGross = (payees.separateAddOnPayees || []).reduce(
-        (sum: number, row: any) => sum + (Number(row.share?.gross) || 0),
-        0,
-      );
-      const orderTotal =
-        Number(order.totalPrice) ||
-        Number(order.pricing?.total) ||
-        Number(
-          (
-            shares.tailorGross +
-            shares.fabricGross +
-            separateAddOnGross +
-            shares.shipping.gross
-          ).toFixed(2),
-        );
-      totalEarnings += orderTotal;
-      motdProfit += shares.motdEarns;
-    }
-    return {
-      totalEarnings: Number(totalEarnings.toFixed(2)),
-      motdProfit: Number(motdProfit.toFixed(2)),
-    };
-  }, [pricingOrders, tailorCommissionPercent, fabricCommissionPercent]);
+  const partnerRows = useMemo(() => {
+    const term = pricingSearch.trim().toLowerCase();
+    return partners
+      .filter(
+        (row) =>
+          (row.availableFils || 0) > 0 || (row.pendingFils || 0) > 0,
+      )
+      .filter((row) => {
+        if (!term) return true;
+        const hay = [
+          row.partnerName,
+          row.payeeName,
+          partnerKindLabel(row.partnerKind),
+          ...row.availableOrders.map((o) => o.orderId),
+          ...row.pendingOrders.map((o) => o.orderId),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(term);
+      });
+  }, [partners, pricingSearch]);
+
+  const processingPayouts = useMemo(
+    () => transactions.filter((tx) => tx.status === "processing"),
+    [transactions],
+  );
+
+  const historyPayouts = useMemo(
+    () => transactions.filter((tx) => tx.status !== "processing"),
+    [transactions],
+  );
 
   const payCardContent = (
-    totals: { due: number; paid: number; remaining: number },
+    totals: { available: number; pending: number; paid: number },
     emptyHint: string,
   ) => {
-    if (totals.due <= 0) {
-      return {
-        value: 0,
-        status: null as PayoutStatStatus | null,
-        hint: emptyHint,
-      };
+    if (totals.available <= 0 && totals.pending <= 0 && totals.paid <= 0) {
+      return { value: 0, status: null as PayoutStatStatus | null, hint: emptyHint };
     }
-    // Fully released — show paid amount, not remaining/due.
-    if (totals.remaining <= 0) {
+    if (totals.available <= 0) {
       return {
         value: totals.paid,
         status: "approved" as PayoutStatStatus,
-        hint: `Paid in full · ${formatKpiCurrency(totals.paid)}`,
+        hint:
+          totals.pending > 0
+            ? `Awaiting delivery ${formatCurrency(totals.pending)}`
+            : `Paid in full · ${formatCurrency(totals.paid)}`,
       };
     }
     return {
-      value: totals.remaining,
+      value: totals.available,
       status: "pending" as PayoutStatStatus,
-      hint: `Still to pay · Paid ${formatKpiCurrency(totals.paid)} of ${formatKpiCurrency(totals.due)}`,
+      hint:
+        totals.pending > 0
+          ? `Ready to pay · Awaiting delivery ${formatCurrency(totals.pending)}`
+          : `Ready to pay · Paid ${formatCurrency(totals.paid)}`,
     };
   };
 
@@ -1444,110 +483,98 @@ export default function AdminPaymentsPage() {
       <Truck className="h-4 w-4" />
     );
 
-  const formatCurrency = (value: number) => {
-    const amount = new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-    return `AED ${amount}`;
-  };
-
-  const formatKpiCurrency = (value: number) => {
-    const amount = new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-    return `AED ${amount}`;
-  };
-
-  const formatShippingLegLine = (line: any) => {
-    const from = String(line?.from?.label || "").trim();
-    const to = String(line?.to?.label || "").trim();
-    let title = String(line?.label || line?.type || "").trim();
-    if (/^delivery to you$/i.test(title)) title = "Delivery to customer";
-
-    const route = from && to ? `${from} → ${to}` : from || to;
-    const feeText = formatKpiCurrency(Number(line?.fee) || 0);
-
-    if (title && route) {
-      const titleNorm = title.toLowerCase().replace(/\s+/g, " ");
-      const routeNorm = route.toLowerCase().replace(/\s+/g, " ");
-      if (titleNorm === routeNorm) return `${route}: ${feeText}`;
-      return `${title} · from ${route}: ${feeText}`;
-    }
-    if (title) return `${title}: ${feeText}`;
-    if (route) return `${route}: ${feeText}`;
-    return `Delivery leg: ${feeText}`;
-  };
-
-  const releasePartnerPayment = async (row: ReleaseConfirmRow) => {
-    if (row.remaining <= 0 || releasingKey) return;
-    const unsettledOrders = row.orders
-      .map((o) => {
-        const releaseAmount = Number(
-          (o.remaining ?? o.amount ?? 0).toFixed(2),
-        );
-        return {
-          orderId: o.orderId,
-          orderType: o.channel,
-          amount: releaseAmount,
-        };
-      })
-      .filter((o) => o.orderId && o.amount > 0);
-
-    if (unsettledOrders.length === 0) {
-      toast.error("No unsettled orders left to release for this partner.");
-      return;
-    }
-
-    // Prefer a stable shop/object id when multiple ids were merged onto the row.
-    const partnerIds = Array.from(row.ids).filter(Boolean);
-    const partnerId = partnerIds[0] || "";
-
+  const openReleaseConfirm = async (partner: PartnerSettlement) => {
+    if (partner.availableFils <= 0 || releasingKey) return;
     try {
-      setReleasingKey(row.key);
-      await api.post("/api/admin/partner-payouts", {
-        partnerKey: row.key,
-        partnerKind: row.kind,
-        partnerId,
-        partnerName: row.name,
-        payeeName: row.payeeName,
-        amount: row.remaining,
-        currency: stats?.currency || "AED",
-        orders: unsettledOrders,
+      const preview = await api.post<FifoPreview>(
+        "/api/admin/partner-payouts/preview",
+        {
+          partnerId: partner.partnerId,
+          partnerKind: partner.partnerKind,
+          amountFils: partner.availableFils,
+        },
+      );
+      setReleaseConfirm({
+        partner,
+        preview,
+        idempotencyKey: newIdempotencyKey(),
       });
-      if (expandedPartnerKey === row.key) setExpandedPartnerKey(null);
-      setReleaseConfirmRow(null);
-      await Promise.all([fetchPartnerPayouts(), fetchPayoutRequests()]);
+    } catch (err: any) {
+      toast.error(err?.message || "Unable to prepare this payment. Please try again.");
+    }
+  };
+
+  const releasePartnerPayment = async () => {
+    if (!releaseConfirm || releasingKey) return;
+    const { partner, preview, idempotencyKey } = releaseConfirm;
+    try {
+      setReleasingKey(`${partner.partnerKind}:${partner.partnerId}`);
+      await api.post(
+        "/api/admin/partner-payouts",
+        {
+          partnerId: partner.partnerId,
+          partnerKind: partner.partnerKind,
+          amountFils: preview.amountFils,
+        },
+        { "Idempotency-Key": idempotencyKey },
+      );
+      setReleaseConfirm(null);
+      await Promise.all([
+        fetchSettlement(),
+        fetchPartnerPayouts(),
+        fetchPayoutRequests(),
+      ]);
       toast.success(
-        `Released ${formatCurrency(row.remaining)} across ${unsettledOrders.length} order${
-          unsettledOrders.length === 1 ? "" : "s"
-        }.`,
+        `Payment of ${formatCurrency(preview.amountAed)} to ${partner.partnerName} is ready for bank transfer.`,
       );
     } catch (err: any) {
-      console.error("Release payment error:", err);
-      toast.error(
-        err?.message || "Failed to release payment. Please try again.",
-      );
+      toast.error(err?.message || "Unable to release this payment. Please try again.");
     } finally {
       setReleasingKey(null);
     }
   };
 
-  const deletePartnerTransaction = async (tx: PartnerPayoutTransaction) => {
-    if (!tx?._id || deletingTxId) return;
+  const completePayout = async () => {
+    if (!completeConfirm || completingId) return;
+    const bankRef = completeBankRef.trim();
+    if (!bankRef) {
+      toast.error("A bank transfer number is required.");
+      return;
+    }
     try {
-      setDeletingTxId(tx._id);
-      await api.delete(`/api/admin/partner-payouts/${tx._id}`);
-      setDeleteConfirmTx(null);
-      await fetchPartnerPayouts();
-    } catch (err: any) {
-      console.error("Delete transaction error:", err);
-      toast.error(
-        err?.message || "Failed to delete transaction. Please try again.",
+      setCompletingId(completeConfirm._id);
+      await api.post(
+        `/api/admin/partner-payouts/${completeConfirm._id}/complete`,
+        { bankRef },
+        { "Idempotency-Key": completeKey || newIdempotencyKey() },
       );
+      setCompleteConfirm(null);
+      setCompleteBankRef("");
+      await fetchPartnerPayouts();
+      toast.success("Payment marked as completed.");
+    } catch (err: any) {
+      toast.error(err?.message || "Unable to complete this payment. Please try again.");
     } finally {
-      setDeletingTxId(null);
+      setCompletingId(null);
+    }
+  };
+
+  const cancelPayout = async () => {
+    if (!cancelConfirm || cancellingId) return;
+    try {
+      setCancellingId(cancelConfirm._id);
+      await api.post(
+        `/api/admin/partner-payouts/${cancelConfirm._id}/cancel`,
+        {},
+        { "Idempotency-Key": newIdempotencyKey() },
+      );
+      setCancelConfirm(null);
+      await Promise.all([fetchPartnerPayouts(), fetchSettlement()]);
+      toast.success("Payment cancelled. The amount has been returned to Ready to pay.");
+    } catch (err: any) {
+      toast.error(err?.message || "Unable to cancel this payment. Please try again.");
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -1581,18 +608,19 @@ export default function AdminPaymentsPage() {
 
   if (!stats) return null;
 
-  const tailorPayCard = payCardContent(
-    kindTotals.tailor,
-    "No tailor deals yet",
-  );
-  const fabricPayCard = payCardContent(
-    kindTotals.fabric,
-    "No fabric deals yet",
-  );
+  const tailorPayCard = payCardContent(kindTotals.tailor, "No tailor deals yet");
+  const fabricPayCard = payCardContent(kindTotals.fabric, "No fabric deals yet");
   const shipaaPayCard = payCardContent(
     kindTotals.shipping,
     "No shipping deals yet",
   );
+
+  const totalEarnings =
+    (Number(stats.retail?.revenue) || 0) + (Number(stats.custom?.revenue) || 0);
+  const motdProfit =
+    Number(stats.partnerShares?.motdKeeps) ||
+    Number(stats.partnerShares?.motdEarnings) ||
+    0;
 
   const summaryCards: Array<{
     key: string;
@@ -1607,17 +635,17 @@ export default function AdminPaymentsPage() {
     {
       key: "total-earnings",
       label: "Total Earnings",
-      value: earningsSummary.totalEarnings,
+      value: totalEarnings,
       status: null,
       icon: Banknote,
-      hint: "All order revenue",
+      hint: "Order revenue this timeframe",
       accent: "ink",
       delay: 0,
     },
     {
       key: "motd-profit",
       label: "MOTD Profit",
-      value: earningsSummary.motdProfit,
+      value: motdProfit,
       status: null,
       icon: Wallet,
       hint: "Commission + MOTD-owned catalog profit",
@@ -1659,58 +687,119 @@ export default function AdminPaymentsPage() {
   return (
     <div className="space-y-6">
       <ConfirmationModal
-        isOpen={!!releaseConfirmRow}
+        isOpen={!!releaseConfirm}
         title="Release payment"
         message={
-          releaseConfirmRow
-            ? `Release ${formatCurrency(releaseConfirmRow.remaining)} to ${releaseConfirmRow.name}${
-                releaseConfirmRow.payeeName &&
-                releaseConfirmRow.payeeName !== releaseConfirmRow.name
-                  ? ` (${releaseConfirmRow.payeeName})`
-                  : ""
-              }? This will move the amount to Transaction History.`
+          releaseConfirm
+            ? `Release ${formatCurrency(releaseConfirm.preview.amountAed)} to ${releaseConfirm.partner.partnerName}? Only delivered orders are included, oldest first. After the bank transfer, mark the payment as completed with the receipt number.`
             : ""
         }
         confirmLabel={releasingKey ? "Releasing…" : "Release payment"}
         cancelLabel="Cancel"
         onConfirm={() => {
-          if (releaseConfirmRow) void releasePartnerPayment(releaseConfirmRow);
+          void releasePartnerPayment();
         }}
         onCancel={() => {
-          if (!releasingKey) setReleaseConfirmRow(null);
+          if (!releasingKey) setReleaseConfirm(null);
         }}
         isLoading={!!releasingKey}
-      />
+      >
+        {releaseConfirm ? (
+          <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200">
+            <table className="min-w-full text-left text-xs">
+              <thead className="bg-gray-50 text-[10px] uppercase tracking-[0.16em] text-gray-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Order</th>
+                  <th className="px-3 py-2 font-medium">This payment</th>
+                  <th className="px-3 py-2 font-medium">Remaining</th>
+                  <th className="px-3 py-2 font-medium">Commission</th>
+                </tr>
+              </thead>
+              <tbody>
+                {releaseConfirm.preview.lines.map((line) => (
+                  <tr key={line.earningId} className="border-t border-gray-100">
+                    <td className="px-3 py-2">
+                      #{String(line.orderId).slice(-6)} · {line.orderType}
+                    </td>
+                    <td className="px-3 py-2 font-medium">
+                      {formatCurrency(line.amountAed)}
+                    </td>
+                    <td className="px-3 py-2">
+                      {formatCurrency(line.remainingAfterAed)}
+                    </td>
+                    <td className="px-3 py-2">{line.commissionPercent}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </ConfirmationModal>
 
       <ConfirmationModal
-        isOpen={!!deleteConfirmTx}
-        title="Delete Transaction"
+        isOpen={!!completeConfirm}
+        title="Confirm payment"
         message={
-          deleteConfirmTx
-            ? `Permanently delete the ${formatCurrency(Number(deleteConfirmTx.amount) || 0)} release to ${deleteConfirmTx.partnerName} from Transaction History? The payment stays settled and will not return as unpaid.`
+          completeConfirm
+            ? `Confirm that ${formatCurrency(Number(completeConfirm.amountAed ?? completeConfirm.amount) || 0)} has been transferred to ${completeConfirm.partnerName}. Enter the bank transfer number from the receipt.`
             : ""
         }
-        confirmLabel={deletingTxId ? "Deleting…" : "Delete"}
+        confirmLabel={completingId ? "Saving…" : "Confirm payment"}
         cancelLabel="Cancel"
         onConfirm={() => {
-          if (deleteConfirmTx) void deletePartnerTransaction(deleteConfirmTx);
+          void completePayout();
         }}
         onCancel={() => {
-          if (!deletingTxId) setDeleteConfirmTx(null);
+          if (!completingId) {
+            setCompleteConfirm(null);
+            setCompleteBankRef("");
+          }
         }}
-        isLoading={!!deletingTxId}
+        isLoading={!!completingId}
+      >
+        <label className="mt-4 block">
+          <span className="text-[10px] uppercase tracking-[0.16em] text-gray-500">
+            Transfer number
+          </span>
+          <input
+            type="text"
+            value={completeBankRef}
+            onChange={(e) => setCompleteBankRef(e.target.value)}
+            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
+            placeholder="Bank transfer / receipt number"
+          />
+        </label>
+      </ConfirmationModal>
+
+      <ConfirmationModal
+        isOpen={!!cancelConfirm}
+        title="Cancel payment"
+        message={
+          cancelConfirm
+            ? `Cancel the ${formatCurrency(Number(cancelConfirm.amountAed ?? cancelConfirm.amount) || 0)} payment to ${cancelConfirm.partnerName}? Use this only if the bank transfer has not been sent. The amount will return to Ready to pay.`
+            : ""
+        }
+        confirmLabel={cancellingId ? "Cancelling…" : "Cancel payment"}
+        cancelLabel="Keep payment"
+        onConfirm={() => {
+          void cancelPayout();
+        }}
+        onCancel={() => {
+          if (!cancellingId) setCancelConfirm(null);
+        }}
+        isLoading={!!cancellingId}
         isDanger
       />
 
       <ConfirmationModal
         isOpen={!!approveConfirmRequest}
-        title="Approve payout request"
+        title="Approve request"
         message={
           approveConfirmRequest
-            ? `Approve ${formatCurrency(Number(approveConfirmRequest.amount) || 0)} for ${approveConfirmRequest.partnerName}? This will release the payment into Transaction History.`
+            ? `Approve the request from ${approveConfirmRequest.partnerName}? MOTD will pay the amount currently ready for delivered orders. This may be less than ${formatCurrency(Number(approveConfirmRequest.amount) || 0)} if some orders are still awaiting delivery.`
             : ""
         }
-        confirmLabel={reviewingRequestId ? "Approving…" : "Approve & release"}
+        confirmLabel={reviewingRequestId ? "Approving…" : "Approve request"}
         cancelLabel="Cancel"
         onConfirm={() => {
           if (approveConfirmRequest)
@@ -1724,13 +813,13 @@ export default function AdminPaymentsPage() {
 
       <ConfirmationModal
         isOpen={!!rejectConfirmRequest}
-        title="Reject payout request"
+        title="Decline request"
         message={
           rejectConfirmRequest
-            ? `Reject the ${formatCurrency(Number(rejectConfirmRequest.amount) || 0)} request from ${rejectConfirmRequest.partnerName}? They can submit a new request later.`
+            ? `Decline the ${formatCurrency(Number(rejectConfirmRequest.amount) || 0)} request from ${rejectConfirmRequest.partnerName}? They may submit a new request later.`
             : ""
         }
-        confirmLabel={reviewingRequestId ? "Rejecting…" : "Reject request"}
+        confirmLabel={reviewingRequestId ? "Declining…" : "Decline request"}
         cancelLabel="Cancel"
         onConfirm={() => {
           if (rejectConfirmRequest)
@@ -1748,7 +837,7 @@ export default function AdminPaymentsPage() {
         title="Delete request"
         message={
           deleteConfirmRequest
-            ? `Permanently delete the ${formatCurrency(Number(deleteConfirmRequest.amount) || 0)} ${deleteConfirmRequest.status} request from ${deleteConfirmRequest.partnerName} in Request History?`
+            ? `Delete the ${formatCurrency(Number(deleteConfirmRequest.amount) || 0)} request from ${deleteConfirmRequest.partnerName}? This does not change any payments.`
             : ""
         }
         confirmLabel={deletingRequestId ? "Deleting…" : "Delete"}
@@ -1764,7 +853,6 @@ export default function AdminPaymentsPage() {
         isDanger
       />
 
-      {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-(--dash-muted)">
@@ -1774,8 +862,8 @@ export default function AdminPaymentsPage() {
             Payments
           </h1>
           <p className="mt-1 max-w-xl text-sm text-(--dash-muted)">
-            Collective partner payouts with order breakdown under each tailor,
-            fabric store, and shipping company.
+            Payments may be released only after an order is delivered. Amounts
+            awaiting delivery remain visible but cannot be paid yet.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -1795,14 +883,13 @@ export default function AdminPaymentsPage() {
         </div>
       </div>
 
-      {/* Summary totals — same StatCard UI as /admin dashboard */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {summaryCards.map((card) => (
           <StatCard
             key={card.key}
             icon={card.icon}
             label={card.label}
-            value={formatKpiCurrency(card.value)}
+            value={formatCurrency(card.value)}
             subValue={card.hint}
             compact
             delay={card.delay}
@@ -1820,7 +907,6 @@ export default function AdminPaymentsPage() {
         ))}
       </div>
 
-      {/* Partner payout requests queue — only when pending exist */}
       {payoutRequestsPendingCount > 0 ? (
         <div className="rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) p-5 shadow-sm sm:p-6">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -1829,15 +915,15 @@ export default function AdminPaymentsPage() {
                 Partner payout requests
               </h3>
               <p className="mt-1 text-xs text-(--dash-muted)">
-                Pending requests from fabric stores and tailors. Approve or
-                reject — reviewed items move to Request History below.
+                Pending requests from fabric stores and tailors. Approving pays
+                the amount currently ready for delivered orders, which may be
+                less than requested if some orders are still awaiting delivery.
               </p>
             </div>
             <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-amber-800">
               {payoutRequestsPendingCount} pending
             </span>
           </div>
-
           <div className="space-y-3">
             {payoutRequests
               .filter((r) => r.status === "pending")
@@ -1846,32 +932,19 @@ export default function AdminPaymentsPage() {
                   ? request.orders.length
                   : 0;
                 const isBusy = reviewingRequestId === request._id;
-                const KindIcon =
-                  request.partnerKind === "tailor" ? Scissors : Store;
                 return (
                   <div
                     key={request._id}
                     className="flex flex-col gap-3 rounded-xl border border-(--dash-border) bg-white p-4 lg:flex-row lg:items-center lg:justify-between"
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1.5 rounded-md bg-(--dash-bg) px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-(--dash-muted)">
-                          <KindIcon className="h-3.5 w-3.5" />
-                          {partnerKindLabel(request.partnerKind)}
-                        </span>
-                        <p className="font-medium text-(--dash-ink)">
-                          {request.partnerName}
-                        </p>
-                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800">
-                          pending
-                        </span>
-                      </div>
-                      <p className="mt-2 text-[11px] text-(--dash-muted)">
+                    <div>
+                      <p className="font-medium text-(--dash-ink)">
+                        {request.partnerName}
+                      </p>
+                      <p className="mt-1 text-[11px] text-(--dash-muted)">
+                        {partnerKindLabel(request.partnerKind)} ·{" "}
                         {formatCurrency(Number(request.amount) || 0)} ·{" "}
                         {orderCount} order{orderCount === 1 ? "" : "s"}
-                        {request.requestedAt
-                          ? ` · ${new Date(request.requestedAt).toLocaleString()}`
-                          : ""}
                       </p>
                       {request.note ? (
                         <p className="mt-1 text-[11px] text-(--dash-muted)">
@@ -1896,7 +969,7 @@ export default function AdminPaymentsPage() {
                         className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 transition hover:bg-rose-100 disabled:opacity-50"
                       >
                         <X className="h-3.5 w-3.5" />
-                        Reject
+                        Decline
                       </button>
                     </div>
                   </div>
@@ -1906,7 +979,62 @@ export default function AdminPaymentsPage() {
         </div>
       ) : null}
 
-      {/* Partner payouts with nested order breakdown */}
+      {processingPayouts.length > 0 ? (
+        <div className="rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) p-5 shadow-sm sm:p-6">
+          <div className="mb-4">
+            <h3 className="[font-family:var(--font-display)] text-lg text-(--dash-ink)">
+              Payments in progress
+            </h3>
+            <p className="mt-1 text-xs text-(--dash-muted)">
+              This amount is reserved. After the bank transfer, confirm payment
+              with the receipt number. Cancel only if the transfer has not been
+              sent.
+            </p>
+          </div>
+          <div className="space-y-3">
+            {processingPayouts.map((tx) => (
+              <div
+                key={tx._id}
+                className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/40 p-4 lg:flex-row lg:items-center lg:justify-between"
+              >
+                <div>
+                  <p className="font-medium text-(--dash-ink)">
+                    {tx.partnerName}
+                  </p>
+                  <p className="mt-1 text-[11px] text-(--dash-muted)">
+                    {partnerKindLabel(tx.partnerKind)} ·{" "}
+                    {formatCurrency(Number(tx.amountAed ?? tx.amount) || 0)} ·{" "}
+                    {tx.releasedAt
+                      ? new Date(tx.releasedAt).toLocaleString()
+                      : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCompleteConfirm(tx);
+                      setCompleteBankRef("");
+                      setCompleteKey(newIdempotencyKey());
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-(--dash-charcoal) px-3 py-2 text-xs text-white"
+                  >
+                    Confirm payment
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCancelConfirm(tx)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs text-rose-800"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) p-5 shadow-sm sm:p-6">
         <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -1914,8 +1042,8 @@ export default function AdminPaymentsPage() {
               Collective amount Admin must pay
             </h3>
             <p className="mt-1 max-w-2xl text-xs text-(--dash-muted)">
-              Expand a partner to see related orders. Releasing a payment
-              removes it from this list and adds it to Transaction History.
+              Ready to pay is for delivered orders. Awaiting delivery is paid by
+              the customer but cannot be released until the order is delivered.
             </p>
           </div>
           <div className="relative w-full max-w-xs shrink-0">
@@ -1930,75 +1058,80 @@ export default function AdminPaymentsPage() {
           </div>
         </div>
 
-        {pricingLoading && partnerPayoutRows.length === 0 ? (
+        {settlementLoading && partnerRows.length === 0 ? (
           <TableSkeleton rows={5} cols={4} className="rounded-xl border-0" />
-        ) : partnerPayoutRows.length === 0 ? (
+        ) : partnerRows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <PackageSearch
               className="mb-3 h-12 w-12 text-(--dash-border)"
               strokeWidth={1}
             />
             <p className="text-xs text-(--dash-muted)">
-              No pending partner payouts. Released payments appear in
-              Transaction History below.
+              No partner amounts are waiting to be paid. Released payments appear
+              in Transaction History below.
             </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {partnerPayoutRows.map((row) => {
-              const expanded = expandedPartnerKey === row.key;
+            {partnerRows.map((row) => {
+              const key = `${row.partnerKind}:${row.partnerId}`;
+              const expanded = expandedPartnerKey === key;
               return (
                 <div
-                  key={row.key}
+                  key={key}
                   className="rounded-xl border border-(--dash-border) bg-white"
                 >
                   <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center gap-1.5 rounded-md bg-(--dash-bg) px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-(--dash-muted)">
-                          <PartnerIcon kind={row.kind} />
-                          {partnerKindLabel(row.kind)}
+                          <PartnerIcon kind={row.partnerKind} />
+                          {partnerKindLabel(row.partnerKind)}
                         </span>
                         <p className="font-medium text-(--dash-ink)">
-                          {row.name}
+                          {row.partnerName}
                         </p>
                       </div>
-                      {row.payeeName && row.payeeName !== row.name ? (
-                        <p className="mt-1 text-[11px] text-(--dash-muted)">
-                          Payee: {row.payeeName}
-                        </p>
-                      ) : null}
-                      <p className="mt-2 text-[11px] text-(--dash-muted)">
-                        {row.orderCount} order
-                        {row.orderCount === 1 ? "" : "s"} · Amount due{" "}
-                        <span className="font-medium text-(--dash-ink)">
-                          {formatCurrency(row.remaining)}
-                        </span>
-                      </p>
+                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <div className="rounded-lg border border-(--dash-border) bg-(--dash-bg) px-3 py-2">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-(--dash-muted)">
+                            Ready to pay
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-(--dash-ink)">
+                            {formatCurrency(row.availableAed)}
+                          </p>
+                          <p className="text-[11px] text-(--dash-muted)">
+                            {row.availableOrders.length} order
+                            {row.availableOrders.length === 1 ? "" : "s"}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-(--dash-border) bg-(--dash-bg) px-3 py-2">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-(--dash-muted)">
+                            Awaiting delivery
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-(--dash-ink)">
+                            {formatCurrency(row.pendingAed)}
+                          </p>
+                          <p className="text-[11px] text-(--dash-muted)">
+                            {row.pendingOrders.length} order
+                            {row.pendingOrders.length === 1 ? "" : "s"}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        disabled={!!releasingKey}
-                        onClick={() =>
-                          setReleaseConfirmRow({
-                            key: row.key,
-                            kind: row.kind,
-                            name: row.name,
-                            payeeName: row.payeeName,
-                            ids: row.ids,
-                            remaining: row.remaining,
-                            orders: row.orders,
-                          })
-                        }
+                        disabled={!!releasingKey || row.availableFils <= 0}
+                        onClick={() => void openReleaseConfirm(row)}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-(--dash-charcoal) px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
                       >
-                        Release {formatCurrency(row.remaining)}
+                        Release {formatCurrency(row.availableAed)}
                       </button>
                       <button
                         type="button"
                         onClick={() =>
-                          setExpandedPartnerKey(expanded ? null : row.key)
+                          setExpandedPartnerKey(expanded ? null : key)
                         }
                         aria-expanded={expanded}
                         className="inline-flex items-center gap-1.5 text-xs text-(--dash-muted) transition hover:text-(--dash-ink)"
@@ -2041,97 +1174,63 @@ export default function AdminPaymentsPage() {
                         ) : null}
                       </div>
 
-                      <div className="space-y-2">
-                        {row.orders.map((orderLine) => (
-                          <div
-                            key={`${row.key}-${orderLine.orderId}`}
-                            className="rounded-lg border border-(--dash-border) bg-white p-3"
-                          >
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div>
+                      {row.availableOrders.length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-(--dash-muted)">
+                            Ready to pay
+                          </p>
+                          {row.availableOrders.map((orderLine) => (
+                            <div
+                              key={`${key}-ready-${orderLine.earningId}`}
+                              className="rounded-lg border border-(--dash-border) bg-white p-3"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
                                 <p className="text-sm font-medium text-(--dash-ink)">
                                   Order #{orderLine.orderId.slice(-6)}
                                   <span className="ml-2 rounded-md bg-(--dash-bg) px-2 py-0.5 text-[10px] font-normal capitalize text-(--dash-ink)">
-                                    {orderLine.channel}
+                                    {orderLine.orderType}
                                   </span>
                                 </p>
-                                {orderLine.meta ? (
-                                  <p className="mt-1 text-[11px] text-(--dash-muted)">
-                                    {row.kind === "tailor"
-                                      ? "Design"
-                                      : orderLine.meta === "Add-ons only"
-                                        ? "Type"
-                                        : "Fabric"}
-                                    :{" "}
-                                    {orderLine.meta === "Add-ons only"
-                                      ? "Add-ons only (different fabric store)"
-                                      : orderLine.meta}
-                                  </p>
-                                ) : null}
-                                {orderLine.shippingLabel ? (
-                                  <p className="mt-1 text-[11px] text-(--dash-muted)">
-                                    {orderLine.shippingLabel}
-                                  </p>
-                                ) : null}
+                                <p className="text-base font-medium text-(--dash-ink)">
+                                  {formatCurrency(orderLine.remainingAed)}
+                                </p>
                               </div>
-                              <p className="text-base font-medium text-(--dash-ink)">
-                                {formatCurrency(
-                                  orderLine.remaining ?? orderLine.amount,
-                                )}
+                              <p className="mt-2 text-[11px] text-(--dash-muted)">
+                                Gross {formatCurrency(orderLine.grossAed)} −
+                                MOTD {formatCurrency(orderLine.commissionAed)} (
+                                {orderLine.commissionPercent}%) ={" "}
+                                {formatCurrency(orderLine.netAed)}
                               </p>
                             </div>
+                          ))}
+                        </div>
+                      ) : null}
 
-                            {row.kind === "shipping" ? (
-                              <div className="mt-2 space-y-1 text-[11px] text-(--dash-muted)">
-                                <p>
-                                  Delivery fee collected ={" "}
-                                  {formatKpiCurrency(
-                                    orderLine.remaining ?? orderLine.amount,
-                                  )}{" "}
-                                  (paid in full to {SHIPPING_COMPANY_NAME})
+                      {row.pendingOrders.length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-(--dash-muted)">
+                            Awaiting delivery
+                          </p>
+                          {row.pendingOrders.map((orderLine) => (
+                            <div
+                              key={`${key}-wait-${orderLine.earningId}`}
+                              className="rounded-lg border border-dashed border-(--dash-border) bg-white p-3"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <p className="text-sm font-medium text-(--dash-ink)">
+                                  Order #{orderLine.orderId.slice(-6)}
+                                  <span className="ml-2 rounded-md bg-(--dash-bg) px-2 py-0.5 text-[10px] font-normal capitalize text-(--dash-ink)">
+                                    {orderLine.orderType}
+                                  </span>
                                 </p>
-                                {(orderLine.deliveryLines || [])
-                                  .filter(
-                                    (line: any) => line?.billable !== false,
-                                  )
-                                  .map((line: any, idx: number) => (
-                                    <p
-                                      key={`${orderLine.orderId}-leg-${idx}`}
-                                      className="text-(--dash-ink)"
-                                    >
-                                      {formatShippingLegLine(line)}
-                                    </p>
-                                  ))}
-                              </div>
-                            ) : (
-                              <div className="mt-2 space-y-1 text-[11px] text-(--dash-muted)">
-                                <p>
-                                  Gross {formatCurrency(orderLine.gross)} − MOTD{" "}
-                                  {formatCurrency(orderLine.commission)} (
-                                  {orderLine.percent}%) ={" "}
-                                  {formatCurrency(orderLine.amount)}
-                                  {(orderLine.remaining ?? orderLine.amount) <
-                                  orderLine.amount
-                                    ? ` · still due ${formatCurrency(
-                                        orderLine.remaining ?? orderLine.amount,
-                                      )}`
-                                    : ""}
+                                <p className="text-base font-medium text-(--dash-ink)">
+                                  {formatCurrency(orderLine.remainingAed)}
                                 </p>
-                                {row.kind === "fabric" &&
-                                (orderLine.addOnsTotal || 0) > 0 ? (
-                                  <p className="text-(--dash-ink)">
-                                    Includes add-ons{" "}
-                                    {formatCurrency(orderLine.addOnsTotal || 0)}
-                                    {orderLine.addOnsLabel
-                                      ? `: ${orderLine.addOnsLabel}`
-                                      : ""}
-                                  </p>
-                                ) : null}
                               </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -2141,29 +1240,38 @@ export default function AdminPaymentsPage() {
         )}
 
         <p className="mt-4 text-sm text-(--dash-ink)">
-          Pending to release{" "}
+          Ready to pay{" "}
           <span className="font-medium">
-            {formatKpiCurrency(
-              pendingByKind.tailor +
-                pendingByKind.fabric +
-                pendingByKind.shipping,
+            {formatCurrency(
+              kindTotals.tailor.available +
+                kindTotals.fabric.available +
+                kindTotals.shipping.available,
+            )}
+          </span>
+          <span className="text-(--dash-muted)">
+            {" "}
+            · Awaiting delivery{" "}
+            {formatCurrency(
+              kindTotals.tailor.pending +
+                kindTotals.fabric.pending +
+                kindTotals.shipping.pending,
             )}
           </span>
         </p>
       </div>
 
-      {/* Transaction history */}
       <div className="rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) p-5 shadow-sm sm:p-6">
         <div className="mb-4">
           <h3 className="[font-family:var(--font-display)] text-lg text-(--dash-ink)">
             Transaction History
           </h3>
           <p className="mt-1 text-xs text-(--dash-muted)">
-            Payments Admin has already released to partners.
+            Completed and cancelled payments. Expand a row to see which orders
+            were included.
           </p>
         </div>
 
-        {transactions.length === 0 ? (
+        {historyPayouts.length === 0 ? (
           <p className="py-8 text-center text-xs text-(--dash-muted)">
             No payment releases yet.
           </p>
@@ -2177,68 +1285,100 @@ export default function AdminPaymentsPage() {
                   <th className="px-4 py-3 font-medium">Name</th>
                   <th className="px-4 py-3 font-medium">Orders</th>
                   <th className="px-4 py-3 font-medium">Amount</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Released by</th>
-                  <th className="px-4 py-3 font-medium text-right">Actions</th>
+                  <th className="px-4 py-3 font-medium text-right">Lines</th>
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((tx) => {
+                {historyPayouts.map((tx) => {
                   const releasedByName =
                     typeof tx.releasedBy === "object" && tx.releasedBy
                       ? tx.releasedBy.name || tx.releasedBy.email || "Admin"
                       : "Admin";
-                  const isDeleting = deletingTxId === tx._id;
+                  const expanded = expandedTxId === tx._id;
+                  const lines: PayoutOrderLine[] = tx.lines || tx.orders || [];
                   return (
-                    <tr
-                      key={tx._id}
-                      className="border-t border-(--dash-border) bg-white"
-                    >
-                      <td className="px-4 py-3 text-xs text-(--dash-ink)">
-                        {tx.releasedAt
-                          ? new Date(tx.releasedAt).toLocaleString()
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-(--dash-muted)">
-                        {partnerKindLabel(tx.partnerKind)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-(--dash-ink)">
-                          {tx.partnerName}
-                        </p>
-                        {tx.payeeName && tx.payeeName !== tx.partnerName ? (
-                          <p className="text-[11px] text-(--dash-muted)">
-                            {tx.payeeName}
+                    <Fragment key={tx._id}>
+                      <tr
+                        key={tx._id}
+                        className="border-t border-(--dash-border) bg-white"
+                      >
+                        <td className="px-4 py-3 text-xs text-(--dash-ink)">
+                          {tx.releasedAt
+                            ? new Date(tx.releasedAt).toLocaleString()
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-(--dash-muted)">
+                          {partnerKindLabel(tx.partnerKind)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-(--dash-ink)">
+                            {tx.partnerName}
                           </p>
-                        ) : null}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-(--dash-ink)">
-                        {tx.orders?.length
-                          ? tx.orders
-                              .map((o) => `#${String(o.orderId).slice(-6)}`)
-                              .join(", ")
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-xs font-medium text-(--dash-ink)">
-                        {formatCurrency(Number(tx.amount) || 0)}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-(--dash-muted)">
-                        {releasedByName}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          title="Delete transaction"
-                          aria-label={`Delete transaction for ${tx.partnerName}`}
-                          disabled={!!deletingTxId}
-                          onClick={() => setDeleteConfirmTx(tx)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                          {tx.bankRef ? (
+                            <p className="text-[11px] text-(--dash-muted)">
+                              Transfer {tx.bankRef}
+                            </p>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-(--dash-ink)">
+                          {lines.length
+                            ? lines
+                                .map((o) => `#${String(o.orderId).slice(-6)}`)
+                                .join(", ")
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-medium text-(--dash-ink)">
+                          {formatCurrency(
+                            Number(tx.amountAed ?? tx.amount) || 0,
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="rounded-full border border-(--dash-border) px-2 py-0.5 text-[10px] uppercase tracking-wide text-(--dash-muted)">
+                            {payoutStatusLabel(tx.status)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-(--dash-muted)">
+                          {releasedByName}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedTxId(expanded ? null : tx._id)
+                            }
+                            className="text-xs text-(--dash-muted) hover:text-(--dash-ink)"
+                          >
+                            {expanded ? "Hide" : "View"}
+                          </button>
+                        </td>
+                      </tr>
+                      {expanded ? (
+                        <tr
+                          key={`${tx._id}-lines`}
+                          className="border-t border-(--dash-border) bg-(--dash-bg)"
                         >
-                          <Trash2
-                            className={`h-4 w-4 ${isDeleting ? "animate-pulse" : ""}`}
-                          />
-                        </button>
-                      </td>
-                    </tr>
+                          <td colSpan={8} className="px-4 py-3">
+                            <div className="space-y-2">
+                              {lines.map((line, index) => (
+                                <div
+                                  key={`${tx._id}-${line.orderId}-${line.amountFils ?? line.amount}-${index}`}
+                                  className="rounded-lg border border-(--dash-border) bg-white px-3 py-2 text-xs"
+                                >
+                                  Order #{String(line.orderId).slice(-6)} ·{" "}
+                                  {line.orderType} ·{" "}
+                                  {formatCurrency(payoutLineAmount(line))}
+                                  {typeof line.commissionPercent === "number"
+                                    ? ` · ${line.commissionPercent}%`
+                                    : ""}
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -2247,14 +1387,13 @@ export default function AdminPaymentsPage() {
         )}
       </div>
 
-      {/* Request history — approved / rejected fabric requests */}
       <div className="rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) p-5 shadow-sm sm:p-6">
         <div className="mb-4">
           <h3 className="[font-family:var(--font-display)] text-lg text-(--dash-ink)">
             Request History
           </h3>
           <p className="mt-1 text-xs text-(--dash-muted)">
-            Approved and rejected partner payout requests. Delete removes the
+            Approved and declined partner payout requests. Delete removes the
             record from this list only.
           </p>
         </div>
@@ -2323,7 +1462,7 @@ export default function AdminPaymentsPage() {
                                 : "border-rose-200 bg-rose-50 text-rose-800"
                             }`}
                           >
-                            {request.status}
+                            {payoutStatusLabel(request.status)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">

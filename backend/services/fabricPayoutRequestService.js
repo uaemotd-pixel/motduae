@@ -5,9 +5,8 @@ import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
 import AddOn from "../models/AddOn.js";
 import RetailOrder from "../models/RetailOrder.js";
 import PlatformSettings from "../models/PlatformSettings.js";
-import PartnerPayout from "../models/PartnerPayout.js";
-import PartnerPayoutCredit from "../models/PartnerPayoutCredit.js";
 import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
+import { getCompletedPayoutTotals } from "./partnerPayout/settlement.js";
 import { splitMotdCommission } from "./pricingService.js";
 import {
   buildFabricStoreCustomOrderMatch,
@@ -107,103 +106,11 @@ export function buildFabricPartnerIdentity(shop, ownerUserId) {
 }
 
 export async function getFabricSettlement(shop, ownerUserId) {
-  const ownerIdStr = String(ownerUserId);
-  const partnerIds = [ownerIdStr];
-  const keys = [`fabric:${ownerIdStr}`];
-
-  if (shop) {
-    const shopId = String(shop._id);
-    partnerIds.push(shopId);
-    keys.push(`fabric:${shopId}`);
-    const nameNorm = normalizePartnerLabel(shop.name);
-    if (nameNorm) keys.push(`fabric:name:${nameNorm}`);
+  const partnerId = shop?._id ? String(shop._id) : String(ownerUserId || "");
+  if (!partnerId) {
+    return { paidByOrderId: new Map(), paidTotal: 0, releases: [] };
   }
-
-  const partnerNameMatchers = [];
-  if (shop?.name) {
-    partnerNameMatchers.push(String(shop.name).trim());
-  }
-
-  const identityOr = [
-    { partnerId: { $in: partnerIds } },
-    { partnerKey: { $in: keys } },
-  ];
-  if (partnerNameMatchers.length > 0) {
-    identityOr.push({ partnerName: { $in: partnerNameMatchers } });
-  }
-
-  const match = {
-    partnerKind: "fabric",
-    $and: [
-      { $or: identityOr },
-      {
-        $or: [{ deletedAt: null }, { deletedAt: { $exists: false } }],
-      },
-    ],
-  };
-
-  const [payouts, credits] = await Promise.all([
-    PartnerPayout.find(match)
-      .select("amount currency orders releasedAt note partnerKey partnerId")
-      .sort({ releasedAt: -1 })
-      .lean(),
-    PartnerPayoutCredit.find({
-      partnerKind: "fabric",
-      $or: identityOr,
-      "orders.0": { $exists: true },
-    })
-      .select("amount orders")
-      .lean(),
-  ]);
-
-  const paidByOrderId = new Map();
-  let paidTotal = 0;
-
-  const addOrders = (orders) => {
-    for (const order of orders || []) {
-      const orderId = String(order.orderId || "");
-      if (!orderId) continue;
-      const amount = Number(order.amount) || 0;
-      if (amount <= 0) continue;
-      paidByOrderId.set(
-        orderId,
-        Number(((paidByOrderId.get(orderId) || 0) + amount).toFixed(2)),
-      );
-    }
-  };
-
-  for (const payout of payouts) {
-    paidTotal += Number(payout.amount) || 0;
-    addOrders(payout.orders);
-  }
-  for (const credit of credits) {
-    paidTotal += Number(credit.amount) || 0;
-    addOrders(credit.orders);
-  }
-
-  const releases = payouts.map((payout) => {
-    const orders = Array.isArray(payout.orders) ? payout.orders : [];
-    return {
-      _id: payout._id,
-      amount: Number(payout.amount) || 0,
-      currency: payout.currency || "AED",
-      orderCount: orders.length,
-      orders: orders.map((o) => ({
-        orderId: String(o.orderId || ""),
-        orderType: o.orderType || "custom",
-        amount: Number(o.amount) || 0,
-      })),
-      releasedAt: payout.releasedAt,
-      note: payout.note || "",
-      partnerKey: payout.partnerKey || "",
-    };
-  });
-
-  return {
-    paidByOrderId,
-    paidTotal: Number(paidTotal.toFixed(2)),
-    releases,
-  };
+  return getCompletedPayoutTotals(partnerId, "fabric");
 }
 
 function isPayoutEligibleOrder(order) {

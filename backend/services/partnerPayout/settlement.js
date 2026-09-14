@@ -1,0 +1,495 @@
+import { filsToAed } from "../../utils/fils.js";
+import PartnerEarning from "../../models/PartnerEarning.js";
+import PartnerPayoutBatch from "../../models/PartnerPayoutBatch.js";
+import PartnerPayoutLine from "../../models/PartnerPayoutLine.js";
+import PartnerPayoutRequest from "../../models/PartnerPayoutRequest.js";
+import TailorShop from "../../models/TailorShop.js";
+import FabricShop from "../../models/FabricShop.js";
+import User from "../../models/User.js";
+import { SHIPPING_PARTNER_ID, SHIPPING_PARTNER_NAME } from "./constants.js";
+import { healDeliveredEarnings, loadExcludedOrderIdSet } from "./available.js";
+import { previewFifo } from "./split.js";
+
+export function serializeFils(fils) {
+  const n = Number(fils) || 0;
+  return { fils: n, aed: filsToAed(n) };
+}
+
+function serializeEarningLine(earning) {
+  const remaining = serializeFils(earning.remainingFils);
+  const net = serializeFils(earning.netFils);
+  const gross = serializeFils(earning.grossFils);
+  const commission = serializeFils(earning.commissionFils);
+  return {
+    earningId: String(earning._id),
+    orderId: String(earning.orderId),
+    orderType: earning.orderType,
+    remainingFils: remaining.fils,
+    remainingAed: remaining.aed,
+    amount: remaining.aed,
+    netFils: net.fils,
+    netAed: net.aed,
+    grossFils: gross.fils,
+    grossAed: gross.aed,
+    commissionFils: commission.fils,
+    commissionAed: commission.aed,
+    commissionPercent: Number(earning.commissionPercent) || 0,
+    availableAt: earning.availableAt || null,
+    status: earning.status,
+  };
+}
+
+async function loadShopProfiles(partners) {
+  const tailorIds = partners
+    .filter((p) => p.partnerKind === "tailor")
+    .map((p) => p.partnerId);
+  const fabricIds = partners
+    .filter((p) => p.partnerKind === "fabric")
+    .map((p) => p.partnerId);
+
+  const [tailors, fabrics] = await Promise.all([
+    tailorIds.length
+      ? TailorShop.find({ _id: { $in: tailorIds } })
+          .select("name phone city location pickupAddress ownerId")
+          .populate("ownerId", "name email phone")
+          .lean()
+      : Promise.resolve([]),
+    fabricIds.length
+      ? FabricShop.find({ _id: { $in: fabricIds } })
+          .select("name phone city location pickupAddress ownerId")
+          .populate("ownerId", "name email phone")
+          .lean()
+      : Promise.resolve([]),
+  ]);
+
+  const map = new Map();
+  const attach = (shop, kind) => {
+    const owner =
+      shop?.ownerId && typeof shop.ownerId === "object" ? shop.ownerId : null;
+    map.set(`${kind}:${shop._id}`, {
+      partnerName: shop.name || "",
+      payeeName: shop.name || "",
+      contact: shop.phone || owner?.phone || "",
+      email: owner?.email || "",
+      city: shop.city || "",
+      location: shop.location || "",
+      pickup: shop.pickupAddress?.line1
+        ? [shop.pickupAddress.line1, shop.pickupAddress.city]
+            .filter(Boolean)
+            .join(", ")
+        : "",
+      ownerUserId: owner?._id ? String(owner._id) : shop.ownerId || null,
+    });
+  };
+  for (const shop of tailors) attach(shop, "tailor");
+  for (const shop of fabrics) attach(shop, "fabric");
+  return map;
+}
+
+function emptySettlement(partnerId, partnerKind, partnerName = "") {
+  return {
+    partnerId: String(partnerId),
+    partnerKind,
+    partnerName: partnerName || (partnerKind === "shipping" ? SHIPPING_PARTNER_NAME : ""),
+    payeeName: partnerName || "",
+    availableFils: 0,
+    availableAed: 0,
+    pendingFils: 0,
+    pendingAed: 0,
+    processingFils: 0,
+    processingAed: 0,
+    paidFils: 0,
+    paidAed: 0,
+    availableOrders: [],
+    pendingOrders: [],
+    contact: "",
+    email: "",
+    city: "",
+    location: "",
+    pickup: "",
+  };
+}
+
+function applyProfile(row, profiles) {
+  if (row.partnerKind === "shipping") {
+    row.partnerName = row.partnerName || SHIPPING_PARTNER_NAME;
+    row.payeeName = row.payeeName || SHIPPING_PARTNER_NAME;
+    return row;
+  }
+  const profile = profiles.get(`${row.partnerKind}:${row.partnerId}`);
+  if (!profile) return row;
+  return {
+    ...row,
+    partnerName: row.partnerName || profile.partnerName,
+    payeeName: row.payeeName || profile.payeeName,
+    contact: profile.contact,
+    email: profile.email,
+    city: profile.city,
+    location: profile.location,
+    pickup: profile.pickup,
+  };
+}
+
+async function processingAndPaidFils(partnerId, partnerKind) {
+  const batches = await PartnerPayoutBatch.find({
+    partnerId: String(partnerId),
+    partnerKind,
+    status: { $in: ["processing", "completed"] },
+  })
+    .select("status amountFils")
+    .lean();
+  let processingFils = 0;
+  let paidFils = 0;
+  for (const batch of batches) {
+    if (batch.status === "processing") processingFils += batch.amountFils || 0;
+    if (batch.status === "completed") paidFils += batch.amountFils || 0;
+  }
+  return { processingFils, paidFils };
+}
+
+export async function getPartnerSettlement(partnerId, partnerKind) {
+  const id = String(partnerId || "").trim();
+  const kind = String(partnerKind || "").trim();
+  if (!id || !kind) {
+    return emptySettlement(id, kind);
+  }
+
+  await healDeliveredEarnings({ partnerId: id, partnerKind: kind });
+
+  const earnings = await PartnerEarning.find({
+    partnerId: id,
+    partnerKind: kind,
+    status: { $in: ["pending", "available"] },
+  })
+    .sort({ availableAt: 1, createdAt: 1 })
+    .lean();
+
+  const excluded = await loadExcludedOrderIdSet(earnings);
+  const availableOrders = [];
+  const pendingOrders = [];
+  let availableFils = 0;
+  let pendingFils = 0;
+
+  for (const earning of earnings) {
+    if (excluded.has(String(earning.orderId))) continue;
+    const line = serializeEarningLine(earning);
+    if (earning.status === "available" && (earning.remainingFils || 0) > 0) {
+      availableFils += earning.remainingFils;
+      availableOrders.push(line);
+    } else if (earning.status === "pending") {
+      pendingFils += earning.remainingFils || earning.netFils || 0;
+      pendingOrders.push(line);
+    }
+  }
+
+  const { processingFils, paidFils } = await processingAndPaidFils(id, kind);
+  const name =
+    availableOrders[0]?.partnerName ||
+    pendingOrders[0]?.partnerName ||
+    earnings[0]?.partnerName ||
+    "";
+
+  const row = {
+    ...emptySettlement(id, kind, name),
+    availableFils,
+    availableAed: filsToAed(availableFils),
+    pendingFils,
+    pendingAed: filsToAed(pendingFils),
+    processingFils,
+    processingAed: filsToAed(processingFils),
+    paidFils,
+    paidAed: filsToAed(paidFils),
+    availableOrders,
+    pendingOrders,
+    partnerName: earnings[0]?.partnerName || name,
+    payeeName: earnings[0]?.partnerName || name,
+  };
+
+  const profiles = await loadShopProfiles([row]);
+  return applyProfile(row, profiles);
+}
+
+export async function listAllPartnerSettlements() {
+  await healDeliveredEarnings();
+
+  const earnings = await PartnerEarning.find({
+    status: { $in: ["pending", "available"] },
+  })
+    .sort({ availableAt: 1, createdAt: 1 })
+    .lean();
+
+  const excluded = await loadExcludedOrderIdSet(earnings);
+  const byKey = new Map();
+
+  const ensure = (earning) => {
+    const key = `${earning.partnerKind}:${earning.partnerId}`;
+    if (!byKey.has(key)) {
+      byKey.set(
+        key,
+        emptySettlement(
+          earning.partnerId,
+          earning.partnerKind,
+          earning.partnerName,
+        ),
+      );
+    }
+    return byKey.get(key);
+  };
+
+  for (const earning of earnings) {
+    if (excluded.has(String(earning.orderId))) continue;
+    const row = ensure(earning);
+    row.partnerName = row.partnerName || earning.partnerName;
+    row.payeeName = row.payeeName || earning.partnerName;
+    const line = serializeEarningLine(earning);
+    if (earning.status === "available" && (earning.remainingFils || 0) > 0) {
+      row.availableFils += earning.remainingFils;
+      row.availableOrders.push(line);
+    } else if (earning.status === "pending") {
+      row.pendingFils += earning.remainingFils || earning.netFils || 0;
+      row.pendingOrders.push(line);
+    }
+  }
+
+  const processing = await PartnerPayoutBatch.find({
+    status: { $in: ["processing", "completed"] },
+  })
+    .select("partnerId partnerKind status amountFils")
+    .lean();
+
+  for (const batch of processing) {
+    const key = `${batch.partnerKind}:${batch.partnerId}`;
+    if (!byKey.has(key)) {
+      byKey.set(
+        key,
+        emptySettlement(batch.partnerId, batch.partnerKind, batch.partnerName),
+      );
+    }
+    const row = byKey.get(key);
+    if (batch.status === "processing") {
+      row.processingFils += batch.amountFils || 0;
+    }
+    if (batch.status === "completed") {
+      row.paidFils += batch.amountFils || 0;
+    }
+  }
+
+  const partners = [...byKey.values()].map((row) => ({
+    ...row,
+    availableAed: filsToAed(row.availableFils),
+    pendingAed: filsToAed(row.pendingFils),
+    processingAed: filsToAed(row.processingFils),
+    paidAed: filsToAed(row.paidFils),
+  }));
+
+  const profiles = await loadShopProfiles(partners);
+  const withProfiles = partners.map((row) => applyProfile(row, profiles));
+
+  withProfiles.sort(
+    (a, b) =>
+      b.availableFils - a.availableFils ||
+      b.pendingFils - a.pendingFils ||
+      a.partnerName.localeCompare(b.partnerName),
+  );
+
+  return {
+    partners: withProfiles,
+    totals: {
+      availableFils: withProfiles.reduce((s, p) => s + p.availableFils, 0),
+      pendingFils: withProfiles.reduce((s, p) => s + p.pendingFils, 0),
+      processingFils: withProfiles.reduce((s, p) => s + p.processingFils, 0),
+      paidFils: withProfiles.reduce((s, p) => s + p.paidFils, 0),
+    },
+  };
+}
+
+export function previewPartnerFifo(settlement, budgetFils) {
+  const earnings = (settlement.availableOrders || []).map((line) => ({
+    _id: line.earningId,
+    orderId: line.orderId,
+    orderType: line.orderType,
+    partnerId: settlement.partnerId,
+    remainingFils: line.remainingFils,
+    commissionPercent: line.commissionPercent,
+    grossFils: line.grossFils,
+    commissionFils: line.commissionFils,
+    availableAt: line.availableAt,
+  }));
+  const amount =
+    budgetFils == null ? settlement.availableFils : Number(budgetFils);
+  return previewFifo(earnings, amount);
+}
+
+export async function listPayoutBatches({
+  partnerId,
+  partnerKind,
+  status,
+  limit = 200,
+} = {}) {
+  const filter = {};
+  if (partnerId) filter.partnerId = String(partnerId);
+  if (partnerKind) filter.partnerKind = partnerKind;
+  if (status) filter.status = status;
+
+  const items = await PartnerPayoutBatch.find(filter)
+    .populate("releasedBy", "name email")
+    .sort({ releasedAt: -1 })
+    .limit(Math.min(Math.max(Number(limit) || 200, 1), 500))
+    .lean();
+
+  const ids = items.map((item) => item._id);
+  const lines = ids.length
+    ? await PartnerPayoutLine.find({ payoutId: { $in: ids } }).lean()
+    : [];
+  const linesByPayout = new Map();
+  for (const line of lines) {
+    const key = String(line.payoutId);
+    if (!linesByPayout.has(key)) linesByPayout.set(key, []);
+    linesByPayout.get(key).push({
+      earningId: String(line.earningId),
+      orderId: String(line.orderId),
+      orderType: line.orderType,
+      amountFils: line.amountFils,
+      amountAed: filsToAed(line.amountFils),
+      amount: filsToAed(line.amountFils),
+      commissionPercent: line.commissionPercent,
+      grossFils: line.grossFils,
+      commissionFils: line.commissionFils,
+    });
+  }
+
+  return items.map((item) => {
+    const payoutLines = linesByPayout.get(String(item._id)) || [];
+    return {
+      ...item,
+      amountFils: item.amountFils,
+      amountAed: filsToAed(item.amountFils),
+      amount: filsToAed(item.amountFils),
+      lines: payoutLines,
+      orders: payoutLines.map((line) => ({
+        orderId: line.orderId,
+        orderType: line.orderType,
+        amount: line.amountAed,
+        amountFils: line.amountFils,
+        commissionPercent: line.commissionPercent,
+      })),
+    };
+  });
+}
+
+export async function listProcessingPayouts() {
+  return listPayoutBatches({ status: "processing", limit: 200 });
+}
+
+export async function getCompletedPayoutTotals(partnerId, partnerKind) {
+  const batches = await PartnerPayoutBatch.find({
+    partnerId: String(partnerId),
+    partnerKind,
+    status: { $in: ["processing", "completed"] },
+  })
+    .select("_id amountFils status releasedAt note currency")
+    .sort({ releasedAt: -1 })
+    .lean();
+
+  const ids = batches.map((batch) => batch._id);
+  const lines = ids.length
+    ? await PartnerPayoutLine.find({ payoutId: { $in: ids } }).lean()
+    : [];
+
+  const linesByPayout = new Map();
+  const paidByOrderId = new Map();
+  let paidTotalFils = 0;
+
+  for (const line of lines) {
+    const payoutKey = String(line.payoutId);
+    if (!linesByPayout.has(payoutKey)) linesByPayout.set(payoutKey, []);
+    linesByPayout.get(payoutKey).push(line);
+    const orderId = String(line.orderId || "");
+    if (!orderId) continue;
+    paidByOrderId.set(
+      orderId,
+      (paidByOrderId.get(orderId) || 0) + (Number(line.amountFils) || 0),
+    );
+  }
+
+  for (const batch of batches) {
+    if (batch.status === "completed") {
+      paidTotalFils += Number(batch.amountFils) || 0;
+    }
+  }
+
+  const releases = batches.map((batch) => {
+    const payoutLines = linesByPayout.get(String(batch._id)) || [];
+    return {
+      _id: batch._id,
+      amount: filsToAed(batch.amountFils),
+      currency: batch.currency || "AED",
+      orderCount: payoutLines.length,
+      orders: payoutLines.map((line) => ({
+        orderId: String(line.orderId),
+        orderType: line.orderType,
+        amount: filsToAed(line.amountFils),
+      })),
+      releasedAt: batch.releasedAt,
+      note: batch.note || "",
+      status: batch.status,
+    };
+  });
+
+  const paidByOrderAed = new Map();
+  for (const [orderId, fils] of paidByOrderId) {
+    paidByOrderAed.set(orderId, filsToAed(fils));
+  }
+
+  return {
+    paidTotal: filsToAed(paidTotalFils),
+    paidByOrderId: paidByOrderAed,
+    releases,
+  };
+}
+
+export async function findPendingPayoutRequest(partnerId, partnerKind) {
+  return PartnerPayoutRequest.findOne({
+    partnerKind,
+    status: "pending",
+    $or: [
+      { partnerId: String(partnerId) },
+      { partnerKey: `${partnerKind}:${partnerId}` },
+    ],
+  })
+    .sort({ requestedAt: -1 })
+    .lean();
+}
+
+export async function getPayoutById(payoutId) {
+  const found = await PartnerPayoutBatch.findById(payoutId)
+    .populate("releasedBy", "name email")
+    .lean();
+  if (!found) return null;
+  const lines = await PartnerPayoutLine.find({ payoutId: found._id }).lean();
+  const payoutLines = lines.map((line) => ({
+    earningId: String(line.earningId),
+    orderId: String(line.orderId),
+    orderType: line.orderType,
+    amountFils: line.amountFils,
+    amountAed: filsToAed(line.amountFils),
+    amount: filsToAed(line.amountFils),
+    commissionPercent: line.commissionPercent,
+    grossFils: line.grossFils,
+    commissionFils: line.commissionFils,
+  }));
+  return {
+    ...found,
+    amountFils: found.amountFils,
+    amountAed: filsToAed(found.amountFils),
+    amount: filsToAed(found.amountFils),
+    lines: payoutLines,
+    orders: payoutLines.map((line) => ({
+      orderId: line.orderId,
+      orderType: line.orderType,
+      amount: line.amountAed,
+      amountFils: line.amountFils,
+      commissionPercent: line.commissionPercent,
+    })),
+  };
+}
