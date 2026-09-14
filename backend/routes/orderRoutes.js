@@ -42,6 +42,7 @@ import {
   customerPriceForPartnerItem,
   sumCustomerAddonPrices,
 } from "../utils/motdCommission.js";
+import { maybeMarkEarningsAvailable } from "../services/partnerPayout/index.js";
 import { isStripeConfigured } from "../services/stripeService.js";
 import {
   fulfillPaidCheckout,
@@ -1403,6 +1404,7 @@ orderRoutes.post("/custom/:id/mark-received", isAuth, async (req, res) => {
 
     // Notify customer about delivery completion
     await notifyCustomStatusChange(order, "delivered", req.user._id);
+    await maybeMarkEarningsAvailable(order, "custom");
 
     return res.json({ success: true, order });
   } catch (error) {

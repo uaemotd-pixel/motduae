@@ -562,7 +562,7 @@ export async function ensurePartnerPayoutReleasedNotification({
   const amountLabel = formatPayoutAmount(amount);
   const message = approvedRequest
     ? `MOTD approved your payout request of AED ${amountLabel}.`
-    : `MOTD released your payout of AED ${amountLabel}.`;
+    : `MOTD released a payout of AED ${amountLabel}.`;
 
   const dedupeKey = requestId
     ? `${kind}:payout_approved:${requestId}`
