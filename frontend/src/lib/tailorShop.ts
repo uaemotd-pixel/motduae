@@ -1,6 +1,6 @@
 // lib/tailorShop.ts
 import { api, type ApiError } from "@/lib/api/client";
-import { extractDigits } from "./uaePhone";
+import { extractDigits, toUaePhoneDigits } from "./uaePhone";
 
 export interface TailorShopSocialLink {
   name: string;
@@ -277,11 +277,6 @@ export function emptyShopPickupAddress(): ShopPickupAddress {
 }
 
 export function tailorShopToForm(shop: TailorShopProfile): TailorShopFormData {
-  // Extract only 9 digits from phone
-  const digits = extractDigits(shop.phone ?? "");
-  // If starts with 971, remove it
-  const phone = digits.startsWith("971") ? digits.slice(3) : digits.slice(0, 9);
-
   return {
     name: shop.name ?? "",
     nameAr: shop.nameAr ?? "",
@@ -292,7 +287,7 @@ export function tailorShopToForm(shop: TailorShopProfile): TailorShopFormData {
     coverImage: shop.coverImage ?? "",
     location: shop.location ?? "",
     city: shop.city ?? "",
-    phone: phone,
+    phone: toUaePhoneDigits(shop.phone),
     website: shop.website ?? "",
     social: normalizeShopSocialLinks(shop.social),
     licenceNumber: shop.licenceNumber ?? "",
@@ -313,19 +308,7 @@ export function slugifyShopName(name: string): string {
 }
 
 export function normalizePhoneNumber(value: string): string {
-  if (!value) return "";
-
-  // Extract digits only
-  const digits = extractDigits(value);
-  if (!digits) return "";
-
-  // If starts with 971, remove it and return 9 digits
-  if (digits.startsWith("971")) {
-    return digits.slice(3, 12);
-  }
-
-  // Return first 9 digits
-  return digits.slice(0, 9);
+  return toUaePhoneDigits(value);
 }
 
 export function toTailorShopPayload(
@@ -334,12 +317,7 @@ export function toTailorShopPayload(
   TailorShopFormData,
   "licenceNumber" | "licenceFileUrl" | "experience"
 > {
-  // Normalize phone to exactly 9 digits
-  const phoneDigits = extractDigits(form.phone);
-  // If starts with 971, remove it
-  const normalizedPhone = phoneDigits.startsWith("971")
-    ? phoneDigits.slice(3, 12)
-    : phoneDigits.slice(0, 9);
+  const normalizedPhone = toUaePhoneDigits(form.phone);
 
   return {
     name: form.name.trim(),

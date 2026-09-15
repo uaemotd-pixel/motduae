@@ -1301,9 +1301,12 @@ export default function CustomOrdersTab({
                                         });
                                       }}
                                       className="w-full border border-gray-200 rounded-xl p-2 pl-14 text-sm text-black focus:outline-none focus:border-black transition bg-white"
-                                      placeholder="XXXXXXXXX"
+                                      placeholder="501234567"
                                     />
                                   </div>
+                                  <p className="text-[10px] text-gray-400 mt-1">
+                                    Enter 9 digits after +971
+                                  </p>
                                 </div>
                                 <div>
                                   <label className="text-[10px] uppercase tracking-[0.12em] text-gray-400 block mb-1">

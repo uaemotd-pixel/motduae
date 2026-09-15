@@ -705,7 +705,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     if (subfield === "phone") {
       const digits = value.replace(/\D/g, "");
       if (digits.length <= 9) {
-        nextValue = normalizeUaePhone(digits);
+        nextValue = digits;
       } else {
         return;
       }
@@ -783,7 +783,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
       errors["storePickupAddress.phone"] = "Phone is required";
     } else if (!isValidUaePhone(formData.storePickupAddress.phone.trim())) {
       errors["storePickupAddress.phone"] =
-        "Invalid UAE phone. Must be +971 followed by 9 digits";
+        "Invalid UAE phone. Must be 9 digits";
     }
 
     if (formData.variants && formData.variants.length > 0) {
@@ -1364,7 +1364,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                       handlePickupChange("phone", e.target.value);
                     }}
                     className="w-full py-1 pl-3 bg-transparent text-xs sm:text-[14px] focus:outline-none hover:cursor-text"
-                    placeholder="123456777"
+                    placeholder="501234567"
                     maxLength={9}
                   />
                 </div>

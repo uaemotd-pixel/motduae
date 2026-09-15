@@ -1246,10 +1246,13 @@ export default function FabricAdminFormFields({
                   handlePhoneChange("pickupAddress.phone", e.target.value);
                 }}
                 className="w-full py-1 pl-3 bg-transparent text-xs sm:text-[14px] focus:outline-none hover:cursor-text"
-                placeholder="123456777"
+                placeholder="501234567"
                 maxLength={9}
               />
             </div>
+            <p className="text-[10px] text-gray-400 mt-1">
+              Enter 9 digits after +971
+            </p>
           </FormField>
         </div>
       </div>

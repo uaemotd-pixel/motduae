@@ -219,7 +219,7 @@ export default function FamilyMembersForm({
 
     const isValid = isValidUaePhone(phoneValue);
     if (!isValid) {
-      setError("Invalid UAE number. Must be +971 followed by 9 digits");
+      setError("Invalid phone. Must be 9 digits after +971");
     } else {
       setError("");
       const normalized = normalizeUaePhone(phoneValue);
@@ -263,7 +263,7 @@ export default function FamilyMembersForm({
     }
     if (!phoneValidation) {
       toast.error(
-        "Invalid UAE number. Must be +971 followed by 9 digits",
+        "Invalid phone. Must be 9 digits after +971",
         ERROR_TOAST,
       );
       return;
@@ -273,7 +273,7 @@ export default function FamilyMembersForm({
       const addrPhoneValid = isValidUaePhone(form.address.phone);
       if (!addrPhoneValid) {
         toast.error(
-          "Invalid UAE number for address. Must be +971 followed by 9 digits",
+          "Invalid phone for address. Must be 9 digits after +971",
           ERROR_TOAST,
         );
         return;

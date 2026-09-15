@@ -1,7 +1,5 @@
-/**
- * Structured shop pickup address helpers for Shipa origins.
- * Shape mirrors customer delivery: fullName, phone, line1, line2, city, emirate.
- */
+import { toUaePhoneDigits } from "./uaePhone.js";
+
 
 export function emptyShopPickupAddress() {
   return {
@@ -41,14 +39,8 @@ export function normalizeShopPickupAddress(address) {
   }
 
   const fullName = address.fullName?.trim() || "";
-  let phone = address.phone?.trim() || "";
-  // Accept +971XXXXXXXXX / 971XXXXXXXXX and store local 9 digits (fabric portal convention)
-  const digits = phone.replace(/\D/g, "");
-  if (digits.startsWith("971") && digits.length >= 12) {
-    phone = digits.slice(3, 12);
-  } else if (/^\d{9}$/.test(digits)) {
-    phone = digits;
-  }
+  // Accept any format (+971XXXXXXXXX, 971XXXXXXXXX, XXXXXXXXX) and store local 9 digits
+  const phone = toUaePhoneDigits(address.phone);
   const line1 = address.line1?.trim() || "";
   const line2 = address.line2?.trim() || "";
   const city = address.city?.trim() || "";

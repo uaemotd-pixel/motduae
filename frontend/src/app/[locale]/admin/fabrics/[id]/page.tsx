@@ -13,6 +13,7 @@ import { FormPageSkeleton } from "@/components/ui/Skeleton";
 import { ChevronLeft, Edit, MapPin, Layers, Tag } from "lucide-react";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { resolveMediaUrl } from "@/lib/media";
+import { formatPhoneDisplay } from "@/lib/uaePhone";
 
 export default function FabricDetailsPage() {
   const router = useRouter();
@@ -393,7 +394,7 @@ export default function FabricDetailsPage() {
                 </p>
                 <p className="text-sm font-medium text-black font-mono mt-0.5">
                   {fabric.pickupAddress.phone
-                    ? `+971 ${fabric.pickupAddress.phone}`
+                    ? formatPhoneDisplay(fabric.pickupAddress.phone)
                     : "—"}
                 </p>
               </div>

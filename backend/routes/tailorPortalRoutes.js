@@ -17,6 +17,7 @@ import {
   isCompleteShopPickupAddress,
   normalizeShopPickupAddress,
 } from "../utils/shopPickupAddress.js";
+import { toUaePhoneDigits } from "../utils/uaePhone.js";
 import { markCustomTailorReady, presentCustomOrderForTailor } from "../services/shipmentService.js";
 import { getTimeframeWindow } from "../utils/dateRange.js";
 import { splitMotdCommission } from "../services/pricingService.js";
@@ -167,18 +168,7 @@ const enrichShopWithApplication = async (shop) => {
 };
 
 const normalizePhoneNumber = (value) => {
-  if (typeof value !== "string") return "";
-
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-
-  const digits = trimmed.replace(/\D/g, "");
-  if (!digits) return "";
-
-  if (digits.length === 9) return `+971${digits}`;
-  if (digits.length === 12 && digits.startsWith("971")) return `+${digits}`;
-
-  return trimmed.startsWith("+") ? trimmed : trimmed;
+  return toUaePhoneDigits(value);
 };
 
 const pickShopFields = (body) => {
@@ -227,9 +217,9 @@ const validateShopPayload = (data, { requireCore = false } = {}) => {
   if (
     data.phone !== undefined &&
     data.phone !== "" &&
-    !/^\+971\d{9}$/.test(normalizedPhone)
+    normalizedPhone.length !== 9
   ) {
-    return "phone number must be a valid UAE number";
+    return "phone number must be exactly 9 digits";
   }
 
   if (data.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(data.slug)) {

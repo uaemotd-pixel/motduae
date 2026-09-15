@@ -731,8 +731,7 @@ function CheckoutPageContent() {
     if (!formData.phone.trim()) {
       newErrors.phone = "Phone number is required";
     } else if (!isValidUaePhone(formData.phone)) {
-      newErrors.phone =
-        "Invalid UAE phone number. Must be +971 followed by 9 digits";
+      newErrors.phone = "Invalid phone. Must be 9 digits after +971";
     }
     if (!formData.emirate) {
       newErrors.emirate = "Emirate is required";
@@ -1250,7 +1249,9 @@ function CheckoutPageContent() {
                           className={`w-full h-11 md:h-12 border-b text-[15px] md:text-[16px] font-mono rounded-none transition-all text-black focus:outline-none ${
                             addressLocked
                               ? "bg-gray-50 border-black/15 cursor-not-allowed focus:ring-0"
-                              : "bg-transparent border-black/15 focus:border-black"
+                              : errors.phone
+                                ? "bg-transparent border-red-500 focus:border-red-500"
+                                : "bg-transparent border-black/15 focus:border-black"
                           } ${
                             localeParams === "ar"
                               ? "pr-11 pl-0 text-right"
@@ -1258,6 +1259,18 @@ function CheckoutPageContent() {
                           }`}
                         />
                       </div>
+                      {!addressLocked && (
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {localeParams === "ar"
+                            ? "أدخل 9 أرقام بعد +971"
+                            : "Enter 9 digits after +971"}
+                        </p>
+                      )}
+                      {errors.phone && (
+                        <p className="text-red-600 text-[12px] leading-snug mt-1.5">
+                          {errors.phone}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="font-label-sm text-[11px] md:text-[12px] text-black/60 uppercase tracking-[0.2em] block">

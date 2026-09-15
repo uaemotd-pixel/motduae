@@ -1,4 +1,5 @@
-// frontend/lib/uaeAddress.ts
+import { isValidUaePhone, toUaePhoneDigits } from "./uaePhone";
+
 export const UAE_EMIRATES = [
   { value: "Dubai", en: "Dubai", ar: "دبي" },
   { value: "Abu Dhabi", en: "Abu Dhabi", ar: "أبو ظبي" },
@@ -52,7 +53,7 @@ export function normalizeAddress(address: Partial<Address>): Partial<Address> {
 
   return {
     fullName: address.fullName?.trim() || "",
-    phone: address.phone?.trim() || "",
+    phone: toUaePhoneDigits(address.phone),
     emirate: normalizeEmirate(address.emirate || ""),
     city: address.city?.trim() || "",
     street: address.street?.trim() || "",
@@ -68,7 +69,11 @@ export function validateAddress(address: Partial<Address>): {
   const errors: Record<string, string> = {};
 
   if (!address.fullName?.trim()) errors.fullName = "Full name required";
-  if (!address.phone?.trim()) errors.phone = "Phone required";
+  if (!address.phone?.trim()) {
+    errors.phone = "Phone required";
+  } else if (!isValidUaePhone(address.phone)) {
+    errors.phone = "Invalid phone. Must be 9 digits after +971";
+  }
   if (!address.emirate || !isValidEmirate(address.emirate))
     errors.emirate = "Valid UAE emirate required";
   if (!address.city?.trim()) errors.city = "City required";

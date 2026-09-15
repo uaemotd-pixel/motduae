@@ -23,6 +23,7 @@ import {
   isCompleteShopPickupAddress,
   normalizeShopPickupAddress,
 } from "../utils/shopPickupAddress.js";
+import { toUaePhoneDigits } from "../utils/uaePhone.js";
 import { hasActiveFabricShipments } from "../services/shipmentService.js";
 import { getTimeframeWindow } from "../utils/dateRange.js";
 import PlatformSettings from "../models/PlatformSettings.js";
@@ -210,17 +211,8 @@ const pickShopFields = (body) => {
   return data;
 };
 
-// Backend - store full format
+// Backend - store 9 digits format
 const validateShopPayload = (data, { requireCore = false } = {}) => {
-  const normalizePhone = (phone) => {
-    if (!phone) return "";
-    const digits = String(phone).replace(/\D/g, "");
-    if (digits.startsWith("971")) {
-      return `+971${digits.slice(3, 12)}`;
-    }
-    return `+971${digits.slice(0, 9)}`;
-  };
-
   if (requireCore) {
     if (!data.name || !data.nameAr || !data.slug || !data.phone) {
       return "name, nameAr, slug, and phone are required";
@@ -232,13 +224,12 @@ const validateShopPayload = (data, { requireCore = false } = {}) => {
   }
 
   if (data.phone !== undefined && data.phone !== "") {
-    const normalized = normalizePhone(data.phone);
-    // Validate after normalization - check if we have 9 digits after +971
-    if (!/^\+971\d{9}$/.test(normalized)) {
+    const cleanPhone = toUaePhoneDigits(data.phone);
+    if (cleanPhone.length !== 9) {
       return "phone number must be exactly 9 digits";
     }
-    // Store full +971 format
-    data.phone = normalized;
+    // Store 9 digits format
+    data.phone = cleanPhone;
   }
 
   if (data.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(data.slug)) {
@@ -588,8 +579,9 @@ fabricPortalRouter.post(
           "",
         building:
           storePickupAddress?.building || shopPickup.line2 || "",
-        phone:
+        phone: toUaePhoneDigits(
           storePickupAddress?.phone || shopPickup.phone || shop.phone || "",
+        ),
       },
       isActive: isActive !== undefined ? isActive : true,
     });
@@ -739,7 +731,7 @@ fabricPortalRouter.put(
             : fabric.storePickupAddress.building,
         phone:
           storePickupAddress.phone !== undefined
-            ? storePickupAddress.phone
+            ? toUaePhoneDigits(storePickupAddress.phone)
             : fabric.storePickupAddress.phone,
       };
     }
