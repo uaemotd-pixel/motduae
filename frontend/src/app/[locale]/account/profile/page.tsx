@@ -33,6 +33,7 @@ import { useParams } from "next/navigation";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { AccountPanelSkeleton } from "@/components/ui/Skeleton";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatPhoneDisplay } from "@/lib/uaePhone";
 
 const ACCOUNT_VERIFY_HREF = (locale: string) =>
   `/${locale}/auth/verify-email?mode=account&next=${encodeURIComponent("/account?tab=profile")}`;
@@ -249,12 +250,7 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
 
   const formatUAEPhone = (phone?: string | null): string => {
     if (!phone) return "—";
-    const cleaned = phone.replace(/\D/g, "");
-    let number = cleaned;
-    if (number.startsWith("971")) {
-      number = number.slice(3);
-    }
-    return `+971 ${number.slice(0, 2)} ${number.slice(2, 5)} ${number.slice(5)}`;
+    return formatPhoneDisplay(phone) || "—";
   };
 
   const defaultAddress =

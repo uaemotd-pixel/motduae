@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { toUaePhoneDigits } from "../utils/uaePhone.js";
 
 const ROLES = [
   "customer",
@@ -51,9 +52,10 @@ const userSchema = new mongoose.Schema(
             return !isCustomer || isGoogleCustomer;
           }
 
-          return /^\+971\d{9}$/.test(v);
+          const digits = toUaePhoneDigits(v);
+          return digits.length === 9;
         },
-        message: "Phone must be +971 followed by 9 digits when provided",
+        message: "Phone must be 9 digits when provided",
       },
     },
     role: {
@@ -94,14 +96,17 @@ userSchema.index({ emailVerificationOTPExpires: 1 }, { sparse: true });
 userSchema.index({ resetPasswordExpires: 1 }, { sparse: true });
 
 userSchema.pre("validate", function requireCustomerPhone(next) {
+  if (this.phone) {
+    this.phone = toUaePhoneDigits(this.phone);
+  }
   if (
     this.role === "customer" &&
     this.authProvider === "local" &&
-    (!this.phone || !/^\+971\d{9}$/.test(this.phone))
+    (!this.phone || !/^\d{9}$/.test(this.phone))
   ) {
     this.invalidate(
       "phone",
-      "Phone is required for customer accounts (+971 followed by 9 digits)",
+      "Phone is required for customer accounts (9 digits)",
     );
   }
   next();

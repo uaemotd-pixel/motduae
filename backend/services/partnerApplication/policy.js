@@ -9,7 +9,9 @@ export const ABOUT_MAX_LENGTH = 400;
 export const PARTNER_NOTE_MAX_LENGTH = 1000;
 export const SOCIAL_MAX = 20;
 
-const UAE_PHONE = /^\+971\d{9}$/;
+import { toUaePhoneDigits } from "../../utils/uaePhone.js";
+
+const UAE_PHONE = /^\d{9}$/;
 
 export class PartnerApplicationError extends Error {
   constructor(code, message, status = 400, extra = {}) {
@@ -57,18 +59,13 @@ export function hideUnsubmittedPendingClause() {
 }
 
 export function isValidUaePhone(value) {
-  return UAE_PHONE.test(String(value || "").trim());
+  const digits = toUaePhoneDigits(value);
+  return digits.length === 9;
 }
 
 export function normalizeUaePhone(value) {
-  const cleaned = String(value || "").replace(/[^\d+]/g, "");
-  if (!cleaned) return "";
-  let digits = cleaned.replace(/\D/g, "");
-  if (digits.startsWith("971")) {
-    digits = digits.slice(3);
-  }
-  digits = digits.slice(0, 9);
-  return digits.length === 9 ? `+971${digits}` : "";
+  const digits = toUaePhoneDigits(value);
+  return digits.length === 9 ? digits : "";
 }
 
 export function trimText(value, max) {

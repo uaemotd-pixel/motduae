@@ -22,7 +22,7 @@ async function ensureGuestUser() {
         email,
         password: passwordHash,
         role: 'customer',
-        phone: '+971500000000',
+        phone: '500000000',
       });
       console.log(`Successfully created guest customer account: ${email}`);
       

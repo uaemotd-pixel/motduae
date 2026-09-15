@@ -67,9 +67,7 @@ export default function RegisterForm() {
     setIsLoading(true);
 
     try {
-      // Add +971 prefix before sending to backend
-      const fullPhone = `+971${phone}`;
-      await register(name, email, password, fullPhone);
+      await register(name, email, password, phone);
       setSuccess(t.signup.successMessage || "Account created! Redirecting...");
     } catch (err: any) {
       setError(err.message || "An error occurred during registration.");

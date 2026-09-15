@@ -17,6 +17,7 @@ import { api } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
 import { AccountPanelSkeleton } from "@/components/ui/Skeleton";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import { formatPhoneDisplay } from "@/lib/uaePhone";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 type Relationship =
@@ -272,7 +273,7 @@ export default function FamilyMembersPage() {
                     <div>
                       <p className="text-gray-400">Phone</p>
                       <p className="text-gray-700 font-medium truncate">
-                        {member.phone}
+                        {formatPhoneDisplay(member.phone)}
                       </p>
                     </div>
                     <div>
@@ -347,7 +348,7 @@ export default function FamilyMembersPage() {
                         {getRelationshipLabel(member.relationship)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden md:table-cell">
-                        {member.phone}
+                        {formatPhoneDisplay(member.phone)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden lg:table-cell">
                         {member.email || "—"}

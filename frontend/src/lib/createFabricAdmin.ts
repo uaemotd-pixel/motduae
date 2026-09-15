@@ -543,7 +543,7 @@ export function validateFabricForm(
     const normalizedPhone = normalizeUaePhone(form.pickupAddress.phone.trim());
     if (!isValidUaePhone(normalizedPhone)) {
       errors["pickupAddress.phone"] =
-        "Invalid UAE phone. Must be +971 followed by 9 digits";
+        "Invalid UAE phone. Must be 9 digits";
     } else {
       form.pickupAddress.phone = normalizedPhone;
     }
@@ -596,7 +596,7 @@ export function validateFabricForm(
         );
         if (!isValidUaePhone(normalizedVariantPhone)) {
           errors[`${prefix}.pickupAddress.phone`] =
-            "Invalid UAE phone for variant. Must be +971 followed by 9 digits";
+            "Invalid UAE phone for variant. Must be 9 digits";
         } else {
           v.pickupAddress.phone = normalizedVariantPhone;
         }

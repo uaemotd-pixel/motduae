@@ -1025,6 +1025,13 @@ export default function CustomOrderCheckoutStep() {
                         }`}
                       />
                     </div>
+                    {!addressLocked && (
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {locale === "ar"
+                          ? "أدخل 9 أرقام بعد +971"
+                          : "Enter 9 digits after +971"}
+                      </p>
+                    )}
                     {errors.phone && (
                       <p className="text-red-600 text-[12px] mt-1">
                         {errors.phone}

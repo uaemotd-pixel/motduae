@@ -10,6 +10,7 @@ import SubAdmin from "../models/SubAdmin.js";
 import NewsletterSubscriber from "../models/NewsletterSubscriber.js";
 import { env } from "../config/env.js";
 import { validatePassword } from "../utils/passwordValidation.js";
+import { toUaePhoneDigits } from "../utils/uaePhone.js";
 import {
   isEmailConfigured,
   sendPasswordResetEmail,
@@ -671,31 +672,13 @@ userRouter.post(
       return;
     }
 
-    // Remove spaces and validate
-    const phoneTrimmed = phone.trim();
-
-    // Check if it already has +971
-    let fullPhone;
-    if (phoneTrimmed.startsWith("+971")) {
-      // Already has +971, validate it
-      if (!/^\+971\d{9}$/.test(phoneTrimmed)) {
-        res.status(400).send({
-          message:
-            "Invalid UAE phone number format. Must be +971 followed by 9 digits",
-        });
-        return;
-      }
-      fullPhone = phoneTrimmed;
-    } else {
-      // Add +971 if missing
-      const digits = phoneTrimmed.replace(/\D/g, "");
-      if (!/^\d{9}$/.test(digits)) {
-        res.status(400).send({
-          message: "Contact number must be exactly 9 digits",
-        });
-        return;
-      }
-      fullPhone = `+971${digits}`;
+    // Normalize phone to exactly 9 digits
+    const cleanPhone = toUaePhoneDigits(phone);
+    if (cleanPhone.length !== 9) {
+      res.status(400).send({
+        message: "Contact number must be exactly 9 digits",
+      });
+      return;
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -708,7 +691,7 @@ userRouter.post(
       email: normalizedEmail,
       password: bcrypt.hashSync(password, BCRYPT_ROUNDS),
       role: "customer",
-      phone: fullPhone, // Store as +971501234567
+      phone: cleanPhone, // Store as 9 digits (e.g. 501234567)
       authProvider: "local",
       emailVerified: false,
     });

@@ -79,6 +79,9 @@ export default function ReadyMadePickupAddressFields({
               className="w-full py-1 outline-none text-xs sm:text-sm font-mono"
             />
           </div>
+          <p className="text-[10px] text-gray-400 mt-1">
+            Enter 9 digits after +971
+          </p>
         </FormField>
 
         <FormField

@@ -15,6 +15,7 @@ import {
   validateAddress,
   normalizeAddress,
 } from "../utils/uaeAddress.js";
+import { toUaePhoneDigits } from "../utils/uaePhone.js";
 import { registerCustomerReviewRoutes } from "./customerReviewRoutes.js";
 import { registerCustomerFavouriteRoutes } from "./customerFavouriteRoutes.js";
 import { omitReviewsModerationFields } from "../services/reviewTargets.js";
@@ -93,14 +94,18 @@ customerRouter.post("/profile", isAuth, async (req, res) => {
       addrArray[0].isDefault = true;
     }
 
+    const cleanPhone = phone ? toUaePhoneDigits(phone) : undefined;
     const customerData = {
       userId: new mongoose.Types.ObjectId(userId),
       name: name.trim(),
-      phone: phone?.trim() || undefined,
+      phone: cleanPhone,
       gender: gender || "prefer-not",
       dob: dob ? new Date(dob) : undefined,
       profilePic: profilePic?.trim() || undefined,
-      addresses: addrArray,
+      addresses: addrArray.map((a) => ({
+        ...a,
+        phone: toUaePhoneDigits(a.phone || cleanPhone),
+      })),
     };
 
     const customer = new Customer(customerData);
@@ -199,13 +204,20 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
 
     let customer = await Customer.findOne({ userId });
 
+    const cleanPhone =
+      phone !== undefined
+        ? phone
+          ? toUaePhoneDigits(phone)
+          : undefined
+        : undefined;
+
     if (!customer) {
       const addrArray = addresses && Array.isArray(addresses) ? addresses : [];
 
       if (addrArray.length === 0) {
         addrArray.push({
           fullName: name?.trim() || req.user.name,
-          phone: phone?.trim() || undefined,
+          phone: cleanPhone,
           emirate: "",
           city: "",
           street: "",
@@ -220,11 +232,14 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
       customer = new Customer({
         userId: new mongoose.Types.ObjectId(userId),
         name: name?.trim() || req.user.name,
-        phone: phone?.trim() || undefined,
+        phone: cleanPhone,
         gender: gender || "prefer-not",
         dob: dob ? new Date(dob) : undefined,
         profilePic: profilePic?.trim() || undefined,
-        addresses: addrArray,
+        addresses: addrArray.map((a) => ({
+          ...a,
+          phone: toUaePhoneDigits(a.phone || cleanPhone),
+        })),
       });
 
       const defaultAddr =
@@ -236,7 +251,7 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
       if (name || phone) {
         await User.findByIdAndUpdate(userId, {
           name: name?.trim() || req.user.name,
-          phone: phone?.trim() || undefined,
+          phone: cleanPhone,
         });
       }
 
@@ -245,7 +260,7 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
 
     // Update customer fields
     if (name !== undefined) customer.name = name.trim();
-    if (phone !== undefined) customer.phone = phone?.trim() || undefined;
+    if (phone !== undefined) customer.phone = cleanPhone;
     if (gender !== undefined) customer.gender = gender;
     if (dob !== undefined) customer.dob = dob ? new Date(dob) : undefined;
     if (profilePic !== undefined)
@@ -267,7 +282,7 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
         const isDefault = index === 0;
         const mapped = {
           fullName: addr.fullName || customer.name,
-          phone: addr.phone || customer.phone,
+          phone: toUaePhoneDigits(addr.phone || customer.phone || ""),
           emirate,
           city: addr.city,
           street: addr.street || "",
@@ -301,7 +316,7 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
     if (name !== undefined || phone !== undefined) {
       const updateData = {};
       if (name !== undefined) updateData.name = name.trim();
-      if (phone !== undefined) updateData.phone = phone?.trim() || undefined;
+      if (phone !== undefined) updateData.phone = cleanPhone;
       await User.findByIdAndUpdate(userId, updateData);
     }
 
@@ -356,9 +371,13 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
       });
     }
 
+    if (normalizedAddress?.phone) {
+      normalizedAddress.phone = toUaePhoneDigits(normalizedAddress.phone);
+    }
+
     const newMember = {
       name: name.trim(),
-      phone: phone.trim(),
+      phone: toUaePhoneDigits(phone),
       email: email?.trim() || undefined,
       relationship: relationship || "other",
       dob: dob ? new Date(dob) : undefined,
@@ -401,7 +420,7 @@ customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
 
     // Update fields
     member.name = name.trim();
-    member.phone = phone.trim();
+    member.phone = toUaePhoneDigits(phone);
     member.email = email?.trim() || undefined;
     member.relationship = relationship || "other";
     if (dob !== undefined) {
@@ -419,6 +438,10 @@ customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
         return res.status(400).json({
           error: "Emirate is required when address details are provided",
         });
+      }
+
+      if (normalizedAddress?.phone) {
+        normalizedAddress.phone = toUaePhoneDigits(normalizedAddress.phone);
       }
 
       member.address = addressIsProvided ? normalizedAddress : undefined;
