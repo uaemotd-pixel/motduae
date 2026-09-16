@@ -40,6 +40,13 @@ import {
   isValidUaePhone,
   extractDigits,
 } from "@/lib/uaePhone";
+import PartnerPayoutBankFields from "@/components/partners/PartnerPayoutBankFields";
+import {
+  payoutBankFieldErrors,
+  payoutBankTouched,
+  isPayoutBankComplete,
+  type PayoutBankField,
+} from "@/lib/partnerPayoutBank";
 
 const INPUT_CLASS =
   "w-full border border-(--color-border) bg-white px-4 py-3 text-[14px] [font-family:var(--font-body)] text-black focus:border-black focus:outline-none";
@@ -48,9 +55,10 @@ const TEXTAREA_CLASS = `${INPUT_CLASS} min-h-[120px] resize-y`;
 type FieldKey =
   | keyof Omit<
       TailorShopFormData,
-      "pickupAddress" | "social" | "licenceNumber" | "licenceFileUrl" | "experience"
+      "pickupAddress" | "social" | "licenceNumber" | "licenceFileUrl" | "experience" | "payoutBank"
     >
   | `pickupAddress.${keyof ShopPickupAddress}`
+  | `payoutBank.${PayoutBankField}`
   | `social.${number}.name`
   | `social.${number}.url`;
 
@@ -217,6 +225,17 @@ export default function TailorShopForm() {
     }
   };
 
+  const handlePayoutBankChange = (field: PayoutBankField, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      payoutBank: { ...prev.payoutBank, [field]: value },
+    }));
+    const key = `payoutBank.${field}` as FieldKey;
+    if (fieldErrors[key]) {
+      setFieldErrors((prev) => ({ ...prev, [key]: undefined }));
+    }
+  };
+
   const handleSocialChange = (
     index: number,
     field: keyof TailorShopSocialLink,
@@ -372,6 +391,16 @@ export default function TailorShopForm() {
       errors["pickupAddress.emirate"] = t("validation.pickupEmirateRequired");
     }
 
+    const bankErrors = payoutBankFieldErrors(payload.payoutBank);
+    if (bankErrors.accountHolderName) {
+      errors["payoutBank.accountHolderName"] = t(
+        "validation.accountHolderRequired",
+      );
+    }
+    if (bankErrors.iban) {
+      errors["payoutBank.iban"] = t("validation.ibanInvalid");
+    }
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -391,10 +420,18 @@ export default function TailorShopForm() {
     setSubmitting(true);
 
     try {
-      const savedShop = await updateTailorShop(nextForm);
+      const formForSave = {
+        ...nextForm,
+        payoutBank:
+          payoutBankTouched(nextForm.payoutBank) &&
+          !isPayoutBankComplete(nextForm.payoutBank)
+            ? shop.payoutBank || nextForm.payoutBank
+            : nextForm.payoutBank,
+      };
+      const savedShop = await updateTailorShop(formForSave);
       setShop(savedShop);
       const form = tailorShopToForm(savedShop);
-      setFormData(form);
+      setFormData({ ...form, payoutBank: nextForm.payoutBank });
       toast.success(
         url.trim() ? t("imageSaved") : t("imageRemoved"),
         SUCCESS_TOAST,
@@ -1220,6 +1257,14 @@ export default function TailorShopForm() {
             </FormField>
           </div>
         </section>
+
+        <PartnerPayoutBankFields
+          value={formData.payoutBank}
+          errors={fieldErrors}
+          onChange={handlePayoutBankChange}
+          t={(key) => t(key)}
+          inputClass={INPUT_CLASS}
+        />
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2">
           <button

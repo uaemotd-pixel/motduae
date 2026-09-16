@@ -59,7 +59,7 @@ tailorRoutes.get("/", async (req, res) => {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNumber)
-        .select("-__v"),
+        .select("-__v -payoutBank"),
       TailorShop.countDocuments(filter),
     ]);
 
@@ -89,7 +89,7 @@ async function findApprovedShopBySlug(slug) {
     isActive: true,
   })
     .populate("ownerId", "_id name role approvalStatus")
-    .select("-__v");
+    .select("-__v -payoutBank");
 
   if (!shop || !isApprovedTailorOwner(shop.ownerId)) {
     return null;
@@ -242,7 +242,7 @@ tailorRoutes.get("/designs/:slug", async (req, res) => {
       isActive: true,
       minCutId: { $exists: true, $ne: null },
     })
-      .populate("tailorShopId")
+      .populate({ path: "tailorShopId", select: "-payoutBank" })
       .select("-__v");
 
     if (!design) {

@@ -26,6 +26,10 @@ import {
   syncExperienceAnchor,
   baselineMonthsFromYearsOperating,
 } from "../../utils/partnerExperience.js";
+import {
+  isPayoutBankComplete,
+  serializePayoutBank,
+} from "../../utils/partnerPayoutBank.js";
 
 const PATCH_KEYS = [
   "businessName",
@@ -106,6 +110,8 @@ export function toShopSnapshotDto(shop) {
       city: pickup.city || "",
       emirate: pickup.emirate || "",
     },
+    payoutBank: serializePayoutBank(shop.payoutBank),
+    hasPayoutBank: isPayoutBankComplete(shop.payoutBank),
     updatedAt: shop.updatedAt || null,
   };
 }

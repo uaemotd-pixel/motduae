@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Check, Search, Trash2, X } from "lucide-react";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { formatCurrency, partnerKindLabel, payoutStatusLabel } from "./helpers";
+import PayoutBankCard from "./PayoutBankCard";
 import type { FabricPayoutRequestItem } from "./types";
 
 export default function RequestsPanel({
@@ -57,7 +58,7 @@ export default function RequestsPanel({
             </p>
           </div>
           {pendingCount > 0 ? (
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-amber-800">
+            <span className="rounded-full border border-(--dash-border) bg-(--dash-bg) px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-(--dash-muted)">
               {pendingCount} pending
             </span>
           ) : null}
@@ -95,11 +96,21 @@ export default function RequestsPanel({
                         Note: {request.note}
                       </p>
                     ) : null}
+                    {request.partnerKind !== "shipping" ? (
+                      <div className="mt-3 max-w-md">
+                        <PayoutBankCard
+                          bank={request.payoutBank}
+                          hasPayoutBank={request.hasPayoutBank}
+                        />
+                      </div>
+                    ) : null}
                   </div>
                   <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                     <button
                       type="button"
-                      disabled={!!reviewingRequestId}
+                      disabled={
+                        !!reviewingRequestId || request.hasPayoutBank === false
+                      }
                       onClick={() => onApprove(request)}
                       className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-(--dash-charcoal) px-3 py-2 text-xs text-white transition hover:opacity-90 disabled:opacity-50"
                     >
@@ -110,7 +121,7 @@ export default function RequestsPanel({
                       type="button"
                       disabled={!!reviewingRequestId}
                       onClick={() => onDecline(request)}
-                      className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 transition hover:bg-rose-100 disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-(--dash-border) bg-white px-3 py-2 text-xs text-(--dash-ink) transition hover:bg-(--dash-bg) disabled:opacity-50"
                     >
                       <X className="h-3.5 w-3.5" />
                       Decline
@@ -203,13 +214,7 @@ export default function RequestsPanel({
                         {formatCurrency(Number(request.amount) || 0)}
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
-                            request.status === "approved"
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                              : "border-rose-200 bg-rose-50 text-rose-800"
-                          }`}
-                        >
+                        <span className="rounded-full border border-(--dash-border) px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-(--dash-muted)">
                           {payoutStatusLabel(request.status)}
                         </span>
                       </td>

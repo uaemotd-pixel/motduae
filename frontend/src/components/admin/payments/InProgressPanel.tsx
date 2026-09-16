@@ -2,6 +2,7 @@
 
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { formatCurrency, partnerKindLabel, payoutTransactionAmount } from "./helpers";
+import PayoutBankCard from "./PayoutBankCard";
 import type { PartnerPayoutTransaction } from "./types";
 
 export default function InProgressPanel({
@@ -38,7 +39,7 @@ export default function InProgressPanel({
           {payouts.map((tx) => (
             <div
               key={tx._id}
-              className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/40 p-4 lg:flex-row lg:items-center lg:justify-between"
+              className="flex flex-col gap-3 rounded-xl border border-(--dash-border) bg-white p-4 lg:flex-row lg:items-center lg:justify-between"
             >
               <div>
                 <p className="font-medium text-(--dash-ink)">{tx.partnerName}</p>
@@ -47,6 +48,16 @@ export default function InProgressPanel({
                   {formatCurrency(payoutTransactionAmount(tx))} ·{" "}
                   {tx.releasedAt ? new Date(tx.releasedAt).toLocaleString() : ""}
                 </p>
+                {tx.partnerKind !== "shipping" ? (
+                  <div className="mt-3">
+                    <PayoutBankCard
+                      bank={tx.payoutBank}
+                      hasPayoutBank={
+                        tx.hasPayoutBank ?? Boolean(tx.payoutBank?.iban)
+                      }
+                    />
+                  </div>
+                ) : null}
               </div>
               <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <button
@@ -59,7 +70,7 @@ export default function InProgressPanel({
                 <button
                   type="button"
                   onClick={() => onCancel(tx)}
-                  className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs text-rose-800"
+                  className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-(--dash-border) bg-white px-3 py-2 text-xs text-(--dash-ink) hover:text-(--dash-ink)"
                 >
                   Cancel
                 </button>

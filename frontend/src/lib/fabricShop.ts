@@ -15,6 +15,11 @@ import {
   normalizeSocialPlatformName,
   type TailorShopSocialLink,
 } from "@/lib/tailorShop";
+import {
+  emptyPayoutBank,
+  normalizePayoutBank,
+  type PayoutBankDetails,
+} from "@/lib/partnerPayoutBank";
 
 export type FabricShopSocialLink = TailorShopSocialLink;
 
@@ -184,6 +189,7 @@ export interface FabricShopProfile {
   partnerNote?: string;
   requestNumber?: string;
   pickupAddress?: ShopPickupAddress;
+  payoutBank?: PayoutBankDetails;
   rating?: number;
   reviewCount?: number;
   isActive?: boolean;
@@ -216,6 +222,7 @@ export interface FabricShopFormData {
   partnerNote: string;
   requestNumber: string;
   pickupAddress: ShopPickupAddress;
+  payoutBank: PayoutBankDetails;
 }
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -242,6 +249,7 @@ export function emptyFabricShopForm(): FabricShopFormData {
     partnerNote: "",
     requestNumber: "",
     pickupAddress: emptyShopPickupAddress(),
+    payoutBank: emptyPayoutBank(),
   };
 }
 
@@ -267,6 +275,7 @@ export function fabricShopToForm(shop: FabricShopProfile): FabricShopFormData {
     partnerNote: shop.partnerNote ?? "",
     requestNumber: shop.requestNumber ?? "",
     pickupAddress: normalizeShopPickupAddress(shop.pickupAddress),
+    payoutBank: normalizePayoutBank(shop.payoutBank),
   };
 }
 
@@ -318,6 +327,7 @@ export function toFabricShopPayload(
         url: normalizeHttpUrl(link.url),
       })),
     pickupAddress: normalizeShopPickupAddress(form.pickupAddress),
+    payoutBank: normalizePayoutBank(form.payoutBank),
   };
 }
 

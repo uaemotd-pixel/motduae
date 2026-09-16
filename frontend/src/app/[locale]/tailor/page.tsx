@@ -138,6 +138,7 @@ interface TailorPayoutRequestsResponse {
   pendingOrderCount?: number;
   pendingOrders?: Array<{ orderId: string; remainingAed?: number }>;
   pendingRequest: TailorPayoutRequestSummary | null;
+  hasPayoutBank?: boolean;
   items: TailorPayoutRequestSummary[];
 }
 
@@ -175,6 +176,7 @@ export default function TailorDashboardPage() {
   const [deletingRequestId, setDeletingRequestId] = useState<string | null>(
     null,
   );
+  const [hasPayoutBank, setHasPayoutBank] = useState<boolean | null>(null);
 
   const earningsChartRef = useRef<Chart | null>(null);
   const statusChartRef = useRef<Chart | null>(null);
@@ -193,6 +195,11 @@ export default function TailorDashboardPage() {
       setPendingOrders(Array.isArray(res.pendingOrders) ? res.pendingOrders : []);
       setPendingRequest(res.pendingRequest || null);
       setRequestHistory(Array.isArray(res.items) ? res.items : []);
+      setHasPayoutBank(
+        typeof res.hasPayoutBank === "boolean"
+          ? res.hasPayoutBank
+          : Boolean((res as { identity?: { hasPayoutBank?: boolean } }).identity?.hasPayoutBank),
+      );
     } catch (err) {
       console.error("Tailor payout requests error:", err);
     }
@@ -635,7 +642,8 @@ export default function TailorDashboardPage() {
             isRequesting ||
             !!pendingRequest ||
             unpaidAmount <= 0 ||
-            unpaidOrderCount <= 0
+            unpaidOrderCount <= 0 ||
+            hasPayoutBank !== true
           }
           onClick={() => {
             setRequestError(null);
@@ -654,8 +662,20 @@ export default function TailorDashboardPage() {
         requestSuccess ||
         pendingRequest ||
         unpaidAmount > 0 ||
-        pendingAmount > 0) && (
+        pendingAmount > 0 ||
+        hasPayoutBank === false) && (
         <div className="border border-(--color-border) bg-white px-4 py-3 text-sm">
+          {hasPayoutBank === false ? (
+            <p className="text-(--color-grey-muted)">
+              {t("requestPayoutNeedBank")}{" "}
+              <Link
+                href="/tailor/shop"
+                className="text-black underline underline-offset-4"
+              >
+                {t("requestPayoutAddBank")}
+              </Link>
+            </p>
+          ) : null}
           {requestError ? (
             <p className="text-rose-700">{requestError}</p>
           ) : null}

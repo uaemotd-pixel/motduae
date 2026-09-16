@@ -145,7 +145,7 @@ async function findApprovedShopBySlug(slug) {
     isActive: true,
   })
     .populate("ownerId", "_id name role approvalStatus")
-    .select("-__v");
+    .select("-__v -payoutBank");
 
   if (!shop || !isApprovedFabricOwner(shop.ownerId)) {
     return null;
@@ -175,7 +175,7 @@ fabricShopPublicRoutes.get("/", async (req, res) => {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNumber)
-        .select("-__v"),
+        .select("-__v -payoutBank"),
       FabricShop.countDocuments(filter),
     ]);
 

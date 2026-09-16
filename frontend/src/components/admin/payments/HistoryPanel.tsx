@@ -11,6 +11,7 @@ import {
   payoutStatusLabel,
   payoutTransactionAmount,
 } from "./helpers";
+import PayoutBankCard from "./PayoutBankCard";
 import type {
   PartnerKindFilter,
   PartnerPayoutTransaction,
@@ -159,6 +160,12 @@ export default function HistoryPanel({
                       <tr className="border-t border-(--dash-border) bg-(--dash-bg)">
                         <td colSpan={8} className="px-4 py-3">
                           <div className="space-y-2">
+                            {tx.payoutBank?.iban ? (
+                              <PayoutBankCard
+                                bank={tx.payoutBank}
+                                hasPayoutBank
+                              />
+                            ) : null}
                             {lines.map((line, index) => (
                               <div
                                 key={`${tx._id}-${line.orderId}-${line.amountFils ?? line.amount}-${index}`}
