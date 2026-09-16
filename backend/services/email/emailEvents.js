@@ -15,6 +15,7 @@ export const EMAIL_EVENTS = {
   PARTNER_RESUBMITTED: "partner.resubmitted",
   PARTNER_APPROVED: "partner.approved",
   PARTNER_REJECTED: "partner.rejected",
+  PARTNER_PAYOUT_COMPLETED: "partner.payout.completed",
 };
 
 export function buildDedupeKey(event, parts = []) {

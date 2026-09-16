@@ -80,9 +80,9 @@ export default function RequestsPanel({
               return (
                 <div
                   key={request._id}
-                  className="flex flex-col gap-3 rounded-xl border border-(--dash-border) bg-white p-4 lg:flex-row lg:items-center lg:justify-between"
+                  className="flex flex-col gap-3 rounded-xl border border-(--dash-border) bg-white p-4 lg:flex-row lg:items-center"
                 >
-                  <div>
+                  <div className="min-w-0 lg:max-w-52 lg:shrink-0">
                     <p className="font-medium text-(--dash-ink)">
                       {request.partnerName}
                     </p>
@@ -96,15 +96,17 @@ export default function RequestsPanel({
                         Note: {request.note}
                       </p>
                     ) : null}
-                    {request.partnerKind !== "shipping" ? (
-                      <div className="mt-3 max-w-md">
-                        <PayoutBankCard
-                          bank={request.payoutBank}
-                          hasPayoutBank={request.hasPayoutBank}
-                        />
-                      </div>
-                    ) : null}
                   </div>
+                  {request.partnerKind !== "shipping" ? (
+                    <div className="min-w-0 flex-1">
+                      <PayoutBankCard
+                        bank={request.payoutBank}
+                        hasPayoutBank={request.hasPayoutBank}
+                      />
+                    </div>
+                  ) : (
+                    <div className="min-w-0 flex-1" />
+                  )}
                   <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                     <button
                       type="button"

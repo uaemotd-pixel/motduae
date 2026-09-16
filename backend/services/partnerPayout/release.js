@@ -12,10 +12,7 @@ import { previewFifo } from "./split.js";
 import { getPartnerSettlement, getPayoutById } from "./settlement.js";
 import { shouldWritePayoutVoidCredit } from "./compensation.js";
 import { healStalePendingRequests } from "./portal.js";
-import {
-  ensurePartnerPayoutReleasedNotification,
-  resolvePartnerOwnerUserId,
-} from "../notificationService.js";
+import { notifyPayoutCompleted } from "./notifyCompleted.js";
 import {
   PAYOUT_BANK_REQUIRED_ADMIN,
   resolvePayoutBankForRelease,
@@ -160,34 +157,6 @@ function requirePartnerPayoutBank(settlement, partnerKind) {
   return resolved.bank;
 }
 
-async function notifyRelease({
-  partnerKind,
-  partnerId,
-  amountAed,
-  payoutId,
-  releasedBy,
-  requestId,
-  approvedRequest,
-}) {
-  const recipientUserId = await resolvePartnerOwnerUserId(
-    partnerKind,
-    `${partnerKind}:${partnerId}`,
-    partnerId,
-  );
-  if (!recipientUserId) return;
-  await ensurePartnerPayoutReleasedNotification({
-    partnerKind,
-    amount: amountAed,
-    partnerKey: `${partnerKind}:${partnerId}`,
-    partnerId,
-    recipientUserId,
-    requestId: requestId || null,
-    payoutId,
-    createdBy: releasedBy || null,
-    approvedRequest: Boolean(approvedRequest),
-  });
-}
-
 export async function previewRelease({ partnerId, partnerKind, amountFils } = {}) {
   const settlement = await getPartnerSettlement(partnerId, partnerKind);
   const budget =
@@ -277,16 +246,6 @@ export async function releasePayout({
   });
 
   if (!result.duplicate) {
-    await notifyRelease({
-      partnerKind: kind,
-      partnerId: id,
-      amountAed: serialized.amountAed,
-      payoutId: result.payout._id,
-      releasedBy,
-      requestId: requestId || null,
-      approvedRequest: false,
-    }).catch(() => null);
-
     const after = await getPartnerSettlement(id, kind);
     await healStalePendingRequests({
       partnerId: id,
@@ -317,6 +276,7 @@ export async function completePayout({
     throw new PartnerPayoutError("We could not find this payment.", 404, "PAYOUT_NOT_FOUND");
   }
   if (existing.status === "completed") {
+    void notifyPayoutCompleted(existing._id).catch(() => null);
     return serializePayout(existing._id, { duplicate: true });
   }
   if (existing.status !== "processing") {
@@ -369,6 +329,7 @@ export async function completePayout({
     }
   });
 
+  void notifyPayoutCompleted(payoutId).catch(() => null);
   return serializePayout(payoutId);
 }
 
@@ -610,18 +571,6 @@ export async function approvePayoutRequest({
   const payout = await serializePayout(result.payout._id, {
     duplicate: result.duplicate,
   });
-
-  if (!result.duplicate) {
-    await notifyRelease({
-      partnerKind,
-      partnerId,
-      amountAed: payout.amountAed,
-      payoutId: result.payout._id,
-      releasedBy: reviewedBy,
-      requestId,
-      approvedRequest: true,
-    }).catch(() => null);
-  }
 
   const populated = await PartnerPayoutRequest.findById(requestId)
     .populate("requestedBy", "name email")
