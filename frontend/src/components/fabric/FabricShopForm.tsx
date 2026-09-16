@@ -407,12 +407,52 @@ export default function FabricShopForm() {
         "validation.accountHolderRequired",
       );
     }
-    if (bankErrors.iban) {
+    if (bankErrors.iban === "checksum") {
+      errors["payoutBank.iban"] = t("validation.ibanChecksum");
+    } else if (bankErrors.iban) {
       errors["payoutBank.iban"] = t("validation.ibanInvalid");
     }
 
     setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
+    const keys = Object.keys(errors) as FieldKey[];
+    if (keys.length > 0) {
+      const bankInvalid = Boolean(
+        errors["payoutBank.iban"] || errors["payoutBank.accountHolderName"],
+      );
+      if (bankInvalid) {
+        toast.error(
+          errors["payoutBank.iban"] ||
+            errors["payoutBank.accountHolderName"] ||
+            t("validation.ibanInvalid"),
+          ERROR_TOAST,
+        );
+      }
+
+      const fieldIdByKey: Partial<Record<FieldKey, string>> = {
+        "payoutBank.iban": "payoutBankIban",
+        "payoutBank.accountHolderName": "payoutBankAccountHolder",
+        "payoutBank.bankName": "payoutBankName",
+        "pickupAddress.fullName": "pickupFullName",
+        "pickupAddress.phone": "pickupPhone",
+        "pickupAddress.line1": "pickupLine1",
+        "pickupAddress.line2": "pickupLine2",
+        "pickupAddress.city": "pickupCity",
+      };
+      const scrollKey = bankInvalid
+        ? errors["payoutBank.iban"]
+          ? "payoutBank.iban"
+          : "payoutBank.accountHolderName"
+        : keys[0];
+      const scrollId =
+        fieldIdByKey[scrollKey as FieldKey] || String(scrollKey);
+
+      requestAnimationFrame(() => {
+        const el = document.getElementById(scrollId);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (el instanceof HTMLElement) el.focus?.();
+      });
+    }
+    return keys.length === 0;
   };
 
   const getPhoneDisplayValue = (phone: string): string => {

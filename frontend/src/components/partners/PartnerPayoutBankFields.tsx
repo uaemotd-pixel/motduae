@@ -83,7 +83,7 @@ export default function PartnerPayoutBankFields({
               value={value.iban}
               onChange={(e) => onChange("iban", normalizeIban(e.target.value))}
               placeholder={t("placeholders.iban")}
-              maxLength={23}
+              maxLength={34}
               className={`${inputClass} uppercase tracking-[0.08em]`}
             />
           </FormField>

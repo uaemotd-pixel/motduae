@@ -446,11 +446,11 @@ tailorPortalRouter.put(
     const previousCover = shop.coverImage;
 
     Object.assign(shop, data);
-    if (data.pickupAddress) {
-      shop.pickupAddress = data.pickupAddress;
+    if (data.pickupAddress !== undefined) {
+      shop.set("pickupAddress", data.pickupAddress);
     }
-    if (data.payoutBank) {
-      shop.payoutBank = data.payoutBank;
+    if (data.payoutBank !== undefined) {
+      shop.set("payoutBank", data.payoutBank);
       shop.markModified("payoutBank");
     }
     const updatedShop = await shop.save();

@@ -1021,7 +1021,8 @@
         "pickupCityRequired": "Pickup city is required.",
         "pickupEmirateRequired": "Pickup emirate is required.",
         "accountHolderRequired": "Account holder name is required when bank details are entered.",
-        "ibanInvalid": "Enter a valid UAE IBAN (AE followed by 21 digits)."
+        "ibanInvalid": "Enter a UAE IBAN as AE followed by exactly 21 digits (example: AE070331234567890123456).",
+        "ibanChecksum": "This IBAN fails the bank check digit. Copy it exactly from your bank app — a made-up AE number will not save. Example: AE070331234567890123456."
       },
       "errors": {
         "loadFailed": "Failed to load store profile.",
@@ -1489,7 +1490,8 @@
         "pickupCityRequired": "Pickup city is required.",
         "pickupEmirateRequired": "Pickup emirate is required.",
         "accountHolderRequired": "Account holder name is required when bank details are entered.",
-        "ibanInvalid": "Enter a valid UAE IBAN (AE followed by 21 digits)."
+        "ibanInvalid": "Enter a UAE IBAN as AE followed by exactly 21 digits (example: AE070331234567890123456).",
+        "ibanChecksum": "This IBAN fails the bank check digit. Copy it exactly from your bank app — a made-up AE number will not save. Example: AE070331234567890123456."
       },
       "errors": {
         "loadFailed": "Could not load your shop profile.",
@@ -1774,6 +1776,7 @@
       "markReadFailed": "Failed to mark as read",
       "markAllFailed": "Failed to mark all as read",
       "returnAcceptFailed": "Failed to accept return request",
+      "deleteSuccess": "Notification deleted",
       "deleteFailed": "Failed to delete notification",
       "invalidId": "Invalid notification id",
       "desktopAlertTitle": "New admin notification",

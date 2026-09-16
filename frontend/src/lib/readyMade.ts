@@ -13,6 +13,14 @@ export interface ReadyMadeListItem {
   tagAr?: string;
   tagColor?: string;
   tagColorAr?: string;
+  category?: string;
+  categoryAr?: string;
+  material?: string;
+  materialAr?: string;
+  pattern?: string;
+  patternAr?: string;
+  season?: string;
+  seasonAr?: string;
   colors?: string[];
   // additional fields (optional, if needed)
   fabricType?: string;

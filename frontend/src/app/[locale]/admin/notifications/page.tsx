@@ -597,6 +597,7 @@ export default function AdminNotificationsPage() {
                         try {
                           await deleteNotification(n.id);
                           if (expandedId === n.id) setExpandedId(null);
+                          toast.success(tn("deleteSuccess"));
                         } catch (err: unknown) {
                           toast.error(
                             getApiErrMessage(err, tn("deleteFailed")),

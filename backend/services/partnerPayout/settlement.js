@@ -7,6 +7,8 @@ import PartnerPayoutRequest from "../../models/PartnerPayoutRequest.js";
 import TailorShop from "../../models/TailorShop.js";
 import FabricShop from "../../models/FabricShop.js";
 import User from "../../models/User.js";
+import CustomOrder from "../../models/CustomOrder.js";
+import RetailOrder from "../../models/RetailOrder.js";
 import {
   PAYOUT_STATUSES,
   SHIPPING_PARTNER_ID,
@@ -25,7 +27,147 @@ export function serializeFils(fils) {
   return { fils: n, aed: filsToAed(n) };
 }
 
-function serializeEarningLine(earning) {
+function uniqueNonEmpty(values) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    const next = String(value || "").trim();
+    if (!next) continue;
+    const key = next.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(next);
+  }
+  return out;
+}
+
+function joinLabeled(label, names) {
+  const list = uniqueNonEmpty(names);
+  if (!list.length) return "";
+  if (list.length === 1) return `${label}: ${list[0]}`;
+  return `${label}: ${list.join(", ")}`;
+}
+
+function customOrderLabels(order) {
+  const designNames = [
+    order?.designSnapshot?.name,
+    ...(Array.isArray(order?.items)
+      ? order.items.map((item) => item?.designSnapshot?.name)
+      : []),
+  ];
+  const fabricNames = [
+    order?.fabricSnapshot?.name,
+    ...(Array.isArray(order?.items)
+      ? order.items.map((item) => item?.fabricSnapshot?.name)
+      : []),
+  ];
+  return {
+    designName: joinLabeled("Design", designNames),
+    fabricName: joinLabeled("Fabric", fabricNames),
+    productName: joinLabeled("Design", designNames) || joinLabeled("Fabric", fabricNames),
+  };
+}
+
+function retailOrderLabels(order, partnerId, partnerKind) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const forPartner =
+    partnerKind === "fabric" && partnerId
+      ? items.filter(
+          (item) =>
+            item?.fabricShopId &&
+            String(item.fabricShopId) === String(partnerId),
+        )
+      : items;
+  const scoped = forPartner.length ? forPartner : items;
+  const names = scoped.map((item) => item?.name);
+  const productName = uniqueNonEmpty(names).join(", ");
+  return {
+    designName: "",
+    fabricName: productName ? `Product: ${productName}` : "",
+    productName: productName
+      ? partnerKind === "fabric"
+        ? `Product: ${productName}`
+        : productName
+      : "",
+  };
+}
+
+function productNameForEarning(earning, labels) {
+  if (!labels) return "";
+  if (earning.partnerKind === "tailor") {
+    return labels.designName || labels.productName || "";
+  }
+  if (earning.partnerKind === "fabric") {
+    return labels.fabricName || labels.productName || "";
+  }
+  return labels.productName || labels.designName || labels.fabricName || "";
+}
+
+/**
+ * Batch-load design/product labels for settlement order lines.
+ * Keyed by orderId string.
+ */
+async function loadOrderProductLabels(earnings) {
+  const customIds = [];
+  const retailIds = [];
+  for (const earning of earnings || []) {
+    const id = earning?.orderId;
+    if (!id) continue;
+    if (earning.orderType === "custom") customIds.push(id);
+    else if (earning.orderType === "retail") retailIds.push(id);
+  }
+
+  const uniqueCustom = [...new Set(customIds.map(String))];
+  const uniqueRetail = [...new Set(retailIds.map(String))];
+
+  const [customs, retails] = await Promise.all([
+    uniqueCustom.length
+      ? CustomOrder.find({
+          _id: {
+            $in: uniqueCustom.filter((id) => mongoose.isValidObjectId(id)),
+          },
+        })
+          .select(
+            "designSnapshot.name fabricSnapshot.name items.designSnapshot.name items.fabricSnapshot.name",
+          )
+          .lean()
+      : Promise.resolve([]),
+    uniqueRetail.length
+      ? RetailOrder.find({
+          _id: {
+            $in: uniqueRetail.filter((id) => mongoose.isValidObjectId(id)),
+          },
+        })
+          .select("items.name items.fabricShopId")
+          .lean()
+      : Promise.resolve([]),
+  ]);
+
+  const customById = new Map(
+    customs.map((order) => [String(order._id), customOrderLabels(order)]),
+  );
+  const retailById = new Map(retails.map((order) => [String(order._id), order]));
+
+  return { customById, retailById };
+}
+
+function resolveProductName(earning, orderLabels) {
+  const id = String(earning.orderId);
+  if (earning.orderType === "custom") {
+    return productNameForEarning(earning, orderLabels.customById.get(id));
+  }
+  if (earning.orderType === "retail") {
+    const order = orderLabels.retailById.get(id);
+    if (!order) return "";
+    return productNameForEarning(
+      earning,
+      retailOrderLabels(order, earning.partnerId, earning.partnerKind),
+    );
+  }
+  return "";
+}
+
+function serializeEarningLine(earning, productName = "") {
   const remaining = serializeFils(earning.remainingFils);
   const net = serializeFils(earning.netFils);
   const gross = serializeFils(earning.grossFils);
@@ -34,6 +176,7 @@ function serializeEarningLine(earning) {
     earningId: String(earning._id),
     orderId: String(earning.orderId),
     orderType: earning.orderType,
+    productName: productName || "",
     remainingFils: remaining.fils,
     remainingAed: remaining.aed,
     amount: remaining.aed,
@@ -214,6 +357,7 @@ export async function getPartnerSettlement(partnerId, partnerKind) {
     .lean();
 
   const excluded = await loadExcludedOrderIdSet(earnings);
+  const orderLabels = await loadOrderProductLabels(earnings);
   const availableOrders = [];
   const pendingOrders = [];
   let availableFils = 0;
@@ -221,7 +365,10 @@ export async function getPartnerSettlement(partnerId, partnerKind) {
 
   for (const earning of earnings) {
     if (excluded.has(String(earning.orderId))) continue;
-    const line = serializeEarningLine(earning);
+    const line = serializeEarningLine(
+      earning,
+      resolveProductName(earning, orderLabels),
+    );
     if (earning.status === "available" && (earning.remainingFils || 0) > 0) {
       availableFils += earning.remainingFils;
       availableOrders.push(line);
@@ -268,6 +415,7 @@ export async function listAllPartnerSettlements() {
     .lean();
 
   const excluded = await loadExcludedOrderIdSet(earnings);
+  const orderLabels = await loadOrderProductLabels(earnings);
   const byKey = new Map();
 
   const ensure = (earning) => {
@@ -290,7 +438,10 @@ export async function listAllPartnerSettlements() {
     const row = ensure(earning);
     row.partnerName = row.partnerName || earning.partnerName;
     row.payeeName = row.payeeName || earning.partnerName;
-    const line = serializeEarningLine(earning);
+    const line = serializeEarningLine(
+      earning,
+      resolveProductName(earning, orderLabels),
+    );
     if (earning.status === "available" && (earning.remainingFils || 0) > 0) {
       row.availableFils += earning.remainingFils;
       row.availableOrders.push(line);

@@ -11,7 +11,7 @@ export const PAYOUT_BANK_REQUIRED_ADMIN =
   "This partner has not added a UAE IBAN on their shop profile. Payment cannot be released until bank details are saved.";
 
 export const PAYOUT_BANK_INVALID =
-  "Enter the account holder name and a valid UAE IBAN (AE followed by 21 digits).";
+  "Enter the account holder name and a real UAE IBAN (AE + 21 digits with valid check digits). Example: AE070331234567890123456.";
 
 export const payoutBankSchema = new mongoose.Schema(
   {
@@ -42,10 +42,20 @@ export function emptyPayoutBank() {
   return { accountHolderName: "", iban: "", bankName: "" };
 }
 
+function toAsciiDigits(value) {
+  return String(value || "").replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (ch) => {
+    const code = ch.charCodeAt(0);
+    if (code >= 0x0660 && code <= 0x0669) return String(code - 0x0660);
+    return String(code - 0x06f0);
+  });
+}
+
 export function normalizeIban(value) {
-  return String(value || "")
-    .replace(/[\s-]/g, "")
+  let iban = toAsciiDigits(value)
+    .replace(/[^a-zA-Z0-9]/g, "")
     .toUpperCase();
+  if (/^\d{21}$/.test(iban)) iban = `AE${iban}`;
+  return iban.slice(0, UAE_IBAN_LENGTH);
 }
 
 function ibanMod97(iban) {
@@ -63,10 +73,16 @@ function ibanMod97(iban) {
   return rest === 1;
 }
 
-export function isValidUaeIban(value) {
+export function getUaeIbanIssue(value) {
   const iban = normalizeIban(value);
-  if (!/^AE\d{21}$/.test(iban)) return false;
-  return ibanMod97(iban);
+  if (!iban) return "empty";
+  if (!/^AE\d{21}$/.test(iban)) return "format";
+  if (!ibanMod97(iban)) return "checksum";
+  return null;
+}
+
+export function isValidUaeIban(value) {
+  return getUaeIbanIssue(value) === null;
 }
 
 export function serializePayoutBank(input) {
