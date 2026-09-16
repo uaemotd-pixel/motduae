@@ -16,6 +16,11 @@ import {
   ensurePartnerPayoutReleasedNotification,
   resolvePartnerOwnerUserId,
 } from "../notificationService.js";
+import {
+  PAYOUT_BANK_REQUIRED_ADMIN,
+  resolvePayoutBankForRelease,
+  serializePayoutBank,
+} from "../../utils/partnerPayoutBank.js";
 
 async function loadAvailableEarnings(partnerId, partnerKind, session) {
   const query = PartnerEarning.find({
@@ -40,6 +45,7 @@ async function consumeAndInsertPayout(session, params) {
     partnerKind,
     partnerName,
     payeeName,
+    payoutBank,
     amountFils,
     note,
     idempotencyKey,
@@ -74,6 +80,7 @@ async function consumeAndInsertPayout(session, params) {
           partnerKind,
           partnerName,
           payeeName: payeeName || "",
+          payoutBank: serializePayoutBank(payoutBank),
           amountFils: allocation.amountFils,
           status: "processing",
           method: "manual_bank",
@@ -139,6 +146,18 @@ async function consumeAndInsertPayout(session, params) {
   }
 
   return { payout, duplicate: false };
+}
+
+function requirePartnerPayoutBank(settlement, partnerKind) {
+  const resolved = resolvePayoutBankForRelease(settlement, partnerKind);
+  if (!resolved.ok) {
+    throw new PartnerPayoutError(
+      resolved.message || PAYOUT_BANK_REQUIRED_ADMIN,
+      400,
+      resolved.code || "MISSING_PAYOUT_BANK",
+    );
+  }
+  return resolved.bank;
 }
 
 async function notifyRelease({
@@ -226,6 +245,7 @@ export async function releasePayout({
   }
 
   const settlement = await getPartnerSettlement(id, kind);
+  const payoutBank = requirePartnerPayoutBank(settlement, kind);
   const budget =
     amountFils == null || amountFils === ""
       ? settlement.availableFils
@@ -242,7 +262,8 @@ export async function releasePayout({
       partnerId: id,
       partnerKind: kind,
       partnerName: settlement.partnerName,
-      payeeName: settlement.payeeName,
+      payeeName: payoutBank.accountHolderName || settlement.payeeName,
+      payoutBank,
       amountFils: budget,
       note,
       idempotencyKey: key,
@@ -527,6 +548,7 @@ export async function approvePayoutRequest({
   }
 
   const settlement = await getPartnerSettlement(partnerId, partnerKind);
+  const payoutBank = requirePartnerPayoutBank(settlement, partnerKind);
   const ticketFils = requestDoc.amountFils
     ? Number(requestDoc.amountFils)
     : roundFils(requestDoc.amount);
@@ -570,7 +592,8 @@ export async function approvePayoutRequest({
       partnerId,
       partnerKind,
       partnerName: claimed.partnerName,
-      payeeName: claimed.payeeName,
+      payeeName: payoutBank.accountHolderName || claimed.payeeName,
+      payoutBank,
       amountFils: budgetFils,
       note: claimed.note
         ? `Approved request: ${claimed.note}`

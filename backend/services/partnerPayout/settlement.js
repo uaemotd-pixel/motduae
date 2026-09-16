@@ -14,6 +14,11 @@ import {
 } from "./constants.js";
 import { healDeliveredEarnings, loadExcludedOrderIdSet } from "./available.js";
 import { previewFifo } from "./split.js";
+import {
+  emptyPayoutBank,
+  isPayoutBankComplete,
+  payoutBankForApi,
+} from "../../utils/partnerPayoutBank.js";
 
 export function serializeFils(fils) {
   const n = Number(fils) || 0;
@@ -55,13 +60,13 @@ async function loadShopProfiles(partners) {
   const [tailors, fabrics] = await Promise.all([
     tailorIds.length
       ? TailorShop.find({ _id: { $in: tailorIds } })
-          .select("name phone city location pickupAddress ownerId")
+          .select("name phone city location pickupAddress ownerId payoutBank")
           .populate("ownerId", "name email phone")
           .lean()
       : Promise.resolve([]),
     fabricIds.length
       ? FabricShop.find({ _id: { $in: fabricIds } })
-          .select("name phone city location pickupAddress ownerId")
+          .select("name phone city location pickupAddress ownerId payoutBank")
           .populate("ownerId", "name email phone")
           .lean()
       : Promise.resolve([]),
@@ -71,9 +76,13 @@ async function loadShopProfiles(partners) {
   const attach = (shop, kind) => {
     const owner =
       shop?.ownerId && typeof shop.ownerId === "object" ? shop.ownerId : null;
+    const payoutBank = payoutBankForApi(shop.payoutBank);
+    const hasPayoutBank = isPayoutBankComplete(shop.payoutBank);
     map.set(`${kind}:${shop._id}`, {
       partnerName: shop.name || "",
-      payeeName: shop.name || "",
+      payeeName: hasPayoutBank
+        ? payoutBank.accountHolderName
+        : shop.name || "",
       contact: shop.phone || owner?.phone || "",
       email: owner?.email || "",
       city: shop.city || "",
@@ -84,6 +93,8 @@ async function loadShopProfiles(partners) {
             .join(", ")
         : "",
       ownerUserId: owner?._id ? String(owner._id) : shop.ownerId || null,
+      payoutBank,
+      hasPayoutBank,
     });
   };
   for (const shop of tailors) attach(shop, "tailor");
@@ -112,6 +123,8 @@ function emptySettlement(partnerId, partnerKind, partnerName = "") {
     city: "",
     location: "",
     pickup: "",
+    payoutBank: emptyPayoutBank(),
+    hasPayoutBank: partnerKind === "shipping",
   };
 }
 
@@ -119,20 +132,51 @@ function applyProfile(row, profiles) {
   if (row.partnerKind === "shipping") {
     row.partnerName = row.partnerName || SHIPPING_PARTNER_NAME;
     row.payeeName = row.payeeName || SHIPPING_PARTNER_NAME;
+    row.hasPayoutBank = true;
+    row.payoutBank = row.payoutBank || emptyPayoutBank();
     return row;
   }
   const profile = profiles.get(`${row.partnerKind}:${row.partnerId}`);
-  if (!profile) return row;
+  if (!profile) {
+    row.hasPayoutBank = Boolean(row.hasPayoutBank);
+    row.payoutBank = row.payoutBank || emptyPayoutBank();
+    return row;
+  }
   return {
     ...row,
     partnerName: row.partnerName || profile.partnerName,
-    payeeName: row.payeeName || profile.payeeName,
+    payeeName: profile.payeeName || row.payeeName,
     contact: profile.contact,
     email: profile.email,
     city: profile.city,
     location: profile.location,
     pickup: profile.pickup,
+    payoutBank: profile.payoutBank,
+    hasPayoutBank: profile.hasPayoutBank,
   };
+}
+
+export async function attachPayoutBankToItems(items) {
+  if (!Array.isArray(items) || items.length === 0) return items || [];
+  const profiles = await loadShopProfiles(items);
+  return items.map((item) => {
+    const next = applyProfile(
+      {
+        ...item,
+        partnerId: String(item.partnerId || ""),
+        partnerKind: item.partnerKind,
+        partnerName: item.partnerName || "",
+        payeeName: item.payeeName || "",
+      },
+      profiles,
+    );
+    return {
+      ...item,
+      payeeName: next.payeeName || item.payeeName,
+      payoutBank: next.payoutBank,
+      hasPayoutBank: Boolean(next.hasPayoutBank),
+    };
+  });
 }
 
 async function processingAndPaidFils(partnerId, partnerKind) {

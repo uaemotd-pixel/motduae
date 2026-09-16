@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { payoutBankSchema } from "../utils/partnerPayoutBank.js";
 
 const shopPickupAddressSchema = new mongoose.Schema(
   {
@@ -36,6 +37,10 @@ const fabricShopSchema = new mongoose.Schema(
     },
     pickupAddress: {
       type: shopPickupAddressSchema,
+      default: () => ({}),
+    },
+    payoutBank: {
+      type: payoutBankSchema,
       default: () => ({}),
     },
     rating: {

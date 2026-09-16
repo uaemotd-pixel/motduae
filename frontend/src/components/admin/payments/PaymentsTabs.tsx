@@ -44,7 +44,7 @@ export default function PaymentsTabs({
           >
             {tab.label}
             {badge > 0 ? (
-              <span className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-amber-800">
+              <span className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full border border-(--dash-border) bg-(--dash-bg) px-1.5 py-0.5 text-[10px] font-medium leading-none text-(--dash-muted)">
                 {badge}
               </span>
             ) : null}

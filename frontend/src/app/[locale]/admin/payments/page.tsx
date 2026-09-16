@@ -27,6 +27,7 @@ import RequestsPanel from "@/components/admin/payments/RequestsPanel";
 import HistoryPanel, {
   HISTORY_LIMIT,
 } from "@/components/admin/payments/HistoryPanel";
+import PayoutBankCard from "@/components/admin/payments/PayoutBankCard";
 import {
   formatCurrency,
   newIdempotencyKey,
@@ -399,6 +400,12 @@ export default function AdminPaymentsPage() {
 
   const openReleaseConfirm = async (partner: PartnerSettlement) => {
     if (partner.availableFils <= 0 || releasingKey) return;
+    if (partner.partnerKind !== "shipping" && !partner.hasPayoutBank) {
+      toast.error(
+        "This partner has not added a UAE IBAN on their shop profile.",
+      );
+      return;
+    }
     try {
       const preview = await api.post<FifoPreview>(
         "/api/admin/partner-payouts/preview",
@@ -625,7 +632,7 @@ export default function AdminPaymentsPage() {
         title="Release payment"
         message={
           releaseConfirm
-            ? `Release ${formatCurrency(releaseConfirm.preview.amountAed)} to ${releaseConfirm.partner.partnerName}? Only delivered orders are included, oldest first. After the bank transfer, mark the payment as completed with the receipt number.`
+            ? `Release ${formatCurrency(releaseConfirm.preview.amountAed)} to ${releaseConfirm.partner.partnerName}? Only delivered orders are included. After the bank transfer, mark the payment as completed with the receipt number.`
             : ""
         }
         confirmLabel={releasingKey ? "Releasing…" : "Release payment"}
@@ -639,7 +646,14 @@ export default function AdminPaymentsPage() {
         isLoading={!!releasingKey}
       >
         {releaseConfirm ? (
-          <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200">
+          <div className="mt-4 space-y-3">
+            {releaseConfirm.partner.partnerKind !== "shipping" ? (
+              <PayoutBankCard
+                bank={releaseConfirm.partner.payoutBank}
+                hasPayoutBank={releaseConfirm.partner.hasPayoutBank}
+              />
+            ) : null}
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="min-w-full text-left text-xs">
               <thead className="bg-gray-50 text-[10px] uppercase tracking-[0.16em] text-gray-500">
                 <tr>
@@ -666,6 +680,7 @@ export default function AdminPaymentsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         ) : null}
       </ConfirmationModal>
@@ -691,18 +706,31 @@ export default function AdminPaymentsPage() {
         }}
         isLoading={!!completingId}
       >
-        <label className="mt-4 block">
-          <span className="text-[10px] uppercase tracking-[0.16em] text-gray-500">
-            Transfer number
-          </span>
-          <input
-            type="text"
-            value={completeBankRef}
-            onChange={(e) => setCompleteBankRef(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
-            placeholder="Bank transfer / receipt number"
-          />
-        </label>
+        {completeConfirm ? (
+          <div className="mt-4 space-y-3">
+            {completeConfirm.partnerKind !== "shipping" ? (
+              <PayoutBankCard
+                bank={completeConfirm.payoutBank}
+                hasPayoutBank={
+                  completeConfirm.hasPayoutBank ??
+                  Boolean(completeConfirm.payoutBank?.iban)
+                }
+              />
+            ) : null}
+            <label className="block">
+              <span className="text-[10px] uppercase tracking-[0.16em] text-gray-500">
+                Transfer number
+              </span>
+              <input
+                type="text"
+                value={completeBankRef}
+                onChange={(e) => setCompleteBankRef(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
+                placeholder="Bank transfer / receipt number"
+              />
+            </label>
+          </div>
+        ) : null}
       </ConfirmationModal>
 
       <ConfirmationModal
