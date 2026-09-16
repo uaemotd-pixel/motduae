@@ -39,26 +39,28 @@ export default function InProgressPanel({
           {payouts.map((tx) => (
             <div
               key={tx._id}
-              className="flex flex-col gap-3 rounded-xl border border-(--dash-border) bg-white p-4 lg:flex-row lg:items-center lg:justify-between"
+              className="flex flex-col gap-3 rounded-xl border border-(--dash-border) bg-white p-4 lg:flex-row lg:items-center"
             >
-              <div>
+              <div className="min-w-0 lg:max-w-52 lg:shrink-0">
                 <p className="font-medium text-(--dash-ink)">{tx.partnerName}</p>
                 <p className="mt-1 text-[11px] text-(--dash-muted)">
                   {partnerKindLabel(tx.partnerKind)} ·{" "}
                   {formatCurrency(payoutTransactionAmount(tx))} ·{" "}
                   {tx.releasedAt ? new Date(tx.releasedAt).toLocaleString() : ""}
                 </p>
-                {tx.partnerKind !== "shipping" ? (
-                  <div className="mt-3">
-                    <PayoutBankCard
-                      bank={tx.payoutBank}
-                      hasPayoutBank={
-                        tx.hasPayoutBank ?? Boolean(tx.payoutBank?.iban)
-                      }
-                    />
-                  </div>
-                ) : null}
               </div>
+              {tx.partnerKind !== "shipping" ? (
+                <div className="min-w-0 flex-1">
+                  <PayoutBankCard
+                    bank={tx.payoutBank}
+                    hasPayoutBank={
+                      tx.hasPayoutBank ?? Boolean(tx.payoutBank?.iban)
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="min-w-0 flex-1" />
+              )}
               <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <button
                   type="button"

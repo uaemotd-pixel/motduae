@@ -5,6 +5,7 @@
  * - Always wrap content with renderLayout(...)
  * - Always use ctaButton({ href, label }) for any button — never raw <a> CTAs
  * - Use bodyText / uiLabel for copy — keeps typography + wrapping consistent
+ * - Use kvTable / lineItemsTable for receipts and facts — never bullet lists for money
  * - Buttons are fluid by design (padding on <td>, not width+padding on <a>)
  */
 
@@ -34,6 +35,121 @@ export function uiLabel({ text, style = "" }) {
 
 export function bodyText({ html, color = emailTheme.muted, margin = "0 0 16px 0" }) {
   return `<p class="em-text" style="font-family:${emailTheme.fontBody};font-size:14px;line-height:1.65;color:${color};margin:${margin};word-break:break-word;overflow-wrap:anywhere;max-width:100%;">${html}</p>`;
+}
+
+/**
+ * Label-over-value fact table (PartnerRequestNumber language, Outlook-safe).
+ * rows: [{ label, value, prominent?, breakAll? }]
+ */
+export function kvTable({ rows = [], margin = "0 0 24px 0" }) {
+  const items = rows.filter((row) => String(row?.value || "").trim());
+  if (!items.length) return "";
+
+  const { border, ink, nearBlack, fontBody, fontDisplay } = emailTheme;
+  const body = items
+    .map((row, index) => {
+      const last = index === items.length - 1;
+      const rule = last ? "none" : `1px solid ${border}`;
+      const wrap = row.breakAll
+        ? "word-break:break-all;overflow-wrap:anywhere;"
+        : "word-break:break-word;overflow-wrap:anywhere;";
+      const valueStyle = row.prominent
+        ? `font-family:${fontDisplay};font-size:26px;font-weight:400;line-height:1.2;letter-spacing:-0.01em;color:${ink};margin:8px 0 0 0;`
+        : `font-family:${fontBody};font-size:14px;line-height:1.5;color:${nearBlack};margin:6px 0 0 0;`;
+      const valueClass = row.prominent ? "em-amount" : "em-text";
+      return `
+        <tr>
+          <td class="em-kv-value" valign="top" style="padding:14px 16px;border-bottom:${rule};vertical-align:top;">
+            ${uiLabel({ text: row.label })}
+            <p class="${valueClass}" style="${valueStyle}${wrap}max-width:100%;">
+              ${escapeHtml(row.value)}
+            </p>
+          </td>
+        </tr>`;
+    })
+    .join("");
+
+  return `
+    <table role="presentation" class="em-data-table" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border:1px solid ${border};border-collapse:collapse;margin:${margin};">
+      ${body}
+    </table>
+  `;
+}
+
+/**
+ * Receipt line-items table: black header, right-aligned amounts, optional note + total.
+ * rows: [{ left, right }]
+ */
+export function lineItemsTable({
+  caption,
+  headers = { left: "Order", right: "Amount" },
+  rows = [],
+  note,
+  total,
+  margin = "0 0 8px 0",
+}) {
+  const items = rows.filter((row) => String(row?.left || "").trim());
+  if (!items.length) return "";
+
+  const { border, ink, nearBlack, muted, fontBody, fontDisplay } = emailTheme;
+  const captionHtml = caption
+    ? `${uiLabel({ text: caption, style: "margin:0 0 8px 0;" })}`
+    : "";
+
+  const head = `
+    <tr>
+      <td bgcolor="${ink}" align="left" style="background-color:${ink};padding:10px 16px;">
+        <span class="em-label" style="font-family:${fontBody};font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#FFFFFF;font-weight:400;">${escapeHtml(headers.left)}</span>
+      </td>
+      <td bgcolor="${ink}" align="right" style="background-color:${ink};padding:10px 16px;">
+        <span class="em-label" style="font-family:${fontBody};font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#FFFFFF;font-weight:400;">${escapeHtml(headers.right)}</span>
+      </td>
+    </tr>`;
+
+  const body = items
+    .map(
+      (row) => `
+    <tr>
+      <td align="left" valign="top" style="padding:12px 16px;border-top:1px solid ${border};font-family:${fontBody};font-size:14px;line-height:1.5;color:${nearBlack};word-break:break-word;">
+        ${escapeHtml(row.left)}
+      </td>
+      <td align="right" valign="top" style="padding:12px 16px;border-top:1px solid ${border};font-family:${fontBody};font-size:14px;line-height:1.5;color:${nearBlack};white-space:nowrap;">
+        ${escapeHtml(row.right)}
+      </td>
+    </tr>`,
+    )
+    .join("");
+
+  const noteRow = note
+    ? `
+    <tr>
+      <td colspan="2" style="padding:10px 16px;border-top:1px solid ${border};font-family:${fontBody};font-size:13px;line-height:1.5;color:${muted};">
+        ${escapeHtml(note)}
+      </td>
+    </tr>`
+    : "";
+
+  const totalRow = total
+    ? `
+    <tr>
+      <td align="left" valign="middle" style="padding:14px 16px;border-top:1px solid ${ink};">
+        ${uiLabel({ text: total.left || "Total" })}
+      </td>
+      <td align="right" valign="middle" style="padding:14px 16px;border-top:1px solid ${ink};font-family:${fontDisplay};font-size:16px;line-height:1.3;color:${ink};white-space:nowrap;">
+        ${escapeHtml(total.right)}
+      </td>
+    </tr>`
+    : "";
+
+  return `
+    ${captionHtml}
+    <table role="presentation" class="em-data-table" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border:1px solid ${border};border-collapse:collapse;margin:${margin};">
+      ${head}
+      ${body}
+      ${noteRow}
+      ${totalRow}
+    </table>
+  `;
 }
 
 /**
@@ -82,7 +198,7 @@ export function renderLayout({
     a { text-decoration: none; }
     .em-root, .em-card, .em-cta { width: 100% !important; max-width: 100% !important; }
     .em-card { max-width: 560px !important; }
-    .em-text, .em-title, .em-link, .em-cta-label {
+    .em-text, .em-title, .em-amount, .em-link, .em-cta-label {
       word-break: break-word !important;
       overflow-wrap: anywhere !important;
       max-width: 100% !important;
@@ -100,6 +216,9 @@ export function renderLayout({
       .em-cta-cell { padding: 16px 14px !important; }
       .em-cta-label { font-size: 11px !important; letter-spacing: 0.14em !important; }
       .em-label { font-size: 9px !important; letter-spacing: 0.16em !important; }
+      .em-amount { font-size: 24px !important; line-height: 1.2 !important; }
+      .em-data-table { width: 100% !important; }
+      .em-kv-label, .em-kv-value { padding: 10px 12px !important; }
     }
   </style>
 </head>

@@ -2,7 +2,6 @@ import TailorShop from "../../models/TailorShop.js";
 import FabricShop from "../../models/FabricShop.js";
 import PartnerPayoutRequest from "../../models/PartnerPayoutRequest.js";
 import PartnerPayoutBatch from "../../models/PartnerPayoutBatch.js";
-import { filsToAed } from "../../utils/fils.js";
 import { PartnerPayoutError } from "./errors.js";
 import { shouldCloseStalePayoutRequest } from "./compensation.js";
 import {
@@ -10,7 +9,6 @@ import {
   getPartnerSettlement,
   listPayoutBatches,
 } from "./settlement.js";
-import { ensurePartnerPayoutReleasedNotification } from "../notificationService.js";
 import {
   isPayoutBankComplete,
   PAYOUT_BANK_REQUIRED_PARTNER,
@@ -79,17 +77,6 @@ export async function healStalePendingRequests({
       requestDoc.adminNote || "Fulfilled by payment release";
     await requestDoc.save();
     healed.push(requestDoc);
-
-    await ensurePartnerPayoutReleasedNotification({
-      partnerKind,
-      amount: filsToAed(laterRelease.amountFils),
-      partnerKey: requestDoc.partnerKey,
-      partnerId: requestDoc.partnerId,
-      recipientUserId: requestDoc.requestedBy || recipientUserId,
-      requestId: requestDoc._id,
-      payoutId: laterRelease._id,
-      approvedRequest: true,
-    }).catch(() => null);
   }
   return healed;
 }
