@@ -284,7 +284,7 @@ export function collectSubmitErrors(user, doc) {
   requireText("businessName", "Business name");
   requireText("businessNameAr", "Business name (Arabic)");
   if (!isValidUaePhone(doc.phone)) {
-    errors.phone = "A valid UAE phone (+971 and 9 digits) is required";
+    errors.phone = "A valid UAE phone (9 digits) is required";
   }
   requireText("city", "City");
   if (!trimText(doc.location || doc.area)) {

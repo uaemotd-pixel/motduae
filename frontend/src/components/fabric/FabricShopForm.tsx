@@ -40,6 +40,7 @@ import {
   isValidUaePhone,
   normalizeUaePhone,
   extractDigits,
+  toUaePhoneDigits,
 } from "@/lib/uaePhone";
 import PartnerPayoutBankFields from "@/components/partners/PartnerPayoutBankFields";
 import {
@@ -224,11 +225,7 @@ export default function FabricShopForm() {
   const handlePickupChange = (field: keyof ShopPickupAddress, value: string) => {
     let nextValue = value;
     if (field === "phone") {
-      let digits = extractDigits(value);
-      if (digits.startsWith("971")) {
-        digits = digits.slice(3);
-      }
-      nextValue = digits.slice(0, 9);
+      nextValue = toUaePhoneDigits(value);
     }
 
     setFormData((prev) => ({

@@ -189,13 +189,13 @@ export default function EditSubAdminPage() {
 
     if (form.phone) {
       if (!isValidUaePhone(form.phone)) {
-        errors.phone = "Invalid UAE phone. Must be +971 followed by 9 digits";
+        errors.phone = "Invalid phone. Must be 9 digits after +971";
       }
     }
     if (form.addressPhone) {
       if (!isValidUaePhone(form.addressPhone)) {
         errors.addressPhone =
-          "Invalid UAE phone for address. Must be +971 followed by 9 digits";
+          "Invalid phone for address. Must be 9 digits after +971";
       }
     }
     setFieldErrors(errors);
@@ -315,6 +315,9 @@ export default function EditSubAdminPage() {
                 className="w-full py-1 border-b border-gray-300 focus:border-black outline-none pl-12"
               />
             </div>
+            <p className="text-[10px] text-gray-400 mt-1">
+              Enter 9 digits after +971
+            </p>
           </FormField>
 
           <div className="md:col-span-2">
@@ -348,6 +351,9 @@ export default function EditSubAdminPage() {
                     className="w-full py-1 border-b border-gray-300 focus:border-black outline-none pl-12"
                   />
                 </div>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Enter 9 digits after +971
+                </p>
               </FormField>
               <FormField label="Emirate" required error={fieldErrors.emirate}>
                 <div className="relative" ref={emirateRef}>

@@ -4,6 +4,7 @@ import {
   getOrderRecipientName,
   type OrderDeliveryAddress,
 } from "@/lib/orderDelivery";
+import { formatPhoneDisplay } from "@/lib/uaePhone";
 
 type OrderRecipientDetailsProps = {
   order: {
@@ -43,7 +44,9 @@ export default function OrderRecipientDetails({
         </p>
       ) : null}
       {phone ? (
-        <p className="text-xs text-gray-500 font-mono mt-0.5">{phone}</p>
+        <p className="text-xs text-gray-500 font-mono mt-0.5">
+          {formatPhoneDisplay(phone)}
+        </p>
       ) : null}
       {lines.length > 0 ? (
         <div className="mt-2 text-xs text-gray-600 leading-relaxed space-y-0.5">

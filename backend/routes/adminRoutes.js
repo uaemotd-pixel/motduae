@@ -11,6 +11,7 @@ import Design from "../models/Design.js";
 import CustomOrder, { CUSTOM_STATUSES } from "../models/CustomOrder.js";
 import RetailOrder, { RETAIL_ORDER_STATUSES } from "../models/RetailOrder.js";
 import PlatformSettings from "../models/PlatformSettings.js";
+import { toUaePhoneDigits } from "../utils/uaePhone.js";
 import {
   uploadReadyMadeImageMiddleware,
   processReadyMadeImage,
@@ -1553,6 +1554,9 @@ adminRouter.post(
       }
       storePickupAddress.emirate = normalizedEmirate;
     }
+    if (storePickupAddress?.phone) {
+      storePickupAddress.phone = toUaePhoneDigits(storePickupAddress.phone);
+    }
 
     const uniqueSlug = await ensureUniqueSlug(Fabric, slug || name, {
       fallback: "fabric",
@@ -1659,7 +1663,7 @@ adminRouter.put(
       if (addr.building !== undefined)
         fabric.storePickupAddress.building = addr.building;
       if (addr.phone !== undefined)
-        fabric.storePickupAddress.phone = addr.phone;
+        fabric.storePickupAddress.phone = toUaePhoneDigits(addr.phone);
     }
 
     // Handle listedByStore (ObjectId or "MOTD")
@@ -1722,7 +1726,9 @@ adminRouter.put(
       fabric.storePickupAddress.building =
         addr.building ?? fabric.storePickupAddress.building;
       fabric.storePickupAddress.phone =
-        addr.phone ?? fabric.storePickupAddress.phone;
+        addr.phone !== undefined
+          ? toUaePhoneDigits(addr.phone)
+          : fabric.storePickupAddress.phone;
     }
 
     fabric.isActive = req.body.isActive ?? fabric.isActive;

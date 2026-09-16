@@ -69,6 +69,8 @@ export function toUaeLocalPhoneDigits(phone?: string | null): string {
   let digits = (phone || "").replace(/\D/g, "");
   if (digits.startsWith("971")) {
     digits = digits.slice(3);
+  } else if (digits.length === 10 && digits.startsWith("0")) {
+    digits = digits.slice(1);
   }
   return digits.slice(0, 9);
 }
@@ -311,7 +313,7 @@ export function toFabricShopPayload(
     coverImage: form.coverImage.trim(),
     location: form.location.trim(),
     city: form.city.trim(),
-    phone: form.phone.trim(),
+    phone: normalizeUaePhone(form.phone),
     website: form.website.trim()
       ? normalizeHttpUrl(form.website.trim())
       : "",

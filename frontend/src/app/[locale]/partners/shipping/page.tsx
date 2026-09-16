@@ -119,13 +119,16 @@ export default function ShippingPartnerPage() {
                                                         setFormData({...formData, phone: `+971${digits}`});
                                                         if (phoneError) setPhoneError("");
                                                     }}
-                                                    placeholder="XXXXXXXXX"
+                                                    placeholder="50 123 4567"
                                                     maxLength={9}
                                                     className={`w-full h-full bg-transparent focus:outline-none placeholder:text-black/40 text-black font-mono border-0 rounded-lg ${
                                                         isAr ? "pr-16 pl-4 text-right" : "pl-16 pr-4 text-left"
                                                     }`}
                                                 />
                                             </div>
+                                            <p className="text-[10px] text-gray-400 mt-1">
+                                                {isAr ? "أدخل 9 أرقام بعد +971" : "Enter 9 digits after +971"}
+                                            </p>
                                             {phoneError && (
                                                 <p className="text-red-500 text-xs mt-1">
                                                     {phoneError}

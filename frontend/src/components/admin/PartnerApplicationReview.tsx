@@ -8,6 +8,7 @@ import { api, getApiErrorMessage } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
 import { Link } from "@/i18n/navigation";
 import { getEmirateAr, getEmirateEn } from "@/lib/uaeAddress";
+import { formatPhoneDisplay } from "@/lib/uaePhone";
 import {
   formatIbanDisplay,
   type PayoutBankDetails,
@@ -139,11 +140,7 @@ function ShopProfileReadout({
   const emirate = pickup?.emirate
     ? `${getEmirateEn(pickup.emirate)} / ${getEmirateAr(pickup.emirate)}`
     : "";
-  const pickupPhone = pickup?.phone
-    ? pickup.phone.startsWith("+")
-      ? pickup.phone
-      : `+971 ${pickup.phone}`
-    : "";
+  const pickupPhone = formatPhoneDisplay(pickup?.phone);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-8">
@@ -227,7 +224,7 @@ function ShopProfileReadout({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Labeled label="City">{shop.city || "—"}</Labeled>
           <Labeled label="Address / area">{shop.location || "—"}</Labeled>
-          <Labeled label="Phone">{shop.phone || "—"}</Labeled>
+          <Labeled label="Phone">{formatPhoneDisplay(shop.phone) || "—"}</Labeled>
         </div>
       </div>
 
@@ -545,7 +542,7 @@ export default function PartnerApplicationReview({
               <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
                 Phone
               </p>
-              <p>{app.phone || "—"}</p>
+              <p>{formatPhoneDisplay(app.phone) || "—"}</p>
             </div>
             <div>
               <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">

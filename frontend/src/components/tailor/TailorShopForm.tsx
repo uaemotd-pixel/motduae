@@ -1150,6 +1150,9 @@ export default function TailorShopForm() {
                   className={`${INPUT_CLASS} pl-16 font-mono`}
                 />
               </div>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Enter 9 digits after +971
+              </p>
             </FormField>
 
             <FormField

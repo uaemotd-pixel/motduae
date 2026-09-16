@@ -1,47 +1,67 @@
 // lib/uaePhone.ts
-export const UAE_PHONE_REGEX = /^\+971\d{9}$/;
 
-export function normalizeUaePhone(value: string): string {
-  const cleaned = String(value || "").replace(/[^\d+]/g, "");
-  if (!cleaned) return "";
+export const UAE_PHONE_9DIGIT_REGEX = /^\d{9}$/;
+export const UAE_PHONE_E164_REGEX = /^\+971\d{9}$/;
+export const UAE_PHONE_REGEX = /^(?:\+971)?\d{9}$/;
 
-  let digits = cleaned.replace(/\D/g, "");
-  if (digits.startsWith("971")) {
-    digits = digits.slice(3);
-  }
-  digits = digits.slice(0, 9);
-  return digits ? `+971${digits}` : "";
-}
-
-export function isValidUaePhone(value: string): boolean {
-  return UAE_PHONE_REGEX.test(String(value || "").replace(/[^\d+]/g, ""));
-}
-
-export function formatPhoneDisplay(value: string): string {
-  const normalized = normalizeUaePhone(value);
-  if (!normalized) return "";
-  const digits = normalized.replace(/\D/g, "").slice(3);
-  if (digits.length === 0) return "+971";
-  return `+971 ${digits}`;
-}
-
-export function extractDigits(value: string): string {
+export function extractDigits(value: string | null | undefined): string {
   return String(value || "").replace(/\D/g, "");
 }
 
-/** Read-only display: full stored UAE number (+971501234567). */
-export function displayUaePhone(value: string | null | undefined): string {
-  const normalized = normalizeUaePhone(String(value || ""));
-  if (normalized) return normalized;
-  return String(value || "").trim();
-}
-
-/** 9 local digits for inputs beside a read-only +971 prefix. */
-export function getUaePhoneInputValue(value: string | null | undefined): string {
+/**
+ * Extracts 9 local digits from any UAE phone string (+971XXXXXXXXX, 971XXXXXXXXX, 05XXXXXXXX, XXXXXXXXX).
+ */
+export function toUaePhoneDigits(value: string | null | undefined): string {
   if (!value) return "";
-  const digits = extractDigits(value);
+  let digits = extractDigits(value);
   if (digits.startsWith("971")) {
-    return digits.slice(3, 12);
+    digits = digits.slice(3);
+  } else if (digits.length === 10 && digits.startsWith("0")) {
+    digits = digits.slice(1);
   }
   return digits.slice(0, 9);
+}
+
+/**
+ * Normalizes phone number to 9 digits for database storage.
+ * e.g., "+971 50 123 4567" -> "501234567"
+ */
+export function normalizeUaePhone(value: string | null | undefined): string {
+  return toUaePhoneDigits(value);
+}
+
+/**
+ * Checks if the phone number has exactly 9 UAE local digits.
+ * Accepts "501234567", "+971501234567", "0501234567", etc.
+ */
+export function isValidUaePhone(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const digits = toUaePhoneDigits(value);
+  return UAE_PHONE_9DIGIT_REGEX.test(digits);
+}
+
+/**
+ * Formats a phone number for display: "+971 50 123 4567".
+ */
+export function formatPhoneDisplay(value: string | null | undefined): string {
+  if (!value) return "";
+  const digits = toUaePhoneDigits(value);
+  if (!digits) return "";
+  if (digits.length <= 2) return `+971 ${digits}`;
+  if (digits.length <= 5) return `+971 ${digits.slice(0, 2)} ${digits.slice(2)}`;
+  return `+971 ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 9)}`;
+}
+
+/**
+ * Read-only display: formatted UAE phone (+971 50 123 4567).
+ */
+export function displayUaePhone(value: string | null | undefined): string {
+  return formatPhoneDisplay(value);
+}
+
+/**
+ * 9 local digits for inputs beside a read-only +971 prefix.
+ */
+export function getUaePhoneInputValue(value: string | null | undefined): string {
+  return toUaePhoneDigits(value);
 }
