@@ -224,3 +224,39 @@ export async function sendPartnerApplicationEmail({
     },
   );
 }
+
+export async function sendPartnerPayoutCompletedEmail({
+  to,
+  userId,
+  payoutId,
+  name,
+  amountLabel,
+  bankRef,
+  sentOn,
+  paidTo,
+  orderLines,
+  moreCount,
+  portalUrl,
+}) {
+  return send(
+    EMAIL_EVENTS.PARTNER_PAYOUT_COMPLETED,
+    {
+      to,
+      name,
+      amountLabel,
+      bankRef,
+      sentOn,
+      paidTo,
+      orderLines,
+      moreCount,
+      portalUrl,
+    },
+    {
+      to,
+      userId: userId || null,
+      dedupeKey: buildDedupeKey(EMAIL_EVENTS.PARTNER_PAYOUT_COMPLETED, [
+        payoutId,
+      ]),
+    },
+  );
+}

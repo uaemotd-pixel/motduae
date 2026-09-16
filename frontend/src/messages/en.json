@@ -1184,6 +1184,7 @@
       "types": {
         "fabricPayoutRequested": "Payout requested",
         "fabricPayoutApproved": "Payout approved",
+        "fabricPayoutCompleted": "Payout sent",
         "fabricPayoutRejected": "Payout declined",
         "customOrderPlaced": "New custom order",
         "retailOrderPlaced": "New ready-made order",
@@ -1272,6 +1273,7 @@
       "types": {
         "tailorPayoutRequested": "Payout requested",
         "tailorPayoutApproved": "Payout approved",
+        "tailorPayoutCompleted": "Payout sent",
         "tailorPayoutRejected": "Payout declined",
         "customOrderPlaced": "New custom order",
         "customOrderReceived": "Order received",
@@ -1795,9 +1797,11 @@
         "customRefundProcessed": "Refund processed",
         "fabricPayoutRequested": "Fabric payout request",
         "fabricPayoutApproved": "Fabric payout approved",
+        "fabricPayoutCompleted": "Fabric payout sent",
         "fabricPayoutRejected": "Fabric payout declined",
         "tailorPayoutRequested": "Tailor payout request",
         "tailorPayoutApproved": "Tailor payout approved",
+        "tailorPayoutCompleted": "Tailor payout sent",
         "tailorPayoutRejected": "Tailor payout declined",
         "reviewSubmitted": "New review pending",
         "default": "Notification"
