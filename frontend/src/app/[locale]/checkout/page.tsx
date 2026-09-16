@@ -55,6 +55,17 @@ import {
   type FamilyMember,
 } from "@/lib/checkoutAddresses";
 import { buildRetailCheckoutItem, isFabricCutCartId } from "@/lib/fabrics";
+import {
+  BUY_NOW_ITEMS_STORAGE_KEY,
+  clearBuyNowCheckout,
+  isFromCartQuery,
+  parseBuyNowFromSearchParams,
+  readBuyNowCheckout,
+  resolveCheckoutSearchParams,
+  saveBuyNowCheckout,
+  saveMultiBuyNowCheckout,
+  type BuyNowCheckoutSnapshot,
+} from "@/lib/buyNowCheckout";
 
 type CustomerAddress = {
   _id?: string;
@@ -141,7 +152,10 @@ function CheckoutPageContent() {
   const { user, isLoading, isAuthenticated, applyUserResponse } = useAuth();
   const { clearWishlist, removeItem: removeWishlistItem } = useWishlist();
   const { unit: measurementUnit } = useMeasurementUnit();
-  const fromWishlist = searchParams.get("fromWishlist") === "true";
+  const checkoutQuery = resolveCheckoutSearchParams(searchParams);
+  const fromWishlist = checkoutQuery.get("fromWishlist") === "true";
+  const buyNowLockedRef = useRef(checkoutQuery.get("buyNow") === "true");
+  const previewRequestIdRef = useRef(0);
   const tVerify = getTranslation(locale).verifyEmail;
   const guestEmailCopy = {
     guestEmailRequired: tVerify.guestEmailRequired,
@@ -152,16 +166,31 @@ function CheckoutPageContent() {
   };
 
   // --- State ---
-  const [buyNowProductId, setBuyNowProductId] = useState<string | null>(null);
-  const [buyNowSize, setBuyNowSize] = useState<string>("");
-  const [buyNowQuantity, setBuyNowQuantity] = useState<number>(2);
-  const [buyNowSlug, setBuyNowSlug] = useState<string>("");
-  const [buyNowName, setBuyNowName] = useState<string>("");
-  const [buyNowImage, setBuyNowImage] = useState<string>("");
-  const [buyNowMaxStock, setBuyNowMaxStock] = useState<number>(0);
-  const [buyNowCutId, setBuyNowCutId] = useState<string | null>(null);
-  const [buyNowCutLength, setBuyNowCutLength] = useState<string>("");
-  const [isBuyNow, setIsBuyNow] = useState(false);
+  const initialBuyNow = parseBuyNowFromSearchParams(checkoutQuery);
+  const [buyNowProductId, setBuyNowProductId] = useState<string | null>(
+    initialBuyNow?.productId || null,
+  );
+  const [buyNowSize, setBuyNowSize] = useState<string>(initialBuyNow?.size || "");
+  const [buyNowQuantity, setBuyNowQuantity] = useState<number>(
+    initialBuyNow?.quantity || 2,
+  );
+  const [buyNowSlug, setBuyNowSlug] = useState<string>(initialBuyNow?.slug || "");
+  const [buyNowName, setBuyNowName] = useState<string>(initialBuyNow?.name || "");
+  const [buyNowImage, setBuyNowImage] = useState<string>(
+    initialBuyNow?.image || "",
+  );
+  const [buyNowMaxStock, setBuyNowMaxStock] = useState<number>(
+    initialBuyNow?.maxStock || 0,
+  );
+  const [buyNowCutId, setBuyNowCutId] = useState<string | null>(
+    initialBuyNow?.cutId || null,
+  );
+  const [buyNowCutLength, setBuyNowCutLength] = useState<string>(
+    initialBuyNow?.cutLength || "",
+  );
+  const [isBuyNow, setIsBuyNow] = useState(
+    checkoutQuery.get("buyNow") === "true",
+  );
   const [buyNowItemsArray, setBuyNowItemsArray] = useState<CartItem[] | null>(
     null,
   );
@@ -226,15 +255,13 @@ function CheckoutPageContent() {
 
   const persistWishlistItemsForReturn = () => {
     if (
-      searchParams.get("fromWishlistAll") === "true" &&
+      (searchParams.get("fromWishlistAll") === "true" ||
+        fromWishlistAllRef.current) &&
       buyNowItemsArray &&
       buyNowItemsArray.length > 0
     ) {
       try {
-        sessionStorage.setItem(
-          "checkoutItems",
-          JSON.stringify(buyNowItemsArray),
-        );
+        saveMultiBuyNowCheckout(buyNowItemsArray);
       } catch {
         /* ignore quota / private mode */
       }
@@ -345,56 +372,138 @@ function CheckoutPageContent() {
     fetchVatRate();
   }, []);
 
-  // --- Parse Buy Now params (NO PRICE) ---
-  useEffect(() => {
-    const isBuyNowParam = searchParams.get("buyNow") === "true";
-    const fromWishlistAll = searchParams.get("fromWishlistAll") === "true";
-    fromWishlistAllRef.current = fromWishlistAll;
+  const applyBuyNowSnapshot = (snapshot: BuyNowCheckoutSnapshot) => {
+    buyNowLockedRef.current = true;
+    fromWishlistAllRef.current = snapshot.fromWishlistAll;
+    setIsBuyNow(true);
+    setBuyNowProductId(snapshot.productId || null);
+    setBuyNowCutId(snapshot.cutId);
+    setBuyNowCutLength(snapshot.cutLength);
+    setBuyNowSize(snapshot.size);
+    setBuyNowQuantity(snapshot.quantity);
+    setBuyNowSlug(snapshot.slug);
+    setBuyNowName(snapshot.name);
+    setBuyNowImage(snapshot.image);
+    setBuyNowMaxStock(snapshot.maxStock);
+    setBuyNowItemsArray(snapshot.items);
+  };
 
-    setIsBuyNow(isBuyNowParam);
+  const resetToCartCheckout = () => {
+    buyNowLockedRef.current = false;
+    fromWishlistAllRef.current = false;
+    setIsBuyNow(false);
+    setBuyNowProductId(null);
+    setBuyNowCutId(null);
+    setBuyNowCutLength("");
+    setBuyNowSize("");
+    setBuyNowQuantity(2);
+    setBuyNowSlug("");
+    setBuyNowName("");
+    setBuyNowImage("");
+    setBuyNowMaxStock(0);
+    setBuyNowItemsArray(null);
+    clearBuyNowCheckout();
+  };
+
+  // --- Parse Buy Now params (NO PRICE). Never fall back to cart while Buy Now is active. ---
+  useEffect(() => {
+    const params = resolveCheckoutSearchParams(searchParams);
+    const fromCart = isFromCartQuery(params);
+
+    if (fromCart) {
+      resetToCartCheckout();
+      return;
+    }
+
+    const isBuyNowParam = params.get("buyNow") === "true";
+    const fromWishlistAll = params.get("fromWishlistAll") === "true";
+    const storedSnapshot = readBuyNowCheckout();
 
     if (isBuyNowParam && fromWishlistAll) {
-      const stored = sessionStorage.getItem("checkoutItems");
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-            setBuyNowItemsArray(parsed);
-            sessionStorage.removeItem("checkoutItems");
-            return;
+      let parsedItems = storedSnapshot?.items || null;
+      if (!parsedItems) {
+        const stored = sessionStorage.getItem(BUY_NOW_ITEMS_STORAGE_KEY);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              parsedItems = parsed;
+            }
+          } catch (error) {
+            console.error("Failed to parse wishlist items:", error);
           }
-        } catch (error) {
-          console.error("Failed to parse wishlist items:", error);
         }
       }
+
+      if (parsedItems && parsedItems.length > 0) {
+        const snapshot: BuyNowCheckoutSnapshot = {
+          fromWishlistAll: true,
+          productId: parsedItems[0]?.id || "",
+          slug: parsedItems[0]?.slug || "",
+          name: parsedItems[0]?.name || "",
+          image: parsedItems[0]?.image || "",
+          size: parsedItems[0]?.size || "",
+          quantity: parsedItems[0]?.quantity || 1,
+          maxStock: parsedItems[0]?.maxStock || 0,
+          cutId: null,
+          cutLength: parsedItems[0]?.cutLength || "",
+          items: parsedItems,
+        };
+        applyBuyNowSnapshot(snapshot);
+        saveBuyNowCheckout(snapshot);
+        sessionStorage.removeItem(BUY_NOW_ITEMS_STORAGE_KEY);
+        return;
+      }
+
+      if (storedSnapshot) {
+        applyBuyNowSnapshot(storedSnapshot);
+        return;
+      }
+
+      buyNowLockedRef.current = true;
+      setIsBuyNow(true);
+      return;
     }
 
     if (isBuyNowParam) {
-      const productId = searchParams.get("productId") || "";
-      const size = searchParams.get("size") || "";
-      const quantity = parseInt(searchParams.get("quantity") || "2");
-      const slug = searchParams.get("slug") || "";
-      const name = searchParams.get("name") || "";
-      const image = searchParams.get("image") || "";
-      const maxStock = parseInt(searchParams.get("maxStock") || "0");
-      const cutId = searchParams.get("cutId") || "";
-      const cutLength = searchParams.get("cutLength") || "";
-
-      setBuyNowProductId(productId);
-      setBuyNowCutId(cutId || null);
-      setBuyNowCutLength(cutLength);
-      setBuyNowSize(size);
-      setBuyNowQuantity(quantity);
-      setBuyNowSlug(slug);
-      setBuyNowName(name);
-      setBuyNowImage(image);
-      setBuyNowMaxStock(maxStock);
-      setBuyNowItemsArray(null);
+      const parsed = parseBuyNowFromSearchParams(params);
+      const snapshot: BuyNowCheckoutSnapshot = {
+        fromWishlistAll: false,
+        productId: parsed?.productId || storedSnapshot?.productId || "",
+        size: parsed?.size || storedSnapshot?.size || "",
+        quantity: parsed?.quantity || storedSnapshot?.quantity || 2,
+        slug: parsed?.slug || storedSnapshot?.slug || "",
+        name: parsed?.name || storedSnapshot?.name || "",
+        image: parsed?.image || storedSnapshot?.image || "",
+        maxStock: parsed?.maxStock || storedSnapshot?.maxStock || 0,
+        cutId: parsed?.cutId || storedSnapshot?.cutId || null,
+        cutLength: parsed?.cutLength || storedSnapshot?.cutLength || "",
+        items: null,
+      };
+      applyBuyNowSnapshot(snapshot);
+      if (snapshot.productId) {
+        saveBuyNowCheckout(snapshot);
+      }
+      return;
     }
-  }, [searchParams]);
+
+    if (storedSnapshot) {
+      applyBuyNowSnapshot(storedSnapshot);
+      return;
+    }
+
+    if (buyNowLockedRef.current) {
+      setIsBuyNow(true);
+      return;
+    }
+
+    resetToCartCheckout();
+  }, [searchParams.toString()]);
 
   // --- Fetch server prices for display items ---
   useEffect(() => {
+    const requestId = ++previewRequestIdRef.current;
+
     async function fetchPrices() {
       setPriceLoading(true);
       try {
@@ -406,26 +515,34 @@ function CheckoutPageContent() {
           measurementUnit?: string;
         }> = [];
 
-        if (isBuyNow && buyNowItemsArray && buyNowItemsArray.length > 0) {
-          itemsToPreview = buyNowItemsArray.map((item) => {
-            const payload = buildRetailCheckoutItem(item);
-            return {
-              ...payload,
-              ...(item.size === "Per Meter" ? { measurementUnit } : {}),
-            };
-          });
-        } else if (isBuyNow && buyNowProductId) {
-          itemsToPreview = [
-            {
-              productId: buyNowProductId,
-              ...(buyNowCutId ? { cutId: buyNowCutId } : {}),
-              size: buyNowSize,
-              quantity: buyNowQuantity,
-              ...(buyNowSize === "Per Meter" && !buyNowCutId
-                ? { measurementUnit }
-                : {}),
-            },
-          ];
+        if (isBuyNow) {
+          if (buyNowItemsArray && buyNowItemsArray.length > 0) {
+            itemsToPreview = buyNowItemsArray.map((item) => {
+              const payload = buildRetailCheckoutItem(item);
+              return {
+                ...payload,
+                ...(item.size === "Per Meter" ? { measurementUnit } : {}),
+              };
+            });
+          } else if (buyNowProductId) {
+            itemsToPreview = [
+              {
+                productId: buyNowProductId,
+                ...(buyNowCutId ? { cutId: buyNowCutId } : {}),
+                size: buyNowSize,
+                quantity: buyNowQuantity,
+                ...(buyNowSize === "Per Meter" && !buyNowCutId
+                  ? { measurementUnit }
+                  : {}),
+              },
+            ];
+          } else {
+            if (requestId === previewRequestIdRef.current) {
+              setPricePreview(null);
+              setPriceLoading(true);
+            }
+            return;
+          }
         } else {
           itemsToPreview = items.map((item) => {
             const payload = buildRetailCheckoutItem(item);
@@ -439,8 +556,10 @@ function CheckoutPageContent() {
         }
 
         if (itemsToPreview.length === 0) {
-          setPricePreview(null);
-          setPriceLoading(false);
+          if (requestId === previewRequestIdRef.current) {
+            setPricePreview(null);
+            setPriceLoading(false);
+          }
           return;
         }
 
@@ -451,12 +570,16 @@ function CheckoutPageContent() {
           },
         );
 
+        if (requestId !== previewRequestIdRef.current) return;
         setPricePreview(response);
       } catch (error) {
+        if (requestId !== previewRequestIdRef.current) return;
         console.error("Failed to fetch price preview:", error);
         toast.error("Failed to load pricing. Please refresh.", ERROR_TOAST);
       } finally {
-        setPriceLoading(false);
+        if (requestId === previewRequestIdRef.current) {
+          setPriceLoading(false);
+        }
       }
     }
 
@@ -468,45 +591,51 @@ function CheckoutPageContent() {
     buyNowSize,
     buyNowQuantity,
     buyNowItemsArray,
-    items,
+    isBuyNow
+      ? ""
+      : items.map((item) => `${item.id}:${item.quantity}`).join("|"),
     measurementUnit,
   ]);
 
   // --- Build display items with server prices ---
   const getDisplayItems = (): CartItem[] => {
+    if (isBuyNow) {
+      if (buyNowItemsArray && buyNowItemsArray.length > 0) {
+        return buyNowItemsArray.map((item, index) => {
+          const previewItem = pricePreview?.items[index];
+          return {
+            ...item,
+            price: previewItem?.unitPrice || item.price || 0,
+          };
+        });
+      }
+
+      if (buyNowProductId) {
+        const previewItem = pricePreview?.items[0];
+        const lineId =
+          buyNowCutId && buyNowProductId
+            ? `${buyNowProductId}::${buyNowCutId}`
+            : buyNowProductId;
+        return [
+          {
+            id: lineId,
+            slug: buyNowSlug,
+            name: previewItem?.name || buyNowName,
+            image: previewItem?.image || buyNowImage,
+            price: previewItem?.unitPrice || 0,
+            size: buyNowSize,
+            quantity: buyNowQuantity,
+            maxStock: previewItem?.maxStock || buyNowMaxStock,
+            ...(buyNowCutLength ? { cutLength: buyNowCutLength } : {}),
+            ...(buyNowCutId ? { itemType: "fabric" as const } : {}),
+          },
+        ];
+      }
+
+      return [];
+    }
+
     if (!pricePreview) return [];
-
-    if (isBuyNow && buyNowItemsArray && buyNowItemsArray.length > 0) {
-      return buyNowItemsArray.map((item, index) => {
-        const previewItem = pricePreview.items[index];
-        return {
-          ...item,
-          price: previewItem?.unitPrice || 0,
-        };
-      });
-    }
-
-    if (isBuyNow && buyNowProductId) {
-      const previewItem = pricePreview.items[0];
-      const lineId =
-        buyNowCutId && buyNowProductId
-          ? `${buyNowProductId}::${buyNowCutId}`
-          : buyNowProductId;
-      return [
-        {
-          id: lineId,
-          slug: buyNowSlug,
-          name: previewItem?.name || buyNowName,
-          image: previewItem?.image || buyNowImage,
-          price: previewItem?.unitPrice || 0,
-          size: buyNowSize,
-          quantity: buyNowQuantity,
-          maxStock: previewItem?.maxStock || buyNowMaxStock,
-          ...(buyNowCutLength ? { cutLength: buyNowCutLength } : {}),
-          ...(buyNowCutId ? { itemType: "fabric" as const } : {}),
-        },
-      ];
-    }
 
     return items.map((item, index) => {
       const previewItem = pricePreview.items[index];
@@ -792,6 +921,7 @@ function CheckoutPageContent() {
     if (!isBuyNow) {
       clearCart();
     }
+    clearBuyNowCheckout();
 
     if (fromWishlistAllRef.current) {
       clearWishlist();

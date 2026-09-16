@@ -22,6 +22,7 @@ import {
   getCutLengthLabel,
   parseFabricCutCartId,
 } from "@/lib/fabrics";
+import { saveMultiBuyNowCheckout, saveSingleBuyNowCheckout } from "@/lib/buyNowCheckout";
 import { Share2, ArrowUpRight, Heart } from "lucide-react";
 import StoreAttribution from "@/components/fabric/StoreAttribution";
 import { resolveMediaUrl } from "@/lib/media";
@@ -188,6 +189,17 @@ export default function FabricDetailView({
     if (cartItems.length === 1) {
       const item = cartItems[0];
       const { cutId } = parseFabricCutCartId(item.id);
+      saveSingleBuyNowCheckout({
+        productId: fabric._id,
+        slug: fabric.slug,
+        name: item.name,
+        image: item.image,
+        size: item.size,
+        quantity: item.quantity,
+        maxStock: item.maxStock,
+        cutId,
+        cutLength: item.cutLength,
+      });
       const checkoutParams = new URLSearchParams({
         productId: fabric._id,
         slug: fabric.slug,
@@ -205,7 +217,7 @@ export default function FabricDetailView({
       return;
     }
 
-    sessionStorage.setItem("checkoutItems", JSON.stringify(cartItems));
+    saveMultiBuyNowCheckout(cartItems);
     router.push(`/${locale}/checkout?buyNow=true&fromWishlistAll=true`);
   };
   const containerRef = useRef<HTMLDivElement>(null);

@@ -15,6 +15,7 @@ import FadeInSection from "@/components/shared/fadeInSection";
 import { useCart } from "@/context/CartContext";
 import { resolveMediaUrl } from "@/lib/media";
 import { isFabricCutCartId } from "@/lib/fabrics";
+import { clearBuyNowCheckout } from "@/lib/buyNowCheckout";
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api/client";
 import { ImageModal } from "@/components/shared/ImageModal";
@@ -27,6 +28,10 @@ export default function CartPage() {
   const [vatError, setVatError] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
+
+  useEffect(() => {
+    clearBuyNowCheckout();
+  }, []);
 
   // Fetch VAT rate from platform settings
   useEffect(() => {
@@ -298,7 +303,7 @@ export default function CartPage() {
                       Proceed to Checkout
                     </button>
                   ) : (
-                    <Link href="/checkout">
+                    <Link href="/checkout?fromCart=true">
                       <button className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] mt-6 md:mt-7 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer">
                         Proceed to Checkout
                       </button>

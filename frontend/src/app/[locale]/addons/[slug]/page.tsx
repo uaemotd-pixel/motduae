@@ -13,6 +13,7 @@ import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { resolveMediaUrl } from "@/lib/media";
 import { formatCurrency } from "@/lib/format";
+import { saveSingleBuyNowCheckout } from "@/lib/buyNowCheckout";
 import ZoomImageEffect from "@/components/shared/ZoomImageEffect";
 import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 import { Tag } from "@/components/ui/Tag";
@@ -853,6 +854,15 @@ export default function AddonDetailPage() {
       image: resolveMediaUrl(addon.thumbnailImage) || "",
       size: "N/A",
       quantity: String(quantity),
+    });
+    saveSingleBuyNowCheckout({
+      productId: addon._id,
+      slug: addon.slug,
+      name: addon.name,
+      image: resolveMediaUrl(addon.thumbnailImage) || "",
+      size: "N/A",
+      quantity,
+      maxStock: addon.stock || 0,
     });
     router.push(`/${locale}/checkout?buyNow=true&${checkoutParams.toString()}`);
   };

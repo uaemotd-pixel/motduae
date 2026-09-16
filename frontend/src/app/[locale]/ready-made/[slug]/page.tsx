@@ -17,6 +17,7 @@ import {
   type ReadyMadeListItem,
 } from "@/lib/readyMade";
 import { getTranslation } from "@/lib/getTranslation";
+import { saveSingleBuyNowCheckout } from "@/lib/buyNowCheckout";
 import ZoomImageEffect from "@/components/shared/ZoomImageEffect";
 import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import colorPalette from "@/components/shared/colors";
@@ -812,6 +813,15 @@ export default function ReadyMadeDetailPage() {
       image: resolveReadyMadeImage(product.images?.[0]),
       size: product.metersPerFabric || "",
       quantity: String(quantity),
+    });
+    saveSingleBuyNowCheckout({
+      productId: product._id,
+      slug: product.slug,
+      name: product.name,
+      image: resolveReadyMadeImage(product.images?.[0]),
+      size: product.metersPerFabric || "",
+      quantity,
+      maxStock: product.availableFabricStock || 0,
     });
     router.push(`/${locale}/checkout?buyNow=true&${checkoutParams.toString()}`);
   };
