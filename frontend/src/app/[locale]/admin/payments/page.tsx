@@ -664,10 +664,20 @@ export default function AdminPaymentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {releaseConfirm.preview.lines.map((line) => (
+                {releaseConfirm.preview.lines.map((line) => {
+                  const productName =
+                    releaseConfirm.partner.availableOrders.find(
+                      (o) => o.earningId === line.earningId,
+                    )?.productName || "";
+                  return (
                   <tr key={line.earningId} className="border-t border-gray-100">
                     <td className="px-3 py-2">
-                      #{String(line.orderId).slice(-6)} · {line.orderType}
+                      <div>#{String(line.orderId).slice(-6)} · {line.orderType}</div>
+                      {productName ? (
+                        <div className="mt-0.5 text-[11px] text-gray-500">
+                          {productName}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2 font-medium">
                       {formatCurrency(line.amountAed)}
@@ -677,7 +687,8 @@ export default function AdminPaymentsPage() {
                     </td>
                     <td className="px-3 py-2">{line.commissionPercent}%</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             </div>

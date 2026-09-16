@@ -397,7 +397,9 @@ export default function TailorShopForm() {
         "validation.accountHolderRequired",
       );
     }
-    if (bankErrors.iban) {
+    if (bankErrors.iban === "checksum") {
+      errors["payoutBank.iban"] = t("validation.ibanChecksum");
+    } else if (bankErrors.iban) {
       errors["payoutBank.iban"] = t("validation.ibanInvalid");
     }
 

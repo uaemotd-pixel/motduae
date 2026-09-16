@@ -418,6 +418,40 @@ const STORE_PICKUP_ADDRESSES = {
   },
 };
 
+async function ensureSeedCuts() {
+  const specs = [
+    { name: "1 Meter", nameAr: "متر واحد", value: 1, unit: "meter" },
+    {
+      name: "Standard Cut",
+      nameAr: "قصة قياسية",
+      value: 3.5,
+      unit: "meter",
+    },
+  ];
+
+  const cuts = [];
+  for (const spec of specs) {
+    let cut = await Cut.findOne({
+      value: spec.value,
+      unit: spec.unit,
+      isActive: true,
+    });
+    if (!cut) {
+      cut = await Cut.create({ ...spec, isActive: true });
+    }
+    cuts.push(cut);
+  }
+  return cuts;
+}
+
+function fabricCutsFromPricePerMeter(pricePerMeter, cuts) {
+  return cuts.map((cut) => ({
+    cutId: cut._id,
+    price: Math.round(Number(pricePerMeter) * Number(cut.value)),
+    stock: cut.value === 1 ? 50 : 20,
+  }));
+}
+
 async function seedFabrics() {
   const [hanayan, mauzan, sharjahHeritage] = seedContext.fabricStores;
   if (!hanayan || !mauzan || !sharjahHeritage) {
@@ -427,13 +461,19 @@ async function seedFabrics() {
     throw new Error("Fabric shops must be seeded before fabrics");
   }
 
+  const seedCuts = await ensureSeedCuts();
+
   const shopByOwner = new Map(
     seedContext.fabricShops.map((shop) => [String(shop.ownerId), shop._id]),
   );
-  const withShopId = (entry) => ({
-    ...entry,
-    fabricShopId: shopByOwner.get(String(entry.listedByStore)),
-  });
+  const withShopIdAndCuts = (entry) => {
+    const { pricePerMeter, city, tagColor, ...rest } = entry;
+    return {
+      ...rest,
+      fabricShopId: shopByOwner.get(String(entry.listedByStore)),
+      cuts: fabricCutsFromPricePerMeter(pricePerMeter, seedCuts),
+    };
+  };
 
   const fabrics = await Fabric.insertMany(
     [
@@ -637,7 +677,7 @@ async function seedFabrics() {
         storePickupAddress: STORE_PICKUP_ADDRESSES.hanayan,
         isActive: true,
       },
-    ].map(withShopId),
+    ].map(withShopIdAndCuts),
   );
 
   seedContext.fabrics = fabrics;
@@ -647,8 +687,11 @@ async function seedFabrics() {
     const store = seedContext.fabricStores.find((s) =>
       s._id.equals(fabric.listedByStore),
     );
+    const meterCut = fabric.cuts?.find(
+      (c) => String(c.cutId) === String(seedCuts[0]._id),
+    );
     console.log(
-      `  ${fabric.slug} — ${fabric.name} (${fabric.material}, AED ${fabric.pricePerMeter}/m, ${store?.name ?? "unknown store"})`,
+      `  ${fabric.slug} — ${fabric.name} (${fabric.material}, AED ${meterCut?.price ?? "?"}/m, ${store?.name ?? "unknown store"})`,
     );
   }
 }

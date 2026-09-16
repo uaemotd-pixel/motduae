@@ -42,7 +42,9 @@ interface FabricCatalogItem extends FabricListItem {
   seasonAr?: string;
 }
 
-const PRICE_MAX = 100000;
+const PRICE_MIN = 0;
+const PRICE_MAX = 25000;
+const PRICE_STEP = 10;
 
 function fabricMatchesCategory(
   fabric: FabricCatalogItem,
@@ -395,7 +397,10 @@ const RangeSlider = ({
             onMinChange(Math.min(next, maxValue));
           }}
           className={`${thumbClass} z-10`}
-          aria-label="Minimum value"
+          aria-label="Minimum price"
+          aria-valuemin={min}
+          aria-valuemax={maxValue}
+          aria-valuenow={minValue}
         />
         <input
           type="range"
@@ -409,8 +414,16 @@ const RangeSlider = ({
             onMaxChange(Math.max(next, minValue));
           }}
           className={`${thumbClass} z-20`}
-          aria-label="Maximum value"
+          aria-label="Maximum price"
+          aria-valuemin={minValue}
+          aria-valuemax={max}
+          aria-valuenow={maxValue}
         />
+      </div>
+
+      <div className="flex justify-between text-[10px] font-mono uppercase tracking-[0.12em] text-[#8A8A80]">
+        <span>{format(min)}</span>
+        <span>{format(max)}</span>
       </div>
     </div>
   );
@@ -576,7 +589,7 @@ export default function FabricsCatalogPage() {
     patterns: [],
     seasons: [],
     tags: [],
-    minPrice: 0,
+    minPrice: PRICE_MIN,
     maxPrice: PRICE_MAX,
     inStockOnly: false,
   });
@@ -900,7 +913,7 @@ export default function FabricsCatalogPage() {
 
   const setMinPrice = (value: number) => {
     setFilters((prev) => {
-      const clampedMin = Math.max(0, Math.min(PRICE_MAX, value));
+      const clampedMin = Math.max(PRICE_MIN, Math.min(PRICE_MAX, value));
       const clampedMax = Math.max(
         clampedMin,
         Math.min(PRICE_MAX, prev.maxPrice),
@@ -912,8 +925,11 @@ export default function FabricsCatalogPage() {
 
   const setMaxPrice = (value: number) => {
     setFilters((prev) => {
-      const clampedMax = Math.max(0, Math.min(PRICE_MAX, value));
-      const clampedMin = Math.min(clampedMax, Math.max(0, prev.minPrice));
+      const clampedMax = Math.max(PRICE_MIN, Math.min(PRICE_MAX, value));
+      const clampedMin = Math.min(
+        clampedMax,
+        Math.max(PRICE_MIN, prev.minPrice),
+      );
       return { ...prev, maxPrice: clampedMax, minPrice: clampedMin };
     });
     setCurrentPage(1);
@@ -932,7 +948,7 @@ export default function FabricsCatalogPage() {
       patterns: [],
       seasons: [],
       tags: [],
-      minPrice: 0,
+      minPrice: PRICE_MIN,
       maxPrice: PRICE_MAX,
       inStockOnly: false,
     });
@@ -1110,14 +1126,14 @@ export default function FabricsCatalogPage() {
       <div className="border-b border-[#E4E0D8] pb-4">
         <FilterLabel>{isAr ? "نطاق السعر" : "Price Range"}</FilterLabel>
         <RangeSlider
-          min={0}
+          min={PRICE_MIN}
           max={PRICE_MAX}
-          step={100}
+          step={PRICE_STEP}
           minValue={filters.minPrice}
           maxValue={filters.maxPrice}
           onMinChange={setMinPrice}
           onMaxChange={setMaxPrice}
-          formatValue={(value) => `AED ${value.toLocaleString()}`}
+          formatValue={(value) => `AED ${value.toLocaleString("en-US")}`}
         />
       </div>
 
@@ -1396,7 +1412,7 @@ export default function FabricsCatalogPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            setMinPrice(0);
+                            setMinPrice(PRICE_MIN);
                             setMaxPrice(PRICE_MAX);
                           }}
                           className="hover:opacity-70 flex items-center justify-center cursor-pointer"

@@ -428,6 +428,7 @@ export default function FabricNotificationPage() {
                             next.delete(n.id);
                             return next;
                           });
+                          toast.success(t("deleteSuccess"));
                         } catch (err: unknown) {
                           toast.error(getApiErrMessage(err, t("deleteFailed")));
                         }
