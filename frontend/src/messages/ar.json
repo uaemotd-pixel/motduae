@@ -1301,6 +1301,7 @@
       "types": {
         "fabricPayoutRequested": "طلب مستحقات",
         "fabricPayoutApproved": "تمت الموافقة على المستحقات",
+        "fabricPayoutCompleted": "تم إرسال المستحقات",
         "fabricPayoutRejected": "تم رفض المستحقات",
         "customOrderPlaced": "طلب تفصيل جديد",
         "retailOrderPlaced": "طلب ملابس جاهزة جديد",
@@ -1389,6 +1390,7 @@
       "types": {
         "tailorPayoutRequested": "طلب مستحقات",
         "tailorPayoutApproved": "تمت الموافقة على المستحقات",
+        "tailorPayoutCompleted": "تم إرسال المستحقات",
         "tailorPayoutRejected": "تم رفض المستحقات",
         "customOrderPlaced": "طلب تفصيل جديد",
         "customOrderReceived": "تم استلام الطلب",
@@ -2008,9 +2010,11 @@
         "customRefundProcessed": "تم معالجة الاسترداد",
         "fabricPayoutRequested": "طلب مستحقات قماش",
         "fabricPayoutApproved": "تمت الموافقة على مستحقات القماش",
+        "fabricPayoutCompleted": "تم إرسال مستحقات القماش",
         "fabricPayoutRejected": "تم رفض مستحقات القماش",
         "tailorPayoutRequested": "طلب مستحقات خياط",
         "tailorPayoutApproved": "تمت الموافقة على مستحقات الخياط",
+        "tailorPayoutCompleted": "تم إرسال مستحقات الخياط",
         "tailorPayoutRejected": "تم رفض مستحقات الخياط",
         "reviewSubmitted": "تقييم جديد بانتظار المراجعة",
         "default": "إشعار"

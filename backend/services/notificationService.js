@@ -23,6 +23,8 @@ export const NOTIFICATION_CATEGORIES = {
     "fabric_payout_requested",
     "tailor_payout_approved",
     "fabric_payout_approved",
+    "tailor_payout_completed",
+    "fabric_payout_completed",
     "tailor_payout_rejected",
     "fabric_payout_rejected",
   ],
@@ -508,23 +510,29 @@ export async function resolvePartnerOwnerUserId(
   return null;
 }
 
-export async function notifyPartnerPayoutReleased({
+export async function notifyPartnerPayoutCompleted({
   partnerKind,
   amount,
+  bankRef,
   recipientUserId,
   createdBy = null,
   dedupeKey,
-  message,
 }) {
   if (!recipientUserId) return null;
 
   const kind = partnerKind === "tailor" ? "tailor" : "fabric";
-  const amountLabel = formatPayoutAmount(amount);
+  const amountLabel = new Intl.NumberFormat("en-AE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(amount) || 0);
+  const ref = String(bankRef || "").trim();
 
   return createNotification({
-    type: `${kind}_payout_approved`,
-    title: "Payout approved",
-    message: message || `MOTD released your payout of AED ${amountLabel}.`,
+    type: `${kind}_payout_completed`,
+    title: "Payout sent",
+    message: ref
+      ? `MOTD sent AED ${amountLabel}. Transfer number ${ref}.`
+      : `MOTD sent AED ${amountLabel}.`,
     audience: "customer",
     recipientUserId,
     createdBy,
@@ -533,23 +541,23 @@ export async function notifyPartnerPayoutReleased({
 }
 
 /**
- * Notify the partner that a payout was released. Resolves owner when needed.
+ * Notify the partner that a payout was sent (Complete + transfer number).
  * Safe to call multiple times — dedupeKey prevents duplicates.
  */
-export async function ensurePartnerPayoutReleasedNotification({
+export async function ensurePartnerPayoutCompletedNotification({
   partnerKind,
   amount,
+  bankRef,
   partnerKey,
   partnerId,
   recipientUserId = null,
-  requestId = null,
   payoutId = null,
   createdBy = null,
-  approvedRequest = false,
 }) {
   if (partnerKind !== "tailor" && partnerKind !== "fabric") {
     return null;
   }
+  if (!payoutId) return null;
 
   const kind = partnerKind === "tailor" ? "tailor" : "fabric";
   let userId = recipientUserId;
@@ -559,24 +567,13 @@ export async function ensurePartnerPayoutReleasedNotification({
   }
   if (!userId) return null;
 
-  const amountLabel = formatPayoutAmount(amount);
-  const message = approvedRequest
-    ? `MOTD approved your payout request of AED ${amountLabel}.`
-    : `MOTD released a payout of AED ${amountLabel}.`;
-
-  const dedupeKey = requestId
-    ? `${kind}:payout_approved:${requestId}`
-    : `${kind}:payout_released:${payoutId}`;
-
-  if (!requestId && !payoutId) return null;
-
-  return notifyPartnerPayoutReleased({
+  return notifyPartnerPayoutCompleted({
     partnerKind,
     amount,
+    bankRef,
     recipientUserId: userId,
     createdBy,
-    dedupeKey,
-    message,
+    dedupeKey: `${kind}:payout_completed:${payoutId}`,
   }).catch(() => null);
 }
 

@@ -4,6 +4,7 @@ import { contactTemplate } from "./contact.js";
 import { otpTemplate } from "./emailOtp.js";
 import { orderPlacedTemplate } from "./orderPlaced.js";
 import { partnerApplicationTemplate } from "./partnerApplication.js";
+import { partnerPayoutCompletedTemplate } from "./partnerPayoutCompleted.js";
 import { vendorOrderPlacedTemplate } from "./vendorOrderPlaced.js";
 import { EMAIL_EVENTS } from "../emailEvents.js";
 
@@ -18,6 +19,7 @@ const registry = {
   [EMAIL_EVENTS.PARTNER_RESUBMITTED]: partnerApplicationTemplate,
   [EMAIL_EVENTS.PARTNER_APPROVED]: partnerApplicationTemplate,
   [EMAIL_EVENTS.PARTNER_REJECTED]: partnerApplicationTemplate,
+  [EMAIL_EVENTS.PARTNER_PAYOUT_COMPLETED]: partnerPayoutCompletedTemplate,
   [EMAIL_EVENTS.ORDER_CUSTOM_PLACED_TAILOR]: vendorOrderPlacedTemplate,
   [EMAIL_EVENTS.ORDER_CUSTOM_PLACED_FABRIC]: vendorOrderPlacedTemplate,
   [EMAIL_EVENTS.ORDER_RETAIL_PLACED_FABRIC]: vendorOrderPlacedTemplate,
