@@ -1,6 +1,5 @@
 // lib/tailorShop.ts
 import { api, type ApiError } from "@/lib/api/client";
-
 import { extractDigits, toUaePhoneDigits } from "./uaePhone";
 import {
   emptyPayoutBank,

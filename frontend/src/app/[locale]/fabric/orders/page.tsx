@@ -670,6 +670,13 @@ export default function FabricOrdersPage() {
                       <p className="text-xs text-gray-400 uppercase tracking-wider mb-2 [font-family:var(--font-ui)]">
                         {locale === "ar" ? "المنتجات المطلوبة" : "Ordered Items"}
                       </p>
+                      {(retailOrder as any).fromCustomOrderAddons ? (
+                        <p className="mb-2 text-[10px] text-amber-800 bg-amber-50 border border-amber-100 px-2 py-1 rounded w-max [font-family:var(--font-body)]">
+                          {locale === "ar"
+                            ? "إضافات من طلب تفصيل"
+                            : "Add-ons from a custom order"}
+                        </p>
+                      ) : null}
                       <div className="flex flex-col gap-3">
                         {retailOrder.orderItems?.map((item: any, idx: number) => {
                           const isFabricOnly = isFabricRetailLine(item);

@@ -44,9 +44,11 @@ import {
   getPortalPayoutView,
 } from "../services/partnerPayout/portal.js";
 import {
+  buildFabricStoreAddonOnlyMatch,
   buildFabricStoreCustomOrderMatch,
   isStoreOwnedCustomAddon,
   orderHasFabricForThisStore,
+  toFabricPortalCustomAddonRetailView,
   toFabricPortalCustomOrderView,
 } from "../services/fabricPortalCustomOrderScope.js";
 import {
@@ -386,11 +388,11 @@ fabricPortalRouter.put(
     }
 
     Object.assign(shop, data);
-    if (data.pickupAddress) {
-      shop.pickupAddress = data.pickupAddress;
+    if (data.pickupAddress !== undefined) {
+      shop.set("pickupAddress", data.pickupAddress);
     }
-    if (data.payoutBank) {
-      shop.payoutBank = data.payoutBank;
+    if (data.payoutBank !== undefined) {
+      shop.set("payoutBank", data.payoutBank);
       shop.markModified("payoutBank");
     }
     const updatedShop = await shop.save();
@@ -900,7 +902,8 @@ fabricPortalRouter.delete(
   }),
 );
 
-// GET /api/fabric/orders — custom orders with fabric and/or add-ons from this store
+// GET /api/fabric/orders — custom orders where this store supplies fabric
+// (same-store add-ons stay attached). Cross-store add-on-only rows are under Retail.
 fabricPortalRouter.get(
   "/orders",
   expressAsyncHandler(async (req, res) => {
@@ -945,6 +948,7 @@ fabricPortalRouter.get(
         shop,
         storeFabricIdValues,
         storeAddonIdValues,
+        includeAddons: false,
       }),
     )
       .populate("userId", "name email phone")
@@ -964,49 +968,86 @@ fabricPortalRouter.get(
 );
 
 // GET /api/fabric/orders/retail — retail orders for this store:
-// ready-made, add-ons, and fabric-by-meter (productId = Fabric._id, size = "Per Meter")
+// ready-made, add-ons, fabric-by-meter, plus cross-store custom-order add-ons.
 fabricPortalRouter.get(
   "/orders/retail",
   expressAsyncHandler(async (req, res) => {
-    const shop = await findOwnShop(req.user._id);
+    const ownerUserId = req.user._id;
+    const ownerUserIdStr = String(ownerUserId);
+    const shop = await findOwnShop(ownerUserId);
     if (!shop) {
       res
         .status(404)
         .json({ success: false, message: "Fabric shop not found" });
       return;
     }
+    const shopIdStr = String(shop._id);
 
     const [storeProducts, storeFabrics, storeAddons] = await Promise.all([
       ReadyMadeProduct.find({
         $or: [{ fabricShopId: shop._id }, { ownerName: shop.name }],
       }).select("_id"),
       Fabric.find({
-        $or: [{ listedByStore: req.user._id }, { fabricShopId: shop._id }],
+        $or: [{ listedByStore: ownerUserId }, { fabricShopId: shop._id }],
       }).select("_id"),
       AddOn.find({
         $or: [{ fabricShopId: shop._id }, { ownerName: shop.name }],
       }).select("_id"),
     ]);
 
+    const storeAddonIdValues = storeAddons.map((a) => a._id);
+    const storeAddonIdSet = new Set(
+      storeAddonIdValues.map((id) => String(id)),
+    );
+    const storeFabricIdSet = new Set(
+      storeFabrics.map((f) => String(f._id)),
+    );
     const storeItemIds = [
       ...storeProducts.map((p) => p._id),
       ...storeFabrics.map((f) => f._id),
-      ...storeAddons.map((a) => a._id),
+      ...storeAddonIdValues,
     ];
 
-    if (storeItemIds.length === 0) {
-      res.json([]);
-      return;
-    }
+    const scopeCtx = {
+      ownerUserIdStr,
+      shopIdStr,
+      storeFabricIdSet,
+      storeAddonIdSet,
+    };
 
-    const orders = await RetailOrder.find({
-      "orderItems.productId": { $in: storeItemIds },
-    })
-      .populate("userId", "name email phone")
-      .sort({ createdAt: -1 });
+    const [retailOrders, customAddonOrders] = await Promise.all([
+      storeItemIds.length
+        ? RetailOrder.find({
+            "orderItems.productId": { $in: storeItemIds },
+          })
+            .populate("userId", "name email phone")
+            .sort({ createdAt: -1 })
+        : Promise.resolve([]),
+      storeAddonIdValues.length || shop._id
+        ? CustomOrder.find(
+            buildFabricStoreAddonOnlyMatch({
+              shop,
+              storeAddonIdValues,
+            }),
+          )
+            .populate("userId", "name email phone")
+            .sort({ createdAt: -1 })
+            .lean()
+        : Promise.resolve([]),
+    ]);
 
-    const hydrated = await hydrateRetailOrders(orders);
-    res.json(hydrated);
+    const hydratedRetail = await hydrateRetailOrders(retailOrders);
+    const projectedAddons = (customAddonOrders || [])
+      .map((order) => toFabricPortalCustomAddonRetailView(order, scopeCtx))
+      .filter(Boolean);
+
+    const merged = [...(hydratedRetail || []), ...projectedAddons].sort(
+      (a, b) =>
+        new Date(b.createdAt || 0).getTime() -
+        new Date(a.createdAt || 0).getTime(),
+    );
+
+    res.json(merged);
   }),
 );
 

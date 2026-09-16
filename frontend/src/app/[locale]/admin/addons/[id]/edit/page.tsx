@@ -544,7 +544,8 @@ export default function AdminEditAddOnPage() {
             />
           </FormField>
 
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+          <div className="md:col-span-2 space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             <FormField
               label="Material (ENG / AR)"
               name="material"
@@ -753,7 +754,9 @@ export default function AdminEditAddOnPage() {
                 )}
               </AnimatedDropdown>
             </FormField>
+            </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <FormField
               label="Season (ENG / AR)"
               name="season"
@@ -885,6 +888,7 @@ export default function AdminEditAddOnPage() {
                 )}
               </AnimatedDropdown>
             </FormField>
+            </div>
           </div>
 
           <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">

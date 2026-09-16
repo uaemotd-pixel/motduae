@@ -8,10 +8,22 @@ export function emptyPayoutBank(): PayoutBankDetails {
   return { accountHolderName: "", iban: "", bankName: "" };
 }
 
+/** Map Arabic-Indic / Eastern Arabic digits to ASCII 0-9. */
+function toAsciiDigits(value: string): string {
+  return value.replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (ch) => {
+    const code = ch.charCodeAt(0);
+    if (code >= 0x0660 && code <= 0x0669) return String(code - 0x0660);
+    return String(code - 0x06f0);
+  });
+}
+
 export function normalizeIban(value: string): string {
-  return String(value || "")
-    .replace(/[\s-]/g, "")
+  let iban = toAsciiDigits(String(value || ""))
+    .replace(/[^a-zA-Z0-9]/g, "")
     .toUpperCase();
+  // Bank apps sometimes copy the 21 digits without the AE country code.
+  if (/^\d{21}$/.test(iban)) iban = `AE${iban}`;
+  return iban.slice(0, 23);
 }
 
 export function formatIbanDisplay(value: string): string {
@@ -34,10 +46,18 @@ function ibanMod97(iban: string): boolean {
   return rest === 1;
 }
 
-export function isValidUaeIban(value: string): boolean {
+export type UaeIbanIssue = "empty" | "format" | "checksum" | null;
+
+export function getUaeIbanIssue(value: string): UaeIbanIssue {
   const iban = normalizeIban(value);
-  if (!/^AE\d{21}$/.test(iban)) return false;
-  return ibanMod97(iban);
+  if (!iban) return "empty";
+  if (!/^AE\d{21}$/.test(iban)) return "format";
+  if (!ibanMod97(iban)) return "checksum";
+  return null;
+}
+
+export function isValidUaeIban(value: string): boolean {
+  return getUaeIbanIssue(value) === null;
 }
 
 export function normalizePayoutBank(
@@ -74,11 +94,12 @@ export type PayoutBankField = keyof PayoutBankDetails;
 
 export function payoutBankFieldErrors(
   bank?: Partial<PayoutBankDetails> | null,
-): Partial<Record<PayoutBankField, true>> {
+): Partial<Record<PayoutBankField, true | UaeIbanIssue>> {
   if (!payoutBankTouched(bank)) return {};
   const next = normalizePayoutBank(bank);
-  const errors: Partial<Record<PayoutBankField, true>> = {};
+  const errors: Partial<Record<PayoutBankField, true | UaeIbanIssue>> = {};
   if (next.accountHolderName.length < 2) errors.accountHolderName = true;
-  if (!isValidUaeIban(next.iban)) errors.iban = true;
+  const ibanIssue = getUaeIbanIssue(next.iban);
+  if (ibanIssue) errors.iban = ibanIssue;
   return errors;
 }

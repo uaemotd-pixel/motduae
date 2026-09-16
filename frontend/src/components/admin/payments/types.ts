@@ -17,6 +17,7 @@ export interface SettlementOrderLine {
   earningId: string;
   orderId: string;
   orderType: string;
+  productName?: string;
   remainingFils: number;
   remainingAed: number;
   amount: number;

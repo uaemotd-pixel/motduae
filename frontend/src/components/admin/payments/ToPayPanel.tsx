@@ -13,7 +13,83 @@ import { TableSkeleton } from "@/components/ui/Skeleton";
 import { KindFilterPills, PartnerKindIcon } from "./KindFilterPills";
 import { formatCurrency, partnerKindLabel } from "./helpers";
 import PayoutBankCard from "./PayoutBankCard";
-import type { PartnerKindFilter, PartnerSettlement } from "./types";
+import type {
+  PartnerKindFilter,
+  PartnerSettlement,
+  SettlementOrderLine,
+} from "./types";
+
+function OrderPaymentStatusBadge({
+  kind,
+}: {
+  kind: "available" | "pending";
+}) {
+  if (kind === "available") {
+    return (
+      <span className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-emerald-800">
+        Included in release
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-amber-800">
+      Awaiting delivery
+    </span>
+  );
+}
+
+function SettlementOrderCard({
+  orderLine,
+  kind,
+}: {
+  orderLine: SettlementOrderLine;
+  kind: "available" | "pending";
+}) {
+  const isReady = kind === "available";
+  return (
+    <div
+      className={
+        isReady
+          ? "rounded-lg border border-emerald-200/80 bg-white p-3"
+          : "rounded-lg border border-dashed border-amber-200 bg-amber-50/40 p-3"
+      }
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 space-y-1.5">
+          <p className="text-sm font-medium text-(--dash-ink)">
+            Order #{orderLine.orderId.slice(-6)}
+            <span className="ml-2 rounded-md bg-(--dash-bg) px-2 py-0.5 text-[10px] font-normal capitalize text-(--dash-ink)">
+              {orderLine.orderType}
+            </span>
+          </p>
+          {orderLine.productName ? (
+            <p className="text-[12px] text-(--dash-ink)">{orderLine.productName}</p>
+          ) : null}
+          <OrderPaymentStatusBadge kind={kind} />
+        </div>
+        <p
+          className={`text-base font-medium ${
+            isReady ? "text-(--dash-ink)" : "text-(--dash-muted)"
+          }`}
+        >
+          {formatCurrency(orderLine.remainingAed)}
+        </p>
+      </div>
+      {isReady ? (
+        <p className="mt-2 text-[11px] text-(--dash-muted)">
+          Gross {formatCurrency(orderLine.grossAed)} − MOTD{" "}
+          {formatCurrency(orderLine.commissionAed)} (
+          {orderLine.commissionPercent}%) ={" "}
+          {formatCurrency(orderLine.netAed)}
+        </p>
+      ) : (
+        <p className="mt-2 text-[11px] text-(--dash-muted)">
+          Not included in Release until this order is delivered.
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function ToPayPanel({
   partners,
@@ -55,7 +131,9 @@ export default function ToPayPanel({
           row.payoutBank?.iban,
           partnerKindLabel(row.partnerKind),
           ...row.availableOrders.map((o) => o.orderId),
+          ...row.availableOrders.map((o) => o.productName || ""),
           ...row.pendingOrders.map((o) => o.orderId),
+          ...row.pendingOrders.map((o) => o.productName || ""),
         ]
           .join(" ")
           .toLowerCase();
@@ -85,8 +163,9 @@ export default function ToPayPanel({
             Collective amount Admin must pay
           </h3>
           <p className="mt-1 max-w-2xl text-xs text-(--dash-muted)">
-            Ready to pay is for delivered orders. Awaiting delivery is paid by
-            the customer but cannot be released until the order is delivered.
+            Only orders marked Included in release are paid when you click
+            Release. Awaiting delivery stays on the list until the order is
+            delivered.
           </p>
         </div>
         <div className="flex w-full max-w-md shrink-0 flex-col gap-2">
@@ -122,6 +201,8 @@ export default function ToPayPanel({
             const key = `${row.partnerKind}:${row.partnerId}`;
             const expanded = expandedPartnerKey === key;
             const needsBank = row.partnerKind !== "shipping";
+            const readyCount = row.availableOrders.length;
+            const awaitingCount = row.pendingOrders.length;
             const canRelease =
               row.availableFils > 0 && (!needsBank || Boolean(row.hasPayoutBank));
             return (
@@ -146,28 +227,29 @@ export default function ToPayPanel({
                       ) : null}
                     </div>
                     <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <div className="rounded-lg border border-(--dash-border) bg-(--dash-bg) px-3 py-2">
-                        <p className="text-[10px] uppercase tracking-[0.16em] text-(--dash-muted)">
+                      <div className="rounded-lg border border-emerald-200/70 bg-emerald-50/40 px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.16em] text-emerald-800">
                           Ready to pay
                         </p>
                         <p className="mt-1 text-sm font-medium text-(--dash-ink)">
                           {formatCurrency(row.availableAed)}
                         </p>
                         <p className="text-[11px] text-(--dash-muted)">
-                          {row.availableOrders.length}{" "}
-                          {row.availableOrders.length === 1 ? "order" : "orders"}
+                          {readyCount} {readyCount === 1 ? "order" : "orders"}{" "}
+                          included in Release
                         </p>
                       </div>
-                      <div className="rounded-lg border border-(--dash-border) bg-(--dash-bg) px-3 py-2">
-                        <p className="text-[10px] uppercase tracking-[0.16em] text-(--dash-muted)">
+                      <div className="rounded-lg border border-amber-200/70 bg-amber-50/40 px-3 py-2">
+                        <p className="text-[10px] uppercase tracking-[0.16em] text-amber-800">
                           Awaiting delivery
                         </p>
                         <p className="mt-1 text-sm font-medium text-(--dash-ink)">
                           {formatCurrency(row.pendingAed)}
                         </p>
                         <p className="text-[11px] text-(--dash-muted)">
-                          {row.pendingOrders.length}{" "}
-                          {row.pendingOrders.length === 1 ? "order" : "orders"}
+                          {awaitingCount}{" "}
+                          {awaitingCount === 1 ? "order" : "orders"} not in
+                          Release yet
                         </p>
                       </div>
                     </div>
@@ -179,7 +261,11 @@ export default function ToPayPanel({
                       onClick={() => onRelease(row)}
                       className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-(--dash-charcoal) px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
                     >
-                      Release {formatCurrency(row.availableAed)}
+                      {readyCount > 0
+                        ? `Release ${readyCount} ${
+                            readyCount === 1 ? "order" : "orders"
+                          } · ${formatCurrency(row.availableAed)}`
+                        : `Release ${formatCurrency(row.availableAed)}`}
                     </button>
                     <button
                       type="button"
@@ -230,60 +316,46 @@ export default function ToPayPanel({
                       />
                     ) : null}
 
-                    {row.availableOrders.length > 0 ? (
+                    {readyCount > 0 ? (
                       <div className="space-y-2">
-                        <p className="text-[10px] uppercase tracking-[0.16em] text-(--dash-muted)">
-                          Ready to pay
-                        </p>
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-emerald-800">
+                            Included in this release
+                          </p>
+                          <p className="text-[11px] text-(--dash-muted)">
+                            {readyCount}{" "}
+                            {readyCount === 1 ? "order" : "orders"} ·{" "}
+                            {formatCurrency(row.availableAed)}
+                          </p>
+                        </div>
                         {row.availableOrders.map((orderLine) => (
-                          <div
+                          <SettlementOrderCard
                             key={`${key}-ready-${orderLine.earningId}`}
-                            className="rounded-lg border border-(--dash-border) bg-white p-3"
-                          >
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <p className="text-sm font-medium text-(--dash-ink)">
-                                Order #{orderLine.orderId.slice(-6)}
-                                <span className="ml-2 rounded-md bg-(--dash-bg) px-2 py-0.5 text-[10px] font-normal capitalize text-(--dash-ink)">
-                                  {orderLine.orderType}
-                                </span>
-                              </p>
-                              <p className="text-base font-medium text-(--dash-ink)">
-                                {formatCurrency(orderLine.remainingAed)}
-                              </p>
-                            </div>
-                            <p className="mt-2 text-[11px] text-(--dash-muted)">
-                              Gross {formatCurrency(orderLine.grossAed)} − MOTD{" "}
-                              {formatCurrency(orderLine.commissionAed)} (
-                              {orderLine.commissionPercent}%) ={" "}
-                              {formatCurrency(orderLine.netAed)}
-                            </p>
-                          </div>
+                            orderLine={orderLine}
+                            kind="available"
+                          />
                         ))}
                       </div>
                     ) : null}
 
-                    {row.pendingOrders.length > 0 ? (
+                    {awaitingCount > 0 ? (
                       <div className="space-y-2">
-                        <p className="text-[10px] uppercase tracking-[0.16em] text-(--dash-muted)">
-                          Awaiting delivery
-                        </p>
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <p className="text-[10px] uppercase tracking-[0.16em] text-amber-800">
+                            Awaiting delivery
+                          </p>
+                          <p className="text-[11px] text-(--dash-muted)">
+                            {awaitingCount}{" "}
+                            {awaitingCount === 1 ? "order" : "orders"} ·{" "}
+                            {formatCurrency(row.pendingAed)}
+                          </p>
+                        </div>
                         {row.pendingOrders.map((orderLine) => (
-                          <div
+                          <SettlementOrderCard
                             key={`${key}-wait-${orderLine.earningId}`}
-                            className="rounded-lg border border-dashed border-(--dash-border) bg-white p-3"
-                          >
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <p className="text-sm font-medium text-(--dash-ink)">
-                                Order #{orderLine.orderId.slice(-6)}
-                                <span className="ml-2 rounded-md bg-(--dash-bg) px-2 py-0.5 text-[10px] font-normal capitalize text-(--dash-ink)">
-                                  {orderLine.orderType}
-                                </span>
-                              </p>
-                              <p className="text-base font-medium text-(--dash-ink)">
-                                {formatCurrency(orderLine.remainingAed)}
-                              </p>
-                            </div>
-                          </div>
+                            orderLine={orderLine}
+                            kind="pending"
+                          />
                         ))}
                       </div>
                     ) : null}
