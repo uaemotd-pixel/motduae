@@ -4,6 +4,7 @@ import {
   PAYOUT_STATUSES,
   CURRENCY,
 } from "../services/partnerPayout/constants.js";
+import { payoutBankSchema } from "../utils/partnerPayoutBank.js";
 
 const partnerPayoutBatchSchema = new mongoose.Schema(
   {
@@ -28,6 +29,10 @@ const partnerPayoutBatchSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+    },
+    payoutBank: {
+      type: payoutBankSchema,
+      default: () => ({}),
     },
     amountFils: { type: Number, required: true, min: 1 },
     currency: { type: String, default: CURRENCY, trim: true },

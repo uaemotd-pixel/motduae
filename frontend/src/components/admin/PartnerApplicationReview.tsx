@@ -9,6 +9,10 @@ import { resolveMediaUrl } from "@/lib/media";
 import { Link } from "@/i18n/navigation";
 import { getEmirateAr, getEmirateEn } from "@/lib/uaeAddress";
 import {
+  formatIbanDisplay,
+  type PayoutBankDetails,
+} from "@/lib/partnerPayoutBank";
+import {
   normalizeSocialLinks,
   type PartnerApplication,
 } from "@/lib/partnerApplication";
@@ -37,6 +41,8 @@ type ShopSnapshot = {
     city: string;
     emirate: string;
   };
+  payoutBank?: PayoutBankDetails;
+  hasPayoutBank?: boolean;
   updatedAt: string | null;
 };
 
@@ -237,6 +243,30 @@ function ShopProfileReadout({
           <Labeled label="Address line 1">{pickup?.line1 || "—"}</Labeled>
           <Labeled label="Address line 2">{pickup?.line2 || "—"}</Labeled>
         </div>
+      </div>
+
+      <div className="space-y-4">
+        <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
+          Payout bank
+        </p>
+        {shop.hasPayoutBank ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Labeled label="Account holder">
+              {shop.payoutBank?.accountHolderName || "—"}
+            </Labeled>
+            <Labeled label="Bank">{shop.payoutBank?.bankName || "—"}</Labeled>
+            <div className="md:col-span-2">
+              <Labeled label="IBAN">
+                {formatIbanDisplay(shop.payoutBank?.iban || "") || "—"}
+              </Labeled>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">
+            No UAE IBAN on shop profile. Payment cannot be released until the
+            partner saves bank details.
+          </p>
+        )}
       </div>
     </div>
   );

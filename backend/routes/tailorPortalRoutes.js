@@ -32,6 +32,7 @@ import {
   getPortalPayoutView,
 } from "../services/partnerPayout/portal.js";
 import { isShopProfileComplete, isValidShopSlug } from "../utils/shopReady.js";
+import { parsePayoutBankInput } from "../utils/partnerPayoutBank.js";
 import PartnerApplication from "../models/PartnerApplication.js";
 import { normalizeSocialLinks } from "../services/partnerApplication/policy.js";
 import { shopFieldsFromApplication } from "../services/partnerApplication/seedShopFromApplication.js";
@@ -113,6 +114,11 @@ const formatShop = (shop) => ({
         emirate: shop.pickupAddress.emirate || "",
       }
     : emptyShopPickupAddress(),
+  payoutBank: {
+    accountHolderName: shop.payoutBank?.accountHolderName || "",
+    iban: shop.payoutBank?.iban || "",
+    bankName: shop.payoutBank?.bankName || "",
+  },
   rating: shop.rating,
   reviewCount: shop.reviewCount,
   ownerId: shop.ownerId,
@@ -207,6 +213,10 @@ const pickShopFields = (body) => {
     data.pickupAddress = body.pickupAddress;
   }
 
+  if (body.payoutBank !== undefined) {
+    data.payoutBank = body.payoutBank;
+  }
+
   return data;
 };
 
@@ -245,6 +255,12 @@ const validateShopPayload = (data, { requireCore = false } = {}) => {
       return "pickup phone number must be exactly 9 digits";
     }
     data.pickupAddress = normalized;
+  }
+
+  if (data.payoutBank !== undefined) {
+    const parsed = parsePayoutBankInput(data.payoutBank);
+    if (parsed.error) return parsed.error;
+    data.payoutBank = parsed.bank;
   }
 
   return null;
@@ -442,6 +458,10 @@ tailorPortalRouter.put(
     Object.assign(shop, data);
     if (data.pickupAddress) {
       shop.pickupAddress = data.pickupAddress;
+    }
+    if (data.payoutBank) {
+      shop.payoutBank = data.payoutBank;
+      shop.markModified("payoutBank");
     }
     const updatedShop = await shop.save();
 
@@ -911,6 +931,7 @@ tailorPortalRouter.get(
       availableOrders: settlement?.availableOrders || [],
       processingAmount: settlement?.processingAed || 0,
       pendingRequest: view.pendingRequest,
+      hasPayoutBank: Boolean(view.identity.hasPayoutBank),
       identity: view.identity,
       items,
     });
