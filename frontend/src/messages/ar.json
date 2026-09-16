@@ -988,6 +988,8 @@
       "requestHistoryDeleteCta": "حذف",
       "requestHistoryDeleting": "جاري الحذف…",
       "requestHistoryDeleteError": "تعذر حذف الطلب. يرجى المحاولة مرة أخرى.",
+      "requestPayoutNeedBank": "أضف اسم صاحب الحساب والآيبان الإماراتي في ملف المتجر قبل طلب الصرف.",
+      "requestPayoutAddBank": "إضافة بيانات البنك",
       "releasesTitle": "المدفوعات المستلمة",
       "releasesDesc": "المدفوعات التي أصدرتها MOTD لمتجرك.",
       "releasesOrders": "الطلبات",
@@ -1027,7 +1029,8 @@
         "experience": "الخبرة",
         "licence": "الرخصة التجارية",
         "comments": "ملاحظات لـ MOTD",
-        "pickupAddress": "عنوان استلام البريد السريع"
+        "pickupAddress": "عنوان استلام البريد السريع",
+        "payoutBank": "بيانات الحساب البنكي للصرف"
       },
       "fields": {
         "name": "اسم المتجر (بالإنجليزي)",
@@ -1055,7 +1058,10 @@
         "pickupLine1": "سطر العنوان 1",
         "pickupLine2": "سطر العنوان 2",
         "pickupCity": "مدينة الاستلام",
-        "pickupEmirate": "الإمارة"
+        "pickupEmirate": "الإمارة",
+        "accountHolderName": "اسم صاحب الحساب",
+        "bankName": "اسم البنك",
+        "iban": "الآيبان"
       },
       "placeholders": {
         "name": "مثال: أقمشة حناين",
@@ -1075,7 +1081,10 @@
         "pickupLine1": "الشارع، المبنى، الوحدة",
         "pickupLine2": "معلم قريب (اختياري)",
         "pickupCity": "دبي",
-        "selectEmirate": "اختر الإمارة"
+        "selectEmirate": "اختر الإمارة",
+        "accountHolderName": "الاسم كما يظهر على الحساب البنكي",
+        "bankName": "مثال: Emirates NBD",
+        "iban": "AE070331234567890123456"
       },
       "platforms": {
         "other": "أخرى"
@@ -1085,6 +1094,8 @@
         "logoUpload": "شعار المتجر المربع. يُستخدم في حال عدم تعيين صورة غلاف.",
         "coverUpload": "صورة الغلاف العريضة — تظهر على الصفحة الرئيسية وملفك العام.",
         "pickupAddress": "مطلوب لاستلام البريد السريع. يستخدمه المندوب عند استلام الطرود من متجرك.",
+        "payoutBank": "تدفع MOTD عبر التحويل البنكي. أضف اسم صاحب الحساب والآيبان الإماراتي حتى نتمكن من إرسال مستحقاتك. يمكنك حفظ بقية الملف بدونه.",
+        "iban": "آيبان إماراتي فقط: AE متبوعاً بـ 21 رقماً. تُزال المسافات تلقائياً.",
         "licenceReadonly": "تفاصيل الرخصة تأتي من طلب الشراكة ولا يمكن تعديلها هنا.",
         "experienceReadonly": "تُؤخذ الخبرة من طلب الشراكة وتُحدَّث تلقائياً كل شهر ميلادي.",
         "applicationReadonly": "هذه التفاصيل تأتي من طلب الشراكة ولا يمكن تعديلها هنا."
@@ -1125,7 +1136,9 @@
         "pickupPhoneInvalid": "يجب أن يتكون هاتف الاستلام من 9 أرقام بالضبط.",
         "pickupLine1Required": "سطر عنوان الاستلام 1 مطلوب.",
         "pickupCityRequired": "مدينة الاستلام مطلوبة.",
-        "pickupEmirateRequired": "إمارة الاستلام مطلوبة."
+        "pickupEmirateRequired": "إمارة الاستلام مطلوبة.",
+        "accountHolderRequired": "اسم صاحب الحساب مطلوب عند إدخال بيانات البنك.",
+        "ibanInvalid": "أدخل آيبان إماراتي صالحاً (AE متبوعاً بـ 21 رقماً)."
       },
       "errors": {
         "loadFailed": "فشل في تحميل ملف المتجر.",
@@ -1459,7 +1472,9 @@
       "requestHistoryDeleteConfirm": "حذف طلب بمبلغ {amount} من السجل؟ هذا لا يغيّر أي مدفوعات.",
       "requestHistoryDeleteCta": "حذف",
       "requestHistoryDeleting": "جاري الحذف…",
-      "requestHistoryDeleteError": "تعذر حذف الطلب. يرجى المحاولة مرة أخرى."
+      "requestHistoryDeleteError": "تعذر حذف الطلب. يرجى المحاولة مرة أخرى.",
+      "requestPayoutNeedBank": "أضف اسم صاحب الحساب والآيبان الإماراتي في ملف المتجر قبل طلب الصرف.",
+      "requestPayoutAddBank": "إضافة بيانات البنك"
     },
     "shop": {
       "loading": "جاري تحميل ملف المتجر...",
@@ -1485,7 +1500,8 @@
         "online": "الموقع ووسائل التواصل",
         "experience": "الخبرة",
         "licence": "الرخصة التجارية",
-        "pickupAddress": "عنوان استلام البريد السريع"
+        "pickupAddress": "عنوان استلام البريد السريع",
+        "payoutBank": "بيانات الحساب البنكي للصرف"
       },
       "fields": {
         "name": "اسم المتجر (إنجليزي)",
@@ -1510,7 +1526,10 @@
         "pickupLine1": "سطر العنوان 1",
         "pickupLine2": "سطر العنوان 2",
         "pickupCity": "مدينة الاستلام",
-        "pickupEmirate": "الإمارة"
+        "pickupEmirate": "الإمارة",
+        "accountHolderName": "اسم صاحب الحساب",
+        "bankName": "اسم البنك",
+        "iban": "الآيبان"
       },
       "placeholders": {
         "name": "مثال: Ayesha Al Riaz Atelier",
@@ -1532,7 +1551,10 @@
         "pickupLine1": "الشارع، المبنى، الوحدة",
         "pickupLine2": "معلم قريب (اختياري)",
         "pickupCity": "دبي",
-        "selectEmirate": "اختر الإمارة"
+        "selectEmirate": "اختر الإمارة",
+        "accountHolderName": "الاسم كما يظهر على الحساب البنكي",
+        "bankName": "مثال: Emirates NBD",
+        "iban": "AE070331234567890123456"
       },
       "platforms": {
         "other": "أخرى"
@@ -1542,6 +1564,8 @@
         "logoUpload": "شعار مربّع للمتجر. يُستخدم عند عدم وجود صورة غلاف.",
         "coverUpload": "صورة عريضة للعرض — تظهر في الصفحة الرئيسية وقائمة الخياطين وملفك العام.",
         "pickupAddress": "مطلوب لاستلام البريد السريع. يستخدمه المندوب عند استلام الطرود من متجرك.",
+        "payoutBank": "تدفع MOTD عبر التحويل البنكي. أضف اسم صاحب الحساب والآيبان الإماراتي حتى نتمكن من إرسال مستحقاتك. يمكنك حفظ بقية الملف بدونه.",
+        "iban": "آيبان إماراتي فقط: AE متبوعاً بـ 21 رقماً. تُزال المسافات تلقائياً.",
         "licenceReadonly": "تفاصيل الرخصة تأتي من طلب الشراكة ولا يمكن تعديلها هنا.",
         "experienceReadonly": "تُؤخذ الخبرة من طلب الشراكة وتُحدَّث تلقائياً كل شهر ميلادي."
       },
@@ -1580,7 +1604,9 @@
         "pickupPhoneInvalid": "يجب أن يتكون هاتف الاستلام من 9 أرقام بالضبط.",
         "pickupLine1Required": "سطر عنوان الاستلام 1 مطلوب.",
         "pickupCityRequired": "مدينة الاستلام مطلوبة.",
-        "pickupEmirateRequired": "إمارة الاستلام مطلوبة."
+        "pickupEmirateRequired": "إمارة الاستلام مطلوبة.",
+        "accountHolderRequired": "اسم صاحب الحساب مطلوب عند إدخال بيانات البنك.",
+        "ibanInvalid": "أدخل آيبان إماراتي صالحاً (AE متبوعاً بـ 21 رقماً)."
       },
       "errors": {
         "loadFailed": "تعذّر تحميل ملف المتجر.",

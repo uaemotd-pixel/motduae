@@ -9,6 +9,7 @@ export {
   getPayoutById,
   getCompletedPayoutTotals,
   serializeFils,
+  attachPayoutBankToItems,
 } from "./settlement.js";
 export {
   previewRelease,

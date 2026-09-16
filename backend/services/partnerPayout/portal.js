@@ -11,6 +11,11 @@ import {
   listPayoutBatches,
 } from "./settlement.js";
 import { ensurePartnerPayoutReleasedNotification } from "../notificationService.js";
+import {
+  isPayoutBankComplete,
+  PAYOUT_BANK_REQUIRED_PARTNER,
+  payoutBankForApi,
+} from "../../utils/partnerPayoutBank.js";
 
 export async function resolveOwnedShop(ownerUserId, partnerKind) {
   if (partnerKind === "tailor") {
@@ -22,12 +27,18 @@ export async function resolveOwnedShop(ownerUserId, partnerKind) {
 export function shopIdentity(shop, partnerKind) {
   const partnerId = shop?._id ? String(shop._id) : "";
   const name = String(shop?.name || "").trim();
+  const payoutBank = payoutBankForApi(shop?.payoutBank);
+  const hasPayoutBank = isPayoutBankComplete(shop?.payoutBank);
+  const partnerName =
+    name || (partnerKind === "tailor" ? "Tailor shop" : "Fabric store");
   return {
     partnerKey: partnerId ? `${partnerKind}:${partnerId}` : `${partnerKind}:unknown`,
     partnerKind,
     partnerId,
-    partnerName: name || (partnerKind === "tailor" ? "Tailor shop" : "Fabric store"),
-    payeeName: name,
+    partnerName,
+    payeeName: hasPayoutBank ? payoutBank.accountHolderName : partnerName,
+    payoutBank,
+    hasPayoutBank,
   };
 }
 
@@ -147,6 +158,13 @@ export async function createPartnerPayoutRequest({
         : "Create your fabric store before requesting a payout.",
       400,
       "SHOP_REQUIRED",
+    );
+  }
+  if (!view.identity.hasPayoutBank) {
+    throw new PartnerPayoutError(
+      PAYOUT_BANK_REQUIRED_PARTNER,
+      400,
+      "MISSING_PAYOUT_BANK",
     );
   }
   if (view.pendingRequest) {

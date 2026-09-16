@@ -1,3 +1,5 @@
+import type { PayoutBankDetails } from "@/lib/partnerPayoutBank";
+
 export type PartnerPayoutKind = "tailor" | "fabric" | "shipping";
 
 export type PartnerKindFilter = "all" | PartnerPayoutKind;
@@ -49,6 +51,8 @@ export interface PartnerSettlement {
   city?: string;
   location?: string;
   pickup?: string;
+  payoutBank?: PayoutBankDetails;
+  hasPayoutBank?: boolean;
 }
 
 export interface PayoutOrderLine {
@@ -74,6 +78,8 @@ export interface PartnerPayoutTransaction {
   partnerKind: PartnerPayoutKind;
   partnerName: string;
   payeeName?: string;
+  payoutBank?: PayoutBankDetails;
+  hasPayoutBank?: boolean;
   amount: number;
   amountAed?: number;
   amountFils?: number;
@@ -123,6 +129,8 @@ export interface FabricPayoutRequestItem {
   partnerId?: string;
   partnerName: string;
   payeeName?: string;
+  payoutBank?: PayoutBankDetails;
+  hasPayoutBank?: boolean;
   amount: number;
   currency?: string;
   status: "pending" | "approved" | "rejected" | "cancelled";

@@ -8,6 +8,7 @@ import {
 import {
   PartnerPayoutError,
   approvePayoutRequest,
+  attachPayoutBankToItems,
   cancelPayout,
   completePayout,
   getPartnerSettlement,
@@ -196,7 +197,10 @@ export function registerPartnerPayoutAdminRoutes(adminRouter) {
         ...(filter.partnerKind ? { partnerKind: filter.partnerKind } : {}),
       });
 
-      res.send({ items, pendingCount });
+      res.send({
+        items: await attachPayoutBankToItems(items),
+        pendingCount,
+      });
     }),
   );
 
