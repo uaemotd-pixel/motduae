@@ -189,7 +189,10 @@ export default function FabricShopForm() {
   const handleChange = (
     field: keyof Omit<
       FabricShopFormData,
-      "pickupAddress" | "social" | (typeof APPLICATION_FORM_KEYS)[number]
+      | "pickupAddress"
+      | "social"
+      | "payoutBank"
+      | (typeof APPLICATION_FORM_KEYS)[number]
     >,
     value: string,
   ) => {
