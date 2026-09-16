@@ -1,6 +1,15 @@
 // lib/tailorShop.ts
 import { api, type ApiError } from "@/lib/api/client";
+
 import { extractDigits, toUaePhoneDigits } from "./uaePhone";
+
+import { extractDigits } from "./uaePhone";
+import {
+  emptyPayoutBank,
+  normalizePayoutBank,
+  type PayoutBankDetails,
+} from "./partnerPayoutBank";
+
 
 export interface TailorShopSocialLink {
   name: string;
@@ -29,6 +38,7 @@ export interface TailorShopProfile {
     yearsOperating?: string;
   } | null;
   pickupAddress?: ShopPickupAddress;
+  payoutBank?: PayoutBankDetails;
   rating?: number;
   reviewCount?: number;
   isActive?: boolean;
@@ -66,6 +76,7 @@ export interface TailorShopFormData {
     yearsOperating?: string;
   } | null;
   pickupAddress: ShopPickupAddress;
+  payoutBank: PayoutBankDetails;
 }
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -262,6 +273,7 @@ export function emptyTailorShopForm(): TailorShopFormData {
     licenceFileUrl: "",
     experience: null,
     pickupAddress: emptyShopPickupAddress(),
+    payoutBank: emptyPayoutBank(),
   };
 }
 
@@ -294,6 +306,7 @@ export function tailorShopToForm(shop: TailorShopProfile): TailorShopFormData {
     licenceFileUrl: shop.licenceFileUrl ?? "",
     experience: shop.experience ?? null,
     pickupAddress: shop.pickupAddress ?? emptyShopPickupAddress(),
+    payoutBank: normalizePayoutBank(shop.payoutBank),
   };
 }
 
@@ -345,6 +358,7 @@ export function toTailorShopPayload(
         url: normalizeHttpUrl(link.url),
       })),
     pickupAddress: form.pickupAddress,
+    payoutBank: normalizePayoutBank(form.payoutBank),
   };
 }
 

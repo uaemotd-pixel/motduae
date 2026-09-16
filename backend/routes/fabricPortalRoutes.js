@@ -54,6 +54,7 @@ import {
   isValidShopSlug,
   respondIfShopNotReady,
 } from "../utils/shopReady.js";
+import { parsePayoutBankInput } from "../utils/partnerPayoutBank.js";
 import {
   enrichFabricWithCuts,
   prepareFabricCutsInput,
@@ -130,6 +131,11 @@ const formatShop = (shop) => ({
         emirate: shop.pickupAddress.emirate || "",
       }
     : emptyShopPickupAddress(),
+  payoutBank: {
+    accountHolderName: shop.payoutBank?.accountHolderName || "",
+    iban: shop.payoutBank?.iban || "",
+    bankName: shop.payoutBank?.bankName || "",
+  },
   rating: shop.rating,
   reviewCount: shop.reviewCount,
   ownerId: shop.ownerId,
@@ -208,6 +214,9 @@ const pickShopFields = (body) => {
   if (body.pickupAddress !== undefined) {
     data.pickupAddress = body.pickupAddress;
   }
+  if (body.payoutBank !== undefined) {
+    data.payoutBank = body.payoutBank;
+  }
   return data;
 };
 
@@ -245,6 +254,12 @@ const validateShopPayload = (data, { requireCore = false } = {}) => {
       return "pickup phone number must be exactly 9 digits";
     }
     data.pickupAddress = normalized;
+  }
+
+  if (data.payoutBank !== undefined) {
+    const parsed = parsePayoutBankInput(data.payoutBank);
+    if (parsed.error) return parsed.error;
+    data.payoutBank = parsed.bank;
   }
 
   return null;
@@ -373,6 +388,10 @@ fabricPortalRouter.put(
     Object.assign(shop, data);
     if (data.pickupAddress) {
       shop.pickupAddress = data.pickupAddress;
+    }
+    if (data.payoutBank) {
+      shop.payoutBank = data.payoutBank;
+      shop.markModified("payoutBank");
     }
     const updatedShop = await shop.save();
     res.json({
@@ -2320,6 +2339,7 @@ fabricPortalRouter.get(
       availableOrders: settlement?.availableOrders || [],
       processingAmount: settlement?.processingAed || 0,
       pendingRequest: view.pendingRequest,
+      hasPayoutBank: Boolean(view.identity.hasPayoutBank),
       identity: view.identity,
       items,
       releases: (view.releases || []).map((row) => ({

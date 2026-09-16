@@ -871,6 +871,8 @@
       "requestHistoryDeleteCta": "Delete",
       "requestHistoryDeleting": "Deleting…",
       "requestHistoryDeleteError": "Unable to delete this request. Please try again.",
+      "requestPayoutNeedBank": "Add your account holder name and UAE IBAN on your store profile before requesting a payout.",
+      "requestPayoutAddBank": "Add bank details",
       "releasesTitle": "Payouts received",
       "releasesDesc": "Payments released by MOTD to your store.",
       "releasesOrders": "Orders",
@@ -910,7 +912,8 @@
         "experience": "Experience",
         "licence": "Trade licence",
         "comments": "Comments for MOTD",
-        "pickupAddress": "Courier pickup address"
+        "pickupAddress": "Courier pickup address",
+        "payoutBank": "Payout bank details"
       },
       "fields": {
         "name": "Store name (English)",
@@ -938,7 +941,10 @@
         "pickupLine1": "Address line 1",
         "pickupLine2": "Address line 2",
         "pickupCity": "Pickup city",
-        "pickupEmirate": "Emirate"
+        "pickupEmirate": "Emirate",
+        "accountHolderName": "Account holder name",
+        "bankName": "Bank name",
+        "iban": "IBAN"
       },
       "placeholders": {
         "name": "e.g. Hanayan Fabrics",
@@ -958,7 +964,10 @@
         "pickupLine1": "Street, building, unit",
         "pickupLine2": "Landmark (optional)",
         "pickupCity": "Dubai",
-        "selectEmirate": "Select emirate"
+        "selectEmirate": "Select emirate",
+        "accountHolderName": "Name as it appears on the bank account",
+        "bankName": "e.g. Emirates NBD",
+        "iban": "AE070331234567890123456"
       },
       "platforms": {
         "other": "Other"
@@ -968,6 +977,8 @@
         "logoUpload": "Square store mark. Used when no cover image is set.",
         "coverUpload": "Wide hero photo — shown on the homepage and your public profile.",
         "pickupAddress": "Required for courier pickups. Couriers use this address when collecting parcels from your store.",
+        "payoutBank": "MOTD pays by bank transfer. Add the account holder name and UAE IBAN so we can send your payout. You can save the rest of this profile without it.",
+        "iban": "UAE IBAN only: AE followed by 21 digits.",
         "licenceReadonly": "Licence details come from your partner application and cannot be edited here.",
         "experienceReadonly": "Experience is taken from your partner application and updates automatically each calendar month.",
         "applicationReadonly": "These details come from your partner application and cannot be edited here."
@@ -1008,7 +1019,9 @@
         "pickupPhoneInvalid": "Pickup phone must be exactly 9 digits.",
         "pickupLine1Required": "Pickup address line 1 is required.",
         "pickupCityRequired": "Pickup city is required.",
-        "pickupEmirateRequired": "Pickup emirate is required."
+        "pickupEmirateRequired": "Pickup emirate is required.",
+        "accountHolderRequired": "Account holder name is required when bank details are entered.",
+        "ibanInvalid": "Enter a valid UAE IBAN (AE followed by 21 digits)."
       },
       "errors": {
         "loadFailed": "Failed to load store profile.",
@@ -1342,7 +1355,9 @@
       "requestHistoryDeleteConfirm": "Delete this {amount} request from your history? This will not change any payments.",
       "requestHistoryDeleteCta": "Delete",
       "requestHistoryDeleting": "Deleting…",
-      "requestHistoryDeleteError": "Unable to delete this request. Please try again."
+      "requestHistoryDeleteError": "Unable to delete this request. Please try again.",
+      "requestPayoutNeedBank": "Add your account holder name and UAE IBAN on your shop profile before requesting a payout.",
+      "requestPayoutAddBank": "Add bank details"
     },
     "shop": {
       "loading": "Loading shop profile...",
@@ -1368,7 +1383,8 @@
         "online": "Website and social",
         "experience": "Experience",
         "licence": "Trade licence",
-        "pickupAddress": "Courier pickup address"
+        "pickupAddress": "Courier pickup address",
+        "payoutBank": "Payout bank details"
       },
       "fields": {
         "name": "Shop name (English)",
@@ -1393,7 +1409,10 @@
         "pickupLine1": "Address line 1",
         "pickupLine2": "Address line 2",
         "pickupCity": "Pickup city",
-        "pickupEmirate": "Emirate"
+        "pickupEmirate": "Emirate",
+        "accountHolderName": "Account holder name",
+        "bankName": "Bank name",
+        "iban": "IBAN"
       },
       "placeholders": {
         "name": "e.g. Ayesha Al Riaz Atelier",
@@ -1415,7 +1434,10 @@
         "pickupLine1": "Street, building, unit",
         "pickupLine2": "Landmark (optional)",
         "pickupCity": "Dubai",
-        "selectEmirate": "Select emirate"
+        "selectEmirate": "Select emirate",
+        "accountHolderName": "Name as it appears on the bank account",
+        "bankName": "e.g. Emirates NBD",
+        "iban": "AE070331234567890123456"
       },
       "platforms": {
         "other": "Other"
@@ -1425,6 +1447,8 @@
         "logoUpload": "Square shop mark. Used when no cover image is set.",
         "coverUpload": "Wide hero photo — shown on the homepage, tailor listing, and your public profile.",
         "pickupAddress": "Required for courier pickups. Couriers use this address when collecting parcels from your shop.",
+        "payoutBank": "MOTD pays by bank transfer. Add the account holder name and UAE IBAN so we can send your payout. You can save the rest of this profile without it.",
+        "iban": "UAE IBAN only: AE followed by 21 digits.",
         "licenceReadonly": "Licence details come from your partner application and cannot be edited here.",
         "experienceReadonly": "Experience is taken from your partner application and updates automatically each calendar month."
       },
@@ -1463,7 +1487,9 @@
         "pickupPhoneInvalid": "Pickup phone must be exactly 9 digits.",
         "pickupLine1Required": "Pickup address line 1 is required.",
         "pickupCityRequired": "Pickup city is required.",
-        "pickupEmirateRequired": "Pickup emirate is required."
+        "pickupEmirateRequired": "Pickup emirate is required.",
+        "accountHolderRequired": "Account holder name is required when bank details are entered.",
+        "ibanInvalid": "Enter a valid UAE IBAN (AE followed by 21 digits)."
       },
       "errors": {
         "loadFailed": "Could not load your shop profile.",

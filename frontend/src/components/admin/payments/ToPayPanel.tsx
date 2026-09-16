@@ -12,6 +12,7 @@ import {
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { KindFilterPills, PartnerKindIcon } from "./KindFilterPills";
 import { formatCurrency, partnerKindLabel } from "./helpers";
+import PayoutBankCard from "./PayoutBankCard";
 import type { PartnerKindFilter, PartnerSettlement } from "./types";
 
 export default function ToPayPanel({
@@ -49,6 +50,9 @@ export default function ToPayPanel({
         const hay = [
           row.partnerName,
           row.payeeName,
+          row.payoutBank?.accountHolderName,
+          row.payoutBank?.bankName,
+          row.payoutBank?.iban,
           partnerKindLabel(row.partnerKind),
           ...row.availableOrders.map((o) => o.orderId),
           ...row.pendingOrders.map((o) => o.orderId),
@@ -117,6 +121,9 @@ export default function ToPayPanel({
           {partnerRows.map((row) => {
             const key = `${row.partnerKind}:${row.partnerId}`;
             const expanded = expandedPartnerKey === key;
+            const needsBank = row.partnerKind !== "shipping";
+            const canRelease =
+              row.availableFils > 0 && (!needsBank || Boolean(row.hasPayoutBank));
             return (
               <div
                 key={key}
@@ -132,6 +139,11 @@ export default function ToPayPanel({
                       <p className="font-medium text-(--dash-ink)">
                         {row.partnerName}
                       </p>
+                      {needsBank && !row.hasPayoutBank ? (
+                        <span className="inline-flex items-center rounded-md bg-(--dash-bg) px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-(--dash-muted)">
+                          No IBAN
+                        </span>
+                      ) : null}
                     </div>
                     <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <div className="rounded-lg border border-(--dash-border) bg-(--dash-bg) px-3 py-2">
@@ -163,7 +175,7 @@ export default function ToPayPanel({
                   <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                     <button
                       type="button"
-                      disabled={!!releasingKey || row.availableFils <= 0}
+                      disabled={!!releasingKey || !canRelease}
                       onClick={() => onRelease(row)}
                       className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-(--dash-charcoal) px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
                     >
@@ -210,6 +222,13 @@ export default function ToPayPanel({
                         <p className="sm:col-span-3">Pickup: {row.pickup}</p>
                       ) : null}
                     </div>
+
+                    {needsBank ? (
+                      <PayoutBankCard
+                        bank={row.payoutBank}
+                        hasPayoutBank={row.hasPayoutBank}
+                      />
+                    ) : null}
 
                     {row.availableOrders.length > 0 ? (
                       <div className="space-y-2">
