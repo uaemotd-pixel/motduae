@@ -24,6 +24,7 @@ import {
 } from "@/lib/fabrics";
 import { saveMultiBuyNowCheckout, saveSingleBuyNowCheckout } from "@/lib/buyNowCheckout";
 import { Share2, ArrowUpRight, Heart } from "lucide-react";
+import { ProductReviewCount } from "@/components/reviews/CustomerReviewsView";
 import StoreAttribution from "@/components/fabric/StoreAttribution";
 import { resolveMediaUrl } from "@/lib/media";
 import ZoomImageEffect from "../shared/ZoomImageEffect";
@@ -512,20 +513,26 @@ export default function FabricDetailView({
                     />
                   </button>
                 </div>
-                <p className="[font-family:var(--font-ui)] text-xl text-black font-medium sm:text-2xl">
-                  {selectedCutEntries.length === 0 &&
-                    formatFabricListingPrice(fabric, locale)}
-                  {selectedCutEntries.length === 1 &&
-                    formatFabricCutPrice(selectedCutEntries[0], locale)}
-                  {selectedCutEntries.length > 1 && (
-                    <>
-                      {locale === "ar"
-                        ? `${selectedCutEntries.length} قطع · `
-                        : `${selectedCutEntries.length} cuts · `}
-                      {formatCurrency(selectedTotalPrice, locale)}
-                    </>
-                  )}
-                </p>
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <p className="[font-family:var(--font-ui)] text-xl text-black font-medium sm:text-2xl">
+                    {selectedCutEntries.length === 0 &&
+                      formatFabricListingPrice(fabric, locale)}
+                    {selectedCutEntries.length === 1 &&
+                      formatFabricCutPrice(selectedCutEntries[0], locale)}
+                    {selectedCutEntries.length > 1 && (
+                      <>
+                        {locale === "ar"
+                          ? `${selectedCutEntries.length} قطع · `
+                          : `${selectedCutEntries.length} cuts · `}
+                        {formatCurrency(selectedTotalPrice, locale)}
+                      </>
+                    )}
+                  </p>
+                  <ProductReviewCount
+                    productId={fabric._id}
+                    locale={locale}
+                  />
+                </div>
               </motion.div>
 
               {description && (

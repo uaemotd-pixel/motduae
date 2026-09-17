@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
 import { getFilterOptionLabel, formatFilterLabel, getProductTagLabel } from "@/lib/format";
-import { Share2, ChevronDown, ChevronUp } from "lucide-react";
+import { Share2, ChevronDown, ChevronUp, X, SlidersHorizontal } from "lucide-react";
 import FadeInSection from "@/components/shared/fadeInSection";
 import CatalogFilterSidebar from "@/components/shared/CatalogFilterSidebar";
 import MainLayout from "../main/layout";
@@ -163,7 +163,7 @@ const CustomCheckbox = ({
 );
 
 const FilterLabel = ({ children }: { children: React.ReactNode }) => (
-  <p className="text-[10px] tracking-[0.22em] font-normal text-black uppercase mb-3 pb-2.5 border-b border-[#E4E0D8] w-full">
+  <p className="text-[9px] sm:text-[10px] tracking-[0.18em] sm:tracking-[0.22em] font-normal text-black uppercase mb-2.5 sm:mb-3 pb-2 sm:pb-2.5 border-b border-[#E4E0D8] w-full">
     {children}
   </p>
 );
@@ -180,21 +180,23 @@ const CollapsibleFilter = ({
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="border-b border-[#E4E0D8] pb-4">
+    <div className="border-b border-[#E4E0D8] pb-3 sm:pb-4">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between py-2 hover:opacity-70 transition-opacity cursor-pointer"
+        className="w-full flex items-center justify-between py-1.5 sm:py-2 hover:opacity-70 transition-opacity cursor-pointer"
       >
-        <span className="text-[10px] tracking-[0.22em] font-normal text-black uppercase">
+        <span className="text-[9px] sm:text-[10px] tracking-[0.18em] sm:tracking-[0.22em] font-normal text-black uppercase">
           {label} {count !== undefined && `(${count})`}
         </span>
         {isOpen ? (
-          <ChevronUp className="w-4 h-4 text-[#8A8A80]" />
+          <ChevronUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#8A8A80]" />
         ) : (
-          <ChevronDown className="w-4 h-4 text-[#8A8A80]" />
+          <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#8A8A80]" />
         )}
       </button>
-      {isOpen && <div className="mt-3 flex flex-col gap-2">{children}</div>}
+      {isOpen && (
+        <div className="mt-2.5 sm:mt-3 flex flex-col gap-2">{children}</div>
+      )}
     </div>
   );
 };
@@ -792,18 +794,33 @@ export default function AddOnsCatalogPage() {
     setCurrentPage(1);
   };
 
-  const hasActiveFilters = useMemo(() => {
-    return (
-      filters.colors.length > 0 ||
-      filters.materials.length > 0 ||
-      filters.designs.length > 0 ||
-      filters.seasons.length > 0 ||
-      filters.tags.length > 0 ||
-      filters.minPrice > 0 ||
-      filters.maxPrice < PRICE_MAX ||
-      filters.inStockOnly
-    );
-  }, [filters]);
+  const hasActiveFilters =
+    filters.colors.length > 0 ||
+    filters.materials.length > 0 ||
+    filters.designs.length > 0 ||
+    filters.seasons.length > 0 ||
+    filters.tags.length > 0 ||
+    filters.minPrice > 0 ||
+    filters.maxPrice < PRICE_MAX ||
+    filters.inStockOnly;
+
+  const activeFilterCount =
+    filters.colors.length +
+    filters.materials.length +
+    filters.designs.length +
+    filters.seasons.length +
+    filters.tags.length +
+    (filters.minPrice > 0 || filters.maxPrice < PRICE_MAX ? 1 : 0) +
+    (filters.inStockOnly ? 1 : 0);
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileFiltersOpen]);
 
   // Client-side filtering & sorting
   const filteredProducts = useMemo(() => {
@@ -1036,11 +1053,12 @@ export default function AddOnsCatalogPage() {
         </label>
       </div>
 
+      {/* Clear — desktop sidebar only (mobile sheet has its own footer) */}
       {hasActiveFilters && (
         <button
           type="button"
           onClick={clearAllFilters}
-          className="w-full py-3 px-4 border border-black text-[10px] tracking-[0.2em] uppercase font-normal transition-all duration-200 hover:bg-black hover:text-white mt-2 cursor-pointer"
+          className="hidden lg:block w-full py-3 px-4 border border-black text-[10px] tracking-[0.2em] uppercase font-normal transition-all duration-200 hover:bg-black hover:text-white mt-2 cursor-pointer"
         >
           {isAr ? "مسح جميع الفلاتر" : "Clear All Filters"}
         </button>
@@ -1090,38 +1108,39 @@ export default function AddOnsCatalogPage() {
           >
             <div className="py-4">
               <div className="flex items-center justify-between flex-wrap gap-4">
-                
-                {/* Left controls: Mobile Filters trigger & active badges */}
                 <div className="flex items-center gap-4">
                   <button
-                    onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-                    className="lg:hidden flex items-center gap-2 text-[11px] tracking-[0.18em] uppercase hover:text-black/60 transition-colors cursor-pointer"
+                    type="button"
+                    onClick={() => setMobileFiltersOpen(true)}
+                    aria-expanded={mobileFiltersOpen}
+                    aria-controls="addons-mobile-filters"
+                    className="lg:hidden group inline-flex items-center gap-2 rounded-full border border-[#E4E0D8] bg-white px-3.5 py-2 text-[10px] xs:text-[11px] tracking-[0.16em] uppercase text-black shadow-sm transition-all hover:border-black hover:bg-black hover:text-white cursor-pointer"
                   >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                      />
-                    </svg>
-                    {isAr ? "الفلاتر" : "Filters"}
-                    {hasActiveFilters && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-black" />
+                    <SlidersHorizontal className="size-3.5 shrink-0" strokeWidth={1.75} />
+                    <span>{isAr ? "الفلاتر" : "Filters"}</span>
+                    {activeFilterCount > 0 && (
+                      <span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-black px-1.5 text-[9px] font-mono text-white transition-colors group-hover:bg-white group-hover:text-black">
+                        {activeFilterCount}
+                      </span>
                     )}
                   </button>
 
                   {hasActiveFilters && (
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={clearAllFilters}
+                      className="lg:hidden text-[10px] xs:text-[11px] tracking-[0.16em] uppercase text-[#7A7A72] hover:text-black transition-colors cursor-pointer"
+                    >
+                      {isAr ? "مسح" : "Clear"}
+                    </button>
+                  )}
+
+                  {hasActiveFilters && (
+                    <div className="hidden lg:flex items-center gap-2 flex-wrap">
                       {filters.materials.map((matId) => (
                         <span
                           key={matId}
-                          className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                          className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
                         >
                           {getOptionLabel(materials, matId)}
                           <button
@@ -1150,7 +1169,7 @@ export default function AddOnsCatalogPage() {
                         return (
                           <span
                             key={color}
-                            className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                            className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
                           >
                             <span
                               className="w-3 h-3 rounded-full border border-white/30"
@@ -1158,7 +1177,9 @@ export default function AddOnsCatalogPage() {
                                 backgroundColor: colorObj?.hex || "#000",
                               }}
                             />
-                            {isAr ? colorObj?.ar || color : colorObj?.en || color}
+                            {isAr
+                              ? colorObj?.ar || color
+                              : colorObj?.en || color}
                             <button
                               type="button"
                               onClick={() =>
@@ -1188,7 +1209,7 @@ export default function AddOnsCatalogPage() {
                       {filters.designs.map((designId) => (
                         <span
                           key={designId}
-                          className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                          className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
                         >
                           {getOptionLabel(designs, designId)}
                           <button
@@ -1215,7 +1236,7 @@ export default function AddOnsCatalogPage() {
                       {filters.seasons.map((seaId) => (
                         <span
                           key={seaId}
-                          className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                          className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
                         >
                           {getOptionLabel(seasons, seaId)}
                           <button
@@ -1242,7 +1263,7 @@ export default function AddOnsCatalogPage() {
                       {filters.tags.map((tagId) => (
                         <span
                           key={tagId}
-                          className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                          className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
                         >
                           {getOptionLabel(tags, tagId)}
                           <button
@@ -1266,8 +1287,9 @@ export default function AddOnsCatalogPage() {
                           </button>
                         </span>
                       ))}
-                      {(filters.minPrice > 0 || filters.maxPrice < PRICE_MAX) && (
-                        <span className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full">
+                      {(filters.minPrice > 0 ||
+                        filters.maxPrice < PRICE_MAX) && (
+                        <span className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full">
                           AED {filters.minPrice.toLocaleString()} - AED{" "}
                           {filters.maxPrice.toLocaleString()}
                           <button
@@ -1295,7 +1317,7 @@ export default function AddOnsCatalogPage() {
                         </span>
                       )}
                       {filters.inStockOnly && (
-                        <span className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full">
+                        <span className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full">
                           {isAr ? "في المخزن" : "In Stock"}
                           <button
                             type="button"
@@ -1322,9 +1344,8 @@ export default function AddOnsCatalogPage() {
                   )}
                 </div>
 
-                {/* Right controls: counters & sort */}
-                <div className="flex items-center gap-6">
-                  <span className="text-[11px] tracking-[0.18em] uppercase text-[#7A7A72] font-mono">
+                <div className="flex items-center justify-between gap-2 sm:gap-6 w-full sm:w-auto min-w-0">
+                  <span className="text-[9px] xs:text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.18em] uppercase text-[#7A7A72] font-mono truncate">
                     {isAr
                       ? `عرض ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredProducts.length)} من ${filteredProducts.length} إضافات`
                       : `Showing ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredProducts.length)} of ${filteredProducts.length} products`}
@@ -1332,7 +1353,7 @@ export default function AddOnsCatalogPage() {
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="bg-transparent text-[11px] tracking-[0.18em] uppercase font-mono focus:outline-none cursor-pointer border-0"
+                    className="bg-transparent text-[9px] xs:text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.18em] uppercase font-mono focus:outline-none cursor-pointer shrink-0 max-w-[45%] sm:max-w-none"
                   >
                     <option value="newest">{isAr ? "الأحدث" : "Newest"}</option>
                     <option value="price-low">
@@ -1343,54 +1364,149 @@ export default function AddOnsCatalogPage() {
                     </option>
                   </select>
                 </div>
-
               </div>
             </div>
           </div>
 
-          {/* Mobile Filters Drawer */}
-          {mobileFiltersOpen && (
-            <div className="lg:hidden border-b border-[#E4E0D8] bg-white px-4 sm:px-8 lg:px-12 py-8 overflow-hidden">
-              {sidebarContent}
+          {/* Mobile filters sheet */}
+          <div
+            className={`lg:hidden fixed inset-0 z-50 ${
+              mobileFiltersOpen ? "pointer-events-auto" : "pointer-events-none"
+            }`}
+            aria-hidden={!mobileFiltersOpen}
+          >
+            <button
+              type="button"
+              aria-label={isAr ? "إغلاق" : "Close"}
+              className={`absolute inset-0 bg-black/45 backdrop-blur-[2px] transition-opacity duration-300 cursor-pointer ${
+                mobileFiltersOpen ? "opacity-100" : "opacity-0"
+              }`}
+              onClick={() => setMobileFiltersOpen(false)}
+            />
+
+            <div
+              id="addons-mobile-filters"
+              role="dialog"
+              aria-modal="true"
+              aria-label={isAr ? "الفلاتر" : "Filters"}
+              className={`absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,920px)] flex-col rounded-t-2xl border border-[#E4E0D8] border-b-0 bg-white shadow-[0_-12px_40px_rgba(0,0,0,0.18)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                mobileFiltersOpen ? "translate-y-0" : "translate-y-full"
+              }`}
+            >
+              <div className="mx-auto mt-3 h-1 w-10 shrink-0 rounded-full bg-[#D8D4CC]" />
+
+              <div className="flex items-center justify-between gap-3 border-b border-[#E4E0D8] px-5 pb-4 pt-3">
+                <div className="min-w-0">
+                  <p className="[font-family:var(--font-ui)] text-[9px] xs:text-[10px] uppercase tracking-[0.18em] sm:tracking-[0.22em] text-[#7A7A72]">
+                    {isAr ? "تصفية النتائج" : "Refine results"}
+                  </p>
+                  <h2 className="[font-family:var(--font-display)] text-[18px] xs:text-[20px] sm:text-[22px] leading-tight text-black">
+                    {isAr ? "الفلاتر" : "Filters"}
+                    {activeFilterCount > 0 ? (
+                      <span className="ms-2 [font-family:var(--font-ui)] text-[10px] sm:text-[11px] tracking-[0.14em] text-[#7A7A72]">
+                        ({activeFilterCount})
+                      </span>
+                    ) : null}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileFiltersOpen(false)}
+                  className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-[#E4E0D8] text-black transition-colors hover:border-black hover:bg-black hover:text-white cursor-pointer"
+                  aria-label={isAr ? "إغلاق الفلاتر" : "Close filters"}
+                >
+                  <X className="size-4" strokeWidth={1.75} />
+                </button>
+              </div>
+
+              <div
+                data-lenis-prevent
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5"
+              >
+                {sidebarContent}
+              </div>
+
+              <div className="shrink-0 border-t border-[#E4E0D8] bg-white px-5 pt-3 pb-[max(0.75rem,var(--safe-bottom))]">
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearAllFilters();
+                    }}
+                    disabled={!hasActiveFilters}
+                    className="flex-1 rounded-full border border-black px-3 sm:px-4 py-2.5 sm:py-3 text-[9px] xs:text-[10px] tracking-[0.14em] sm:tracking-[0.18em] uppercase text-black transition-colors hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
+                  >
+                    {isAr ? "مسح الكل" : "Clear all"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileFiltersOpen(false)}
+                    className="flex-[1.4] rounded-full bg-black px-3 sm:px-4 py-2.5 sm:py-3 text-[9px] xs:text-[10px] tracking-[0.14em] sm:tracking-[0.18em] uppercase text-white transition-colors hover:bg-[#2A2A28] cursor-pointer"
+                  >
+                    {isAr
+                      ? `عرض ${filteredProducts.length} منتج`
+                      : `Show ${filteredProducts.length} products`}
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
 
           {/* Main Layout Body */}
           <div className="flex flex-col lg:flex-row min-h-screen relative">
             <CatalogFilterSidebar>{sidebarContent}</CatalogFilterSidebar>
 
             {/* Grid List */}
-            <div className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+            <div className="flex-1 min-w-0 p-3 xs:p-4 sm:p-6 lg:p-8">
               {loading ? (
                 <ProductGridSkeleton count={8} />
               ) : fetchError ? (
-                <div className="text-center py-16">
-                  <p className="text-red-500 mb-4">{fetchError}</p>
+                <div className="flex flex-col items-center justify-center text-center py-28">
+                  <h3 className="text-[18px] md:text-[22px] uppercase tracking-widest text-black mb-3">
+                    {isAr ? "تعذر تحميل المنتجات" : "Unable to Load Products"}
+                  </h3>
+                  <p className="text-[#7A7A72] text-[13px] max-w-xs leading-relaxed mb-6">
+                    {fetchError}
+                  </p>
                   <button
                     onClick={() => router.refresh()}
-                    className="px-6 py-2.5 bg-black text-white text-[11px] uppercase tracking-[0.24em] [font-family:var(--font-ui)] hover:bg-[#2A2A28]"
+                    className="px-6 py-2.5 bg-black text-white text-[11px] uppercase tracking-[0.24em] [font-family:var(--font-ui)] hover:bg-[#2A2A28] cursor-pointer"
                   >
                     {isAr ? "إعادة المحاولة" : "Try Again"}
                   </button>
                 </div>
               ) : filteredProducts.length === 0 ? (
-                <div className="text-center py-16 flex flex-col items-center justify-center">
+                <div className="flex flex-col items-center justify-center text-center py-28">
                   <SearchOffIcon />
-                  <h3 className="[font-family:var(--font-display)] text-[20px] text-black mb-1">
+                  <h3 className="text-[18px] md:text-[22px] uppercase tracking-widest text-black mb-3">
                     {isAr ? "لا توجد إضافات مطابقة" : "No add-ons found"}
                   </h3>
-                  <p className="text-[13px] text-gray-500 mb-6 font-normal">
-                    {isAr ? "حاول تغيير كالمات البحث أو مسح فلاتر التصفية" : "Try adjusting your search filters or clearing active selections."}
+                  <p className="text-[#7A7A72] text-[13px] max-w-xs leading-relaxed mb-8">
+                    {isAr
+                      ? "حاول تغيير كلمات البحث أو مسح فلاتر التصفية"
+                      : "Try adjusting your search filters or clearing active selections."}
                   </p>
+                  <button
+                    onClick={clearAllFilters}
+                    className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition-colors duration-200 rounded-full cursor-pointer"
+                  >
+                    {isAr ? "مسح جميع الفلاتر" : "Clear All Filters"}
+                  </button>
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
+                  <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {paginatedProducts.map((product) => {
-                      const title = isAr ? product.nameAr || product.name : product.name;
-                      const description = isAr ? product.descriptionAr || product.description : product.description;
-                      const image = resolveMediaUrl(product.thumbnailImage) || "/placeholder.png";
-                      
+                      const title = isAr
+                        ? product.nameAr || product.name
+                        : product.name;
+                      const description = isAr
+                        ? product.descriptionAr || product.description
+                        : product.description;
+                      const image =
+                        resolveMediaUrl(product.thumbnailImage) ||
+                        "/placeholder.png";
+
                       const tagLabel = getProductTagLabel(
                         isAr ? product.tagAr || product.tag : product.tag,
                         isAr,
@@ -1401,12 +1517,12 @@ export default function AddOnsCatalogPage() {
                       return (
                         <div
                           key={product._id}
-                          className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-500 flex flex-col h-full"
+                          className="group relative bg-white rounded-lg sm:rounded-xl overflow-hidden shadow-sm hover:shadow-2xl sm:hover:-translate-y-1.5 transition-all duration-500 flex flex-col h-full min-w-0"
                         >
-                          <div className="p-4 flex flex-col grow text-left">
+                          <div className="p-2 xs:p-2.5 sm:p-4 flex flex-col grow text-left min-w-0">
                             <Link
                               href={`/addons/${product.slug}`}
-                              className="block relative overflow-hidden mb-4 aspect-4/5 bg-[#F5F5F0] rounded-lg"
+                              className="block relative overflow-hidden mb-2.5 sm:mb-4 aspect-4/5 bg-[#F5F5F0] rounded-md sm:rounded-lg"
                             >
                               <img
                                 src={image}
@@ -1417,21 +1533,30 @@ export default function AddOnsCatalogPage() {
                               <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
                               {tagLabel && (
-                                <Tag elevated truncate className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-5.25rem)]">{tagLabel}</Tag>
+                                <Tag
+                                  size="sm"
+                                  elevated
+                                  truncate
+                                  className="absolute top-1 left-1 z-10 max-w-[calc(100%-1.75rem)] px-1 py-px text-[7px] tracking-[0.08em] sm:top-1.5 sm:left-1.5 sm:max-w-[calc(100%-5.25rem)] sm:px-1.5 sm:text-[8px] sm:tracking-[0.12em] md:px-2 md:py-0.5 md:text-[9px] md:tracking-[0.14em]"
+                                >
+                                  {tagLabel}
+                                </Tag>
                               )}
 
-                              <div className="absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5">
+                              <div className="absolute top-1 right-1 z-20 flex flex-col items-center gap-0.5 sm:top-1.5 sm:right-1.5 sm:flex-row">
                                 <button
                                   type="button"
                                   aria-label={isAr ? "مشاركة" : "Share"}
                                   onClick={async (e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    await handleShare(`/addons/${product.slug}`);
+                                    await handleShare(
+                                      `/addons/${product.slug}`,
+                                    );
                                   }}
-                                  className="flex items-center justify-center w-6 h-6 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform cursor-pointer border-0 shrink-0"
+                                  className="flex items-center justify-center size-5 sm:size-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform cursor-pointer border-0 shrink-0"
                                 >
-                                  <Share2 className="w-2.5 h-2.5 text-black" />
+                                  <Share2 className="size-2.5 sm:size-3 text-black" />
                                 </button>
 
                                 <WishlistButton
@@ -1447,8 +1572,8 @@ export default function AddOnsCatalogPage() {
                                     maxStock: product.stock || 0,
                                   }}
                                   inline
-                                  className="flex items-center justify-center w-6 h-6 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 shrink-0 p-0"
-                                  iconClassName="w-2.5 h-2.5"
+                                  className="flex items-center justify-center size-5! sm:size-7! rounded-full bg-white/90 backdrop-blur-sm shadow-sm border-0 shrink-0 p-0!"
+                                  iconClassName="size-2.5! sm:size-3!"
                                 />
 
                                 <AddToCartButton
@@ -1463,33 +1588,33 @@ export default function AddOnsCatalogPage() {
                                     maxStock: product.stock || 0,
                                   }}
                                   inline
-                                  className="flex items-center justify-center w-6 h-6 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 shrink-0 p-0"
-                                  iconClassName="w-2.5 h-2.5"
+                                  className="flex items-center justify-center size-5! sm:size-7! rounded-full bg-white/90 backdrop-blur-sm shadow-sm border-0 shrink-0 p-0!"
+                                  iconClassName="size-2.5! sm:size-3!"
                                 />
                               </div>
                             </Link>
 
                             <Link
                               href={`/addons/${product.slug}`}
-                              className="block hover:opacity-75 transition-opacity"
+                              className="block hover:opacity-75 transition-opacity min-w-0"
                             >
-                              <h3 className="[font-family:var(--font-display)] text-[16px] sm:text-[18px] font-normal leading-relaxed tracking-tight text-black mb-1 line-clamp-2">
+                              <h3 className="[font-family:var(--font-display)] text-[12px] xs:text-[13px] sm:text-[15px] md:text-[16px] lg:text-[18px] font-normal leading-snug sm:leading-relaxed tracking-tight text-black mb-0.5 sm:mb-1 line-clamp-2">
                                 {title}
                               </h3>
                             </Link>
 
-                            <span className="[font-family:var(--font-ui)] text-[14px] sm:text-[15px] tracking-[0.08em] text-black font-normal mb-1">
+                            <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] sm:text-[12px] md:text-[13px] lg:text-[15px] tracking-[0.04em] sm:tracking-[0.06em] md:tracking-[0.08em] text-black font-normal mb-0.5 sm:mb-1">
                               AED {price.toFixed(2)}
                             </span>
 
                             {tagLabel && (
-                              <p className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.24em] text-[#8A8A80] mb-2 font-normal">
+                              <p className="[font-family:var(--font-ui)] text-[7px] xs:text-[8px] sm:text-[9px] md:text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.16em] md:tracking-[0.2em] lg:tracking-[0.24em] text-[#8A8A80] mb-1 sm:mb-1.5 md:mb-2 font-normal line-clamp-1">
                                 {isAr ? "الوسم: " : "TAG: "}
                                 {tagLabel.toUpperCase()}
                               </p>
                             )}
 
-                            <p className="[font-family:var(--font-body)] text-[12px] sm:text-[13px] leading-relaxed text-[#8A8A80] line-clamp-2 font-normal grow">
+                            <p className="hidden sm:block [font-family:var(--font-body)] text-[11px] md:text-[12px] lg:text-[13px] leading-relaxed text-[#8A8A80] line-clamp-2 font-normal grow">
                               {description}
                             </p>
                           </div>
@@ -1506,7 +1631,6 @@ export default function AddOnsCatalogPage() {
                 </>
               )}
             </div>
-
           </div>
         </div>
     </MainLayout>
