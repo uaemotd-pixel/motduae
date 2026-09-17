@@ -133,6 +133,7 @@ function fulfillmentFromApi(
     phone: toUaeLocalPhoneDigits(address.phone),
     line1: address.line1 || "",
     line2: address.line2 || "",
+    building: address.building || address.line2 || "",
     city: address.city || "",
     emirate: address.emirate || "",
   };
@@ -144,6 +145,7 @@ function isFulfillmentEmpty(address: ShopPickupAddress): boolean {
     !address.phone.trim() &&
     !address.line1.trim() &&
     !address.line2.trim() &&
+    !address.building.trim() &&
     !address.city.trim() &&
     !address.emirate.trim()
   );
@@ -683,6 +685,7 @@ export default function AdminSettingsGeneralPage() {
                 delete nextErrors["pickupAddress.fullName"];
                 delete nextErrors["pickupAddress.phone"];
                 delete nextErrors["pickupAddress.line1"];
+                delete nextErrors["pickupAddress.building"];
                 delete nextErrors["pickupAddress.line2"];
                 delete nextErrors["pickupAddress.city"];
                 delete nextErrors["pickupAddress.emirate"];

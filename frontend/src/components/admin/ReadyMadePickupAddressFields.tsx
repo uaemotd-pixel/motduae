@@ -161,7 +161,21 @@ export default function ReadyMadePickupAddressFields({
           <input
             value={value.line1}
             onChange={(e) => handleChange("line1", e.target.value)}
-            placeholder="Street, building"
+            placeholder="Street / road"
+            className={INPUT_CLASS}
+          />
+        </FormField>
+
+        <FormField
+          label="Building"
+          name="pickupAddress.building"
+          required
+          error={fieldErrors["pickupAddress.building"]}
+        >
+          <input
+            value={value.building || ""}
+            onChange={(e) => handleChange("building", e.target.value)}
+            placeholder="Building name or number"
             className={INPUT_CLASS}
           />
         </FormField>

@@ -47,7 +47,7 @@ export interface ReadyMadeFormData {
   mukhawarPriceAED: number;
   finalSellingPriceAED: number;
 
-  availableFabricStock: number;
+  availableFabricStock: number | "";
 
   minAge: number;
   maxAge: number;
@@ -107,6 +107,9 @@ export function pickupAddressErrors(
   if (!pickup.line1.trim()) {
     errors["pickupAddress.line1"] = "Pickup street required";
   }
+  if (!pickup.building.trim()) {
+    errors["pickupAddress.building"] = "Pickup building required";
+  }
   if (!pickup.city.trim()) {
     errors["pickupAddress.city"] = "Pickup city required";
   }
@@ -126,6 +129,12 @@ function pickupFromApi(product: Record<string, unknown>): ShopPickupAddress {
     phone: typeof address.phone === "string" ? address.phone : "",
     line1: typeof address.line1 === "string" ? address.line1 : "",
     line2: typeof address.line2 === "string" ? address.line2 : "",
+    building:
+      typeof address.building === "string"
+        ? address.building
+        : typeof address.line2 === "string"
+          ? address.line2
+          : "",
     city: typeof address.city === "string" ? address.city : "",
     emirate: typeof address.emirate === "string" ? address.emirate : "",
   };
@@ -176,7 +185,7 @@ export function defaultReadyMadeForm(): ReadyMadeFormData {
     mukhawarPriceAED: 0,
     finalSellingPriceAED: 0,
 
-    availableFabricStock: 0,
+    availableFabricStock: "",
 
     minAge: 0,
     maxAge: 0,
@@ -291,7 +300,7 @@ export function fromApiProduct(
     availableFabricStock:
       typeof product.availableFabricStock === "number"
         ? product.availableFabricStock
-        : 0,
+        : "",
 
     minAge: typeof product.minAge === "number" ? product.minAge : 0,
     maxAge: typeof product.maxAge === "number" ? product.maxAge : 0,
@@ -348,7 +357,10 @@ export function toApiPayload(form: ReadyMadeFormData): Record<string, unknown> {
     mukhawarPriceAED: form.mukhawarPriceAED,
     finalSellingPriceAED: form.finalSellingPriceAED,
 
-    availableFabricStock: form.availableFabricStock,
+    availableFabricStock:
+      form.availableFabricStock === ""
+        ? 0
+        : Number(form.availableFabricStock),
 
     minAge: form.minAge,
     maxAge: form.maxAge,

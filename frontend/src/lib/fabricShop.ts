@@ -50,6 +50,7 @@ export interface ShopPickupAddress {
   phone: string;
   line1: string;
   line2: string;
+  building: string;
   city: string;
   emirate: string;
 }
@@ -60,6 +61,7 @@ export function emptyShopPickupAddress(): ShopPickupAddress {
     phone: "",
     line1: "",
     line2: "",
+    building: "",
     city: "",
     emirate: "",
   };
@@ -105,6 +107,7 @@ export function shopToCourierPickup(
     phone: toUaeLocalPhoneDigits(shop?.phone),
     line1: shop?.location?.trim() || "",
     line2: "",
+    building: "",
     city: shop?.city?.trim() || "",
     emirate: "",
   };
@@ -137,7 +140,7 @@ export function shopPickupToFabricStorePickup(
       emirate: pickup.emirate?.trim() || "",
       city: pickup.city?.trim() || "",
       street: pickup.line1?.trim() || "",
-      building: pickup.line2?.trim() || "",
+      building: pickup.building?.trim() || pickup.line2?.trim() || "",
       phone: normalizeUaePhone(pickup.phone || ""),
     };
   }
@@ -159,6 +162,7 @@ export function normalizeShopPickupAddress(
     phone: toUaeLocalPhoneDigits(address?.phone),
     line1: address?.line1?.trim() || "",
     line2: address?.line2?.trim() || "",
+    building: address?.building?.trim() || address?.line2?.trim() || "",
     city: address?.city?.trim() || "",
     emirate: address?.emirate?.trim() || "",
   };

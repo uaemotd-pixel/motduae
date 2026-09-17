@@ -2,7 +2,9 @@
 
 import { useEffect, useState, FormEvent, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Link } from "@/i18n/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
+import { isShopProfileComplete } from "@/lib/shopProfile";
 import FormField from "@/components/admin/FormField";
 import ImageUpload from "@/components/admin/ImageUpload";
 import { getTranslation } from "@/lib/getTranslation";
@@ -36,6 +38,7 @@ export default function NewReadyMadePage() {
   const t = getTranslation(localeParam);
 
   const [loading, setLoading] = useState(false);
+  const [shopMissing, setShopMissing] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState<ReadyMadeFormData>(
@@ -95,13 +98,20 @@ export default function NewReadyMadePage() {
           api.get<FilterItem[]>("/api/filters/seasons?domain=ready-made"),
         ]);
 
-        const shopId = shopRes.item?._id || "";
+        const shop = shopRes.item;
+        if (!shop || !isShopProfileComplete(shop)) {
+          setShopMissing(true);
+          toast.error("Please set up your store profile first before managing ready-to-wear items.");
+          return;
+        }
+
+        const shopId = shop._id || "";
         setFormData((prev) => ({
           ...prev,
           fabricShopId: shopId,
           pickupAddress: prev.pickupAddress.line1
             ? prev.pickupAddress
-            : normalizeShopPickupAddress(shopRes.item?.pickupAddress),
+            : normalizeShopPickupAddress(shop.pickupAddress),
         }));
 
         setAllFabrics(fabricsRes.items || fabricsRes || []);
@@ -165,7 +175,7 @@ export default function NewReadyMadePage() {
     value: string,
   ) => {
     if (value === "") {
-      handleChange(field, 0);
+      handleChange(field, "");
     } else {
       const num = Number(value);
       if (!isNaN(num) && num >= 0) {
@@ -223,8 +233,18 @@ export default function NewReadyMadePage() {
       errors.mukhawarPriceAED = "Price cannot be negative";
     if (formData.finalSellingPriceAED < 0)
       errors.finalSellingPriceAED = "Price cannot be negative";
-    if (formData.availableFabricStock < 0)
-      errors.availableFabricStock = "Stock cannot be negative";
+    if (
+      formData.availableFabricStock === "" ||
+      formData.availableFabricStock === undefined ||
+      formData.availableFabricStock === null
+    ) {
+      errors.availableFabricStock = "Stock quantity is required";
+    } else if (
+      Number(formData.availableFabricStock) < 0 ||
+      !Number.isInteger(Number(formData.availableFabricStock))
+    ) {
+      errors.availableFabricStock = "Stock must be a whole number 0 or greater";
+    }
 
     Object.assign(errors, pickupAddressErrors(formData.pickupAddress));
 
@@ -290,6 +310,33 @@ export default function NewReadyMadePage() {
       <span className="text-gray-400">▾</span>
     </button>
   );
+
+  if (filtersLoading) {
+    return (
+      <div className="max-w-5xl mx-auto p-8 border border-gray-100 bg-white rounded-2xl">
+        <p className="text-sm uppercase tracking-wider text-gray-400">Loading...</p>
+      </div>
+    );
+  }
+
+  if (shopMissing) {
+    return (
+      <div className="max-w-2xl mx-auto border border-gray-200 bg-white p-8 rounded-2xl shadow-sm">
+        <h1 className="[font-family:var(--font-display)] text-2xl font-light text-black mb-3">
+          Store Profile Required
+        </h1>
+        <p className="text-gray-500 text-sm mb-6">
+          You must set up your store profile first before you can manage ready-to-wear items.
+        </p>
+        <Link
+          href="/fabric/shop"
+          className="inline-flex items-center justify-center px-6 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition"
+        >
+          Create Store Profile
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-0">
@@ -390,7 +437,7 @@ export default function NewReadyMadePage() {
                 min="0"
                 step="1"
                 placeholder="05"
-                value={getNumberDisplay(formData.availableFabricStock)}
+                value={formData.availableFabricStock}
                 onChange={(e) =>
                   handleNumberChange("availableFabricStock", e.target.value)
                 }
