@@ -7,6 +7,7 @@ export function emptyShopPickupAddress() {
     phone: "",
     line1: "",
     line2: "",
+    building: "",
     city: "",
     emirate: "",
   };
@@ -28,7 +29,7 @@ export function isCompleteShopPickupAddress(address) {
 export function isEmptyShopPickupAddress(address) {
   if (!address || typeof address !== "object") return true;
 
-  return ["fullName", "phone", "line1", "line2", "city", "emirate"].every(
+  return ["fullName", "phone", "line1", "line2", "building", "city", "emirate"].every(
     (key) => !String(address[key] || "").trim(),
   );
 }
@@ -43,6 +44,7 @@ export function normalizeShopPickupAddress(address) {
   const phone = toUaePhoneDigits(address.phone);
   const line1 = address.line1?.trim() || "";
   const line2 = address.line2?.trim() || "";
+  const building = address.building?.trim() || address.line2?.trim() || "";
   const city = address.city?.trim() || "";
   const emirate = address.emirate?.trim() || "";
 
@@ -50,7 +52,7 @@ export function normalizeShopPickupAddress(address) {
     return null;
   }
 
-  return { fullName, phone, line1, line2, city, emirate };
+  return { fullName, phone, line1, line2, building, city, emirate };
 }
 
 /**
@@ -72,8 +74,9 @@ export function buildPickupAddressFromFabricStore(fabric) {
   return {
     fullName: fabric?.name?.trim() || "",
     phone: store.phone?.trim() || "",
-    line1,
+    line1: store.street?.trim() || line1,
     line2: "",
+    building: store.building?.trim() || "",
     city: store.city.trim(),
     emirate: store.emirate.trim(),
   };

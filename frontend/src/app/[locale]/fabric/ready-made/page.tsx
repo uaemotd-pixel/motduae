@@ -29,6 +29,8 @@ import {
   PartnerListingPrice,
   useFabricStoreCommission,
 } from "@/components/partner/CommissionFinalPriceField";
+import { fetchOwnFabricShop, type FabricShopProfile } from "@/lib/fabricShop";
+import { isShopProfileComplete } from "@/lib/shopProfile";
 
 interface ReadyMadeItem {
   _id: string;
@@ -49,6 +51,8 @@ export default function FabricReadyMadePage() {
   const router = useRouter();
   const commissionPercent = useFabricStoreCommission();
   const [items, setItems] = useState<ReadyMadeItem[]>([]);
+  const [shop, setShop] = useState<FabricShopProfile | null>(null);
+  const [showIncompleteModal, setShowIncompleteModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shopMissing, setShopMissing] = useState(false);
@@ -120,8 +124,12 @@ export default function FabricReadyMadePage() {
     try {
       setLoading(true);
       setShopMissing(false);
-      const data = await api.get<ReadyMadeItem[]>("/api/fabric/ready-made");
+      const [data, shopData] = await Promise.all([
+        api.get<ReadyMadeItem[]>("/api/fabric/ready-made"),
+        fetchOwnFabricShop().catch(() => null),
+      ]);
       setItems(data);
+      setShop(shopData);
       setError(null);
     } catch (err: any) {
       if (err?.status === 404) {
@@ -133,6 +141,16 @@ export default function FabricReadyMadePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCreateClick = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!shop || !isShopProfileComplete(shop)) {
+      toast.error("Please set up your store profile first before managing ready-to-wear items.");
+      setShowIncompleteModal(true);
+      return;
+    }
+    router.push("/fabric/ready-made/new");
   };
 
   const filteredItems = useMemo(() => {
@@ -348,6 +366,28 @@ export default function FabricReadyMadePage() {
           document.body,
         )}
 
+      {shop && !isShopProfileComplete(shop) && (
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-900">
+                Store Profile Required
+              </p>
+              <p className="text-xs text-amber-800">
+                You must set up your store profile first before you can manage ready-to-wear items.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/fabric/shop"
+            className="inline-flex items-center justify-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-xs font-semibold uppercase tracking-wider shrink-0"
+          >
+            Create Store Profile
+          </Link>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -358,13 +398,14 @@ export default function FabricReadyMadePage() {
             Manage ready‑made pieces and their availability
           </p>
         </div>
-        <Link
-          href="/fabric/ready-made/new"
-          className="inline-flex w-fit max-w-full items-center justify-center gap-2 self-start px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition text-sm shadow-sm"
+        <button
+          type="button"
+          onClick={handleCreateClick}
+          className="inline-flex w-fit max-w-full items-center justify-center gap-2 self-start px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition text-sm shadow-sm cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Create new
-        </Link>
+        </button>
       </div>
 
       {/* Quick stats */}
@@ -446,12 +487,13 @@ export default function FabricReadyMadePage() {
               : "No ready-made items yet."}
           </p>
           {!searchTerm && (
-            <Link
-              href="/fabric/ready-made/new"
-              className="inline-block mt-4 text-black underline underline-offset-4 hover:text-gray-600"
+            <button
+              type="button"
+              onClick={handleCreateClick}
+              className="inline-block mt-4 text-black underline underline-offset-4 hover:text-gray-600 cursor-pointer"
             >
-              Create your first item
-            </Link>
+              Add your first ready-made item
+            </button>
           )}
         </div>
       ) : (
@@ -636,6 +678,20 @@ export default function FabricReadyMadePage() {
         </div>
         </>
       )}
+
+      {/* Confirmation Modal for Profile Incomplete */}
+      <ConfirmationModal
+        isOpen={showIncompleteModal}
+        title="Store Profile Required"
+        message="You must set up your store profile first before you can manage ready-to-wear items."
+        confirmLabel="Create Store Profile"
+        cancelLabel="Cancel"
+        onConfirm={() => {
+          setShowIncompleteModal(false);
+          router.push("/fabric/shop");
+        }}
+        onCancel={() => setShowIncompleteModal(false)}
+      />
 
       {/* Image Modal */}
       <ImageModal

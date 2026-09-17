@@ -49,6 +49,7 @@ export interface ShopPickupAddress {
   phone: string;
   line1: string;
   line2: string;
+  building: string;
   city: string;
   emirate: string;
 }
@@ -281,6 +282,7 @@ export function emptyShopPickupAddress(): ShopPickupAddress {
     phone: "",
     line1: "",
     line2: "",
+    building: "",
     city: "",
     emirate: "",
   };
@@ -303,7 +305,20 @@ export function tailorShopToForm(shop: TailorShopProfile): TailorShopFormData {
     licenceNumber: shop.licenceNumber ?? "",
     licenceFileUrl: shop.licenceFileUrl ?? "",
     experience: shop.experience ?? null,
-    pickupAddress: shop.pickupAddress ?? emptyShopPickupAddress(),
+    pickupAddress: shop.pickupAddress
+      ? {
+          fullName: shop.pickupAddress.fullName ?? "",
+          phone: shop.pickupAddress.phone ?? "",
+          line1: shop.pickupAddress.line1 ?? "",
+          line2: shop.pickupAddress.line2 ?? "",
+          building:
+            shop.pickupAddress.building ??
+            shop.pickupAddress.line2 ??
+            "",
+          city: shop.pickupAddress.city ?? "",
+          emirate: shop.pickupAddress.emirate ?? "",
+        }
+      : emptyShopPickupAddress(),
     payoutBank: normalizePayoutBank(shop.payoutBank),
   };
 }
@@ -355,7 +370,17 @@ export function toTailorShopPayload(
         name: normalizeSocialPlatformName(link.name),
         url: normalizeHttpUrl(link.url),
       })),
-    pickupAddress: form.pickupAddress,
+    pickupAddress: {
+      fullName: form.pickupAddress.fullName.trim(),
+      phone: toUaePhoneDigits(form.pickupAddress.phone),
+      line1: form.pickupAddress.line1.trim(),
+      line2: form.pickupAddress.line2.trim(),
+      building:
+        form.pickupAddress.building.trim() ||
+        form.pickupAddress.line2.trim(),
+      city: form.pickupAddress.city.trim(),
+      emirate: form.pickupAddress.emirate.trim(),
+    },
     payoutBank: normalizePayoutBank(form.payoutBank),
   };
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, FormEvent, useEffect } from "react";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
+import { isShopProfileComplete } from "@/lib/shopProfile";
 import FormField from "@/components/admin/FormField";
 import ImageUpload from "@/components/admin/ImageUpload";
 import toast from "react-hot-toast";
@@ -26,8 +27,8 @@ const COLOR_OPTIONS = colors;
 interface AddOnFormData {
   name: string;
   nameAr: string;
-  price: number;
-  stock: number;
+  price: number | "";
+  stock: number | "";
   description: string;
   descriptionAr: string;
   material: string;
@@ -64,6 +65,8 @@ export default function FabricNewAddOnPage() {
   const userName = user?.name || "";
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
+  const [shopMissing, setShopMissing] = useState(false);
+  const [shopChecking, setShopChecking] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [pickupFromShop, setPickupFromShop] = useState(false);
@@ -91,8 +94,8 @@ export default function FabricNewAddOnPage() {
   const [formData, setFormData] = useState<AddOnFormData>({
     name: "",
     nameAr: "",
-    price: 0,
-    stock: 0,
+    price: "",
+    stock: "",
     description: "",
     descriptionAr: "",
     material: "",
@@ -118,7 +121,12 @@ export default function FabricNewAddOnPage() {
     const loadShopPickup = async () => {
       try {
         const shop = await fetchOwnFabricShop();
-        if (cancelled || !shop) return;
+        if (cancelled) return;
+        if (!shop || !isShopProfileComplete(shop)) {
+          setShopMissing(true);
+          toast.error("Please set up your store profile first before managing addons.");
+          return;
+        }
         const shopPickup = normalizeShopPickupAddress(shop.pickupAddress);
         if (!isUsablePickup(shopPickup)) return;
         setFormData((prev) => ({
@@ -128,6 +136,8 @@ export default function FabricNewAddOnPage() {
         setPickupFromShop(true);
       } catch {
         // Shop address is optional prefill
+      } finally {
+        if (!cancelled) setShopChecking(false);
       }
     };
 
@@ -226,7 +236,7 @@ export default function FabricNewAddOnPage() {
 
   const handleNumberChange = (field: "price" | "stock", value: string) => {
     if (value === "") {
-      handleChange(field, 0);
+      handleChange(field, "");
       return;
     }
     const num = Number(value);
@@ -283,8 +293,40 @@ export default function FabricNewAddOnPage() {
       return;
     }
 
-    if (formData.price < 0 || formData.stock < 0) {
-      toast.error("Price and Stock must be 0 or greater");
+    if (
+      formData.stock === "" ||
+      formData.stock === undefined ||
+      formData.stock === null
+    ) {
+      toast.error("Stock quantity is required");
+      setFieldErrors((prev) => ({
+        ...prev,
+        stock: "Stock quantity is required",
+      }));
+      return;
+    }
+
+    const stockNum = Number(formData.stock);
+    if (!Number.isFinite(stockNum) || stockNum < 0 || !Number.isInteger(stockNum)) {
+      toast.error("Stock must be a whole number 0 or greater");
+      setFieldErrors((prev) => ({
+        ...prev,
+        stock: "Stock must be a whole number 0 or greater",
+      }));
+      return;
+    }
+
+    if (
+      formData.price === "" ||
+      formData.price === undefined ||
+      formData.price === null ||
+      Number(formData.price) < 0
+    ) {
+      toast.error("Price must be 0 or greater");
+      setFieldErrors((prev) => ({
+        ...prev,
+        price: "Price must be 0 or greater",
+      }));
       return;
     }
 
@@ -302,6 +344,8 @@ export default function FabricNewAddOnPage() {
 
       const payload = {
         ...formData,
+        price: Number(formData.price),
+        stock: Number(formData.stock),
         images: cleanImages,
         ownerName: userName,
       };
@@ -369,6 +413,33 @@ export default function FabricNewAddOnPage() {
       <span className="text-gray-400">▾</span>
     </button>
   );
+
+  if (shopChecking) {
+    return (
+      <div className="max-w-5xl mx-auto p-8 border border-gray-100 bg-white rounded-2xl">
+        <p className="text-sm uppercase tracking-wider text-gray-400">Loading...</p>
+      </div>
+    );
+  }
+
+  if (shopMissing) {
+    return (
+      <div className="max-w-2xl mx-auto border border-gray-200 bg-white p-8 rounded-2xl shadow-sm">
+        <h1 className="[font-family:var(--font-display)] text-2xl font-light text-black mb-3">
+          Store Profile Required
+        </h1>
+        <p className="text-gray-500 text-sm mb-6">
+          You must set up your store profile first before you can manage addons.
+        </p>
+        <Link
+          href="/fabric/shop"
+          className="inline-flex items-center justify-center px-6 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition"
+        >
+          Create Store Profile
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-0">
@@ -804,7 +875,7 @@ export default function FabricNewAddOnPage() {
                 type="number"
                 step="0.01"
                 min="0"
-                value={getNumberDisplay(formData.price)}
+                value={formData.price}
                 onChange={(e) => handleNumberChange("price", e.target.value)}
                 className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
                 placeholder="85"
@@ -812,7 +883,7 @@ export default function FabricNewAddOnPage() {
             </FormField>
 
             <CommissionFinalPriceField
-              partnerPrice={formData.price}
+              partnerPrice={Number(formData.price) || 0}
               commissionPercent={commissionPercent}
             />
 
@@ -823,9 +894,10 @@ export default function FabricNewAddOnPage() {
               error={fieldErrors.stock}
             >
               <input
+                id="stock"
                 type="number"
                 min="0"
-                value={getNumberDisplay(formData.stock)}
+                value={formData.stock}
                 onChange={(e) => handleNumberChange("stock", e.target.value)}
                 className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
                 placeholder="40"

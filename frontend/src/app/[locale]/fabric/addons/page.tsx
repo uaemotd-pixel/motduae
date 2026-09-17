@@ -28,6 +28,8 @@ import {
   PartnerListingPrice,
   useFabricStoreCommission,
 } from "@/components/partner/CommissionFinalPriceField";
+import { fetchOwnFabricShop, type FabricShopProfile } from "@/lib/fabricShop";
+import { isShopProfileComplete } from "@/lib/shopProfile";
 
 interface AddOnItem {
   _id: string;
@@ -46,6 +48,8 @@ export default function FabricAddOnsPage() {
   const router = useRouter();
   const commissionPercent = useFabricStoreCommission();
   const [items, setItems] = useState<AddOnItem[]>([]);
+  const [shop, setShop] = useState<FabricShopProfile | null>(null);
+  const [showIncompleteModal, setShowIncompleteModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shopMissing, setShopMissing] = useState(false);
@@ -97,8 +101,12 @@ export default function FabricAddOnsPage() {
       setLoading(true);
       setError(null);
       setShopMissing(false);
-      const data = await api.get<AddOnItem[]>("/api/fabric/addons");
+      const [data, shopData] = await Promise.all([
+        api.get<AddOnItem[]>("/api/fabric/addons"),
+        fetchOwnFabricShop().catch(() => null),
+      ]);
       setItems(data || []);
+      setShop(shopData);
     } catch (err: any) {
       if (err?.status === 404) {
         setShopMissing(true);
@@ -109,6 +117,16 @@ export default function FabricAddOnsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAddClick = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!shop || !isShopProfileComplete(shop)) {
+      toast.error("Please set up your store profile first before managing addons.");
+      setShowIncompleteModal(true);
+      return;
+    }
+    router.push("/fabric/addons/new");
   };
 
   useEffect(() => {
@@ -303,10 +321,32 @@ export default function FabricAddOnsPage() {
           document.body,
         )}
 
+      {shop && !isShopProfileComplete(shop) && (
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-900">
+                Store Profile Required
+              </p>
+              <p className="text-xs text-amber-800">
+                You must set up your store profile first before you can manage addons.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/fabric/shop"
+            className="inline-flex items-center justify-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-xs font-semibold uppercase tracking-wider shrink-0"
+          >
+            Create Store Profile
+          </Link>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="[font-family:var(--font-display)] text-2xl md:text-3xl font-light text-black tracking-tight flex items-center gap-2">
+          <h1 className="font-display text-2xl md:text-3xl font-light text-black tracking-tight flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-black" strokeWidth={1.5} />
             Add-Ons Management
           </h1>
@@ -316,13 +356,14 @@ export default function FabricAddOnsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/fabric/addons/new"
-            className="inline-flex w-fit max-w-full items-center justify-center gap-2 self-start px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 transition shadow-sm"
+          <button
+            type="button"
+            onClick={handleAddClick}
+            className="inline-flex w-fit max-w-full items-center justify-center gap-2 self-start px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 transition shadow-sm cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             Add Add-On
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -589,6 +630,19 @@ export default function FabricAddOnsPage() {
         </div>
         </>
       )}
+      {/* Confirmation Modal for Profile Incomplete */}
+      <ConfirmationModal
+        isOpen={showIncompleteModal}
+        title="Store Profile Required"
+        message="You must set up your store profile first before you can manage addons."
+        confirmLabel="Create Store Profile"
+        cancelLabel="Cancel"
+        onConfirm={() => {
+          setShowIncompleteModal(false);
+          router.push("/fabric/shop");
+        }}
+        onCancel={() => setShowIncompleteModal(false)}
+      />
     </div>
   );
 }

@@ -12,6 +12,11 @@ import {
   type FabricProfile,
   type FabricVariantProfile,
 } from "@/lib/fabricCatalog";
+import {
+  fetchOwnFabricShop,
+  type FabricShopProfile,
+} from "@/lib/fabricShop";
+import { isShopProfileComplete } from "@/lib/shopProfile";
 import { isLowStockQty } from "@/lib/lowStock";
 import { LowStockBadge } from "@/components/shared/LowStockBadge";
 import { useParams, useSearchParams } from "next/navigation";
@@ -182,6 +187,8 @@ export default function FabricDesignsList() {
   const commissionPercent = useFabricStoreCommission();
 
   const [fabrics, setFabrics] = useState<FabricProfile[]>([]);
+  const [shop, setShop] = useState<FabricShopProfile | null>(null);
+  const [showIncompleteModal, setShowIncompleteModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [shopMissing, setShopMissing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -203,8 +210,12 @@ export default function FabricDesignsList() {
     setShopMissing(false);
 
     try {
-      const items = await fetchFabricItems();
+      const [items, shopData] = await Promise.all([
+        fetchFabricItems(),
+        fetchOwnFabricShop().catch(() => null),
+      ]);
       setFabrics(items);
+      setShop(shopData);
     } catch (err: unknown) {
       if (isShopMissingError(err)) {
         setShopMissing(true);
@@ -218,6 +229,16 @@ export default function FabricDesignsList() {
       setLoading(false);
     }
   }, [t]);
+
+  const handleAddFabricClick = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!shop || !isShopProfileComplete(shop)) {
+      toast.error(t("shopRequiredDescription"), ERROR_TOAST);
+      setShowIncompleteModal(true);
+      return;
+    }
+    router.push("/fabric/fabrics/new");
+  };
 
   useEffect(() => {
     loadFabrics();
@@ -357,6 +378,28 @@ export default function FabricDesignsList() {
 
   return (
     <div className="max-w-5xl space-y-6">
+      {shop && !isShopProfileComplete(shop) && (
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-900 [font-family:var(--font-display)]">
+                {t("shopRequiredTitle")}
+              </p>
+              <p className="text-xs text-amber-800 [font-family:var(--font-body)]">
+                {t("shopRequiredDescription")}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/fabric/shop"
+            className="inline-flex items-center justify-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-xs font-semibold uppercase tracking-wider shrink-0 [font-family:var(--font-ui)]"
+          >
+            {t("shopRequiredCta")}
+          </Link>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-light text-black tracking-tight [font-family:var(--font-display)]">
@@ -366,12 +409,13 @@ export default function FabricDesignsList() {
             {t("description")}
           </p>
         </div>
-        <Link
-          href="/fabric/fabrics/new"
-          className="inline-flex w-fit max-w-full items-center justify-center gap-2 self-start px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition text-sm shadow-sm [font-family:var(--font-ui)]"
+        <button
+          type="button"
+          onClick={handleAddFabricClick}
+          className="inline-flex w-fit max-w-full items-center justify-center gap-2 self-start px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition text-sm shadow-sm cursor-pointer [font-family:var(--font-ui)]"
         >
           <Plus className="w-4 h-4" /> {t("addFabric")}
-        </Link>
+        </button>
       </div>
 
       {/* Counters */}
@@ -480,12 +524,13 @@ export default function FabricDesignsList() {
                 : t("empty")}
           </p>
           {!searchTerm && stockFilter === "all" && (
-            <Link
-              href="/fabric/fabrics/new"
-              className="inline-block mt-4 text-black underline underline-offset-4 hover:text-gray-600 [font-family:var(--font-ui)]"
+            <button
+              type="button"
+              onClick={handleAddFabricClick}
+              className="inline-block mt-4 text-black underline underline-offset-4 hover:text-gray-600 cursor-pointer [font-family:var(--font-ui)]"
             >
               {t("addFirst")}
-            </Link>
+            </button>
           )}
         </div>
       ) : (
@@ -924,6 +969,19 @@ export default function FabricDesignsList() {
         onCancel={closeDeleteModal}
         isLoading={!!deletingId}
         isDanger
+      />
+
+      <ConfirmationModal
+        isOpen={showIncompleteModal}
+        title={t("shopRequiredTitle")}
+        message={t("shopRequiredDescription")}
+        confirmLabel={t("shopRequiredCta")}
+        cancelLabel={t("cancel")}
+        onConfirm={() => {
+          setShowIncompleteModal(false);
+          router.push("/fabric/shop");
+        }}
+        onCancel={() => setShowIncompleteModal(false)}
       />
     </div>
   );

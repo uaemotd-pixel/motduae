@@ -914,6 +914,20 @@ adminRouter.post(
       { fallback: "ready-made" },
     );
 
+    if (
+      availableFabricStock === undefined ||
+      availableFabricStock === null ||
+      availableFabricStock === "" ||
+      Number.isNaN(Number(availableFabricStock)) ||
+      Number(availableFabricStock) < 0
+    ) {
+      res.status(400).send({
+        message:
+          "Stock quantity is required and must be a whole number 0 or greater",
+      });
+      return;
+    }
+
     const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);
     if (!pickupAddress) {
       res.status(400).send({
@@ -955,7 +969,7 @@ adminRouter.post(
       fabricPriceAED,
       mukhawarPriceAED,
       finalSellingPriceAED,
-      availableFabricStock,
+      availableFabricStock: Math.floor(Number(availableFabricStock)),
       minAge: minAge !== undefined ? minAge : 0,
       maxAge: maxAge !== undefined ? maxAge : 0,
       isActive: isActive !== undefined ? isActive : true,
@@ -1058,8 +1072,22 @@ adminRouter.put(
       req.body.mukhawarPriceAED ?? product.mukhawarPriceAED;
     product.finalSellingPriceAED =
       req.body.finalSellingPriceAED ?? product.finalSellingPriceAED;
-    product.availableFabricStock =
-      req.body.availableFabricStock ?? product.availableFabricStock;
+
+    if (req.body.availableFabricStock !== undefined) {
+      const stockNum = Number(req.body.availableFabricStock);
+      if (
+        req.body.availableFabricStock === null ||
+        req.body.availableFabricStock === "" ||
+        Number.isNaN(stockNum) ||
+        stockNum < 0
+      ) {
+        res.status(400).send({
+          message: "Stock quantity must be a whole number 0 or greater",
+        });
+        return;
+      }
+      product.availableFabricStock = Math.floor(stockNum);
+    }
 
     // --- Age range ---
     product.minAge = req.body.minAge ?? product.minAge;
@@ -3906,6 +3934,20 @@ adminRouter.post(
       fallback: "addon",
     });
 
+    if (
+      stock === undefined ||
+      stock === null ||
+      stock === "" ||
+      Number.isNaN(Number(stock)) ||
+      Number(stock) < 0
+    ) {
+      res.status(400).send({
+        message:
+          "Stock quantity is required and must be a whole number 0 or greater",
+      });
+      return;
+    }
+
     const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);
     if (!pickupAddress) {
       res.status(400).send({
@@ -3925,7 +3967,7 @@ adminRouter.post(
       description,
       descriptionAr,
       price,
-      stock,
+      stock: Math.floor(Number(stock)),
       thumbnailImage,
       images: normalizedImages,
       tag,
@@ -3991,7 +4033,21 @@ adminRouter.put(
     addon.description = description ?? addon.description;
     addon.descriptionAr = descriptionAr ?? addon.descriptionAr;
     addon.price = price ?? addon.price;
-    addon.stock = stock ?? addon.stock;
+    if (stock !== undefined) {
+      const stockNum = Number(stock);
+      if (
+        stock === null ||
+        stock === "" ||
+        Number.isNaN(stockNum) ||
+        stockNum < 0
+      ) {
+        res.status(400).send({
+          message: "Stock quantity must be a whole number 0 or greater",
+        });
+        return;
+      }
+      addon.stock = Math.floor(stockNum);
+    }
     if (images !== undefined) {
       const { images: normalizedImages, thumbnailImage } =
         normalizeAddOnImages(images);

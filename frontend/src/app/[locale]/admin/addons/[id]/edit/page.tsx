@@ -27,8 +27,8 @@ const COLOR_OPTIONS = colors;
 interface AddOnFormData {
   name: string;
   nameAr: string;
-  price: number;
-  stock: number;
+  price: number | "";
+  stock: number | "";
   description: string;
   descriptionAr: string;
   material: string;
@@ -95,8 +95,8 @@ export default function AdminEditAddOnPage() {
   const [formData, setFormData] = useState<AddOnFormData>({
     name: "",
     nameAr: "",
-    price: 0,
-    stock: 0,
+    price: "",
+    stock: "",
     description: "",
     descriptionAr: "",
     material: "",
@@ -228,8 +228,8 @@ export default function AdminEditAddOnPage() {
           setFormData({
             name: (data.name as string) || "",
             nameAr: (data.nameAr as string) || "",
-            price: (data.price as number) || 0,
-            stock: (data.stock as number) || 0,
+            price: typeof data.price === "number" ? data.price : "",
+            stock: typeof data.stock === "number" ? data.stock : "",
             description: (data.description as string) || "",
             descriptionAr: (data.descriptionAr as string) || "",
             material: (data.material as string) || "",
@@ -316,7 +316,7 @@ export default function AdminEditAddOnPage() {
 
   const handleNumberChange = (field: "price" | "stock", value: string) => {
     if (value === "") {
-      handleChange(field, 0);
+      handleChange(field, "");
       return;
     }
     const num = Number(value);
@@ -324,9 +324,6 @@ export default function AdminEditAddOnPage() {
       handleChange(field, num);
     }
   };
-
-  const getNumberDisplay = (value: number): string =>
-    value === 0 ? "" : String(value);
 
   const handleImageChange = (index: number, url: string) => {
     const newImages = [...formData.images];
@@ -373,8 +370,40 @@ export default function AdminEditAddOnPage() {
       return;
     }
 
-    if (formData.price < 0 || formData.stock < 0) {
-      toast.error("Price and Stock must be 0 or greater");
+    if (
+      formData.stock === "" ||
+      formData.stock === undefined ||
+      formData.stock === null
+    ) {
+      toast.error("Stock quantity is required");
+      setFieldErrors((prev) => ({
+        ...prev,
+        stock: "Stock quantity is required",
+      }));
+      return;
+    }
+
+    const stockNum = Number(formData.stock);
+    if (!Number.isFinite(stockNum) || stockNum < 0 || !Number.isInteger(stockNum)) {
+      toast.error("Stock must be a whole number 0 or greater");
+      setFieldErrors((prev) => ({
+        ...prev,
+        stock: "Stock must be a whole number 0 or greater",
+      }));
+      return;
+    }
+
+    if (
+      formData.price === "" ||
+      formData.price === undefined ||
+      formData.price === null ||
+      Number(formData.price) < 0
+    ) {
+      toast.error("Price must be 0 or greater");
+      setFieldErrors((prev) => ({
+        ...prev,
+        price: "Price must be 0 or greater",
+      }));
       return;
     }
 
@@ -392,6 +421,8 @@ export default function AdminEditAddOnPage() {
 
       const payload = {
         ...formData,
+        price: Number(formData.price),
+        stock: Number(formData.stock),
         images: cleanImages,
         fabricShopId: formData.fabricShopId || null,
       };
@@ -895,10 +926,11 @@ export default function AdminEditAddOnPage() {
               error={fieldErrors.price}
             >
               <input
+                id="price"
                 type="number"
                 step="0.01"
                 min="0"
-                value={getNumberDisplay(formData.price)}
+                value={formData.price}
                 onChange={(e) => handleNumberChange("price", e.target.value)}
                 className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
                 placeholder="85"
@@ -906,7 +938,7 @@ export default function AdminEditAddOnPage() {
             </FormField>
 
             <CommissionFinalPriceField
-              partnerPrice={formData.price}
+              partnerPrice={Number(formData.price) || 0}
               commissionPercent={formData.fabricShopId ? fabricCommission : 0}
             />
 
@@ -917,9 +949,10 @@ export default function AdminEditAddOnPage() {
               error={fieldErrors.stock}
             >
               <input
+                id="stock"
                 type="number"
                 min="0"
-                value={getNumberDisplay(formData.stock)}
+                value={formData.stock}
                 onChange={(e) => handleNumberChange("stock", e.target.value)}
                 className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
                 placeholder="40"

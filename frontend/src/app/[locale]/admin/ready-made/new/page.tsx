@@ -198,7 +198,7 @@ export default function NewReadyMadePage() {
     value: string,
   ) => {
     if (value === "") {
-      handleChange(field, 0);
+      handleChange(field, "");
     } else {
       const num = Number(value);
       if (!isNaN(num) && num >= 0) {
@@ -258,8 +258,18 @@ export default function NewReadyMadePage() {
       errors.mukhawarPriceAED = "Price cannot be negative";
     if (formData.finalSellingPriceAED < 0)
       errors.finalSellingPriceAED = "Price cannot be negative";
-    if (formData.availableFabricStock < 0)
-      errors.availableFabricStock = "Stock cannot be negative";
+    if (
+      formData.availableFabricStock === "" ||
+      formData.availableFabricStock === undefined ||
+      formData.availableFabricStock === null
+    ) {
+      errors.availableFabricStock = "Stock quantity is required";
+    } else if (
+      Number(formData.availableFabricStock) < 0 ||
+      !Number.isInteger(Number(formData.availableFabricStock))
+    ) {
+      errors.availableFabricStock = "Stock must be a whole number 0 or greater";
+    }
 
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -423,7 +433,7 @@ export default function NewReadyMadePage() {
                 min="0"
                 step="1"
                 placeholder="05"
-                value={getNumberDisplay(formData.availableFabricStock)}
+                value={formData.availableFabricStock}
                 onChange={(e) =>
                   handleNumberChange("availableFabricStock", e.target.value)
                 }

@@ -127,6 +127,7 @@ const formatShop = (shop) => ({
         phone: shop.pickupAddress.phone || "",
         line1: shop.pickupAddress.line1 || "",
         line2: shop.pickupAddress.line2 || "",
+        building: shop.pickupAddress.building || shop.pickupAddress.line2 || "",
         city: shop.pickupAddress.city || "",
         emirate: shop.pickupAddress.emirate || "",
       }
@@ -597,7 +598,10 @@ fabricPortalRouter.post(
           shop.location ||
           "",
         building:
-          storePickupAddress?.building || shopPickup.line2 || "",
+          storePickupAddress?.building ||
+          shopPickup.building ||
+          shopPickup.line2 ||
+          "",
         phone: toUaePhoneDigits(
           storePickupAddress?.phone || shopPickup.phone || shop.phone || "",
         ),
@@ -1241,6 +1245,21 @@ fabricPortalRouter.post(
       { fallback: "ready-made" },
     );
 
+    if (
+      availableFabricStock === undefined ||
+      availableFabricStock === null ||
+      availableFabricStock === "" ||
+      Number.isNaN(Number(availableFabricStock)) ||
+      Number(availableFabricStock) < 0
+    ) {
+      res.status(400).json({
+        success: false,
+        message:
+          "Stock quantity is required and must be a whole number 0 or greater",
+      });
+      return;
+    }
+
     const newProduct = new ReadyMadeProduct({
       name,
       nameAr,
@@ -1273,7 +1292,7 @@ fabricPortalRouter.post(
       fabricPriceAED,
       mukhawarPriceAED,
       finalSellingPriceAED,
-      availableFabricStock,
+      availableFabricStock: Math.floor(Number(availableFabricStock)),
       isActive: isActive !== undefined ? isActive : true,
       ownerName: req.body.ownerName || shop.name,
       pickupAddress:
@@ -1379,8 +1398,22 @@ fabricPortalRouter.put(
       req.body.mukhawarPriceAED ?? product.mukhawarPriceAED;
     product.finalSellingPriceAED =
       req.body.finalSellingPriceAED ?? product.finalSellingPriceAED;
-    product.availableFabricStock =
-      req.body.availableFabricStock ?? product.availableFabricStock;
+    if (req.body.availableFabricStock !== undefined) {
+      const stockNum = Number(req.body.availableFabricStock);
+      if (
+        req.body.availableFabricStock === null ||
+        req.body.availableFabricStock === "" ||
+        Number.isNaN(stockNum) ||
+        stockNum < 0
+      ) {
+        res.status(400).json({
+          success: false,
+          message: "Stock quantity must be a whole number 0 or greater",
+        });
+        return;
+      }
+      product.availableFabricStock = Math.floor(stockNum);
+    }
     product.isActive = req.body.isActive ?? product.isActive;
     product.ownerName = req.body.ownerName ?? product.ownerName;
 
@@ -1525,6 +1558,21 @@ fabricPortalRouter.post(
       fallback: "addon",
     });
 
+    if (
+      stock === undefined ||
+      stock === null ||
+      stock === "" ||
+      Number.isNaN(Number(stock)) ||
+      Number(stock) < 0
+    ) {
+      res.status(400).json({
+        success: false,
+        message:
+          "Stock quantity is required and must be a whole number 0 or greater",
+      });
+      return;
+    }
+
     const resolvedPattern = (pattern || design || "").trim();
     const resolvedPatternAr = (patternAr || designAr || "").trim();
 
@@ -1535,7 +1583,7 @@ fabricPortalRouter.post(
       description,
       descriptionAr,
       price,
-      stock,
+      stock: Math.floor(Number(stock)),
       thumbnailImage,
       images: normalizedImages,
       tag,
@@ -1623,7 +1671,22 @@ fabricPortalRouter.put(
     addon.description = description ?? addon.description;
     addon.descriptionAr = descriptionAr ?? addon.descriptionAr;
     addon.price = price ?? addon.price;
-    addon.stock = stock ?? addon.stock;
+    if (stock !== undefined) {
+      const stockNum = Number(stock);
+      if (
+        stock === null ||
+        stock === "" ||
+        Number.isNaN(stockNum) ||
+        stockNum < 0
+      ) {
+        res.status(400).json({
+          success: false,
+          message: "Stock quantity must be a whole number 0 or greater",
+        });
+        return;
+      }
+      addon.stock = Math.floor(stockNum);
+    }
     if (images !== undefined) {
       const { images: normalizedImages, thumbnailImage } =
         normalizeAddOnImages(images);
