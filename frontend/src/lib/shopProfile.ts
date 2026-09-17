@@ -4,6 +4,8 @@ type ShopPickup = {
   fullName?: string;
   phone?: string;
   line1?: string;
+  line2?: string;
+  building?: string;
   city?: string;
   emirate?: string;
 };
@@ -19,6 +21,7 @@ type ShopLike = {
 export function isShopProfileComplete(shop: ShopLike): boolean {
   if (!shop) return false;
   const pickup = shop.pickupAddress;
+  const hasBuilding = Boolean(pickup?.building?.trim() || pickup?.line2?.trim());
   return Boolean(
     shop.name?.trim() &&
       shop.nameAr?.trim() &&
@@ -27,6 +30,7 @@ export function isShopProfileComplete(shop: ShopLike): boolean {
       pickup?.fullName?.trim() &&
       pickup?.phone?.trim() &&
       pickup?.line1?.trim() &&
+      hasBuilding &&
       pickup?.city?.trim() &&
       pickup?.emirate?.trim(),
   );

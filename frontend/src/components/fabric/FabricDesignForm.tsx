@@ -22,6 +22,7 @@ import {
   fetchOwnFabricShop,
   shopPickupToFabricStorePickup,
 } from "@/lib/fabricShop";
+import { isShopProfileComplete } from "@/lib/shopProfile";
 import { api } from "@/lib/api/client";
 import { UAE_EMIRATES } from "@/lib/uaeAddress";
 import { type PickupAddress } from "@/lib/createFabricAdmin";
@@ -248,7 +249,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
   const router = useRouter();
   const isEditMode = Boolean(fabricId);
 
-  const [loading, setLoading] = useState(isEditMode);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [shopMissing, setShopMissing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -572,10 +573,8 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     let cancelled = false;
 
     const loadShopAndFabric = async () => {
-      if (isEditMode) {
-        setLoading(true);
-        setLoadError(null);
-      }
+      setLoading(true);
+      setLoadError(null);
 
       try {
         const shop = await fetchOwnFabricShop();
@@ -584,6 +583,12 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         if (shop) {
           setShopName(shop.name);
           if (!isEditMode) {
+            if (!isShopProfileComplete(shop)) {
+              setShopMissing(true);
+              setLoading(false);
+              toast.error(t("shopRequiredDescription"), ERROR_TOAST);
+              return;
+            }
             setFormData((prev) => ({
               ...prev,
               storePickupAddress: shopPickupToFabricStorePickup(shop),
@@ -592,6 +597,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         } else {
           setShopMissing(true);
           setLoading(false);
+          toast.error(t("shopRequiredDescription"), ERROR_TOAST);
           return;
         }
 

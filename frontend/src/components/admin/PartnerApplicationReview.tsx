@@ -39,6 +39,7 @@ type ShopSnapshot = {
     phone: string;
     line1: string;
     line2: string;
+    building?: string;
     city: string;
     emirate: string;
   };
@@ -238,6 +239,7 @@ function ShopProfileReadout({
           <Labeled label="Emirate">{emirate || "—"}</Labeled>
           <Labeled label="Pickup city">{pickup?.city || "—"}</Labeled>
           <Labeled label="Address line 1">{pickup?.line1 || "—"}</Labeled>
+          <Labeled label="Building">{pickup?.building || pickup?.line2 || "—"}</Labeled>
           <Labeled label="Address line 2">{pickup?.line2 || "—"}</Labeled>
         </div>
       </div>

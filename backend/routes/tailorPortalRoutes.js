@@ -111,6 +111,7 @@ const formatShop = (shop) => ({
         phone: shop.pickupAddress.phone || "",
         line1: shop.pickupAddress.line1 || "",
         line2: shop.pickupAddress.line2 || "",
+        building: shop.pickupAddress.building || shop.pickupAddress.line2 || "",
         city: shop.pickupAddress.city || "",
         emirate: shop.pickupAddress.emirate || "",
       }
