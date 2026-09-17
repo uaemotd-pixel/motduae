@@ -394,6 +394,9 @@ export default function FabricShopForm() {
     if (!payload.pickupAddress.line1.trim()) {
       errors["pickupAddress.line1"] = t("validation.pickupLine1Required");
     }
+    if (!payload.pickupAddress.building?.trim()) {
+      errors["pickupAddress.building"] = t("validation.pickupBuildingRequired");
+    }
     if (!payload.pickupAddress.city.trim()) {
       errors["pickupAddress.city"] = t("validation.pickupCityRequired");
     }
@@ -1345,6 +1348,22 @@ export default function FabricShopForm() {
                 value={formData.pickupAddress.line1}
                 onChange={(e) => handlePickupChange("line1", e.target.value)}
                 placeholder={t("placeholders.pickupLine1")}
+                className={INPUT_CLASS}
+              />
+            </FormField>
+
+            <FormField
+              label={t("fields.pickupBuilding")}
+              name="pickupBuilding"
+              required
+              error={fieldErrors["pickupAddress.building"]}
+            >
+              <input
+                id="pickupBuilding"
+                type="text"
+                value={formData.pickupAddress.building}
+                onChange={(e) => handlePickupChange("building", e.target.value)}
+                placeholder={t("placeholders.pickupBuilding")}
                 className={INPUT_CLASS}
               />
             </FormField>

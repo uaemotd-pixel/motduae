@@ -7,6 +7,7 @@ const shopPickupAddressSchema = new mongoose.Schema(
     phone: { type: String, default: "", trim: true },
     line1: { type: String, default: "", trim: true },
     line2: { type: String, default: "", trim: true },
+    building: { type: String, default: "", trim: true },
     city: { type: String, default: "", trim: true },
     emirate: { type: String, default: "", trim: true },
   },
