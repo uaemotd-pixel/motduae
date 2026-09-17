@@ -599,6 +599,14 @@ export function registerCustomerReviewRoutes(customerRouter) {
               },
             ],
             total: [{ $count: "count" }],
+            stats: [
+              {
+                $group: {
+                  _id: null,
+                  averageRating: { $avg: "$reviews.rating" },
+                },
+              },
+            ],
           },
         },
       ];
@@ -606,6 +614,7 @@ export function registerCustomerReviewRoutes(customerRouter) {
       const [result] = await Customer.aggregate(pipeline);
       const rows = result?.items || [];
       const total = result?.total?.[0]?.count || 0;
+      const averageRating = Number(result?.stats?.[0]?.averageRating) || 0;
 
       const items = rows
         .filter((row) => isPubliclyVisibleReview(row.reviews))
@@ -617,6 +626,7 @@ export function registerCustomerReviewRoutes(customerRouter) {
         limit,
         total,
         totalPages: Math.ceil(total / limit) || 0,
+        averageRating: Math.round(averageRating * 10) / 10,
       });
     } catch (err) {
       console.error(err);

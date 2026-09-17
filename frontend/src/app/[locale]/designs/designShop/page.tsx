@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { api, type ApiError } from "@/lib/api/client";
-import { Share2, ChevronDown, ChevronUp } from "lucide-react";
+import { Share2, ChevronDown, ChevronUp, X, SlidersHorizontal } from "lucide-react";
 import MainLayout from "../../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
 import CatalogFilterSidebar from "@/components/shared/CatalogFilterSidebar";
@@ -677,6 +677,23 @@ export default function DesignShopCatalogPage() {
     filters.minPrice > 0 ||
     filters.maxPrice < PRICE_MAX;
 
+  const activeFilterCount =
+    filters.categories.length +
+    filters.materials.length +
+    filters.patterns.length +
+    filters.seasons.length +
+    filters.tags.length +
+    (filters.minPrice > 0 || filters.maxPrice < PRICE_MAX ? 1 : 0);
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileFiltersOpen]);
+
   const toggleCategory = (id: string) => {
     setFilters((prev) => ({
       ...prev,
@@ -909,12 +926,12 @@ export default function DesignShopCatalogPage() {
         />
       </div>
 
-      {/* Clear All */}
+      {/* Clear All — desktop sidebar only (mobile sheet has its own footer) */}
       {hasActiveFilters && (
         <button
           type="button"
           onClick={clearAllFilters}
-          className="w-full py-3 px-4 border border-black text-[10px] tracking-[0.2em] uppercase font-normal transition-all duration-200 hover:bg-black hover:text-white mt-2 cursor-pointer"
+          className="hidden lg:block w-full py-3 px-4 border border-black text-[10px] tracking-[0.2em] uppercase font-normal transition-all duration-200 hover:bg-black hover:text-white mt-2 cursor-pointer"
         >
           {isAr ? "مسح جميع الفلاتر" : "Clear All Filters"}
         </button>
@@ -935,10 +952,10 @@ export default function DesignShopCatalogPage() {
                   <span className="block w-6 xs:w-8 h-px bg-[#7A7A72]"></span>
                 </div>
               </div>
-              <h1 className="[font-family:var(--font-display)] text-[32px] xs:text-[38px] sm:text-[42px] md:text-[48px] lg:text-[52px] xl:text-[56px] 2xl:text-[64px] font-normal leading-[1.1] xs:leading-[1.09] sm:leading-[1.08] tracking-[-0.01em] text-black mb-3 xs:mb-4">
+              <h1 className="[font-family:var(--font-display)] text-[28px] xs:text-[34px] sm:text-[42px] md:text-[48px] lg:text-[52px] xl:text-[56px] font-normal leading-[1.12] sm:leading-[1.08] tracking-[-0.01em] text-black mb-3 xs:mb-4">
                 {isAr ? "تصاميم الخياط" : "Trending Designs"}
               </h1>
-              <p className="[font-family:var(--font-body)] text-[14px] xs:text-[13px] sm:text-[14px] md:text-[13px] lg:text-[14px] xl:text-[15px] 2xl:text-[16px] leading-normal xs:leading-[1.6] text-[#7A7A72] max-w-2xl">
+              <p className="[font-family:var(--font-body)] text-[13px] sm:text-[14px] lg:text-[15px] leading-relaxed text-[#7A7A72] max-w-2xl">
                 {isAr
                   ? "تصفّح تصاميم الخيّاطين الرائجة باستخدام خيارات التصفية."
                   : "Browse Trending Tailor Designs with modern filters."}
@@ -961,25 +978,18 @@ export default function DesignShopCatalogPage() {
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4">
                   <button
-                    onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-                    className="lg:hidden flex items-center gap-2 text-[11px] tracking-[0.18em] uppercase hover:text-black/60 transition-colors cursor-pointer"
+                    type="button"
+                    onClick={() => setMobileFiltersOpen(true)}
+                    aria-expanded={mobileFiltersOpen}
+                    aria-controls="design-shop-mobile-filters"
+                    className="lg:hidden group inline-flex items-center gap-2 rounded-full border border-[#E4E0D8] bg-white px-3.5 py-2 text-[10px] xs:text-[11px] tracking-[0.16em] uppercase text-black shadow-sm transition-all hover:border-black hover:bg-black hover:text-white cursor-pointer"
                   >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                      />
-                    </svg>
-                    {isAr ? "الفلاتر" : "Filters"}
-                    {hasActiveFilters && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-black" />
+                    <SlidersHorizontal className="size-3.5 shrink-0" strokeWidth={1.75} />
+                    <span>{isAr ? "الفلاتر" : "Filters"}</span>
+                    {activeFilterCount > 0 && (
+                      <span className="inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-black px-1.5 text-[9px] font-mono text-white transition-colors group-hover:bg-white group-hover:text-black">
+                        {activeFilterCount}
+                      </span>
                     )}
                   </button>
 
@@ -988,7 +998,7 @@ export default function DesignShopCatalogPage() {
                       {filters.categories.map((catId) => (
                         <span
                           key={catId}
-                          className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                          className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
                         >
                           {getOptionLabel(categories, catId)}
                           <button
@@ -1015,7 +1025,7 @@ export default function DesignShopCatalogPage() {
                       {filters.materials.map((matId) => (
                         <span
                           key={matId}
-                          className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                          className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
                         >
                           {getOptionLabel(materials, matId)}
                           <button
@@ -1042,7 +1052,7 @@ export default function DesignShopCatalogPage() {
                       {filters.patterns.map((patId) => (
                         <span
                           key={patId}
-                          className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                          className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
                         >
                           {getOptionLabel(patterns, patId)}
                           <button
@@ -1069,7 +1079,7 @@ export default function DesignShopCatalogPage() {
                       {filters.seasons.map((seaId) => (
                         <span
                           key={seaId}
-                          className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                          className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
                         >
                           {getOptionLabel(seasons, seaId)}
                           <button
@@ -1096,7 +1106,7 @@ export default function DesignShopCatalogPage() {
                       {filters.tags.map((tagId) => (
                         <span
                           key={tagId}
-                          className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full"
+                          className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
                         >
                           {getOptionLabel(tags, tagId)}
                           <button
@@ -1122,7 +1132,7 @@ export default function DesignShopCatalogPage() {
                       ))}
                       {(filters.minPrice > 0 ||
                         filters.maxPrice < PRICE_MAX) && (
-                        <span className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full">
+                        <span className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full">
                           AED {filters.minPrice.toLocaleString()} - AED{" "}
                           {filters.maxPrice.toLocaleString()}
                           <button
@@ -1153,8 +1163,8 @@ export default function DesignShopCatalogPage() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-6">
-                  <span className="text-[11px] tracking-[0.18em] uppercase text-[#7A7A72] font-mono">
+                <div className="flex items-center justify-between gap-2 sm:gap-6 w-full sm:w-auto min-w-0">
+                  <span className="text-[9px] xs:text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.18em] uppercase text-[#7A7A72] font-mono truncate">
                     {isAr
                       ? `عرض ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredDesigns.length)} من أصل ${filteredDesigns.length} تصميم`
                       : `Showing ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredDesigns.length)} of ${filteredDesigns.length} designs`}
@@ -1163,7 +1173,7 @@ export default function DesignShopCatalogPage() {
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="bg-transparent text-[11px] tracking-[0.18em] uppercase font-mono focus:outline-none cursor-pointer"
+                    className="bg-transparent text-[9px] xs:text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.18em] uppercase font-mono focus:outline-none cursor-pointer shrink-0 max-w-[45%] sm:max-w-none"
                   >
                     <option value="newest">{isAr ? "الأحدث" : "Newest"}</option>
                     <option value="price-low">
@@ -1182,16 +1192,94 @@ export default function DesignShopCatalogPage() {
             </div>
           </div>
 
-          {mobileFiltersOpen && (
-            <div className="lg:hidden border-b border-[#E4E0D8] bg-white px-4 sm:px-8 lg:px-12 py-8 overflow-hidden">
-              {sidebarContent}
+          {/* Mobile filters sheet */}
+          <div
+            className={`lg:hidden fixed inset-0 z-50 ${
+              mobileFiltersOpen ? "pointer-events-auto" : "pointer-events-none"
+            }`}
+            aria-hidden={!mobileFiltersOpen}
+          >
+            <button
+              type="button"
+              aria-label={isAr ? "إغلاق" : "Close"}
+              className={`absolute inset-0 bg-black/45 backdrop-blur-[2px] transition-opacity duration-300 cursor-pointer ${
+                mobileFiltersOpen ? "opacity-100" : "opacity-0"
+              }`}
+              onClick={() => setMobileFiltersOpen(false)}
+            />
+
+            <div
+              id="design-shop-mobile-filters"
+              role="dialog"
+              aria-modal="true"
+              aria-label={isAr ? "الفلاتر" : "Filters"}
+              className={`absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,920px)] flex-col rounded-t-2xl border border-[#E4E0D8] border-b-0 bg-white shadow-[0_-12px_40px_rgba(0,0,0,0.18)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                mobileFiltersOpen ? "translate-y-0" : "translate-y-full"
+              }`}
+            >
+              <div className="mx-auto mt-3 h-1 w-10 shrink-0 rounded-full bg-[#D8D4CC]" />
+
+              <div className="flex items-center justify-between gap-3 border-b border-[#E4E0D8] px-5 pb-4 pt-3">
+                <div className="min-w-0">
+                  <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.22em] text-[#7A7A72]">
+                    {isAr ? "تصفية النتائج" : "Refine results"}
+                  </p>
+                  <h2 className="[font-family:var(--font-display)] text-[22px] leading-tight text-black">
+                    {isAr ? "الفلاتر" : "Filters"}
+                    {activeFilterCount > 0 ? (
+                      <span className="ms-2 [font-family:var(--font-ui)] text-[11px] tracking-[0.14em] text-[#7A7A72]">
+                        ({activeFilterCount})
+                      </span>
+                    ) : null}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileFiltersOpen(false)}
+                  className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-[#E4E0D8] text-black transition-colors hover:border-black hover:bg-black hover:text-white cursor-pointer"
+                  aria-label={isAr ? "إغلاق الفلاتر" : "Close filters"}
+                >
+                  <X className="size-4" strokeWidth={1.75} />
+                </button>
+              </div>
+
+              <div
+                data-lenis-prevent
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5"
+              >
+                {sidebarContent}
+              </div>
+
+              <div className="shrink-0 border-t border-[#E4E0D8] bg-white px-5 pt-3 pb-[max(0.75rem,var(--safe-bottom))]">
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearAllFilters();
+                    }}
+                    disabled={!hasActiveFilters}
+                    className="flex-1 rounded-full border border-black px-4 py-3 text-[10px] tracking-[0.18em] uppercase text-black transition-colors hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
+                  >
+                    {isAr ? "مسح الكل" : "Clear all"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileFiltersOpen(false)}
+                    className="flex-[1.4] rounded-full bg-black px-4 py-3 text-[10px] tracking-[0.18em] uppercase text-white transition-colors hover:bg-[#2A2A28] cursor-pointer"
+                  >
+                    {isAr
+                      ? `عرض ${filteredDesigns.length} تصميم`
+                      : `Show ${filteredDesigns.length} designs`}
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
 
           <div className="flex flex-col lg:flex-row min-h-screen relative">
             <CatalogFilterSidebar>{sidebarContent}</CatalogFilterSidebar>
 
-            <div className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+            <div className="flex-1 min-w-0 p-3 xs:p-4 sm:p-6 lg:p-8">
               {loading ? (
                 <ProductGridSkeleton count={8} />
               ) : fetchError ? (
@@ -1223,7 +1311,7 @@ export default function DesignShopCatalogPage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {paginatedDesigns.map((design) => {
                       const { name, description } = getDesignDisplayFields(
                         design,
@@ -1244,11 +1332,11 @@ export default function DesignShopCatalogPage() {
                       return (
                         <div
                           key={design._id}
-                          className="group relative bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-500 flex flex-col h-full"
+                          className="group relative bg-white rounded-lg sm:rounded-xl overflow-hidden shadow-sm hover:shadow-2xl sm:hover:-translate-y-1.5 transition-all duration-500 flex flex-col h-full min-w-0"
                         >
-                          <Link href={`/designs/${design.slug}`}>
-                            <div className="p-4 flex flex-col grow text-left">
-                              <div className="block relative overflow-hidden mb-4 aspect-4/5 bg-[#F5F5F0] rounded-lg">
+                          <Link href={`/designs/${design.slug}`} className="flex flex-col h-full min-w-0">
+                            <div className="p-2 xs:p-2.5 sm:p-4 flex flex-col grow text-left min-w-0">
+                              <div className="block relative overflow-hidden mb-2.5 sm:mb-4 aspect-4/5 bg-[#F5F5F0] rounded-md sm:rounded-lg">
                                 <img
                                   src={image}
                                   alt={name}
@@ -1256,9 +1344,16 @@ export default function DesignShopCatalogPage() {
                                 />
                                 <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-                                <Tag elevated truncate className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-3.75rem)]">{tagLabel}</Tag>
+                                <Tag
+                                  size="sm"
+                                  elevated
+                                  truncate
+                                  className="absolute top-1 left-1 z-10 max-w-[calc(100%-1.75rem)] px-1 py-px text-[7px] tracking-[0.08em] sm:top-1.5 sm:left-1.5 sm:max-w-[calc(100%-5.25rem)] sm:px-1.5 sm:text-[8px] sm:tracking-[0.12em] md:px-2 md:py-0.5 md:text-[9px] md:tracking-[0.14em]"
+                                >
+                                  {tagLabel}
+                                </Tag>
 
-                                <div className="absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5">
+                                <div className="absolute top-1 right-1 z-20 flex flex-col items-center gap-0.5 sm:top-1.5 sm:right-1.5 sm:flex-row">
                                   <button
                                     type="button"
                                     aria-label={isAr ? "مشاركة" : "Share"}
@@ -1269,9 +1364,9 @@ export default function DesignShopCatalogPage() {
                                         `/designs/${design.slug}`,
                                       );
                                     }}
-                                    className="flex items-center justify-center w-6 h-6 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform cursor-pointer border-0 shrink-0"
+                                    className="flex items-center justify-center size-5 sm:size-7 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform cursor-pointer border-0 shrink-0"
                                   >
-                                    <Share2 className="w-2.5 h-2.5 text-black" />
+                                    <Share2 className="size-2.5 sm:size-3 text-black" />
                                   </button>
 
                                   <WishlistButton
@@ -1286,25 +1381,25 @@ export default function DesignShopCatalogPage() {
                                       type: "design",
                                     }}
                                     inline
-                                    className="flex items-center justify-center w-6 h-6 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 shrink-0 p-0"
-                                    iconClassName="w-2.5 h-2.5"
+                                    className="flex items-center justify-center size-5! sm:size-7! rounded-full bg-white/90 backdrop-blur-sm shadow-sm border-0 shrink-0 p-0!"
+                                    iconClassName="size-2.5! sm:size-3!"
                                   />
                                 </div>
                               </div>
 
-                              <h3 className="block hover:opacity-75 transition-opacity [font-family:var(--font-display)] text-[16px] sm:text-[18px] font-normal leading-relaxed tracking-tight text-black mb-1 line-clamp-2">
+                              <h3 className="block hover:opacity-75 transition-opacity [font-family:var(--font-display)] text-[13px] xs:text-[14px] sm:text-[18px] font-normal leading-snug sm:leading-relaxed tracking-tight text-black mb-0.5 sm:mb-1 line-clamp-2">
                                 {name}
                               </h3>
 
-                              <span className="[font-family:var(--font-ui)] text-[14px] sm:text-[15px] tracking-[0.08em] text-black font-normal mb-1">
+                              <span className="[font-family:var(--font-ui)] text-[11px] xs:text-[12px] sm:text-[15px] tracking-[0.06em] sm:tracking-[0.08em] text-black font-normal mb-0.5 sm:mb-1">
                                 {priceText}
                               </span>
 
-                              <p className="[font-family:var(--font-body)] text-[12px] sm:text-[13px] leading-relaxed text-[#8A8A80] line-clamp-2 font-normal grow">
+                              <p className="hidden sm:block [font-family:var(--font-body)] text-[13px] leading-relaxed text-[#8A8A80] line-clamp-2 font-normal grow">
                                 {description}
                               </p>
 
-                              <p className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.24em] text-[#8A8A80] mt-3 font-normal">
+                              <p className="[font-family:var(--font-ui)] text-[8px] xs:text-[9px] uppercase tracking-[0.16em] sm:tracking-[0.24em] text-[#8A8A80] mt-2 sm:mt-3 font-normal line-clamp-1">
                                 {isAr
                                   ? `توقع ${design.estimatedDays} أيام`
                                   : `Estimated ${design.estimatedDays} days`}

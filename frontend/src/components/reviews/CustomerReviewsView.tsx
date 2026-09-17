@@ -159,6 +159,201 @@ type ProductReview = {
   verified?: boolean;
 };
 
+const REVIEWS_PER_PAGE = 5;
+
+function ReviewsPagination({
+  currentPage,
+  totalPages,
+  onPageChange,
+  isArabic,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  isArabic: boolean;
+}) {
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    const maxVisible = 5;
+
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else if (currentPage <= 3) {
+      for (let i = 1; i <= 4; i++) pages.push(i);
+      pages.push("...");
+      pages.push(totalPages);
+    } else if (currentPage >= totalPages - 2) {
+      pages.push(1);
+      pages.push("...");
+      for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      pages.push("...");
+      for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
+      pages.push("...");
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
+  if (totalPages <= 1) return null;
+
+  return (
+    <div
+      className="flex items-center justify-center gap-2 mt-10 pt-8 border-t border-[#E4E0D8]"
+      dir={isArabic ? "rtl" : "ltr"}
+    >
+      <button
+        type="button"
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="group relative w-10 h-10 flex items-center justify-center rounded-lg border border-[#E4E0D8] bg-transparent text-black disabled:opacity-40 disabled:cursor-not-allowed hover:border-black hover:bg-black hover:text-white transition-all duration-200 cursor-pointer"
+        aria-label={isArabic ? "الصفحة السابقة" : "Previous page"}
+      >
+        <svg
+          className={`w-4 h-4 ${isArabic ? "rotate-180" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M15 19l-7-7 7-7"
+          />
+        </svg>
+      </button>
+
+      {getPageNumbers().map((page, index) => (
+        <button
+          key={`${page}-${index}`}
+          type="button"
+          onClick={() => typeof page === "number" && onPageChange(page)}
+          disabled={page === "..."}
+          className={`
+            min-w-10 h-10 px-2 flex items-center justify-center rounded-lg font-mono text-[13px] tracking-wide
+            transition-all duration-200 cursor-pointer
+            ${
+              page === currentPage
+                ? "bg-black text-white border-black"
+                : page === "..."
+                  ? "border-transparent cursor-default text-[#8A8A80]"
+                  : "border border-[#E4E0D8] bg-transparent text-black hover:border-black hover:bg-black hover:text-white"
+            }
+          `}
+        >
+          {page}
+        </button>
+      ))}
+
+      <button
+        type="button"
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className="group relative w-10 h-10 flex items-center justify-center rounded-lg border border-[#E4E0D8] bg-transparent text-black disabled:opacity-40 disabled:cursor-not-allowed hover:border-black hover:bg-black hover:text-white transition-all duration-200 cursor-pointer"
+        aria-label={isArabic ? "الصفحة التالية" : "Next page"}
+      >
+        <svg
+          className={`w-4 h-4 ${isArabic ? "rotate-180" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+/* ─── Compact review count badge (detail price row) ─── */
+
+export function ProductReviewCount({
+  productId,
+  locale,
+  className = "",
+}: {
+  productId?: string | null;
+  locale?: string;
+  className?: string;
+}) {
+  const isArabic = (locale || "en") === "ar";
+  const [count, setCount] = useState<number | null>(null);
+  const [averageRating, setAverageRating] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const id = String(productId || "").trim();
+    if (!id) {
+      setCount(0);
+      setAverageRating(0);
+      return;
+    }
+
+    const load = async () => {
+      try {
+        const params = new URLSearchParams({
+          productId: id,
+          page: "1",
+          limit: "1",
+        });
+        const data = await api.get<{
+          total?: number;
+          averageRating?: number;
+        }>(`/api/customer/reviews?${params.toString()}`);
+        if (!cancelled) {
+          setCount(Number(data?.total) || 0);
+          setAverageRating(Number(data?.averageRating) || 0);
+        }
+      } catch {
+        if (!cancelled) {
+          setCount(0);
+          setAverageRating(0);
+        }
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [productId]);
+
+  if (count === null) {
+    return (
+      <span
+        className={`inline-block h-6 w-16 animate-pulse rounded-full bg-black/10 ${className}`}
+        aria-hidden
+      />
+    );
+  }
+
+  const label =
+    count === 0
+      ? isArabic
+        ? "لا تقييمات"
+        : "No reviews"
+      : isArabic
+        ? `${count} تقييم`
+        : `${count} review${count === 1 ? "" : "s"}`;
+
+  const ratingText =
+    count > 0 && averageRating > 0 ? `${averageRating.toFixed(1)} · ` : "";
+
+  return (
+    <a
+      href="#product-reviews"
+      className={`inline-flex items-center rounded-full bg-black px-2.5 py-1 text-[9px] uppercase tracking-[0.14em] text-white transition-colors hover:bg-white hover:text-black hover:ring-1 hover:ring-black [font-family:var(--font-ui)] sm:text-[10px] sm:tracking-[0.16em] ${className}`}
+      aria-label={label}
+    >
+      {ratingText}
+      {label}
+    </a>
+  );
+}
+
 export function ProductReviewsSection({
   productId,
   tailorShopId,
@@ -182,6 +377,14 @@ export function ProductReviewsSection({
   const isArabic = locale === "ar";
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState<ProductReview[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [averageRating, setAverageRating] = useState(0);
+
+  useEffect(() => {
+    setPage(1);
+  }, [productId, tailorShopId, fabricShopId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -189,25 +392,36 @@ export function ProductReviewsSection({
     const load = async () => {
       try {
         setLoading(true);
-        const params = new URLSearchParams({ limit: "50" });
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: String(REVIEWS_PER_PAGE),
+        });
         if (productId) params.set("productId", productId);
         if (tailorShopId) params.set("tailorShopId", tailorShopId);
         if (fabricShopId) params.set("fabricShopId", fabricShopId);
 
-        const data = await api.get<
-          ProductReview[] | { items?: ProductReview[] }
-        >(`/api/customer/reviews?${params.toString()}`);
-        const list = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.items)
-            ? data.items
-            : [];
+        const data = await api.get<{
+          items?: ProductReview[];
+          total?: number;
+          totalPages?: number;
+          averageRating?: number;
+        }>(`/api/customer/reviews?${params.toString()}`);
+
+        const list = Array.isArray(data?.items) ? data.items : [];
         if (!cancelled) {
           setReviews(list);
+          setTotalCount(Number(data?.total) || list.length);
+          setTotalPages(Number(data?.totalPages) || 0);
+          setAverageRating(Number(data?.averageRating) || 0);
         }
       } catch (err) {
         console.error("Failed to load product reviews:", err);
-        if (!cancelled) setReviews([]);
+        if (!cancelled) {
+          setReviews([]);
+          setTotalCount(0);
+          setTotalPages(0);
+          setAverageRating(0);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -217,95 +431,115 @@ export function ProductReviewsSection({
     return () => {
       cancelled = true;
     };
-  }, [productId, tailorShopId, fabricShopId]);
+  }, [productId, tailorShopId, fabricShopId, page]);
 
-  const average =
-    reviews.length > 0
-      ? reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) /
-        reviews.length
-      : 0;
+  const handlePageChange = (nextPage: number) => {
+    setPage(nextPage);
+    if (typeof document !== "undefined") {
+      document
+        .getElementById("product-reviews")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
 
   return (
     <section
+      id="product-reviews"
       className="bg-(--bg-page) border-t border-(--color-border) py-12 sm:py-16"
       dir={isArabic ? "rtl" : "ltr"}
     >
       <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto max-w-7xl">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-8 sm:mb-10">
-        <div>
-          <h2 className="[font-family:var(--font-display)] text-2xl sm:text-[32px] text-black tracking-[-0.01em]">
-            {labels.title}
-          </h2>
-          {!loading && reviews.length > 0 && (
-            <p className="mt-2 text-sm text-(--color-grey-muted) [font-family:var(--font-body)]">
-              {labels.averageLabel.replace("{rating}", average.toFixed(1))} ·{" "}
-              {labels.countLabel.replace("{count}", String(reviews.length))}
-            </p>
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-8 sm:mb-10">
+          <div>
+            <h2 className="[font-family:var(--font-display)] text-2xl sm:text-[32px] text-black tracking-[-0.01em]">
+              {labels.title}
+            </h2>
+            {!loading && totalCount > 0 && (
+              <p className="mt-2 text-sm text-(--color-grey-muted) [font-family:var(--font-body)]">
+                {labels.averageLabel.replace(
+                  "{rating}",
+                  averageRating.toFixed(1),
+                )}{" "}
+                ·{" "}
+                {labels.countLabel.replace("{count}", String(totalCount))}
+              </p>
+            )}
+          </div>
+          {!loading && totalCount > 0 && (
+            <StarRatingDisplay
+              rating={averageRating}
+              sizeClassName="w-5 h-5"
+            />
           )}
         </div>
-        {!loading && reviews.length > 0 && (
-          <StarRatingDisplay rating={average} sizeClassName="w-5 h-5" />
+
+        {loading ? (
+          <p className="text-sm text-gray-500 [font-family:var(--font-body)]">
+            {labels.loading}
+          </p>
+        ) : reviews.length === 0 ? (
+          <p className="text-sm text-gray-500 [font-family:var(--font-body)]">
+            {labels.empty}
+          </p>
+        ) : (
+          <>
+            <ul className="space-y-6 sm:space-y-8">
+              {reviews.map((rev) => {
+                const quote = isArabic
+                  ? rev.quoteAr || rev.quoteEn
+                  : rev.quoteEn || rev.quoteAr;
+                const name = isArabic
+                  ? rev.nameAr || rev.nameEn
+                  : rev.nameEn || rev.nameAr;
+                const title = isArabic
+                  ? rev.titleAr || rev.titleEn
+                  : rev.titleEn || rev.titleAr;
+
+                return (
+                  <li
+                    key={rev.id}
+                    className="border-b border-gray-100 pb-6 sm:pb-8 last:border-0"
+                  >
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <StarRatingDisplay
+                        rating={rev.rating}
+                        sizeClassName="w-3.5 h-3.5 sm:w-4 sm:h-4"
+                      />
+                      {rev.verified ? (
+                        <Tag size="sm" variant="muted">
+                          {labels.verifiedLabel || "Verified purchase"}
+                        </Tag>
+                      ) : null}
+                      <span className="text-[10px] sm:text-xs text-gray-400 [font-family:var(--font-body)]">
+                        {new Date(rev.createdAt).toLocaleDateString(
+                          isArabic ? "ar" : "en",
+                        )}
+                      </span>
+                    </div>
+                    <p className="[font-family:var(--font-display)] text-sm sm:text-base text-black uppercase tracking-wide">
+                      {name}
+                    </p>
+                    {title ? (
+                      <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] text-gray-400 mt-1 [font-family:var(--font-ui)]">
+                        {title}
+                      </p>
+                    ) : null}
+                    <p className="mt-3 [font-family:var(--font-body)] text-sm sm:text-[15px] leading-relaxed italic text-gray-800">
+                      &ldquo;{quote}&rdquo;
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <ReviewsPagination
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              isArabic={isArabic}
+            />
+          </>
         )}
-      </div>
-
-      {loading ? (
-        <p className="text-sm text-gray-500 [font-family:var(--font-body)]">
-          {labels.loading}
-        </p>
-      ) : reviews.length === 0 ? (
-        <p className="text-sm text-gray-500 [font-family:var(--font-body)]">
-          {labels.empty}
-        </p>
-      ) : (
-        <ul className="space-y-6 sm:space-y-8">
-          {reviews.map((rev) => {
-            const quote = isArabic
-              ? rev.quoteAr || rev.quoteEn
-              : rev.quoteEn || rev.quoteAr;
-            const name = isArabic
-              ? rev.nameAr || rev.nameEn
-              : rev.nameEn || rev.nameAr;
-            const title = isArabic
-              ? rev.titleAr || rev.titleEn
-              : rev.titleEn || rev.titleAr;
-
-            return (
-              <li
-                key={rev.id}
-                className="border-b border-gray-100 pb-6 sm:pb-8 last:border-0"
-              >
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <StarRatingDisplay
-                    rating={rev.rating}
-                    sizeClassName="w-3.5 h-3.5 sm:w-4 sm:h-4"
-                  />
-                  {rev.verified ? (
-                    <Tag size="sm" variant="muted">
-                      {labels.verifiedLabel || "Verified purchase"}
-                    </Tag>
-                  ) : null}
-                  <span className="text-[10px] sm:text-xs text-gray-400 [font-family:var(--font-body)]">
-                    {new Date(rev.createdAt).toLocaleDateString(
-                      isArabic ? "ar" : "en",
-                    )}
-                  </span>
-                </div>
-                <p className="[font-family:var(--font-display)] text-sm sm:text-base text-black uppercase tracking-wide">
-                  {name}
-                </p>
-                {title ? (
-                  <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] text-gray-400 mt-1 [font-family:var(--font-ui)]">
-                    {title}
-                  </p>
-                ) : null}
-                <p className="mt-3 [font-family:var(--font-body)] text-sm sm:text-[15px] leading-relaxed italic text-gray-800">
-                  &ldquo;{quote}&rdquo;
-                </p>
-              </li>
-            );
-          })}
-        </ul>
-      )}
       </div>
     </section>
   );
