@@ -28,6 +28,10 @@ interface FilterOption {
   isActive?: boolean;
 }
 
+const PRICE_MIN = 0;
+const PRICE_MAX = 25000;
+const PRICE_STEP = 10;
+
 interface FilterState {
   categories: string[];
   colors: string[];
@@ -139,10 +143,12 @@ const ColorDropdown = ({
   selected,
   onChange,
   isAr,
+  counts,
 }: {
   selected: string[];
   onChange: (value: string[]) => void;
   isAr: boolean;
+  counts?: Record<string, number>;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -233,6 +239,11 @@ const ColorDropdown = ({
                 style={{ backgroundColor: c.hex }}
               />
               <span className="flex-1">{isAr ? c.ar : c.en}</span>
+              {counts ? (
+                <span className="text-[10px] text-[#8A8A80] font-mono">
+                  ({counts[c.value] ?? 0})
+                </span>
+              ) : null}
               {selected.includes(c.value) && (
                 <svg
                   className="w-4 h-4 text-black"
@@ -272,119 +283,71 @@ const PriceRangeSlider = ({
   onMinChange: (value: number) => void;
   onMaxChange: (value: number) => void;
 }) => {
-  const [localMin, setLocalMin] = useState(String(minPrice));
-  const [localMax, setLocalMax] = useState(String(maxPrice));
-  const minTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const span = PRICE_MAX - PRICE_MIN || 1;
+  const minPercent = ((minPrice - PRICE_MIN) / span) * 100;
+  const maxPercent = ((maxPrice - PRICE_MIN) / span) * 100;
 
-  useEffect(() => setLocalMin(String(minPrice)), [minPrice]);
-  useEffect(() => setLocalMax(String(maxPrice)), [maxPrice]);
+  const thumbClass =
+    "pointer-events-none absolute inset-0 w-full h-5 appearance-none bg-transparent [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:bg-transparent [&::-moz-range-track]:h-1 [&::-moz-range-track]:bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:mt-[-6px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-black [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-black [&::-moz-range-thumb]:cursor-pointer";
 
-  useEffect(() => {
-    return () => {
-      if (minTimerRef.current) clearTimeout(minTimerRef.current);
-      if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
-    };
-  }, []);
-
-  const debouncedMinChange = (value: number) => {
-    if (minTimerRef.current) clearTimeout(minTimerRef.current);
-    minTimerRef.current = setTimeout(() => onMinChange(value), 300);
-  };
-
-  const debouncedMaxChange = (value: number) => {
-    if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
-    maxTimerRef.current = setTimeout(() => onMaxChange(value), 300);
-  };
-
-  const commitMin = (raw: string) => {
-    const parsed = raw === "" ? minPrice : Number(raw);
-    if (Number.isNaN(parsed)) {
-      setLocalMin(String(minPrice));
-      return;
-    }
-    const maxVal = Number(localMax);
-    const clamped = Math.min(
-      Math.max(0, parsed),
-      Number.isNaN(maxVal) ? 100000 : maxVal,
-      100000,
-    );
-    setLocalMin(String(clamped));
-    if (minTimerRef.current) clearTimeout(minTimerRef.current);
-    onMinChange(clamped);
-  };
-
-  const commitMax = (raw: string) => {
-    const parsed = raw === "" ? maxPrice : Number(raw);
-    if (Number.isNaN(parsed)) {
-      setLocalMax(String(maxPrice));
-      return;
-    }
-    const minVal = Number(localMin);
-    const clamped = Math.max(
-      Math.min(parsed, 100000),
-      Number.isNaN(minVal) ? 0 : minVal,
-    );
-    setLocalMax(String(clamped));
-    if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
-    onMaxChange(clamped);
-  };
+  const formatAed = (value: number) =>
+    `AED ${value.toLocaleString("en-US")}`;
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between text-[13px] font-mono text-[#7A7A72]">
-        <span>AED 0</span>
-        <span>AED 100000</span>
+    <div className="space-y-3">
+      <div className="flex justify-between text-[11px] font-mono text-[#7A7A72]">
+        <span>{formatAed(minPrice)}</span>
+        <span>{formatAed(maxPrice)}</span>
       </div>
 
-      <div className="flex gap-2 pt-1">
-        <input
-          type="number"
-          min={0}
-          max={100000}
-          step={1}
-          value={localMin}
-          onChange={(e) => {
-            const raw = e.target.value;
-            setLocalMin(raw);
-            if (raw === "") return;
-            const val = Number(raw);
-            const maxVal = Number(localMax);
-            if (
-              !Number.isNaN(val) &&
-              val >= 0 &&
-              val <= 100000 &&
-              (Number.isNaN(maxVal) || val <= maxVal)
-            ) {
-              debouncedMinChange(val);
-            }
+      <div className="relative h-5">
+        <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#E4E0D8]" />
+        <div
+          className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-black"
+          style={{
+            left: `${minPercent}%`,
+            width: `${Math.max(maxPercent - minPercent, 0)}%`,
           }}
-          onBlur={() => commitMin(localMin)}
-          className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition cursor-pointer"
         />
         <input
-          type="number"
-          min={0}
-          max={100000}
-          step={1}
-          value={localMax}
+          type="range"
+          min={PRICE_MIN}
+          max={PRICE_MAX}
+          step={PRICE_STEP}
+          value={minPrice}
           onChange={(e) => {
-            const raw = e.target.value;
-            setLocalMax(raw);
-            if (raw === "") return;
-            const val = Number(raw);
-            const minVal = Number(localMin);
-            if (
-              !Number.isNaN(val) &&
-              val <= 100000 &&
-              (Number.isNaN(minVal) || val >= minVal)
-            ) {
-              debouncedMaxChange(val);
-            }
+            const next = Number(e.target.value);
+            if (Number.isNaN(next)) return;
+            onMinChange(Math.min(next, maxPrice));
           }}
-          onBlur={() => commitMax(localMax)}
-          className="w-1/2 border border-[#E4E0D8] bg-transparent px-3 py-2 text-[13px] font-mono text-black focus:outline-none focus:border-black transition cursor-pointer"
+          className={`${thumbClass} z-10`}
+          aria-label="Minimum price"
+          aria-valuemin={PRICE_MIN}
+          aria-valuemax={maxPrice}
+          aria-valuenow={minPrice}
         />
+        <input
+          type="range"
+          min={PRICE_MIN}
+          max={PRICE_MAX}
+          step={PRICE_STEP}
+          value={maxPrice}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            if (Number.isNaN(next)) return;
+            onMaxChange(Math.max(next, minPrice));
+          }}
+          className={`${thumbClass} z-20`}
+          aria-label="Maximum price"
+          aria-valuemin={minPrice}
+          aria-valuemax={PRICE_MAX}
+          aria-valuenow={maxPrice}
+        />
+      </div>
+
+      <div className="flex justify-between text-[10px] font-mono uppercase tracking-[0.12em] text-[#8A8A80]">
+        <span>{formatAed(PRICE_MIN)}</span>
+        <span>{formatAed(PRICE_MAX)}</span>
       </div>
     </div>
   );
@@ -550,7 +513,7 @@ export default function ReadyMadeCatalogPage() {
     seasons: [],
     tags: [],
     minPrice: 0,
-    maxPrice: 100000,
+    maxPrice: PRICE_MAX,
     inStockOnly: false,
   });
 
@@ -569,7 +532,7 @@ export default function ReadyMadeCatalogPage() {
         const data = await api.get<{
           success: boolean;
           items: ReadyMadeListItem[];
-        }>("/api/ready-made");
+        }>("/api/ready-made?limit=1000");
 
         if (!data?.success) {
           throw new Error("Failed to load products");
@@ -643,8 +606,14 @@ export default function ReadyMadeCatalogPage() {
   const categoryOptions = useMemo(() => {
     return categories.map((cat) => {
       const count = products.filter((p) => {
-        const activeTag = isAr ? p.tagAr || p.tag : p.tag;
-        return activeTag === cat.name;
+        const productCategory = isAr
+          ? p.categoryAr || p.category
+          : p.category;
+        return (
+          productCategory === cat.name ||
+          productCategory === cat.nameAr ||
+          p.category === cat.name
+        );
       }).length;
       return {
         id: cat._id,
@@ -653,6 +622,97 @@ export default function ReadyMadeCatalogPage() {
       };
     });
   }, [categories, products, isAr]);
+
+  const materialOptions = useMemo(() => {
+    return materials.map((mat) => {
+      const count = products.filter((p) => {
+        const value = isAr ? p.materialAr || p.material : p.material;
+        return (
+          value === mat.name ||
+          value === mat.nameAr ||
+          p.material === mat.name
+        );
+      }).length;
+      return {
+        id: mat._id,
+        label: isAr ? mat.nameAr || mat.name : mat.name,
+        count,
+      };
+    });
+  }, [materials, products, isAr]);
+
+  const patternOptions = useMemo(() => {
+    return patterns.map((pat) => {
+      const count = products.filter((p) => {
+        const value = isAr ? p.patternAr || p.pattern : p.pattern;
+        return (
+          value === pat.name ||
+          value === pat.nameAr ||
+          p.pattern === pat.name
+        );
+      }).length;
+      return {
+        id: pat._id,
+        label: isAr ? pat.nameAr || pat.name : pat.name,
+        count,
+      };
+    });
+  }, [patterns, products, isAr]);
+
+  const seasonOptions = useMemo(() => {
+    return seasons.map((sea) => {
+      const count = products.filter((p) => {
+        const value = isAr ? p.seasonAr || p.season : p.season;
+        return (
+          value === sea.name ||
+          value === sea.nameAr ||
+          p.season === sea.name
+        );
+      }).length;
+      return {
+        id: sea._id,
+        label: isAr ? sea.nameAr || sea.name : sea.name,
+        count,
+      };
+    });
+  }, [seasons, products, isAr]);
+
+  const tagOptions = useMemo(() => {
+    return tags.map((tag) => {
+      const count = products.filter((p) => {
+        const value = isAr ? p.tagAr || p.tag : p.tag;
+        return (
+          value === tag.name ||
+          value === tag.nameAr ||
+          p.tag === tag.name
+        );
+      }).length;
+      return {
+        id: tag._id,
+        label: isAr ? tag.nameAr || tag.name : tag.name,
+        count,
+      };
+    });
+  }, [tags, products, isAr]);
+
+  const colorCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const color of colors) {
+      counts[color.value] = products.filter((p) => {
+        if (!p.colors) return false;
+        const list = Array.isArray(p.colors) ? p.colors : [p.colors];
+        return list.some((col) => {
+          const normalized = String(col).toLowerCase();
+          return (
+            normalized === color.value ||
+            normalized.includes(color.value) ||
+            color.value.includes(normalized)
+          );
+        });
+      }).length;
+    }
+    return counts;
+  }, [products]);
 
   const matchesColorFilter = (
     productColors: string[] | string | undefined,
@@ -672,74 +732,97 @@ export default function ReadyMadeCatalogPage() {
   };
 
   let filteredProducts = products.filter((item) => {
-    // Category filter (matches product tag to category name)
     if (filters.categories.length > 0) {
-      const activeTag = isAr ? item.tagAr || item.tag : item.tag;
-      if (!activeTag) return false;
-      const matchedCategory = categories.find((c) =>
-        isAr
-          ? c.nameAr === activeTag || c.name === activeTag
-          : c.name === activeTag,
+      const itemCategory = isAr
+        ? item.categoryAr || item.category
+        : item.category;
+      if (!itemCategory) return false;
+      const isMatch = filters.categories.some(
+        (catId) =>
+          catId === itemCategory ||
+          categories.some(
+            (c) =>
+              c._id === catId &&
+              (c.name === item.category ||
+                c.name === itemCategory ||
+                c.nameAr === itemCategory),
+          ),
       );
-      const isMatch = filters.categories.some((catId) => {
-        if (matchedCategory && catId === matchedCategory._id) return true;
-        return catId === activeTag;
-      });
       if (!isMatch) return false;
     }
 
-    // Material filter (product fabricType)
     if (filters.materials.length > 0) {
       const itemMat = isAr
-        ? item.fabricTypeAr || item.fabricType
-        : item.fabricType;
+        ? item.materialAr || item.material
+        : item.material;
       if (!itemMat) return false;
-      const matchedMaterial = materials.find((m) => m.name === itemMat);
-      const isMatch = filters.materials.some((matId) => {
-        if (matchedMaterial && matId === matchedMaterial._id) return true;
-        return matId === itemMat;
-      });
+      const isMatch = filters.materials.some(
+        (matId) =>
+          matId === itemMat ||
+          materials.some(
+            (m) =>
+              m._id === matId &&
+              (m.name === item.material ||
+                m.name === itemMat ||
+                m.nameAr === itemMat),
+          ),
+      );
       if (!isMatch) return false;
     }
 
-    // Pattern filter (product fabricType)
     if (filters.patterns.length > 0) {
       const itemPat = isAr
-        ? item.fabricTypeAr || item.fabricType
-        : item.fabricType;
+        ? item.patternAr || item.pattern
+        : item.pattern;
       if (!itemPat) return false;
-      const matchedPattern = patterns.find((p) => p.name === itemPat);
-      const isMatch = filters.patterns.some((patId) => {
-        if (matchedPattern && patId === matchedPattern._id) return true;
-        return patId === itemPat;
-      });
+      const isMatch = filters.patterns.some(
+        (patId) =>
+          patId === itemPat ||
+          patterns.some(
+            (p) =>
+              p._id === patId &&
+              (p.name === item.pattern ||
+                p.name === itemPat ||
+                p.nameAr === itemPat),
+          ),
+      );
       if (!isMatch) return false;
     }
 
-    // Season filter (product tag)
     if (filters.seasons.length > 0) {
-      const itemSeason = isAr ? item.tagAr || item.tag : item.tag;
+      const itemSeason = isAr
+        ? item.seasonAr || item.season
+        : item.season;
       if (!itemSeason) return false;
-      const matchedSeason = seasons.find((s) => s.name === itemSeason);
-      const isMatch = filters.seasons.some((seaId) => {
-        if (matchedSeason && seaId === matchedSeason._id) return true;
-        return seaId === itemSeason;
-      });
+      const isMatch = filters.seasons.some(
+        (seaId) =>
+          seaId === itemSeason ||
+          seasons.some(
+            (s) =>
+              s._id === seaId &&
+              (s.name === item.season ||
+                s.name === itemSeason ||
+                s.nameAr === itemSeason),
+          ),
+      );
       if (!isMatch) return false;
     }
 
-    // Tags filter (product tag)
     if (filters.tags.length > 0) {
       const itemTag = isAr ? item.tagAr || item.tag : item.tag;
       if (!itemTag) return false;
-      const matchedTag = tags.find((t) =>
-        isAr ? t.nameAr === itemTag || t.name === itemTag : t.name === itemTag,
+      const isMatch = filters.tags.some(
+        (tagId) =>
+          tagId === itemTag ||
+          tags.some(
+            (tag) =>
+              tag._id === tagId &&
+              (tag.name === item.tag ||
+                tag.name === itemTag ||
+                tag.nameAr === itemTag),
+          ),
       );
-      const hasTag = filters.tags.some((tagId) => {
-        if (matchedTag && tagId === matchedTag._id) return true;
-        return tagId === itemTag;
-      });
-      if (!hasTag) return false;
+      if (!isMatch) return false;
     }
 
     // Color filter
@@ -791,7 +874,7 @@ export default function ReadyMadeCatalogPage() {
     filters.seasons.length > 0 ||
     filters.tags.length > 0 ||
     filters.minPrice > 0 ||
-    filters.maxPrice < 100000 ||
+    filters.maxPrice < PRICE_MAX ||
     filters.inStockOnly;
 
   const toggleCategory = (id: string) => {
@@ -853,18 +936,30 @@ export default function ReadyMadeCatalogPage() {
   };
 
   const setMinPrice = (value: number) => {
-    setFilters((prev) => ({
-      ...prev,
-      minPrice: value,
-    }));
+    setFilters((prev) => {
+      const clampedMin = Math.max(
+        PRICE_MIN,
+        Math.min(PRICE_MAX, value),
+      );
+      return {
+        ...prev,
+        minPrice: Math.min(clampedMin, prev.maxPrice),
+      };
+    });
     setCurrentPage(1);
   };
 
   const setMaxPrice = (value: number) => {
-    setFilters((prev) => ({
-      ...prev,
-      maxPrice: value,
-    }));
+    setFilters((prev) => {
+      const clampedMax = Math.max(
+        PRICE_MIN,
+        Math.min(PRICE_MAX, value),
+      );
+      return {
+        ...prev,
+        maxPrice: Math.max(clampedMax, prev.minPrice),
+      };
+    });
     setCurrentPage(1);
   };
 
@@ -882,7 +977,7 @@ export default function ReadyMadeCatalogPage() {
       seasons: [],
       tags: [],
       minPrice: 0,
-      maxPrice: 100000,
+      maxPrice: PRICE_MAX,
       inStockOnly: false,
     });
     setCurrentPage(1);
@@ -939,27 +1034,31 @@ export default function ReadyMadeCatalogPage() {
           selected={filters.colors}
           onChange={setColorFilter}
           isAr={isAr}
+          counts={colorCounts}
         />
       </div>
 
       {/* Materials - 3rd */}
-      {materials.length > 0 && (
+      {materialOptions.length > 0 && (
         <CollapsibleFilter
           label={isAr ? "نوع القماش" : "Material"}
           count={filters.materials.length}
         >
           <div className="flex flex-col gap-2">
-            {materials.map((mat) => (
+            {materialOptions.map((mat) => (
               <label
-                key={mat._id}
+                key={mat.id}
                 className="flex items-center gap-3 cursor-pointer group"
               >
                 <CustomCheckbox
-                  checked={filters.materials.includes(mat._id)}
-                  onChange={() => toggleMaterial(mat._id)}
+                  checked={filters.materials.includes(mat.id)}
+                  onChange={() => toggleMaterial(mat.id)}
                 />
                 <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
-                  {isAr ? mat.nameAr || mat.name : mat.name}
+                  {mat.label}
+                </span>
+                <span className="text-[10px] text-[#8A8A80] font-mono">
+                  ({mat.count})
                 </span>
               </label>
             ))}
@@ -968,23 +1067,26 @@ export default function ReadyMadeCatalogPage() {
       )}
 
       {/* Patterns - 4th */}
-      {patterns.length > 0 && (
+      {patternOptions.length > 0 && (
         <CollapsibleFilter
           label={isAr ? "النقشة" : "Pattern"}
           count={filters.patterns.length}
         >
           <div className="flex flex-col gap-2">
-            {patterns.map((pat) => (
+            {patternOptions.map((pat) => (
               <label
-                key={pat._id}
+                key={pat.id}
                 className="flex items-center gap-3 cursor-pointer group"
               >
                 <CustomCheckbox
-                  checked={filters.patterns.includes(pat._id)}
-                  onChange={() => togglePattern(pat._id)}
+                  checked={filters.patterns.includes(pat.id)}
+                  onChange={() => togglePattern(pat.id)}
                 />
                 <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
-                  {isAr ? pat.nameAr || pat.name : pat.name}
+                  {pat.label}
+                </span>
+                <span className="text-[10px] text-[#8A8A80] font-mono">
+                  ({pat.count})
                 </span>
               </label>
             ))}
@@ -993,23 +1095,26 @@ export default function ReadyMadeCatalogPage() {
       )}
 
       {/* Seasons - 5th */}
-      {seasons.length > 0 && (
+      {seasonOptions.length > 0 && (
         <CollapsibleFilter
           label={isAr ? "الموسم" : "Season"}
           count={filters.seasons.length}
         >
           <div className="flex flex-col gap-2">
-            {seasons.map((sea) => (
+            {seasonOptions.map((sea) => (
               <label
-                key={sea._id}
+                key={sea.id}
                 className="flex items-center gap-3 cursor-pointer group"
               >
                 <CustomCheckbox
-                  checked={filters.seasons.includes(sea._id)}
-                  onChange={() => toggleSeason(sea._id)}
+                  checked={filters.seasons.includes(sea.id)}
+                  onChange={() => toggleSeason(sea.id)}
                 />
                 <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
-                  {isAr ? sea.nameAr || sea.name : sea.name}
+                  {sea.label}
+                </span>
+                <span className="text-[10px] text-[#8A8A80] font-mono">
+                  ({sea.count})
                 </span>
               </label>
             ))}
@@ -1018,23 +1123,26 @@ export default function ReadyMadeCatalogPage() {
       )}
 
       {/* Tags - 6th */}
-      {tags.length > 0 && (
+      {tagOptions.length > 0 && (
         <CollapsibleFilter
           label={isAr ? "الوسم" : "Tag"}
           count={filters.tags.length}
         >
           <div className="flex flex-col gap-2">
-            {tags.map((tag) => (
+            {tagOptions.map((tag) => (
               <label
-                key={tag._id}
+                key={tag.id}
                 className="flex items-center gap-3 cursor-pointer group"
               >
                 <CustomCheckbox
-                  checked={filters.tags.includes(tag._id)}
-                  onChange={() => toggleTag(tag._id)}
+                  checked={filters.tags.includes(tag.id)}
+                  onChange={() => toggleTag(tag.id)}
                 />
                 <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
-                  {isAr ? tag.nameAr || tag.name : tag.name}
+                  {tag.label}
+                </span>
+                <span className="text-[10px] text-[#8A8A80] font-mono">
+                  ({tag.count})
                 </span>
               </label>
             ))}
@@ -1061,8 +1169,15 @@ export default function ReadyMadeCatalogPage() {
             checked={filters.inStockOnly}
             onChange={toggleInStock}
           />
-          <span className="text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
+          <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
             {isAr ? "المتوفر فقط" : "In Stock Only"}
+          </span>
+          <span className="text-[10px] text-[#8A8A80] font-mono">
+            (
+            {
+              products.filter((p) => p.availableFabricStock !== 0).length
+            }
+            )
           </span>
         </label>
       </div>
@@ -1218,14 +1333,15 @@ export default function ReadyMadeCatalogPage() {
                           </span>
                         );
                       })}
-                      {(filters.minPrice > 0 || filters.maxPrice < 100000) && (
+                      {(filters.minPrice > 0 ||
+                        filters.maxPrice < PRICE_MAX) && (
                         <span className="text-[10px] tracking-[0.14em] uppercase bg-black text-white px-3 py-1.5 flex items-center gap-2 rounded-full">
                           AED {filters.minPrice.toLocaleString()} - AED{" "}
                           {filters.maxPrice.toLocaleString()}
                           <button
                             onClick={() => {
-                              setMinPrice(0);
-                              setMaxPrice(100000);
+                              setMinPrice(PRICE_MIN);
+                              setMaxPrice(PRICE_MAX);
                             }}
                             className="hover:opacity-70 flex items-center justify-center cursor-pointer"
                           >

@@ -713,7 +713,7 @@ userRouter.post(
     const customer = new Customer({
       userId: createdUser._id,
       name: createdUser.name,
-      phone: fullPhone,
+      phone: cleanPhone,
     });
     await customer.save();
 

@@ -60,6 +60,8 @@ export function buildFabricStoreCustomOrderMatch({
   shop = null,
   storeFabricIdValues = [],
   storeAddonIdValues = [],
+  /** When false, only fabric ownership matches (Custom Orders tab). */
+  includeAddons = true,
 } = {}) {
   const or = [
     { fabricStoreId: ownerUserId },
@@ -70,6 +72,42 @@ export function buildFabricStoreCustomOrderMatch({
     or.push(
       { fabricStoreId: shop._id },
       { "items.fabricStoreId": shop._id },
+    );
+    if (includeAddons) {
+      or.push(
+        { "addons.fabricShopId": shop._id },
+        { "addons.fabricShopId": String(shop._id) },
+      );
+    }
+  }
+
+  if (includeAddons && storeAddonIdValues.length) {
+    or.push({ "addons.addonId": { $in: storeAddonIdValues } });
+    const addonIdStrings = storeAddonIdValues.map((id) => String(id));
+    if (addonIdStrings.some(Boolean)) {
+      or.push({ "addons.addonId": { $in: addonIdStrings } });
+    }
+  }
+
+  if (storeFabricIdValues.length) {
+    or.push(
+      { fabricId: { $in: storeFabricIdValues } },
+      { "items.fabricId": { $in: storeFabricIdValues } },
+    );
+  }
+
+  return { $or: or };
+}
+
+/** Match custom orders that reference this store's add-ons (any fabric store). */
+export function buildFabricStoreAddonOnlyMatch({
+  shop = null,
+  storeAddonIdValues = [],
+} = {}) {
+  const or = [];
+
+  if (shop?._id) {
+    or.push(
       { "addons.fabricShopId": shop._id },
       { "addons.fabricShopId": String(shop._id) },
     );
@@ -83,11 +121,8 @@ export function buildFabricStoreCustomOrderMatch({
     }
   }
 
-  if (storeFabricIdValues.length) {
-    or.push(
-      { fabricId: { $in: storeFabricIdValues } },
-      { "items.fabricId": { $in: storeFabricIdValues } },
-    );
+  if (!or.length) {
+    return { _id: { $exists: false } };
   }
 
   return { $or: or };
@@ -149,22 +184,22 @@ export function toFabricPortalCustomOrderView(order, ctx) {
   const hasFabric = orderHasFabricForThisStore(order, ctx);
   const storeAddons = filterStoreCustomAddons(order, ctx);
   const hasAddons = storeAddons.length > 0;
-  if (!hasFabric && !hasAddons) return null;
+  // Custom Orders tab is for fabric fulfillment. Cross-store add-on-only
+  // rows belong under Retail instead of Custom.
+  if (!hasFabric) return null;
 
-  const storeItems = hasFabric
-    ? Array.isArray(order.items) && order.items.length > 0
+  const storeItems =
+    Array.isArray(order.items) && order.items.length > 0
       ? order.items.filter((item) => isStoreOwnedCustomItem(item, ctx))
-      : []
-    : [];
+      : [];
 
-  const fabricGross = hasFabric
-    ? storeItems.length > 0
+  const fabricGross =
+    storeItems.length > 0
       ? storeItems.reduce(
           (sum, item) => sum + (Number(item.pricing?.fabricCost) || 0),
           0,
         )
-      : Number(order.pricing?.fabricCost) || 0
-    : 0;
+      : Number(order.pricing?.fabricCost) || 0;
   const addonsGross = storeAddons.reduce(
     (sum, addon) => sum + (Number(addon.price) || 0),
     0,
@@ -172,27 +207,23 @@ export function toFabricPortalCustomOrderView(order, ctx) {
 
   const view = {
     ...order,
-    items: hasFabric ? storeItems : [],
+    items: storeItems,
     addons: storeAddons,
     shipments: filterStoreCustomShipments(order, {
-      hasFabric,
+      hasFabric: true,
       hasAddons,
       shopIdStr: ctx.shopIdStr,
       storeAddonIdSet: ctx.storeAddonIdSet,
     }),
     storeScope: {
-      hasFabric,
+      hasFabric: true,
       hasAddons,
-      canUpdateFabricStatus: hasFabric,
+      canUpdateFabricStatus: true,
       fabricGross,
       addonsGross,
       gross: Number((fabricGross + addonsGross).toFixed(2)),
     },
   };
-
-  if (!hasFabric) {
-    return stripOtherStoreFabricFields(view);
-  }
 
   if (storeItems.length > 0) {
     const first = storeItems[0];
@@ -216,3 +247,55 @@ export function toFabricPortalCustomOrderView(order, ctx) {
 
   return view;
 }
+
+/**
+ * Project a custom order where this shop only supplies add-ons into a
+ * retail-shaped row for the Retail Orders tab.
+ */
+export function toFabricPortalCustomAddonRetailView(order, ctx) {
+  const hasFabric = orderHasFabricForThisStore(order, ctx);
+  const storeAddons = filterStoreCustomAddons(order, ctx);
+  if (hasFabric || storeAddons.length === 0) return null;
+
+  const addonsGross = storeAddons.reduce(
+    (sum, addon) => sum + (Number(addon.price) || 0),
+    0,
+  );
+  const currency = order?.pricing?.currency || "AED";
+
+  return {
+    _id: order._id,
+    orderType: "retail",
+    sourceCustomOrderId: String(order._id),
+    fromCustomOrderAddons: true,
+    userId: order.userId,
+    orderItems: storeAddons.map((addon) => ({
+      productId: addon.addonId,
+      kind: "addon",
+      name: addon.name || "Add-on",
+      nameAr: addon.nameAr || "",
+      image: addon.thumbnailImage || "",
+      size: "N/A",
+      price: Number(addon.price) || 0,
+      quantity: 1,
+      fabricShopId: addon.fabricShopId || ctx.shopIdStr || null,
+    })),
+    status: order.status || "confirmed",
+    totalPrice: Number(addonsGross.toFixed(2)),
+    shippingPrice: 0,
+    parcelCount: 0,
+    perParcelFee: null,
+    currency,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    shipments: filterStoreCustomShipments(order, {
+      hasFabric: false,
+      hasAddons: true,
+      shopIdStr: ctx.shopIdStr,
+      storeAddonIdSet: ctx.storeAddonIdSet,
+    }),
+  };
+}
+
+/** @deprecated strip helper kept for callers that still import it */
+export { stripOtherStoreFabricFields };

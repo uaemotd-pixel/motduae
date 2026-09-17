@@ -36,7 +36,9 @@ interface DesignCatalogItem extends TailorDesignListItem {
   tagAr?: string;
 }
 
-const PRICE_MAX = 100000;
+const PRICE_MIN = 0;
+const PRICE_MAX = 25000;
+const PRICE_STEP = 10;
 
 interface FilterOption {
   _id: string;
@@ -73,19 +75,6 @@ function designMatchesCatalogOption(
     (!!valueAr && (option.nameAr === valueAr || option.name === valueAr))
   );
 }
-
-const CATEGORY_COLOR_PALETTE = [
-  "#8B6B4D",
-  "#1A2A3A",
-  "#5A6B5A",
-  "#B8860B",
-  "#4A3A2A",
-  "#6B2A5A",
-  "#2A5A6B",
-  "#6B4A2A",
-  "#4A6B2A",
-  "#6B2A2A",
-];
 
 const SearchOffIcon = () => (
   <svg
@@ -237,7 +226,7 @@ const RangeSlider = ({
             onMinChange(Math.min(next, maxValue));
           }}
           className={`${thumbClass} z-10`}
-          aria-label="Minimum value"
+          aria-label="Minimum price"
           aria-valuemin={min}
           aria-valuemax={maxValue}
           aria-valuenow={minValue}
@@ -254,11 +243,16 @@ const RangeSlider = ({
             onMaxChange(Math.max(next, minValue));
           }}
           className={`${thumbClass} z-20`}
-          aria-label="Maximum value"
+          aria-label="Maximum price"
           aria-valuemin={minValue}
           aria-valuemax={max}
           aria-valuenow={maxValue}
         />
+      </div>
+
+      <div className="flex justify-between text-[10px] font-mono uppercase tracking-[0.12em] text-[#8A8A80]">
+        <span>{format(min)}</span>
+        <span>{format(max)}</span>
       </div>
     </div>
   );
@@ -435,7 +429,7 @@ export default function DesignShopCatalogPage() {
     patterns: [],
     seasons: [],
     tags: [],
-    minPrice: 0,
+    minPrice: PRICE_MIN,
     maxPrice: PRICE_MAX,
   });
 
@@ -524,11 +518,10 @@ export default function DesignShopCatalogPage() {
   }, []);
 
   const categoryOptions = useMemo(() => {
-    return categories.map((cat, index) => {
+    return categories.map((cat) => {
       return {
         id: cat._id,
         label: getFilterOptionLabel(cat, isAr),
-        color: CATEGORY_COLOR_PALETTE[index % CATEGORY_COLOR_PALETTE.length],
         count: designs.filter((design) => designMatchesCategory(design, cat))
           .length,
       };
@@ -710,7 +703,7 @@ export default function DesignShopCatalogPage() {
 
   const setMinPrice = (value: number) => {
     setFilters((prev) => {
-      const clampedMin = Math.max(0, Math.min(PRICE_MAX, value));
+      const clampedMin = Math.max(PRICE_MIN, Math.min(PRICE_MAX, value));
       const clampedMax = Math.max(
         clampedMin,
         Math.min(PRICE_MAX, prev.maxPrice),
@@ -722,8 +715,11 @@ export default function DesignShopCatalogPage() {
 
   const setMaxPrice = (value: number) => {
     setFilters((prev) => {
-      const clampedMax = Math.max(0, Math.min(PRICE_MAX, value));
-      const clampedMin = Math.min(clampedMax, Math.max(0, prev.minPrice));
+      const clampedMax = Math.max(PRICE_MIN, Math.min(PRICE_MAX, value));
+      const clampedMin = Math.min(
+        clampedMax,
+        Math.max(PRICE_MIN, prev.minPrice),
+      );
       return { ...prev, maxPrice: clampedMax, minPrice: clampedMin };
     });
     setCurrentPage(1);
@@ -736,7 +732,7 @@ export default function DesignShopCatalogPage() {
       patterns: [],
       seasons: [],
       tags: [],
-      minPrice: 0,
+      minPrice: PRICE_MIN,
       maxPrice: PRICE_MAX,
     });
     setCurrentPage(1);
@@ -870,25 +866,10 @@ export default function DesignShopCatalogPage() {
         </CollapsibleFilter>
       )}
 
-      {/* Price Range */}
-      <div className="border-b border-[#E4E0D8] pb-4">
-        <FilterLabel>{isAr ? "نطاق السعر" : "Price Range"}</FilterLabel>
-        <RangeSlider
-          min={0}
-          max={PRICE_MAX}
-          step={100}
-          minValue={filters.minPrice}
-          maxValue={filters.maxPrice}
-          onMinChange={setMinPrice}
-          onMaxChange={setMaxPrice}
-          formatValue={(value) => `AED ${value.toLocaleString()}`}
-        />
-      </div>
-
-      {/* Tags */}
+      {/* Tags - 5th */}
       {tags.length > 0 && (
         <CollapsibleFilter
-          label={isAr ? "التصنيف" : "Tag"}
+          label={isAr ? "الوسم" : "Tag"}
           count={filters.tags.length}
         >
           <div className="flex flex-col gap-2">
@@ -912,6 +893,21 @@ export default function DesignShopCatalogPage() {
           </div>
         </CollapsibleFilter>
       )}
+
+      {/* Price Range - 6th */}
+      <div className="border-b border-[#E4E0D8] pb-4">
+        <FilterLabel>{isAr ? "نطاق السعر" : "Price Range"}</FilterLabel>
+        <RangeSlider
+          min={PRICE_MIN}
+          max={PRICE_MAX}
+          step={PRICE_STEP}
+          minValue={filters.minPrice}
+          maxValue={filters.maxPrice}
+          onMinChange={setMinPrice}
+          onMaxChange={setMaxPrice}
+          formatValue={(value) => `AED ${value.toLocaleString("en-US")}`}
+        />
+      </div>
 
       {/* Clear All */}
       {hasActiveFilters && (
@@ -1132,7 +1128,7 @@ export default function DesignShopCatalogPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              setMinPrice(0);
+                              setMinPrice(PRICE_MIN);
                               setMaxPrice(PRICE_MAX);
                             }}
                             className="hover:opacity-70 flex items-center justify-center cursor-pointer"
