@@ -16,6 +16,7 @@ import { useWishlist } from "@/context/WishlistContext";
 import { useCustomOrder } from "@/context/CustomOrderContext";
 import { buildCustomOrderHrefFromDesign } from "@/lib/customOrder";
 import { Share2, ArrowUpRight, Heart } from "lucide-react";
+import { ProductReviewCount } from "@/components/reviews/CustomerReviewsView";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "hand-embroidered": "#8B6B4D",
@@ -508,14 +509,20 @@ export default function DesignDetailView({
                     />
                   </button>
                 </div>
-                <p className="[font-family:var(--font-ui)] text-xl text-black sm:text-2xl">
-                  {formatDesignBasePrice(
-                    design.basePrice,
-                    locale,
-                    design.priceType,
-                    unit,
-                  )}
-                </p>
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <p className="[font-family:var(--font-ui)] text-xl text-black sm:text-2xl">
+                    {formatDesignBasePrice(
+                      design.basePrice,
+                      locale,
+                      design.priceType,
+                      unit,
+                    )}
+                  </p>
+                  <ProductReviewCount
+                    productId={design._id}
+                    locale={locale}
+                  />
+                </div>
               </motion.div>
 
               {(categoryValue || metersValue) && (

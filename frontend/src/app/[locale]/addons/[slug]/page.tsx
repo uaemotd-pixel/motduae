@@ -19,7 +19,11 @@ import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 import { Tag } from "@/components/ui/Tag";
 import WishlistButton from "@/components/shared/wishlistButton";
 import AddToCartButton from "@/components/shared/addToCartButton";
-import { ProductReviewsSection } from "@/components/reviews/CustomerReviewsView";
+import RelatedProductsCarousel from "@/components/shared/RelatedProductsCarousel";
+import {
+  ProductReviewsSection,
+  ProductReviewCount,
+} from "@/components/reviews/CustomerReviewsView";
 import colorPalette from "@/components/shared/colors";
 
 const getColorHex = (colorName: string): string => {
@@ -168,7 +172,7 @@ function RelatedAddonsSection({
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 xs:gap-4 sm:gap-5 lg:gap-6">
+        <RelatedProductsCarousel isRtl={lang === "ar"}>
           {items.map((item, idx) => {
             const title =
               locale === "ar" ? item.nameAr || item.name : item.name;
@@ -184,18 +188,18 @@ function RelatedAddonsSection({
             return (
               <motion.div
                 key={item._id}
-                initial={{ opacity: 0, y: 18 }}
+                initial={{ opacity: 0, y: 14 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-40px" }}
                 transition={{
-                  duration: 0.45,
-                  delay: Math.min(idx * 0.06, 0.3),
+                  duration: 0.4,
+                  delay: Math.min(idx * 0.05, 0.25),
                 }}
-                className="group"
+                className="group h-full min-w-0"
               >
                 <Link
                   href={hrefPath}
-                  className="block h-full border border-(--color-border) bg-(--bg-page) rounded-lg overflow-hidden transition-all duration-500 hover:shadow-xl hover:-translate-y-1"
+                  className="block h-full overflow-hidden rounded-md border border-(--color-border) bg-(--bg-page) transition-all duration-500 hover:-translate-y-1 hover:shadow-lg sm:rounded-lg"
                 >
                   <div className="relative aspect-4/5 overflow-hidden bg-[#F5F5F0]">
                     <img
@@ -203,15 +207,22 @@ function RelatedAddonsSection({
                       alt={title}
                       loading="lazy"
                       decoding="async"
-                      className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
+                      className="h-full w-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
                     />
                     {tag && (
-                      <Tag elevated truncate className="absolute top-2 left-2 z-10 max-w-[calc(100%-7.5rem)]" style={{
+                      <Tag
+                        elevated
+                        truncate
+                        className="absolute top-1 left-1 z-10 max-w-[calc(100%-1.75rem)] px-1 py-px text-[6px] tracking-[0.08em] xs:top-1.5 xs:left-1.5 xs:text-[7px]"
+                        style={{
                           backgroundColor: tagStyles.bg,
                           color: tagStyles.text,
-                        }}>{tag}</Tag>
+                        }}
+                      >
+                        {tag}
+                      </Tag>
                     )}
-                    <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5">
+                    <div className="absolute top-1 right-1 z-20 flex flex-col items-center gap-0.5 xs:top-1.5 xs:right-1.5 sm:flex-row sm:gap-1">
                       <button
                         type="button"
                         aria-label={locale === "ar" ? "مشاركة" : "Share"}
@@ -220,9 +231,9 @@ function RelatedAddonsSection({
                           e.stopPropagation();
                           await handleShare(hrefPath);
                         }}
-                        className="p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer border-0 flex items-center justify-center w-8 h-8"
+                        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:cursor-pointer hover:scale-105 sm:size-6"
                       >
-                        <Share2 className="w-3.5 h-3.5 text-black" />
+                        <Share2 className="size-2.5 text-black sm:size-3" />
                       </button>
                       <WishlistButton
                         item={{
@@ -237,8 +248,8 @@ function RelatedAddonsSection({
                           maxStock: Number(item.stock) || 0,
                         }}
                         inline
-                        className="p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-sm border-0 flex h-8 w-8 items-center justify-center"
-                        iconClassName="h-3.5 w-3.5"
+                        className="size-5! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm sm:size-6!"
+                        iconClassName="size-2.5! sm:size-3!"
                       />
                       <AddToCartButton
                         item={{
@@ -252,13 +263,13 @@ function RelatedAddonsSection({
                           maxStock: Number(item.stock) || 0,
                         }}
                         inline
-                        className="p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-sm border-0 flex h-8 w-8 items-center justify-center"
-                        iconClassName="h-3.5 w-3.5"
+                        className="size-5! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm sm:size-6!"
+                        iconClassName="size-2.5! sm:size-3!"
                       />
                     </div>
                   </div>
-                  <div className="p-3 xs:p-4">
-                    <h3 className="[font-family:var(--font-display)] text-sm xs:text-base text-black leading-snug line-clamp-2 mb-1.5">
+                  <div className="p-2 xs:p-2.5 sm:p-3">
+                    <h3 className="mb-0.5 line-clamp-2 text-[11px] leading-snug text-black [font-family:var(--font-display)] xs:text-[12px] sm:text-[13px]">
                       {title}
                     </h3>
                     {(() => {
@@ -276,13 +287,13 @@ function RelatedAddonsSection({
                           ? ""
                           : fallback);
                       return storeName ? (
-                        <p className="mb-1 [font-family:var(--font-ui)] text-[8px] uppercase tracking-[0.18em] text-(--color-grey-muted) truncate xs:text-[9px]">
+                        <p className="mb-0.5 truncate text-[7px] uppercase tracking-[0.14em] text-(--color-grey-muted) [font-family:var(--font-ui)] xs:text-[8px]">
                           {lang === "ar" ? "المتجر: " : "Store: "}
                           {storeName}
                         </p>
                       ) : null;
                     })()}
-                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-(--color-grey-muted)">
+                    <p className="text-[8px] uppercase tracking-[0.12em] text-(--color-grey-muted) [font-family:var(--font-ui)] xs:text-[9px]">
                       {formatCurrency(price, lang)}
                     </p>
                   </div>
@@ -290,7 +301,7 @@ function RelatedAddonsSection({
               </motion.div>
             );
           })}
-        </div>
+        </RelatedProductsCarousel>
       </div>
     </section>
   );
@@ -608,10 +619,14 @@ function AddonDetailContent({
                   </button>
                 </div>
 
-                <div className="border-b border-(--color-border) pb-4 mb-4">
+                <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-(--color-border) pb-4 sm:gap-3">
                   <p className="[font-family:var(--font-ui)] text-[20px] xs:text-[24px] sm:text-[28px] tracking-[0.24em] text-black">
                     {price.toFixed(2)} {isAr ? "د.إ" : "AED"}
                   </p>
+                  <ProductReviewCount
+                    productId={addon._id}
+                    locale={locale}
+                  />
                 </div>
 
                 {(category || material) && (

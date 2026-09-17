@@ -15,6 +15,7 @@ import FadeInSection from "@/components/shared/fadeInSection";
 import { Link } from "@/i18n/navigation";
 import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 import WishlistButton from "@/components/shared/wishlistButton";
+import RelatedProductsCarousel from "@/components/shared/RelatedProductsCarousel";
 import {
   formatDesignBasePrice,
   getDesignDisplayFields,
@@ -118,7 +119,7 @@ function RelatedDesignsSection({
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5 xs:gap-4 sm:gap-5 md:grid-cols-3 lg:grid-cols-4 lg:gap-6">
+        <RelatedProductsCarousel isRtl={locale === "ar"}>
           {items.map((item, idx) => {
             const { name, category } = getDesignDisplayFields(item, locale);
             const image = resolveDesignImage(item.images?.[0]);
@@ -139,18 +140,18 @@ function RelatedDesignsSection({
             return (
               <motion.div
                 key={item._id}
-                initial={{ opacity: 0, y: 18 }}
+                initial={{ opacity: 0, y: 14 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-40px" }}
                 transition={{
-                  duration: 0.45,
-                  delay: Math.min(idx * 0.06, 0.3),
+                  duration: 0.4,
+                  delay: Math.min(idx * 0.05, 0.25),
                 }}
-                className="group min-w-0"
+                className="group h-full min-w-0"
               >
                 <Link
                   href={hrefPath}
-                  className="block h-full overflow-hidden rounded-md border border-(--color-border) bg-(--bg-page) transition-all duration-500 sm:rounded-lg md:hover:-translate-y-1 md:hover:shadow-xl"
+                  className="block h-full overflow-hidden rounded-md border border-(--color-border) bg-(--bg-page) transition-all duration-500 sm:rounded-lg md:hover:-translate-y-1 md:hover:shadow-lg"
                 >
                   <div className="relative aspect-4/5 overflow-hidden bg-[#F5F5F0]">
                     <img
@@ -162,13 +163,13 @@ function RelatedDesignsSection({
                     />
                     {category && (
                       <div
-                        className="absolute top-1.5 inset-s-1.5 z-10 max-w-[calc(100%-4.25rem)] truncate px-1 py-px text-[7px] font-medium uppercase tracking-widest text-white [font-family:var(--font-ui)] xs:top-2 xs:inset-s-2 xs:max-w-[calc(100%-5rem)] xs:px-1.5 xs:text-[8px] xs:tracking-[0.12em] sm:max-w-[calc(100%-5.5rem)]"
+                        className="absolute top-1 inset-s-1 z-10 max-w-[calc(100%-1.75rem)] truncate px-1 py-px text-[6px] font-medium uppercase tracking-widest text-white [font-family:var(--font-ui)] xs:top-1.5 xs:inset-s-1.5 xs:text-[7px]"
                         style={{ backgroundColor: categoryColor }}
                       >
                         {category}
                       </div>
                     )}
-                    <div className="absolute top-1.5 inset-e-1.5 z-20 flex items-center gap-1 xs:top-2 xs:inset-e-2 xs:gap-1.5">
+                    <div className="absolute top-1 inset-e-1 z-20 flex flex-col items-center gap-0.5 xs:top-1.5 xs:inset-e-1.5 sm:flex-row sm:gap-1">
                       <button
                         type="button"
                         aria-label={locale === "ar" ? "مشاركة" : "Share"}
@@ -177,10 +178,10 @@ function RelatedDesignsSection({
                           e.stopPropagation();
                           await handleShare(hrefPath);
                         }}
-                        className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:cursor-pointer xs:size-8 sm:hover:scale-105"
+                        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:cursor-pointer sm:size-6 sm:hover:scale-105"
                       >
                         <Share2
-                          className="size-3 text-black xs:size-3.5"
+                          className="size-2.5 text-black sm:size-3"
                           strokeWidth={1.75}
                           aria-hidden
                         />
@@ -197,20 +198,20 @@ function RelatedDesignsSection({
                           type: "design",
                         }}
                         inline
-                        className="size-7! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-8!"
-                        iconClassName="size-3! xs:size-3.5!"
+                        className="size-5! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm sm:size-6!"
+                        iconClassName="size-2.5! sm:size-3!"
                       />
                     </div>
                   </div>
-                  <div className="p-2.5 xs:p-3 sm:p-4">
-                    <h3 className="mb-1 line-clamp-2 text-[13px] leading-snug text-black [font-family:var(--font-display)] xs:mb-1.5 xs:text-sm sm:text-base">
+                  <div className="p-2 xs:p-2.5 sm:p-3">
+                    <h3 className="mb-0.5 line-clamp-2 text-[11px] leading-snug text-black [font-family:var(--font-display)] xs:text-[12px] sm:text-[13px]">
                       {name}
                     </h3>
-                    <p className="mb-0.5 text-[9px] uppercase tracking-[0.14em] text-(--color-grey-muted) [font-family:var(--font-ui)] xs:mb-1 xs:text-[10px] xs:tracking-[0.16em]">
+                    <p className="mb-0.5 text-[8px] uppercase tracking-[0.12em] text-(--color-grey-muted) [font-family:var(--font-ui)] xs:text-[9px]">
                       {priceText}
                     </p>
                     {tailorName ? (
-                      <p className="line-clamp-1 text-[10px] text-(--color-grey-muted) [font-family:var(--font-body)] xs:text-[11px]">
+                      <p className="line-clamp-1 text-[9px] text-(--color-grey-muted) [font-family:var(--font-body)] xs:text-[10px]">
                         {tailorName}
                       </p>
                     ) : null}
@@ -219,7 +220,7 @@ function RelatedDesignsSection({
               </motion.div>
             );
           })}
-        </div>
+        </RelatedProductsCarousel>
       </div>
     </section>
   );
@@ -339,6 +340,16 @@ export default function DesignDetailPage() {
         />
       </FadeInSection>
 
+      <RelatedDesignsSection
+        items={related}
+        locale={locale}
+        labels={{
+          relatedEyebrow: t("relatedEyebrow"),
+          relatedTitle: t("relatedTitle"),
+          relatedExplore: t("relatedExplore"),
+        }}
+      />
+
       <ProductReviewsSection
         productId={String(design._id)}
         locale={locale}
@@ -349,16 +360,6 @@ export default function DesignDetailPage() {
           averageLabel: t.raw("reviewsAverage"),
           countLabel: t.raw("reviewsCount"),
           verifiedLabel: t("verifiedPurchase"),
-        }}
-      />
-
-      <RelatedDesignsSection
-        items={related}
-        locale={locale}
-        labels={{
-          relatedEyebrow: t("relatedEyebrow"),
-          relatedTitle: t("relatedTitle"),
-          relatedExplore: t("relatedExplore"),
         }}
       />
     </MainLayout>
