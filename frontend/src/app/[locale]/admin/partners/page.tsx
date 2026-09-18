@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
 import { Link } from "@/i18n/navigation";
@@ -209,9 +209,27 @@ function PartnerFormModal({
   );
 }
 
-export default function AdminPartnersPage() {
+function AdminPartnersContent() {
   const params = useParams();
-  const localeParam = params.locale as string;
+  const searchParams = useSearchParams();
+  const localeParam = (params?.locale as string) || "en";
+
+  const urlTab = searchParams.get("tab") || searchParams.get("status");
+  const highlightId =
+    searchParams.get("highlight") ||
+    searchParams.get("id") ||
+    searchParams.get("partnerId") ||
+    "";
+
+  const initialTab: "all" | "approved" | "pending" | "rejected" =
+    urlTab === "pending" ||
+    urlTab === "approved" ||
+    urlTab === "rejected" ||
+    urlTab === "all"
+      ? urlTab
+      : highlightId
+        ? "pending"
+        : "all";
 
   const [rows, setRows] = useState<FabricRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -219,7 +237,7 @@ export default function AdminPartnersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<
     "all" | "approved" | "pending" | "rejected"
-  >("all");
+  >(initialTab);
   const [approvedStatusTab, setApprovedStatusTab] = useState<
     "all" | "active" | "inactive"
   >("all");
@@ -324,7 +342,18 @@ export default function AdminPartnersPage() {
           `/api/admin/partners?page=${page}&limit=${l}${search}${tabFilter}${statusFilter}`,
         );
 
-        setRows(res.items || []);
+        let items = res.items || [];
+        if (highlightId) {
+          const matchIndex = items.findIndex(
+            (r) => r.id === highlightId || (r as any).ownerId?._id === highlightId,
+          );
+          if (matchIndex > -1) {
+            const matched = items[matchIndex];
+            items = [matched, ...items.filter((_, idx) => idx !== matchIndex)];
+          }
+        }
+
+        setRows(items);
         setTotalItems(res.total || 0);
         setCurrentPage(res.page || 1);
         setTotalPages(res.totalPages || 0);
@@ -354,16 +383,39 @@ export default function AdminPartnersPage() {
         }
       }
     },
-    [searchTerm, activeTab, approvedStatusTab, limit],
+    [searchTerm, activeTab, approvedStatusTab, limit, highlightId],
   );
 
   // Initial load - runs once
   useEffect(() => {
-    void fetchData(1).finally(() => {
+    void fetchData(1, undefined, initialTab).finally(() => {
       isInitialLoad.current = false;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Sync tab with URL if changed
+  useEffect(() => {
+    if (
+      urlTab &&
+      (urlTab === "pending" ||
+        urlTab === "approved" ||
+        urlTab === "rejected" ||
+        urlTab === "all")
+    ) {
+      setActiveTab(urlTab);
+      setCurrentPage(1);
+    }
+  }, [urlTab]);
+
+  const highlightedPartner = useMemo(() => {
+    if (!highlightId || rows.length === 0) return null;
+    return (
+      rows.find(
+        (r) => r.id === highlightId || (r as any).ownerId?._id === highlightId,
+      ) || null
+    );
+  }, [highlightId, rows]);
 
   // Debounced search - only searchTerm triggers
   useEffect(() => {
@@ -691,6 +743,43 @@ export default function AdminPartnersPage() {
         </div>
       </div>
 
+      {/* Action Required Banner for Notification Deep Link */}
+      {highlightedPartner && (
+        <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
+              <AlertCircle className="w-5 h-5 text-amber-700 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-sm font-semibold text-amber-950">
+                  {localeParam === "ar"
+                    ? "مطلوب اتخاذ إجراء: مراجعة طلب متجر الأقمشة"
+                    : "Action Required: Review Fabric Store Registration"}
+                </h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-200 text-amber-900 border border-amber-300">
+                  {localeParam === "ar" ? "جديد" : "New"}
+                </span>
+              </div>
+              <p className="text-xs text-amber-800 mt-0.5">
+                {localeParam === "ar"
+                  ? `قام متجر الأقمشة (${highlightedPartner.name || highlightedPartner.email}) بالتسجيل ويتطلب مراجعة الطلب للاعتماد أو الرفض.`
+                  : `Newly registered fabric store (${highlightedPartner.name || highlightedPartner.email}) is awaiting your review to approve or reject.`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href={`/admin/partners/${highlightedPartner.id}/application`}
+              className="px-4 py-2 bg-black text-white text-xs font-medium rounded-xl hover:bg-black/85 transition inline-flex items-center gap-2 shadow-sm hover:cursor-pointer"
+            >
+              <Eye className="w-4 h-4" />
+              <span>{localeParam === "ar" ? "مراجعة الطلب الآن" : "Review Application Now"}</span>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Stats cards - 2 per row on mobile */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
@@ -826,50 +915,91 @@ export default function AdminPartnersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {filteredRows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="hover:bg-gray-50 transition-all duration-200"
-                    >
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          {getAvatar(row)}
-                          <span className="text-xs sm:text-sm font-medium text-black">
-                            {row.name}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                        <div>{row.email}</div>
-                        {row.requestNumber ? (
-                          <div className="text-xs text-gray-400 mt-0.5">
-                            {row.requestNumber}
+                  {filteredRows.map((row) => {
+                    const isHighlighted = Boolean(
+                      highlightId &&
+                        (row.id === highlightId ||
+                          (row as any).ownerId?._id === highlightId),
+                    );
+
+                    return (
+                      <tr
+                        key={row.id}
+                        id={`partner-${row.id}`}
+                        className={`transition-all duration-200 ${
+                          isHighlighted
+                            ? "bg-amber-50/70 hover:bg-amber-100/50 border-l-4 border-l-amber-500 ring-1 ring-amber-200 shadow-xs"
+                            : "hover:bg-gray-50"
+                        }`}
+                      >
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            {getAvatar(row)}
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs sm:text-sm font-medium text-black">
+                                  {row.name}
+                                </span>
+                                {isHighlighted && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-200/90 text-amber-900 border border-amber-300">
+                                    <AlertCircle className="w-3 h-3 text-amber-700 animate-pulse" />
+                                    {localeParam === "ar" ? "مطلوب اتخاذ إجراء" : "Action Required"}
+                                  </span>
+                                )}
+                              </div>
+                              {isHighlighted && (
+                                <p className="text-[11px] text-amber-800 mt-0.5 font-medium">
+                                  {localeParam === "ar"
+                                    ? "طلب تسجيل متجر أقمشة جديد بانتظار المراجعة"
+                                    : "Newly registered fabric store awaiting review"}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        ) : null}
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm capitalize text-gray-600">
-                        {row.type}
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                        {row.shopName || "—"}
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
-                        {formatDate(row.createdAt)}
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                        {getStatusBadge(row)}
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right">
-                        <button
-                          onClick={(e) => handleMenuOpen(e, row)}
-                          className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
-                          title="Actions"
-                        >
-                          <MoreVertical className="w-5 h-5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
+                          <div>{row.email}</div>
+                          {row.requestNumber ? (
+                            <div className="text-xs text-gray-400 mt-0.5">
+                              {row.requestNumber}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm capitalize text-gray-600">
+                          {row.type}
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
+                          {row.shopName || "—"}
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                          {formatDate(row.createdAt)}
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                          {getStatusBadge(row)}
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {isHighlighted && (
+                              <Link
+                                href={`/admin/partners/${row.id}/application`}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-black/85 transition shadow-sm hover:cursor-pointer"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>{localeParam === "ar" ? "مراجعة الطلب" : "Review Application"}</span>
+                              </Link>
+                            )}
+                            <button
+                              onClick={(e) => handleMenuOpen(e, row)}
+                              className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
+                              title="Actions"
+                            >
+                              <MoreVertical className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1096,5 +1226,13 @@ export default function AdminPartnersPage() {
         onClose={() => setImageModalOpen(false)}
       />
     </div>
+  );
+}
+
+export default function AdminPartnersPage() {
+  return (
+    <Suspense fallback={<TableSkeleton rows={8} />}>
+      <AdminPartnersContent />
+    </Suspense>
   );
 }
