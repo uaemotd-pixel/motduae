@@ -79,6 +79,10 @@ interface ApiResponse {
   total: number;
   page: number;
   totalPages: number;
+  stats?: {
+    active: number;
+    inactive: number;
+  };
 }
 
 type FabricStatusFilter = "all" | "available" | "sold" | "low";
@@ -214,6 +218,7 @@ export default function AdminFabricsPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
+  const [stats, setStats] = useState({ active: 0, inactive: 0 });
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -298,12 +303,17 @@ export default function AdminFabricsPage() {
         setTotalItems(res.total || 0);
         setCurrentPage(res.page || 1);
         setTotalPages(res.totalPages || 0);
+        setStats({
+          active: res.stats?.active || 0,
+          inactive: res.stats?.inactive || 0,
+        });
         setError(null);
       } catch (err: unknown) {
         setError(getApiErrorMessage(err, t.adminFabrics.list.load_error_title));
         setItems([]);
         setTotalItems(0);
         setTotalPages(0);
+        setStats({ active: 0, inactive: 0 });
       } finally {
         setLoading(false);
       }
@@ -405,8 +415,8 @@ export default function AdminFabricsPage() {
     fetchItems(1, newLimit);
   };
 
-  const activeCount = items.filter((i) => i.isActive).length;
-  const inactiveCount = items.filter((i) => !i.isActive).length;
+  const activeCount = stats.active;
+  const inactiveCount = stats.inactive;
   const cutsCellProps = {
     locale: localeParam,
     stockLabel: t.adminFabrics.list.stock_label,

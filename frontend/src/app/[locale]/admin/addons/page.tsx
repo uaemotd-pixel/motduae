@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { api, getApiErrorMessage } from "@/lib/api/client";
@@ -41,6 +41,10 @@ interface ApiResponse {
   total: number;
   page: number;
   totalPages: number;
+  stats?: {
+    active: number;
+    inactive: number;
+  };
 }
 
 const formatAED = (value: number) =>
@@ -74,6 +78,7 @@ export default function AdminAddOnsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
+  const [stats, setStats] = useState({ active: 0, inactive: 0 });
 
   const [modalOpen, setModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<AddOnItem | null>(null);
@@ -154,12 +159,17 @@ export default function AdminAddOnsPage() {
         setTotalItems(data.total || 0);
         setCurrentPage(data.page || 1);
         setTotalPages(data.totalPages || 1);
+        setStats({
+          active: data.stats?.active || 0,
+          inactive: data.stats?.inactive || 0,
+        });
       } catch (err: any) {
         console.error("Failed to load addons:", err);
         setError(getApiErrorMessage(err, "Failed to load addons"));
         setItems([]);
         setTotalItems(0);
         setTotalPages(1);
+        setStats({ active: 0, inactive: 0 });
       } finally {
         setLoading(false);
       }
@@ -196,6 +206,19 @@ export default function AdminAddOnsPage() {
           item._id === id ? { ...item, isActive: data.isActive } : item,
         ),
       );
+      setStats((prev) => {
+        if (data.isActive === currentStatus) return prev;
+        if (data.isActive) {
+          return {
+            active: prev.active + 1,
+            inactive: Math.max(0, prev.inactive - 1),
+          };
+        }
+        return {
+          active: Math.max(0, prev.active - 1),
+          inactive: prev.inactive + 1,
+        };
+      });
       toast.success(
         `Add-on ${data.isActive ? "activated" : "deactivated"} successfully`,
       );
@@ -243,14 +266,8 @@ export default function AdminAddOnsPage() {
     fetchItems(1, newLimit);
   };
 
-  const activeCount = useMemo(
-    () => items.filter((i) => i.isActive).length,
-    [items],
-  );
-  const inactiveCount = useMemo(
-    () => items.filter((i) => !i.isActive).length,
-    [items],
-  );
+  const activeCount = stats.active;
+  const inactiveCount = stats.inactive;
 
   const isLowStock = (stock: number) => stock > 0 && stock <= 5;
 

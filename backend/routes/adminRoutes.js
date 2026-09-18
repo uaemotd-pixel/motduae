@@ -1438,13 +1438,27 @@ adminRouter.get(
     const status = req.query.status || "";
     const isLowStock = status === "low";
 
-    const filter = {
+    const baseFilter = {
       $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
     };
 
     if (req.query.listedByStore) {
-      filter.listedByStore = req.query.listedByStore;
+      baseFilter.listedByStore = req.query.listedByStore;
     }
+
+    if (search) {
+      baseFilter.$and = [
+        {
+          $or: [
+            { name: { $regex: search, $options: "i" } },
+            { material: { $regex: search, $options: "i" } },
+            { city: { $regex: search, $options: "i" } },
+          ],
+        },
+      ];
+    }
+
+    const filter = { ...baseFilter };
 
     if (isLowStock) {
       const parentIds = await findLowStockFabricParentIds(
@@ -1459,25 +1473,15 @@ adminRouter.get(
       filter.isActive = false;
     }
 
-    if (search) {
-      filter.$and = [
-        {
-          $or: [
-            { name: { $regex: search, $options: "i" } },
-            { material: { $regex: search, $options: "i" } },
-            { city: { $regex: search, $options: "i" } },
-          ],
-        },
-      ];
-    }
-
-    const [fabrics, total] = await Promise.all([
+    const [fabrics, total, active, inactive] = await Promise.all([
       Fabric.find(filter)
         .populate("listedByStore", "name email")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
       Fabric.countDocuments(filter),
+      Fabric.countDocuments({ ...baseFilter, isActive: true }),
+      Fabric.countDocuments({ ...baseFilter, isActive: { $ne: true } }),
     ]);
 
     const fabricsWithVariants = await Promise.all(
@@ -1503,6 +1507,10 @@ adminRouter.get(
       total,
       page,
       totalPages: Math.ceil(total / limit) || 0,
+      stats: {
+        active,
+        inactive,
+      },
     });
   }),
 );
@@ -2443,16 +2451,6 @@ adminRouter.get(
       filter._id = String(orderId);
     }
 
-    if (!filter._id && status) {
-      if (!RETAIL_ORDER_STATUSES.includes(status)) {
-        res.status(400).send({
-          message: `Invalid status. Allowed values: ${RETAIL_ORDER_STATUSES.join(", ")}`,
-        });
-        return;
-      }
-      filter.status = status;
-    }
-
     if (!filter._id && (from || to)) {
       const parsed = applyCreatedAtFilter(from, to);
       if (parsed.error) {
@@ -2493,13 +2491,27 @@ adminRouter.get(
     // Admin sees all retail orders: fabric-store and platform ready-made,
     // add-ons, and fabric-by-meter. Do not scope to MOTD Admin–owned IDs only —
     // that hid fabric-shop ready-made / add-on checkouts.
-    const [orders, total] = await Promise.all([
-      RetailOrder.find(filter)
+    const listFilter = { ...filter };
+    if (!listFilter._id && status) {
+      if (!RETAIL_ORDER_STATUSES.includes(status)) {
+        res.status(400).send({
+          message: `Invalid status. Allowed values: ${RETAIL_ORDER_STATUSES.join(", ")}`,
+        });
+        return;
+      }
+      listFilter.status = status;
+    }
+
+    const [orders, total, pending, shipped, delivered] = await Promise.all([
+      RetailOrder.find(listFilter)
         .populate("userId", "name email phone")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum),
-      RetailOrder.countDocuments(filter),
+      RetailOrder.countDocuments(listFilter),
+      RetailOrder.countDocuments({ ...filter, status: "pending" }),
+      RetailOrder.countDocuments({ ...filter, status: "shipped" }),
+      RetailOrder.countDocuments({ ...filter, status: "delivered" }),
     ]);
 
     const hydrated = await hydrateRetailOrders(orders);
@@ -2509,6 +2521,11 @@ adminRouter.get(
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum),
+      stats: {
+        pending,
+        shipped,
+        delivered,
+      },
     });
   }),
 );
@@ -3853,13 +3870,15 @@ adminRouter.get(
       filter.$or = [{ name: regex }, { nameAr: regex }, { slug: regex }];
     }
 
-    const [addons, total] = await Promise.all([
+    const [addons, total, active, inactive] = await Promise.all([
       AddOn.find(filter)
         .populate("fabricShopId", "name nameAr")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
       AddOn.countDocuments(filter),
+      AddOn.countDocuments({ ...filter, isActive: true }),
+      AddOn.countDocuments({ ...filter, isActive: { $ne: true } }),
     ]);
 
     res.send({
@@ -3867,6 +3886,10 @@ adminRouter.get(
       total,
       page,
       totalPages: Math.ceil(total / limit),
+      stats: {
+        active,
+        inactive,
+      },
     });
   }),
 );
