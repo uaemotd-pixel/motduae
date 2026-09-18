@@ -17,6 +17,7 @@ import {
   type FabricShopProfile,
 } from "@/lib/fabricShop";
 import { isShopProfileComplete } from "@/lib/shopProfile";
+import { replaceClientSearchParam } from "@/lib/replaceClientSearchParam";
 import { isLowStockQty } from "@/lib/lowStock";
 import { LowStockBadge } from "@/components/shared/LowStockBadge";
 import { useParams, useSearchParams } from "next/navigation";
@@ -294,12 +295,9 @@ export default function FabricDesignsList() {
   }, [searchParams]);
 
   const applyStockFilter = (next: "all" | "low") => {
+    if (next === stockFilter) return;
     setStockFilter(next);
-    if (next === "low") {
-      router.replace("/fabric/fabrics?stock=low");
-    } else if (searchParams.get("stock") === "low") {
-      router.replace("/fabric/fabrics");
-    }
+    replaceClientSearchParam("stock", next === "low" ? "low" : null);
   };
 
   const cutsCellProps = {

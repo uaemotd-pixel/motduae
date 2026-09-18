@@ -31,6 +31,7 @@ import {
 } from "@/components/partner/CommissionFinalPriceField";
 import { fetchOwnFabricShop, type FabricShopProfile } from "@/lib/fabricShop";
 import { isShopProfileComplete } from "@/lib/shopProfile";
+import { replaceClientSearchParam } from "@/lib/replaceClientSearchParam";
 
 interface AddOnItem {
   _id: string;
@@ -115,9 +116,9 @@ export default function FabricAddOnsPage() {
   }, [menuPosition]);
 
   const fetchItems = useCallback(
-    async (page = 1, limitOverride?: number) => {
+    async (page = 1, limitOverride?: number, showLoading = true) => {
       try {
-        setLoading(true);
+        if (showLoading) setLoading(true);
         setError(null);
         setShopMissing(false);
         const l = limitOverride || limit;
@@ -151,11 +152,13 @@ export default function FabricAddOnsPage() {
         setTotalItems(0);
         setTotalPages(0);
       } finally {
-        setLoading(false);
+        if (showLoading) setLoading(false);
       }
     },
     [limit, searchTerm, stockFilter],
   );
+
+  const isInitialLoad = useRef(true);
 
   const handleAddClick = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
@@ -168,11 +171,17 @@ export default function FabricAddOnsPage() {
   };
 
   useEffect(() => {
+    if (isInitialLoad.current) {
+      void fetchItems(1).finally(() => {
+        isInitialLoad.current = false;
+      });
+      return;
+    }
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
     searchTimeoutRef.current = setTimeout(() => {
-      fetchItems(1);
+      fetchItems(1, undefined, false);
     }, 300);
     return () => {
       if (searchTimeoutRef.current) {
@@ -186,12 +195,9 @@ export default function FabricAddOnsPage() {
   }, [searchParams]);
 
   const applyStockFilter = (next: "all" | "low") => {
+    if (next === stockFilter) return;
     setStockFilter(next);
-    if (next === "low") {
-      router.replace("/fabric/addons?stock=low");
-    } else if (searchParams.get("stock") === "low") {
-      router.replace("/fabric/addons");
-    }
+    replaceClientSearchParam("stock", next === "low" ? "low" : null);
   };
 
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
@@ -474,7 +480,7 @@ export default function FabricAddOnsPage() {
       )}
 
       {/* Table / List */}
-      {loading ? (
+      {loading && items.length === 0 ? (
         <TableSkeleton rows={6} cols={5} className="rounded-2xl" />
       ) : items.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl py-16 px-4 text-center shadow-sm">
