@@ -1430,6 +1430,65 @@ async function prepareFabricCutsInput(cutsInput) {
   return { ok: true, cuts: normalized.cuts };
 }
 
+async function adminFabricSearchClause(search) {
+  const term = String(search || "").trim();
+  if (!term) return null;
+
+  const rx = { $regex: escapeRegex(term), $options: "i" };
+  const or = [
+    { name: rx },
+    { nameAr: rx },
+    { material: rx },
+    { materialAr: rx },
+    { "storePickupAddress.city": rx },
+    { "storePickupAddress.emirate": rx },
+  ];
+
+  const lowered = term.toLowerCase();
+  const emirateValues = UAE_EMIRATES.filter(
+    (entry) =>
+      entry.value.toLowerCase().includes(lowered) ||
+      entry.en.toLowerCase().includes(lowered) ||
+      entry.ar.includes(term),
+  ).map((entry) => entry.value);
+  if (emirateValues.length > 0) {
+    or.push({ "storePickupAddress.emirate": { $in: emirateValues } });
+  }
+
+  const [storeUsers, shops] = await Promise.all([
+    User.find({
+      role: "fabric_store",
+      $or: [{ name: rx }, { email: rx }],
+    })
+      .select("_id")
+      .lean(),
+    FabricShop.find({
+      $or: [{ name: rx }, { nameAr: rx }],
+    })
+      .select("_id ownerId")
+      .lean(),
+  ]);
+
+  const storeIds = [
+    ...new Set(
+      [
+        ...storeUsers.map((user) => String(user._id)),
+        ...shops.map((shop) => (shop.ownerId ? String(shop.ownerId) : "")),
+      ].filter(Boolean),
+    ),
+  ].map((id) => new mongoose.Types.ObjectId(id));
+  const shopIds = shops.map((shop) => shop._id).filter(Boolean);
+
+  if (storeIds.length > 0) {
+    or.push({ listedByStore: { $in: storeIds } });
+  }
+  if (shopIds.length > 0) {
+    or.push({ fabricShopId: { $in: shopIds } });
+  }
+
+  return { $or: or };
+}
+
 // GET /api/admin/fabrics
 // Admin can view all fabrics in the catalog (including inactive)
 // Supports ?page=1&limit=10&search=...&status=available|sold|low
@@ -1452,16 +1511,9 @@ adminRouter.get(
       baseFilter.listedByStore = req.query.listedByStore;
     }
 
-    if (search) {
-      baseFilter.$and = [
-        {
-          $or: [
-            { name: { $regex: search, $options: "i" } },
-            { material: { $regex: search, $options: "i" } },
-            { city: { $regex: search, $options: "i" } },
-          ],
-        },
-      ];
+    const searchClause = await adminFabricSearchClause(search);
+    if (searchClause) {
+      baseFilter.$and = [searchClause];
     }
 
     const filter = { ...baseFilter };
