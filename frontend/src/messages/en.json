@@ -679,6 +679,7 @@
     "submitError": "Could not submit your application.",
     "incomplete": "Please complete the required fields",
     "requiredField": "This field is required",
+    "fieldRequired": "{field} is required.",
     "submitNeedsFields": "Fill every required field and confirm to submit",
     "addSocial": "Add social media",
     "removeSocial": "Remove",
@@ -700,7 +701,7 @@
     "fields": {
       "businessName": "Business name",
       "businessNameAr": "Business name (Arabic)",
-      "phone": "Phone",
+      "phone": "Phone Number",
       "city": "City",
       "location": "Address / area",
       "about": "About",
@@ -736,6 +737,7 @@
       "other": "Other"
     },
     "validation": {
+      "phoneInvalid": "Enter 9 digits after +971.",
       "websiteInvalid": "Enter a valid website URL (https://…).",
       "socialPlatformRequired": "Select a social platform.",
       "socialPlatformInvalid": "Select a supported social platform.",
