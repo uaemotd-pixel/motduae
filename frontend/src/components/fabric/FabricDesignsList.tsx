@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useMemo, Fragment } from "react";
+import { useCallback, useEffect, useState, useRef, Fragment } from "react";
 import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { ImageModal } from "../shared/ImageModal";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 import {
   PartnerListingPrice,
   useFabricStoreCommission,
@@ -199,36 +200,62 @@ export default function FabricDesignsList() {
   const [stockFilter, setStockFilter] = useState<"all" | "low">(
     searchParams.get("stock") === "low" ? "low" : "all",
   );
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
+  const [stats, setStats] = useState({ active: 0, inactive: 0 });
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [modalImage, setModalImage] = useState<{
     url: string;
     name: string;
   } | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitialLoad = useRef(true);
 
-  const loadFabrics = useCallback(async () => {
-    setLoading(true);
-    setShopMissing(false);
+  const loadFabrics = useCallback(
+    async (page = 1, limitOverride?: number, showLoading = true) => {
+      if (showLoading) setLoading(true);
+      setShopMissing(false);
 
-    try {
-      const [items, shopData] = await Promise.all([
-        fetchFabricItems(),
-        fetchOwnFabricShop().catch(() => null),
-      ]);
-      setFabrics(items);
-      setShop(shopData);
-    } catch (err: unknown) {
-      if (isShopMissingError(err)) {
-        setShopMissing(true);
-      } else {
-        toast.error(
-          getApiErrorMessage(err, t("errors.loadFailed")),
-          ERROR_TOAST,
-        );
+      try {
+        const l = limitOverride || limit;
+        const [data, shopData] = await Promise.all([
+          fetchFabricItems({
+            page,
+            limit: l,
+            search: searchTerm,
+            stock: stockFilter,
+          }),
+          fetchOwnFabricShop().catch(() => null),
+        ]);
+        setFabrics(data.items ?? []);
+        setTotalItems(data.total || 0);
+        setCurrentPage(data.page || 1);
+        setTotalPages(data.totalPages || 0);
+        setStats({
+          active: data.stats?.active || 0,
+          inactive: data.stats?.inactive || 0,
+        });
+        setShop(shopData);
+      } catch (err: unknown) {
+        if (isShopMissingError(err)) {
+          setShopMissing(true);
+        } else {
+          toast.error(
+            getApiErrorMessage(err, t("errors.loadFailed")),
+            ERROR_TOAST,
+          );
+        }
+        setFabrics([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        if (showLoading) setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+    },
+    [limit, searchTerm, stockFilter, t],
+  );
 
   const handleAddFabricClick = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
@@ -241,7 +268,24 @@ export default function FabricDesignsList() {
   };
 
   useEffect(() => {
-    loadFabrics();
+    if (isInitialLoad.current) {
+      void loadFabrics(1).finally(() => {
+        isInitialLoad.current = false;
+      });
+      return;
+    }
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      loadFabrics(1, undefined, fabrics.length === 0);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadFabrics]);
 
   useEffect(() => {
@@ -285,18 +329,11 @@ export default function FabricDesignsList() {
     setDeletingId(fabric._id);
     try {
       await deleteFabricItem(fabric._id);
-      setFabrics((prev) =>
-        prev
-          .filter((item) => item._id !== fabric._id)
-          .map((item) => ({
-            ...item,
-            variants: item.variants?.filter(
-              (variant) => variant._id !== fabric._id,
-            ),
-          })),
-      );
       toast.success(t("deleted"), SUCCESS_TOAST);
       setItemToDelete(null);
+      const nextPage =
+        fabrics.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+      await loadFabrics(nextPage, undefined, false);
     } catch (err: unknown) {
       toast.error(
         getApiErrorMessage(err, t("errors.deleteFailed")),
@@ -313,28 +350,10 @@ export default function FabricDesignsList() {
       : itemToDelete.name
     : "";
 
-  const filteredFabrics = useMemo(() => {
-    let list = fabrics;
-    if (stockFilter === "low") {
-      list = list.filter((item) => fabricHasLowStock(item) && item.isActive);
-    }
-    if (!searchTerm) return list;
-    const term = searchTerm.toLowerCase();
-    return list.filter((item) => {
-      const name = (
-        locale === "ar" ? item.nameAr || item.name : item.name
-      ).toLowerCase();
-      const material = (
-        locale === "ar" ? item.materialAr || item.material : item.material
-      ).toLowerCase();
-      return name.includes(term) || material.includes(term);
-    });
-  }, [fabrics, searchTerm, locale, stockFilter]);
-
   useEffect(() => {
     if (stockFilter !== "low") return;
     const next: Record<string, boolean> = {};
-    for (const item of filteredFabrics) {
+    for (const item of fabrics) {
       const variantLow = (item.variants || []).some((variant) =>
         cutsHaveLowStock(variant.cuts as FabricCutRow[] | undefined),
       );
@@ -342,12 +361,9 @@ export default function FabricDesignsList() {
     }
     if (Object.keys(next).length === 0) return;
     setExpandedRows((prev) => ({ ...prev, ...next }));
-  }, [filteredFabrics, stockFilter]);
+  }, [fabrics, stockFilter]);
 
-  const activeCount = fabrics.filter((i) => i.isActive).length;
-  const inactiveCount = fabrics.filter((i) => !i.isActive).length;
-
-  if (loading) {
+  if (loading && fabrics.length === 0) {
     return (
       <div className="max-w-5xl border border-(--color-border) bg-white p-8">
         <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
@@ -425,7 +441,7 @@ export default function FabricDesignsList() {
             {locale === "ar" ? "إجمالي الأقمشة" : "TOTAL FABRICS"}
           </p>
           <p className="text-2xl font-light text-black mt-1 [font-family:var(--font-display)]">
-            {fabrics.length}
+            {totalItems}
           </p>
         </div>
         <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
@@ -433,7 +449,7 @@ export default function FabricDesignsList() {
             {locale === "ar" ? "نشط" : "ACTIVE"}
           </p>
           <p className="text-2xl font-light text-black mt-1 [font-family:var(--font-display)]">
-            {activeCount}
+            {stats.active}
           </p>
         </div>
         <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
@@ -441,7 +457,7 @@ export default function FabricDesignsList() {
             {locale === "ar" ? "غير نشط" : "INACTIVE"}
           </p>
           <p className="text-2xl font-light text-black mt-1 [font-family:var(--font-display)]">
-            {inactiveCount}
+            {stats.inactive}
           </p>
         </div>
       </div>
@@ -488,7 +504,7 @@ export default function FabricDesignsList() {
             />
           </div>
           <button
-            onClick={loadFabrics}
+            onClick={() => loadFabrics(currentPage)}
             className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white [font-family:var(--font-ui)]"
           >
             <RefreshCw className="w-4 h-4" />{" "}
@@ -511,7 +527,7 @@ export default function FabricDesignsList() {
         </div>
       )}
 
-      {filteredFabrics.length === 0 ? (
+      {fabrics.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
           <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500 [font-family:var(--font-body)]">
@@ -536,7 +552,7 @@ export default function FabricDesignsList() {
       ) : (
         <>
           <div className="space-y-3 sm:hidden">
-            {filteredFabrics.map((fabric) => {
+            {fabrics.map((fabric) => {
               const name =
                 locale === "ar" ? fabric.nameAr || fabric.name : fabric.name;
               const materialDisplay =
@@ -652,7 +668,7 @@ export default function FabricDesignsList() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 bg-white">
-                  {filteredFabrics.map((fabric) => {
+                  {fabrics.map((fabric) => {
                     const name =
                       locale === "ar"
                         ? fabric.nameAr || fabric.name
@@ -949,6 +965,22 @@ export default function FabricDesignsList() {
             </div>
           </div>
         </>
+      )}
+
+      {totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={Math.max(1, totalPages)}
+          onPageChange={(page) => loadFabrics(page, undefined, false)}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={(newLimit) => {
+            setLimit(newLimit);
+            loadFabrics(1, newLimit, false);
+          }}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
       )}
 
       {/* Image Modal */}

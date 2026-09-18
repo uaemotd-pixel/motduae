@@ -365,10 +365,12 @@ export async function countLowStockFabricCutRows(
  */
 export async function findLowStockFabricParentIds(
   threshold = LOW_FABRIC_CUT_STOCK_THRESHOLD,
+  extraMatch = {},
 ) {
   const docs = await Fabric.find({
     isActive: true,
     "cuts.stock": { $lte: threshold },
+    ...extraMatch,
   })
     .select("_id isVariantOf")
     .lean();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
@@ -24,6 +24,7 @@ import {
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 import {
   PartnerListingPrice,
   useFabricStoreCommission,
@@ -42,6 +43,17 @@ interface AddOnItem {
   createdAt: string;
 }
 
+interface AddOnListResponse {
+  items: AddOnItem[];
+  total: number;
+  page: number;
+  totalPages: number;
+  stats?: {
+    active: number;
+    inactive: number;
+  };
+}
+
 export default function FabricAddOnsPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -57,6 +69,11 @@ export default function FabricAddOnsPage() {
   const [stockFilter, setStockFilter] = useState<"all" | "low">(
     searchParams.get("stock") === "low" ? "low" : "all",
   );
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
+  const [stats, setStats] = useState({ active: 0, inactive: 0 });
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [menuItem, setMenuItem] = useState<AddOnItem | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
@@ -64,6 +81,7 @@ export default function FabricAddOnsPage() {
     right: number;
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<AddOnItem | null>(null);
@@ -96,28 +114,48 @@ export default function FabricAddOnsPage() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [menuPosition]);
 
-  const fetchItems = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setShopMissing(false);
-      const [data, shopData] = await Promise.all([
-        api.get<AddOnItem[]>("/api/fabric/addons"),
-        fetchOwnFabricShop().catch(() => null),
-      ]);
-      setItems(data || []);
-      setShop(shopData);
-    } catch (err: any) {
-      if (err?.status === 404) {
-        setShopMissing(true);
-      } else {
-        console.error("Failed to load addons:", err.message || err);
-        setError(getApiErrorMessage(err, "Failed to load addons"));
+  const fetchItems = useCallback(
+    async (page = 1, limitOverride?: number) => {
+      try {
+        setLoading(true);
+        setError(null);
+        setShopMissing(false);
+        const l = limitOverride || limit;
+        const query = new URLSearchParams();
+        query.set("page", String(page));
+        query.set("limit", String(l));
+        if (searchTerm.trim()) query.set("search", searchTerm.trim());
+        if (stockFilter === "low") query.set("stock", "low");
+
+        const [data, shopData] = await Promise.all([
+          api.get<AddOnListResponse>(`/api/fabric/addons?${query.toString()}`),
+          fetchOwnFabricShop().catch(() => null),
+        ]);
+        setItems(data.items || []);
+        setTotalItems(data.total || 0);
+        setCurrentPage(data.page || 1);
+        setTotalPages(data.totalPages || 0);
+        setStats({
+          active: data.stats?.active || 0,
+          inactive: data.stats?.inactive || 0,
+        });
+        setShop(shopData);
+      } catch (err: any) {
+        if (err?.status === 404) {
+          setShopMissing(true);
+        } else {
+          console.error("Failed to load addons:", err.message || err);
+          setError(getApiErrorMessage(err, "Failed to load addons"));
+        }
+        setItems([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [limit, searchTerm, stockFilter],
+  );
 
   const handleAddClick = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
@@ -130,8 +168,18 @@ export default function FabricAddOnsPage() {
   };
 
   useEffect(() => {
-    fetchItems();
-  }, []);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchItems(1);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [fetchItems]);
 
   useEffect(() => {
     if (searchParams.get("stock") === "low") setStockFilter("low");
@@ -151,14 +199,10 @@ export default function FabricAddOnsPage() {
       const data = await api.patch<{ success: boolean; isActive: boolean }>(
         `/api/fabric/addons/${id}/toggle-active`,
       );
-      setItems((prev) =>
-        prev.map((item) =>
-          item._id === id ? { ...item, isActive: data.isActive } : item,
-        ),
-      );
       toast.success(
         `Add-on ${data.isActive ? "activated" : "deactivated"} successfully`,
       );
+      await fetchItems(currentPage);
       setMenuPosition(null);
       setMenuItem(null);
     } catch (err: any) {
@@ -185,36 +229,16 @@ export default function FabricAddOnsPage() {
       setDeletingId(id);
       closeDeleteModal();
       await api.delete(`/api/fabric/addons/${id}`);
-      setItems((prev) => prev.filter((item) => item._id !== id));
       toast.success("Add-on deleted successfully");
+      const nextPage =
+        items.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+      await fetchItems(nextPage);
     } catch (err: any) {
       toast.error(getApiErrorMessage(err, "Failed to delete addon"));
     } finally {
       setDeletingId(null);
     }
   };
-
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      if (stockFilter === "low" && !isLowStockQty(item.stock)) return false;
-      const term = searchTerm.toLowerCase();
-      if (!term) return true;
-      return (
-        item.name.toLowerCase().includes(term) ||
-        item.nameAr.toLowerCase().includes(term) ||
-        item._id.toLowerCase().includes(term)
-      );
-    });
-  }, [items, searchTerm, stockFilter]);
-
-  const activeCount = useMemo(
-    () => items.filter((i) => i.isActive).length,
-    [items],
-  );
-  const inactiveCount = useMemo(
-    () => items.filter((i) => !i.isActive).length,
-    [items],
-  );
 
   const getItemImage = (item: AddOnItem) => {
     if (item.thumbnailImage) {
@@ -373,19 +397,19 @@ export default function FabricAddOnsPage() {
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Total Add-Ons
           </p>
-          <p className="text-2xl font-light text-black mt-1">{items.length}</p>
+          <p className="text-2xl font-light text-black mt-1">{totalItems}</p>
         </div>
         <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Active
           </p>
-          <p className="text-2xl font-light text-black mt-1">{activeCount}</p>
+          <p className="text-2xl font-light text-black mt-1">{stats.active}</p>
         </div>
         <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Inactive
           </p>
-          <p className="text-2xl font-light text-black mt-1">{inactiveCount}</p>
+          <p className="text-2xl font-light text-black mt-1">{stats.inactive}</p>
         </div>
       </div>
 
@@ -427,7 +451,7 @@ export default function FabricAddOnsPage() {
             />
           </div>
           <button
-            onClick={fetchItems}
+            onClick={() => fetchItems(currentPage)}
             className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" />
@@ -452,7 +476,7 @@ export default function FabricAddOnsPage() {
       {/* Table / List */}
       {loading ? (
         <TableSkeleton rows={6} cols={5} className="rounded-2xl" />
-      ) : filteredItems.length === 0 ? (
+      ) : items.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-2xl py-16 px-4 text-center shadow-sm">
           <Sparkles
             className="w-12 h-12 text-gray-300 mx-auto mb-3"
@@ -468,7 +492,7 @@ export default function FabricAddOnsPage() {
       ) : (
         <>
           <div className="space-y-3 sm:hidden">
-            {filteredItems.map((item) => {
+            {items.map((item) => {
               const itemLow = isLowStockQty(item.stock);
               return (
                 <div
@@ -542,7 +566,7 @@ export default function FabricAddOnsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredItems.map((item) => {
+                {items.map((item) => {
                   const itemLow = isLowStockQty(item.stock);
                   return (
                   <tr
@@ -629,6 +653,21 @@ export default function FabricAddOnsPage() {
           </div>
         </div>
         </>
+      )}
+      {totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={Math.max(1, totalPages)}
+          onPageChange={(page) => fetchItems(page)}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={(newLimit) => {
+            setLimit(newLimit);
+            fetchItems(1, newLimit);
+          }}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
       )}
       {/* Confirmation Modal for Profile Incomplete */}
       <ConfirmationModal

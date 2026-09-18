@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
@@ -24,6 +24,7 @@ import {
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 import {
   PartnerListingPrice,
@@ -45,6 +46,17 @@ interface ReadyMadeItem {
   images?: string[];
 }
 
+interface ReadyMadeListResponse {
+  items: ReadyMadeItem[];
+  total: number;
+  page: number;
+  totalPages: number;
+  stats?: {
+    available: number;
+    sold: number;
+  };
+}
+
 export default function FabricReadyMadePage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -60,6 +72,11 @@ export default function FabricReadyMadePage() {
   const [stockFilter, setStockFilter] = useState<"all" | "low">(
     searchParams.get("stock") === "low" ? "low" : "all",
   );
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const [limit, setLimit] = useState(10);
+  const [stats, setStats] = useState({ available: 0, sold: 0 });
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [menuItem, setMenuItem] = useState<ReadyMadeItem | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
@@ -67,6 +84,7 @@ export default function FabricReadyMadePage() {
     right: number;
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ReadyMadeItem | null>(null);
@@ -103,9 +121,64 @@ export default function FabricReadyMadePage() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [menuPosition]);
 
+  const fetchItems = useCallback(
+    async (page = 1, limitOverride?: number) => {
+      try {
+        setLoading(true);
+        setShopMissing(false);
+        const l = limitOverride || limit;
+        const query = new URLSearchParams();
+        query.set("page", String(page));
+        query.set("limit", String(l));
+        if (searchTerm.trim()) query.set("search", searchTerm.trim());
+        if (stockFilter === "low") query.set("stock", "low");
+
+        const [data, shopData] = await Promise.all([
+          api.get<ReadyMadeListResponse>(
+            `/api/fabric/ready-made?${query.toString()}`,
+          ),
+          fetchOwnFabricShop().catch(() => null),
+        ]);
+        setItems(data.items || []);
+        setTotalItems(data.total || 0);
+        setCurrentPage(data.page || 1);
+        setTotalPages(data.totalPages || 0);
+        setStats({
+          available: data.stats?.available || 0,
+          sold: data.stats?.sold || 0,
+        });
+        setShop(shopData);
+        setError(null);
+      } catch (err: any) {
+        if (err?.status === 404) {
+          setShopMissing(true);
+        } else {
+          console.error("Failed to fetch ready-made items:", err.message || err);
+          setError(err.message || "Failed to load ready-made items");
+        }
+        setItems([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [limit, searchTerm, stockFilter],
+  );
+
   useEffect(() => {
-    fetchItems();
-  }, []);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchItems(1);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [fetchItems]);
 
   useEffect(() => {
     if (searchParams.get("stock") === "low") setStockFilter("low");
@@ -120,29 +193,6 @@ export default function FabricReadyMadePage() {
     }
   };
 
-  const fetchItems = async () => {
-    try {
-      setLoading(true);
-      setShopMissing(false);
-      const [data, shopData] = await Promise.all([
-        api.get<ReadyMadeItem[]>("/api/fabric/ready-made"),
-        fetchOwnFabricShop().catch(() => null),
-      ]);
-      setItems(data);
-      setShop(shopData);
-      setError(null);
-    } catch (err: any) {
-      if (err?.status === 404) {
-        setShopMissing(true);
-      } else {
-        console.error("Failed to fetch ready-made items:", err.message || err);
-        setError(err.message || "Failed to load ready-made items");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleCreateClick = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
     if (!shop || !isShopProfileComplete(shop)) {
@@ -152,32 +202,6 @@ export default function FabricReadyMadePage() {
     }
     router.push("/fabric/ready-made/new");
   };
-
-  const filteredItems = useMemo(() => {
-    let list = items;
-    if (stockFilter === "low") {
-      list = list.filter((item) => isLowStockQty(item.availableFabricStock));
-    }
-    if (!searchTerm) return list;
-    const term = searchTerm.toLowerCase();
-    return list.filter((item) => {
-      const name = item.name?.toLowerCase() || "";
-      const fabricType = item.fabricType?.toLowerCase() || "";
-      const tailorName = item.tailorName?.toLowerCase() || "";
-      const priceStr = String(item.finalSellingPriceAED || 0);
-      const status = item.availableFabricStock > 0 ? "available" : "sold";
-      return (
-        name.includes(term) ||
-        fabricType.includes(term) ||
-        tailorName.includes(term) ||
-        priceStr.includes(term) ||
-        status.includes(term)
-      );
-    });
-  }, [items, searchTerm, stockFilter]);
-
-  const availableItems = items.filter((i) => i.availableFabricStock > 0).length;
-  const soldItems = items.filter((i) => i.availableFabricStock === 0).length;
 
   const StatusBadge = ({ status }: { status: string }) => {
     const normalized = status?.toLowerCase().trim();
@@ -239,7 +263,9 @@ export default function FabricReadyMadePage() {
     try {
       await api.delete(`/api/fabric/ready-made/${id}`);
       toast.success(`"${itemName}" has been deleted`);
-      await fetchItems();
+      const nextPage =
+        items.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+      await fetchItems(nextPage);
       closeDeleteModal();
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to delete the item."));
@@ -249,7 +275,7 @@ export default function FabricReadyMadePage() {
     }
   };
 
-  if (loading) {
+  if (loading && items.length === 0) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -296,7 +322,7 @@ export default function FabricReadyMadePage() {
           </p>
           <p className="text-gray-500 mt-2 text-sm">{error}</p>
           <button
-            onClick={fetchItems}
+            onClick={() => fetchItems(1)}
             className="mt-6 px-6 py-2 bg-black text-white rounded-full hover:bg-gray-800 transition text-sm"
           >
             Try again
@@ -414,19 +440,19 @@ export default function FabricReadyMadePage() {
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Total items
           </p>
-          <p className="text-2xl font-light text-black mt-1">{items.length}</p>
+          <p className="text-2xl font-light text-black mt-1">{totalItems}</p>
         </div>
         <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">
             Available
           </p>
           <p className="text-2xl font-light text-black mt-1">
-            {availableItems}
+            {stats.available}
           </p>
         </div>
         <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 uppercase tracking-wider">Sold</p>
-          <p className="text-2xl font-light text-black mt-1">{soldItems}</p>
+          <p className="text-2xl font-light text-black mt-1">{stats.sold}</p>
         </div>
       </div>
 
@@ -468,7 +494,7 @@ export default function FabricReadyMadePage() {
             />
           </div>
           <button
-            onClick={fetchItems}
+            onClick={() => fetchItems(currentPage)}
             className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-black transition text-sm border border-gray-200 rounded-lg bg-white"
           >
             <RefreshCw className="w-4 h-4" />
@@ -478,7 +504,7 @@ export default function FabricReadyMadePage() {
       </div>
 
       {/* Table */}
-      {filteredItems.length === 0 ? (
+      {items.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
           <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
           <p className="text-gray-500">
@@ -499,7 +525,7 @@ export default function FabricReadyMadePage() {
       ) : (
         <>
           <div className="space-y-3 sm:hidden">
-            {filteredItems.map((item) => {
+            {items.map((item) => {
               const status =
                 item.availableFabricStock > 0 ? "available" : "sold";
               const itemLow = isLowStockQty(item.availableFabricStock);
@@ -587,7 +613,7 @@ export default function FabricReadyMadePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filteredItems.map((item) => {
+                {items.map((item) => {
                   const status =
                     item.availableFabricStock > 0 ? "available" : "sold";
                   const itemLow = isLowStockQty(item.availableFabricStock);
@@ -677,6 +703,22 @@ export default function FabricReadyMadePage() {
           </div>
         </div>
         </>
+      )}
+
+      {totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={Math.max(1, totalPages)}
+          onPageChange={(page) => fetchItems(page)}
+          showItemsPerPage={true}
+          itemsPerPage={limit}
+          onItemsPerPageChange={(newLimit) => {
+            setLimit(newLimit);
+            fetchItems(1, newLimit);
+          }}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
       )}
 
       {/* Confirmation Modal for Profile Incomplete */}
