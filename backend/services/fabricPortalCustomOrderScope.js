@@ -225,8 +225,45 @@ export function toFabricPortalCustomOrderView(order, ctx) {
     },
   };
 
+  const resolveFabricImage = (fabricIdVal, snapshotVal) => {
+    if (fabricIdVal && typeof fabricIdVal === "object") {
+      if (Array.isArray(fabricIdVal.images) && fabricIdVal.images.length > 0) {
+        return fabricIdVal.images[0] || "";
+      }
+      if (typeof fabricIdVal.thumbnailImage === "string" && fabricIdVal.thumbnailImage) {
+        return fabricIdVal.thumbnailImage;
+      }
+    }
+    const idStr = asEntityId(fabricIdVal);
+    if (idStr && ctx?.storeFabricMap instanceof Map) {
+      const f = ctx.storeFabricMap.get(idStr);
+      if (f && Array.isArray(f.images) && f.images.length > 0) {
+        return f.images[0] || "";
+      }
+    }
+    if (snapshotVal && typeof snapshotVal === "object") {
+      if (snapshotVal.image) return snapshotVal.image;
+      if (Array.isArray(snapshotVal.images) && snapshotVal.images.length > 0) {
+        return snapshotVal.images[0];
+      }
+    }
+    return "";
+  };
+
+  const first = storeItems[0];
+  const topFabricImage =
+    (first && resolveFabricImage(first.fabricId, first.fabricSnapshot)) ||
+    resolveFabricImage(order.fabricId, order.fabricSnapshot) ||
+    "";
+
+  for (const item of storeItems) {
+    item.fabricImage =
+      resolveFabricImage(item.fabricId, item.fabricSnapshot) ||
+      topFabricImage ||
+      "";
+  }
+
   if (storeItems.length > 0) {
-    const first = storeItems[0];
     view.fabricId = first.fabricId ?? view.fabricId;
     view.fabricStoreId = first.fabricStoreId ?? view.fabricStoreId;
     view.fabricSnapshot = first.fabricSnapshot ?? view.fabricSnapshot;
@@ -244,6 +281,8 @@ export function toFabricPortalCustomOrderView(order, ctx) {
         0,
       ) || view.fabricMeters;
   }
+
+  view.fabricImage = topFabricImage;
 
   return view;
 }

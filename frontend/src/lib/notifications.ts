@@ -306,24 +306,45 @@ export function getAdminDeepLinkHref(
 ): { href: string; label: string } | null {
   const type = (notification.type || "").toLowerCase();
 
-  if (type === "user_tailor_registered" && notification.tailorId) {
+  if (
+    (type === "user_tailor_registered" || type === "tailor_registered") &&
+    (notification.tailorId || notification.createdBy)
+  ) {
+    const tailorId = notification.tailorId || notification.createdBy;
     return {
-      href: "/admin/tailors",
-      label: "Approve tailor",
+      href: `/admin/tailors?tab=pending&highlight=${encodeURIComponent(tailorId!)}`,
+      label: _locale === "ar" ? "مراجعة الخياط" : "Review Tailor",
     };
   }
 
-  if (type === "user_tailor_application_resubmitted" && notification.tailorId) {
+  if (type === "user_tailor_registered" || type === "tailor_registered") {
     return {
-      href: `/admin/tailors/${notification.tailorId}/application`,
-      label: "View application",
+      href: "/admin/tailors?tab=pending",
+      label: _locale === "ar" ? "مراجعة الخياط" : "Review Tailor",
     };
   }
 
-  if (type === "user_fabric_store_registered") {
+  if (
+    type === "user_tailor_application_resubmitted" &&
+    (notification.tailorId || notification.createdBy)
+  ) {
+    const tailorId = notification.tailorId || notification.createdBy;
     return {
-      href: "/admin/partners",
-      label: "Review fabric store",
+      href: `/admin/tailors/${tailorId}/application`,
+      label: _locale === "ar" ? "عرض الطلب" : "View application",
+    };
+  }
+
+  if (
+    type === "user_fabric_store_registered" ||
+    type === "fabric_store_registered"
+  ) {
+    const storeId = notification.createdBy;
+    return {
+      href: storeId
+        ? `/admin/partners?tab=pending&highlight=${encodeURIComponent(storeId)}`
+        : "/admin/partners?tab=pending",
+      label: _locale === "ar" ? "مراجعة متجر الأقمشة" : "Review Fabric Store",
     };
   }
 
@@ -332,8 +353,8 @@ export function getAdminDeepLinkHref(
     return {
       href: userId
         ? `/admin/partners/${userId}/application`
-        : "/admin/partners",
-      label: "View application",
+        : "/admin/partners?tab=pending",
+      label: _locale === "ar" ? "عرض الطلب" : "View application",
     };
   }
 

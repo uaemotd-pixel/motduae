@@ -88,9 +88,9 @@ interface Order {
   shipments?: CustomOrderShipmentSummary[];
   createdAt: string;
   returnItems?: unknown[];
-  pricing: {
-    total: number;
-    currency: string;
+  pricing?: {
+    total?: number;
+    currency?: string;
   };
   items?: CustomOrderItem[];
   addons?: Array<{
@@ -650,7 +650,7 @@ export default function AdminCustomOrdersPage() {
                                   <span className="text-sm font-mono text-gray-600">
                                     {formatCurrency(
                                       item.pricing.total,
-                                      order.pricing.currency,
+                                      order.pricing?.currency || "AED",
                                     )}
                                   </span>
                                 )}
@@ -782,7 +782,7 @@ export default function AdminCustomOrdersPage() {
                               <span className="text-black font-semibold font-mono">
                                 {formatCurrency(
                                   addon.price,
-                                  order.pricing.currency,
+                                  order.pricing?.currency || "AED",
                                 )}
                               </span>
                             </div>
@@ -819,8 +819,8 @@ export default function AdminCustomOrdersPage() {
                     </p>
                     <p className="font-medium text-black text-base mt-0.5">
                       {formatCurrency(
-                        order.pricing.total,
-                        order.pricing.currency,
+                        order.pricing?.total ?? 0,
+                        order.pricing?.currency || "AED",
                       )}
                     </p>
                   </div>
