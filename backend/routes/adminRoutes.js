@@ -60,6 +60,8 @@ import {
   normalizeFabricCutsPayload,
   countLowStockFabricCutRows,
   findLowStockFabricParentIds,
+  findInStockFabricParentIds,
+  findSoldOutFabricParentIds,
   LOW_FABRIC_CUT_STOCK_THRESHOLD,
 } from "../utils/fabricCuts.js";
 import {
@@ -84,7 +86,10 @@ import {
   submittedPendingFilter,
   hideUnsubmittedPendingClause,
 } from "../services/partnerApplication/policy.js";
-import { partnerUserSearchOr } from "../services/partnerApplication/requestNumber.js";
+import {
+  escapeRegex,
+  partnerUserSearchOr,
+} from "../services/partnerApplication/requestNumber.js";
 import {
   normalizeEmirate,
   UAE_EMIRATES,
@@ -1425,9 +1430,69 @@ async function prepareFabricCutsInput(cutsInput) {
   return { ok: true, cuts: normalized.cuts };
 }
 
+async function adminFabricSearchClause(search) {
+  const term = String(search || "").trim();
+  if (!term) return null;
+
+  const rx = { $regex: escapeRegex(term), $options: "i" };
+  const or = [
+    { name: rx },
+    { nameAr: rx },
+    { material: rx },
+    { materialAr: rx },
+    { "storePickupAddress.city": rx },
+    { "storePickupAddress.emirate": rx },
+  ];
+
+  const lowered = term.toLowerCase();
+  const emirateValues = UAE_EMIRATES.filter(
+    (entry) =>
+      entry.value.toLowerCase().includes(lowered) ||
+      entry.en.toLowerCase().includes(lowered) ||
+      entry.ar.includes(term),
+  ).map((entry) => entry.value);
+  if (emirateValues.length > 0) {
+    or.push({ "storePickupAddress.emirate": { $in: emirateValues } });
+  }
+
+  const [storeUsers, shops] = await Promise.all([
+    User.find({
+      role: "fabric_store",
+      $or: [{ name: rx }, { email: rx }],
+    })
+      .select("_id")
+      .lean(),
+    FabricShop.find({
+      $or: [{ name: rx }, { nameAr: rx }],
+    })
+      .select("_id ownerId")
+      .lean(),
+  ]);
+
+  const storeIds = [
+    ...new Set(
+      [
+        ...storeUsers.map((user) => String(user._id)),
+        ...shops.map((shop) => (shop.ownerId ? String(shop.ownerId) : "")),
+      ].filter(Boolean),
+    ),
+  ].map((id) => new mongoose.Types.ObjectId(id));
+  const shopIds = shops.map((shop) => shop._id).filter(Boolean);
+
+  if (storeIds.length > 0) {
+    or.push({ listedByStore: { $in: storeIds } });
+  }
+  if (shopIds.length > 0) {
+    or.push({ fabricShopId: { $in: shopIds } });
+  }
+
+  return { $or: or };
+}
+
 // GET /api/admin/fabrics
 // Admin can view all fabrics in the catalog (including inactive)
 // Supports ?page=1&limit=10&search=...&status=available|sold|low
+// available = remaining cut stock, sold = all cuts (parent + variants) at 0
 adminRouter.get(
   "/fabrics",
   expressAsyncHandler(async (req, res) => {
@@ -1438,13 +1503,23 @@ adminRouter.get(
     const status = req.query.status || "";
     const isLowStock = status === "low";
 
-    const filter = {
+    const baseFilter = {
       $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
     };
 
     if (req.query.listedByStore) {
-      filter.listedByStore = req.query.listedByStore;
+      baseFilter.listedByStore = req.query.listedByStore;
     }
+
+    const searchClause = await adminFabricSearchClause(search);
+    if (searchClause) {
+      baseFilter.$and = [searchClause];
+    }
+
+    const filter = { ...baseFilter };
+    const stockMatch = req.query.listedByStore
+      ? { listedByStore: req.query.listedByStore }
+      : {};
 
     if (isLowStock) {
       const parentIds = await findLowStockFabricParentIds(
@@ -1454,30 +1529,26 @@ adminRouter.get(
         $in: parentIds.map((id) => new mongoose.Types.ObjectId(id)),
       };
     } else if (status === "available") {
-      filter.isActive = true;
+      const parentIds = await findInStockFabricParentIds(stockMatch);
+      filter._id = {
+        $in: parentIds.map((id) => new mongoose.Types.ObjectId(id)),
+      };
     } else if (status === "sold") {
-      filter.isActive = false;
+      const parentIds = await findSoldOutFabricParentIds(stockMatch);
+      filter._id = {
+        $in: parentIds.map((id) => new mongoose.Types.ObjectId(id)),
+      };
     }
 
-    if (search) {
-      filter.$and = [
-        {
-          $or: [
-            { name: { $regex: search, $options: "i" } },
-            { material: { $regex: search, $options: "i" } },
-            { city: { $regex: search, $options: "i" } },
-          ],
-        },
-      ];
-    }
-
-    const [fabrics, total] = await Promise.all([
+    const [fabrics, total, active, inactive] = await Promise.all([
       Fabric.find(filter)
         .populate("listedByStore", "name email")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
       Fabric.countDocuments(filter),
+      Fabric.countDocuments({ ...baseFilter, isActive: true }),
+      Fabric.countDocuments({ ...baseFilter, isActive: { $ne: true } }),
     ]);
 
     const fabricsWithVariants = await Promise.all(
@@ -1503,6 +1574,10 @@ adminRouter.get(
       total,
       page,
       totalPages: Math.ceil(total / limit) || 0,
+      stats: {
+        active,
+        inactive,
+      },
     });
   }),
 );
@@ -2266,11 +2341,129 @@ async function toggleTailorShopActive(req, res) {
   });
 }
 
+async function sendAdminTailorDirectory(req, res) {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 10;
+  const skip = (page - 1) * limit;
+  const search = String(req.query.search || "").trim();
+  const type = String(req.query.type || "all");
+  const status = String(req.query.status || "all");
+
+  let filter = { role: "tailor" };
+  const and = [];
+
+  if (type === "approved") {
+    filter.approvalStatus = "approved";
+  } else if (type === "pending") {
+    filter = submittedPendingFilter("tailor");
+  } else if (type === "rejected") {
+    filter.approvalStatus = "rejected";
+  } else {
+    and.push(hideUnsubmittedPendingClause());
+  }
+
+  if (type === "approved" && (status === "active" || status === "inactive")) {
+    const activeShops = await TailorShop.find({ isActive: true })
+      .select("ownerId")
+      .lean();
+    const activeOwnerIds = activeShops
+      .map((shop) => shop.ownerId)
+      .filter(Boolean);
+    filter._id =
+      status === "active" ? { $in: activeOwnerIds } : { $nin: activeOwnerIds };
+  }
+
+  if (search) {
+    const clauses = [];
+    const userSearch = partnerUserSearchOr(search);
+    if (userSearch?.$or) clauses.push(...userSearch.$or);
+
+    const matchingShops = await TailorShop.find({
+      name: { $regex: escapeRegex(search), $options: "i" },
+    })
+      .select("ownerId")
+      .lean();
+    const shopOwnerIds = matchingShops
+      .map((shop) => shop.ownerId)
+      .filter(Boolean);
+    if (shopOwnerIds.length) {
+      clauses.push({ _id: { $in: shopOwnerIds } });
+    }
+
+    if (clauses.length) {
+      and.push({ $or: clauses });
+    }
+  }
+
+  if (and.length) {
+    filter.$and = and;
+  }
+
+  const [users, total] = await Promise.all([
+    User.find(filter)
+      .select("-password")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    User.countDocuments(filter),
+  ]);
+
+  const shops = await TailorShop.find({
+    ownerId: { $in: users.map((user) => user._id) },
+  })
+    .select("name logo isActive ownerId")
+    .lean();
+  const shopByOwner = new Map(
+    shops.map((shop) => [String(shop.ownerId), shop]),
+  );
+
+  const items = users.map((user) => {
+    const shop = shopByOwner.get(String(user._id));
+    return {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      createdAt: user.createdAt,
+      type: user.approvalStatus || "pending",
+      shopName: shop?.name || user.shopName || null,
+      isActive: shop ? Boolean(shop.isActive) : false,
+      phone: user.phone || "",
+      address: user.address || "",
+      ownerId: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        approvalStatus: user.approvalStatus,
+        profilePic: user.profilePic,
+        requestNumber: user.requestNumber,
+      },
+      logo: shop?.logo || user.profilePic,
+      profilePic: user.profilePic,
+      requestNumber: user.requestNumber || "",
+      shopId: shop?._id || null,
+    };
+  });
+
+  res.send({
+    success: true,
+    items,
+    total,
+    page,
+    totalPages: Math.ceil(total / limit) || 0,
+  });
+}
+
 // GET /api/admin/tailors
-// Approved tailor shops with populated owner (shop-centric list for C-17 UI)
+// With ?type= — user directory for Admin → Tailors (paginated).
+// Without type — approved shops for pickers (ready-made / designs).
 adminRouter.get(
   "/tailors",
   expressAsyncHandler(async (req, res) => {
+    if (req.query.type) {
+      await sendAdminTailorDirectory(req, res);
+      return;
+    }
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
@@ -2315,38 +2508,21 @@ adminRouter.get(
 adminRouter.get(
   "/tailors/stats",
   expressAsyncHandler(async (req, res) => {
-    // Get all tailors data for stats
-    const [allShops, pendingUsers, rejectedUsers] = await Promise.all([
-      TailorShop.find({}).populate(tailorShopOwnerPopulate),
-      User.find(submittedPendingFilter("tailor")),
-      User.find({ approvalStatus: "rejected", role: "tailor" }),
+    const [total, approved, pending, rejected] = await Promise.all([
+      User.countDocuments({
+        role: "tailor",
+        $and: [hideUnsubmittedPendingClause()],
+      }),
+      User.countDocuments({ role: "tailor", approvalStatus: "approved" }),
+      User.countDocuments(submittedPendingFilter("tailor")),
+      User.countDocuments({ role: "tailor", approvalStatus: "rejected" }),
     ]);
-
-    const approvedShops = allShops.filter((shop) => shop.ownerId !== null);
-    const shopOwnerIds = new Set(
-      approvedShops.map((shop) => shop.ownerId?._id.toString()).filter(Boolean),
-    );
-
-    // Get approved users without shops
-    const approvedUsers = await User.find({
-      approvalStatus: "approved",
-      role: "tailor",
-    });
-    const approvedWithoutShop = approvedUsers.filter(
-      (user) => !shopOwnerIds.has(user._id.toString()),
-    );
-
-    const total =
-      approvedShops.length +
-      approvedWithoutShop.length +
-      pendingUsers.length +
-      rejectedUsers.length;
 
     res.send({
       total,
-      approved: approvedShops.length + approvedWithoutShop.length,
-      pending: pendingUsers.length,
-      rejected: rejectedUsers.length,
+      approved,
+      pending,
+      rejected,
     });
   }),
 );
@@ -2443,16 +2619,6 @@ adminRouter.get(
       filter._id = String(orderId);
     }
 
-    if (!filter._id && status) {
-      if (!RETAIL_ORDER_STATUSES.includes(status)) {
-        res.status(400).send({
-          message: `Invalid status. Allowed values: ${RETAIL_ORDER_STATUSES.join(", ")}`,
-        });
-        return;
-      }
-      filter.status = status;
-    }
-
     if (!filter._id && (from || to)) {
       const parsed = applyCreatedAtFilter(from, to);
       if (parsed.error) {
@@ -2493,13 +2659,27 @@ adminRouter.get(
     // Admin sees all retail orders: fabric-store and platform ready-made,
     // add-ons, and fabric-by-meter. Do not scope to MOTD Admin–owned IDs only —
     // that hid fabric-shop ready-made / add-on checkouts.
-    const [orders, total] = await Promise.all([
-      RetailOrder.find(filter)
+    const listFilter = { ...filter };
+    if (!listFilter._id && status) {
+      if (!RETAIL_ORDER_STATUSES.includes(status)) {
+        res.status(400).send({
+          message: `Invalid status. Allowed values: ${RETAIL_ORDER_STATUSES.join(", ")}`,
+        });
+        return;
+      }
+      listFilter.status = status;
+    }
+
+    const [orders, total, pending, shipped, delivered] = await Promise.all([
+      RetailOrder.find(listFilter)
         .populate("userId", "name email phone")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum),
-      RetailOrder.countDocuments(filter),
+      RetailOrder.countDocuments(listFilter),
+      RetailOrder.countDocuments({ ...filter, status: "pending" }),
+      RetailOrder.countDocuments({ ...filter, status: "shipped" }),
+      RetailOrder.countDocuments({ ...filter, status: "delivered" }),
     ]);
 
     const hydrated = await hydrateRetailOrders(orders);
@@ -2509,6 +2689,11 @@ adminRouter.get(
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum),
+      stats: {
+        pending,
+        shipped,
+        delivered,
+      },
     });
   }),
 );
@@ -2581,26 +2766,94 @@ adminRouter.patch(
 adminRouter.get(
   "/orders/custom",
   expressAsyncHandler(async (req, res) => {
-    const orders = await CustomOrder.find({})
-      .populate("userId", "name email phone")
-      .populate({
-        path: "tailorShopId",
-        select: "name nameAr location city phone pickupAddress ownerId",
-        populate: { path: "ownerId", select: "name email phone" },
-      })
-      .populate({
-        path: "items.tailorShopId",
-        select: "name nameAr location city phone pickupAddress ownerId",
-        populate: { path: "ownerId", select: "name email phone" },
-      })
-      .populate("fabricStoreId", "name email phone")
-      .populate("items.fabricStoreId", "name email phone")
-      .populate("designId", "images")
-      .populate("items.designId", "images")
-      .populate("fabricId", "images")
-      .populate("items.fabricId", "images")
-      .sort({ createdAt: -1 })
-      .lean();
+    const { status, from, to, customer, page, limit, orderId } = req.query;
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 10;
+    const skip = (pageNum - 1) * limitNum;
+
+    const filter = {};
+
+    if (orderId && mongoose.Types.ObjectId.isValid(String(orderId))) {
+      filter._id = String(orderId);
+    }
+
+    if (!filter._id && (from || to)) {
+      const parsed = applyCreatedAtFilter(from, to);
+      if (parsed.error) {
+        res.status(400).send({ message: parsed.error });
+        return;
+      }
+      if (parsed.createdAt) {
+        filter.createdAt = parsed.createdAt;
+      }
+    }
+
+    if (!filter._id && customer) {
+      const customerQuery = String(customer).trim();
+
+      if (mongoose.Types.ObjectId.isValid(customerQuery)) {
+        filter.$or = [{ _id: customerQuery }, { userId: customerQuery }];
+      } else {
+        const escaped = customerQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const textMatcher = { $regex: escaped, $options: "i" };
+
+        const matchingUsers = await User.find({
+          $or: [{ name: textMatcher }, { email: textMatcher }],
+        }).select("_id");
+
+        const userIds = matchingUsers.map((user) => user._id);
+        const customerOr = [
+          { "customerDeliveryAddress.fullName": textMatcher },
+          { contactEmail: textMatcher },
+        ];
+        if (userIds.length > 0) {
+          customerOr.unshift({ userId: { $in: userIds } });
+        }
+
+        filter.$or = customerOr;
+      }
+    }
+
+    const listFilter = { ...filter };
+    if (!listFilter._id && status) {
+      if (!CUSTOM_STATUSES.includes(status)) {
+        res.status(400).send({
+          message: `Invalid status. Allowed values: ${CUSTOM_STATUSES.join(", ")}`,
+        });
+        return;
+      }
+      listFilter.status = status;
+    }
+
+    const [orders, total, confirmed, inProduction, delivered] =
+      await Promise.all([
+        CustomOrder.find(listFilter)
+          .populate("userId", "name email phone")
+          .populate({
+            path: "tailorShopId",
+            select: "name nameAr location city phone pickupAddress ownerId",
+            populate: { path: "ownerId", select: "name email phone" },
+          })
+          .populate({
+            path: "items.tailorShopId",
+            select: "name nameAr location city phone pickupAddress ownerId",
+            populate: { path: "ownerId", select: "name email phone" },
+          })
+          .populate("fabricStoreId", "name email phone")
+          .populate("items.fabricStoreId", "name email phone")
+          .populate("designId", "images")
+          .populate("items.designId", "images")
+          .populate("fabricId", "images")
+          .populate("items.fabricId", "images")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limitNum)
+          .lean(),
+        CustomOrder.countDocuments(listFilter),
+        CustomOrder.countDocuments({ ...filter, status: "confirmed" }),
+        CustomOrder.countDocuments({ ...filter, status: "in_production" }),
+        CustomOrder.countDocuments({ ...filter, status: "delivered" }),
+      ]);
 
     const fabricOwnerIds = new Set();
     const addonIds = new Set();
@@ -2752,7 +3005,17 @@ adminRouter.get(
       };
     });
 
-    res.send(withFabricShopNames);
+    res.send({
+      items: withFabricShopNames,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum) || 0,
+      stats: {
+        confirmed,
+        inProduction,
+        delivered,
+      },
+    });
   }),
 );
 
@@ -3853,13 +4116,15 @@ adminRouter.get(
       filter.$or = [{ name: regex }, { nameAr: regex }, { slug: regex }];
     }
 
-    const [addons, total] = await Promise.all([
+    const [addons, total, active, inactive] = await Promise.all([
       AddOn.find(filter)
         .populate("fabricShopId", "name nameAr")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
       AddOn.countDocuments(filter),
+      AddOn.countDocuments({ ...filter, isActive: true }),
+      AddOn.countDocuments({ ...filter, isActive: { $ne: true } }),
     ]);
 
     res.send({
@@ -3867,6 +4132,10 @@ adminRouter.get(
       total,
       page,
       totalPages: Math.ceil(total / limit),
+      stats: {
+        active,
+        inactive,
+      },
     });
   }),
 );

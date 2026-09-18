@@ -14,6 +14,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { Link, useRouter } from "@/i18n/navigation";
 import { getTranslation } from "@/lib/getTranslation";
+import { replaceClientSearchParam } from "@/lib/replaceClientSearchParam";
 import {
   Plus,
   Edit,
@@ -79,6 +80,10 @@ interface ApiResponse {
   total: number;
   page: number;
   totalPages: number;
+  stats?: {
+    active: number;
+    inactive: number;
+  };
 }
 
 type FabricStatusFilter = "all" | "available" | "sold" | "low";
@@ -207,13 +212,17 @@ export default function AdminFabricsPage() {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTermRef = useRef(searchTerm);
+  const fetchGenerationRef = useRef(0);
+  const skipSearchDebounceRef = useRef(true);
+  searchTermRef.current = searchTerm;
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
+  const [stats, setStats] = useState({ active: 0, inactive: 0 });
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -286,40 +295,48 @@ export default function AdminFabricsPage() {
 
   const fetchItems = useCallback(
     async (page = 1, limitOverride?: number, statusOverride?: string) => {
+      const generation = ++fetchGenerationRef.current;
       try {
         setLoading(true);
         const l = limitOverride || limit;
         const status = statusOverride || statusFilter;
+        const search = searchTermRef.current;
         const res = await api.get<ApiResponse>(
-          `/api/admin/fabrics?page=${page}&limit=${l}&search=${encodeURIComponent(searchTerm)}&status=${status}`,
+          `/api/admin/fabrics?page=${page}&limit=${l}&search=${encodeURIComponent(search)}&status=${status}`,
         );
+        if (generation !== fetchGenerationRef.current) return;
 
         setItems(res.items || []);
         setTotalItems(res.total || 0);
         setCurrentPage(res.page || 1);
         setTotalPages(res.totalPages || 0);
+        setStats({
+          active: res.stats?.active || 0,
+          inactive: res.stats?.inactive || 0,
+        });
         setError(null);
       } catch (err: unknown) {
+        if (generation !== fetchGenerationRef.current) return;
         setError(getApiErrorMessage(err, t.adminFabrics.list.load_error_title));
         setItems([]);
         setTotalItems(0);
         setTotalPages(0);
+        setStats({ active: 0, inactive: 0 });
       } finally {
-        setLoading(false);
+        if (generation === fetchGenerationRef.current) {
+          setLoading(false);
+        }
       }
     },
-    [searchTerm, limit, t.adminFabrics.list.load_error_title, statusFilter],
+    [limit, t.adminFabrics.list.load_error_title, statusFilter],
   );
 
   const applyStatusFilter = (status: FabricStatusFilter) => {
+    if (status === statusFilter) return;
     setStatusFilter(status);
     setCurrentPage(1);
     fetchItems(1, limit, status);
-    if (status === "low") {
-      router.replace("/admin/fabrics?stock=low");
-    } else if (searchParams.get("stock") === "low") {
-      router.replace("/admin/fabrics");
-    }
+    replaceClientSearchParam("stock", status === "low" ? "low" : null);
   };
 
   // Dashboard "Low Stock" lands here with ?stock=low
@@ -332,10 +349,15 @@ export default function AdminFabricsPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (statusFilter !== "low") return;
+    if (statusFilter !== "low" && statusFilter !== "sold") return;
     const next: Record<string, boolean> = {};
     for (const item of items) {
-      const variantLow = (item.variants || []).some((variant) =>
+      const variants = item.variants || [];
+      if (statusFilter === "sold") {
+        if (variants.length > 0) next[item._id] = true;
+        continue;
+      }
+      const variantLow = variants.some((variant) =>
         cutsHaveLowStock(variant.cuts),
       );
       if (variantLow) next[item._id] = true;
@@ -350,19 +372,18 @@ export default function AdminFabricsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced search
+  // Search only after the user stops typing.
   useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+    if (skipSearchDebounceRef.current) {
+      skipSearchDebounceRef.current = false;
+      return;
     }
-    searchTimeoutRef.current = setTimeout(() => {
-      fetchItems(1);
-    }, 300);
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
+    const timer = window.setTimeout(() => {
+      void fetchItems(1);
+    }, 500);
+    return () => window.clearTimeout(timer);
+    // fetchItems reads the current search from a ref; do not refetch on tab/limit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
   const openDeleteModal = (item: FabricItem) => {
@@ -405,8 +426,8 @@ export default function AdminFabricsPage() {
     fetchItems(1, newLimit);
   };
 
-  const activeCount = items.filter((i) => i.isActive).length;
-  const inactiveCount = items.filter((i) => !i.isActive).length;
+  const activeCount = stats.active;
+  const inactiveCount = stats.inactive;
   const cutsCellProps = {
     locale: localeParam,
     stockLabel: t.adminFabrics.list.stock_label,
@@ -716,7 +737,11 @@ export default function AdminFabricsPage() {
               ? t.adminFabrics.list.empty_search
               : statusFilter === "low"
                 ? t.adminFabrics.list.empty_low_stock
-                : t.adminFabrics.list.empty}
+                : statusFilter === "sold"
+                  ? t.adminFabrics.list.empty_sold
+                  : statusFilter === "available"
+                    ? t.adminFabrics.list.empty_available
+                    : t.adminFabrics.list.empty}
           </p>
           {!searchTerm && statusFilter === "all" && (
             <Link

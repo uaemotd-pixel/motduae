@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "@/i18n/navigation";
 import { useAuth, needsEmailVerification } from "../../../context/AuthContext";
 import { getTranslation } from "@/lib/getTranslation";
+import { safeClientNavigate } from "@/lib/safeClientNavigate";
 import {
   User,
   ShoppingBag,
@@ -223,21 +224,21 @@ function AccountPageContent() {
   useEffect(() => {
     if (!authLoading) {
       if (!user) {
-        router.replace("/auth/login");
+        safeClientNavigate("/auth/login", { locale, replace: true });
       } else {
         const role = user.role.toLowerCase();
         if (role === "admin" || role === "sub-admin") {
-          router.replace("/admin");
+          safeClientNavigate("/admin", { locale, replace: true });
         } else if (role === "tailor") {
-          router.replace("/tailor");
+          safeClientNavigate("/tailor", { locale, replace: true });
         } else if (role === "fabric_store") {
-          router.replace("/fabric");
+          safeClientNavigate("/fabric", { locale, replace: true });
         } else if (user.isGuest) {
           // Allow guest user to access account page
         }
       }
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, locale]);
 
   useEffect(() => {
     if (user?.isGuest) {

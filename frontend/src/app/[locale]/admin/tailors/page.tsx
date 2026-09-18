@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef, Suspense } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useSearchParams } from "next/navigation";
@@ -46,26 +46,6 @@ interface ApprovedTailor {
   createdAt: string;
 }
 
-interface ApprovedUser {
-  _id: string;
-  name: string;
-  email: string;
-  createdAt: string;
-  approvalStatus: "approved";
-  profilePic?: string;
-  requestNumber?: string;
-}
-
-interface RejectedUser {
-  _id: string;
-  name: string;
-  email: string;
-  createdAt: string;
-  approvalStatus: "rejected";
-  profilePic?: string;
-  requestNumber?: string;
-}
-
 type TailorTab = "all" | "approved" | "pending" | "rejected";
 type ApprovedStatusTab = "all" | "active" | "inactive";
 
@@ -76,6 +56,7 @@ type TailorRow = {
   createdAt: string;
   type: "pending" | "approved" | "rejected";
   shopName?: string | null;
+  shopId?: string | null;
   isActive?: boolean;
   phone?: string;
   address?: string;
@@ -84,6 +65,13 @@ type TailorRow = {
   profilePic?: string;
   requestNumber?: string;
 };
+
+interface TailorListResponse {
+  items: TailorRow[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
 
 function tailorApplicationHref(row: {
   id: string;
@@ -123,6 +111,8 @@ function AdminTailorsContent() {
   const [approvedStatusTab, setApprovedStatusTab] =
     useState<ApprovedStatusTab>("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
 
   const [stats, setStats] = useState({
@@ -151,6 +141,8 @@ function AdminTailorsContent() {
   } | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoad = useRef(true);
 
   // pop up image function
   const handleImageClick = (imageUrl: string) => {
@@ -229,123 +221,82 @@ function AdminTailorsContent() {
   }, [menuPosition, menuAnchor]);
 
   // ---------- Data fetching ----------
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // 1. Approved shops
-      const approvedShopsRes = await api.get<{ items: ApprovedTailor[] }>(
-        "/api/admin/tailors",
-      );
-      const approvedShops = approvedShopsRes.items || [];
+  const fetchData = useCallback(
+    async (
+      page = 1,
+      limitOverride?: number,
+      tabOverride = activeTab,
+      showLoading = true,
+      statusOverride = approvedStatusTab,
+    ) => {
+      if (showLoading) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const l = limitOverride || limit;
+        const search = searchTerm
+          ? `&search=${encodeURIComponent(searchTerm)}`
+          : "";
+        const tabFilter = `&type=${tabOverride}`;
+        const statusFilter =
+          tabOverride === "approved" && statusOverride !== "all"
+            ? `&status=${statusOverride}`
+            : "";
 
-      // 2. Approved users without shops
-      const approvedUsersRes = await api.get<{ items: ApprovedUser[] }>(
-        "/api/admin/tailors/approved-users",
-      );
-      const approvedUsers = approvedUsersRes.items || [];
-
-      // 3. Pending tailors
-      const pendingRes = await api.get<any[]>("/api/admin/tailors/pending");
-      const pending = Array.isArray(pendingRes) ? pendingRes : [];
-
-      // 4. Rejected users
-      const rejectedRes = await api.get<{ items: RejectedUser[] }>(
-        "/api/admin/tailors/rejected-tailors",
-      );
-      const rejectedUsers = rejectedRes.items || [];
-
-      const shopOwnerIds = new Set(
-        approvedShops.map((shop) => shop.ownerId?._id).filter(Boolean),
-      );
-
-      const shopRows: TailorRow[] = approvedShops.map((shop) => ({
-        id: shop._id,
-        name: shop.ownerId?.name || "—",
-        email: shop.ownerId?.email || "—",
-        createdAt: shop.createdAt,
-        type: "approved",
-        shopName: shop.name,
-        isActive: shop.isActive,
-        ownerId: shop.ownerId,
-        logo: shop.logo || shop.ownerId?.profilePic,
-        profilePic: shop.ownerId?.profilePic,
-        requestNumber: shop.ownerId?.requestNumber || "",
-      }));
-
-      const approvedUserRows: TailorRow[] = approvedUsers
-        .filter((user) => !shopOwnerIds.has(user._id))
-        .map((user) => ({
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          createdAt: user.createdAt,
-          type: "approved",
-          shopName: null,
-          isActive: false,
-          profilePic: user.profilePic,
-          requestNumber: user.requestNumber || "",
-        }));
-
-      const pendingRows: TailorRow[] = pending.map((user) => ({
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt,
-        type: "pending",
-        phone: user.phone || "",
-        address: user.address || "",
-        profilePic: user.profilePic,
-        requestNumber: user.requestNumber || "",
-      }));
-
-      const rejectedRows: TailorRow[] = rejectedUsers.map((user) => ({
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt,
-        type: "rejected",
-        shopName: null,
-        isActive: false,
-        profilePic: user.profilePic,
-        requestNumber: user.requestNumber || "",
-      }));
-
-      const combined = [
-        ...shopRows,
-        ...approvedUserRows,
-        ...pendingRows,
-        ...rejectedRows,
-      ];
-
-      // Preserve any local rejected rows not yet fetched (optimistic updates)
-      setRows((prevRows) => {
-        const existingRejected = prevRows.filter((r) => r.type === "rejected");
-        const rejectedToKeep = existingRejected.filter(
-          (r) => !combined.some((c) => c.id === r.id),
+        const res = await api.get<TailorListResponse>(
+          `/api/admin/tailors?page=${page}&limit=${l}${search}${tabFilter}${statusFilter}`,
         );
-        return [...combined, ...rejectedToKeep];
-      });
 
-      const approvedCount =
-        approvedShops.length +
-        approvedUsers.filter((u) => !shopOwnerIds.has(u._id)).length;
-      setStats({
-        total: approvedCount + pending.length + rejectedUsers.length,
-        approved: approvedCount,
-        pending: pending.length,
-        rejected: rejectedUsers.length,
-      });
-    } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to load tailors"));
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
+        let items = res.items || [];
+        if (highlightId) {
+          const matchIndex = items.findIndex(
+            (r) => r.id === highlightId || r.ownerId?._id === highlightId,
+          );
+          if (matchIndex > -1) {
+            const matched = items[matchIndex];
+            items = [matched, ...items.filter((_, idx) => idx !== matchIndex)];
+          }
+        }
+
+        setRows(items);
+        setTotalItems(res.total || 0);
+        setCurrentPage(res.page || 1);
+        setTotalPages(res.totalPages || 0);
+
+        const statsRes = await api.get<{
+          total: number;
+          approved: number;
+          pending: number;
+          rejected: number;
+        }>("/api/admin/tailors/stats");
+
+        setStats({
+          total: statsRes.total || 0,
+          approved: statsRes.approved || 0,
+          pending: statsRes.pending || 0,
+          rejected: statsRes.rejected || 0,
+        });
+      } catch (err) {
+        setError(getApiErrorMessage(err, "Failed to load tailors"));
+        toast.error("Failed to load data");
+        setRows([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        if (showLoading) {
+          setLoading(false);
+        }
+      }
+    },
+    [searchTerm, activeTab, approvedStatusTab, limit, highlightId],
+  );
 
   useEffect(() => {
-    fetchData();
+    void fetchData(1, undefined, initialTab).finally(() => {
+      isInitialLoad.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---------- Handlers ----------
@@ -372,17 +323,11 @@ function AdminTailorsContent() {
         isActive: newStatus,
       });
 
-      setRows((prev) =>
-        prev.map((row) =>
-          row.id === shopId && row.type === "approved"
-            ? { ...row, isActive: newStatus }
-            : row,
-        ),
-      );
+      await fetchData(currentPage, undefined, activeTab, false);
       toast.success(`Shop "${shopName}" ${actionVerb}`);
     } catch (err) {
       toast.error(getApiErrorMessage(err, `Failed to ${actionVerb} shop`));
-      fetchData();
+      fetchData(currentPage, undefined, activeTab, false);
     } finally {
       setActionInProgress(null);
       setPendingToggle(null);
@@ -408,16 +353,23 @@ function AdminTailorsContent() {
     }
   }, [urlTab]);
 
-  // If highlightId is present and target tailor is found, ensure activeTab matches
+  // Debounced search
   useEffect(() => {
-    if (!highlightId || rows.length === 0) return;
-    const target = rows.find(
-      (r) => r.id === highlightId || r.ownerId?._id === highlightId,
-    );
-    if (target && !urlTab) {
-      setActiveTab(target.type);
+    if (isInitialLoad.current) {
+      return;
     }
-  }, [highlightId, rows, urlTab]);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchData(1);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
 
   const highlightedTailor = useMemo(() => {
     if (!highlightId || rows.length === 0) return null;
@@ -441,89 +393,29 @@ function AdminTailorsContent() {
     }
   }, [highlightId, loading, rows]);
 
-  // ---------- Filter & formatting ----------
-  const filteredRows = useMemo(() => {
-    const byTab =
-      activeTab === "all"
-        ? rows
-        : rows.filter((row) => row.type === activeTab);
-
-    const byStatus =
-      activeTab === "approved" && approvedStatusTab !== "all"
-        ? byTab.filter((row) =>
-            approvedStatusTab === "active" ? Boolean(row.isActive) : !row.isActive,
-          )
-        : byTab;
-
-    let result = byStatus;
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      result = byStatus.filter((row) => {
-        const name = row.name?.toLowerCase() || "";
-        const email = row.email?.toLowerCase() || "";
-        const shop = row.shopName?.toLowerCase() || "";
-        const requestNumber = row.requestNumber?.toLowerCase() || "";
-        return (
-          name.includes(term) ||
-          email.includes(term) ||
-          shop.includes(term) ||
-          requestNumber.includes(term)
-        );
-      });
-    }
-
-    // Place the highlighted tailor at the very top of the list
-    if (highlightId) {
-      const matchIndex = result.findIndex(
-        (r) => r.id === highlightId || r.ownerId?._id === highlightId,
-      );
-      if (matchIndex > -1) {
-        const matched = result[matchIndex];
-        result = [matched, ...result.filter((_, idx) => idx !== matchIndex)];
-      }
-    }
-
-    return result;
-  }, [rows, searchTerm, activeTab, approvedStatusTab, highlightId]);
-
-  const totalItems = filteredRows.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
-
-  const paginatedRows = useMemo(() => {
-    const startIndex = (currentPage - 1) * limit;
-    return filteredRows.slice(startIndex, startIndex + limit);
-  }, [filteredRows, currentPage, limit]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, activeTab, approvedStatusTab]);
-
   const handleTabChange = (tab: TailorTab) => {
     setActiveTab(tab);
+    const nextStatus = tab === "approved" ? approvedStatusTab : "all";
     if (tab !== "approved") {
       setApprovedStatusTab("all");
     }
     setCurrentPage(1);
+    fetchData(1, undefined, tab, false, nextStatus);
   };
 
   const handleApprovedStatusChange = (tab: ApprovedStatusTab) => {
     setApprovedStatusTab(tab);
     setCurrentPage(1);
+    fetchData(1, undefined, "approved", false, tab);
   };
 
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(1);
-    }
-  }, [currentPage, totalPages]);
-
   const handlePageChange = (page: number) => {
-    setCurrentPage(page);
+    fetchData(page, undefined, activeTab, false);
   };
 
   const handleLimitChange = (newLimit: number) => {
     setLimit(newLimit);
-    setCurrentPage(1);
+    fetchData(1, newLimit, activeTab, false);
   };
 
   const formatDate = (date: string) => {
@@ -555,7 +447,7 @@ function AdminTailorsContent() {
   };
 
   // ---------- Loading / Error ----------
-  if (loading) {
+  if (loading && rows.length === 0) {
     return (
       <div className="space-y-4 sm:space-y-6 px-3 sm:px-0">
         <Skeleton className="h-6 sm:h-8 w-32 sm:w-48" />
@@ -579,7 +471,7 @@ function AdminTailorsContent() {
           </p>
           <p className="text-gray-500 mt-2 text-xs sm:text-sm">{error}</p>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(1)}
             className="mt-6 px-6 py-2 bg-black text-white rounded-full hover:bg-black/80 transition text-sm hover:cursor-pointer"
           >
             Try Again
@@ -725,7 +617,7 @@ function AdminTailorsContent() {
             />
           </div>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(1)}
             className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0"
           >
             <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -790,10 +682,10 @@ function AdminTailorsContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {paginatedRows.map((row) => {
+                  {rows.map((row) => {
                     const isPending = row.type === "pending";
                     const isRejected = row.type === "rejected";
-                    const busy = actionInProgress === row.id;
+                    const busy = actionInProgress === row.id || actionInProgress === row.shopId;
                     const isHighlighted = Boolean(
                       highlightId &&
                         (row.id === highlightId || row.ownerId?._id === highlightId),
@@ -927,10 +819,10 @@ function AdminTailorsContent() {
 
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3 sm:space-y-4">
-            {paginatedRows.map((row) => {
+            {rows.map((row) => {
               const isPending = row.type === "pending";
               const isRejected = row.type === "rejected";
-              const busy = actionInProgress === row.id;
+              const busy = actionInProgress === row.id || actionInProgress === row.shopId;
 
               let statusBadge;
               if (isPending) {
@@ -1097,20 +989,20 @@ function AdminTailorsContent() {
                 <button
                   onClick={() => {
                     closeMenu();
-                    if (menuItem.shopName) {
+                    if (menuItem.shopId) {
                       openToggleModal(
-                        menuItem.id,
+                        menuItem.shopId,
                         menuItem.shopName || "Shop",
                         menuItem.isActive || false,
                       );
                     }
                   }}
-                  disabled={!menuItem.shopName}
+                  disabled={!menuItem.shopId}
                   className={`w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors text-left hover:cursor-pointer whitespace-nowrap ${
                     menuItem.isActive
                       ? "text-red-600 hover:bg-red-100"
                       : "text-green-700 hover:bg-green-100"
-                  } ${!menuItem.shopName ? "opacity-50 cursor-not-allowed" : ""}`}
+                  } ${!menuItem.shopId ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   {menuItem.isActive ? (
                     <>
