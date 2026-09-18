@@ -14,6 +14,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { Link, useRouter } from "@/i18n/navigation";
 import { getTranslation } from "@/lib/getTranslation";
+import { replaceClientSearchParam } from "@/lib/replaceClientSearchParam";
 import {
   Plus,
   Edit,
@@ -322,14 +323,11 @@ export default function AdminFabricsPage() {
   );
 
   const applyStatusFilter = (status: FabricStatusFilter) => {
+    if (status === statusFilter) return;
     setStatusFilter(status);
     setCurrentPage(1);
     fetchItems(1, limit, status);
-    if (status === "low") {
-      router.replace("/admin/fabrics?stock=low");
-    } else if (searchParams.get("stock") === "low") {
-      router.replace("/admin/fabrics");
-    }
+    replaceClientSearchParam("stock", status === "low" ? "low" : null);
   };
 
   // Dashboard "Low Stock" lands here with ?stock=low
@@ -342,10 +340,15 @@ export default function AdminFabricsPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (statusFilter !== "low") return;
+    if (statusFilter !== "low" && statusFilter !== "sold") return;
     const next: Record<string, boolean> = {};
     for (const item of items) {
-      const variantLow = (item.variants || []).some((variant) =>
+      const variants = item.variants || [];
+      if (statusFilter === "sold") {
+        if (variants.length > 0) next[item._id] = true;
+        continue;
+      }
+      const variantLow = variants.some((variant) =>
         cutsHaveLowStock(variant.cuts),
       );
       if (variantLow) next[item._id] = true;
@@ -726,7 +729,11 @@ export default function AdminFabricsPage() {
               ? t.adminFabrics.list.empty_search
               : statusFilter === "low"
                 ? t.adminFabrics.list.empty_low_stock
-                : t.adminFabrics.list.empty}
+                : statusFilter === "sold"
+                  ? t.adminFabrics.list.empty_sold
+                  : statusFilter === "available"
+                    ? t.adminFabrics.list.empty_available
+                    : t.adminFabrics.list.empty}
           </p>
           {!searchTerm && statusFilter === "all" && (
             <Link

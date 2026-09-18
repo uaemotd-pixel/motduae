@@ -60,6 +60,8 @@ import {
   normalizeFabricCutsPayload,
   countLowStockFabricCutRows,
   findLowStockFabricParentIds,
+  findInStockFabricParentIds,
+  findSoldOutFabricParentIds,
   LOW_FABRIC_CUT_STOCK_THRESHOLD,
 } from "../utils/fabricCuts.js";
 import {
@@ -1431,6 +1433,7 @@ async function prepareFabricCutsInput(cutsInput) {
 // GET /api/admin/fabrics
 // Admin can view all fabrics in the catalog (including inactive)
 // Supports ?page=1&limit=10&search=...&status=available|sold|low
+// available = remaining cut stock, sold = all cuts (parent + variants) at 0
 adminRouter.get(
   "/fabrics",
   expressAsyncHandler(async (req, res) => {
@@ -1462,6 +1465,9 @@ adminRouter.get(
     }
 
     const filter = { ...baseFilter };
+    const stockMatch = req.query.listedByStore
+      ? { listedByStore: req.query.listedByStore }
+      : {};
 
     if (isLowStock) {
       const parentIds = await findLowStockFabricParentIds(
@@ -1471,9 +1477,15 @@ adminRouter.get(
         $in: parentIds.map((id) => new mongoose.Types.ObjectId(id)),
       };
     } else if (status === "available") {
-      filter.isActive = true;
+      const parentIds = await findInStockFabricParentIds(stockMatch);
+      filter._id = {
+        $in: parentIds.map((id) => new mongoose.Types.ObjectId(id)),
+      };
     } else if (status === "sold") {
-      filter.isActive = false;
+      const parentIds = await findSoldOutFabricParentIds(stockMatch);
+      filter._id = {
+        $in: parentIds.map((id) => new mongoose.Types.ObjectId(id)),
+      };
     }
 
     const [fabrics, total, active, inactive] = await Promise.all([
