@@ -25,6 +25,8 @@ import {
   isCustomOrderStatus,
   CUSTOM_ORDER_STATUSES,
   groupSelectedCutPieces,
+  formatSelectedCutsLabel,
+  hasSelectedCuts,
   resolveOrderLeftoverMeters,
   type CustomOrderShipmentSummary,
 } from "@/lib/customOrders";
@@ -101,7 +103,18 @@ interface Order {
     minCutSnapshot?: { lengthInMeters?: number } | null;
     estimatedMeters?: number | null;
   };
-  fabricSnapshot?: { name: string } | null;
+  fabricSnapshot?: { name: string; image?: string; images?: string[] } | null;
+  fabricId?:
+    | string
+    | {
+        _id: string;
+        name?: string;
+        nameAr?: string;
+        images?: string[];
+        thumbnailImage?: string;
+      }
+    | null;
+  fabricImage?: string;
   measurements?: Measurements;
   status: string;
   createdAt: string;
@@ -116,7 +129,17 @@ interface Order {
     price?: number;
   }>;
   items?: Array<{
-    fabricId?: string | null;
+    fabricId?:
+      | string
+      | {
+          _id: string;
+          name?: string;
+          nameAr?: string;
+          images?: string[];
+          thumbnailImage?: string;
+        }
+      | null;
+    fabricImage?: string;
     fabricMeters?: number;
     leftoverMeters?: number;
     selectedCuts?: Array<{
@@ -126,7 +149,7 @@ interface Order {
       lengthInMeters: number;
       price?: number;
     }>;
-    fabricSnapshot?: { name: string } | null;
+    fabricSnapshot?: { name: string; image?: string; images?: string[] } | null;
     designSnapshot?: {
       name?: string;
       minCutSnapshot?: { lengthInMeters?: number } | null;
@@ -152,11 +175,12 @@ interface Order {
   shippingPrice?: number;
   parcelCount?: number;
   perParcelFee?: number | null;
-  pricing: {
-    total: number;
-    currency: string;
-    fabricCost: number;
-    fabricPricePerMeter: number;
+  currency?: string;
+  pricing?: {
+    total?: number;
+    currency?: string;
+    fabricCost?: number;
+    fabricPricePerMeter?: number;
     deliveryFee?: number;
     parcelCount?: number;
     perParcelFee?: number | null;
@@ -209,6 +233,35 @@ function formatParcelDeliveryNote(
   return locale === "ar"
     ? `${count} طرود × ${formatCurrencyFn(fee, currency)} لكل طرد`
     : `${count} parcels × ${formatCurrencyFn(fee, currency)} each`;
+}
+
+function getCustomOrderFabricImage(
+  fabricRef?:
+    | string
+    | {
+        images?: string[];
+        thumbnailImage?: string;
+      }
+    | null,
+  fabricImage?: string | null,
+  fabricSnapshot?: { image?: string; images?: string[] } | null,
+): string {
+  if (fabricImage) return fabricImage;
+  if (fabricRef && typeof fabricRef === "object") {
+    if (Array.isArray(fabricRef.images) && fabricRef.images.length > 0) {
+      return fabricRef.images[0] || "";
+    }
+    if (fabricRef.thumbnailImage) {
+      return fabricRef.thumbnailImage;
+    }
+  }
+  if (fabricSnapshot) {
+    if (fabricSnapshot.image) return fabricSnapshot.image;
+    if (Array.isArray(fabricSnapshot.images) && fabricSnapshot.images.length > 0) {
+      return fabricSnapshot.images[0] || "";
+    }
+  }
+  return "";
 }
 
 export default function FabricOrdersPage() {
@@ -865,32 +918,163 @@ export default function FabricOrdersPage() {
                     )}
                   </div>
 
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1 [font-family:var(--font-ui)]">
-                      {addonOnly
-                        ? locale === "ar"
-                          ? "إضافات"
-                          : "Add-ons"
-                        : t("design")}
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-2 [font-family:var(--font-ui)]">
+                      {locale === "ar" ? "المنتجات المطلوبة" : "Ordered Items"}
                     </p>
-                    <p className="text-sm font-medium text-black [font-family:var(--font-body)]">
-                      {addonOnly
-                        ? storeAddons
-                            .map((a) => a.name)
-                            .filter(Boolean)
-                            .join(", ") ||
-                          (locale === "ar" ? "إضافات" : "Add-ons")
-                        : fabricName}
-                    </p>
-                    {!addonOnly && hasAddons ? (
-                      <p className="mt-1 text-[11px] text-gray-500 [font-family:var(--font-body)]">
-                        {locale === "ar" ? "يشمل إضافات" : "Includes add-ons"}:{" "}
-                        {storeAddons
-                          .map((a) => a.name)
-                          .filter(Boolean)
-                          .join(", ")}
-                      </p>
-                    ) : null}
+                    <div className="flex flex-col gap-3">
+                      {(() => {
+                        const customItems =
+                          Array.isArray(order.items) && order.items.length > 0
+                            ? order.items
+                            : hasFabric
+                              ? [
+                                  {
+                                    fabricId: order.fabricId,
+                                    fabricImage: order.fabricImage,
+                                    fabricSnapshot: order.fabricSnapshot,
+                                    fabricMeters: order.fabricMeters,
+                                    leftoverMeters: order.leftoverMeters,
+                                    selectedCuts: order.selectedCuts,
+                                    designSnapshot: order.designSnapshot,
+                                    pricing: {
+                                      fabricCost: order.pricing?.fabricCost,
+                                      fabricPricePerMeter:
+                                        order.pricing?.fabricPricePerMeter,
+                                    },
+                                  },
+                                ]
+                              : [];
+
+                        const orderCurrency =
+                          order.pricing?.currency || order.currency || "AED";
+
+                        if (customItems.length === 0 && storeAddons.length === 0) {
+                          return (
+                            <p className="text-sm font-medium text-black [font-family:var(--font-body)]">
+                              {fabricName}
+                            </p>
+                          );
+                        }
+
+                        return (
+                          <>
+                            {customItems.map((item, idx) => {
+                              const itemFabricImage =
+                                getCustomOrderFabricImage(
+                                  item.fabricId,
+                                  item.fabricImage,
+                                  item.fabricSnapshot,
+                                ) ||
+                                getCustomOrderFabricImage(
+                                  order.fabricId,
+                                  order.fabricImage,
+                                  order.fabricSnapshot,
+                                );
+                              const itemName =
+                                (locale === "ar" &&
+                                typeof item.fabricId === "object" &&
+                                item.fabricId?.nameAr)
+                                  ? item.fabricId.nameAr
+                                  : item.fabricSnapshot?.name ||
+                                    (typeof item.fabricId === "object" &&
+                                      item.fabricId?.name) ||
+                                    order.fabricSnapshot?.name ||
+                                    (locale === "ar"
+                                      ? "قماش تفصيل"
+                                      : "Custom Fabric");
+
+                              const cuts =
+                                item.selectedCuts && item.selectedCuts.length > 0
+                                  ? item.selectedCuts
+                                  : order.selectedCuts || [];
+                              const hasCuts = hasSelectedCuts(cuts);
+                              const cutLabel = hasCuts
+                                ? formatSelectedCutsLabel(cuts, locale)
+                                : null;
+                              const meters =
+                                item.fabricMeters ?? order.fabricMeters ?? 0;
+                              const pricePerMeter =
+                                item.pricing?.fabricPricePerMeter ??
+                                order.pricing?.fabricPricePerMeter ??
+                                0;
+
+                              return (
+                                <div
+                                  key={`fabric-item-${idx}`}
+                                  className="flex items-center gap-3 bg-gray-50/50 p-2 rounded-xl border border-gray-100/50"
+                                >
+                                  {itemFabricImage ? (
+                                    <img
+                                      src={itemFabricImage}
+                                      alt={itemName}
+                                      className="w-10 h-10 object-cover rounded-lg border border-gray-200 shrink-0"
+                                    />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center shrink-0">
+                                      <Package className="w-5 h-5 text-gray-400" />
+                                    </div>
+                                  )}
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-semibold text-black [font-family:var(--font-body)]">
+                                      {itemName}
+                                      {cutLabel ? (
+                                        <span className="ml-1.5 text-[10px] font-normal text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">
+                                          {cutLabel}
+                                        </span>
+                                      ) : item.designSnapshot?.name ? (
+                                        <span className="ml-1.5 text-[10px] font-normal text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded">
+                                          {item.designSnapshot.name}
+                                        </span>
+                                      ) : null}
+                                    </p>
+                                    <p className="text-[10px] text-gray-400 mt-0.5 [font-family:var(--font-body)]">
+                                      {locale === "ar"
+                                        ? `الكمية: ${meters} متر${pricePerMeter > 0 ? ` | ${formatCurrency(pricePerMeter, orderCurrency)} / م` : ""}`
+                                        : `Qty: ${meters}m${pricePerMeter > 0 ? ` | ${formatCurrency(pricePerMeter, orderCurrency)} / m` : ""}`}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {storeAddons.map((addon, idx) => (
+                              <div
+                                key={`store-addon-${idx}`}
+                                className="flex items-center gap-3 bg-gray-50/50 p-2 rounded-xl border border-gray-100/50"
+                              >
+                                {addon.thumbnailImage ? (
+                                  <img
+                                    src={addon.thumbnailImage}
+                                    alt={addon.name || "Add-on"}
+                                    className="w-10 h-10 object-cover rounded-lg border border-gray-200 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center shrink-0">
+                                    <Package className="w-5 h-5 text-gray-400" />
+                                  </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-semibold text-black [font-family:var(--font-body)]">
+                                    {addon.name ||
+                                      (locale === "ar" ? "إضافة" : "Add-on")}
+                                    <span className="ml-1.5 text-[10px] font-normal text-amber-800 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">
+                                      {locale === "ar" ? "إضافة" : "Add-on"}
+                                    </span>
+                                  </p>
+                                  <p className="text-[10px] text-gray-400 mt-0.5 [font-family:var(--font-body)]">
+                                    {formatCurrency(
+                                      Number(addon.price) || 0,
+                                      orderCurrency,
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
 
                   <div>
@@ -900,78 +1084,77 @@ export default function FabricOrdersPage() {
                     <p className="text-sm text-black [font-family:var(--font-body)]">
                       {formatOrderDate(order.createdAt, locale)}
                     </p>
-                  </div>
+                    <div className="mt-4">
+                      <p className="text-xs text-gray-400 uppercase tracking-wider mb-1 [font-family:var(--font-ui)]">
+                        {t("status")}
+                      </p>
+                      <div className="flex flex-col gap-2">
+                        <StatusBadge
+                          status={order.status}
+                          label={statusLabel(order.status)}
+                        />
 
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1 [font-family:var(--font-ui)]">
-                      {t("status")}
-                    </p>
-                    <div className="flex flex-col gap-2">
-                      <StatusBadge
-                        status={order.status}
-                        label={statusLabel(order.status)}
-                      />
+                        {canUpdateFabricStatus &&
+                        (["confirmed", "fabric_delivered"] as const).includes(
+                          order.status as "confirmed" | "fabric_delivered",
+                        ) ? (
+                          <div className="relative">
+                            <select
+                              value={order.status}
+                              disabled={updatingOrderId === order._id}
+                              onChange={(e) => {
+                                const next = e.target.value;
+                                if (next === order.status) return;
+                                if (!next) return;
 
-                      {canUpdateFabricStatus &&
-                      (["confirmed", "fabric_delivered"] as const).includes(
-                        order.status as "confirmed" | "fabric_delivered",
-                      ) ? (
-                        <div className="relative">
-                          <select
-                            value={order.status}
-                            disabled={updatingOrderId === order._id}
-                            onChange={(e) => {
-                              const next = e.target.value;
-                              if (next === order.status) return;
-                              if (!next) return;
+                                // Only allow the fabric-flow progression (two-way)
+                                if (next !== getNextFabricStatus(order.status))
+                                  return;
 
-                              // Only allow the fabric-flow progression (two-way)
-                              if (next !== getNextFabricStatus(order.status))
-                                return;
+                                updateOrderStatus(order._id);
+                              }}
+                              className="w-full appearance-none border border-gray-200 rounded-lg px-3 py-1.5 text-[11px] md:text-xs bg-white text-black transition hover:cursor-pointer disabled:bg-gray-50 disabled:text-gray-400 disabled:opacity-100 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black/15 focus:border-black/20 [font-family:var(--font-body)]"
+                            >
+                              {(() => {
+                                const next = getNextFabricStatus(order.status);
+                                // For allowed statuses, next must exist; keep safe fallback.
+                                if (!next) {
+                                  return (
+                                    <option value={order.status}>
+                                      {statusLabel(order.status)}
+                                    </option>
+                                  );
+                                }
 
-                              updateOrderStatus(order._id);
-                            }}
-                            className="w-full appearance-none border border-gray-200 rounded-lg px-3 py-1.5 text-[11px] md:text-xs bg-white text-black transition hover:cursor-pointer disabled:bg-gray-50 disabled:text-gray-400 disabled:opacity-100 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-black/15 focus:border-black/20 [font-family:var(--font-body)]"
-                          >
-                            {(() => {
-                              const next = getNextFabricStatus(order.status);
-                              // For allowed statuses, next must exist; keep safe fallback.
-                              if (!next) {
                                 return (
-                                  <option value={order.status}>
-                                    {statusLabel(order.status)}
-                                  </option>
+                                  <>
+                                    <option value={order.status}>
+                                      {statusLabel(order.status)}
+                                    </option>
+                                    <option value={next}>
+                                      {statusLabel(next)}
+                                    </option>
+                                  </>
                                 );
-                              }
+                              })()}
+                            </select>
 
-                              return (
-                                <>
-                                  <option value={order.status}>
-                                    {statusLabel(order.status)}
-                                  </option>
-                                  <option value={next}>
-                                    {statusLabel(next)}
-                                  </option>
-                                </>
-                              );
-                            })()}
-                          </select>
-
-                          <div
-                            className={`pointer-events-none absolute inset-y-0 ${
-                              locale === "ar" ? "left-3" : "right-3"
-                            } flex items-center`}
-                          >
-                            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                            <div
+                              className={`pointer-events-none absolute inset-y-0 ${
+                                locale === "ar" ? "left-3" : "right-3"
+                              } flex items-center`}
+                            >
+                              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                            </div>
                           </div>
-                        </div>
-                      ) : addonOnly ? (
-                        <p className="text-[10px] text-gray-500 [font-family:var(--font-body)]">
-                          {locale === "ar"
-                            ? "طلب إضافات — لا يشمل حالة تسليم القماش"
-                            : "Add-on order — fabric handoff is not managed by this store"}
-                        </p>
-                      ) : null}
+                        ) : addonOnly ? (
+                          <p className="text-[10px] text-gray-500 [font-family:var(--font-body)]">
+                            {locale === "ar"
+                              ? "طلب إضافات — لا يشمل حالة تسليم القماش"
+                              : "Add-on order — fabric handoff is not managed by this store"}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
 
@@ -984,17 +1167,18 @@ export default function FabricOrdersPage() {
                         storeGross,
                         commissionPercent,
                       );
-                      const currency = order.pricing.currency || "AED";
+                      const currency =
+                        order.pricing?.currency || order.currency || "AED";
                       const deliveryFee =
                         hasFabric && !addonOnly
-                          ? order.pricing.deliveryFee || 0
+                          ? order.pricing?.deliveryFee || 0
                           : 0;
                       const parcelNote =
                         hasFabric && !addonOnly
                           ? formatParcelDeliveryNote(
                               locale,
-                              order.pricing.parcelCount ?? order.parcelCount,
-                              order.pricing.perParcelFee ?? order.perParcelFee,
+                              order.pricing?.parcelCount ?? order.parcelCount,
+                              order.pricing?.perParcelFee ?? order.perParcelFee,
                               formatCurrency,
                               currency,
                             )
@@ -1032,7 +1216,7 @@ export default function FabricOrdersPage() {
                                 {locale === "ar" ? "قماش: " : "Fabric: "}
                                 {formatCurrency(
                                   Number(scope?.fabricGross) ||
-                                    order.pricing.fabricCost ||
+                                    order.pricing?.fabricCost ||
                                     0,
                                   currency,
                                 )}
@@ -1064,41 +1248,7 @@ export default function FabricOrdersPage() {
 
                 {/* Fabric meters & details block */}
                 <div className="px-5 pb-5">
-                  {hasAddons ? (
-                    <div className="mb-4 rounded-xl border border-gray-100 bg-gray-50/50 p-3">
-                      <p className="text-xs text-gray-400 uppercase tracking-wider mb-2 [font-family:var(--font-ui)]">
-                        {locale === "ar" ? "الإضافات المطلوبة" : "Ordered add-ons"}
-                      </p>
-                      <div className="flex flex-col gap-2">
-                        {storeAddons.map((addon, idx) => (
-                          <div
-                            key={`${order._id}-addon-${idx}`}
-                            className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white p-2"
-                          >
-                            {addon.thumbnailImage ? (
-                              <img
-                                src={addon.thumbnailImage}
-                                alt={addon.name || "Add-on"}
-                                className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 object-cover"
-                              />
-                            ) : null}
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-black [font-family:var(--font-body)]">
-                                {addon.name ||
-                                  (locale === "ar" ? "إضافة" : "Add-on")}
-                              </p>
-                              <p className="text-[10px] text-gray-500 [font-family:var(--font-body)]">
-                                {formatCurrency(
-                                  Number(addon.price) || 0,
-                                  order.pricing.currency || "AED",
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
+
 
                   {hasFabric || hasAddons ? (
                   <div className="flex flex-wrap gap-4">
@@ -1165,38 +1315,62 @@ export default function FabricOrdersPage() {
                               itemData.designSnapshot?.estimatedMeters ??
                               0,
                           });
+                          const topFabricImg =
+                            getCustomOrderFabricImage(
+                              itemData.fabricId,
+                              (itemData as any).fabricImage,
+                              itemData.fabricSnapshot,
+                            ) ||
+                            getCustomOrderFabricImage(
+                              order.fabricId,
+                              order.fabricImage,
+                              order.fabricSnapshot,
+                            );
 
-                          if (cutRows.length > 0) {
-                            return (
-                              <div className="mt-1 space-y-1">
-                                <ul className="text-sm font-semibold text-black space-y-0.5">
-                                  {cutRows.map((row) => (
-                                    <li key={row.key}>
-                                      {t("piecesCount", {
-                                        count: row.quantity,
-                                        cut: row.label,
-                                      })}
-                                      {row.lengthInMeters > 0
-                                        ? ` · ${row.lengthInMeters}${locale === "ar" ? " م" : "m"}`
-                                        : ""}
-                                    </li>
-                                  ))}
-                                </ul>
-                                {leftoverVal > 0 && (
-                                  <p className="text-xs text-emerald-700 font-medium pt-1">
-                                    {t("leftoverToReturn")}: {leftoverVal}{" "}
-                                    {locale === "ar" ? "م" : "m"}
+                          return (
+                            <div className="flex items-center gap-3 mt-2">
+                              {topFabricImg ? (
+                                <img
+                                  src={topFabricImg}
+                                  alt={fabricName}
+                                  className="w-12 h-12 object-cover rounded-lg border border-gray-200 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center shrink-0">
+                                  <Package className="w-6 h-6 text-gray-400" />
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                {cutRows.length > 0 ? (
+                                  <div className="space-y-1">
+                                    <ul className="text-sm font-semibold text-black space-y-0.5">
+                                      {cutRows.map((row) => (
+                                        <li key={row.key}>
+                                          {t("piecesCount", {
+                                            count: row.quantity,
+                                            cut: row.label,
+                                          })}
+                                          {row.lengthInMeters > 0
+                                            ? ` · ${row.lengthInMeters}${locale === "ar" ? " م" : "m"}`
+                                            : ""}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                    {leftoverVal > 0 && (
+                                      <p className="text-xs text-emerald-700 font-medium pt-1">
+                                        {t("leftoverToReturn")}: {leftoverVal}{" "}
+                                        {locale === "ar" ? "م" : "m"}
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm font-semibold font-mono text-black">
+                                    {order.fabricMeters || 0}{" "}
+                                    {locale === "ar" ? "متر" : "meters (m)"}
                                   </p>
                                 )}
                               </div>
-                            );
-                          }
-
-                          return (
-                            <p className="text-sm font-semibold font-mono text-black mt-0.5">
-                              {order.fabricMeters || 0}{" "}
-                              {locale === "ar" ? "متر" : "meters (m)"}
-                            </p>
+                            </div>
                           );
                         })()}
                       </div>
@@ -1207,9 +1381,9 @@ export default function FabricOrdersPage() {
                         <p className="text-sm font-semibold font-mono text-black mt-0.5">
                           {formatCurrency(
                             order.items?.[0]?.pricing?.fabricPricePerMeter ||
-                              order.pricing.fabricPricePerMeter ||
+                              order.pricing?.fabricPricePerMeter ||
                               0,
-                            order.pricing.currency || "AED",
+                            order.pricing?.currency || order.currency || "AED",
                           )}{" "}
                           / m
                         </p>
@@ -1223,9 +1397,9 @@ export default function FabricOrdersPage() {
                         <p className="text-sm font-semibold font-mono text-black mt-0.5">
                           {formatCurrency(
                             Number(scope?.fabricGross) ||
-                              order.pricing.fabricCost ||
+                              order.pricing?.fabricCost ||
                               0,
-                            order.pricing.currency || "AED",
+                            order.pricing?.currency || order.currency || "AED",
                           )}
                         </p>
                       </div>
@@ -1233,13 +1407,14 @@ export default function FabricOrdersPage() {
                         {(() => {
                           const fabricOnlyGross =
                             Number(scope?.fabricGross) ||
-                            order.pricing.fabricCost ||
+                            order.pricing?.fabricCost ||
                             0;
                           const breakdown = splitFabricCommission(
                             fabricOnlyGross,
                             commissionPercent,
                           );
-                          const currency = order.pricing.currency || "AED";
+                          const currency =
+                            order.pricing?.currency || order.currency || "AED";
                           return (
                             <>
                               <div>
