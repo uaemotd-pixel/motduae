@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
 import { Link } from "@/i18n/navigation";
@@ -93,15 +93,33 @@ function tailorApplicationHref(row: {
   return `/admin/tailors/${userId}/application`;
 }
 
-export default function AdminTailorsPage() {
+function AdminTailorsContent() {
   const params = useParams();
-  const localeParam = params.locale as string;
+  const searchParams = useSearchParams();
+  const localeParam = (params?.locale as string) || "en";
+
+  const urlTab = searchParams.get("tab") || searchParams.get("status");
+  const highlightId =
+    searchParams.get("highlight") ||
+    searchParams.get("id") ||
+    searchParams.get("tailorId") ||
+    "";
+
+  const initialTab: TailorTab =
+    urlTab === "pending" ||
+    urlTab === "approved" ||
+    urlTab === "rejected" ||
+    urlTab === "all"
+      ? urlTab
+      : highlightId
+        ? "pending"
+        : "all";
 
   const [rows, setRows] = useState<TailorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<TailorTab>("all");
+  const [activeTab, setActiveTab] = useState<TailorTab>(initialTab);
   const [approvedStatusTab, setApprovedStatusTab] =
     useState<ApprovedStatusTab>("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -376,6 +394,53 @@ export default function AdminTailorsPage() {
     setPendingToggle(null);
   };
 
+  // Sync tab with URL if changed
+  useEffect(() => {
+    if (
+      urlTab &&
+      (urlTab === "pending" ||
+        urlTab === "approved" ||
+        urlTab === "rejected" ||
+        urlTab === "all")
+    ) {
+      setActiveTab(urlTab);
+      setCurrentPage(1);
+    }
+  }, [urlTab]);
+
+  // If highlightId is present and target tailor is found, ensure activeTab matches
+  useEffect(() => {
+    if (!highlightId || rows.length === 0) return;
+    const target = rows.find(
+      (r) => r.id === highlightId || r.ownerId?._id === highlightId,
+    );
+    if (target && !urlTab) {
+      setActiveTab(target.type);
+    }
+  }, [highlightId, rows, urlTab]);
+
+  const highlightedTailor = useMemo(() => {
+    if (!highlightId || rows.length === 0) return null;
+    return (
+      rows.find(
+        (r) => r.id === highlightId || r.ownerId?._id === highlightId,
+      ) || null
+    );
+  }, [highlightId, rows]);
+
+  // Smooth scroll to highlighted tailor when loaded
+  const hasScrolledRef = useRef(false);
+  useEffect(() => {
+    if (!highlightId || loading || hasScrolledRef.current) return;
+    const el =
+      document.getElementById(`tailor-${highlightId}`) ||
+      document.getElementById(`tailor-card-${highlightId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      hasScrolledRef.current = true;
+    }
+  }, [highlightId, loading, rows]);
+
   // ---------- Filter & formatting ----------
   const filteredRows = useMemo(() => {
     const byTab =
@@ -390,21 +455,36 @@ export default function AdminTailorsPage() {
           )
         : byTab;
 
-    if (!searchTerm.trim()) return byStatus;
-    const term = searchTerm.toLowerCase();
-    return byStatus.filter((row) => {
-      const name = row.name?.toLowerCase() || "";
-      const email = row.email?.toLowerCase() || "";
-      const shop = row.shopName?.toLowerCase() || "";
-      const requestNumber = row.requestNumber?.toLowerCase() || "";
-      return (
-        name.includes(term) ||
-        email.includes(term) ||
-        shop.includes(term) ||
-        requestNumber.includes(term)
+    let result = byStatus;
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = byStatus.filter((row) => {
+        const name = row.name?.toLowerCase() || "";
+        const email = row.email?.toLowerCase() || "";
+        const shop = row.shopName?.toLowerCase() || "";
+        const requestNumber = row.requestNumber?.toLowerCase() || "";
+        return (
+          name.includes(term) ||
+          email.includes(term) ||
+          shop.includes(term) ||
+          requestNumber.includes(term)
+        );
+      });
+    }
+
+    // Place the highlighted tailor at the very top of the list
+    if (highlightId) {
+      const matchIndex = result.findIndex(
+        (r) => r.id === highlightId || r.ownerId?._id === highlightId,
       );
-    });
-  }, [rows, searchTerm, activeTab, approvedStatusTab]);
+      if (matchIndex > -1) {
+        const matched = result[matchIndex];
+        result = [matched, ...result.filter((_, idx) => idx !== matchIndex)];
+      }
+    }
+
+    return result;
+  }, [rows, searchTerm, activeTab, approvedStatusTab, highlightId]);
 
   const totalItems = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / limit));
@@ -542,6 +622,43 @@ export default function AdminTailorsPage() {
         </div>
       </div>
 
+      {/* Action Required Banner for Notification Deep Link */}
+      {highlightedTailor && (
+        <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
+              <AlertCircle className="w-5 h-5 text-amber-700 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-sm font-semibold text-amber-950">
+                  {localeParam === "ar"
+                    ? "مطلوب اتخاذ إجراء: مراجعة طلب الخياط"
+                    : "Action Required: Review Tailor Registration"}
+                </h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-200 text-amber-900 border border-amber-300">
+                  {localeParam === "ar" ? "جديد" : "New"}
+                </span>
+              </div>
+              <p className="text-xs text-amber-800 mt-0.5">
+                {localeParam === "ar"
+                  ? `قام الخياط (${highlightedTailor.name || highlightedTailor.email}) بالتسجيل ويتطلب مراجعة الطلب للاعتماد أو الرفض.`
+                  : `Newly registered tailor (${highlightedTailor.name || highlightedTailor.email}) is awaiting your review to approve or reject.`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href={tailorApplicationHref(highlightedTailor)}
+              className="px-4 py-2 bg-black text-white text-xs font-medium rounded-xl hover:bg-black/85 transition inline-flex items-center gap-2 shadow-sm hover:cursor-pointer"
+            >
+              <Eye className="w-4 h-4" />
+              <span>{localeParam === "ar" ? "مراجعة الطلب الآن" : "Review Application Now"}</span>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100">
@@ -677,6 +794,10 @@ export default function AdminTailorsPage() {
                     const isPending = row.type === "pending";
                     const isRejected = row.type === "rejected";
                     const busy = actionInProgress === row.id;
+                    const isHighlighted = Boolean(
+                      highlightId &&
+                        (row.id === highlightId || row.ownerId?._id === highlightId),
+                    );
 
                     let statusBadge;
                     if (isPending) {
@@ -707,27 +828,60 @@ export default function AdminTailorsPage() {
                     }
 
                     const actions = (
-                      <button
-                        onClick={(e) => handleMenuOpen(e, row)}
-                        disabled={busy}
-                        className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer disabled:opacity-50"
-                        title="Actions"
-                      >
-                        <MoreVertical className="w-5 h-5" />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        {isHighlighted && (
+                          <Link
+                            href={tailorApplicationHref(row)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-black/85 transition shadow-sm hover:cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>{localeParam === "ar" ? "مراجعة الطلب" : "Review Application"}</span>
+                          </Link>
+                        )}
+                        <button
+                          onClick={(e) => handleMenuOpen(e, row)}
+                          disabled={busy}
+                          className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer disabled:opacity-50"
+                          title="Actions"
+                        >
+                          <MoreVertical className="w-5 h-5" />
+                        </button>
+                      </div>
                     );
 
                     return (
                       <tr
                         key={row.id}
-                        className="group hover:bg-gray-50 transition-all duration-200"
+                        id={`tailor-${row.id}`}
+                        className={`group transition-all duration-200 ${
+                          isHighlighted
+                            ? "bg-amber-50/70 hover:bg-amber-100/50 border-l-4 border-l-amber-500 ring-1 ring-amber-200 shadow-xs"
+                            : "hover:bg-gray-50"
+                        }`}
                       >
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             {getAvatar(row)}
-                            <span className="text-xs sm:text-sm font-medium text-black">
-                              {row.name || "—"}
-                            </span>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs sm:text-sm font-medium text-black">
+                                  {row.name || "—"}
+                                </span>
+                                {isHighlighted && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-200/90 text-amber-900 border border-amber-300">
+                                    <AlertCircle className="w-3 h-3 text-amber-700 animate-pulse" />
+                                    {localeParam === "ar" ? "مطلوب اتخاذ إجراء" : "Action Required"}
+                                  </span>
+                                )}
+                              </div>
+                              {isHighlighted && (
+                                <p className="text-[11px] text-amber-800 mt-0.5 font-medium">
+                                  {localeParam === "ar"
+                                    ? "طلب تسجيل خياط جديد بانتظار المراجعة"
+                                    : "Newly registered tailor awaiting review"}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
@@ -817,11 +971,32 @@ export default function AdminTailorsPage() {
                 </button>
               );
 
+              const isHighlighted = Boolean(
+                highlightId &&
+                  (row.id === highlightId || row.ownerId?._id === highlightId),
+              );
+
               return (
                 <div
                   key={row.id}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4"
+                  id={`tailor-card-${row.id}`}
+                  className={`bg-white rounded-2xl shadow-sm border p-3 sm:p-4 transition-all duration-200 ${
+                    isHighlighted
+                      ? "border-amber-400 bg-amber-50/60 ring-2 ring-amber-300/60 shadow-md"
+                      : "border-gray-100"
+                  }`}
                 >
+                  {isHighlighted && (
+                    <div className="mb-3 px-3 py-1.5 bg-amber-100/90 border border-amber-200 text-amber-900 rounded-xl text-xs font-semibold flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
+                      <span>
+                        {localeParam === "ar"
+                          ? "مطلوب اتخاذ إجراء: مراجعة طلب الخياط"
+                          : "Action Required: Review Tailor Application"}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       {getAvatar(row)}
@@ -862,6 +1037,16 @@ export default function AdminTailorsPage() {
                       </span>
                     </div>
                   </div>
+
+                  {isHighlighted && (
+                    <Link
+                      href={tailorApplicationHref(row)}
+                      className="mt-3 w-full inline-flex items-center justify-center gap-2 py-2 bg-black text-white text-xs font-medium rounded-xl hover:bg-black/85 transition shadow-sm hover:cursor-pointer"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>{localeParam === "ar" ? "مراجعة الطلب الآن" : "Review Application Now"}</span>
+                    </Link>
+                  )}
                 </div>
               );
             })}
@@ -952,5 +1137,13 @@ export default function AdminTailorsPage() {
         onClose={() => setImageModalOpen(false)}
       />
     </div>
+  );
+}
+
+export default function AdminTailorsPage() {
+  return (
+    <Suspense fallback={<TableSkeleton rows={8} />}>
+      <AdminTailorsContent />
+    </Suspense>
   );
 }

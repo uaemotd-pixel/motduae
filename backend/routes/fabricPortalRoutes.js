@@ -927,7 +927,7 @@ fabricPortalRouter.get(
           { listedByStore: ownerUserId },
           ...(shop ? [{ fabricShopId: shop._id }] : []),
         ],
-      }).select("_id"),
+      }).select("_id images name nameAr"),
     ]);
 
     const storeAddonIdValues = storeAddons.map((a) => a._id);
@@ -938,12 +938,16 @@ fabricPortalRouter.get(
     const storeFabricIdSet = new Set(
       storeFabricIdValues.map((id) => String(id)),
     );
+    const storeFabricMap = new Map(
+      storeFabrics.map((f) => [String(f._id), f]),
+    );
 
     const scopeCtx = {
       ownerUserIdStr,
       shopIdStr,
       storeFabricIdSet,
       storeAddonIdSet,
+      storeFabricMap,
     };
 
     const orders = await CustomOrder.find(
@@ -956,6 +960,8 @@ fabricPortalRouter.get(
       }),
     )
       .populate("userId", "name email phone")
+      .populate("fabricId", "name nameAr images thumbnailImage")
+      .populate("items.fabricId", "name nameAr images thumbnailImage")
       .sort({ createdAt: -1 })
       .lean();
 
