@@ -212,7 +212,10 @@ export default function AdminFabricsPage() {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTermRef = useRef(searchTerm);
+  const fetchGenerationRef = useRef(0);
+  const skipSearchDebounceRef = useRef(true);
+  searchTermRef.current = searchTerm;
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -292,13 +295,16 @@ export default function AdminFabricsPage() {
 
   const fetchItems = useCallback(
     async (page = 1, limitOverride?: number, statusOverride?: string) => {
+      const generation = ++fetchGenerationRef.current;
       try {
         setLoading(true);
         const l = limitOverride || limit;
         const status = statusOverride || statusFilter;
+        const search = searchTermRef.current;
         const res = await api.get<ApiResponse>(
-          `/api/admin/fabrics?page=${page}&limit=${l}&search=${encodeURIComponent(searchTerm)}&status=${status}`,
+          `/api/admin/fabrics?page=${page}&limit=${l}&search=${encodeURIComponent(search)}&status=${status}`,
         );
+        if (generation !== fetchGenerationRef.current) return;
 
         setItems(res.items || []);
         setTotalItems(res.total || 0);
@@ -310,16 +316,19 @@ export default function AdminFabricsPage() {
         });
         setError(null);
       } catch (err: unknown) {
+        if (generation !== fetchGenerationRef.current) return;
         setError(getApiErrorMessage(err, t.adminFabrics.list.load_error_title));
         setItems([]);
         setTotalItems(0);
         setTotalPages(0);
         setStats({ active: 0, inactive: 0 });
       } finally {
-        setLoading(false);
+        if (generation === fetchGenerationRef.current) {
+          setLoading(false);
+        }
       }
     },
-    [searchTerm, limit, t.adminFabrics.list.load_error_title, statusFilter],
+    [limit, t.adminFabrics.list.load_error_title, statusFilter],
   );
 
   const applyStatusFilter = (status: FabricStatusFilter) => {
@@ -363,19 +372,18 @@ export default function AdminFabricsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounced search
+  // Search only after the user stops typing.
   useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+    if (skipSearchDebounceRef.current) {
+      skipSearchDebounceRef.current = false;
+      return;
     }
-    searchTimeoutRef.current = setTimeout(() => {
-      fetchItems(1);
-    }, 300);
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
+    const timer = window.setTimeout(() => {
+      void fetchItems(1);
+    }, 500);
+    return () => window.clearTimeout(timer);
+    // fetchItems reads the current search from a ref; do not refetch on tab/limit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
   const openDeleteModal = (item: FabricItem) => {
