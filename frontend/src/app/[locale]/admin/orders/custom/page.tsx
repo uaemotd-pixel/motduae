@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api, getApiErrorMessage } from "@/lib/api/client";
@@ -26,7 +26,7 @@ import type { Locale } from "@/i18n/routing";
 import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
-import { isWithinLocalDateRange } from "@/lib/dateRange";
+import { localDayEndISO, localDayStartISO } from "@/lib/dateRange";
 import OrderRecipientDetails from "@/components/admin/OrderRecipientDetails";
 import type { OrderDeliveryAddress } from "@/lib/orderDelivery";
 
@@ -103,6 +103,18 @@ interface Order {
   customerDeliveryAddress?: OrderDeliveryAddress | null;
 }
 
+interface CustomOrdersResponse {
+  items: Order[];
+  total: number;
+  page: number;
+  totalPages: number;
+  stats?: {
+    confirmed: number;
+    inProduction: number;
+    delivered: number;
+  };
+}
+
 const TOAST_BASE = {
   duration: 6000,
   style: {
@@ -163,7 +175,15 @@ export default function AdminCustomOrdersPage() {
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
+  const [stats, setStats] = useState({
+    confirmed: 0,
+    inProduction: 0,
+    delivered: 0,
+  });
+  const filterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleImageClick = (imageUrl: string) => {
     setSelectedImage(imageUrl);
@@ -183,9 +203,7 @@ export default function AdminCustomOrdersPage() {
     return `${d.getFullYear()}-${month}-01`;
   };
 
-  const [filterCustomer, setFilterCustomer] = useState<string>(
-    orderIdFromUrl || "",
-  );
+  const [filterCustomer, setFilterCustomer] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterFrom, setFilterFrom] = useState<string>(
     orderIdFromUrl ? "" : getFirstDayOfMonthString(),
@@ -211,32 +229,81 @@ export default function AdminCustomOrdersPage() {
     return status.replace(/_/g, " ");
   };
 
-  const fetchOrders = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.get<Order[] | { items: Order[] }>(
-        "/api/admin/orders/custom",
-      );
-      const ordersData = Array.isArray(res) ? res : res.items || [];
-      setOrders(ordersData);
+  const fetchOrders = useCallback(
+    async (page = 1, limitOverride?: number) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const l = limitOverride || limit;
+        const queryParams = new URLSearchParams();
+        queryParams.append("page", page.toString());
+        queryParams.append("limit", l.toString());
+        if (orderIdFromUrl) {
+          queryParams.append("orderId", orderIdFromUrl);
+        } else {
+          if (filterStatus) queryParams.append("status", filterStatus);
+          if (filterCustomer.trim())
+            queryParams.append("customer", filterCustomer.trim());
+          if (filterFrom) queryParams.append("from", localDayStartISO(filterFrom));
+          if (filterTo) queryParams.append("to", localDayEndISO(filterTo));
+        }
 
-      const initialNote: Record<string, string> = {};
-      ordersData.forEach((order) => {
-        initialNote[order._id] = "";
-      });
-      setNote(initialNote);
-    } catch (err) {
-      setError(getApiErrorMessage(err, t("loadError")));
-      toast.error(t("loadToastError"), ERROR_TOAST);
-    } finally {
-      setLoading(false);
-    }
-  };
+        const data = await api.get<CustomOrdersResponse>(
+          `/api/admin/orders/custom?${queryParams.toString()}`,
+        );
+        const ordersData = data.items || [];
+        setOrders(ordersData);
+        setTotalItems(data.total || 0);
+        setCurrentPage(data.page || 1);
+        setTotalPages(data.totalPages || 1);
+        setStats({
+          confirmed: data.stats?.confirmed || 0,
+          inProduction: data.stats?.inProduction || 0,
+          delivered: data.stats?.delivered || 0,
+        });
+
+        setNote((prev) => {
+          const next: Record<string, string> = {};
+          ordersData.forEach((order) => {
+            next[order._id] = prev[order._id] || "";
+          });
+          return next;
+        });
+      } catch (err) {
+        setError(getApiErrorMessage(err, t("loadError")));
+        toast.error(t("loadToastError"), ERROR_TOAST);
+        setOrders([]);
+        setTotalItems(0);
+        setTotalPages(1);
+        setStats({ confirmed: 0, inProduction: 0, delivered: 0 });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      filterCustomer,
+      filterStatus,
+      filterFrom,
+      filterTo,
+      limit,
+      orderIdFromUrl,
+      t,
+    ],
+  );
 
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    if (filterTimeoutRef.current) {
+      clearTimeout(filterTimeoutRef.current);
+    }
+    filterTimeoutRef.current = setTimeout(() => {
+      fetchOrders(1);
+    }, 300);
+    return () => {
+      if (filterTimeoutRef.current) {
+        clearTimeout(filterTimeoutRef.current);
+      }
+    };
+  }, [fetchOrders]);
 
   useEffect(() => {
     if (!orderIdFromUrl || loading) return;
@@ -274,7 +341,7 @@ export default function AdminCustomOrdersPage() {
       }
 
       toast.success(t("updateSuccess"), SUCCESS_TOAST);
-      await fetchOrders();
+      await fetchOrders(currentPage);
     } catch (err) {
       toast.error(getApiErrorMessage(err, t("updateFailed")), ERROR_TOAST);
     } finally {
@@ -288,72 +355,13 @@ export default function AdminCustomOrdersPage() {
       currency,
     }).format(amount);
 
-  const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      if (filterCustomer.trim()) {
-        const term = filterCustomer.toLowerCase();
-        const customerName = readPartnerName(
-          typeof order.userId === "object" ? order.userId : null,
-          "",
-        ).toLowerCase();
-        const recipientName = String(
-          order.customerDeliveryAddress?.fullName || "",
-        ).toLowerCase();
-        const customerEmail = (
-          (typeof order.userId === "object" && order.userId?.email) ||
-          ""
-        ).toLowerCase();
-        const orderId = order._id.toLowerCase();
-
-        if (
-          !customerName.includes(term) &&
-          !recipientName.includes(term) &&
-          !customerEmail.includes(term) &&
-          !orderId.includes(term)
-        ) {
-          return false;
-        }
-      }
-
-      if (filterStatus) {
-        if (order.status !== filterStatus) return false;
-      }
-
-      if (
-        !isWithinLocalDateRange(order.createdAt, filterFrom, filterTo)
-      ) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [orders, filterCustomer, filterStatus, filterFrom, filterTo]);
-
-  const totalItems = filteredOrders.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
-
-  const paginatedOrders = useMemo(() => {
-    const startIndex = (currentPage - 1) * limit;
-    return filteredOrders.slice(startIndex, startIndex + limit);
-  }, [filteredOrders, currentPage, limit]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterCustomer, filterStatus, filterFrom, filterTo]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(1);
-    }
-  }, [currentPage, totalPages]);
-
   const handlePageChange = (page: number) => {
-    setCurrentPage(page);
+    fetchOrders(page);
   };
 
   const handleLimitChange = (newLimit: number) => {
     setLimit(newLimit);
-    setCurrentPage(1);
+    fetchOrders(1, newLimit);
   };
 
   const getFabricImage = (
@@ -426,21 +434,18 @@ export default function AdminCustomOrdersPage() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: t("stats.total"), value: filteredOrders.length },
+          { label: t("stats.total"), value: totalItems },
           {
             label: t("stats.pending"),
-            value: filteredOrders.filter((o) => o.status === "confirmed")
-              .length,
+            value: stats.confirmed,
           },
           {
             label: t("stats.inProduction"),
-            value: filteredOrders.filter((o) => o.status === "in_production")
-              .length,
+            value: stats.inProduction,
           },
           {
             label: t("stats.delivered"),
-            value: filteredOrders.filter((o) => o.status === "delivered")
-              .length,
+            value: stats.delivered,
           },
         ].map((stat) => (
           <div
@@ -522,7 +527,7 @@ export default function AdminCustomOrdersPage() {
               />
             </div>
             <button
-              onClick={fetchOrders}
+              onClick={() => fetchOrders(currentPage)}
               className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0"
             >
               <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -546,7 +551,7 @@ export default function AdminCustomOrdersPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {paginatedOrders.map((order) => {
+          {orders.map((order) => {
             const isUpdating = updatingOrderId === order._id;
             const isGuest = isGuestOrderUser(order.userId);
             const accountName = readPartnerName(

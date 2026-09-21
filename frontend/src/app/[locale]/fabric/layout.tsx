@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, usePathname } from "next/navigation";
-import { useRouter } from "@/i18n/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api/client";
@@ -12,6 +11,7 @@ import FabricPortalShell from "@/components/fabric/FabricPortalShell";
 import PartnerApplyChrome from "@/components/partner/PartnerApplyChrome";
 import { SectionLoadingSkeleton } from "@/components/ui/Skeleton";
 import { resolvePartnerPortalGate } from "@/lib/auth/partnerPortalGate";
+import { safeClientNavigate } from "@/lib/safeClientNavigate";
 
 export default function FabricLayout({
   children,
@@ -19,7 +19,6 @@ export default function FabricLayout({
   children: React.ReactNode;
 }) {
   const t = useTranslations("FabricPortal");
-  const router = useRouter();
   const params = useParams();
   const pathname = usePathname();
   const locale = params.locale === "ar" ? "ar" : "en";
@@ -38,17 +37,17 @@ export default function FabricLayout({
 
     if (!user) {
       const redirect = encodeURIComponent(`/${locale}/fabric`);
-      router.push(`/auth/login?redirect=${redirect}`);
+      safeClientNavigate(`/auth/login?redirect=${redirect}`, { locale });
       return;
     }
 
     if (user.role !== "fabric_store") {
-      router.push("/");
+      safeClientNavigate("/", { locale });
       return;
     }
 
     if (redirectTo) {
-      router.replace(redirectTo);
+      safeClientNavigate(redirectTo, { locale, replace: true });
       return;
     }
 
@@ -72,7 +71,7 @@ export default function FabricLayout({
     };
 
     checkStatus();
-  }, [isLoading, locale, router, user, redirectTo]);
+  }, [isLoading, locale, user, redirectTo]);
 
   if (isLoading || gate.screen === "redirect") {
     return (

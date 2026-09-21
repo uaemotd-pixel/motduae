@@ -123,8 +123,11 @@ export function collectRequiredFieldErrors(
 
   requireText("businessName", "required");
   requireText("businessNameAr", "required");
-  if (!isValidUaePhone(normalizeUaePhone(form.phone) || form.phone)) {
+  const phone = normalizeUaePhone(form.phone);
+  if (!phone) {
     errors.phone = "required";
+  } else if (!isValidUaePhone(phone)) {
+    errors.phone = "invalid";
   }
   requireText("city", "required");
   requireText("location", "required");

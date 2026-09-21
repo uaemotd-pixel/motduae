@@ -796,6 +796,7 @@
     "submitError": "تعذر إرسال طلبك.",
     "incomplete": "يرجى إكمال الحقول المطلوبة",
     "requiredField": "هذا الحقل مطلوب",
+    "fieldRequired": "{field} مطلوب.",
     "submitNeedsFields": "أكمل الحقول المطلوبة وأكد المعلومات قبل الإرسال",
     "addSocial": "إضافة حساب تواصل",
     "removeSocial": "إزالة",
@@ -817,7 +818,7 @@
     "fields": {
       "businessName": "اسم النشاط",
       "businessNameAr": "اسم النشاط (عربي)",
-      "phone": "الهاتف",
+      "phone": "رقم الهاتف",
       "city": "المدينة",
       "location": "العنوان / المنطقة",
       "about": "نبذة",
@@ -853,6 +854,7 @@
       "other": "أخرى"
     },
     "validation": {
+      "phoneInvalid": "أدخل 9 أرقام بعد +971.",
       "websiteInvalid": "أدخل رابط موقع صالح (https://…).",
       "socialPlatformRequired": "اختر منصة تواصل.",
       "socialPlatformInvalid": "اختر منصة تواصل مدعومة.",

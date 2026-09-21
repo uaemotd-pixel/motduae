@@ -208,12 +208,33 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
   };
 }
 
-export async function fetchFabricItems(): Promise<FabricProfile[]> {
-  const response = await api.get<{
-    success: boolean;
-    items: FabricProfile[];
-  }>("/api/fabric/fabrics");
-  return response.items ?? [];
+export type FabricListResponse = {
+  success: boolean;
+  items: FabricProfile[];
+  total: number;
+  page: number;
+  totalPages: number;
+  stats?: {
+    active: number;
+    inactive: number;
+  };
+};
+
+export async function fetchFabricItems(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  stock?: "all" | "low";
+}): Promise<FabricListResponse> {
+  const query = new URLSearchParams();
+  if (params?.page != null) query.set("page", String(params.page));
+  if (params?.limit != null) query.set("limit", String(params.limit));
+  if (params?.search?.trim()) query.set("search", params.search.trim());
+  if (params?.stock === "low") query.set("stock", "low");
+  const qs = query.toString();
+  return api.get<FabricListResponse>(
+    `/api/fabric/fabrics${qs ? `?${qs}` : ""}`,
+  );
 }
 
 export async function fetchFabricItem(id: string): Promise<FabricProfile> {

@@ -365,10 +365,12 @@ export async function countLowStockFabricCutRows(
  */
 export async function findLowStockFabricParentIds(
   threshold = LOW_FABRIC_CUT_STOCK_THRESHOLD,
+  extraMatch = {},
 ) {
   const docs = await Fabric.find({
     isActive: true,
     "cuts.stock": { $lte: threshold },
+    ...extraMatch,
   })
     .select("_id isVariantOf")
     .lean();
@@ -378,4 +380,44 @@ export async function findLowStockFabricParentIds(
     ids.add(String(doc.isVariantOf || doc._id));
   }
   return [...ids];
+}
+
+function parentIdFromFabricDoc(doc) {
+  return String(doc.isVariantOf || doc._id);
+}
+
+/**
+ * Parent ids that still have at least one cut piece on the parent or a variant.
+ */
+export async function findInStockFabricParentIds(extraMatch = {}) {
+  const docs = await Fabric.find({
+    "cuts.stock": { $gt: 0 },
+    ...extraMatch,
+  })
+    .select("_id isVariantOf")
+    .lean();
+
+  const ids = new Set();
+  for (const doc of docs) {
+    ids.add(parentIdFromFabricDoc(doc));
+  }
+  return [...ids];
+}
+
+/**
+ * Parent ids with no remaining cut stock on the parent or any variant.
+ * This is the admin Fabrics "Sold" tab (sold out), not inactive listings.
+ */
+export async function findSoldOutFabricParentIds(extraMatch = {}) {
+  const inStock = new Set(await findInStockFabricParentIds(extraMatch));
+  const parents = await Fabric.find({
+    $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
+    ...extraMatch,
+  })
+    .select("_id")
+    .lean();
+
+  return parents
+    .map((doc) => String(doc._id))
+    .filter((id) => !inStock.has(id));
 }

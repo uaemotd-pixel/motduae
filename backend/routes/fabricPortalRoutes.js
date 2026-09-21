@@ -61,6 +61,7 @@ import {
   enrichFabricWithCuts,
   prepareFabricCutsInput,
   countLowStockCutRowsFromFabrics,
+  findLowStockFabricParentIds,
   LOW_FABRIC_CUT_STOCK_THRESHOLD,
 } from "../utils/fabricCuts.js";
 import PartnerApplication from "../models/PartnerApplication.js";
@@ -276,6 +277,34 @@ const requirePickupAddress = (address) => {
 };
 const findOwnShop = (ownerId) => FabricShop.findOne({ ownerId });
 
+function escapeRegex(term) {
+  return String(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parsePortalListQuery(req) {
+  const paginate =
+    req.query.page != null && String(req.query.page) !== "";
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100);
+  return {
+    paginate,
+    page,
+    limit,
+    skip: (page - 1) * limit,
+    search: String(req.query.search || "").trim(),
+    stock: String(req.query.stock || "").trim(),
+  };
+}
+
+function ownShopCatalogFilter(shop) {
+  return {
+    $or: [
+      { fabricShopId: shop._id, ownerName: { $ne: "MOTD Admin" } },
+      { ownerName: shop.name },
+    ],
+  };
+}
+
 // GET /api/fabric/status
 fabricPortalRouter.get(
   "/status",
@@ -460,12 +489,48 @@ fabricPortalRouter.get(
       return;
     }
 
-    const fabrics = await Fabric.find({
+    const { paginate, page, limit, skip, search, stock } =
+      parsePortalListQuery(req);
+
+    const baseFilter = {
       listedByStore: req.user._id,
       $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
-    }).sort({
-      createdAt: -1,
-    });
+    };
+
+    if (search) {
+      const rx = { $regex: escapeRegex(search), $options: "i" };
+      baseFilter.$and = [
+        {
+          $or: [
+            { name: rx },
+            { nameAr: rx },
+            { material: rx },
+            { materialAr: rx },
+          ],
+        },
+      ];
+    }
+
+    const listFilter = { ...baseFilter };
+    if (stock === "low") {
+      const parentIds = await findLowStockFabricParentIds(
+        LOW_FABRIC_CUT_STOCK_THRESHOLD,
+        { listedByStore: req.user._id },
+      );
+      listFilter._id = { $in: parentIds };
+    }
+
+    let fabricsQuery = Fabric.find(listFilter).sort({ createdAt: -1 });
+    if (paginate) {
+      fabricsQuery = fabricsQuery.skip(skip).limit(limit);
+    }
+
+    const [fabrics, total, active, inactive] = await Promise.all([
+      fabricsQuery,
+      Fabric.countDocuments(listFilter),
+      Fabric.countDocuments({ ...baseFilter, isActive: true }),
+      Fabric.countDocuments({ ...baseFilter, isActive: { $ne: true } }),
+    ]);
 
     const fabricsWithVariants = await Promise.all(
       fabrics.map(async (fabric) => {
@@ -478,7 +543,15 @@ fabricPortalRouter.get(
         return enrichedFabric;
       }),
     );
-    res.json({ success: true, items: fabricsWithVariants });
+
+    res.json({
+      success: true,
+      items: fabricsWithVariants,
+      total,
+      page: paginate ? page : 1,
+      totalPages: paginate ? Math.ceil(total / limit) || 0 : 1,
+      stats: { active, inactive },
+    });
   }),
 );
 
@@ -1210,13 +1283,66 @@ fabricPortalRouter.get(
         .json({ success: false, message: "Fabric shop not found" });
       return;
     }
-    const products = await ReadyMadeProduct.find({
-      $or: [
-        { fabricShopId: shop._id, ownerName: { $ne: "MOTD Admin" } },
-        { ownerName: shop.name },
-      ],
-    }).sort({ createdAt: -1 });
-    res.json(products);
+
+    const { paginate, page, limit, skip, search, stock } =
+      parsePortalListQuery(req);
+    const baseFilter = ownShopCatalogFilter(shop);
+
+    if (search) {
+      const rx = { $regex: escapeRegex(search), $options: "i" };
+      const searchOr = [
+        { name: rx },
+        { nameAr: rx },
+        { fabricType: rx },
+        { fabricTypeAr: rx },
+        { tailorName: rx },
+        { tailorNameAr: rx },
+      ];
+      const lowered = search.toLowerCase();
+      if (lowered === "available") {
+        searchOr.push({ availableFabricStock: { $gt: 0 } });
+      } else if (lowered === "sold") {
+        searchOr.push({ availableFabricStock: 0 });
+      }
+      const asNumber = Number(search);
+      if (Number.isFinite(asNumber)) {
+        searchOr.push({ finalSellingPriceAED: asNumber });
+      }
+      baseFilter.$and = [{ $or: searchOr }];
+    }
+
+    const listFilter = { ...baseFilter };
+    if (stock === "low") {
+      listFilter.availableFabricStock = { $lte: LOW_FABRIC_CUT_STOCK_THRESHOLD };
+    }
+
+    let productsQuery = ReadyMadeProduct.find(listFilter).sort({
+      createdAt: -1,
+    });
+    if (paginate) {
+      productsQuery = productsQuery.skip(skip).limit(limit);
+    }
+
+    const [products, total, available, sold] = await Promise.all([
+      productsQuery,
+      ReadyMadeProduct.countDocuments(listFilter),
+      ReadyMadeProduct.countDocuments({
+        ...baseFilter,
+        availableFabricStock: { $gt: 0 },
+      }),
+      ReadyMadeProduct.countDocuments({
+        ...baseFilter,
+        availableFabricStock: 0,
+      }),
+    ]);
+
+    res.json({
+      items: products,
+      total,
+      page: paginate ? page : 1,
+      totalPages: paginate ? Math.ceil(total / limit) || 0 : 1,
+      stats: { available, sold },
+    });
   }),
 );
 
@@ -1516,13 +1642,44 @@ fabricPortalRouter.get(
         .json({ success: false, message: "Fabric shop not found" });
       return;
     }
-    const addons = await AddOn.find({
-      $or: [
-        { fabricShopId: shop._id, ownerName: { $ne: "MOTD Admin" } },
-        { ownerName: shop.name },
-      ],
-    }).sort({ createdAt: -1 });
-    res.json(addons);
+
+    const { paginate, page, limit, skip, search, stock } =
+      parsePortalListQuery(req);
+    const baseFilter = ownShopCatalogFilter(shop);
+
+    if (search) {
+      const rx = { $regex: escapeRegex(search), $options: "i" };
+      const searchOr = [{ name: rx }, { nameAr: rx }];
+      if (/^[a-fA-F0-9]{24}$/.test(search)) {
+        searchOr.push({ _id: search });
+      }
+      baseFilter.$and = [{ $or: searchOr }];
+    }
+
+    const listFilter = { ...baseFilter };
+    if (stock === "low") {
+      listFilter.stock = { $lte: LOW_FABRIC_CUT_STOCK_THRESHOLD };
+    }
+
+    let addonsQuery = AddOn.find(listFilter).sort({ createdAt: -1 });
+    if (paginate) {
+      addonsQuery = addonsQuery.skip(skip).limit(limit);
+    }
+
+    const [addons, total, active, inactive] = await Promise.all([
+      addonsQuery,
+      AddOn.countDocuments(listFilter),
+      AddOn.countDocuments({ ...baseFilter, isActive: true }),
+      AddOn.countDocuments({ ...baseFilter, isActive: { $ne: true } }),
+    ]);
+
+    res.json({
+      items: addons,
+      total,
+      page: paginate ? page : 1,
+      totalPages: paginate ? Math.ceil(total / limit) || 0 : 1,
+      stats: { active, inactive },
+    });
   }),
 );
 

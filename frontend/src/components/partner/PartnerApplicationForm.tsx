@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
@@ -69,10 +69,49 @@ type Props = {
 
 type FieldErrors = Record<string, string>;
 
+const REQUIRED_FIELD_LABELS: Record<string, string> = {
+  businessName: "fields.businessName",
+  businessNameAr: "fields.businessNameAr",
+  phone: "fields.phone",
+  city: "fields.city",
+  location: "fields.location",
+  about: "fields.about",
+  aboutAr: "fields.aboutAr",
+  yearsOperating: "fields.yearsOperating",
+  makeTime: "fields.makeTime",
+  workSetup: "fields.workSetup",
+  offering: "fields.offering",
+};
+
 function phoneDigits(value: string) {
   let digits = extractDigits(value);
   if (digits.startsWith("971")) digits = digits.slice(3);
   return digits.slice(0, 9);
+}
+
+function errorFieldIds(key: string): string[] {
+  const socialName = key.match(/^social\.(\d+)\.name$/);
+  if (socialName) {
+    const index = socialName[1];
+    return [`social-custom-name-${index}`, `social-name-${index}`];
+  }
+  const socialUrl = key.match(/^social\.(\d+)\.url$/);
+  if (socialUrl) return [`social-url-${socialUrl[1]}`];
+  if (key === "confirmed") return ["application-confirm"];
+  return [key];
+}
+
+function scrollToErrorField(key: string) {
+  if (typeof document === "undefined") return;
+  for (const id of errorFieldIds(key)) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (typeof el.focus === "function") {
+      el.focus({ preventScroll: true });
+    }
+    return;
+  }
 }
 
 export default function PartnerApplicationForm({ role }: Props) {
@@ -96,24 +135,6 @@ export default function PartnerApplicationForm({ role }: Props) {
   const [otherSocialRows, setOtherSocialRows] = useState<Set<number>>(
     () => new Set(),
   );
-
-  const requiredErrors = useMemo(
-    () => collectRequiredFieldErrors(form, role),
-    [form, role],
-  );
-  const hasOpenOtherRow = useMemo(
-    () =>
-      [...otherSocialRows].some((index) => {
-        const row = form.social[index];
-        if (!row) return false;
-        const name = row.name.trim();
-        return !name || name.toLowerCase() === "other" || !row.url.trim();
-      }),
-    [form.social, otherSocialRows],
-  );
-  const fieldsComplete =
-    Object.keys(requiredErrors).length === 0 && !hasOpenOtherRow;
-  const canSubmit = fieldsComplete && confirmed && !saving && !submitting;
 
   useEffect(() => {
     let cancelled = false;
@@ -172,9 +193,18 @@ export default function PartnerApplicationForm({ role }: Props) {
   const showRequired = (key: string) => {
     const value = fieldErrors[key];
     if (!value) return undefined;
-    if (value === "required") return t("requiredField");
+    if (value === "required") {
+      const labelKey = REQUIRED_FIELD_LABELS[key];
+      if (labelKey) return t("fieldRequired", { field: t(labelKey) });
+      if (key.endsWith(".url")) return t("validation.socialUrlRequired");
+      if (key.endsWith(".name") || /^social\.\d+$/.test(key)) {
+        return t("validation.socialPlatformRequired");
+      }
+      return t("requiredField");
+    }
     if (value === "duplicate") return t("validation.socialPlatformDuplicate");
     if (value === "invalid") {
+      if (key === "phone") return t("validation.phoneInvalid");
       if (key === "website") return t("validation.websiteInvalid");
       if (key.endsWith(".url")) return t("validation.socialUrlInvalid");
       return t("validation.socialPlatformInvalid");
@@ -347,17 +377,21 @@ export default function PartnerApplicationForm({ role }: Props) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const errors = {
+    const errors: FieldErrors = {
       ...collectRequiredFieldErrors(form, role),
       ...validateOnlineFields(),
     };
+    if (!confirmed) {
+      errors.confirmed = t("confirmRequired");
+    }
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      toast.error(t("incomplete"), TOAST_BASE);
-      return;
-    }
-    if (!confirmed) {
-      setFieldErrors((prev) => ({ ...prev, confirmed: t("confirmRequired") }));
+      const firstFieldKey =
+        Object.keys(errors).find((key) => key !== "confirmed") || "confirmed";
+      if (firstFieldKey !== "confirmed") {
+        toast.error(t("incomplete"), TOAST_BASE);
+      }
+      window.setTimeout(() => scrollToErrorField(firstFieldKey), 0);
       return;
     }
     const verifyHref = buildVerifyEmailHref({
@@ -401,6 +435,10 @@ export default function PartnerApplicationForm({ role }: Props) {
       if (data?.errors) {
         setFieldErrors(data.errors);
         toast.error(t("incomplete"), TOAST_BASE);
+        const firstKey = Object.keys(data.errors)[0];
+        if (firstKey) {
+          window.setTimeout(() => scrollToErrorField(firstKey), 0);
+        }
       } else {
         toast.error(getApiErrorMessage(err, t("submitError")), TOAST_BASE);
       }
@@ -700,7 +738,7 @@ export default function PartnerApplicationForm({ role }: Props) {
           <FormField
             label={`${t("fields.website")} (${t("optional")})`}
             name="website"
-            error={fieldErrors.website}
+            error={showRequired("website")}
           >
             <input
               id="website"
@@ -1059,6 +1097,7 @@ export default function PartnerApplicationForm({ role }: Props) {
 
         <label className="flex items-start gap-3 [font-family:var(--font-body)] text-[14px] text-black">
           <input
+            id="application-confirm"
             type="checkbox"
             checked={confirmed}
             onChange={(e) => {
@@ -1094,7 +1133,7 @@ export default function PartnerApplicationForm({ role }: Props) {
             size="lg"
             fullWidth
             className="sm:w-auto"
-            disabled={!canSubmit}
+            disabled={saving || submitting}
           >
             {submitting
               ? t("submitting")
@@ -1103,11 +1142,6 @@ export default function PartnerApplicationForm({ role }: Props) {
                 : t("submit")}
           </Button>
         </div>
-        {!canSubmit && !submitting ? (
-          <p className="[font-family:var(--font-body)] text-[12px] text-(--color-grey-muted)">
-            {t("submitNeedsFields")}
-          </p>
-        ) : null}
       </form>
     </div>
   );
