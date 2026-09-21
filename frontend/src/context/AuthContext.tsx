@@ -17,6 +17,7 @@ import { clearLegacyAuthToken } from '@/lib/auth/token';
 interface ApiUserResponse {
     _id: string;
     name: string;
+    nameAr?: string;
     email: string;
     phone?: string;
     role: string;
@@ -39,6 +40,7 @@ export interface User {
     id: string;
     email: string;
     name: string;
+    nameAr?: string;
     phone?: string;
     role: string;
     isAdmin?: boolean;
@@ -74,6 +76,7 @@ function mapApiUser(data: ApiUserResponse): User {
         id: data._id,
         email: data.email,
         name: data.name,
+        nameAr: data.nameAr || "",
         phone: data.phone,
         role: data.role,
         isAdmin: data.isAdmin,

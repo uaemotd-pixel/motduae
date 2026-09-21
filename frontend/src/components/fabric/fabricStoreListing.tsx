@@ -1245,7 +1245,7 @@ export default function FabricsCatalogPage() {
                     {filters.categories.map((catId) => (
                       <span
                         key={catId}
-                        className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
+                        className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-widest sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-40 sm:max-w-none truncate"
                       >
                         {getOptionLabel(categories, catId)}
                         <button
@@ -1274,7 +1274,7 @@ export default function FabricsCatalogPage() {
                       return (
                         <span
                           key={color}
-                          className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
+                          className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-widest sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-40 sm:max-w-none truncate"
                         >
                           <span
                             className="w-3 h-3 rounded-full border border-white/30"
@@ -1312,7 +1312,7 @@ export default function FabricsCatalogPage() {
                     {filters.materials.map((matId) => (
                       <span
                         key={matId}
-                        className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
+                        className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-widest sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-40 sm:max-w-none truncate"
                       >
                         {getOptionLabel(materials, matId)}
                         <button
@@ -1339,7 +1339,7 @@ export default function FabricsCatalogPage() {
                     {filters.patterns.map((patId) => (
                       <span
                         key={patId}
-                        className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
+                        className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-widest sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-40 sm:max-w-none truncate"
                       >
                         {getOptionLabel(patterns, patId)}
                         <button
@@ -1366,7 +1366,7 @@ export default function FabricsCatalogPage() {
                     {filters.seasons.map((seaId) => (
                       <span
                         key={seaId}
-                        className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
+                        className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-widest sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-40 sm:max-w-none truncate"
                       >
                         {getOptionLabel(seasons, seaId)}
                         <button
@@ -1393,7 +1393,7 @@ export default function FabricsCatalogPage() {
                     {filters.tags.map((tagId) => (
                       <span
                         key={tagId}
-                        className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-[10rem] sm:max-w-none truncate"
+                        className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-widest sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-40 sm:max-w-none truncate"
                       >
                         {getOptionLabel(tags, tagId)}
                         <button
@@ -1418,7 +1418,7 @@ export default function FabricsCatalogPage() {
                       </span>
                     ))}
                     {(filters.minPrice > 0 || filters.maxPrice < PRICE_MAX) && (
-                      <span className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full">
+                      <span className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-widest sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full">
                         AED {filters.minPrice.toLocaleString()} - AED{" "}
                         {filters.maxPrice.toLocaleString()}
                         <button
@@ -1446,7 +1446,7 @@ export default function FabricsCatalogPage() {
                       </span>
                     )}
                     {filters.inStockOnly && (
-                      <span className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full">
+                      <span className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-widest sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full">
                         {isAr ? "في المخزن" : "In Stock"}
                         <button
                           onClick={toggleInStock}
@@ -1758,8 +1758,8 @@ export default function FabricsCatalogPage() {
                             {tagLabel.toUpperCase()}
                           </p>
 
-                          <p className="hidden sm:block [font-family:var(--font-body)] text-[11px] md:text-[12px] lg:text-[13px] leading-relaxed text-[#8A8A80] line-clamp-2 font-normal grow">
-                            {description}
+                          <p className="hidden sm:block [font-family:var(--font-body)] text-[11px] md:text-[12px] lg:text-[13px] leading-relaxed text-[#8A8A80] line-clamp-2 font-normal grow text-justify">
+                            {description.slice(0,80)}...
                           </p>
                         </div>
                       </div>

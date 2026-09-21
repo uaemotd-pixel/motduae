@@ -91,13 +91,13 @@ export default function DesignGallery({
   if (designs.length === 0) {
     return (
       <div>
-        <div className="mb-6 flex items-end justify-between gap-4 sm:mb-8">
-          <h2 className="[font-family:var(--font-display)] text-[26px] leading-tight tracking-[-0.01em] text-black sm:text-[32px]">
+        <div className="mb-6 sm:mb-7">
+          <h2 className="[font-family:var(--font-display)] text-[24px] tracking-[-0.01em] text-black sm:text-[30px] md:text-[32px]">
             {labels.title}
           </h2>
         </div>
-        <div className="border border-(--color-border) bg-[#FAFAF7] px-6 py-14 text-center sm:py-16">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[12px]">
+        <div className="rounded-lg border border-(--color-border) bg-[#FAFAF7] px-6 py-12 text-center">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
             {labels.empty}
           </p>
         </div>
@@ -113,19 +113,17 @@ export default function DesignGallery({
         </div>
       )}
 
-      <div className="mb-6 flex flex-col gap-2 xs:mb-8 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <span className="mb-2 flex items-center gap-2 text-[9px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)] xs:gap-3 xs:text-[10px]">
-            <span className="block h-px w-4 bg-(--color-grey-muted) xs:w-5" />
-            {labels.countLabel}
-          </span>
-          <h2 className="[font-family:var(--font-display)] text-[26px] leading-tight tracking-[-0.01em] text-black xs:text-[30px] sm:text-[36px]">
-            {labels.title}
-          </h2>
-        </div>
+      <div className="mb-6 sm:mb-7">
+        <span className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
+          <span className="block h-px w-5 bg-(--color-grey-muted)" />
+          {labels.countLabel}
+        </span>
+        <h2 className="[font-family:var(--font-display)] text-[24px] tracking-[-0.01em] text-black sm:text-[30px] md:text-[32px]">
+          {labels.title}
+        </h2>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 xs:gap-4 sm:gap-5 md:grid-cols-3 lg:grid-cols-4 lg:gap-6">
+      <div className="grid grid-cols-2 gap-2 xs:gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {designs.map((design, idx) => {
           const { name, category } = getDesignDisplayFields(design, locale);
           const imageUrl = resolveDesignImage(design.images?.[0]);
@@ -137,7 +135,7 @@ export default function DesignGallery({
           return (
             <motion.div
               key={design._id}
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 14 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{
@@ -148,7 +146,7 @@ export default function DesignGallery({
             >
               <Link
                 href={hrefPath}
-                className="block h-full overflow-hidden rounded-md border border-(--color-border) bg-(--bg-page) transition-all duration-500 sm:rounded-lg md:hover:-translate-y-1 md:hover:shadow-xl"
+                className="block h-full overflow-hidden rounded-md border border-(--color-border) bg-white shadow-[0_1px_0_rgba(26,42,58,0.03)] transition-all duration-500 sm:rounded-lg md:hover:-translate-y-1 md:hover:border-[#1A2A3A]/20 md:hover:shadow-[0_14px_28px_-18px_rgba(26,42,58,0.3)]"
               >
                 <div className="relative aspect-4/5 overflow-hidden bg-[#F5F5F0]">
                   <img
@@ -160,13 +158,13 @@ export default function DesignGallery({
                   />
                   {category ? (
                     <div
-                      className="absolute top-1.5 inset-s-1.5 z-10 max-w-[calc(100%-4.25rem)] truncate px-1 py-px text-[7px] font-medium uppercase tracking-widest text-white [font-family:var(--font-ui)] xs:top-2 xs:inset-s-2 xs:max-w-[calc(100%-5rem)] xs:px-1.5 xs:text-[8px] xs:tracking-[0.12em] sm:max-w-[calc(100%-5.5rem)]"
+                      className="absolute top-1.5 inset-s-1.5 z-10 max-w-[calc(100%-4.25rem)] truncate px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-widest text-white [font-family:var(--font-ui)] xs:top-2 xs:inset-s-2 xs:max-w-[calc(100%-5rem)] xs:px-2 xs:text-[9px]"
                       style={{ backgroundColor: categoryColor }}
                     >
                       {category}
                     </div>
                   ) : null}
-                  <div className="absolute top-1.5 inset-e-1.5 z-20 flex items-center gap-1 xs:top-2 xs:inset-e-2 xs:gap-1.5">
+                  <div className="absolute top-1.5 inset-e-1.5 z-20 flex items-center gap-0.5 xs:top-2 xs:inset-e-2 xs:gap-1">
                     <button
                       type="button"
                       aria-label={locale === "ar" ? "مشاركة" : "Share"}
@@ -175,10 +173,10 @@ export default function DesignGallery({
                         e.stopPropagation();
                         await handleShare(hrefPath);
                       }}
-                      className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:cursor-pointer xs:size-8 sm:hover:scale-105"
+                      className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:cursor-pointer xs:size-7 sm:hover:scale-105"
                     >
                       <Share2
-                        className="size-3 text-black xs:size-3.5"
+                        className="size-2.5 text-black xs:size-3"
                         strokeWidth={1.75}
                         aria-hidden
                       />
@@ -195,17 +193,17 @@ export default function DesignGallery({
                         type: "design",
                       }}
                       inline
-                      className="size-7! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-8!"
-                      iconClassName="size-3! xs:size-3.5!"
+                      className="size-6! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-7!"
+                      iconClassName="size-2.5! xs:size-3!"
                     />
                   </div>
                 </div>
 
-                <div className="p-2.5 xs:p-3 sm:p-4">
-                  <h3 className="mb-1 line-clamp-2 text-[13px] leading-snug text-black [font-family:var(--font-display)] xs:mb-1.5 xs:text-sm sm:text-base">
+                <div className="p-2 xs:p-2.5 sm:p-3">
+                  <h3 className="mb-0.5 line-clamp-2 text-[12px] leading-snug text-black [font-family:var(--font-display)] xs:text-[13px] sm:text-[14px]">
                     {name}
                   </h3>
-                  <p className="mb-0.5 text-[9px] uppercase tracking-[0.14em] text-(--color-grey-muted) [font-family:var(--font-ui)] xs:text-[10px] xs:tracking-[0.16em]">
+                  <p className="mb-0.5 text-[8px] uppercase tracking-[0.14em] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[9px]">
                     {labels.fromPrice}{" "}
                     <span className="text-black">
                       {formatDesignBasePrice(
@@ -215,7 +213,7 @@ export default function DesignGallery({
                       )}
                     </span>
                   </p>
-                  <p className="text-[10px] text-(--color-grey-muted) [font-family:var(--font-body)] xs:text-[11px]">
+                  <p className="text-[9px] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[10px]">
                     {labels.estimatedDays} {design.estimatedDays} {labels.days}
                   </p>
                 </div>

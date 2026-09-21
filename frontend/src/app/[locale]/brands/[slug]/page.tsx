@@ -32,7 +32,7 @@ import { DetailPageSkeleton } from "@/components/ui/Skeleton";
 import WishlistButton from "@/components/shared/wishlistButton";
 import AddToCartButton from "@/components/shared/addToCartButton";
 import { ProductReviewsSection } from "@/components/reviews/CustomerReviewsView";
-import { MapPin, Star, Share2, Globe, ExternalLink, Phone, ArrowUpRight } from "lucide-react";
+import { MapPin, Star, Share2, Link2, ExternalLink, Phone, ArrowUpRight } from "lucide-react";
 import { motion } from "framer-motion";
 import SocialPlatformIcon, {
   SOCIAL_PLATFORM_LINK_CLASS,
@@ -267,7 +267,7 @@ export default function BrandDetailPage() {
   return (
     <MainLayout>
       <FadeInSection>
-        <div className="min-h-screen bg-(--bg-page)">
+        <div className="min-h-screen bg-[linear-gradient(180deg,#FAF8F4_0%,#FFFFFF_22%,#FFFFFF_100%)]">
           {toastMessage && (
             <div className="pointer-events-none fixed bottom-24 left-1/2 z-40 max-w-[calc(100vw-24px)] -translate-x-1/2 rounded-lg bg-black px-4 py-2.5 text-center text-xs tracking-wide text-white shadow-lg [font-family:var(--font-ui)] sm:text-sm">
               {toastMessage}
@@ -282,9 +282,10 @@ export default function BrandDetailPage() {
                 className="h-full w-full scale-105 object-cover object-top"
               />
               <div className="absolute inset-0 bg-linear-to-t from-black via-black/55 to-black/25" />
+              <div className="absolute inset-0 bg-linear-to-r from-black/45 via-transparent to-transparent" />
             </div>
 
-            <div className="relative mx-auto flex min-h-[60vh] w-full max-w-7xl flex-col justify-between px-4 pt-20 pb-10 sm:min-h-[68vh] sm:px-8 sm:pt-24 sm:pb-14 lg:px-(--space-40)">
+            <div className="relative mx-auto flex min-h-[56vh] w-full max-w-7xl flex-col justify-between px-4 pt-20 pb-10 sm:min-h-[64vh] sm:px-8 sm:pt-24 sm:pb-14 lg:px-(--space-40)">
               <div className="flex min-w-0 items-center gap-2 text-[9px] uppercase tracking-[0.18em] text-white/65 sm:text-[10px]">
                 <Link
                   href="/brands"
@@ -296,12 +297,12 @@ export default function BrandDetailPage() {
                 <span className="min-w-0 truncate text-white">{name}</span>
               </div>
 
-              <div className="mt-auto grid grid-cols-1 items-end gap-8 lg:grid-cols-[auto_1fr] lg:gap-10">
+              <div className="mt-auto grid grid-cols-1 items-end gap-6 lg:grid-cols-[auto_1fr] lg:gap-10">
                 <motion.div
                   initial={{ opacity: 0, y: 18 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.1 }}
-                  className="mx-auto aspect-4/5 w-28 shrink-0 overflow-hidden border border-white/25 bg-[#F5F5F0] shadow-[0_20px_50px_-20px_rgba(0,0,0,0.65)] xs:w-32 sm:mx-0 sm:w-40 lg:w-44"
+                  className="mx-auto aspect-4/5 w-24 shrink-0 overflow-hidden rounded-sm border border-white/25 bg-[#F5F5F0] shadow-[0_20px_50px_-20px_rgba(0,0,0,0.65)] xs:w-28 sm:mx-0 sm:w-36 lg:w-40"
                 >
                   <img
                     src={logoImage}
@@ -317,11 +318,12 @@ export default function BrandDetailPage() {
                   className="min-w-0 text-center sm:text-start"
                 >
                 {badge ? (
-                  <span className="mb-3 inline-block text-[9px] uppercase tracking-[0.28em] text-white/70 [font-family:var(--font-ui)] sm:text-[10px]">
+                  <span className="mb-3 inline-flex items-center gap-2 text-[9px] uppercase tracking-[0.28em] text-white/70 [font-family:var(--font-ui)] sm:text-[10px]">
+                    <span className="hidden h-px w-5 bg-white/40 sm:block" />
                     {badge}
                   </span>
                 ) : null}
-                <h1 className="[font-family:var(--font-display)] text-[34px] leading-[1.05] tracking-[-0.02em] text-white xs:text-[42px] sm:text-[52px]">
+                <h1 className="[font-family:var(--font-display)] text-[32px] leading-[1.05] tracking-[-0.02em] text-white xs:text-[40px] sm:text-[48px] md:text-[52px]">
                   {name}
                 </h1>
                 {location ? (
@@ -340,7 +342,7 @@ export default function BrandDetailPage() {
                     {experienceLabel}
                   </p>
                 ) : null}
-                <div className="mt-5 flex flex-wrap items-center justify-center gap-3 sm:justify-start">
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:justify-start">
                   <a
                     href="#reviews"
                     className="inline-flex items-center gap-1.5 text-white transition hover:opacity-80"
@@ -356,6 +358,7 @@ export default function BrandDetailPage() {
                       ({reviewCount} {t("reviews")})
                     </span>
                   </a>
+                  <span className="hidden h-3 w-px bg-white/25 sm:block" aria-hidden />
                   <span className="text-[10px] uppercase tracking-[0.18em] text-white/70 [font-family:var(--font-ui)]">
                     {t("fabricsCount", { count: fabrics.length })}
                   </span>
@@ -366,10 +369,10 @@ export default function BrandDetailPage() {
                     {t("addonsCount", { count: addons.length })}
                   </span>
                 </div>
-                <div className="mt-7 flex flex-col items-stretch gap-2.5 xs:flex-row xs:flex-wrap xs:items-center xs:justify-center sm:justify-start">
+                <div className="mt-6 flex flex-col items-stretch gap-2.5 xs:flex-row xs:flex-wrap xs:items-center xs:justify-center sm:justify-start">
                   <a
                     href="#products"
-                    className="inline-flex items-center justify-center gap-2 bg-white px-5 py-3.5 text-[10px] uppercase tracking-[0.2em] text-black transition hover:bg-white/90 [font-family:var(--font-ui)] sm:px-6"
+                    className="inline-flex items-center justify-center gap-2 rounded-sm bg-white px-5 py-3 text-[10px] uppercase tracking-[0.2em] text-black transition hover:bg-white/90 [font-family:var(--font-ui)] sm:px-6"
                   >
                     {t("viewProducts")}
                     <ArrowUpRight
@@ -381,7 +384,7 @@ export default function BrandDetailPage() {
                   {shop.phone ? (
                     <a
                       href={`tel:${shop.phone}`}
-                      className="inline-flex items-center justify-center gap-2 border border-white/35 bg-white/5 px-5 py-3.5 text-[10px] uppercase tracking-[0.2em] text-white backdrop-blur-sm transition hover:bg-white/15 [font-family:var(--font-ui)] sm:px-6"
+                      className="inline-flex items-center justify-center gap-2 rounded-sm border border-white/35 bg-white/5 px-5 py-3 text-[10px] uppercase tracking-[0.2em] text-white backdrop-blur-sm transition hover:bg-white/15 [font-family:var(--font-ui)] sm:px-6"
                     >
                       <Phone
                         className="size-3.5 shrink-0"
@@ -404,10 +407,10 @@ export default function BrandDetailPage() {
           </section>
 
           {description || hasConnect ? (
-            <section className="border-b border-(--color-border) px-4 py-10 sm:px-8 sm:py-12 lg:px-(--space-40)">
+            <section className="border-b border-(--color-border) px-4 py-9 sm:px-8 sm:py-11 lg:px-(--space-40)">
               <div
                 className={`mx-auto grid max-w-7xl gap-8 sm:gap-10 ${
-                  description && hasConnect ? "lg:grid-cols-[1fr_280px]" : ""
+                  description && hasConnect ? "lg:grid-cols-[1fr_260px]" : ""
                 }`}
               >
                 {description ? (
@@ -425,11 +428,11 @@ export default function BrandDetailPage() {
                 ) : null}
 
                 {hasConnect ? (
-                  <div className="border border-(--color-border) bg-[#FAFAF7] px-5 py-5 sm:px-6">
+                  <div className="rounded-lg border border-(--color-border) bg-[#FAFAF7] px-5 py-5 sm:px-6">
                     <p className="mb-4 text-[10px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
                       {t("connectTitle")}
                     </p>
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-wrap gap-2.5">
                       {websiteUrl ? (
                         <a
                           href={websiteUrl}
@@ -437,10 +440,10 @@ export default function BrandDetailPage() {
                           rel="noopener noreferrer"
                           aria-label={t("website")}
                           title={t("website")}
-                          className={`${SOCIAL_LINK_BASE_CLASS} border-(--color-border) text-black hover:border-black hover:bg-black hover:text-white`}
+                          className={`${SOCIAL_LINK_BASE_CLASS} size-10 border-(--color-border) text-black hover:border-black hover:bg-black hover:text-white`}
                         >
-                          <Globe
-                            className="size-4.5"
+                          <Link2
+                            className="size-4"
                             strokeWidth={1.75}
                             aria-hidden
                           />
@@ -460,13 +463,13 @@ export default function BrandDetailPage() {
                             rel="noopener noreferrer"
                             aria-label={link.name}
                             title={link.name}
-                            className={`${SOCIAL_LINK_BASE_CLASS} ${brandClass}`}
+                            className={`${SOCIAL_LINK_BASE_CLASS} size-10 ${brandClass}`}
                           >
                             {platform ? (
                               <SocialPlatformIcon platform={platform.value} />
                             ) : (
                               <ExternalLink
-                                className="size-4.5"
+                                className="size-4"
                                 strokeWidth={1.75}
                                 aria-hidden
                               />
@@ -484,27 +487,27 @@ export default function BrandDetailPage() {
           {/* Fabrics */}
           <section
             id="products"
-            className="scroll-mt-24 border-b border-(--color-border) px-4 py-12 sm:px-8 sm:py-16 lg:px-(--space-40)"
+            className="scroll-mt-24 border-b border-(--color-border) px-4 py-10 sm:px-8 sm:py-12 lg:px-(--space-40) lg:py-14"
           >
             <div className="mx-auto max-w-7xl">
-              <div className="mb-8">
+              <div className="mb-6 sm:mb-7">
                 <span className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
                   <span className="block h-px w-5 bg-(--color-grey-muted)" />
                   {t("fabricsCount", { count: fabrics.length })}
                 </span>
-                <h2 className="[font-family:var(--font-display)] text-[28px] tracking-[-0.01em] text-black sm:text-[36px]">
+                <h2 className="[font-family:var(--font-display)] text-[24px] tracking-[-0.01em] text-black sm:text-[30px] md:text-[32px]">
                   {t("fabricsTitle")}
                 </h2>
               </div>
 
               {fabrics.length === 0 ? (
-                <div className="border border-(--color-border) bg-[#FAFAF7] px-6 py-14 text-center">
+                <div className="rounded-lg border border-(--color-border) bg-[#FAFAF7] px-6 py-12 text-center">
                   <p className="text-[11px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
                     {t("fabricsEmpty")}
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2.5 xs:gap-4 sm:gap-5 md:grid-cols-3 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 xs:gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                   {fabrics.map((fabric, idx) => {
                     const fabricName =
                       locale === "ar"
@@ -532,7 +535,7 @@ export default function BrandDetailPage() {
                       >
                         <Link
                           href={hrefPath}
-                          className="block h-full overflow-hidden rounded-md border border-(--color-border) bg-(--bg-page) transition-all duration-500 sm:rounded-lg md:hover:-translate-y-1 md:hover:shadow-xl"
+                          className="block h-full overflow-hidden rounded-md border border-(--color-border) bg-white shadow-[0_1px_0_rgba(26,42,58,0.03)] transition-all duration-500 sm:rounded-lg md:hover:-translate-y-1 md:hover:border-[#1A2A3A]/20 md:hover:shadow-[0_14px_28px_-18px_rgba(26,42,58,0.3)]"
                         >
                           <div className="relative aspect-4/5 overflow-hidden bg-[#F5F5F0]">
                             <img
@@ -542,11 +545,11 @@ export default function BrandDetailPage() {
                               className="h-full w-full object-cover object-top transition-transform duration-700 md:group-hover:scale-105"
                             />
                             {fabric.tag ? (
-                              <div className="absolute top-1.5 inset-s-1.5 z-10 max-w-[calc(100%-4.25rem)] truncate bg-black px-1 py-px text-[7px] font-medium uppercase tracking-widest text-white [font-family:var(--font-ui)] xs:top-2 xs:inset-s-2 xs:max-w-[calc(100%-5rem)] xs:px-1.5 xs:text-[8px]">
+                              <div className="absolute top-1.5 inset-s-1.5 z-10 max-w-[calc(100%-4.25rem)] truncate bg-black px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-widest text-white [font-family:var(--font-ui)] xs:top-2 xs:inset-s-2 xs:max-w-[calc(100%-5rem)] xs:px-2 xs:text-[9px]">
                                 {fabric.tag}
                               </div>
                             ) : null}
-                            <div className="absolute top-1.5 inset-e-1.5 z-20 flex items-center gap-1 xs:top-2 xs:inset-e-2 xs:gap-1.5">
+                            <div className="absolute top-1.5 inset-e-1.5 z-20 flex items-center gap-0.5 xs:top-2 xs:inset-e-2 xs:gap-1">
                               <button
                                 type="button"
                                 aria-label={
@@ -562,10 +565,10 @@ export default function BrandDetailPage() {
                                       : "Check this fabric",
                                   );
                                 }}
-                                className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:cursor-pointer xs:size-8 sm:hover:scale-105"
+                                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:cursor-pointer xs:size-7 sm:hover:scale-105"
                               >
                                 <Share2
-                                  className="size-3 text-black xs:size-3.5"
+                                  className="size-2.5 text-black xs:size-3"
                                   strokeWidth={1.75}
                                   aria-hidden
                                 />
@@ -582,21 +585,21 @@ export default function BrandDetailPage() {
                                   type: "fabric",
                                 }}
                                 inline
-                                className="size-7! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-8!"
-                                iconClassName="size-3! xs:size-3.5!"
+                                className="size-6! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-7!"
+                                iconClassName="size-2.5! xs:size-3!"
                               />
                             </div>
                           </div>
-                          <div className="p-2.5 xs:p-3 sm:p-4">
-                            <h3 className="mb-1 line-clamp-2 text-[13px] leading-snug text-black [font-family:var(--font-display)] sm:text-base">
+                          <div className="p-2 xs:p-2.5 sm:p-3">
+                            <h3 className="mb-0.5 line-clamp-2 text-[12px] leading-snug text-black [font-family:var(--font-display)] xs:text-[13px] sm:text-[14px]">
                               {fabricName}
                             </h3>
                             {material ? (
-                              <p className="mb-0.5 text-[9px] uppercase tracking-[0.14em] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[10px]">
+                              <p className="mb-0.5 text-[8px] uppercase tracking-[0.14em] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[9px]">
                                 {material}
                               </p>
                             ) : null}
-                            <p className="text-[10px] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[11px]">
+                            <p className="text-[9px] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[10px]">
                               {formatFabricListingPrice(fabric, locale)}
                             </p>
                           </div>
@@ -610,26 +613,26 @@ export default function BrandDetailPage() {
           </section>
 
           {/* Ready-made */}
-          <section className="border-b border-(--color-border) px-4 py-12 sm:px-8 sm:py-16 lg:px-(--space-40)">
+          <section className="border-b border-(--color-border) px-4 py-10 sm:px-8 sm:py-12 lg:px-(--space-40) lg:py-14">
             <div className="mx-auto max-w-7xl">
-              <div className="mb-8">
+              <div className="mb-6 sm:mb-7">
                 <span className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
                   <span className="block h-px w-5 bg-(--color-grey-muted)" />
                   {t("readyMadeCount", { count: readyMade.length })}
                 </span>
-                <h2 className="[font-family:var(--font-display)] text-[28px] tracking-[-0.01em] text-black sm:text-[36px]">
+                <h2 className="[font-family:var(--font-display)] text-[24px] tracking-[-0.01em] text-black sm:text-[30px] md:text-[32px]">
                   {t("readyMadeTitle")}
                 </h2>
               </div>
 
               {readyMade.length === 0 ? (
-                <div className="border border-(--color-border) bg-[#FAFAF7] px-6 py-14 text-center">
+                <div className="rounded-lg border border-(--color-border) bg-[#FAFAF7] px-6 py-12 text-center">
                   <p className="text-[11px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
                     {t("readyMadeEmpty")}
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2.5 xs:gap-4 sm:gap-5 md:grid-cols-3 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 xs:gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                   {readyMade.map((item, idx) => {
                     const itemName =
                       locale === "ar" ? item.nameAr || item.name : item.name;
@@ -657,7 +660,7 @@ export default function BrandDetailPage() {
                       >
                         <Link
                           href={hrefPath}
-                          className="block h-full overflow-hidden rounded-md border border-(--color-border) bg-(--bg-page) transition-all duration-500 sm:rounded-lg md:hover:-translate-y-1 md:hover:shadow-xl"
+                          className="block h-full overflow-hidden rounded-md border border-(--color-border) bg-white shadow-[0_1px_0_rgba(26,42,58,0.03)] transition-all duration-500 sm:rounded-lg md:hover:-translate-y-1 md:hover:border-[#1A2A3A]/20 md:hover:shadow-[0_14px_28px_-18px_rgba(26,42,58,0.3)]"
                         >
                           <div className="relative aspect-4/5 overflow-hidden bg-[#F5F5F0]">
                             <img
@@ -667,11 +670,11 @@ export default function BrandDetailPage() {
                               className="h-full w-full object-cover object-top transition-transform duration-700 md:group-hover:scale-105"
                             />
                             {tag ? (
-                              <div className="absolute top-1.5 inset-s-1.5 z-10 max-w-[calc(100%-6.5rem)] truncate bg-black px-1 py-px text-[7px] font-medium uppercase tracking-widest text-white [font-family:var(--font-ui)] xs:top-2 xs:inset-s-2 xs:max-w-[calc(100%-7.5rem)] xs:px-1.5 xs:text-[8px]">
+                              <div className="absolute top-1.5 inset-s-1.5 z-10 max-w-[calc(100%-6.5rem)] truncate bg-black px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-widest text-white [font-family:var(--font-ui)] xs:top-2 xs:inset-s-2 xs:max-w-[calc(100%-7.5rem)] xs:px-2 xs:text-[9px]">
                                 {tag}
                               </div>
                             ) : null}
-                            <div className="absolute top-1.5 inset-e-1.5 z-20 flex items-center gap-1 xs:top-2 xs:inset-e-2 xs:gap-1.5">
+                            <div className="absolute top-1.5 inset-e-1.5 z-20 flex items-center gap-0.5 xs:top-2 xs:inset-e-2 xs:gap-1">
                               <button
                                 type="button"
                                 aria-label={
@@ -682,10 +685,10 @@ export default function BrandDetailPage() {
                                   e.stopPropagation();
                                   await handleShare(hrefPath);
                                 }}
-                                className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:cursor-pointer xs:size-8 sm:hover:scale-105"
+                                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:cursor-pointer xs:size-7 sm:hover:scale-105"
                               >
                                 <Share2
-                                  className="size-3 text-black xs:size-3.5"
+                                  className="size-2.5 text-black xs:size-3"
                                   strokeWidth={1.75}
                                   aria-hidden
                                 />
@@ -705,8 +708,8 @@ export default function BrandDetailPage() {
                                     : {}),
                                 }}
                                 inline
-                                className="size-7! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-8!"
-                                iconClassName="size-3! xs:size-3.5!"
+                                className="size-6! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-7!"
+                                iconClassName="size-2.5! xs:size-3!"
                               />
                               <AddToCartButton
                                 item={{
@@ -720,21 +723,21 @@ export default function BrandDetailPage() {
                                   maxStock: item.availableFabricStock ?? 0,
                                 }}
                                 inline
-                                className="size-7! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-8!"
-                                iconClassName="size-3! xs:size-3.5!"
+                                className="size-6! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-7!"
+                                iconClassName="size-2.5! xs:size-3!"
                               />
                             </div>
                           </div>
-                          <div className="p-2.5 xs:p-3 sm:p-4">
-                            <h3 className="mb-1 line-clamp-2 text-[13px] leading-snug text-black [font-family:var(--font-display)] sm:text-base">
+                          <div className="p-2 xs:p-2.5 sm:p-3">
+                            <h3 className="mb-0.5 line-clamp-2 text-[12px] leading-snug text-black [font-family:var(--font-display)] xs:text-[13px] sm:text-[14px]">
                               {itemName}
                             </h3>
                             {fabricType ? (
-                              <p className="mb-0.5 text-[9px] uppercase tracking-[0.14em] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[10px]">
+                              <p className="mb-0.5 text-[8px] uppercase tracking-[0.14em] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[9px]">
                                 {fabricType}
                               </p>
                             ) : null}
-                            <p className="text-[10px] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[11px]">
+                            <p className="text-[9px] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[10px]">
                               AED {price.toLocaleString()}
                             </p>
                           </div>
@@ -748,26 +751,26 @@ export default function BrandDetailPage() {
           </section>
 
           {/* Add-ons */}
-          <section className="px-4 py-12 sm:px-8 sm:py-16 lg:px-(--space-40)">
+          <section className="px-4 py-10 sm:px-8 sm:py-12 lg:px-(--space-40) lg:py-14">
             <div className="mx-auto max-w-7xl">
-              <div className="mb-8">
+              <div className="mb-6 sm:mb-7">
                 <span className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
                   <span className="block h-px w-5 bg-(--color-grey-muted)" />
                   {t("addonsCount", { count: addons.length })}
                 </span>
-                <h2 className="[font-family:var(--font-display)] text-[28px] tracking-[-0.01em] text-black sm:text-[36px]">
+                <h2 className="[font-family:var(--font-display)] text-[24px] tracking-[-0.01em] text-black sm:text-[30px] md:text-[32px]">
                   {t("addonsTitle")}
                 </h2>
               </div>
 
               {addons.length === 0 ? (
-                <div className="border border-(--color-border) bg-[#FAFAF7] px-6 py-14 text-center">
+                <div className="rounded-lg border border-(--color-border) bg-[#FAFAF7] px-6 py-12 text-center">
                   <p className="text-[11px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
                     {t("addonsEmpty")}
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2.5 xs:gap-4 sm:gap-5 md:grid-cols-3 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2 xs:gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                   {addons.map((item, idx) => {
                     const itemName =
                       locale === "ar" ? item.nameAr || item.name : item.name;
@@ -794,7 +797,7 @@ export default function BrandDetailPage() {
                       >
                         <Link
                           href={hrefPath}
-                          className="block h-full overflow-hidden rounded-md border border-(--color-border) bg-(--bg-page) transition-all duration-500 sm:rounded-lg md:hover:-translate-y-1 md:hover:shadow-xl"
+                          className="block h-full overflow-hidden rounded-md border border-(--color-border) bg-white shadow-[0_1px_0_rgba(26,42,58,0.03)] transition-all duration-500 sm:rounded-lg md:hover:-translate-y-1 md:hover:border-[#1A2A3A]/20 md:hover:shadow-[0_14px_28px_-18px_rgba(26,42,58,0.3)]"
                         >
                           <div className="relative aspect-4/5 overflow-hidden bg-[#F5F5F0]">
                             <img
@@ -804,11 +807,11 @@ export default function BrandDetailPage() {
                               className="h-full w-full object-cover object-top transition-transform duration-700 md:group-hover:scale-105"
                             />
                             {tag ? (
-                              <div className="absolute top-1.5 inset-s-1.5 z-10 max-w-[calc(100%-6.5rem)] truncate bg-black px-1 py-px text-[7px] font-medium uppercase tracking-widest text-white [font-family:var(--font-ui)] xs:top-2 xs:inset-s-2 xs:max-w-[calc(100%-7.5rem)] xs:px-1.5 xs:text-[8px]">
+                              <div className="absolute top-1.5 inset-s-1.5 z-10 max-w-[calc(100%-6.5rem)] truncate bg-black px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-widest text-white [font-family:var(--font-ui)] xs:top-2 xs:inset-s-2 xs:max-w-[calc(100%-7.5rem)] xs:px-2 xs:text-[9px]">
                                 {tag}
                               </div>
                             ) : null}
-                            <div className="absolute top-1.5 inset-e-1.5 z-20 flex items-center gap-1 xs:top-2 xs:inset-e-2 xs:gap-1.5">
+                            <div className="absolute top-1.5 inset-e-1.5 z-20 flex items-center gap-0.5 xs:top-2 xs:inset-e-2 xs:gap-1">
                               <button
                                 type="button"
                                 aria-label={
@@ -819,10 +822,10 @@ export default function BrandDetailPage() {
                                   e.stopPropagation();
                                   await handleShare(hrefPath);
                                 }}
-                                className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:cursor-pointer xs:size-8 sm:hover:scale-105"
+                                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm transition-transform hover:cursor-pointer xs:size-7 sm:hover:scale-105"
                               >
                                 <Share2
-                                  className="size-3 text-black xs:size-3.5"
+                                  className="size-2.5 text-black xs:size-3"
                                   strokeWidth={1.75}
                                   aria-hidden
                                 />
@@ -840,8 +843,8 @@ export default function BrandDetailPage() {
                                   maxStock: Number(item.stock) || 0,
                                 }}
                                 inline
-                                className="size-7! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-8!"
-                                iconClassName="size-3! xs:size-3.5!"
+                                className="size-6! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-7!"
+                                iconClassName="size-2.5! xs:size-3!"
                               />
                               <AddToCartButton
                                 item={{
@@ -855,16 +858,16 @@ export default function BrandDetailPage() {
                                   maxStock: Number(item.stock) || 0,
                                 }}
                                 inline
-                                className="size-7! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-8!"
-                                iconClassName="size-3! xs:size-3.5!"
+                                className="size-6! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-7!"
+                                iconClassName="size-2.5! xs:size-3!"
                               />
                             </div>
                           </div>
-                          <div className="p-2.5 xs:p-3 sm:p-4">
-                            <h3 className="mb-1 line-clamp-2 text-[13px] leading-snug text-black [font-family:var(--font-display)] sm:text-base">
+                          <div className="p-2 xs:p-2.5 sm:p-3">
+                            <h3 className="mb-0.5 line-clamp-2 text-[12px] leading-snug text-black [font-family:var(--font-display)] xs:text-[13px] sm:text-[14px]">
                               {itemName}
                             </h3>
-                            <p className="text-[10px] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[11px]">
+                            <p className="text-[9px] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[10px]">
                               {formatCurrency(price, locale)}
                             </p>
                           </div>
