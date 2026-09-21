@@ -1,16 +1,31 @@
 import express from "express";
 import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
+import FabricShop from "../models/FabricShop.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { withCustomerReadyMadePrice } from "../utils/motdCommission.js";
 
 const readyMadeRoutes = express.Router();
+
+async function activeFabricShopCatalogFilter() {
+  const activeShopIds = await FabricShop.find({ isActive: true }).distinct(
+    "_id",
+  );
+  return {
+    $or: [
+      { fabricShopId: null },
+      { fabricShopId: { $exists: false } },
+      { fabricShopId: { $in: activeShopIds } },
+    ],
+  };
+}
 
 // GET API ready-made
 readyMadeRoutes.get("/", async (req, res) => {
     try {
         const { size, page = 1, limit = 10 } = req.query;
         const filter = {
-            isActive: true
+            isActive: true,
+            ...(await activeFabricShopCatalogFilter()),
         }
 
         // Optional size
@@ -109,7 +124,8 @@ readyMadeRoutes.get("/:slug", async (req, res) => {
             isActive: true
         })
         .populate("fabricId", "slug name nameAr")
-        .populate("designId", "slug name nameAr");
+        .populate("designId", "slug name nameAr")
+        .populate("fabricShopId", "_id name nameAr slug isActive");
 
         if (!product) {
             return res.status(404).json({
@@ -118,10 +134,23 @@ readyMadeRoutes.get("/:slug", async (req, res) => {
             })
         }
 
+        const linkedShop = product.fabricShopId;
+        if (
+            linkedShop &&
+            typeof linkedShop === "object" &&
+            linkedShop.isActive === false
+        ) {
+            return res.status(404).json({
+                success: false,
+                message: "Product not found",
+            });
+        }
+
         const relatedLimit = 8;
         const candidates = await ReadyMadeProduct.find({
             isActive: true,
             _id: { $ne: product._id },
+            ...(await activeFabricShopCatalogFilter()),
         })
             .populate("fabricShopId", "_id name nameAr slug")
             .select(

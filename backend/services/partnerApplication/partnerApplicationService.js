@@ -112,6 +112,8 @@ export function toShopSnapshotDto(shop) {
     },
     payoutBank: serializePayoutBank(shop.payoutBank),
     hasPayoutBank: isPayoutBankComplete(shop.payoutBank),
+    allowCustomerCalls: Boolean(shop.allowCustomerCalls),
+    allowCustomerSocial: Boolean(shop.allowCustomerSocial),
     updatedAt: shop.updatedAt || null,
   };
 }

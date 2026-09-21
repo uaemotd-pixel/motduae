@@ -1,9 +1,23 @@
 import express from "express";
 import AddOn from "../models/AddOn.js";
+import FabricShop from "../models/FabricShop.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { withCustomerAddonPrice } from "../utils/motdCommission.js";
 
 const addOnRoutes = express.Router();
+
+async function activeFabricShopCatalogFilter() {
+  const activeShopIds = await FabricShop.find({ isActive: true }).distinct(
+    "_id",
+  );
+  return {
+    $or: [
+      { fabricShopId: null },
+      { fabricShopId: { $exists: false } },
+      { fabricShopId: { $in: activeShopIds } },
+    ],
+  };
+}
 
 const toShopInfo = (shop) => {
   if (!shop || typeof shop !== "object" || !shop._id) return null;
@@ -19,7 +33,10 @@ const toShopInfo = (shop) => {
 addOnRoutes.get("/", async (req, res) => {
   try {
     const { page = 1, limit = 12, fabricShopId } = req.query;
-    const filter = { isActive: true };
+    const filter = {
+      isActive: true,
+      ...(await activeFabricShopCatalogFilter()),
+    };
 
     if (fabricShopId) {
       filter.fabricShopId = fabricShopId;
@@ -152,6 +169,13 @@ addOnRoutes.get("/:slug", async (req, res) => {
     }
 
     const shop = addon.fabricShopId;
+    if (shop && typeof shop === "object" && shop.isActive === false) {
+      return res.status(404).json({
+        success: false,
+        message: "Addon not found",
+      });
+    }
+
     const fabricShop =
       shop && typeof shop === "object" && shop.isActive !== false
         ? toShopInfo(shop)
@@ -184,6 +208,7 @@ addOnRoutes.get("/:slug", async (req, res) => {
     const candidates = await AddOn.find({
       isActive: true,
       _id: { $ne: addon._id },
+      ...(await activeFabricShopCatalogFilter()),
     })
       .populate("fabricShopId", "_id name nameAr slug")
       .sort({ createdAt: -1 })

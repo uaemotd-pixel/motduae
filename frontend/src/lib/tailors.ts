@@ -30,6 +30,8 @@ export interface TailorShopOwner {
 
 export interface TailorShopDetailItem extends TailorShopListItem {
   owner: TailorShopOwner | null;
+  allowCustomerCalls?: boolean;
+  allowCustomerSocial?: boolean;
   experience?: {
     years: number;
     months: number;
