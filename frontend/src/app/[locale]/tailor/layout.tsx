@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { useParams, usePathname } from "next/navigation";
-import { useRouter } from "@/i18n/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useTranslations } from "next-intl";
 import TailorPendingState from "@/components/tailor/TailorPendingState";
@@ -11,10 +10,10 @@ import TailorPortalShell from "@/components/tailor/TailorPortalShell";
 import PartnerApplyChrome from "@/components/partner/PartnerApplyChrome";
 import { SectionLoadingSkeleton } from "@/components/ui/Skeleton";
 import { resolvePartnerPortalGate } from "@/lib/auth/partnerPortalGate";
+import { safeClientNavigate } from "@/lib/safeClientNavigate";
 
 export default function TailorLayout({ children }: { children: React.ReactNode }) {
     const t = useTranslations("TailorPortal");
-    const router = useRouter();
     const params = useParams();
     const pathname = usePathname();
     const locale = params.locale === "ar" ? "ar" : "en";
@@ -31,19 +30,19 @@ export default function TailorLayout({ children }: { children: React.ReactNode }
 
         if (!user) {
             const redirect = encodeURIComponent(`/${locale}/tailor`);
-            router.push(`/auth/login?redirect=${redirect}`);
+            safeClientNavigate(`/auth/login?redirect=${redirect}`, { locale });
             return;
         }
 
         if (user.role !== "tailor") {
-            router.push("/");
+            safeClientNavigate("/", { locale });
             return;
         }
 
         if (redirectTo) {
-            router.replace(redirectTo);
+            safeClientNavigate(redirectTo, { locale, replace: true });
         }
-    }, [isLoading, locale, router, user, redirectTo]);
+    }, [isLoading, locale, user, redirectTo]);
 
     if (isLoading || gate.screen === "redirect") {
         return (

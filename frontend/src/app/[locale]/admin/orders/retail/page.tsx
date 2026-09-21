@@ -64,6 +64,11 @@ interface ApiResponse {
   total: number;
   page: number;
   totalPages: number;
+  stats?: {
+    pending: number;
+    shipped: number;
+    delivered: number;
+  };
 }
 
 const RETAIL_ORDER_STATUSES: RetailOrder["status"][] = [
@@ -228,6 +233,11 @@ export default function AdminRetailOrdersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [limit, setLimit] = useState(10);
+  const [stats, setStats] = useState({
+    pending: 0,
+    shipped: 0,
+    delivered: 0,
+  });
 
   const getTodayString = () => {
     const d = new Date();
@@ -296,12 +306,18 @@ export default function AdminRetailOrdersPage() {
         setTotalItems(data.total || 0);
         setCurrentPage(data.page || 1);
         setTotalPages(data.totalPages || 1);
+        setStats({
+          pending: data.stats?.pending || 0,
+          shipped: data.stats?.shipped || 0,
+          delivered: data.stats?.delivered || 0,
+        });
       } catch (err: any) {
         console.error("Retail orders fetch error:", err);
         setError(getApiErrorMessage(err, t.errorTitle));
         setOrders([]);
         setTotalItems(0);
         setTotalPages(1);
+        setStats({ pending: 0, shipped: 0, delivered: 0 });
       } finally {
         setLoading(false);
       }
@@ -359,6 +375,7 @@ export default function AdminRetailOrdersPage() {
       const updatedOrder = response?.order || response?.data?.order || response;
       const finalStatus = updatedOrder?.status || status;
 
+      const previousStatus = orders.find((o) => o._id === orderId)?.status;
       setOrders((prevOrders) =>
         prevOrders.map((o) =>
           o._id === orderId
@@ -372,6 +389,21 @@ export default function AdminRetailOrdersPage() {
             : o,
         ),
       );
+      if (previousStatus && previousStatus !== finalStatus) {
+        setStats((prev) => {
+          const next = { ...prev };
+          if (previousStatus in next) {
+            next[previousStatus as keyof typeof next] = Math.max(
+              0,
+              next[previousStatus as keyof typeof next] - 1,
+            );
+          }
+          if (finalStatus in next) {
+            next[finalStatus as keyof typeof next] += 1;
+          }
+          return next;
+        });
+      }
 
       toast.success(
         t.toastSuccess.replace("{status}", finalStatus),
@@ -466,15 +498,15 @@ export default function AdminRetailOrdersPage() {
           { label: t.stats.total, value: totalItems },
           {
             label: t.stats.pending,
-            value: orders.filter((o) => o.status === "pending").length,
+            value: stats.pending,
           },
           {
             label: t.stats.shipped,
-            value: orders.filter((o) => o.status === "shipped").length,
+            value: stats.shipped,
           },
           {
             label: t.stats.delivered,
-            value: orders.filter((o) => o.status === "delivered").length,
+            value: stats.delivered,
           },
         ].map((stat) => (
           <div

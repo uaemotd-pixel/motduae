@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter, usePathname, useParams } from "next/navigation";
+import { usePathname, useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { safeClientNavigate } from "@/lib/safeClientNavigate";
 import { Link } from "@/i18n/navigation";
 import { useNotificationUnreadCount } from "@/hooks/useNotifications";
 import AdminNotificationBell from "@/components/admin/notifications/AdminNotificationBell";
@@ -59,7 +60,6 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { user, isLoading, logout } = useAuth();
-  const router = useRouter();
   const pathname = usePathname();
   const params = useParams();
   const locale = (params.locale as string) || "en";
@@ -119,16 +119,15 @@ export default function AdminLayout({
   }, []);
 
   useEffect(() => {
-    if (!isLoading) {
-      if (!user) {
-        router.push(`/${locale}/auth/login`);
-        return;
-      }
-      if (!isStaffUser(user)) {
-        router.push("/");
-      }
+    if (isLoading) return;
+    if (!user) {
+      safeClientNavigate(`/${locale}/auth/login`, { locale });
+      return;
     }
-  }, [user, isLoading, router, locale]);
+    if (!isStaffUser(user)) {
+      safeClientNavigate(`/${locale}`, { locale });
+    }
+  }, [user, isLoading, locale]);
 
   const pathWithoutLocale = pathname.replace(new RegExp(`^/${locale}`), "") || "/admin";
   const requiredPagePerm = resolveAdminPagePerm(pathWithoutLocale);
