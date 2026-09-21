@@ -11,9 +11,11 @@ import {
   getFabricShopDisplayFields,
   resolveFabricShopImage,
 } from "@/lib/fabricShop";
+import { resolveMediaUrl } from "@/lib/media";
 import { ProductGridSkeleton } from "@/components/ui/Skeleton";
 import { Tag } from "@/components/ui/Tag";
 import GlobalPagination from "@/components/shared/GlobalPagination";
+import { ArrowUpRight, MapPin, Star } from "lucide-react";
 
 const DEFAULT_LIMIT = 12;
 const LIMIT_OPTIONS = [6, 12, 24, 48];
@@ -89,7 +91,7 @@ export default function BrandsListing() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#FAF8F4_0%,#FFFFFF_28%,#FFFFFF_100%)]">
       <div className="border-b border-[#E4E0D8] px-4 py-12 sm:px-8 sm:py-16 lg:px-12 lg:py-24">
         <div className="w-full text-left">
           <div className="mb-4 xs:mb-6">
@@ -102,7 +104,7 @@ export default function BrandsListing() {
           <h1 className="mb-3 [font-family:var(--font-display)] text-[32px] font-normal leading-[1.1] tracking-[-0.01em] text-black xs:mb-4 xs:text-[38px] sm:text-[42px] md:text-[48px] lg:text-[52px] xl:text-[56px] 2xl:text-[64px]">
             {t("title")}
           </h1>
-          <p className="max-w-2xl [font-family:var(--font-body)] text-[14px] leading-normal text-[#7A7A72] xs:text-[13px] sm:text-[14px] md:text-[13px] lg:text-[14px] xl:text-[15px] 2xl:text-[16px]">
+          <p className="max-w-2xl [font-family:var(--font-body)] text-[14px] leading-normal text-[#7A7A72] xs:text-[13px] sm:text-[14px] md:text-[13px] lg:text-[14px] xl:text-[15px] 2xl:text-[16px] text-justify">
             {t("description")}
           </p>
         </div>
@@ -111,8 +113,8 @@ export default function BrandsListing() {
       <div className="px-4 py-8 sm:px-8 sm:py-12 lg:px-12 lg:py-16">
         {loading ? (
           <ProductGridSkeleton
-            count={Math.min(limit, 6)}
-            columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+            count={Math.min(limit, 8)}
+            columnsClassName="grid-cols-2 gap-2.5 xs:gap-3 sm:gap-4 md:grid-cols-3 md:gap-5 lg:gap-6 xl:grid-cols-4"
           />
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-28 text-center">
@@ -134,11 +136,11 @@ export default function BrandsListing() {
           </div>
         ) : (
           <>
-            <p className="mb-8 font-mono text-[11px] uppercase tracking-[0.18em] text-[#7A7A72]">
+            <p className="mb-6 [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.18em] text-[#7A7A72] xs:mb-8 xs:text-[10px] sm:text-[11px]">
               {t("showing", { count: totalItems })}
             </p>
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:gap-4 md:grid-cols-3 md:gap-5 lg:gap-6 xl:grid-cols-4">
               {brands.map((brand) => {
                 const { name, description, location, badge } =
                   getFabricShopDisplayFields(brand, locale);
@@ -146,73 +148,103 @@ export default function BrandsListing() {
                   brand.logo,
                   brand.coverImage,
                 );
+                const logoUrl = brand.logo?.trim()
+                  ? resolveMediaUrl(brand.logo.trim())
+                  : "";
+                const showLogoBadge = Boolean(logoUrl && logoUrl !== imageUrl);
                 const rating = formatFabricShopRating(brand.rating);
                 const reviewCount = brand.reviewCount ?? 0;
+                const locationLabel = badge || location;
 
                 return (
                   <Link
                     key={brand._id}
                     href={`/brands/${brand.slug}`}
-                    className="group overflow-hidden border border-[#E4E0D8] bg-white transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl"
+                    className="group relative flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#E4E0D8] bg-white shadow-[0_1px_0_rgba(26,42,58,0.04)] transition-all duration-500 hover:-translate-y-1.5 hover:border-[#1A2A3A]/25 hover:shadow-[0_18px_40px_-24px_rgba(26,42,58,0.35)] sm:rounded-xl"
                   >
                     <div className="relative aspect-4/5 overflow-hidden bg-[#F0EBE3]">
                       <img
                         src={imageUrl}
                         alt={name}
                         loading="lazy"
-                        className="h-full w-full object-cover object-top transition-all duration-700 group-hover:scale-105"
+                        className="h-full w-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105"
                       />
-                      <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/10 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                      {badge ? (
-                        <div className="absolute bottom-4 inset-s-4">
-                          <Tag elevated>{badge}</Tag>
-                        </div>
-                      ) : null}
-                    </div>
 
-                    <div className="p-5 sm:p-6">
-                      <h2 className="mb-1 line-clamp-2 [font-family:var(--font-display)] text-[20px] font-normal leading-[1.2] tracking-[-0.01em] text-black sm:text-[22px]">
-                        {name}
-                      </h2>
-                      <p className="mb-3 line-clamp-1 [font-family:var(--font-ui)] text-[9px] font-normal uppercase tracking-[0.24em] text-[#7A7A72] sm:text-[10px]">
-                        {location}
-                      </p>
-                      <p className="mb-4 line-clamp-3 [font-family:var(--font-body)] text-[13px] font-normal leading-[1.6] text-[#7A7A72] sm:text-[14px] text-justify">
-                        {description}
-                      </p>
+                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(26,42,58,0.18)_0%,transparent_32%,transparent_55%,rgba(26,42,58,0.72)_100%)] transition-opacity duration-500 group-hover:opacity-95" />
 
-                      <div className="flex items-center justify-between border-t border-[#E4E0D8] pt-4">
-                        <div className="flex items-center gap-1.5">
-                          <svg
-                            className="h-4 w-4 fill-black text-black"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            stroke="none"
-                            aria-hidden
+                      <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-1.5 p-2 xs:gap-2 xs:p-2.5 sm:p-3.5">
+                        {locationLabel ? (
+                          <Tag
+                            size="sm"
+                            elevated
+                            truncate
+                            className="inline-flex max-w-[65%] items-center gap-1"
                           >
-                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                          </svg>
-                          <span className="[font-family:var(--font-ui)] text-[10px] font-medium tracking-[0.2em] text-black sm:text-[11px]">
+                            <MapPin
+                              className="size-2.5 shrink-0 sm:size-3"
+                              strokeWidth={2}
+                              aria-hidden
+                            />
+                            <span className="truncate">{locationLabel}</span>
+                          </Tag>
+                        ) : (
+                          <span />
+                        )}
+
+                        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-white/25 bg-white/90 px-1 py-0.5 backdrop-blur-sm xs:gap-1 xs:px-1.5 xs:py-1">
+                          <Star
+                            className="size-2.5 fill-[#1A2A3A] text-[#1A2A3A] sm:size-3"
+                            aria-hidden
+                          />
+                          <span className="[font-family:var(--font-ui)] text-[8px] font-medium tracking-[0.08em] text-[#1A2A3A] xs:text-[9px] sm:text-[10px]">
                             {rating}
                           </span>
-                          <span className="[font-family:var(--font-ui)] text-[8px] font-normal uppercase tracking-[0.2em] text-[#7A7A72] sm:text-[9px]">
-                            ({reviewCount} {t("reviews")})
-                          </span>
+                        </span>
+                      </div>
+
+                      <div className="absolute inset-x-0 bottom-0 z-10 p-2 xs:p-2.5 sm:p-4">
+                        <div className="flex items-end gap-2 sm:gap-3">
+                          {showLogoBadge ? (
+                            <div className="size-9 shrink-0 overflow-hidden rounded-md border border-white/70 bg-white shadow-md ring-1 ring-black/5 transition-transform duration-500 group-hover:-translate-y-1 xs:size-10 sm:size-14 sm:rounded-lg">
+                              <img
+                                src={logoUrl}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                          ) : null}
+                          <div className="min-w-0 flex-1 pb-0.5">
+                            <h2 className="line-clamp-2 [font-family:var(--font-display)] text-[14px] font-normal leading-[1.15] tracking-[-0.01em] text-white drop-shadow-sm xs:text-[15px] sm:text-[18px] md:text-[20px] lg:text-[21px]">
+                              {name}
+                            </h2>
+                            {location && location !== locationLabel ? (
+                              <p className="mt-0.5 truncate [font-family:var(--font-ui)] text-[7px] uppercase tracking-[0.16em] text-white/75 xs:mt-1 xs:text-[8px] sm:text-[9px]">
+                                {location}
+                              </p>
+                            ) : null}
+                          </div>
                         </div>
-                        <span className="inline-flex items-center gap-1 border-b border-black pb-0.5 [font-family:var(--font-ui)] text-[9px] font-normal uppercase tracking-[0.24em] text-black transition group-hover:opacity-50 sm:text-[10px]">
+                      </div>
+                    </div>
+
+                    <div className="flex flex-1 flex-col gap-2 p-2.5 xs:gap-2.5 xs:p-3 sm:gap-3 sm:p-4">
+                      <p className="line-clamp-2 min-h-[2.4em] [font-family:var(--font-body)] text-[11px] leading-relaxed text-[#7A7A72] xs:text-[12px] sm:min-h-[2.6em] sm:text-[13px]">
+                        {description ||
+                          (locale === "ar"
+                            ? "متجر أقمشة معتمد على MOTD"
+                            : "Approved fabric house on MOTD")}
+                      </p>
+
+                      <div className="mt-auto flex items-center justify-between gap-2 border-t border-[#E4E0D8] pt-2 xs:gap-3 xs:pt-2.5 sm:pt-3">
+                        <span className="truncate [font-family:var(--font-ui)] text-[7px] uppercase tracking-[0.14em] text-[#7A7A72] xs:text-[8px] sm:text-[9px]">
+                          ({reviewCount}) {t("reviews")}
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-0.5 [font-family:var(--font-ui)] text-[8px] font-medium uppercase tracking-[0.14em] text-[#1A2A3A] transition-all duration-300 group-hover:gap-1.5 xs:text-[9px] sm:text-[10px]">
                           {t("viewShop")}
-                          <svg
-                            className="h-3.5 w-3.5 text-black transition-transform duration-200 group-hover:translate-x-1 rtl:rotate-180 rtl:group-hover:-translate-x-1"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
+                          <ArrowUpRight
+                            className="size-3 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 sm:size-3.5 rtl:-rotate-90 rtl:group-hover:-translate-x-0.5"
                             aria-hidden
-                          >
-                            <path d="M9 18l6-6-6-6" />
-                          </svg>
+                          />
                         </span>
                       </div>
                     </div>
@@ -222,7 +254,7 @@ export default function BrandsListing() {
             </div>
 
             {totalPages > 0 && totalItems > 0 ? (
-              <div className="mt-10">
+              <div className="mt-8 sm:mt-10">
                 <GlobalPagination
                   currentPage={currentPage}
                   totalPages={totalPages}

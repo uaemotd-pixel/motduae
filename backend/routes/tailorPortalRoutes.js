@@ -220,6 +220,12 @@ const validateShopPayload = (data, { requireCore = false } = {}) => {
       return "name, nameAr, slug, and phone are required";
     }
   } else {
+    if (data.name !== undefined && !data.name) {
+      return "name is required";
+    }
+    if (data.nameAr !== undefined && !data.nameAr) {
+      return "nameAr is required";
+    }
     if (data.phone !== undefined && !normalizedPhone) {
       return "phone is required";
     }
@@ -432,15 +438,26 @@ tailorPortalRouter.put(
       });
     }
 
-    const nextPickupAddress =
-      data.pickupAddress !== undefined ? data.pickupAddress : shop.pickupAddress;
-    const pickupError = requirePickupAddress(nextPickupAddress);
-    if (pickupError) {
-      res.status(400).json({
-        success: false,
-        message: pickupError,
-      });
-      return;
+    const identityOnlyKeys = new Set(["name", "nameAr"]);
+    const updateKeys = Object.keys(data);
+    const isIdentityOnly =
+      updateKeys.length > 0 &&
+      updateKeys.every((key) => identityOnlyKeys.has(key));
+
+    // Allow name-only edits from Settings without requiring pickup address again.
+    if (!isIdentityOnly) {
+      const nextPickupAddress =
+        data.pickupAddress !== undefined
+          ? data.pickupAddress
+          : shop.pickupAddress;
+      const pickupError = requirePickupAddress(nextPickupAddress);
+      if (pickupError) {
+        res.status(400).json({
+          success: false,
+          message: pickupError,
+        });
+        return;
+      }
     }
 
     const previousLogo = shop.logo;

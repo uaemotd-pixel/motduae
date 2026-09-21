@@ -605,7 +605,8 @@
   },
   "Testimonials": {
     "title": "The Client Experience",
-    "verifiedPurchase": "Verified purchase"
+    "verifiedPurchase": "Verified purchase",
+    "empty": "No client reviews yet"
   },
   "TailorRegister": {
     "eyebrow": "Partner with MOTD",

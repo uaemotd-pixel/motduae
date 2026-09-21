@@ -11,10 +11,11 @@ import {
   getTailorDisplayFields,
   resolveTailorImage,
 } from "@/lib/tailors";
+import { resolveMediaUrl } from "@/lib/media";
 import { ProductGridSkeleton } from "@/components/ui/Skeleton";
 import { Tag } from "@/components/ui/Tag";
 import GlobalPagination from "@/components/shared/GlobalPagination";
-import { MapPin } from "lucide-react";
+import { ArrowUpRight, MapPin, Star } from "lucide-react";
 
 const DEFAULT_LIMIT = 12;
 const LIMIT_OPTIONS = [6, 12, 24, 48];
@@ -90,7 +91,7 @@ export default function TailorsListing() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#FAF8F4_0%,#FFFFFF_28%,#FFFFFF_100%)]">
       <div className="border-b border-[#E4E0D8] px-4 py-12 sm:px-8 sm:py-16 lg:px-12 lg:py-24">
         <div className="w-full text-left">
           <div className="mb-4 xs:mb-6">
@@ -113,7 +114,7 @@ export default function TailorsListing() {
         {loading ? (
           <ProductGridSkeleton
             count={Math.min(limit, 8)}
-            columnsClassName="grid-cols-2 gap-2.5 xs:gap-3 sm:gap-4 md:gap-5 lg:grid-cols-3 xl:grid-cols-4"
+            columnsClassName="grid-cols-2 gap-2.5 xs:gap-3 sm:gap-4 md:grid-cols-3 md:gap-5 lg:gap-6 xl:grid-cols-4"
           />
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-28 text-center">
@@ -135,11 +136,11 @@ export default function TailorsListing() {
           </div>
         ) : (
           <>
-            <p className="mb-5 font-mono text-[9px] uppercase tracking-[0.14em] text-[#7A7A72] xs:mb-6 xs:text-[10px] sm:mb-8 sm:text-[11px] sm:tracking-[0.18em]">
+            <p className="mb-6 [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.18em] text-[#7A7A72] xs:mb-8 xs:text-[10px] sm:text-[11px]">
               {t("showing", { count: totalItems })}
             </p>
 
-            <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:gap-4 md:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:gap-4 md:grid-cols-3 md:gap-5 lg:gap-6 xl:grid-cols-4">
               {tailors.map((tailor) => {
                 const { name, description, location, badge } =
                   getTailorDisplayFields(tailor, locale);
@@ -147,6 +148,10 @@ export default function TailorsListing() {
                   tailor.logo,
                   tailor.coverImage,
                 );
+                const logoUrl = tailor.logo?.trim()
+                  ? resolveMediaUrl(tailor.logo.trim())
+                  : "";
+                const showLogoBadge = Boolean(logoUrl && logoUrl !== imageUrl);
                 const rating = formatTailorRating(tailor.rating);
                 const reviewCount = tailor.reviewCount ?? 0;
                 const locationLabel = badge || location;
@@ -155,23 +160,25 @@ export default function TailorsListing() {
                   <Link
                     key={tailor._id}
                     href={`/tailors/${tailor.slug}`}
-                    className="group flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#E4E0D8] bg-white transition-all duration-500 hover:-translate-y-1 hover:shadow-xl sm:rounded-xl"
+                    className="group relative flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#E4E0D8] bg-white shadow-[0_1px_0_rgba(26,42,58,0.04)] transition-all duration-500 hover:-translate-y-1.5 hover:border-[#1A2A3A]/25 hover:shadow-[0_18px_40px_-24px_rgba(26,42,58,0.35)] sm:rounded-xl"
                   >
-                    <div className="relative aspect-4/3 overflow-hidden bg-[#F0EBE3] sm:aspect-[5/4]">
+                    <div className="relative aspect-4/5 overflow-hidden bg-[#F0EBE3]">
                       <img
                         src={imageUrl}
                         alt={name}
                         loading="lazy"
-                        className="h-full w-full object-cover object-top transition-all duration-700 group-hover:scale-105"
+                        className="h-full w-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105"
                       />
-                      <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-100" />
-                      {locationLabel ? (
-                        <div className="absolute bottom-2 inset-s-2 z-10 xs:bottom-2.5 xs:inset-s-2.5">
+
+                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(26,42,58,0.18)_0%,transparent_32%,transparent_55%,rgba(26,42,58,0.72)_100%)] transition-opacity duration-500 group-hover:opacity-95" />
+
+                      <div className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-1.5 p-2 xs:gap-2 xs:p-2.5 sm:p-3.5">
+                        {locationLabel ? (
                           <Tag
                             size="sm"
                             elevated
                             truncate
-                            className="inline-flex max-w-[calc(100%-0.25rem)] items-center gap-1 px-1.5 py-0.5 text-[7px] tracking-[0.1em] sm:gap-1.5 sm:px-2 sm:text-[8px] sm:tracking-[0.12em]"
+                            className="inline-flex max-w-[65%] items-center gap-1"
                           >
                             <MapPin
                               className="size-2.5 shrink-0 sm:size-3"
@@ -180,51 +187,64 @@ export default function TailorsListing() {
                             />
                             <span className="truncate">{locationLabel}</span>
                           </Tag>
-                        </div>
-                      ) : null}
-                    </div>
+                        ) : (
+                          <span />
+                        )}
 
-                    <div className="flex flex-1 flex-col gap-1.5 p-2.5 xs:p-3 sm:gap-2 sm:p-3.5">
-                      <h2 className="line-clamp-1 [font-family:var(--font-display)] text-[12px] font-normal leading-snug tracking-[-0.01em] text-black xs:text-[13px] sm:text-[14px] md:text-[15px]">
-                        {name}
-                      </h2>
-
-                      <p className="hidden line-clamp-1 [font-family:var(--font-body)] text-[11px] font-normal leading-snug text-[#7A7A72] md:block md:text-[12px]">
-                        {description}
-                      </p>
-
-                      <div className="mt-auto flex items-center justify-between gap-2 border-t border-[#E4E0D8] pt-1.5 sm:pt-2">
-                        <div className="flex min-w-0 items-center gap-1 xs:gap-1.5">
-                          <svg
-                            className="size-3 shrink-0 fill-black text-black sm:size-3.5"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            stroke="none"
+                        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-white/25 bg-white/90 px-1 py-0.5 backdrop-blur-sm xs:gap-1 xs:px-1.5 xs:py-1">
+                          <Star
+                            className="size-2.5 fill-[#1A2A3A] text-[#1A2A3A] sm:size-3"
                             aria-hidden
-                          >
-                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                          </svg>
-                          <span className="shrink-0 [font-family:var(--font-ui)] text-[8px] font-medium tracking-[0.12em] text-black xs:text-[9px] sm:text-[10px]">
+                          />
+                          <span className="[font-family:var(--font-ui)] text-[8px] font-medium tracking-[0.08em] text-[#1A2A3A] xs:text-[9px] sm:text-[10px]">
                             {rating}
                           </span>
-                          <span className="truncate [font-family:var(--font-ui)] text-[7px] font-normal uppercase tracking-[0.12em] text-[#7A7A72] xs:text-[8px]">
-                            ({reviewCount})
-                          </span>
+                        </span>
+                      </div>
+
+                      <div className="absolute inset-x-0 bottom-0 z-10 p-2 xs:p-2.5 sm:p-4">
+                        <div className="flex items-end gap-2 sm:gap-3">
+                          {showLogoBadge ? (
+                            <div className="size-9 shrink-0 overflow-hidden rounded-md border border-white/70 bg-white shadow-md ring-1 ring-black/5 transition-transform duration-500 group-hover:-translate-y-1 xs:size-10 sm:size-14 sm:rounded-lg">
+                              <img
+                                src={logoUrl}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                          ) : null}
+                          <div className="min-w-0 flex-1 pb-0.5">
+                            <h2 className="line-clamp-2 [font-family:var(--font-display)] text-[14px] font-normal leading-[1.15] tracking-[-0.01em] text-white drop-shadow-sm xs:text-[15px] sm:text-[18px] md:text-[20px] lg:text-[21px]">
+                              {name}
+                            </h2>
+                            {location && location !== locationLabel ? (
+                              <p className="mt-0.5 truncate [font-family:var(--font-ui)] text-[7px] uppercase tracking-[0.16em] text-white/75 xs:mt-1 xs:text-[8px] sm:text-[9px]">
+                                {location}
+                              </p>
+                            ) : null}
+                          </div>
                         </div>
-                        <span className="inline-flex shrink-0 items-center gap-0.5 border-b border-black pb-px [font-family:var(--font-ui)] text-[7px] font-normal uppercase tracking-[0.14em] text-black transition group-hover:opacity-50 xs:text-[8px] sm:text-[9px]">
+                      </div>
+                    </div>
+
+                    <div className="flex flex-1 flex-col gap-2 p-2.5 xs:gap-2.5 xs:p-3 sm:gap-3 sm:p-4">
+                      <p className="line-clamp-2 min-h-[2.4em] [font-family:var(--font-body)] text-[11px] leading-relaxed text-[#7A7A72] xs:text-[12px] sm:min-h-[2.6em] sm:text-[13px]">
+                        {description ||
+                          (locale === "ar"
+                            ? "ورشة خياطة معتمدة على MOTD"
+                            : "Approved atelier on MOTD")}
+                      </p>
+
+                      <div className="mt-auto flex items-center justify-between gap-2 border-t border-[#E4E0D8] pt-2 xs:gap-3 xs:pt-2.5 sm:pt-3">
+                        <span className="truncate [font-family:var(--font-ui)] text-[7px] uppercase tracking-[0.14em] text-[#7A7A72] xs:text-[8px] sm:text-[9px]">
+                          ({reviewCount}) {t("reviews")}
+                        </span>
+                        <span className="inline-flex shrink-0 items-center gap-0.5 [font-family:var(--font-ui)] text-[8px] font-medium uppercase tracking-[0.14em] text-[#1A2A3A] transition-all duration-300 group-hover:gap-1.5 xs:text-[9px] sm:text-[10px]">
                           {t("viewShop")}
-                          <svg
-                            className="size-3 text-black transition-transform duration-200 group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
+                          <ArrowUpRight
+                            className="size-3 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 sm:size-3.5 rtl:-rotate-90 rtl:group-hover:-translate-x-0.5"
                             aria-hidden
-                          >
-                            <path d="M9 18l6-6-6-6" />
-                          </svg>
+                          />
                         </span>
                       </div>
                     </div>
