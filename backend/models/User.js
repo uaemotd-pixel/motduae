@@ -17,6 +17,7 @@ const AUTH_PROVIDERS = ["local", "google"];
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
+    nameAr: { type: String, default: "", trim: true },
     email: { type: String, required: true, unique: true },
     password: { type: String },
     googleId: { type: String, sparse: true, unique: true },
