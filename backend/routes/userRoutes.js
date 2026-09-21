@@ -112,6 +112,7 @@ const sendUserResponse = (res, user, claims = {}) => {
   res.send({
     _id: user._id,
     name: user.name,
+    nameAr: user.nameAr || "",
     email: user.email,
     phone: user.phone,
     role: user.role,
@@ -203,6 +204,7 @@ userRouter.get(
     res.json({
       _id: user._id,
       name: user.name,
+      nameAr: user.nameAr || "",
       email: user.email,
       phone: user.phone,
       role: user.role,
@@ -1075,8 +1077,17 @@ userRouter.put(
       return;
     }
 
-    if (req.body.name) {
-      user.name = req.body.name.trim();
+    if (req.body.name !== undefined) {
+      const name = String(req.body.name || "").trim();
+      if (!name) {
+        res.status(400).send({ message: "Name is required" });
+        return;
+      }
+      user.name = name;
+    }
+
+    if (req.body.nameAr !== undefined) {
+      user.nameAr = String(req.body.nameAr || "").trim();
     }
 
     const updatedUser = await user.save();

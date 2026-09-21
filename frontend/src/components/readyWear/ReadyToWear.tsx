@@ -330,7 +330,7 @@ export function ReadyToWearSection() {
                 return (
                   <div
                     key={item._id}
-                    className="flex-[0_0_100%] xs:flex-[0_0_66.666%] sm:flex-[0_0_50%] md:flex-[0_0_40%] lg:flex-[0_0_33.333%] xl:flex-[0_0_28.571%] 2xl:flex-[0_0_25%] px-1 xs:px-1.5 sm:px-2 md:px-2.5 lg:px-3 group py-4"
+                    className="flex-[0_0_85%] xs:flex-[0_0_55%] sm:flex-[0_0_42%] md:flex-[0_0_33%] lg:flex-[0_0_28%] xl:flex-[0_0_24%] 2xl:flex-[0_0_20%] px-1 xs:px-1.5 sm:px-2 md:px-2.5 lg:px-3 group py-4"
                   >
                     <Link
                       href={hrefPath}
@@ -356,9 +356,9 @@ export function ReadyToWearSection() {
                               e.stopPropagation();
                               await handleShare(hrefPath);
                             }}
-                            className="p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer border-0 flex items-center justify-center w-8 h-8 xs:w-9 xs:h-9"
+                            className="p-1.5 rounded-full bg-white/85 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform hover:cursor-pointer border-0 flex items-center justify-center w-7 h-7 xs:w-8 xs:h-8"
                           >
-                            <Share2 className="w-4 h-4 text-black" />
+                            <Share2 className="w-3.5 h-3.5 text-black" />
                           </button>
 
                           <WishlistButton
@@ -376,8 +376,8 @@ export function ReadyToWearSection() {
                                 : {}),
                             }}
                             inline={true}
-                            className="p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 flex h-8 w-8 items-center justify-center xs:h-9 xs:w-9"
-                            iconClassName="h-4 w-4"
+                            className="p-1.5 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 flex h-7 w-7 items-center justify-center xs:h-8 xs:w-8"
+                            iconClassName="h-3.5 w-3.5"
                           />
 
                           <AddToCartButton
@@ -392,8 +392,8 @@ export function ReadyToWearSection() {
                               maxStock: item.availableFabricStock ?? 0,
                             }}
                             inline
-                            className="p-2 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 flex h-8 w-8 items-center justify-center xs:h-9 xs:w-9"
-                            iconClassName="h-4 w-4"
+                            className="p-1.5 rounded-full bg-white/85 backdrop-blur-sm shadow-sm border-0 flex h-7 w-7 items-center justify-center xs:h-8 xs:w-8"
+                            iconClassName="h-3.5 w-3.5"
                           />
                         </div>
 
@@ -409,11 +409,11 @@ export function ReadyToWearSection() {
                         )}
                       </div>
 
-                      <div className="p-3 xs:p-4 sm:p-5 md:p-6 lg:p-(--space-24) flex flex-col grow">
-                        <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] md:text-[20px] lg:text-[22px] xl:text-[24px] 2xl:text-[26px] font-normal leading-[1.2] xs:leading-tight tracking-[-0.01em] text-black mb-1.5 line-clamp-2">
+                      <div className="p-2.5 xs:p-3 sm:p-4 md:p-4 lg:p-5 flex flex-col grow">
+                        <h3 className="[font-family:var(--font-display)] text-[14px] xs:text-[15px] sm:text-[16px] md:text-[17px] lg:text-[18px] xl:text-[19px] 2xl:text-[20px] font-normal leading-[1.2] xs:leading-tight tracking-[-0.01em] text-black mb-1 line-clamp-2">
                           {title}
                         </h3>
-                        <span className="[font-family:var(--font-ui)] text-[13px] xs:text-[14px] sm:text-[15px] md:text-[14px] lg:text-[15px] xl:text-[16px] 2xl:text-[17px] tracking-[0.08em] text-black font-normal mb-1">
+                        <span className="[font-family:var(--font-ui)] text-[11px] xs:text-[12px] sm:text-[12px] md:text-[12px] lg:text-[13px] xl:text-[13px] 2xl:text-[14px] tracking-[0.08em] text-black font-normal mb-1">
                           AED {price.toFixed(2)}
                         </span>
                         {(() => {
@@ -430,13 +430,13 @@ export function ReadyToWearSection() {
                               ? ""
                               : fallback);
                           return label ? (
-                            <p className="[font-family:var(--font-ui)] text-[8px] xs:text-[7px] sm:text-[8px] md:text-[7px] lg:text-[8px] xl:text-[9px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-2 xs:mb-2.5 sm:mb-3 font-normal">
+                            <p className="[font-family:var(--font-ui)] text-[7px] xs:text-[7px] sm:text-[7px] md:text-[7px] lg:text-[8px] xl:text-[8px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-1.5 xs:mb-2 sm:mb-2.5 font-normal">
                               {locale === "ar" ? "المتجر: " : "Store: "}
                               {label}
                             </p>
                           ) : null;
                         })()}
-                        <p className="[font-family:var(--font-body)] text-[11px] xs:text-[10px] sm:text-[11px] md:text-[10px] lg:text-[11px] xl:text-[12px] 2xl:text-[13px] leading-relaxed xs:leading-normal sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow">
+                        <p className="[font-family:var(--font-body)] text-[10px] xs:text-[10px] sm:text-[10px] md:text-[10px] lg:text-[11px] xl:text-[11px] 2xl:text-[12px] leading-relaxed xs:leading-normal sm:leading-[1.6] text-(--color-grey-muted) line-clamp-2 font-normal grow">
                           {description}
                         </p>
                       </div>
@@ -448,15 +448,15 @@ export function ReadyToWearSection() {
           </div>
         </div>
 
-        <div className="flex justify-center gap-1.5 xs:gap-2 sm:gap-2.5 md:gap-3 mt-6 xs:mt-8 sm:mt-10 md:mt-12 lg:mt-(--space-32)">
+        <div className="mt-6 flex justify-center gap-1.5 xs:mt-8 sm:mt-10 md:mt-12 lg:mt-(--space-32)">
           {scrollSnaps.map((_, index) => (
             <button
               key={index}
               onClick={() => scrollTo(index)}
-              className={`w-1.5 h-1.5 xs:w-2 xs:h-2 rounded-full transition-all mx-0.5 xs:mx-1 ${
+              className={`h-1.5 rounded-full transition-all duration-300 ${
                 index === selectedIndex
-                  ? "bg-black scale-125"
-                  : "bg-gray-400 hover:bg-gray-600"
+                  ? "w-5 bg-black"
+                  : "w-1.5 bg-black/25 hover:bg-black/45"
               }`}
               aria-label={`Go to slide ${index + 1}`}
             />

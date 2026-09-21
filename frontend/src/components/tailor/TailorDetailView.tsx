@@ -8,7 +8,7 @@ import {
   Phone,
   Star,
   ArrowUpRight,
-  Globe,
+  Link2,
   ExternalLink,
 } from "lucide-react";
 import DesignGallery from "@/components/tailor/DesignGallery";
@@ -98,7 +98,7 @@ export default function TailorDetailView({
   });
 
   return (
-    <div className="min-h-screen bg-(--bg-page)">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#FAF8F4_0%,#FFFFFF_22%,#FFFFFF_100%)]">
       {/* Hero */}
       <section className="relative isolate overflow-hidden">
         <div className="absolute inset-0">
@@ -109,34 +109,27 @@ export default function TailorDetailView({
             className="h-full w-full scale-105 object-cover object-top"
           />
           <div className="absolute inset-0 bg-linear-to-t from-black via-black/55 to-black/25" />
-          <div className="absolute inset-0 bg-linear-to-r from-black/50 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-r from-black/45 via-transparent to-transparent" />
         </div>
 
-        <div className="relative mx-auto flex min-h-[72vh] w-full max-w-7xl flex-col justify-between px-4 pt-20 pb-10 xs:px-6 sm:min-h-[78vh] sm:px-8 sm:pt-24 sm:pb-14 md:px-12 lg:px-(--space-40)">
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="flex min-w-0 items-center gap-2 text-[9px] uppercase tracking-[0.18em] text-white/65 sm:text-[10px] sm:tracking-[0.22em]"
-          >
+        <div className="relative mx-auto flex min-h-[56vh] w-full max-w-7xl flex-col justify-between px-4 pt-20 pb-10 sm:min-h-[64vh] sm:px-8 sm:pt-24 sm:pb-14 lg:px-(--space-40)">
+          <div className="flex min-w-0 items-center gap-2 text-[9px] uppercase tracking-[0.18em] text-white/65 sm:text-[10px]">
             <Link
               href="/tailors"
               className="shrink-0 transition hover:text-white"
             >
               {labels.tailors}
             </Link>
-            <span className="shrink-0" aria-hidden>
-              /
-            </span>
+            <span aria-hidden>/</span>
             <span className="min-w-0 truncate text-white">{name}</span>
-          </motion.div>
+          </div>
 
-          <div className="mt-auto grid grid-cols-1 items-end gap-8 lg:grid-cols-[auto_1fr] lg:gap-10">
+          <div className="mt-auto grid grid-cols-1 items-end gap-6 lg:grid-cols-[auto_1fr] lg:gap-10">
             <motion.div
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="mx-auto aspect-4/5 w-28 shrink-0 overflow-hidden border border-white/25 bg-[#F5F5F0] shadow-[0_20px_50px_-20px_rgba(0,0,0,0.65)] xs:w-32 sm:mx-0 sm:w-40 lg:w-44"
+              className="mx-auto aspect-4/5 w-24 shrink-0 overflow-hidden rounded-sm border border-white/25 bg-[#F5F5F0] shadow-[0_20px_50px_-20px_rgba(0,0,0,0.65)] xs:w-28 sm:mx-0 sm:w-36 lg:w-40"
             >
               <img
                 src={logoImage}
@@ -158,38 +151,38 @@ export default function TailorDetailView({
                 </span>
               ) : null}
 
-              <h1 className="[font-family:var(--font-display)] text-[34px] leading-[1.05] tracking-[-0.02em] text-white xs:text-[40px] sm:text-[48px] md:text-[56px]">
+              <h1 className="[font-family:var(--font-display)] text-[32px] leading-[1.05] tracking-[-0.02em] text-white xs:text-[40px] sm:text-[48px] md:text-[52px]">
                 {name}
               </h1>
 
               {location ? (
-                <p className="mt-3 inline-flex max-w-full items-center justify-center gap-1.5 text-[11px] uppercase tracking-[0.2em] text-white/75 [font-family:var(--font-ui)] sm:justify-start sm:text-[12px] sm:tracking-[0.24em]">
+                <p className="mt-3 inline-flex items-center justify-center gap-1.5 text-[11px] uppercase tracking-[0.2em] text-white/75 [font-family:var(--font-ui)] sm:justify-start">
                   <MapPin
-                    className="size-3.5 shrink-0 opacity-80"
+                    className="size-3.5 shrink-0"
                     strokeWidth={1.75}
                     aria-hidden
                   />
-                  <span className="min-w-0 truncate">{location}</span>
+                  <span className="truncate">{location}</span>
                 </p>
               ) : null}
 
               {experienceLabel ? (
-                <p className="mt-2 text-[11px] uppercase tracking-[0.2em] text-white/75 [font-family:var(--font-ui)] sm:text-[12px]">
+                <p className="mt-2 text-[11px] uppercase tracking-[0.2em] text-white/75 [font-family:var(--font-ui)]">
                   <span className="text-white/55">{labels.experienceTitle}: </span>
                   {experienceLabel}
                 </p>
               ) : null}
 
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:justify-start sm:gap-x-5">
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:justify-start">
                 <a
                   href="#reviews"
-                  className="inline-flex items-center gap-1.5 transition hover:opacity-80"
+                  className="inline-flex items-center gap-1.5 text-white transition hover:opacity-80"
                 >
                   <Star
                     className="size-3.5 fill-[#d4af37] stroke-[#d4af37]"
                     aria-hidden
                   />
-                  <span className="text-[12px] tracking-[0.14em] text-white [font-family:var(--font-ui)]">
+                  <span className="text-[12px] tracking-[0.14em] [font-family:var(--font-ui)]">
                     {rating}
                   </span>
                   <span className="text-[10px] uppercase tracking-[0.16em] text-white/55 [font-family:var(--font-ui)]">
@@ -205,10 +198,10 @@ export default function TailorDetailView({
                 </span>
               </div>
 
-              <div className="mt-7 flex flex-col items-stretch gap-2.5 xs:flex-row xs:flex-wrap xs:items-center xs:justify-center sm:justify-start">
+              <div className="mt-6 flex flex-col items-stretch gap-2.5 xs:flex-row xs:flex-wrap xs:items-center xs:justify-center sm:justify-start">
                 <a
                   href="#designs"
-                  className="inline-flex items-center justify-center gap-2 bg-white px-5 py-3.5 text-[10px] uppercase tracking-[0.2em] text-black transition hover:bg-white/90 [font-family:var(--font-ui)] sm:px-6"
+                  className="inline-flex items-center justify-center gap-2 rounded-sm bg-white px-5 py-3 text-[10px] uppercase tracking-[0.2em] text-black transition hover:bg-white/90 [font-family:var(--font-ui)] sm:px-6"
                 >
                   {labels.viewDesigns}
                   <ArrowUpRight
@@ -220,7 +213,7 @@ export default function TailorDetailView({
                 {shop.phone ? (
                   <a
                     href={`tel:${shop.phone}`}
-                    className="inline-flex items-center justify-center gap-2 border border-white/35 bg-white/5 px-5 py-3.5 text-[10px] uppercase tracking-[0.2em] text-white backdrop-blur-sm transition hover:bg-white/15 [font-family:var(--font-ui)] sm:px-6"
+                    className="inline-flex items-center justify-center gap-2 rounded-sm border border-white/35 bg-white/5 px-5 py-3 text-[10px] uppercase tracking-[0.2em] text-white backdrop-blur-sm transition hover:bg-white/15 [font-family:var(--font-ui)] sm:px-6"
                   >
                     <Phone
                       className="size-3.5 shrink-0"
@@ -244,44 +237,32 @@ export default function TailorDetailView({
 
       {/* About + social / portfolio */}
       {(description || hasConnect) && (
-        <section className="border-b border-(--color-border) bg-(--bg-page)">
+        <section className="border-b border-(--color-border) px-4 py-9 sm:px-8 sm:py-11 lg:px-(--space-40)">
           <div
-            className={`text-justify mx-auto grid max-w-7xl gap-8 px-4 py-10 xs:px-6 sm:gap-10 sm:px-8 sm:py-14 md:px-12 lg:px-(--space-40) ${
-              description && hasConnect ? "lg:grid-cols-[1fr_280px]" : ""
+            className={`mx-auto grid max-w-7xl gap-8 sm:gap-10 ${
+              description && hasConnect ? "lg:grid-cols-[1fr_260px]" : ""
             }`}
           >
             {description ? (
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-40px" }}
-                transition={{ duration: 0.45 }}
-                className="min-w-0"
-              >
+              <div className="min-w-0">
                 <div className="mb-4 flex items-center gap-3">
                   <span className="block h-px w-5 bg-black/35" />
                   <h2 className="text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
                     {labels.aboutTitle}
                   </h2>
                 </div>
-                <p className="max-w-3xl text-pretty text-[14px] leading-relaxed text-(--color-grey-muted) [font-family:var(--font-body)] sm:text-[15px] sm:leading-[1.7]">
+                <p className="max-w-3xl text-pretty text-justify text-[14px] leading-relaxed text-(--color-grey-muted) [font-family:var(--font-body)] sm:text-[15px]">
                   {description}
                 </p>
-              </motion.div>
+              </div>
             ) : null}
 
             {hasConnect ? (
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-40px" }}
-                transition={{ duration: 0.45, delay: 0.05 }}
-                className="border border-(--color-border) bg-[#FAFAF7] px-5 py-5 sm:px-6"
-              >
+              <div className="rounded-lg border border-(--color-border) bg-[#FAFAF7] px-5 py-5 sm:px-6">
                 <p className="mb-4 text-[10px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
                   {labels.connectTitle}
                 </p>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-2.5">
                   {websiteUrl ? (
                     <a
                       href={websiteUrl}
@@ -289,10 +270,10 @@ export default function TailorDetailView({
                       rel="noopener noreferrer"
                       aria-label={labels.website}
                       title={labels.website}
-                      className={`${SOCIAL_LINK_BASE_CLASS} border-(--color-border) text-black hover:border-black hover:bg-black hover:text-white`}
+                      className={`${SOCIAL_LINK_BASE_CLASS} size-10 border-(--color-border) text-black hover:border-black hover:bg-black hover:text-white`}
                     >
-                      <Globe
-                        className="size-4.5"
+                      <Link2
+                        className="size-4"
                         strokeWidth={1.75}
                         aria-hidden
                       />
@@ -312,13 +293,13 @@ export default function TailorDetailView({
                         rel="noopener noreferrer"
                         aria-label={link.name}
                         title={link.name}
-                        className={`${SOCIAL_LINK_BASE_CLASS} ${brandClass}`}
+                        className={`${SOCIAL_LINK_BASE_CLASS} size-10 ${brandClass}`}
                       >
                         {platform ? (
                           <SocialPlatformIcon platform={platform.value} />
                         ) : (
                           <ExternalLink
-                            className="size-4.5"
+                            className="size-4"
                             strokeWidth={1.75}
                             aria-hidden
                           />
@@ -327,7 +308,7 @@ export default function TailorDetailView({
                     );
                   })}
                 </div>
-              </motion.div>
+              </div>
             ) : null}
           </div>
         </section>
@@ -336,7 +317,7 @@ export default function TailorDetailView({
       {/* Designs */}
       <section
         id="designs"
-        className="scroll-mt-24 bg-(--bg-page) px-4 py-12 xs:px-6 sm:px-8 sm:py-16 md:px-12 lg:px-(--space-40)"
+        className="scroll-mt-24 px-4 py-10 sm:px-8 sm:py-12 lg:px-(--space-40) lg:py-14"
       >
         <div className="mx-auto max-w-7xl">
           <DesignGallery
