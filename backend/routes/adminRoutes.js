@@ -17,7 +17,7 @@ import {
   processReadyMadeImage,
   processTailorDesignImage,
 } from "../middleware/uploadReadyMadeImage.js";
-import { respondIfShopNotReady } from "../utils/shopReady.js";
+import { respondIfShopNotReady, syncFabricShopCatalogActive, syncTailorShopCatalogActive } from "../utils/shopReady.js";
 import {
   applyCreateDefaults,
   applyMinCutToDesignData,
@@ -1373,10 +1373,15 @@ async function toggleFabricStorePartnerActive(req, res) {
   const updated = await user.save();
 
   // Sync associated FabricShop document isActive status
-  await FabricShop.findOneAndUpdate(
+  const shop = await FabricShop.findOneAndUpdate(
     { ownerId: user._id },
-    { isActive: user.isActive },
+    { isActive: user.isActive, inactiveUntil: null },
+    { new: true },
   );
+
+  if (shop) {
+    await syncFabricShopCatalogActive(shop._id, user.isActive);
+  }
 
   res.send({
     success: true,
@@ -2020,6 +2025,42 @@ adminRouter.get(
   }),
 );
 
+// PATCH /api/admin/tailors/:id/customer-contact
+adminRouter.patch(
+  "/tailors/:id/customer-contact",
+  expressAsyncHandler(async (req, res) => {
+    const tailor = await User.findById(req.params.id);
+    if (!tailor || tailor.role !== "tailor") {
+      res.status(404).send({ message: "Tailor not found" });
+      return;
+    }
+
+    const shop = await TailorShop.findOne({ ownerId: tailor._id });
+    if (!shop) {
+      res.status(404).send({
+        message: "Shop profile not found. Approve the partner first.",
+      });
+      return;
+    }
+
+    if (typeof req.body?.allowCustomerCalls === "boolean") {
+      shop.allowCustomerCalls = req.body.allowCustomerCalls;
+    }
+    if (typeof req.body?.allowCustomerSocial === "boolean") {
+      shop.allowCustomerSocial = req.body.allowCustomerSocial;
+    }
+
+    await shop.save();
+    res.send({
+      message: "Customer contact settings updated",
+      shop: {
+        allowCustomerCalls: Boolean(shop.allowCustomerCalls),
+        allowCustomerSocial: Boolean(shop.allowCustomerSocial),
+      },
+    });
+  }),
+);
+
 // PATCH /api/admin/tailors/:id/approve
 // Set approvalStatus: approved — pending or rejected only
 adminRouter.patch(
@@ -2191,6 +2232,42 @@ adminRouter.get(
   }),
 );
 
+// PATCH /api/admin/fabric-stores/:id/customer-contact
+adminRouter.patch(
+  "/fabric-stores/:id/customer-contact",
+  expressAsyncHandler(async (req, res) => {
+    const store = await User.findById(req.params.id);
+    if (!store || store.role !== "fabric_store") {
+      res.status(404).send({ message: "Fabric store not found" });
+      return;
+    }
+
+    const shop = await FabricShop.findOne({ ownerId: store._id });
+    if (!shop) {
+      res.status(404).send({
+        message: "Shop profile not found. Approve the partner first.",
+      });
+      return;
+    }
+
+    if (typeof req.body?.allowCustomerCalls === "boolean") {
+      shop.allowCustomerCalls = req.body.allowCustomerCalls;
+    }
+    if (typeof req.body?.allowCustomerSocial === "boolean") {
+      shop.allowCustomerSocial = req.body.allowCustomerSocial;
+    }
+
+    await shop.save();
+    res.send({
+      message: "Customer contact settings updated",
+      shop: {
+        allowCustomerCalls: Boolean(shop.allowCustomerCalls),
+        allowCustomerSocial: Boolean(shop.allowCustomerSocial),
+      },
+    });
+  }),
+);
+
 adminRouter.patch(
   "/fabric-stores/:id/approve",
   expressAsyncHandler(async (req, res) => {
@@ -2333,6 +2410,9 @@ async function toggleTailorShopActive(req, res) {
   if (shop.ownerId) {
     await User.findByIdAndUpdate(shop.ownerId, { isActive: shop.isActive });
   }
+
+  // Keep designs in sync: deactivated shops must not leave designs publicly active
+  await syncTailorShopCatalogActive(shop._id, shop.isActive);
 
   res.send({
     success: true,
@@ -2556,6 +2636,7 @@ async function toggleFabricShopActive(req, res) {
   }
 
   shop.isActive = !shop.isActive;
+  shop.inactiveUntil = null;
   const updatedShop = await shop.save();
   await updatedShop.populate(fabricShopOwnerPopulate);
 
@@ -2563,6 +2644,9 @@ async function toggleFabricShopActive(req, res) {
   if (shop.ownerId) {
     await User.findByIdAndUpdate(shop.ownerId, { isActive: shop.isActive });
   }
+
+  // Keep catalog products in sync with shop visibility
+  await syncFabricShopCatalogActive(shop._id, shop.isActive);
 
   res.send({
     success: true,

@@ -111,6 +111,13 @@ export async function prepareRetailOrder(orderItems) {
     const quantity = item.quantity || 1;
     const fabricShopId = await resolveLineFabricShopId(product);
 
+    if (fabricShopId) {
+      const shop = await FabricShop.findById(fabricShopId).select("isActive");
+      if (!shop?.isActive) {
+        throw new Error(`Product not available: ${item.productId}`);
+      }
+    }
+
     if (isFabric) {
       if (item.cutId) {
         const resolved = await resolveRetailFabricCutLine(

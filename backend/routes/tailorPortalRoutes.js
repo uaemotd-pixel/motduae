@@ -32,7 +32,7 @@ import {
   deleteOwnPayoutRequest,
   getPortalPayoutView,
 } from "../services/partnerPayout/portal.js";
-import { isShopProfileComplete, isValidShopSlug } from "../utils/shopReady.js";
+import { isShopProfileComplete, isValidShopSlug, applyTailorShopVisibility } from "../utils/shopReady.js";
 import { parsePayoutBankInput } from "../utils/partnerPayoutBank.js";
 import PartnerApplication from "../models/PartnerApplication.js";
 import { normalizeSocialLinks } from "../services/partnerApplication/policy.js";
@@ -339,6 +339,42 @@ tailorPortalRouter.get(
 
     res.json({
       success: true,
+      item: await enrichShopWithApplication(shop),
+    });
+  }),
+);
+
+// PATCH /api/tailor/shop/visibility — partner pause / resume (does not lock account)
+tailorPortalRouter.patch(
+  "/shop/visibility",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).json({
+        success: false,
+        message: "Tailor shop not found",
+      });
+      return;
+    }
+
+    const wantActive = Boolean(req.body?.isActive);
+
+    if (shop.isActive === wantActive && wantActive) {
+      res.json({
+        success: true,
+        message: "Shop is already active",
+        item: await enrichShopWithApplication(shop),
+      });
+      return;
+    }
+
+    await applyTailorShopVisibility(shop, wantActive);
+
+    res.json({
+      success: true,
+      message: wantActive
+        ? "Shop activated successfully"
+        : "Shop deactivated successfully",
       item: await enrichShopWithApplication(shop),
     });
   }),

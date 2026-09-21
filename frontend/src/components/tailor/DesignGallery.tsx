@@ -113,17 +113,17 @@ export default function DesignGallery({
         </div>
       )}
 
-      <div className="mb-6 sm:mb-7">
-        <span className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-(--color-grey-muted) [font-family:var(--font-ui)]">
-          <span className="block h-px w-5 bg-(--color-grey-muted)" />
-          {labels.countLabel}
+      <div className="mb-5 xs:mb-6 sm:mb-7">
+        <span className="mb-2 flex min-w-0 items-center gap-2 text-[9px] uppercase tracking-[0.2em] text-(--color-grey-muted) [font-family:var(--font-ui)] xs:text-[10px] xs:tracking-[0.22em]">
+          <span className="block h-px w-4 shrink-0 bg-(--color-grey-muted) xs:w-5" />
+          <span className="min-w-0 truncate">{labels.countLabel}</span>
         </span>
-        <h2 className="[font-family:var(--font-display)] text-[24px] tracking-[-0.01em] text-black sm:text-[30px] md:text-[32px]">
+        <h2 className="wrap-break-word [font-family:var(--font-display)] text-[22px] tracking-[-0.01em] text-black xs:text-[24px] sm:text-[30px] md:text-[32px]">
           {labels.title}
         </h2>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 xs:gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 min-[400px]:gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {designs.map((design, idx) => {
           const { name, category } = getDesignDisplayFields(design, locale);
           const imageUrl = resolveDesignImage(design.images?.[0]);

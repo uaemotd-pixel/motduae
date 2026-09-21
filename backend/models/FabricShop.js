@@ -62,6 +62,10 @@ const fabricShopSchema = new mongoose.Schema(
       unique: true,
     },
     isActive: { type: Boolean, default: true, required: true },
+    /** Legacy field; schedules removed — always cleared on activate/deactivate. */
+    inactiveUntil: { type: Date, default: null },
+    allowCustomerCalls: { type: Boolean, default: false },
+    allowCustomerSocial: { type: Boolean, default: false },
   },
   {
     timestamps: true,

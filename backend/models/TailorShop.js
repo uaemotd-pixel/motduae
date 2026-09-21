@@ -62,6 +62,8 @@ const tailorShopSchema = new mongoose.Schema(
       unique: true,
     },
     isActive: { type: Boolean, default: true, required: true },
+    allowCustomerCalls: { type: Boolean, default: false },
+    allowCustomerSocial: { type: Boolean, default: false },
   },
   {
     timestamps: true,

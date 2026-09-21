@@ -16,6 +16,7 @@ async function getApprovedTailorOwnerIds() {
   const owners = await User.find({
     role: "tailor",
     approvalStatus: "approved",
+    isActive: { $ne: false },
   }).select("_id");
 
   return owners.map((owner) => owner._id);
@@ -81,14 +82,16 @@ tailorRoutes.get("/", async (req, res) => {
 });
 
 const isApprovedTailorOwner = (owner) =>
-  owner?.role === "tailor" && owner?.approvalStatus === "approved";
+  owner?.role === "tailor" &&
+  owner?.approvalStatus === "approved" &&
+  owner?.isActive !== false;
 
 async function findApprovedShopBySlug(slug) {
   const shop = await TailorShop.findOne({
     slug: slug.toLowerCase(),
     isActive: true,
   })
-    .populate("ownerId", "_id name role approvalStatus")
+    .populate("ownerId", "_id name role approvalStatus isActive")
     .select("-__v -payoutBank");
 
   if (!shop || !isApprovedTailorOwner(shop.ownerId)) {
@@ -448,37 +451,46 @@ tailorRoutes.get("/:slug/designs", async (req, res) => {
   }
 });
 
-const toDetailItem = (shop, extras = {}) => ({
-  _id: shop._id,
-  slug: shop.slug,
-  name: shop.name,
-  nameAr: shop.nameAr,
-  description: shop.description,
-  descriptionAr: shop.descriptionAr,
-  logo: shop.logo,
-  coverImage: shop.coverImage,
-  location: shop.location,
-  city: shop.city,
-  phone: shop.phone,
-  website: extras.website || shop.website || "",
-  social: Array.isArray(extras.social)
+const toDetailItem = (shop, extras = {}) => {
+  const allowCustomerCalls = Boolean(shop.allowCustomerCalls);
+  const allowCustomerSocial = Boolean(shop.allowCustomerSocial);
+  const website = extras.website || shop.website || "";
+  const social = Array.isArray(extras.social)
     ? extras.social
     : Array.isArray(shop.social)
       ? shop.social
-      : [],
-  experience: extras.experience ?? null,
-  rating: shop.rating,
-  reviewCount: shop.reviewCount,
-  owner: shop.ownerId
-    ? {
-        _id: shop.ownerId._id,
-        name: shop.ownerId.name,
-        role: shop.ownerId.role,
-      }
-    : null,
-  createdAt: shop.createdAt,
-  updatedAt: shop.updatedAt,
-});
+      : [];
+
+  return {
+    _id: shop._id,
+    slug: shop.slug,
+    name: shop.name,
+    nameAr: shop.nameAr,
+    description: shop.description,
+    descriptionAr: shop.descriptionAr,
+    logo: shop.logo,
+    coverImage: shop.coverImage,
+    location: shop.location,
+    city: shop.city,
+    phone: allowCustomerCalls ? shop.phone : "",
+    website: allowCustomerSocial ? website : "",
+    social: allowCustomerSocial ? social : [],
+    allowCustomerCalls,
+    allowCustomerSocial,
+    experience: extras.experience ?? null,
+    rating: shop.rating,
+    reviewCount: shop.reviewCount,
+    owner: shop.ownerId
+      ? {
+          _id: shop.ownerId._id,
+          name: shop.ownerId.name,
+          role: shop.ownerId.role,
+        }
+      : null,
+    createdAt: shop.createdAt,
+    updatedAt: shop.updatedAt,
+  };
+};
 
 // GET /api/tailors/:slug — shop profile; 404 if inactive or owner not approved
 tailorRoutes.get("/:slug", async (req, res) => {

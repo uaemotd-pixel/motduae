@@ -45,6 +45,8 @@ type ShopSnapshot = {
   };
   payoutBank?: PayoutBankDetails;
   hasPayoutBank?: boolean;
+  allowCustomerCalls?: boolean;
+  allowCustomerSocial?: boolean;
   updatedAt: string | null;
 };
 
@@ -130,10 +132,62 @@ function Labeled({
   );
 }
 
+function ContactPermissionToggle({
+  enabled,
+  busy,
+  title,
+  description,
+  onChange,
+}: {
+  enabled: boolean;
+  busy: boolean;
+  title: string;
+  description: string;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-xl border border-gray-100 bg-[#FAFAF7] px-4 py-4">
+      <div className="min-w-0 pr-2">
+        <p className="text-sm font-medium text-black">{title}</p>
+        <p className="mt-1 text-sm leading-relaxed text-gray-500">
+          {description}
+        </p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        disabled={busy}
+        onClick={() => onChange(!enabled)}
+        className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+          enabled
+            ? "border-black bg-black"
+            : "border-gray-300 bg-gray-200"
+        }`}
+      >
+        <span
+          className={`pointer-events-none absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${
+            enabled ? "left-5.5" : "left-0.5"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 function ShopProfileReadout({
   shop,
+  kind,
+  onContactPermissionChange,
+  contactBusy,
 }: {
   shop: ShopSnapshot;
+  kind: PartnerKind;
+  onContactPermissionChange: (
+    field: "allowCustomerCalls" | "allowCustomerSocial",
+    value: boolean,
+  ) => void;
+  contactBusy: boolean;
 }) {
   const logoSrc = shop.logo ? resolveMediaUrl(shop.logo) : "";
   const coverSrc = shop.coverImage ? resolveMediaUrl(shop.coverImage) : "";
@@ -142,12 +196,45 @@ function ShopProfileReadout({
     ? `${getEmirateEn(pickup.emirate)} / ${getEmirateAr(pickup.emirate)}`
     : "";
   const pickupPhone = formatPhoneDisplay(pickup?.phone);
+  const partnerLabel = kind === "tailor" ? "tailor" : "shop";
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-8">
       <p className="text-sm text-gray-500">
         Live shop profile
       </p>
+
+      <div className="space-y-4">
+        <div>
+          <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
+            Customer contact permissions
+          </p>
+          <p className="mt-1 text-sm text-gray-500">
+            Control which contact options appear on the public profile. Disabled
+            by default until explicitly approved.
+          </p>
+        </div>
+        <div className="space-y-3">
+          <ContactPermissionToggle
+            enabled={Boolean(shop.allowCustomerCalls)}
+            busy={contactBusy}
+            title={`Allow customers to call this ${partnerLabel}`}
+            description="When enabled, a Call button is shown on the public profile so customers can dial the listed phone number."
+            onChange={(next) =>
+              onContactPermissionChange("allowCustomerCalls", next)
+            }
+          />
+          <ContactPermissionToggle
+            enabled={Boolean(shop.allowCustomerSocial)}
+            busy={contactBusy}
+            title="Allow customers to connect via social media"
+            description="When enabled, website and social profile links are shown on the public profile for customer outreach."
+            onChange={(next) =>
+              onContactPermissionChange("allowCustomerSocial", next)
+            }
+          />
+        </div>
+      </div>
 
       <div className="space-y-4">
         <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
@@ -291,6 +378,7 @@ export default function PartnerApplicationReview({
   const [approvalNote, setApprovalNote] = useState("");
   const [rejectNote, setRejectNote] = useState("");
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
+  const [contactBusy, setContactBusy] = useState(false);
   const [reviewTab, setReviewTab] = useState<"shop" | "application">(
     "application",
   );
@@ -344,6 +432,51 @@ export default function PartnerApplicationReview({
       toast.error(getApiErrorMessage(err, "Could not save decision"));
     } finally {
       setBusy(null);
+    }
+  };
+
+  const updateContactPermission = async (
+    field: "allowCustomerCalls" | "allowCustomerSocial",
+    value: boolean,
+  ) => {
+    if (!data?.shop) return;
+    const previous = {
+      allowCustomerCalls: Boolean(data.shop.allowCustomerCalls),
+      allowCustomerSocial: Boolean(data.shop.allowCustomerSocial),
+    };
+
+    setData((prev) =>
+      prev?.shop
+        ? {
+            ...prev,
+            shop: {
+              ...prev.shop,
+              [field]: value,
+            },
+          }
+        : prev,
+    );
+    setContactBusy(true);
+    try {
+      await api.patch(`${apiBase}/customer-contact`, { [field]: value });
+      toast.success("Customer contact settings updated");
+    } catch (err) {
+      setData((prev) =>
+        prev?.shop
+          ? {
+              ...prev,
+              shop: {
+                ...prev.shop,
+                ...previous,
+              },
+            }
+          : prev,
+      );
+      toast.error(
+        getApiErrorMessage(err, "Could not update customer contact settings"),
+      );
+    } finally {
+      setContactBusy(false);
     }
   };
 
@@ -475,7 +608,12 @@ export default function PartnerApplicationReview({
 
       {reviewTab === "shop" ? (
         shop ? (
-          <ShopProfileReadout shop={shop} />
+          <ShopProfileReadout
+            shop={shop}
+            kind={kind}
+            contactBusy={contactBusy}
+            onContactPermissionChange={updateContactPermission}
+          />
         ) : (
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
           <p className="text-sm text-gray-600">
