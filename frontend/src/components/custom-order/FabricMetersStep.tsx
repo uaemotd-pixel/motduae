@@ -223,8 +223,8 @@ function StorefrontCutPicker({
                 >
                   {formatCutEquivalentClause(
                     {
-                      value: cut.value,
-                      unit: cut.unit,
+                      value: Number(cut.value) || cut.lengthInMeters,
+                      unit: cut.unit === "war" ? "war" : "meter",
                       lengthInMeters: cut.lengthInMeters,
                     },
                     locale === "ar" ? "ar" : "en",
