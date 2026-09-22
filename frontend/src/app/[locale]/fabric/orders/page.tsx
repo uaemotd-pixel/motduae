@@ -34,6 +34,7 @@ import type { Locale } from "@/i18n/routing";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
 import { isWithinLocalDateRange } from "@/lib/dateRange";
 import { splitFabricCommission } from "@/lib/fabricCommission";
+import { formatCutEquivalentClause } from "@/lib/fabricUnits";
 
 function isFabricRetailLine(item: {
   kind?: string;
@@ -57,18 +58,16 @@ function fabricRetailCutLabel(
   const snap = item.cutSnapshot;
   if (snap) {
     const cutName = locale === "ar" ? snap.nameAr || snap.name : snap.name;
+    const size =
+      snap.value != null && snap.unit
+        ? formatCutEquivalentClause(
+            { value: snap.value, unit: snap.unit },
+            locale === "ar" ? "ar" : "en",
+          )
+        : "";
+    if (cutName?.trim() && size) return `${cutName.trim()} (${size})`;
     if (cutName?.trim()) return cutName.trim();
-    if (snap.value != null && snap.unit) {
-      const unitLabel =
-        snap.unit === "war"
-          ? locale === "ar"
-            ? "وار"
-            : "war"
-          : locale === "ar"
-            ? "متر"
-            : "meter";
-      return `${snap.value} ${unitLabel}`;
-    }
+    if (size) return size;
   }
   return item.size && item.size !== "Per Meter"
     ? item.size

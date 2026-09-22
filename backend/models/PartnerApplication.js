@@ -33,6 +33,10 @@ const partnerApplicationSchema = new mongoose.Schema(
       enum: [...YEARS_OPERATING, ""],
       default: "",
     },
+    /** Exact years the partner entered. The portal adds elapsed time on top. */
+    experienceYears: { type: Number },
+    /** Remainder months the partner entered, 0–11. */
+    experienceMonths: { type: Number },
     /** Total months of experience recorded at experienceAnchorAt */
     experienceBaselineMonths: { type: Number, default: undefined },
     experienceAnchorAt: { type: Date, default: undefined },

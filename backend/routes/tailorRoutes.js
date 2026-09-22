@@ -513,7 +513,7 @@ tailorRoutes.get("/:slug", async (req, res) => {
     if (ownerId) {
       const application = await PartnerApplication.findOne({ ownerId })
         .select(
-          "website social yearsOperating experienceBaselineMonths experienceAnchorAt submittedAt createdAt",
+          "website social yearsOperating experienceYears experienceMonths experienceBaselineMonths experienceAnchorAt submittedAt createdAt",
         )
         .lean();
       if (application) {

@@ -204,6 +204,7 @@
     "experienceYears": "years",
     "experienceMonth": "month",
     "experienceMonths": "months",
+    "experienceUnderOneYear": "Under 1 year",
     "fabricsTitle": "Fabrics",
     "fabricsCount": "{count} fabrics",
     "fabricsEmpty": "No fabrics available from this brand yet.",
@@ -577,6 +578,7 @@
     "experienceYears": "years",
     "experienceMonth": "month",
     "experienceMonths": "months",
+    "experienceUnderOneYear": "Under 1 year",
     "noSocial": "No social or portfolio links yet.",
     "reviewsTitle": "Customer Reviews",
     "reviewsEmpty": "No reviews for this tailor yet.",
@@ -687,6 +689,8 @@
     "phoneHint": "Enter 9 digits after +971",
     "aboutHint": "Up to 400 characters",
     "partnerNoteHint": "Optional. MOTD will see this with your application.",
+    "experienceHint": "Enter your experience today. The portal shows this number, then adds one month each calendar month.",
+    "experienceMonthsHint": "0 to 11. Leave at 0 if you are counting whole years.",
     "requestNumberLabel": "Request number",
     "optional": "Optional",
     "sections": {
@@ -708,6 +712,8 @@
       "about": "About",
       "aboutAr": "About (Arabic)",
       "yearsOperating": "Years operating",
+      "experienceYears": "Years of experience",
+      "experienceMonths": "Months",
       "logo": "Logo",
       "website": "Website",
       "socialName": "Platform",
@@ -732,7 +738,9 @@
       "selectPlatform": "Select platform",
       "socialCustomName": "e.g. Threads, Vimeo, shop site",
       "partnerNote": "Anything MOTD should know",
-      "select": "Select"
+      "select": "Select",
+      "experienceYears": "7",
+      "experienceMonths": "0"
     },
     "platforms": {
       "other": "Other"
@@ -745,7 +753,9 @@
       "socialPlatformDuplicate": "This platform is already added.",
       "socialOtherNameRequired": "Enter the platform name for Other.",
       "socialUrlRequired": "Profile URL is required.",
-      "socialUrlInvalid": "Enter a valid URL for the selected platform."
+      "socialUrlInvalid": "Enter a valid URL for the selected platform.",
+      "experienceYearsInvalid": "Enter a whole number of years from 0 to 80.",
+      "experienceMonthsInvalid": "Months must be from 0 to 11."
     },
     "years": {
       "under_1": "Under 1 year",
@@ -993,7 +1003,8 @@
         "year": "year",
         "years": "years",
         "month": "month",
-        "months": "months"
+        "months": "months",
+        "underOneYear": "Under 1 year"
       },
       "addSocial": "Add social link",
       "removeSocial": "Remove link",
@@ -1080,6 +1091,18 @@
         "pricing": "Pricing & inventory",
         "tags": "Tags & categories",
         "images": "Fabric images"
+      },
+      "cuts": {
+        "loading": "Loading cuts catalog...",
+        "empty": "No active cuts found. Create cuts in Settings → Cuts first.",
+        "title": "Cuts — Price & Stock",
+        "hint": "Select cut, set price per piece and stock.",
+        "hintWithCommission": "Select cut, set your price per piece and stock. Final price includes MOTD commission.",
+        "addMore": "Add More Cuts",
+        "select": "Select cut *",
+        "placeholder": "Choose a cut...",
+        "stock": "Stock *",
+        "remove": "Remove cut"
       },
       "fields": {
         "name": "Fabric name (English)",
@@ -1467,7 +1490,8 @@
         "year": "year",
         "years": "years",
         "month": "month",
-        "months": "months"
+        "months": "months",
+        "underOneYear": "Under 1 year"
       },
       "addSocial": "Add social link",
       "removeSocial": "Remove link",

@@ -1,7 +1,8 @@
 /**
  * Partner experience helpers.
- * Baseline comes from application yearsOperating; elapsed time uses calendar months
- * (day-of-month aware so 30/31-day months and leap Februaries are handled).
+ * Exact years and months entered on the application are the baseline.
+ * Older applications that only stored a range still use that range's floor.
+ * Elapsed time uses calendar months (day-of-month aware).
  */
 
 export const YEARS_OPERATING_BASELINE_MONTHS = {
@@ -10,6 +11,39 @@ export const YEARS_OPERATING_BASELINE_MONTHS = {
   "3_10": 36,
   "10_plus": 120,
 };
+
+export const MAX_EXPERIENCE_YEARS = 80;
+
+/** Whole years and months the partner entered. Months are the remainder, 0–11. */
+export function parseExactExperience(yearsInput, monthsInput = 0) {
+  if (yearsInput === "" || yearsInput == null) return null;
+  const years = Number(yearsInput);
+  const months =
+    monthsInput === "" || monthsInput == null ? 0 : Number(monthsInput);
+  if (!Number.isInteger(years) || years < 0 || years > MAX_EXPERIENCE_YEARS) {
+    return null;
+  }
+  if (!Number.isInteger(months) || months < 0 || months > 11) return null;
+  return { years, months, totalMonths: years * 12 + months };
+}
+
+/** Compatibility tag for older readers. Display uses the exact month total. */
+export function windowFromExactMonths(totalMonths) {
+  const months = Math.max(0, Math.floor(Number(totalMonths) || 0));
+  if (months < 12) return "under_1";
+  if (months < 36) return "1_3";
+  if (months < 120) return "3_10";
+  return "10_plus";
+}
+
+export function writeExactExperience(doc, yearsInput, monthsInput = 0) {
+  const parsed = parseExactExperience(yearsInput, monthsInput);
+  if (!parsed) return false;
+  doc.experienceYears = parsed.years;
+  doc.experienceMonths = parsed.months;
+  doc.yearsOperating = windowFromExactMonths(parsed.totalMonths);
+  return true;
+}
 
 export function baselineMonthsFromYearsOperating(yearsOperating) {
   const key = String(yearsOperating || "").trim();
@@ -54,16 +88,22 @@ export function computePartnerExperience(application, now = new Date()) {
   if (!application) return null;
 
   const yearsOperating = String(application.yearsOperating || "").trim();
+  const exact = parseExactExperience(
+    application.experienceYears,
+    application.experienceMonths ?? 0,
+  );
   const mappedBaseline = baselineMonthsFromYearsOperating(yearsOperating);
-  if (mappedBaseline == null && application.experienceBaselineMonths == null) {
-    return null;
-  }
-
-  const baselineMonths =
+  const lockedBaseline =
     typeof application.experienceBaselineMonths === "number" &&
     Number.isFinite(application.experienceBaselineMonths)
       ? Math.max(0, Math.floor(application.experienceBaselineMonths))
-      : mappedBaseline ?? 0;
+      : null;
+
+  if (lockedBaseline == null && !exact && mappedBaseline == null) {
+    return null;
+  }
+
+  const baselineMonths = lockedBaseline ?? exact?.totalMonths ?? mappedBaseline ?? 0;
 
   const anchor =
     application.experienceAnchorAt ||

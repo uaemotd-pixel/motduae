@@ -2,7 +2,8 @@ import type { Locale } from "@/i18n/routing";
 import { formatFilterLabel } from "@/lib/format";
 import { formatCurrency } from "@/lib/format";
 import {
-  formatCutLabel,
+  cutValueToMeters,
+  formatCutEquivalentClause,
   type CutUnit,
 } from "@/lib/fabricUnits";
 
@@ -249,7 +250,7 @@ export function getCutDisplayName(
   if (cut) {
     const label = locale === "ar" ? cut.nameAr || cut.name : cut.name;
     if (label?.trim()) return label.trim();
-    return formatCutLabel(cut.value, cut.unit, locale);
+    return formatCutEquivalentClause(cut, locale === "ar" ? "ar" : "en");
   }
   return locale === "ar" ? "قطعة" : "cut";
 }
@@ -335,7 +336,10 @@ export function getCutLengthLabel(
 ): string {
   const cut = entry.cut;
   if (!cut) return "";
-  return formatCutLabel(cut.value, cut.unit, locale);
+  return formatCutEquivalentClause(
+    cut,
+    locale === "ar" ? "ar" : "en",
+  );
 }
 
 export function buildRetailCheckoutItem(item: {
@@ -415,10 +419,12 @@ export function getFabricMaxCutLength(
   for (const entry of cuts) {
     const meters =
       entry.cut?.lengthInMeters ??
-      (entry.cut?.unit === "war" && typeof entry.cut?.value === "number"
-        ? entry.cut.value * 0.9144
-        : entry.cut?.value) ??
-      0;
+      (typeof entry.cut?.value === "number"
+        ? cutValueToMeters(
+            entry.cut.value,
+            entry.cut.unit === "war" ? "war" : "meter",
+          )
+        : 0);
     if (meters > max) max = meters;
   }
   return Number(max.toFixed(2));

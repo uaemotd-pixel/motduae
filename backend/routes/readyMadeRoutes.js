@@ -84,6 +84,8 @@ readyMadeRoutes.get("/", async (req, res) => {
                 fabricTypeAr: p.fabricTypeAr || "",
                 availableFabricStock: p.availableFabricStock,
                 metersPerFabric: p.metersPerFabric,
+                minAge: Number.isFinite(Number(p.minAge)) ? Number(p.minAge) : 0,
+                maxAge: Number.isFinite(Number(p.maxAge)) ? Number(p.maxAge) : 0,
                 fabricShopId: shop?._id
                     ? String(shop._id)
                     : p.fabricShopId

@@ -25,6 +25,7 @@ import { LowStockBadge } from "@/components/shared/LowStockBadge";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 import { isLowStockQty } from "@/lib/lowStock";
+import { PartnerListingPrice, useFabricStoreCommission } from "@/components/partner/CommissionFinalPriceField";
 
 interface AddOnItem {
   _id: string;
@@ -49,12 +50,6 @@ interface ApiResponse {
   };
 }
 
-const formatAED = (value: number) =>
-  `AED ${(value || 0).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-
 const getStoreDisplay = (shop: AddOnItem["fabricShopId"]) => {
   if (!shop) return "MOTD";
   if (typeof shop === "object" && shop.name?.trim()) return shop.name.trim();
@@ -62,6 +57,7 @@ const getStoreDisplay = (shop: AddOnItem["fabricShopId"]) => {
 };
 
 export default function AdminAddOnsPage() {
+  const commissionPercent = useFabricStoreCommission();
   const [items, setItems] = useState<AddOnItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -572,7 +568,12 @@ export default function AdminAddOnsPage() {
                           {getStoreDisplay(item.fabricShopId)}
                         </td>
                         <td className="px-4 sm:px-6 py-4 font-medium text-black text-xs sm:text-sm">
-                          {formatAED(item.price)}
+                          <PartnerListingPrice
+                            netAmount={item.price}
+                            commissionPercent={commissionPercent}
+                            stacked
+                            className="text-xs sm:text-sm"
+                          />
                         </td>
                         <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
                           <span className="inline-flex items-center gap-1.5">
@@ -698,9 +699,12 @@ export default function AdminAddOnsPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
-                      <span className="font-medium text-black">
-                        {formatAED(item.price)}
-                      </span>
+                      <PartnerListingPrice
+                        netAmount={item.price}
+                        commissionPercent={commissionPercent}
+                        stacked
+                        className="text-xs sm:text-sm"
+                      />
                     </div>
                     <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
                       <Package className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />

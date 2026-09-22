@@ -16,6 +16,7 @@ import {
   fetchOwnFabricShop,
   type FabricShopProfile,
 } from "@/lib/fabricShop";
+import { formatCutEquivalentClause } from "@/lib/fabricUnits";
 import { isShopProfileComplete } from "@/lib/shopProfile";
 import { replaceClientSearchParam } from "@/lib/replaceClientSearchParam";
 import { isLowStockQty } from "@/lib/lowStock";
@@ -56,9 +57,13 @@ type FabricCutRow = {
 function getCutLabel(entry: FabricCutRow, locale: string): string {
   const cut = entry.cut;
   if (cut) {
+    const size = formatCutEquivalentClause(
+      cut,
+      locale === "ar" ? "ar" : "en",
+    );
     const name = locale === "ar" ? cut.nameAr || cut.name : cut.name;
-    if (name?.trim()) return name.trim();
-    return `${cut.value} ${cut.unit}`;
+    if (name?.trim()) return `${name.trim()} (${size})`;
+    return size;
   }
   return entry.cutId;
 }
