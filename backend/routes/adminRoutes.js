@@ -60,8 +60,8 @@ import {
   normalizeFabricCutsPayload,
   countLowStockFabricCutRows,
   findLowStockFabricParentIds,
-  findInStockFabricParentIds,
   findSoldOutFabricParentIds,
+  findAvailableFabricParentIds,
   LOW_FABRIC_CUT_STOCK_THRESHOLD,
 } from "../utils/fabricCuts.js";
 import {
@@ -1445,6 +1445,8 @@ async function adminFabricSearchClause(search) {
     { nameAr: rx },
     { material: rx },
     { materialAr: rx },
+    // Legacy top-level city (older docs) + current pickup address fields.
+    { city: rx },
     { "storePickupAddress.city": rx },
     { "storePickupAddress.emirate": rx },
   ];
@@ -1460,15 +1462,24 @@ async function adminFabricSearchClause(search) {
     or.push({ "storePickupAddress.emirate": { $in: emirateValues } });
   }
 
+  // Match the store label users see (FabricShop name) and the partner user
+  // account, plus shop/city fields so "City" / "Store" search matches the list.
   const [storeUsers, shops] = await Promise.all([
     User.find({
       role: "fabric_store",
-      $or: [{ name: rx }, { email: rx }],
+      $or: [{ name: rx }, { nameAr: rx }, { email: rx }],
     })
       .select("_id")
       .lean(),
     FabricShop.find({
-      $or: [{ name: rx }, { nameAr: rx }],
+      $or: [
+        { name: rx },
+        { nameAr: rx },
+        { city: rx },
+        { location: rx },
+        { "pickupAddress.city": rx },
+        { "pickupAddress.emirate": rx },
+      ],
     })
       .select("_id ownerId")
       .lean(),
@@ -1494,10 +1505,41 @@ async function adminFabricSearchClause(search) {
   return { $or: or };
 }
 
+/** Prefer FabricShop name for admin list "Store" column (matches search + add-ons). */
+function resolveAdminFabricStoreDisplay(fabric) {
+  const store = fabric?.listedByStore;
+  const shop = fabric?.fabricShopId;
+  const shopName =
+    shop && typeof shop === "object" ? String(shop.name || "").trim() : "";
+  const shopNameAr =
+    shop && typeof shop === "object" ? String(shop.nameAr || "").trim() : "";
+
+  if (store && typeof store === "object") {
+    return {
+      _id: store._id,
+      name: shopName || store.name || "",
+      nameAr: shopNameAr || store.nameAr || "",
+      email: store.email || "",
+    };
+  }
+
+  if (shopName) {
+    return {
+      _id: shop._id,
+      name: shopName,
+      nameAr: shopNameAr,
+      email: "",
+    };
+  }
+
+  return store || null;
+}
+
 // GET /api/admin/fabrics
 // Admin can view all fabrics in the catalog (including inactive)
 // Supports ?page=1&limit=10&search=...&status=available|sold|low
-// available = remaining cut stock, sold = all cuts (parent + variants) at 0
+// available = active + remaining cut stock
+// sold = sold out (all cuts at 0) OR inactive listing
 adminRouter.get(
   "/fabrics",
   expressAsyncHandler(async (req, res) => {
@@ -1534,7 +1576,7 @@ adminRouter.get(
         $in: parentIds.map((id) => new mongoose.Types.ObjectId(id)),
       };
     } else if (status === "available") {
-      const parentIds = await findInStockFabricParentIds(stockMatch);
+      const parentIds = await findAvailableFabricParentIds(stockMatch);
       filter._id = {
         $in: parentIds.map((id) => new mongoose.Types.ObjectId(id)),
       };
@@ -1545,25 +1587,42 @@ adminRouter.get(
       };
     }
 
+    // KPI cards must stay stable across pagination. Build a dedicated match that
+    // never includes skip/limit or the status tab's `_id: $in` page filter.
+    const statsFilter = {
+      $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
+    };
+    if (req.query.listedByStore) {
+      statsFilter.listedByStore = req.query.listedByStore;
+    }
+
     const [fabrics, total, active, inactive] = await Promise.all([
       Fabric.find(filter)
-        .populate("listedByStore", "name email")
+        .populate("listedByStore", "name nameAr email")
+        .populate("fabricShopId", "name nameAr city")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
       Fabric.countDocuments(filter),
-      Fabric.countDocuments({ ...baseFilter, isActive: true }),
-      Fabric.countDocuments({ ...baseFilter, isActive: { $ne: true } }),
+      Fabric.countDocuments({ ...statsFilter, isActive: true }),
+      Fabric.countDocuments({ ...statsFilter, isActive: { $ne: true } }),
     ]);
 
     const fabricsWithVariants = await Promise.all(
       fabrics.map(async (fabric) => {
         const variants = await Fabric.find({
           isVariantOf: fabric._id,
-        }).populate("listedByStore", "name email");
+        })
+          .populate("listedByStore", "name nameAr email")
+          .populate("fabricShopId", "name nameAr city");
         const obj = await enrichFabricWithCuts(fabric);
+        obj.listedByStore = resolveAdminFabricStoreDisplay(obj);
         obj.variants = await Promise.all(
-          variants.map((variant) => enrichFabricWithCuts(variant)),
+          variants.map(async (variant) => {
+            const enriched = await enrichFabricWithCuts(variant);
+            enriched.listedByStore = resolveAdminFabricStoreDisplay(enriched);
+            return enriched;
+          }),
         );
         if (obj.storePickupAddress?.emirate) {
           obj.storePickupAddress.emirate = normalizeEmirate(
@@ -4196,19 +4255,42 @@ adminRouter.get(
     const filter = {};
 
     if (search) {
-      const regex = { $regex: search, $options: "i" };
-      filter.$or = [{ name: regex }, { nameAr: regex }, { slug: regex }];
+      const term = String(search).trim();
+      const regex = { $regex: escapeRegex(term), $options: "i" };
+      const or = [{ name: regex }, { nameAr: regex }];
+
+      const matchingShops = await FabricShop.find({
+        $or: [{ name: regex }, { nameAr: regex }],
+      })
+        .select("_id")
+        .lean();
+      const shopIds = matchingShops.map((shop) => shop._id).filter(Boolean);
+      if (shopIds.length > 0) {
+        or.push({ fabricShopId: { $in: shopIds } });
+      }
+
+      // Platform add-ons show as "MOTD" in the Store column (no fabricShopId).
+      const lowered = term.toLowerCase();
+      if ("motd".startsWith(lowered) || lowered.includes("motd")) {
+        or.push({ fabricShopId: null });
+        or.push({ fabricShopId: { $exists: false } });
+      }
+
+      filter.$or = or;
     }
 
+    const listFilter = { ...filter };
+
     const [addons, total, active, inactive] = await Promise.all([
-      AddOn.find(filter)
+      AddOn.find(listFilter)
         .populate("fabricShopId", "name nameAr")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
-      AddOn.countDocuments(filter),
-      AddOn.countDocuments({ ...filter, isActive: true }),
-      AddOn.countDocuments({ ...filter, isActive: { $ne: true } }),
+      AddOn.countDocuments(listFilter),
+      // Catalog-wide KPIs — do not scope to the current search page of results.
+      AddOn.countDocuments({ isActive: true }),
+      AddOn.countDocuments({ isActive: { $ne: true } }),
     ]);
 
     res.send({
