@@ -228,13 +228,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const logout = useCallback(async (redirectTo = "/auth/login") => {
         loggedOutRef.current = true;
-        setUser(null);
         clearLegacyAuthToken();
         try {
+            // Clear the httpOnly cookie before dropping local user state.
+            // Account redirects as soon as `user` becomes null, and that
+            // navigation can abort an in-flight logout request.
             await api.post("/api/users/logout");
         } catch {
-            // Local session is already cleared.
+            // Still leave the page; the local session is dropped below.
         }
+        setUser(null);
         if (typeof window !== "undefined") {
             window.location.replace(resolveLogoutLocation(redirectTo));
         }
