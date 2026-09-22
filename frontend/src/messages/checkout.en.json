@@ -47,6 +47,11 @@
     "okButton": "OK",
     "trackCta": "Track your order",
     "copyLink": "Copy link",
-    "copied": "Copied"
+    "copied": "Copied",
+    "pricingLoadFailed": "Failed to load pricing. Please refresh.",
+    "itemUnavailableRemoved": "{name} is no longer available and was removed from your cart.",
+    "itemsUnavailableRemoved": "{count} items are no longer available and were removed from your cart.",
+    "cartEmptyAfterSoldOut": "Your cart is empty because the items became sold out. Continue shopping to add available products.",
+    "unavailableInCheckout": "Some items in your cart are no longer available."
   }
 }

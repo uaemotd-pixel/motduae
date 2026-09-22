@@ -6,6 +6,7 @@ import {
     type FabricStoreInfo,
     formatPickupAddress,
 } from "@/lib/fabrics";
+import { formatPhoneDisplay } from "@/lib/uaePhone";
 
 type StoreAttributionProps = {
     store: FabricStoreInfo | null;
@@ -50,7 +51,7 @@ export default function StoreAttribution({
                 </p>
                 {pickupAddress.phone?.trim() && (
                     <p className="[font-family:var(--font-body)] text-sm text-(--color-grey-muted) mt-1">
-                        {pickupAddress.phone}
+                        {formatPhoneDisplay(pickupAddress.phone)}
                     </p>
                 )}
             </div>

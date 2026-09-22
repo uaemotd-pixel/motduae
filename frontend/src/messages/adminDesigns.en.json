@@ -62,7 +62,7 @@
   },
   "form": {
     "tailor_label": "Tailor shop",
-    "tailor_placeholder": "Select tailor",
+    "tailor_placeholder": "Select tailor shop",
     "tailor_loading": "Loading tailors...",
     "tailor_empty": "No tailor shops found",
     "tailor_required": "Tailor shop is required"

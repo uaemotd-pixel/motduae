@@ -62,7 +62,7 @@
   },
   "form": {
     "tailor_label": "محل الخياط",
-    "tailor_placeholder": "اختر الخياط",
+    "tailor_placeholder": "اختر محل الخياط",
     "tailor_loading": "جاري تحميل الخياطين...",
     "tailor_empty": "لا توجد محلات خياطين",
     "tailor_required": "محل الخياط مطلوب"

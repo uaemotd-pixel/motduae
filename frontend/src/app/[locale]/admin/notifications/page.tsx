@@ -43,6 +43,7 @@ import {
   getOrderDeliveryAddress,
   getOrderRecipientName,
 } from "@/lib/orderDelivery";
+import { formatPhoneDisplay } from "@/lib/uaePhone";
 
 function getApiErrMessage(err: unknown, fallback: string) {
   const msg = (err as ApiError)?.message;
@@ -240,7 +241,7 @@ export default function AdminNotificationsPage() {
           <div>
             <span className="text-xs text-gray-400 block">Phone</span>
             <span className="text-black font-medium">
-              {address.phone || "-"}
+              {address.phone ? formatPhoneDisplay(address.phone) : "-"}
             </span>
           </div>
           <div className="sm:col-span-2">
@@ -983,7 +984,11 @@ export default function AdminNotificationsPage() {
                                             </div>
                                             <div className="text-xs text-gray-600 space-y-0.5">
                                               {delivery.phone ? (
-                                                <p>{delivery.phone}</p>
+                                                <p>
+                                                  {formatPhoneDisplay(
+                                                    delivery.phone,
+                                                  )}
+                                                </p>
                                               ) : null}
                                               {lines.map((line) => (
                                                 <p key={line}>{line}</p>
@@ -1113,7 +1118,11 @@ export default function AdminNotificationsPage() {
                                           </div>
                                           <div className="text-xs text-gray-600 space-y-0.5">
                                             {delivery.phone ? (
-                                              <p>{delivery.phone}</p>
+                                              <p>
+                                                {formatPhoneDisplay(
+                                                  delivery.phone,
+                                                )}
+                                              </p>
                                             ) : null}
                                             {lines.map((line) => (
                                               <p key={line}>{line}</p>

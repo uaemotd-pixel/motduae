@@ -306,6 +306,11 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     DEFAULT_FABRIC_COMMISSION,
   );
   const colorDropdownRef = useRef<HTMLDivElement>(null);
+  const variantColorDropdownRefs = useRef<
+    Record<number, HTMLDivElement | null>
+  >({});
+  const openVariantColorDropdownRef = useRef<number | null>(null);
+  openVariantColorDropdownRef.current = openVariantColorDropdown;
   const materialDropdownRef = useRef<HTMLDivElement>(null);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
   const patternDropdownRef = useRef<HTMLDivElement>(null);
@@ -422,6 +427,13 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         !emirateDropdownRef.current.contains(e.target as Node)
       ) {
         setIsEmirateDropdownOpen(false);
+      }
+      const openVariantIdx = openVariantColorDropdownRef.current;
+      if (openVariantIdx !== null) {
+        const variantEl = variantColorDropdownRefs.current[openVariantIdx];
+        if (variantEl && !variantEl.contains(e.target as Node)) {
+          setOpenVariantColorDropdown(null);
+        }
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -561,25 +573,6 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
       }));
     }
   }, [cutsLoading, formData.cuts.length]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        colorDropdownRef.current &&
-        !colorDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsColorDropdownOpen(false);
-      }
-      if (
-        emirateDropdownRef.current &&
-        !emirateDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsEmirateDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1644,7 +1637,12 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                           error={fieldErrors[`${prefix}.colors`]}
                           required
                         >
-                          <div className="relative">
+                          <div
+                            className="relative"
+                            ref={(node) => {
+                              variantColorDropdownRefs.current[index] = node;
+                            }}
+                          >
                             <button
                               type="button"
                               onClick={() =>
