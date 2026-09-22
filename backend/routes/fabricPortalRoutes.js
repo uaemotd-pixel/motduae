@@ -565,11 +565,16 @@ fabricPortalRouter.get(
       fabricsQuery = fabricsQuery.skip(skip).limit(limit);
     }
 
+    const statsFilter = {
+      listedByStore: req.user._id,
+      $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
+    };
+
     const [fabrics, total, active, inactive] = await Promise.all([
       fabricsQuery,
       Fabric.countDocuments(listFilter),
-      Fabric.countDocuments({ ...baseFilter, isActive: true }),
-      Fabric.countDocuments({ ...baseFilter, isActive: { $ne: true } }),
+      Fabric.countDocuments({ ...statsFilter, isActive: true }),
+      Fabric.countDocuments({ ...statsFilter, isActive: { $ne: true } }),
     ]);
 
     const fabricsWithVariants = await Promise.all(
@@ -1690,9 +1695,6 @@ fabricPortalRouter.get(
     if (search) {
       const rx = { $regex: escapeRegex(search), $options: "i" };
       const searchOr = [{ name: rx }, { nameAr: rx }];
-      if (/^[a-fA-F0-9]{24}$/.test(search)) {
-        searchOr.push({ _id: search });
-      }
       baseFilter.$and = [{ $or: searchOr }];
     }
 
@@ -1706,11 +1708,13 @@ fabricPortalRouter.get(
       addonsQuery = addonsQuery.skip(skip).limit(limit);
     }
 
+    const statsFilter = ownShopCatalogFilter(shop);
+
     const [addons, total, active, inactive] = await Promise.all([
       addonsQuery,
       AddOn.countDocuments(listFilter),
-      AddOn.countDocuments({ ...baseFilter, isActive: true }),
-      AddOn.countDocuments({ ...baseFilter, isActive: { $ne: true } }),
+      AddOn.countDocuments({ ...statsFilter, isActive: true }),
+      AddOn.countDocuments({ ...statsFilter, isActive: { $ne: true } }),
     ]);
 
     res.json({

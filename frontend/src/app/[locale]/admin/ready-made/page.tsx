@@ -25,8 +25,10 @@ import {
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
+import { LowStockBadge } from "@/components/shared/LowStockBadge";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
+import { isLowStockQty } from "@/lib/lowStock";
 
 interface ReadyMadeItem {
   _id: string;
@@ -580,17 +582,29 @@ export default function AdminReadyMadePage() {
                   {items.map((item) => {
                     const status =
                       item.availableFabricStock > 0 ? "available" : "sold";
+                    const itemLow = isLowStockQty(item.availableFabricStock);
                     return (
                       <tr
                         key={item._id}
-                        className="hover:bg-gray-50 transition-all duration-200"
+                        className={`transition-all duration-200 ${
+                          itemLow
+                            ? "bg-rose-50/80 hover:bg-rose-50"
+                            : "hover:bg-gray-50"
+                        }`}
                       >
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             {getItemImage(item)}
-                            <span className="text-xs sm:text-sm font-medium text-black">
-                              {item.name || "—"}
-                            </span>
+                            <div>
+                              <span className="text-xs sm:text-sm font-medium text-black">
+                                {item.name || "—"}
+                              </span>
+                              {itemLow && (
+                                <div className="mt-1">
+                                  <LowStockBadge label="Low stock" />
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
@@ -604,8 +618,25 @@ export default function AdminReadyMadePage() {
                             AED {item.finalSellingPriceAED}
                           </span>
                         </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
-                          {item.availableFabricStock}
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span
+                              className={`tabular-nums font-semibold ${
+                                itemLow ? "text-rose-800" : "text-gray-700"
+                              }`}
+                            >
+                              {item.availableFabricStock}
+                            </span>
+                            {item.availableFabricStock <= 0 ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                                Out
+                              </span>
+                            ) : itemLow ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium bg-rose-100 text-rose-800 border border-rose-200">
+                                Low
+                              </span>
+                            ) : null}
+                          </span>
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                           <StatusBadge status={status} />
@@ -632,10 +663,15 @@ export default function AdminReadyMadePage() {
             {items.map((item) => {
               const status =
                 item.availableFabricStock > 0 ? "available" : "sold";
+              const itemLow = isLowStockQty(item.availableFabricStock);
               return (
                 <div
                   key={item._id}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4"
+                  className={`rounded-2xl shadow-sm border p-3 sm:p-4 ${
+                    itemLow
+                      ? "border-rose-200 bg-rose-50/80"
+                      : "border-gray-100 bg-white"
+                  }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -644,7 +680,10 @@ export default function AdminReadyMadePage() {
                         <h3 className="text-xs sm:text-sm font-medium text-black truncate">
                           {item.name || "—"}
                         </h3>
-                        <StatusBadge status={status} />
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <StatusBadge status={status} />
+                          {itemLow && <LowStockBadge label="Low stock" />}
+                        </div>
                       </div>
                     </div>
                     <button
@@ -670,7 +709,22 @@ export default function AdminReadyMadePage() {
                     </div>
                     <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
                       <Box className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                      <span>Stock: {item.availableFabricStock}</span>
+                      <span
+                        className={
+                          itemLow ? "font-semibold text-rose-800" : undefined
+                        }
+                      >
+                        Stock: {item.availableFabricStock}
+                      </span>
+                      {item.availableFabricStock <= 0 ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                          Out
+                        </span>
+                      ) : itemLow ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium bg-rose-100 text-rose-800 border border-rose-200">
+                          Low
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 </div>
