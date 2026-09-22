@@ -30,7 +30,7 @@ import {
 import {
   convertToWar,
   cutValueToMeters,
-  formatCutLabel,
+  formatCutEquivalentClause,
   WAR_TO_METER,
   type CutUnit,
   type FabricUnit,
@@ -93,10 +93,11 @@ function StorefrontCutPicker({
           const lengthInMeters =
             c.cut?.lengthInMeters ??
             (matchedAdminCut
-              ? matchedAdminCut.metersEquivalent ??
-                (matchedAdminCut.unit === "war"
-                  ? Number((matchedAdminCut.value * 0.9144).toFixed(2))
-                  : matchedAdminCut.value)
+              ? (matchedAdminCut.metersEquivalent ??
+                cutValueToMeters(
+                  matchedAdminCut.value,
+                  matchedAdminCut.unit === "war" ? "war" : "meter",
+                ))
               : 3.5);
           const cutId = String(
             c.cutId || (typeof c.cut === "object" ? c.cut?._id : "") || "",
@@ -124,13 +125,16 @@ function StorefrontCutPicker({
       name: opt.name,
       nameAr: opt.nameAr,
       lengthInMeters:
-        opt.unit === "war"
-          ? Number((opt.value * 0.9144).toFixed(2))
-          : opt.value,
+        opt.metersEquivalent ??
+        cutValueToMeters(opt.value, opt.unit === "war" ? "war" : "meter"),
       price: item.fabric?.pricePerMeter
         ? Math.round(
             item.fabric.pricePerMeter *
-              (opt.unit === "war" ? opt.value * 0.9144 : opt.value),
+              (opt.metersEquivalent ??
+                cutValueToMeters(
+                  opt.value,
+                  opt.unit === "war" ? "war" : "meter",
+                )),
           )
         : 350,
       stock: Math.max(0, Math.floor(Number(opt.stock) || 0)),
@@ -217,8 +221,14 @@ function StorefrontCutPicker({
                     selected ? "text-neutral-300" : "text-(--color-grey-muted)"
                   }`}
                 >
-                  {cut.lengthInMeters} {t("meters")}
-                  {cut.unit === "war" ? ` · ${cut.value} war` : ""}
+                  {formatCutEquivalentClause(
+                    {
+                      value: Number(cut.value) || cut.lengthInMeters,
+                      unit: cut.unit === "war" ? "war" : "meter",
+                      lengthInMeters: cut.lengthInMeters,
+                    },
+                    locale === "ar" ? "ar" : "en",
+                  )}
                 </p>
               </div>
 
@@ -718,7 +728,10 @@ export default function FabricMetersStep() {
                               }`}
                             >
                               {cutName(cut)} ·{" "}
-                              {formatCutLabel(cut.value, cut.unit, locale)}
+                              {formatCutEquivalentClause(
+                                cut,
+                                locale === "ar" ? "ar" : "en",
+                              )}
                             </button>
                           );
                         })}

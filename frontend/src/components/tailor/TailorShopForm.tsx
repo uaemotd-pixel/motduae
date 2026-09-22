@@ -1057,6 +1057,7 @@ export default function TailorShopForm() {
                   years: t("experience.years"),
                   month: t("experience.month"),
                   months: t("experience.months"),
+                  underOneYear: t("experience.underOneYear"),
                 })}
                 readOnly
                 disabled

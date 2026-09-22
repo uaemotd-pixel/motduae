@@ -37,6 +37,7 @@ import {
   type AdminTailorShopOption,
 } from "@/lib/adminDesigns";
 import { formatMotdFinalPrice, DEFAULT_TAILOR_COMMISSION } from "@/lib/motdCommission";
+import { formatCatalogCutLabels } from "@/lib/fabricUnits";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 import { getTranslation } from "@/lib/getTranslation";
 import { useParams } from "next/navigation";
@@ -90,8 +91,6 @@ type BilingualFilterDropdownProps = {
   onClose: () => void;
   onSelect: (en: string, ar: string, value: string) => void;
   onClear: () => void;
-  /** When true, show English label only (no "en / ar"). */
-  englishOnly?: boolean;
 };
 
 function BilingualFilterDropdown({
@@ -111,13 +110,10 @@ function BilingualFilterDropdown({
   onClose,
   onSelect,
   onClear,
-  englishOnly = false,
 }: BilingualFilterDropdownProps) {
   const selected = options.find((o) => o.value === value);
   const displayValue = selected
-    ? englishOnly
-      ? selected.en
-      : `${selected.en} / ${selected.ar}`
+    ? `${selected.en} / \u2067${selected.ar}\u2069`
     : "";
 
   return (
@@ -166,14 +162,8 @@ function BilingualFilterDropdown({
                 }}
                 className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
               >
-                {englishOnly ? (
-                  <span>{opt.en}</span>
-                ) : (
-                  <>
-                    <span>{opt.en} / </span>
-                    <span>{opt.ar}</span>
-                  </>
-                )}
+                <span>{opt.en} / </span>
+                <span dir="rtl">{opt.ar}</span>
               </button>
             ))}
           </>
@@ -502,16 +492,11 @@ export default function TailorDesignForm({
   const cutDropdownOptions: DropdownOption[] = useMemo(
     () =>
       cutOptions.map((cut) => {
-        const meters = cut.metersEquivalent ?? cut.lengthInMeters ?? cut.value;
-        const unitLabelEn = cut.unit === "war" ? "war" : "m";
-        const unitLabelAr = cut.unit === "war" ? "وار" : "م";
-        const enLabel = `${cut.name} (${cut.value} ${unitLabelEn} ≈ ${meters}m)`;
-        const arName = cut.nameAr || cut.name;
-        const arLabel = `${arName} (${cut.value} ${unitLabelAr} ≈ ${meters}م)`;
+        const labels = formatCatalogCutLabels(cut);
         return {
           value: cut._id,
-          en: enLabel,
-          ar: arLabel,
+          en: labels.en,
+          ar: labels.ar,
         };
       }),
     [cutOptions],
@@ -975,7 +960,6 @@ export default function TailorDesignForm({
                 isOpen={openMinCut}
                 onToggle={() => setOpenMinCut(!openMinCut)}
                 onClose={() => setOpenMinCut(false)}
-                englishOnly
                 onSelect={(_en, _ar, val) => {
                   const selectedCut = cutOptions.find((c) => c._id === val);
                   const meters = selectedCut

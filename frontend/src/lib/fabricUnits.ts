@@ -76,3 +76,75 @@ export function formatCutLabel(
         : "meter";
   return `${value} ${unitLabel}`;
 }
+
+function formatCutMeasure(value: number): string {
+  if (!Number.isFinite(value)) return "";
+  return String(Number(value.toFixed(2)));
+}
+
+type CutMeasureInput = {
+  value: number;
+  unit: string;
+  metersEquivalent?: number;
+  lengthInMeters?: number;
+  warEquivalent?: number;
+};
+
+function cutEquivalentClauses(cut: CutMeasureInput): { en: string; ar: string } {
+  const unit = normalizeCutUnit(cut.unit) ?? "meter";
+  const meters =
+    cut.metersEquivalent ??
+    cut.lengthInMeters ??
+    cutValueToMeters(cut.value, unit);
+  const valueLabel = formatCutMeasure(cut.value);
+
+  if (unit === "war") {
+    const metersLabel = formatCutMeasure(meters);
+    return {
+      en: `${valueLabel} war ≈ ${metersLabel}m`,
+      ar: `${valueLabel} وار ≈ ${metersLabel}م`,
+    };
+  }
+
+  const war = cut.warEquivalent ?? metersToWar(meters);
+  const warLabel = formatCutMeasure(war);
+  return {
+    en: `${valueLabel} m ≈ ${warLabel} war`,
+    ar: `${valueLabel} م ≈ ${warLabel} وار`,
+  };
+}
+
+/** Size plus the other unit, in one language. */
+export function formatCutEquivalentClause(
+  cut: CutMeasureInput,
+  locale: "en" | "ar" = "en",
+): string {
+  const clauses = cutEquivalentClauses(cut);
+  return locale === "ar" ? clauses.ar : clauses.en;
+}
+
+/** English and Arabic cut labels. The ≈ side is the other unit. */
+export function formatCatalogCutLabels(cut: CutMeasureInput & {
+  name: string;
+  nameAr?: string;
+}): { en: string; ar: string } {
+  const clauses = cutEquivalentClauses(cut);
+  const arName = cut.nameAr?.trim() || cut.name;
+  return {
+    en: `${cut.name} (${clauses.en})`,
+    ar: `${arName} (${clauses.ar})`,
+  };
+}
+
+export function formatBilingualCutOption(cut: {
+  name: string;
+  nameAr?: string;
+  value: number;
+  unit: string;
+  metersEquivalent?: number;
+  lengthInMeters?: number;
+  warEquivalent?: number;
+}): string {
+  const labels = formatCatalogCutLabels(cut);
+  return `${labels.en} / \u2067${labels.ar}\u2069`;
+}

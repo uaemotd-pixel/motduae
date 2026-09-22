@@ -1160,6 +1160,7 @@ export default function FabricShopForm() {
                         years: t("experience.years"),
                         month: t("experience.month"),
                         months: t("experience.months"),
+                        underOneYear: t("experience.underOneYear"),
                       })
                     : "—"
                 }

@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useParams, useSearchParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { Link, useRouter } from "@/i18n/navigation";
+import { formatCutEquivalentClause } from "@/lib/fabricUnits";
 import { getTranslation } from "@/lib/getTranslation";
 import { replaceClientSearchParam } from "@/lib/replaceClientSearchParam";
 import {
@@ -109,9 +110,13 @@ function fabricHasLowStock(item: FabricItem) {
 function getAdminCutLabel(entry: FabricCutRow, locale: string): string {
   const cut = entry.cut;
   if (cut) {
+    const size = formatCutEquivalentClause(
+      cut,
+      locale === "ar" ? "ar" : "en",
+    );
     const name = locale === "ar" ? cut.nameAr || cut.name : cut.name;
-    if (name?.trim()) return name.trim();
-    return `${cut.value} ${cut.unit}`;
+    if (name?.trim()) return `${name.trim()} (${size})`;
+    return size;
   }
   return entry.cutId;
 }

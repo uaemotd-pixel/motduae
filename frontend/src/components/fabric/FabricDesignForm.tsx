@@ -246,6 +246,18 @@ const ERROR_TOAST = {
 export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
   const t = useTranslations("FabricPortal.fabrics");
   const locale = useLocale();
+  const cutsCopy = {
+    loading: t("cuts.loading"),
+    empty: t("cuts.empty"),
+    title: t("cuts.title"),
+    hint: t("cuts.hint"),
+    hintWithCommission: t("cuts.hintWithCommission"),
+    addMore: t("cuts.addMore"),
+    select: t("cuts.select"),
+    placeholder: t("cuts.placeholder"),
+    stock: t("cuts.stock"),
+    remove: t("cuts.remove"),
+  };
   const router = useRouter();
   const isEditMode = Boolean(fabricId);
 
@@ -1234,6 +1246,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
               commissionPercent={commissionPercent}
               priceLabel={t("fields.yourPrice")}
               finalPriceLabel={t("fields.finalPrice")}
+              copy={cutsCopy}
               onChange={(cuts: FabricCutFormEntry[]) =>
                 handleChange("cuts", cuts)
               }
@@ -1758,6 +1771,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                           commissionPercent={commissionPercent}
                           priceLabel={t("fields.yourPrice")}
                           finalPriceLabel={t("fields.finalPrice")}
+                          copy={cutsCopy}
                           onChange={(cuts: FabricCutFormEntry[]) =>
                             handleVariantChange(index, "cuts", cuts)
                           }

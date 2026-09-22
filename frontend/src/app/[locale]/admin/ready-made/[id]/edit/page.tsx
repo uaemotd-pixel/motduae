@@ -798,9 +798,7 @@ export default function EditReadyMadePage() {
 
             <CommissionFinalPriceField
               partnerPrice={formData.finalSellingPriceAED}
-              commissionPercent={
-                formData.fabricShopId ? fabricCommission : 0
-              }
+              commissionPercent={fabricCommission}
               inputClassName="w-full py-1 border-b border-gray-200 outline-none text-xs sm:text-sm text-black/60 cursor-default"
             />
           </div>

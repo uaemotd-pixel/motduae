@@ -11,13 +11,14 @@ export function formatPartnerExperience(
     years: string;
     month: string;
     months: string;
+    underOneYear?: string;
   },
 ): string {
   if (!experience) return "";
   const years = Math.max(0, Math.floor(Number(experience.years) || 0));
   const months = Math.max(0, Math.floor(Number(experience.months) || 0));
   if (years === 0 && months === 0) {
-    return `0 ${labels.months}`;
+    return labels.underOneYear || "Under 1 year";
   }
 
   const parts: string[] = [];
