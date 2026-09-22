@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api/client";
 import {
   buildNotificationQuery,
@@ -37,12 +37,16 @@ export function useNotifications({
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<NotificationFilters>({
     page: 1,
     limit: 20,
     ...initialFilters,
   });
+  const hasLoadedRef = useRef(false);
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
 
   const refreshUnreadCount = useCallback(async () => {
     if (!enabled) return;
@@ -60,15 +64,23 @@ export function useNotifications({
   }, [basePath, enabled]);
 
   const fetchNotifications = useCallback(
-    async (nextFilters: NotificationFilters, append = false, silent = false) => {
+    async (
+      nextFilters: NotificationFilters,
+      append = false,
+      mode: "full" | "silent" | "soft" = "full",
+    ) => {
       if (!enabled) return;
 
       if (append) {
         setLoadingMore(true);
-      } else if (!silent) {
+      } else if (mode === "full") {
         setLoading(true);
+      } else if (mode === "soft") {
+        setIsRefreshing(true);
       }
-      setError(null);
+      if (mode !== "silent") {
+        setError(null);
+      }
 
       try {
         const res = await api.get<{
@@ -87,15 +99,20 @@ export function useNotifications({
 
         setItems((prev) => (append ? [...prev, ...normalized] : normalized));
         setPagination(res.pagination || null);
+        hasLoadedRef.current = true;
         await refreshUnreadCount();
       } catch (err: unknown) {
-        if (!silent) {
+        if (mode !== "silent") {
           setError(err instanceof Error ? err.message : "Failed to load notifications");
         }
+        hasLoadedRef.current = true;
       } finally {
-        if (!silent) {
-          setLoading(false);
+        if (append) {
           setLoadingMore(false);
+        } else if (mode === "full") {
+          setLoading(false);
+        } else if (mode === "soft") {
+          setIsRefreshing(false);
         }
       }
     },
@@ -103,24 +120,58 @@ export function useNotifications({
   );
 
   const reload = useCallback(async () => {
-    await fetchNotifications({ ...filters, page: 1 }, false, true);
-  }, [fetchNotifications, filters]);
+    await fetchNotifications({ ...filtersRef.current, page: 1 }, false, "silent");
+  }, [fetchNotifications]);
 
   const loadMore = useCallback(async () => {
     if (!pagination?.hasMore || loadingMore) return;
     const nextPage = (pagination.page || 1) + 1;
-    const nextFilters = { ...filters, page: nextPage };
+    const nextFilters = { ...filtersRef.current, page: nextPage };
     setFilters(nextFilters);
     await fetchNotifications(nextFilters, true);
-  }, [fetchNotifications, filters, loadingMore, pagination]);
+  }, [fetchNotifications, loadingMore, pagination]);
+
+  const goToPage = useCallback(
+    async (page: number) => {
+      const current = filtersRef.current.page || 1;
+      if (page < 1 || page === current) return;
+      const nextFilters = { ...filtersRef.current, page };
+      setFilters(nextFilters);
+      await fetchNotifications(
+        nextFilters,
+        false,
+        hasLoadedRef.current ? "soft" : "full",
+      );
+    },
+    [fetchNotifications],
+  );
+
+  const changeLimit = useCallback(
+    async (limit: number) => {
+      const nextFilters = { ...filtersRef.current, limit, page: 1 };
+      setFilters(nextFilters);
+      await fetchNotifications(
+        nextFilters,
+        false,
+        hasLoadedRef.current ? "soft" : "full",
+      );
+    },
+    [fetchNotifications],
+  );
 
   const applyFilters = useCallback(
     async (patch: NotificationFilters) => {
-      const nextFilters = { ...filters, ...patch, page: 1 };
+      const nextFilters = { ...filtersRef.current, ...patch, page: 1 };
       setFilters(nextFilters);
-      await fetchNotifications(nextFilters, false);
+      // After the first load, keep the current UI mounted so search/filter
+      // changes don't swap the list for a skeleton (page "bump").
+      await fetchNotifications(
+        nextFilters,
+        false,
+        hasLoadedRef.current ? "soft" : "full",
+      );
     },
-    [fetchNotifications, filters],
+    [fetchNotifications],
   );
 
   const markAsRead = useCallback(
@@ -204,7 +255,8 @@ export function useNotifications({
 
   useEffect(() => {
     if (!enabled) return;
-    fetchNotifications(filters, false);
+    fetchNotifications(filters, false, "full");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]); // initial load only
 
   useEffect(() => {
@@ -214,21 +266,21 @@ export function useNotifications({
     const interval = setInterval(() => {
       refreshUnreadCount();
       if (refreshListOnPoll) {
-        fetchNotifications({ ...filters, page: 1 }, false, true);
+        fetchNotifications({ ...filtersRef.current, page: 1 }, false, "silent");
       }
     }, pollIntervalMs);
 
     const onRefresh = () => {
       refreshUnreadCount();
       if (refreshListOnPoll) {
-        fetchNotifications({ ...filters, page: 1 }, false, true);
+        fetchNotifications({ ...filtersRef.current, page: 1 }, false, "silent");
       }
     };
 
     const onFocus = () => {
       refreshUnreadCount();
       if (refreshListOnPoll) {
-        fetchNotifications({ ...filters, page: 1 }, false, true);
+        fetchNotifications({ ...filtersRef.current, page: 1 }, false, "silent");
       }
     };
 
@@ -245,7 +297,6 @@ export function useNotifications({
     refreshUnreadCount,
     refreshListOnPoll,
     fetchNotifications,
-    filters,
   ]);
 
   const sortedItems = useMemo(
@@ -262,13 +313,20 @@ export function useNotifications({
     items: sortedItems,
     pagination,
     hasMore: Boolean(pagination?.hasMore),
+    currentPage: pagination?.page ?? filters.page ?? 1,
+    totalPages: pagination?.totalPages ?? 0,
+    totalItems: pagination?.total ?? 0,
+    pageSize: filters.limit ?? 20,
     unreadCount,
     loading,
     loadingMore,
+    isRefreshing,
     error,
     filters,
     reload,
     loadMore,
+    goToPage,
+    changeLimit,
     applyFilters,
     markAsRead,
     markAllAsRead,

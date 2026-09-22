@@ -136,10 +136,13 @@ export default function FabricAddOnsPage() {
         setTotalItems(data.total || 0);
         setCurrentPage(data.page || 1);
         setTotalPages(data.totalPages || 0);
-        setStats({
-          active: data.stats?.active || 0,
-          inactive: data.stats?.inactive || 0,
-        });
+        if (data.stats && typeof data.stats.active === "number") {
+          setStats({
+            active: data.stats.active,
+            inactive:
+              typeof data.stats.inactive === "number" ? data.stats.inactive : 0,
+          });
+        }
         setShop(shopData);
       } catch (err: any) {
         if (err?.status === 404) {
@@ -450,7 +453,7 @@ export default function FabricAddOnsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search add-ons by name or ID..."
+              placeholder="Search by add-on name or store name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full sm:w-64 pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"

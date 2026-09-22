@@ -221,10 +221,18 @@ function AdminPartnersContent() {
     searchParams.get("partnerId") ||
     "";
 
-  const initialTab: "all" | "approved" | "pending" | "rejected" =
+  const initialTab:
+    | "all"
+    | "approved"
+    | "pending"
+    | "rejected"
+    | "active"
+    | "inactive" =
     urlTab === "pending" ||
     urlTab === "approved" ||
     urlTab === "rejected" ||
+    urlTab === "active" ||
+    urlTab === "inactive" ||
     urlTab === "all"
       ? urlTab
       : highlightId
@@ -233,14 +241,12 @@ function AdminPartnersContent() {
 
   const [rows, setRows] = useState<FabricRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<
-    "all" | "approved" | "pending" | "rejected"
+    "all" | "approved" | "pending" | "rejected" | "active" | "inactive"
   >(initialTab);
-  const [approvedStatusTab, setApprovedStatusTab] = useState<
-    "all" | "active" | "inactive"
-  >("all");
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -262,8 +268,13 @@ function AdminPartnersContent() {
     right: number;
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isInitialLoad = useRef(true);
+  const searchTermRef = useRef(searchTerm);
+  const activeTabRef = useRef(activeTab);
+  const fetchGenerationRef = useRef(0);
+  const skipSearchDebounceRef = useRef(true);
+  const hasLoadedRef = useRef(false);
+  searchTermRef.current = searchTerm;
+  activeTabRef.current = activeTab;
 
   // Modals state
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -319,33 +330,47 @@ function AdminPartnersContent() {
     async (
       page = 1,
       limitOverride?: number,
-      tabOverride = activeTab,
-      showLoading = true,
-      statusOverride = approvedStatusTab,
+      tabOverride?: typeof activeTab,
     ) => {
-      if (showLoading) {
-        setLoading(true);
-      }
-      setError(null);
+      const generation = ++fetchGenerationRef.current;
+      const isInitialLoad = !hasLoadedRef.current;
+      const tab = tabOverride ?? activeTabRef.current;
       try {
+        // Only the first load should remount the page as a skeleton. Search /
+        // tab / refresh must keep the current UI mounted or the search bar blinks.
+        if (isInitialLoad) setLoading(true);
+        else setIsRefreshing(true);
+
         const l = limitOverride || limit;
-        const search = searchTerm
-          ? `&search=${encodeURIComponent(searchTerm)}`
+        const searchValue = searchTermRef.current.trim();
+        const search = searchValue
+          ? `&search=${encodeURIComponent(searchValue)}`
           : "";
-        const tabFilter = tabOverride !== "all" ? `&type=${tabOverride}` : "";
-        const statusFilter =
-          tabOverride === "approved" && statusOverride !== "all"
-            ? `&status=${statusOverride}`
-            : "";
+
+        // Active/Inactive are availability filters on approved partners.
+        let typeParam = tab === "all" ? "" : tab;
+        let statusParam = "";
+        if (tab === "active") {
+          typeParam = "approved";
+          statusParam = "active";
+        } else if (tab === "inactive") {
+          typeParam = "approved";
+          statusParam = "inactive";
+        }
+
+        const tabFilter = typeParam ? `&type=${typeParam}` : "";
+        const statusFilter = statusParam ? `&status=${statusParam}` : "";
 
         const res = await api.get<ApiResponse>(
           `/api/admin/partners?page=${page}&limit=${l}${search}${tabFilter}${statusFilter}`,
         );
+        if (generation !== fetchGenerationRef.current) return;
 
         let items = res.items || [];
         if (highlightId) {
           const matchIndex = items.findIndex(
-            (r) => r.id === highlightId || (r as any).ownerId?._id === highlightId,
+            (r) =>
+              r.id === highlightId || (r as any).ownerId?._id === highlightId,
           );
           if (matchIndex > -1) {
             const matched = items[matchIndex];
@@ -364,6 +389,7 @@ function AdminPartnersContent() {
           pending: number;
           rejected: number;
         }>("/api/admin/partners/stats");
+        if (generation !== fetchGenerationRef.current) return;
 
         setStats({
           total: statsRes.total || 0,
@@ -371,26 +397,29 @@ function AdminPartnersContent() {
           pending: statsRes.pending || 0,
           rejected: statsRes.rejected || 0,
         });
+        setError(null);
+        hasLoadedRef.current = true;
       } catch (err) {
+        if (generation !== fetchGenerationRef.current) return;
         setError(getApiErrorMessage(err, "Failed to load partners"));
         toast.error("Failed to load data");
         setRows([]);
         setTotalItems(0);
         setTotalPages(0);
+        hasLoadedRef.current = true;
       } finally {
-        if (showLoading) {
+        if (generation === fetchGenerationRef.current) {
           setLoading(false);
+          setIsRefreshing(false);
         }
       }
     },
-    [searchTerm, activeTab, approvedStatusTab, limit, highlightId],
+    [limit, highlightId],
   );
 
   // Initial load - runs once
   useEffect(() => {
-    void fetchData(1, undefined, initialTab).finally(() => {
-      isInitialLoad.current = false;
-    });
+    void fetchData(1, undefined, initialTab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -401,6 +430,8 @@ function AdminPartnersContent() {
       (urlTab === "pending" ||
         urlTab === "approved" ||
         urlTab === "rejected" ||
+        urlTab === "active" ||
+        urlTab === "inactive" ||
         urlTab === "all")
     ) {
       setActiveTab(urlTab);
@@ -417,22 +448,17 @@ function AdminPartnersContent() {
     );
   }, [highlightId, rows]);
 
-  // Debounced search - only searchTerm triggers
+  // Search only after the user stops typing.
   useEffect(() => {
-    if (isInitialLoad.current) {
+    if (skipSearchDebounceRef.current) {
+      skipSearchDebounceRef.current = false;
       return;
     }
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-    searchTimeoutRef.current = setTimeout(() => {
-      fetchData(1);
-    }, 300);
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
+    const timer = window.setTimeout(() => {
+      void fetchData(1);
+    }, 500);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
   const handleCreate = async (data: PartnerFormData) => {
@@ -556,30 +582,20 @@ function AdminPartnersContent() {
   };
 
   const handlePageChange = (page: number) => {
-    fetchData(page, undefined, activeTab, false);
+    fetchData(page, undefined, activeTab);
   };
 
   const handleLimitChange = (newLimit: number) => {
     setLimit(newLimit);
-    fetchData(1, newLimit, activeTab, false);
+    fetchData(1, newLimit, activeTab);
   };
 
   const handleTabChange = (
-    tab: "all" | "approved" | "pending" | "rejected",
+    tab: "all" | "approved" | "pending" | "rejected" | "active" | "inactive",
   ) => {
     setActiveTab(tab);
-    const nextStatus = tab === "approved" ? approvedStatusTab : "all";
-    if (tab !== "approved") {
-      setApprovedStatusTab("all");
-    }
     setCurrentPage(1);
-    fetchData(1, undefined, tab, false, nextStatus);
-  };
-
-  const handleApprovedStatusChange = (tab: "all" | "active" | "inactive") => {
-    setApprovedStatusTab(tab);
-    setCurrentPage(1);
-    fetchData(1, undefined, "approved", false, tab);
+    fetchData(1, undefined, tab);
   };
 
   const filteredRows = useMemo(() => {
@@ -598,7 +614,7 @@ function AdminPartnersContent() {
     );
   };
 
-  if (loading && rows.length === 0) {
+  if (loading) {
     return (
       <div className="space-y-4 sm:space-y-6 px-3 sm:px-0">
         <Skeleton className="h-6 sm:h-8 w-32 sm:w-48" />
@@ -818,12 +834,21 @@ function AdminPartnersContent() {
 
       {/* Tabs & Search */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-        <div className="flex w-full sm:w-auto gap-0.5 sm:gap-2 border-b border-gray-200">
-          {(["all", "approved", "pending", "rejected"] as const).map((tab) => (
+        <div className="flex w-full sm:w-auto gap-0.5 sm:gap-2 border-b border-gray-200 overflow-x-auto">
+          {(
+            [
+              "all",
+              "approved",
+              "pending",
+              "rejected",
+              "active",
+              "inactive",
+            ] as const
+          ).map((tab) => (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
-              className={`flex-1 sm:flex-none px-1.5 sm:px-3 md:px-4 py-2 text-[10px] sm:text-xs md:text-sm font-medium transition-colors hover:cursor-pointer capitalize text-center ${
+              className={`flex-1 sm:flex-none px-1.5 sm:px-3 md:px-4 py-2 text-[10px] sm:text-xs md:text-sm font-medium transition-colors hover:cursor-pointer capitalize text-center whitespace-nowrap ${
                 activeTab === tab
                   ? "border-b-2 border-black text-black"
                   : "text-gray-500 hover:text-black"
@@ -836,42 +861,34 @@ function AdminPartnersContent() {
 
         <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-none">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+            <Search
+              className={`absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400 ${
+                isRefreshing ? "opacity-40" : ""
+              }`}
+            />
+            {isRefreshing && (
+              <RefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400 animate-spin" />
+            )}
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search..."
-              className="w-full sm:w-64 pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
+              className="w-full sm:w-64 pl-8 sm:pl-9 pr-8 sm:pr-9 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
             />
           </div>
           <button
             onClick={() => fetchData(currentPage)}
-            className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0"
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0 disabled:opacity-60"
           >
-            <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+            <RefreshCw
+              className={`w-3 h-3 sm:w-4 sm:h-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
             <span>Refresh</span>
           </button>
         </div>
       </div>
-
-      {activeTab === "approved" && (
-        <div className="flex w-full sm:w-auto gap-0.5 sm:gap-2 border-b border-gray-200">
-          {(["all", "active", "inactive"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => handleApprovedStatusChange(tab)}
-              className={`flex-1 sm:flex-none px-1.5 sm:px-3 md:px-4 py-2 text-[10px] sm:text-xs md:text-sm font-medium transition-colors hover:cursor-pointer capitalize text-center ${
-                approvedStatusTab === tab
-                  ? "border-b-2 border-black text-black"
-                  : "text-gray-500 hover:text-black"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Table / Cards */}
       {filteredRows.length === 0 ? (

@@ -139,7 +139,9 @@ function buildListFilters(query = {}) {
   }
 
   if (query.search && String(query.search).trim()) {
-    const term = String(query.search).trim();
+    const term = String(query.search)
+      .trim()
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     filters.$or = [
       { title: { $regex: term, $options: "i" } },
       { message: { $regex: term, $options: "i" } },
@@ -744,25 +746,34 @@ export async function getCustomerOrderIds(userId) {
 }
 
 export function buildCustomerNotificationFilter(userId, orderIds, query = {}) {
-  return {
-    $and: [
-      {
-        audience: "customer",
-        ...buildListFilters(query),
-        $or: [
-          { recipientUserId: userId },
-          {
-            orderId: { $in: orderIds },
-            $or: [
-              { recipientUserId: { $exists: false } },
-              { recipientUserId: null },
-            ],
-          },
-        ],
-      },
-      { type: { $nin: ["review_approved", "review_rejected"] } },
-    ],
-  };
+  // Search also uses `$or` (title/message/type). Keep it as its own `$and`
+  // clause so it does not overwrite the recipient/order ownership `$or`.
+  const listFilters = buildListFilters(query);
+  const { $or: searchOr, ...restListFilters } = listFilters;
+
+  const clauses = [
+    {
+      audience: "customer",
+      ...restListFilters,
+      $or: [
+        { recipientUserId: userId },
+        {
+          orderId: { $in: orderIds },
+          $or: [
+            { recipientUserId: { $exists: false } },
+            { recipientUserId: null },
+          ],
+        },
+      ],
+    },
+    { type: { $nin: ["review_approved", "review_rejected"] } },
+  ];
+
+  if (searchOr) {
+    clauses.push({ $or: searchOr });
+  }
+
+  return { $and: clauses };
 }
 
 export function buildAdminNotificationFilter(query = {}) {

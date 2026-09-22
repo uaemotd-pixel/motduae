@@ -234,10 +234,13 @@ export default function FabricDesignsList() {
         setTotalItems(data.total || 0);
         setCurrentPage(data.page || 1);
         setTotalPages(data.totalPages || 0);
-        setStats({
-          active: data.stats?.active || 0,
-          inactive: data.stats?.inactive || 0,
-        });
+        if (data.stats && typeof data.stats.active === "number") {
+          setStats({
+            active: data.stats.active,
+            inactive:
+              typeof data.stats.inactive === "number" ? data.stats.inactive : 0,
+          });
+        }
         setShop(shopData);
       } catch (err: unknown) {
         if (isShopMissingError(err)) {

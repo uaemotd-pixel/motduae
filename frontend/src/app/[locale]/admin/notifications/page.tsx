@@ -37,6 +37,7 @@ import {
   type NotificationCategory,
 } from "@/lib/notifications";
 import { Skeleton } from "@/components/ui/Skeleton";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 import {
   formatOrderDeliveryLines,
   getOrderDeliveryAddress,
@@ -54,29 +55,40 @@ function shortenId(id: string): string {
   return id.length > 8 ? id.slice(0, 8) : id;
 }
 
-const CATEGORY_TABS: Array<{ id: NotificationCategory | "all"; labelKey: string }> =
-  [
-    { id: "all", labelKey: "categoryAll" },
-    { id: "orders", labelKey: "categoryOrders" },
-    { id: "returns", labelKey: "categoryReturns" },
-    { id: "registrations", labelKey: "categoryRegistrations" },
-    { id: "partners", labelKey: "categoryPartners" },
-  ];
+const CATEGORY_TABS: Array<{
+  id: NotificationCategory | "all";
+  labelKey: string;
+}> = [
+  { id: "all", labelKey: "categoryAll" },
+  { id: "orders", labelKey: "categoryOrders" },
+  { id: "returns", labelKey: "categoryReturns" },
+  { id: "registrations", labelKey: "categoryRegistrations" },
+  { id: "partners", labelKey: "categoryPartners" },
+];
 
 export default function AdminNotificationsPage() {
   const params = useParams();
   const locale = (params.locale as Locale) || "en";
   const tn = useTranslations("Admin.Notifications");
 
-  const [categoryTab, setCategoryTab] = useState<NotificationCategory | "all">("all");
+  const [categoryTab, setCategoryTab] = useState<NotificationCategory | "all">(
+    "all",
+  );
   const [readFilter, setReadFilter] = useState<"" | "true" | "false">("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [customOrderDetails, setCustomOrderDetails] = useState<Record<string, any>>({});
-  const [retailOrderDetails, setRetailOrderDetails] = useState<Record<string, any>>({});
-  const [loadingOrdersForDropdown, setLoadingOrdersForDropdown] = useState(false);
-  const [processingReturn, setProcessingReturn] = useState<Record<string, boolean>>({});
+  const [customOrderDetails, setCustomOrderDetails] = useState<
+    Record<string, any>
+  >({});
+  const [retailOrderDetails, setRetailOrderDetails] = useState<
+    Record<string, any>
+  >({});
+  const [loadingOrdersForDropdown, setLoadingOrdersForDropdown] =
+    useState(false);
+  const [processingReturn, setProcessingReturn] = useState<
+    Record<string, boolean>
+  >({});
   const [markingRead, setMarkingRead] = useState<Record<string, boolean>>({});
   const [markAllLoading, setMarkAllLoading] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -85,10 +97,13 @@ export default function AdminNotificationsPage() {
     items: sortedItems,
     unreadCount,
     loading,
-    loadingMore,
     error,
-    hasMore,
-    loadMore,
+    currentPage,
+    totalPages,
+    totalItems,
+    pageSize,
+    goToPage,
+    changeLimit,
     applyFilters,
     markAsRead,
     markAllAsRead,
@@ -99,6 +114,18 @@ export default function AdminNotificationsPage() {
     audience: "admin",
     initialFilters: { page: 1, limit: 20 },
   });
+
+  const handlePageChange = (page: number) => {
+    setSelectedIds(new Set());
+    setExpandedId(null);
+    void goToPage(page);
+  };
+
+  const handleLimitChange = (limit: number) => {
+    setSelectedIds(new Set());
+    setExpandedId(null);
+    void changeLimit(limit);
+  };
 
   useEffect(() => {
     applyFilters({
@@ -125,7 +152,9 @@ export default function AdminNotificationsPage() {
 
         setLoadingOrdersForDropdown(true);
         try {
-          const found = await api.get<any>(`/api/admin/orders/retail/${orderId}`);
+          const found = await api.get<any>(
+            `/api/admin/orders/retail/${orderId}`,
+          );
           const order = found?.order || found;
           if (order?._id || order?.orderItems) {
             setRetailOrderDetails((prev) => ({ ...prev, [orderId]: order }));
@@ -142,11 +171,11 @@ export default function AdminNotificationsPage() {
 
       setLoadingOrdersForDropdown(true);
       try {
-          const found = await api.get<any>(`/api/admin/orders/custom/${orderId}`);
-          const order = found?.order || found;
-          if (order?._id || order?.customerDeliveryAddress || order?.status) {
-            setCustomOrderDetails((prev) => ({ ...prev, [orderId]: order }));
-          }
+        const found = await api.get<any>(`/api/admin/orders/custom/${orderId}`);
+        const order = found?.order || found;
+        if (order?._id || order?.customerDeliveryAddress || order?.status) {
+          setCustomOrderDetails((prev) => ({ ...prev, [orderId]: order }));
+        }
       } catch {
         // keep dropdown resilient
       } finally {
@@ -390,36 +419,34 @@ export default function AdminNotificationsPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={tn("searchPlaceholder")}
-            className="px-3 py-2 rounded-lg border border-gray-200 text-sm"
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white outline-none focus:outline-none focus:ring-0 focus:border-gray-300"
           />
+          <select
+            value={categoryTab}
+            onChange={(e) =>
+              setCategoryTab(e.target.value as NotificationCategory | "all")
+            }
+            aria-label={tn("categoryLabel")}
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white outline-none focus:outline-none focus:ring-0 focus:border-gray-300 min-w-38"
+          >
+            {CATEGORY_TABS.map((tab) => (
+              <option key={tab.id} value={tab.id}>
+                {tn(tab.labelKey)}
+              </option>
+            ))}
+          </select>
           <select
             value={readFilter}
             onChange={(e) =>
               setReadFilter(e.target.value as "" | "true" | "false")
             }
-            className="px-3 py-2 rounded-lg border border-gray-200 text-sm"
+            aria-label={tn("statusLabel")}
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white outline-none focus:outline-none focus:ring-0 focus:border-gray-300 min-w-34"
           >
             <option value="">{tn("filterAll")}</option>
             <option value="false">{tn("filterUnread")}</option>
             <option value="true">{tn("filterRead")}</option>
           </select>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {CATEGORY_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setCategoryTab(tab.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
-                categoryTab === tab.id
-                  ? "bg-gray-900 text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              {tn(tab.labelKey)}
-            </button>
-          ))}
         </div>
 
         {selectedIds.size > 0 && (
@@ -528,11 +555,12 @@ export default function AdminNotificationsPage() {
             );
             const deepLink = getAdminDeepLinkHref(n, locale);
             const showQuickAction =
-              deepLink != null &&
-              (!orderHref || deepLink.href !== orderHref);
+              deepLink != null && (!orderHref || deepLink.href !== orderHref);
             const priority = getNotificationPriority(n);
             const aging =
-              isReturnRequest && isNotificationAging(n.createdAt, 2) && isPending;
+              isReturnRequest &&
+              isNotificationAging(n.createdAt, 2) &&
+              isPending;
             const auditEntry = getActionAuditFromHistory(n.statusHistory, [
               "return_approved",
               "return_rejected",
@@ -557,30 +585,30 @@ export default function AdminNotificationsPage() {
                       aria-label={tn("selectNotification")}
                     />
                     <div className="min-w-0">
-                    <div className="text-xs uppercase tracking-wider text-gray-400 flex items-center gap-2 flex-wrap">
-                      {getNotificationTypeLabel(n.type || "", (key) =>
-                        tn(`types.${key}`),
-                      )}
-                      {aging && (
-                        <span className="inline-flex items-center gap-1 text-red-600 normal-case">
-                          <AlertTriangle className="w-3 h-3" />
-                          {tn("agingBadge")}
-                        </span>
-                      )}
-                      {priority === "high" || priority === "urgent" ? (
-                        <span className="text-amber-600 normal-case">
-                          {tn(`priority.${priority}`)}
-                        </span>
-                      ) : null}
-                      {isProcessed && (
-                        <span className="ml-2 text-green-600 normal-case">
-                          • {n.status}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-base font-medium text-black truncate">
-                      {n.title}
-                    </div>
+                      <div className="text-xs uppercase tracking-wider text-gray-400 flex items-center gap-2 flex-wrap">
+                        {getNotificationTypeLabel(n.type || "", (key) =>
+                          tn(`types.${key}`),
+                        )}
+                        {aging && (
+                          <span className="inline-flex items-center gap-1 text-red-600 normal-case">
+                            <AlertTriangle className="w-3 h-3" />
+                            {tn("agingBadge")}
+                          </span>
+                        )}
+                        {priority === "high" || priority === "urgent" ? (
+                          <span className="text-amber-600 normal-case">
+                            {tn(`priority.${priority}`)}
+                          </span>
+                        ) : null}
+                        {isProcessed && (
+                          <span className="ml-2 text-green-600 normal-case">
+                            • {n.status}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-base font-medium text-black truncate">
+                        {n.title}
+                      </div>
                     </div>
                   </div>
 
@@ -742,7 +770,9 @@ export default function AdminNotificationsPage() {
                         )}
 
                         {isReturnRequest && (
-                          <NotificationReturnStepper status={normalizedStatus} />
+                          <NotificationReturnStepper
+                            status={normalizedStatus}
+                          />
                         )}
 
                         {auditEntry && (
@@ -751,7 +781,8 @@ export default function AdminNotificationsPage() {
                               status: auditEntry.status,
                               actor:
                                 typeof auditEntry.changedBy === "object"
-                                  ? auditEntry.changedBy?.name || tn("unknownAdmin")
+                                  ? auditEntry.changedBy?.name ||
+                                    tn("unknownAdmin")
                                   : tn("unknownAdmin"),
                               at: auditEntry.changedAt
                                 ? formatDate(auditEntry.changedAt)
@@ -1108,22 +1139,20 @@ export default function AdminNotificationsPage() {
               </div>
             );
           })}
-          {hasMore && (
-            <div className="flex justify-center pt-2">
-              <button
-                type="button"
-                disabled={loadingMore}
-                onClick={loadMore}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                {loadingMore ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : null}
-                {tn("loadMore")}
-              </button>
-            </div>
-          )}
         </div>
+      )}
+
+      {totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={Math.max(1, totalPages)}
+          onPageChange={handlePageChange}
+          showItemsPerPage={true}
+          itemsPerPage={pageSize}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
       )}
     </div>
   );

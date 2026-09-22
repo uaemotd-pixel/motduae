@@ -101,17 +101,15 @@ function cutsHaveLowStock(cuts?: FabricCutRow[]) {
 
 function fabricHasLowStock(item: FabricItem) {
   if (cutsHaveLowStock(item.cuts)) return true;
-  return (item.variants || []).some((variant) => cutsHaveLowStock(variant.cuts));
+  return (item.variants || []).some((variant) =>
+    cutsHaveLowStock(variant.cuts),
+  );
 }
 
-function getAdminCutLabel(
-  entry: FabricCutRow,
-  locale: string,
-): string {
+function getAdminCutLabel(entry: FabricCutRow, locale: string): string {
   const cut = entry.cut;
   if (cut) {
-    const name =
-      locale === "ar" ? cut.nameAr || cut.name : cut.name;
+    const name = locale === "ar" ? cut.nameAr || cut.name : cut.name;
     if (name?.trim()) return name.trim();
     return `${cut.value} ${cut.unit}`;
   }
@@ -201,6 +199,7 @@ export default function AdminFabricsPage() {
 
   const [items, setItems] = useState<FabricItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -215,6 +214,7 @@ export default function AdminFabricsPage() {
   const searchTermRef = useRef(searchTerm);
   const fetchGenerationRef = useRef(0);
   const skipSearchDebounceRef = useRef(true);
+  const hasLoadedRef = useRef(false);
   searchTermRef.current = searchTerm;
 
   // Pagination state
@@ -296,8 +296,14 @@ export default function AdminFabricsPage() {
   const fetchItems = useCallback(
     async (page = 1, limitOverride?: number, statusOverride?: string) => {
       const generation = ++fetchGenerationRef.current;
+      const isInitialLoad = !hasLoadedRef.current;
       try {
-        setLoading(true);
+        // Only the first load should remount the page as a skeleton. Search /
+        // filter / refresh must keep the current UI mounted or the search bar
+        // blinks every time results are empty mid-typing.
+        if (isInitialLoad) setLoading(true);
+        else setIsRefreshing(true);
+
         const l = limitOverride || limit;
         const status = statusOverride || statusFilter;
         const search = searchTermRef.current;
@@ -310,11 +316,17 @@ export default function AdminFabricsPage() {
         setTotalItems(res.total || 0);
         setCurrentPage(res.page || 1);
         setTotalPages(res.totalPages || 0);
-        setStats({
-          active: res.stats?.active || 0,
-          inactive: res.stats?.inactive || 0,
-        });
+        // Prefer explicit numbers so a missing stats payload never falls through
+        // to a page-local count.
+        if (res.stats && typeof res.stats.active === "number") {
+          setStats({
+            active: res.stats.active,
+            inactive:
+              typeof res.stats.inactive === "number" ? res.stats.inactive : 0,
+          });
+        }
         setError(null);
+        hasLoadedRef.current = true;
       } catch (err: unknown) {
         if (generation !== fetchGenerationRef.current) return;
         setError(getApiErrorMessage(err, t.adminFabrics.list.load_error_title));
@@ -322,9 +334,11 @@ export default function AdminFabricsPage() {
         setTotalItems(0);
         setTotalPages(0);
         setStats({ active: 0, inactive: 0 });
+        hasLoadedRef.current = true;
       } finally {
         if (generation === fetchGenerationRef.current) {
           setLoading(false);
+          setIsRefreshing(false);
         }
       }
     },
@@ -449,10 +463,7 @@ export default function AdminFabricsPage() {
   };
 
   const StatusBadge = ({ isActive }: { isActive: boolean }) => (
-    <Tag
-      size="md"
-      variant={isActive ? "outline" : "muted"}
-    >
+    <Tag size="md" variant={isActive ? "outline" : "muted"}>
       {isActive
         ? t.adminFabrics.list.status_active
         : t.adminFabrics.list.status_inactive}
@@ -461,10 +472,20 @@ export default function AdminFabricsPage() {
 
   const getStoreDisplay = (store: FabricItem["listedByStore"]) => {
     if (!store) return "—";
-    if (typeof store === "object") return store.name;
+    if (typeof store === "object") return store.name || "—";
     return store.length > 12
       ? `${store.slice(0, 6)}...${store.slice(-6)}`
       : store;
+  };
+
+  /** City column must show city (searchable), not emirate-only. */
+  const getCityDisplay = (item: FabricItem) => {
+    const city = item.storePickupAddress?.city?.trim();
+    const emirate = item.storePickupAddress?.emirate?.trim();
+    if (city && emirate && city.toLowerCase() !== emirate.toLowerCase()) {
+      return `${city}, ${emirate}`;
+    }
+    return city || emirate || item.city?.trim() || "—";
   };
 
   const getItemImage = (item: FabricItem) => {
@@ -492,7 +513,7 @@ export default function AdminFabricsPage() {
     );
   };
 
-  if (loading && items.length === 0) {
+  if (loading) {
     return (
       <div className="space-y-4 sm:space-y-6">
         <div className="flex justify-between items-center">
@@ -694,20 +715,30 @@ export default function AdminFabricsPage() {
 
         <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-none">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+            <Search
+              className={`absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400 ${
+                isRefreshing ? "opacity-40" : ""
+              }`}
+            />
+            {isRefreshing && (
+              <RefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400 animate-spin" />
+            )}
             <input
               type="text"
               placeholder={t.adminFabrics.list.search_placeholder}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-64 pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
+              className="w-full sm:w-64 pl-8 sm:pl-9 pr-8 sm:pr-9 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
             />
           </div>
           <button
             onClick={() => fetchItems(currentPage)}
-            className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white shrink-0 hover:cursor-pointer"
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white shrink-0 hover:cursor-pointer disabled:opacity-60"
           >
-            <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+            <RefreshCw
+              className={`w-3 h-3 sm:w-4 sm:h-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
             <span>{t.adminFabrics.list.refresh}</span>
           </button>
         </div>
@@ -787,212 +818,213 @@ export default function AdminFabricsPage() {
                   {items.map((item) => {
                     const itemLow = fabricHasLowStock(item);
                     return (
-                    <Fragment key={item._id}>
-                      <tr
-                        data-low-stock={itemLow ? "true" : undefined}
-                        className={`group transition-all duration-200 ${
-                          itemLow
-                            ? "bg-rose-50/80 hover:bg-rose-50"
-                            : "hover:bg-gray-50"
-                        }`}
-                      >
-                        <td className="px-4 sm:px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            {getItemImage(item)}
-                            <div className="min-w-0">
-                              <span className="text-sm font-medium text-black">
-                                {item.name || "—"}
-                              </span>
-                              {itemLow && (
-                                <div className="mt-1">
-                                  <LowStockNameBadge
-                                    label={t.adminFabrics.list.low_badge}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {item.material}
-                        </td>
-                        <td className="px-4 sm:px-6 py-4 text-sm text-gray-500">
-                          <FabricCutsCell
-                            cuts={item.cuts}
-                            {...cutsCellProps}
-                          />
-                        </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {getStoreDisplay(item.listedByStore)}
-                        </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {item.storePickupAddress?.emirate || "—"}
-                        </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                          <StatusBadge isActive={item.isActive} />
-                        </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right space-x-2">
-                          {item.variants && item.variants.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setExpandedRows((prev) => ({
-                                  ...prev,
-                                  [item._id]: !prev[item._id],
-                                }));
-                              }}
-                              className="px-2.5 py-1 border border-black/25 text-[10px] font-semibold uppercase tracking-wider hover:bg-black hover:text-white transition rounded cursor-pointer"
-                            >
-                              {expandedRows[item._id]
-                                ? "Hide variants"
-                                : `Show variant (${item.variants.length})`}
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => handleMenuOpen(e, item)}
-                            className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
-                            title="Actions"
-                          >
-                            <MoreVertical className="w-5 h-5" />
-                          </button>
-                        </td>
-                      </tr>
-                      {expandedRows[item._id] &&
-                        item.variants &&
-                        item.variants.length > 0 && (
-                          <tr className="bg-[#FAF9F5]/40">
-                            <td colSpan={7} className="px-4 sm:px-6 py-4">
-                              <div className="pl-4 sm:pl-8 space-y-2.5">
-                                <span className="text-[10px] font-semibold uppercase tracking-widest text-black/55 block">
-                                  Variations
+                      <Fragment key={item._id}>
+                        <tr
+                          data-low-stock={itemLow ? "true" : undefined}
+                          className={`group transition-all duration-200 ${
+                            itemLow
+                              ? "bg-rose-50/80 hover:bg-rose-50"
+                              : "hover:bg-gray-50"
+                          }`}
+                        >
+                          <td className="px-4 sm:px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              {getItemImage(item)}
+                              <div className="min-w-0">
+                                <span className="text-sm font-medium text-black">
+                                  {item.name || "—"}
                                 </span>
-                                <div className="border border-gray-200/60 rounded-xl bg-white shadow-sm overflow-hidden">
-                                  <table className="min-w-full divide-y divide-gray-100">
-                                    <thead className="bg-gray-50/70">
-                                      <tr>
-                                        <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                                          {t.adminFabrics.list.col_name}
-                                        </th>
-                                        <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                                          {t.adminFabrics.list.col_material}
-                                        </th>
-                                        <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                                          {t.adminFabrics.list.col_price}
-                                        </th>
-                                        <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                                          {t.adminFabrics.list.col_store}
-                                        </th>
-                                        <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                                          {t.adminFabrics.list.col_city}
-                                        </th>
-                                        <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                                          {t.adminFabrics.list.col_status}
-                                        </th>
-                                        <th className="px-3 sm:px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                                          {t.adminFabrics.list.col_actions}
-                                        </th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100 bg-white">
-                                      {item.variants.map((v) => {
-                                        const variantLow = cutsHaveLowStock(
-                                          v.cuts,
-                                        );
-                                        return (
-                                        <tr
-                                          key={v._id}
-                                          className={
-                                            variantLow
-                                              ? "bg-rose-50/80 hover:bg-rose-50"
-                                              : "hover:bg-gray-50/60 transition-colors"
-                                          }
-                                        >
-                                          <td className="px-3 sm:px-4 py-3 text-xs font-semibold text-black">
-                                            <div className="flex items-center gap-2">
-                                              {v.images &&
-                                              v.images.length > 0 ? (
-                                                <div
-                                                  className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg overflow-hidden group cursor-pointer shrink-0"
-                                                  onClick={() =>
-                                                    handleImageClick(
-                                                      v.images[0],
-                                                    )
-                                                  }
-                                                >
-                                                  <img
-                                                    src={v.images[0]}
-                                                    alt={v.name}
-                                                    className="w-full h-full object-cover"
-                                                  />
-                                                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                                    <Maximize2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
-                                                  </div>
-                                                </div>
-                                              ) : (
-                                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                                                  <ImageIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-400" />
-                                                </div>
-                                              )}
-                                              <div className="min-w-0">
-                                                <span className="text-xs sm:text-sm">
-                                                  {v.name}
-                                                </span>
-                                                {variantLow && (
-                                                  <div className="mt-1">
-                                                    <LowStockNameBadge
-                                                      label={
-                                                        t.adminFabrics.list
-                                                          .low_badge
-                                                      }
-                                                    />
-                                                  </div>
-                                                )}
-                                              </div>
-                                            </div>
-                                          </td>
-                                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-600">
-                                            {v.material}
-                                          </td>
-                                          <td className="px-3 sm:px-4 py-3 text-xs text-gray-600">
-                                            <FabricCutsCell
-                                              cuts={v.cuts}
-                                              {...cutsCellProps}
-                                            />
-                                          </td>
-                                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-600">
-                                            {getStoreDisplay(v.listedByStore)}
-                                          </td>
-                                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-600">
-                                            {v.storePickupAddress?.emirate ||
-                                              "—"}
-                                          </td>
-                                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
-                                            <StatusBadge
-                                              isActive={v.isActive}
-                                            />
-                                          </td>
-                                          <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-right">
-                                            <button
-                                              onClick={(e) =>
-                                                handleMenuOpen(e, v)
-                                              }
-                                              className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
-                                              title="Actions"
-                                            >
-                                              <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
-                                            </button>
-                                          </td>
-                                        </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                </div>
+                                {itemLow && (
+                                  <div className="mt-1">
+                                    <LowStockNameBadge
+                                      label={t.adminFabrics.list.low_badge}
+                                    />
+                                  </div>
+                                )}
                               </div>
-                            </td>
-                          </tr>
-                        )}
-                    </Fragment>
+                            </div>
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {item.material}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 text-sm text-gray-500">
+                            <FabricCutsCell
+                              cuts={item.cuts}
+                              {...cutsCellProps}
+                            />
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {getStoreDisplay(item.listedByStore)}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {getCityDisplay(item)}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                            <StatusBadge isActive={item.isActive} />
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right space-x-2">
+                            {item.variants && item.variants.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExpandedRows((prev) => ({
+                                    ...prev,
+                                    [item._id]: !prev[item._id],
+                                  }));
+                                }}
+                                className="px-2.5 py-1 border border-black/25 text-[10px] font-semibold uppercase tracking-wider hover:bg-black hover:text-white transition rounded cursor-pointer"
+                              >
+                                {expandedRows[item._id]
+                                  ? "Hide variants"
+                                  : `Show variant (${item.variants.length})`}
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => handleMenuOpen(e, item)}
+                              className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
+                              title="Actions"
+                            >
+                              <MoreVertical className="w-5 h-5" />
+                            </button>
+                          </td>
+                        </tr>
+                        {expandedRows[item._id] &&
+                          item.variants &&
+                          item.variants.length > 0 && (
+                            <tr className="bg-[#FAF9F5]/40">
+                              <td colSpan={7} className="px-4 sm:px-6 py-4">
+                                <div className="pl-4 sm:pl-8 space-y-2.5">
+                                  <span className="text-[10px] font-semibold uppercase tracking-widest text-black/55 block">
+                                    Variations
+                                  </span>
+                                  <div className="border border-gray-200/60 rounded-xl bg-white shadow-sm overflow-hidden">
+                                    <table className="min-w-full divide-y divide-gray-100">
+                                      <thead className="bg-gray-50/70">
+                                        <tr>
+                                          <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                                            {t.adminFabrics.list.col_name}
+                                          </th>
+                                          <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                                            {t.adminFabrics.list.col_material}
+                                          </th>
+                                          <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                                            {t.adminFabrics.list.col_price}
+                                          </th>
+                                          <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                                            {t.adminFabrics.list.col_store}
+                                          </th>
+                                          <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                                            {t.adminFabrics.list.col_city}
+                                          </th>
+                                          <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                                            {t.adminFabrics.list.col_status}
+                                          </th>
+                                          <th className="px-3 sm:px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                                            {t.adminFabrics.list.col_actions}
+                                          </th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-gray-100 bg-white">
+                                        {item.variants.map((v) => {
+                                          const variantLow = cutsHaveLowStock(
+                                            v.cuts,
+                                          );
+                                          return (
+                                            <tr
+                                              key={v._id}
+                                              className={
+                                                variantLow
+                                                  ? "bg-rose-50/80 hover:bg-rose-50"
+                                                  : "hover:bg-gray-50/60 transition-colors"
+                                              }
+                                            >
+                                              <td className="px-3 sm:px-4 py-3 text-xs font-semibold text-black">
+                                                <div className="flex items-center gap-2">
+                                                  {v.images &&
+                                                  v.images.length > 0 ? (
+                                                    <div
+                                                      className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg overflow-hidden group cursor-pointer shrink-0"
+                                                      onClick={() =>
+                                                        handleImageClick(
+                                                          v.images[0],
+                                                        )
+                                                      }
+                                                    >
+                                                      <img
+                                                        src={v.images[0]}
+                                                        alt={v.name}
+                                                        className="w-full h-full object-cover"
+                                                      />
+                                                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                        <Maximize2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
+                                                      </div>
+                                                    </div>
+                                                  ) : (
+                                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                                                      <ImageIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-400" />
+                                                    </div>
+                                                  )}
+                                                  <div className="min-w-0">
+                                                    <span className="text-xs sm:text-sm">
+                                                      {v.name}
+                                                    </span>
+                                                    {variantLow && (
+                                                      <div className="mt-1">
+                                                        <LowStockNameBadge
+                                                          label={
+                                                            t.adminFabrics.list
+                                                              .low_badge
+                                                          }
+                                                        />
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </td>
+                                              <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-600">
+                                                {v.material}
+                                              </td>
+                                              <td className="px-3 sm:px-4 py-3 text-xs text-gray-600">
+                                                <FabricCutsCell
+                                                  cuts={v.cuts}
+                                                  {...cutsCellProps}
+                                                />
+                                              </td>
+                                              <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-600">
+                                                {getStoreDisplay(
+                                                  v.listedByStore,
+                                                )}
+                                              </td>
+                                              <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-600">
+                                                {getCityDisplay(v)}
+                                              </td>
+                                              <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
+                                                <StatusBadge
+                                                  isActive={v.isActive}
+                                                />
+                                              </td>
+                                              <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-right">
+                                                <button
+                                                  onClick={(e) =>
+                                                    handleMenuOpen(e, v)
+                                                  }
+                                                  className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
+                                                  title="Actions"
+                                                >
+                                                  <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
+                                                </button>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -1005,157 +1037,152 @@ export default function AdminFabricsPage() {
             {items.map((item) => {
               const itemLow = fabricHasLowStock(item);
               return (
-              <div
-                key={item._id}
-                className={`rounded-2xl shadow-sm border p-3 sm:p-4 ${
-                  itemLow
-                    ? "bg-rose-50 border-rose-200"
-                    : "bg-white border-gray-100"
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                    {getItemImage(item)}
-                    <div className="min-w-0">
-                      <h3 className="text-xs sm:text-sm font-medium text-black truncate">
-                        {item.name || "—"}
-                      </h3>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                        <StatusBadge isActive={item.isActive} />
-                        {itemLow && (
-                          <LowStockNameBadge
-                            label={t.adminFabrics.list.low_badge}
-                          />
-                        )}
+                <div
+                  key={item._id}
+                  className={`rounded-2xl shadow-sm border p-3 sm:p-4 ${
+                    itemLow
+                      ? "bg-rose-50 border-rose-200"
+                      : "bg-white border-gray-100"
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      {getItemImage(item)}
+                      <div className="min-w-0">
+                        <h3 className="text-xs sm:text-sm font-medium text-black truncate">
+                          {item.name || "—"}
+                        </h3>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <StatusBadge isActive={item.isActive} />
+                          {itemLow && (
+                            <LowStockNameBadge
+                              label={t.adminFabrics.list.low_badge}
+                            />
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <button
-                    onClick={(e) => handleMenuOpen(e, item)}
-                    className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer shrink-0"
-                    title="Actions"
-                  >
-                    <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
-                </div>
-
-                <div className="mt-2 sm:mt-3 space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
-                  <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 min-w-0">
-                    <TagIcon className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                    <span className="truncate">{item.material || "—"}</span>
-                  </div>
-                  <div className="text-gray-600">
-                    <FabricCutsCell
-                      cuts={item.cuts}
-                      {...cutsCellProps}
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
-                    <Store className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                    <span className="truncate">
-                      {getStoreDisplay(item.listedByStore)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
-                    <MapPin className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                    <span>{item.storePickupAddress?.emirate || "—"}</span>
-                  </div>
-                </div>
-
-                {item.variants && item.variants.length > 0 && (
-                  <div className="mt-3">
                     <button
-                      type="button"
-                      onClick={() => {
-                        setExpandedRows((prev) => ({
-                          ...prev,
-                          [item._id]: !prev[item._id],
-                        }));
-                      }}
-                      className="text-[10px] font-medium text-gray-500 hover:text-black transition"
+                      onClick={(e) => handleMenuOpen(e, item)}
+                      className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer shrink-0"
+                      title="Actions"
                     >
-                      {expandedRows[item._id]
-                        ? "Hide variants"
-                        : `Show variants (${item.variants.length})`}
+                      <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
-                    {expandedRows[item._id] && (
-                      <div className="mt-2 space-y-2">
-                        {item.variants.map((v) => {
-                          const variantLow = cutsHaveLowStock(v.cuts);
-                          return (
-                          <div
-                            key={v._id}
-                            className={`rounded-lg p-3 ${
-                              variantLow
-                                ? "bg-white border border-rose-200"
-                                : "bg-gray-50"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 min-w-0">
-                                {v.images && v.images.length > 0 ? (
-                                  <div
-                                    className="relative w-7 h-7 rounded-lg overflow-hidden group cursor-pointer shrink-0"
-                                    onClick={() =>
-                                      handleImageClick(v.images[0])
-                                    }
-                                  >
-                                    <img
-                                      src={v.images[0]}
-                                      alt={v.name}
-                                      className="w-full h-full object-cover"
-                                    />
-                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                      <Maximize2 className="w-2.5 h-2.5 text-white" />
+                  </div>
+
+                  <div className="mt-2 sm:mt-3 space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 min-w-0">
+                      <TagIcon className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                      <span className="truncate">{item.material || "—"}</span>
+                    </div>
+                    <div className="text-gray-600">
+                      <FabricCutsCell cuts={item.cuts} {...cutsCellProps} />
+                    </div>
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
+                      <Store className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                      <span className="truncate">
+                        {getStoreDisplay(item.listedByStore)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
+                      <MapPin className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                      <span>{getCityDisplay(item)}</span>
+                    </div>
+                  </div>
+
+                  {item.variants && item.variants.length > 0 && (
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setExpandedRows((prev) => ({
+                            ...prev,
+                            [item._id]: !prev[item._id],
+                          }));
+                        }}
+                        className="text-[10px] font-medium text-gray-500 hover:text-black transition"
+                      >
+                        {expandedRows[item._id]
+                          ? "Hide variants"
+                          : `Show variants (${item.variants.length})`}
+                      </button>
+                      {expandedRows[item._id] && (
+                        <div className="mt-2 space-y-2">
+                          {item.variants.map((v) => {
+                            const variantLow = cutsHaveLowStock(v.cuts);
+                            return (
+                              <div
+                                key={v._id}
+                                className={`rounded-lg p-3 ${
+                                  variantLow
+                                    ? "bg-white border border-rose-200"
+                                    : "bg-gray-50"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    {v.images && v.images.length > 0 ? (
+                                      <div
+                                        className="relative w-7 h-7 rounded-lg overflow-hidden group cursor-pointer shrink-0"
+                                        onClick={() =>
+                                          handleImageClick(v.images[0])
+                                        }
+                                      >
+                                        <img
+                                          src={v.images[0]}
+                                          alt={v.name}
+                                          className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                          <Maximize2 className="w-2.5 h-2.5 text-white" />
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="w-7 h-7 rounded-lg bg-gray-200 flex items-center justify-center shrink-0">
+                                        <ImageIcon className="w-3 h-3 text-gray-400" />
+                                      </div>
+                                    )}
+                                    <div className="min-w-0">
+                                      <span className="text-xs font-medium truncate block">
+                                        {v.name}
+                                      </span>
+                                      {variantLow && (
+                                        <LowStockNameBadge
+                                          label={t.adminFabrics.list.low_badge}
+                                        />
+                                      )}
                                     </div>
                                   </div>
-                                ) : (
-                                  <div className="w-7 h-7 rounded-lg bg-gray-200 flex items-center justify-center shrink-0">
-                                    <ImageIcon className="w-3 h-3 text-gray-400" />
-                                  </div>
-                                )}
-                                <div className="min-w-0">
-                                  <span className="text-xs font-medium truncate block">
-                                    {v.name}
-                                  </span>
-                                  {variantLow && (
-                                    <LowStockNameBadge
-                                      label={t.adminFabrics.list.low_badge}
+                                  <button
+                                    onClick={(e) => handleMenuOpen(e, v)}
+                                    className="text-gray-400 hover:text-black p-1"
+                                  >
+                                    <MoreVertical className="w-4 h-4" />
+                                  </button>
+                                </div>
+                                <div className="mt-1.5 grid grid-cols-1 gap-1 text-[10px] text-gray-600">
+                                  <span>Material: {v.material}</span>
+                                  <div className="flex items-start gap-1">
+                                    <span className="shrink-0">Cuts:</span>
+                                    <FabricCutsCell
+                                      cuts={v.cuts}
+                                      {...cutsCellProps}
                                     />
-                                  )}
+                                  </div>
+                                  <span>
+                                    Store: {getStoreDisplay(v.listedByStore)}
+                                  </span>
+                                  <span>City: {getCityDisplay(v)}</span>
                                 </div>
                               </div>
-                              <button
-                                onClick={(e) => handleMenuOpen(e, v)}
-                                className="text-gray-400 hover:text-black p-1"
-                              >
-                                <MoreVertical className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <div className="mt-1.5 grid grid-cols-1 gap-1 text-[10px] text-gray-600">
-                              <span>Material: {v.material}</span>
-                              <div className="flex items-start gap-1">
-                                <span className="shrink-0">Cuts:</span>
-                                <FabricCutsCell
-                                  cuts={v.cuts}
-                                  {...cutsCellProps}
-                                />
-                              </div>
-                              <span>
-                                Store: {getStoreDisplay(v.listedByStore)}
-                              </span>
-                              <span>
-                                City: {v.storePickupAddress?.emirate || "—"}
-                              </span>
-                            </div>
-                          </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>

@@ -21,8 +21,10 @@ import {
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
+import { LowStockBadge } from "@/components/shared/LowStockBadge";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
+import { isLowStockQty } from "@/lib/lowStock";
 
 interface AddOnItem {
   _id: string;
@@ -62,6 +64,7 @@ const getStoreDisplay = (shop: AddOnItem["fabricShopId"]) => {
 export default function AdminAddOnsPage() {
   const [items, setItems] = useState<AddOnItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -84,7 +87,11 @@ export default function AdminAddOnsPage() {
   const [itemToDelete, setItemToDelete] = useState<AddOnItem | null>(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTermRef = useRef(searchTerm);
+  const fetchGenerationRef = useRef(0);
+  const skipSearchDebounceRef = useRef(true);
+  const hasLoadedRef = useRef(false);
+  searchTermRef.current = searchTerm;
 
   // pop up image function
   const handleImageClick = (imageUrl: string) => {
@@ -145,56 +152,74 @@ export default function AdminAddOnsPage() {
 
   const fetchItems = useCallback(
     async (page = 1, limitOverride?: number) => {
+      const generation = ++fetchGenerationRef.current;
+      const isInitialLoad = !hasLoadedRef.current;
       try {
-        setLoading(true);
-        setError(null);
+        // Only the first load should remount the page as a skeleton. Search /
+        // refresh must keep the current UI mounted or the search bar blinks.
+        if (isInitialLoad) setLoading(true);
+        else setIsRefreshing(true);
+
         const l = limitOverride || limit;
-        const search = searchTerm
-          ? `&search=${encodeURIComponent(searchTerm)}`
+        const search = searchTermRef.current.trim();
+        const searchQuery = search
+          ? `&search=${encodeURIComponent(search)}`
           : "";
         const data = await api.get<ApiResponse>(
-          `/api/admin/addons?page=${page}&limit=${l}${search}`,
+          `/api/admin/addons?page=${page}&limit=${l}${searchQuery}`,
         );
+        if (generation !== fetchGenerationRef.current) return;
+
         setItems(data.items || []);
         setTotalItems(data.total || 0);
         setCurrentPage(data.page || 1);
         setTotalPages(data.totalPages || 1);
-        setStats({
-          active: data.stats?.active || 0,
-          inactive: data.stats?.inactive || 0,
-        });
+        if (data.stats && typeof data.stats.active === "number") {
+          setStats({
+            active: data.stats.active,
+            inactive:
+              typeof data.stats.inactive === "number" ? data.stats.inactive : 0,
+          });
+        }
+        setError(null);
+        hasLoadedRef.current = true;
       } catch (err: any) {
+        if (generation !== fetchGenerationRef.current) return;
         console.error("Failed to load addons:", err);
         setError(getApiErrorMessage(err, "Failed to load addons"));
         setItems([]);
         setTotalItems(0);
         setTotalPages(1);
         setStats({ active: 0, inactive: 0 });
+        hasLoadedRef.current = true;
       } finally {
-        setLoading(false);
+        if (generation === fetchGenerationRef.current) {
+          setLoading(false);
+          setIsRefreshing(false);
+        }
       }
     },
-    [searchTerm, limit],
+    [limit],
   );
 
+  // Initial load
   useEffect(() => {
-    fetchItems(1);
-  }, [fetchItems]);
+    void fetchItems(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Debounced search
+  // Search only after the user stops typing.
   useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+    if (skipSearchDebounceRef.current) {
+      skipSearchDebounceRef.current = false;
+      return;
     }
-    searchTimeoutRef.current = setTimeout(() => {
-      fetchItems(1);
-    }, 300);
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchTerm, fetchItems]);
+    const timer = window.setTimeout(() => {
+      void fetchItems(1);
+    }, 500);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
 
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
     try {
@@ -269,8 +294,6 @@ export default function AdminAddOnsPage() {
   const activeCount = stats.active;
   const inactiveCount = stats.inactive;
 
-  const isLowStock = (stock: number) => stock > 0 && stock <= 5;
-
   const getItemImage = (item: AddOnItem) => {
     if (item.thumbnailImage) {
       return (
@@ -289,7 +312,7 @@ export default function AdminAddOnsPage() {
     );
   };
 
-  if (loading && items.length === 0) {
+  if (loading) {
     return (
       <div className="space-y-4 sm:space-y-6 px-3 sm:px-0">
         <Skeleton className="h-6 sm:h-8 w-32 sm:w-48" />
@@ -451,20 +474,30 @@ export default function AdminAddOnsPage() {
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-end">
         <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-none">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+            <Search
+              className={`absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400 ${
+                isRefreshing ? "opacity-40" : ""
+              }`}
+            />
+            {isRefreshing && (
+              <RefreshCw className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400 animate-spin" />
+            )}
             <input
               type="text"
-              placeholder="Search add-ons by name or ID..."
+              placeholder="Search by add-on name or store name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-64 pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
+              className="w-full sm:w-64 pl-8 sm:pl-9 pr-8 sm:pr-9 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
             />
           </div>
           <button
             onClick={() => fetchItems(currentPage)}
-            className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0"
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-black transition text-xs sm:text-sm border border-gray-200 rounded-lg bg-white hover:cursor-pointer shrink-0 disabled:opacity-60"
           >
-            <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+            <RefreshCw
+              className={`w-3 h-3 sm:w-4 sm:h-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
             <span>Refresh</span>
           </button>
         </div>
@@ -480,7 +513,7 @@ export default function AdminAddOnsPage() {
           <h3 className="text-sm font-medium text-black">No Add-Ons Found</h3>
           <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto">
             {searchTerm
-              ? "No products match your search query."
+              ? "No add-ons match your search."
               : "Start by adding your first addon product using the button above."}
           </p>
         </div>
@@ -501,76 +534,98 @@ export default function AdminAddOnsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {items.map((item) => (
-                    <tr
-                      key={item._id}
-                      className="hover:bg-gray-50/50 transition"
-                    >
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          {getItemImage(item)}
-                          <div className="min-w-0">
-                            <span className="text-xs sm:text-sm font-medium text-black">
-                              {item.name || "—"}
-                            </span>
-                            {item.nameAr && (
-                              <span
-                                className="block text-[10px] sm:text-xs text-gray-400 truncate"
-                                dir="rtl"
-                              >
-                                {item.nameAr}
+                  {items.map((item) => {
+                    const itemLow = isLowStockQty(item.stock);
+                    return (
+                      <tr
+                        key={item._id}
+                        className={`transition ${
+                          itemLow
+                            ? "bg-rose-50/80 hover:bg-rose-50"
+                            : "hover:bg-gray-50/50"
+                        }`}
+                      >
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            {getItemImage(item)}
+                            <div className="min-w-0">
+                              <span className="text-xs sm:text-sm font-medium text-black">
+                                {item.name || "—"}
                               </span>
-                            )}
+                              {item.nameAr && (
+                                <span
+                                  className="block text-[10px] sm:text-xs text-gray-400 truncate"
+                                  dir="rtl"
+                                >
+                                  {item.nameAr}
+                                </span>
+                              )}
+                              {itemLow && (
+                                <div className="mt-1">
+                                  <LowStockBadge label="Low stock" />
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 text-black text-xs sm:text-sm">
-                        {getStoreDisplay(item.fabricShopId)}
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 font-medium text-black text-xs sm:text-sm">
-                        {formatAED(item.price)}
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 text-black text-xs sm:text-sm">
-                        <span className="inline-flex items-center gap-1.5">
-                          {item.stock}
-                          {isLowStock(item.stock) && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                              Low
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 text-black text-xs sm:text-sm">
+                          {getStoreDisplay(item.fabricShopId)}
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 font-medium text-black text-xs sm:text-sm">
+                          {formatAED(item.price)}
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span
+                              className={`tabular-nums font-semibold ${
+                                itemLow ? "text-rose-800" : "text-black"
+                              }`}
+                            >
+                              {item.stock}
                             </span>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-4 sm:px-6 py-4">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
-                            item.isActive
-                              ? "bg-white text-black border border-black/30"
-                              : "bg-gray-100 text-gray-500 border border-gray-200"
-                          }`}
-                        >
-                          {item.isActive ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td className="px-4 sm:px-6 py-4 text-right">
-                        <button
-                          onClick={(e) => {
-                            const rect =
-                              e.currentTarget.getBoundingClientRect();
-                            setMenuAnchor(e.currentTarget);
-                            setMenuPosition({
-                              top: rect.bottom + 8,
-                              right: window.innerWidth - rect.right,
-                            });
-                            setMenuItem(item);
-                          }}
-                          className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
-                          title="Actions"
-                        >
-                          <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                            {item.stock <= 0 ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                                Out
+                              </span>
+                            ) : itemLow ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium bg-rose-100 text-rose-800 border border-rose-200">
+                                Low
+                              </span>
+                            ) : null}
+                          </span>
+                        </td>
+                        <td className="px-4 sm:px-6 py-4">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
+                              item.isActive
+                                ? "bg-white text-black border border-black/30"
+                                : "bg-gray-100 text-gray-500 border border-gray-200"
+                            }`}
+                          >
+                            {item.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td className="px-4 sm:px-6 py-4 text-right">
+                          <button
+                            onClick={(e) => {
+                              const rect =
+                                e.currentTarget.getBoundingClientRect();
+                              setMenuAnchor(e.currentTarget);
+                              setMenuPosition({
+                                top: rect.bottom + 8,
+                                right: window.innerWidth - rect.right,
+                              });
+                              setMenuItem(item);
+                            }}
+                            className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
+                            title="Actions"
+                          >
+                            <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -578,78 +633,98 @@ export default function AdminAddOnsPage() {
 
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3 sm:space-y-4">
-            {items.map((item) => (
-              <div
-                key={item._id}
-                className="bg-white border border-gray-100 rounded-2xl p-3 sm:p-4 shadow-sm"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                    {getItemImage(item)}
-                    <div className="min-w-0">
-                      <h3 className="text-xs sm:text-sm font-medium text-black truncate">
-                        {item.name || "—"}
-                      </h3>
-                      {item.nameAr && (
-                        <h4
-                          className="text-[10px] sm:text-xs text-gray-400 truncate"
-                          dir="rtl"
-                        >
-                          {item.nameAr}
-                        </h4>
-                      )}
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                          item.isActive
-                            ? "bg-white text-black border border-black/30"
-                            : "bg-gray-100 text-gray-500 border border-gray-200"
-                        }`}
-                      >
-                        {item.isActive ? "Active" : "Inactive"}
+            {items.map((item) => {
+              const itemLow = isLowStockQty(item.stock);
+              return (
+                <div
+                  key={item._id}
+                  className={`rounded-2xl p-3 sm:p-4 shadow-sm border ${
+                    itemLow
+                      ? "border-rose-200 bg-rose-50/80"
+                      : "border-gray-100 bg-white"
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      {getItemImage(item)}
+                      <div className="min-w-0">
+                        <h3 className="text-xs sm:text-sm font-medium text-black truncate">
+                          {item.name || "—"}
+                        </h3>
+                        {item.nameAr && (
+                          <h4
+                            className="text-[10px] sm:text-xs text-gray-400 truncate"
+                            dir="rtl"
+                          >
+                            {item.nameAr}
+                          </h4>
+                        )}
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                              item.isActive
+                                ? "bg-white text-black border border-black/30"
+                                : "bg-gray-100 text-gray-500 border border-gray-200"
+                            }`}
+                          >
+                            {item.isActive ? "Active" : "Inactive"}
+                          </span>
+                          {itemLow && <LowStockBadge label="Low stock" />}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setMenuAnchor(e.currentTarget);
+                        setMenuPosition({
+                          top: rect.bottom + 8,
+                          right: window.innerWidth - rect.right,
+                        });
+                        setMenuItem(item);
+                      }}
+                      className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer shrink-0"
+                      title="Actions"
+                    >
+                      <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </button>
+                  </div>
+
+                  <div className="mt-2 sm:mt-3 space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
+                      <Store className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                      <span className="truncate">
+                        {getStoreDisplay(item.fabricShopId)}
                       </span>
                     </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setMenuAnchor(e.currentTarget);
-                      setMenuPosition({
-                        top: rect.bottom + 8,
-                        right: window.innerWidth - rect.right,
-                      });
-                      setMenuItem(item);
-                    }}
-                    className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer shrink-0"
-                    title="Actions"
-                  >
-                    <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
-                </div>
-
-                <div className="mt-2 sm:mt-3 space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
-                  <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
-                    <Store className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                    <span className="truncate">
-                      {getStoreDisplay(item.fabricShopId)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
-                    <span className="font-medium text-black">
-                      {formatAED(item.price)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
-                    <Package className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                    <span>Stock: {item.stock}</span>
-                    {isLowStock(item.stock) && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                        Low
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
+                      <span className="font-medium text-black">
+                        {formatAED(item.price)}
                       </span>
-                    )}
+                    </div>
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
+                      <Package className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                      <span
+                        className={
+                          itemLow ? "font-semibold text-rose-800" : undefined
+                        }
+                      >
+                        Stock: {item.stock}
+                      </span>
+                      {item.stock <= 0 ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                          Out
+                        </span>
+                      ) : itemLow ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-medium bg-rose-100 text-rose-800 border border-rose-200">
+                          Low
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import toast from "react-hot-toast";
@@ -26,6 +26,7 @@ import { formatCurrency } from "@/lib/format";
 import { getDesignDisplayName } from "@/lib/customOrders";
 import { resolveReadyMadeImage } from "@/lib/readyMade";
 import { ImageModal } from "@/components/shared/ImageModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 function getApiErrMessage(err: unknown, fallback: string) {
@@ -169,10 +170,14 @@ export default function FabricNotificationPage() {
     items: sortedItems,
     unreadCount,
     loading,
-    loadingMore,
+    isRefreshing,
     error,
-    hasMore,
-    loadMore,
+    currentPage,
+    totalPages,
+    totalItems,
+    pageSize,
+    goToPage,
+    changeLimit,
     applyFilters,
     markAsRead,
     markAllAsRead,
@@ -186,13 +191,37 @@ export default function FabricNotificationPage() {
     pollIntervalMs: 30000,
   });
 
+  // Skip the mount run — the hook already loads the first page.
+  const skipFilterEffectRef = useRef(true);
   useEffect(() => {
-    applyFilters({
-      read: readFilter || undefined,
-      search: searchQuery.trim() || undefined,
-      page: 1,
-    });
-  }, [readFilter, searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (skipFilterEffectRef.current) {
+      skipFilterEffectRef.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setSelectedIds(new Set());
+      setExpandedId(null);
+      void applyFilters({
+        read: readFilter || undefined,
+        search: searchQuery.trim() || undefined,
+        page: 1,
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readFilter, searchQuery]);
+
+  const handlePageChange = (page: number) => {
+    setSelectedIds(new Set());
+    setExpandedId(null);
+    void goToPage(page);
+  };
+
+  const handleLimitChange = (limit: number) => {
+    setSelectedIds(new Set());
+    setExpandedId(null);
+    void changeLimit(limit);
+  };
 
   const handleMarkAsRead = async (notificationId: string) => {
     if (!notificationId) return;
@@ -274,14 +303,16 @@ export default function FabricNotificationPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t("searchPlaceholder")}
-            className="px-3 py-2 rounded-lg border border-gray-200 text-sm"
+            className={`px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white outline-none focus:outline-none focus:ring-0 focus:border-gray-300 transition ${
+              isRefreshing ? "opacity-70" : ""
+            }`}
           />
           <select
             value={readFilter}
             onChange={(e) =>
               setReadFilter(e.target.value as "" | "true" | "false")
             }
-            className="px-3 py-2 rounded-lg border border-gray-200 text-sm"
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white outline-none focus:outline-none focus:ring-0 focus:border-gray-300"
           >
             <option value="">{t("filterAll")}</option>
             <option value="false">{t("filterUnread")}</option>
@@ -521,23 +552,19 @@ export default function FabricNotificationPage() {
               </div>
             );
           })}
-
-          {hasMore && (
-            <div className="flex justify-center pt-2">
-              <button
-                type="button"
-                disabled={loadingMore}
-                onClick={loadMore}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                {loadingMore ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : null}
-                {t("loadMore")}
-              </button>
-            </div>
-          )}
         </div>
+      )}
+      {totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={Math.max(1, totalPages)}
+          onPageChange={handlePageChange}
+          showItemsPerPage={true}
+          itemsPerPage={pageSize}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={[5, 10, 20, 50, 100]}
+          totalItems={totalItems}
+        />
       )}
       <ImageModal
         isOpen={imageModalOpen}
