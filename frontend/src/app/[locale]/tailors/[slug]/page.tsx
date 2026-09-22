@@ -126,6 +126,7 @@ export default function TailorShopDetailPage() {
               experienceYears: t("experienceYears"),
               experienceMonth: t("experienceMonth"),
               experienceMonths: t("experienceMonths"),
+              experienceUnderOneYear: t("experienceUnderOneYear"),
             }}
           />
         </FadeInSection>

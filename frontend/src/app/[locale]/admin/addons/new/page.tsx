@@ -864,7 +864,7 @@ export default function AdminNewAddOnPage() {
 
             <CommissionFinalPriceField
               partnerPrice={Number(formData.price) || 0}
-              commissionPercent={formData.fabricShopId ? fabricCommission : 0}
+              commissionPercent={fabricCommission}
             />
 
             <FormField

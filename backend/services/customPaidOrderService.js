@@ -27,7 +27,7 @@ import { sendPaidOrderPlacedEmail } from "./orderPlacedEmail.js";
 import { notifyPaidOrderVendors } from "./vendorOrderNotify.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import {
-  customerPriceForPartnerItem,
+  applyMotdCommission,
   sumCustomerAddonPrices,
 } from "../utils/motdCommission.js";
 
@@ -757,7 +757,7 @@ export async function createPaidCustomOrder({
     addonId: a._id,
     name: a.name,
     nameAr: a.nameAr,
-    price: customerPriceForPartnerItem(a.price, a, fabricCommission),
+    price: applyMotdCommission(a.price, fabricCommission),
     thumbnailImage: a.thumbnailImage,
     fabricShopId: a.fabricShopId || null,
   }));

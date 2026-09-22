@@ -250,6 +250,7 @@
     "experienceYears": "سنوات",
     "experienceMonth": "شهر",
     "experienceMonths": "أشهر",
+    "experienceUnderOneYear": "أقل من سنة",
     "fabricsTitle": "الأقمشة",
     "fabricsCount": "{count} أقمشة",
     "fabricsEmpty": "لا توجد أقمشة متاحة من هذه العلامة حالياً.",
@@ -623,6 +624,7 @@
     "experienceYears": "سنوات",
     "experienceMonth": "شهر",
     "experienceMonths": "أشهر",
+    "experienceUnderOneYear": "أقل من سنة",
     "noSocial": "لا توجد روابط اجتماعية أو محفظة أعمال بعد.",
     "reviewsTitle": "تقييمات العملاء",
     "reviewsEmpty": "لا توجد تقييمات لهذا الخياط بعد.",
@@ -782,6 +784,8 @@
     "phoneHint": "أدخل 9 أرقام بعد +971",
     "aboutHint": "حتى 400 حرف",
     "partnerNoteHint": "اختياري. سيظهر هذا لفريق MOTD مع طلبك.",
+    "experienceHint": "أدخل خبرتك اليوم. يعرضها الحساب كما هي، ثم يزيد شهراً مع كل شهر ميلادي.",
+    "experienceMonthsHint": "من 0 إلى 11. اتركها 0 إذا كنت تحسب سنوات كاملة.",
     "requestNumberLabel": "رقم الطلب",
     "optional": "اختياري",
     "sections": {
@@ -803,6 +807,8 @@
       "about": "نبذة",
       "aboutAr": "نبذة (عربي)",
       "yearsOperating": "سنوات العمل",
+      "experienceYears": "سنوات الخبرة",
+      "experienceMonths": "الأشهر",
       "logo": "الشعار",
       "website": "الموقع",
       "socialName": "المنصة",
@@ -827,7 +833,9 @@
       "selectPlatform": "اختر المنصة",
       "socialCustomName": "مثال: Threads أو موقع المتجر",
       "partnerNote": "أي شيء ينبغي لفريق MOTD معرفته",
-      "select": "اختر"
+      "select": "اختر",
+      "experienceYears": "7",
+      "experienceMonths": "0"
     },
     "platforms": {
       "other": "أخرى"
@@ -840,7 +848,9 @@
       "socialPlatformDuplicate": "هذه المنصة مضافة بالفعل.",
       "socialOtherNameRequired": "أدخل اسم المنصة لخيار أخرى.",
       "socialUrlRequired": "رابط الحساب مطلوب.",
-      "socialUrlInvalid": "أدخل رابطاً صالحاً للمنصة المحددة."
+      "socialUrlInvalid": "أدخل رابطاً صالحاً للمنصة المحددة.",
+      "experienceYearsInvalid": "أدخل عدد سنوات صحيحاً من 0 إلى 80.",
+      "experienceMonthsInvalid": "الأشهر من 0 إلى 11."
     },
     "years": {
       "under_1": "أقل من سنة",
@@ -1088,7 +1098,8 @@
         "year": "سنة",
         "years": "سنوات",
         "month": "شهر",
-        "months": "أشهر"
+        "months": "أشهر",
+        "underOneYear": "أقل من سنة"
       },
       "addSocial": "إضافة رابط تواصل",
       "removeSocial": "إزالة الرابط",
@@ -1175,6 +1186,18 @@
         "pricing": "التسعير والمخزون",
         "tags": "الوسوم والتصنيفات",
         "images": "صور القماش"
+      },
+      "cuts": {
+        "loading": "جاري تحميل قائمة القصات...",
+        "empty": "لا توجد قصات نشطة. أنشئ القصات من الإعدادات ← القصات أولاً.",
+        "title": "القصات — السعر والمخزون",
+        "hint": "اختر القصة، ثم حدّد سعر القطعة والمخزون.",
+        "hintWithCommission": "اختر القصة، ثم حدّد سعرك للقطعة والمخزون. السعر النهائي يشمل عمولة MOTD.",
+        "addMore": "إضافة قصات أخرى",
+        "select": "اختر القصة *",
+        "placeholder": "اختر قصة...",
+        "stock": "المخزون *",
+        "remove": "حذف القصة"
       },
       "fields": {
         "name": "اسم القماش (بالإنجليزي)",
@@ -1562,7 +1585,8 @@
         "year": "سنة",
         "years": "سنوات",
         "month": "شهر",
-        "months": "أشهر"
+        "months": "أشهر",
+        "underOneYear": "أقل من سنة"
       },
       "addSocial": "إضافة رابط تواصل",
       "removeSocial": "إزالة الرابط",

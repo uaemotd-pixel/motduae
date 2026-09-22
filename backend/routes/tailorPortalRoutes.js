@@ -136,7 +136,7 @@ const enrichShopWithApplication = async (shop) => {
     ownerId: shop.ownerId,
   })
     .select(
-      "businessName businessNameAr about aboutAr logoUrl location area city phone website social licenceNumber licenceFileUrl yearsOperating experienceBaselineMonths experienceAnchorAt submittedAt createdAt",
+      "businessName businessNameAr about aboutAr logoUrl location area city phone website social licenceNumber licenceFileUrl yearsOperating experienceYears experienceMonths experienceBaselineMonths experienceAnchorAt submittedAt createdAt",
     )
     .lean();
 

@@ -31,6 +31,9 @@ interface FilterOption {
 const PRICE_MIN = 0;
 const PRICE_MAX = 25000;
 const PRICE_STEP = 10;
+const AGE_MIN = 0;
+const AGE_MAX = 150;
+const AGE_STEP = 1;
 
 interface FilterState {
   categories: string[];
@@ -41,7 +44,27 @@ interface FilterState {
   tags: string[];
   minPrice: number;
   maxPrice: number;
+  minAge: number;
+  maxAge: number;
   inStockOnly: boolean;
+}
+
+function productAgeBounds(item: ReadyMadeListItem) {
+  const rawMin = Number(item.minAge);
+  const rawMax = Number(item.maxAge);
+  const min = Number.isFinite(rawMin) ? Math.max(0, rawMin) : 0;
+  const max = Number.isFinite(rawMax) ? Math.max(0, rawMax) : 0;
+  return { min: Math.min(min, max), max: Math.max(min, max) };
+}
+
+function matchesAgeFilter(
+  item: ReadyMadeListItem,
+  filterMin: number,
+  filterMax: number,
+) {
+  if (filterMin <= AGE_MIN && filterMax >= AGE_MAX) return true;
+  const { min, max } = productAgeBounds(item);
+  return min <= filterMax && max >= filterMin;
 }
 
 const SearchOffIcon = () => (
@@ -355,6 +378,95 @@ const PriceRangeSlider = ({
   );
 };
 
+const AgeRangeSlider = ({
+  minAge,
+  maxAge,
+  onMinChange,
+  onMaxChange,
+  isAr,
+}: {
+  minAge: number;
+  maxAge: number;
+  onMinChange: (value: number) => void;
+  onMaxChange: (value: number) => void;
+  isAr: boolean;
+}) => {
+  const span = AGE_MAX - AGE_MIN || 1;
+  const minPercent = ((minAge - AGE_MIN) / span) * 100;
+  const maxPercent = ((maxAge - AGE_MIN) / span) * 100;
+  const unit = isAr ? "سنة" : "yrs";
+
+  const thumbClass =
+    "pointer-events-none absolute inset-0 w-full h-5 appearance-none bg-transparent [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:bg-transparent [&::-moz-range-track]:h-1 [&::-moz-range-track]:bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:mt-[-6px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-black [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-black [&::-moz-range-thumb]:cursor-pointer";
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between text-[11px] font-mono text-[#7A7A72]">
+        <span>
+          {minAge} {unit}
+        </span>
+        <span>
+          {maxAge} {unit}
+        </span>
+      </div>
+
+      <div className="relative h-5">
+        <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#E4E0D8]" />
+        <div
+          className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-black"
+          style={{
+            left: `${minPercent}%`,
+            width: `${Math.max(maxPercent - minPercent, 0)}%`,
+          }}
+        />
+        <input
+          type="range"
+          min={AGE_MIN}
+          max={AGE_MAX}
+          step={AGE_STEP}
+          value={minAge}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            if (Number.isNaN(next)) return;
+            onMinChange(Math.min(next, maxAge));
+          }}
+          className={`${thumbClass} z-10`}
+          aria-label={isAr ? "الحد الأدنى للعمر" : "Minimum age"}
+          aria-valuemin={AGE_MIN}
+          aria-valuemax={maxAge}
+          aria-valuenow={minAge}
+        />
+        <input
+          type="range"
+          min={AGE_MIN}
+          max={AGE_MAX}
+          step={AGE_STEP}
+          value={maxAge}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            if (Number.isNaN(next)) return;
+            onMaxChange(Math.max(next, minAge));
+          }}
+          className={`${thumbClass} z-20`}
+          aria-label={isAr ? "الحد الأقصى للعمر" : "Maximum age"}
+          aria-valuemin={minAge}
+          aria-valuemax={AGE_MAX}
+          aria-valuenow={maxAge}
+        />
+      </div>
+
+      <div className="flex justify-between text-[10px] font-mono uppercase tracking-[0.12em] text-[#8A8A80]">
+        <span>
+          {AGE_MIN} {unit}
+        </span>
+        <span>
+          {AGE_MAX} {unit}
+        </span>
+      </div>
+    </div>
+  );
+};
+
 const Pagination = ({
   currentPage,
   totalPages,
@@ -516,6 +628,8 @@ export default function ReadyMadeCatalogPage() {
     tags: [],
     minPrice: 0,
     maxPrice: PRICE_MAX,
+    minAge: AGE_MIN,
+    maxAge: AGE_MAX,
     inStockOnly: false,
   });
 
@@ -841,6 +955,10 @@ export default function ReadyMadeCatalogPage() {
       return false;
     }
 
+    if (!matchesAgeFilter(item, filters.minAge, filters.maxAge)) {
+      return false;
+    }
+
     // Stock filter
     if (filters.inStockOnly) {
       if (item.availableFabricStock === 0) {
@@ -882,6 +1000,8 @@ export default function ReadyMadeCatalogPage() {
     filters.tags.length > 0 ||
     filters.minPrice > 0 ||
     filters.maxPrice < PRICE_MAX ||
+    filters.minAge > AGE_MIN ||
+    filters.maxAge < AGE_MAX ||
     filters.inStockOnly;
 
   const activeFilterCount =
@@ -892,6 +1012,7 @@ export default function ReadyMadeCatalogPage() {
     filters.seasons.length +
     filters.tags.length +
     (filters.minPrice > 0 || filters.maxPrice < PRICE_MAX ? 1 : 0) +
+    (filters.minAge > AGE_MIN || filters.maxAge < AGE_MAX ? 1 : 0) +
     (filters.inStockOnly ? 1 : 0);
 
   useEffect(() => {
@@ -989,6 +1110,28 @@ export default function ReadyMadeCatalogPage() {
     setCurrentPage(1);
   };
 
+  const setMinAge = (value: number) => {
+    setFilters((prev) => {
+      const clampedMin = Math.max(AGE_MIN, Math.min(AGE_MAX, value));
+      return {
+        ...prev,
+        minAge: Math.min(clampedMin, prev.maxAge),
+      };
+    });
+    setCurrentPage(1);
+  };
+
+  const setMaxAge = (value: number) => {
+    setFilters((prev) => {
+      const clampedMax = Math.max(AGE_MIN, Math.min(AGE_MAX, value));
+      return {
+        ...prev,
+        maxAge: Math.max(clampedMax, prev.minAge),
+      };
+    });
+    setCurrentPage(1);
+  };
+
   const toggleInStock = () => {
     setFilters((prev) => ({ ...prev, inStockOnly: !prev.inStockOnly }));
     setCurrentPage(1);
@@ -1004,6 +1147,8 @@ export default function ReadyMadeCatalogPage() {
       tags: [],
       minPrice: 0,
       maxPrice: PRICE_MAX,
+      minAge: AGE_MIN,
+      maxAge: AGE_MAX,
       inStockOnly: false,
     });
     setCurrentPage(1);
@@ -1184,6 +1329,17 @@ export default function ReadyMadeCatalogPage() {
           maxPrice={filters.maxPrice}
           onMinChange={setMinPrice}
           onMaxChange={setMaxPrice}
+        />
+      </div>
+
+      <div className="border-b border-[#E4E0D8] pb-4">
+        <FilterLabel>{isAr ? "الفئة العمرية" : "Age Range"}</FilterLabel>
+        <AgeRangeSlider
+          minAge={filters.minAge}
+          maxAge={filters.maxAge}
+          onMinChange={setMinAge}
+          onMaxChange={setMaxAge}
+          isAr={isAr}
         />
       </div>
 
@@ -1474,6 +1630,35 @@ export default function ReadyMadeCatalogPage() {
                           </button>
                         </span>
                       ))}
+                      {(filters.minAge > AGE_MIN || filters.maxAge < AGE_MAX) && (
+                        <span className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full">
+                          {isAr
+                            ? `${filters.minAge}–${filters.maxAge} سنة`
+                            : `${filters.minAge}–${filters.maxAge} yrs`}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMinAge(AGE_MIN);
+                              setMaxAge(AGE_MAX);
+                            }}
+                            className="hover:opacity-70 flex items-center justify-center cursor-pointer"
+                          >
+                            <svg
+                              className="w-3 h-3"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                        </span>
+                      )}
                       {(filters.minPrice > 0 ||
                         filters.maxPrice < PRICE_MAX) && (
                         <span className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-widest sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full">

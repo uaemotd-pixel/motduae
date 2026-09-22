@@ -22,9 +22,7 @@ import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import {
-  cutValueToMeters,
-  formatCutLabel,
-  metersToWar,
+  formatCutEquivalentClause,
   type CutUnit,
 } from "@/lib/fabricUnits";
 
@@ -53,16 +51,6 @@ interface ApiResponse {
 function getNextCutNamePreview(totalCount: number): string {
   if (totalCount <= 0) return "cut";
   return `cut ${totalCount}`;
-}
-
-function getEquivalentLabel(cut: Cut): string {
-  const meters = cut.metersEquivalent ?? cutValueToMeters(cut.value, cut.unit);
-  const war = cut.warEquivalent ?? metersToWar(meters);
-
-  if (cut.unit === "war") {
-    return `≈ ${meters.toFixed(2)} meter`;
-  }
-  return `≈ ${war.toFixed(2)} war`;
 }
 
 export default function AdminSettingsCutsPage() {
@@ -371,17 +359,19 @@ export default function AdminSettingsCutsPage() {
   const createPreviewValue = Number(createValue);
   const createPreviewEquivalent =
     Number.isFinite(createPreviewValue) && createPreviewValue > 0
-      ? createUnit === "war"
-        ? `≈ ${cutValueToMeters(createPreviewValue, "war").toFixed(2)} meter`
-        : `≈ ${metersToWar(createPreviewValue).toFixed(2)} war`
+      ? formatCutEquivalentClause({
+          value: createPreviewValue,
+          unit: createUnit,
+        })
       : null;
 
   const editPreviewValue = Number(editValue);
   const editPreviewEquivalent =
     Number.isFinite(editPreviewValue) && editPreviewValue > 0
-      ? editUnit === "war"
-        ? `≈ ${cutValueToMeters(editPreviewValue, "war").toFixed(2)} meter`
-        : `≈ ${metersToWar(editPreviewValue).toFixed(2)} war`
+      ? formatCutEquivalentClause({
+          value: editPreviewValue,
+          unit: editUnit,
+        })
       : null;
 
   const nextCutNamePreview = searchQuery.trim()
@@ -648,10 +638,7 @@ export default function AdminSettingsCutsPage() {
                         </span>
                       )}
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 ring-1 ring-slate-200">
-                        {formatCutLabel(item.value, item.unit)}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {getEquivalentLabel(item)}
+                        {formatCutEquivalentClause(item)}
                       </span>
                       {item.isInUse && (
                         <span
