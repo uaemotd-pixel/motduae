@@ -371,6 +371,17 @@ export async function updateFabricShop(
   return response.item;
 }
 
+export async function updateFabricShopVisibility(payload: {
+  isActive: boolean;
+}): Promise<FabricShopProfile> {
+  const response = await api.patch<{
+    success: boolean;
+    message?: string;
+    item: FabricShopProfile;
+  }>("/api/fabric/shop/visibility", payload);
+  return response.item;
+}
+
 export interface FabricShopListItem {
   _id: string;
   slug: string;
@@ -385,6 +396,8 @@ export interface FabricShopListItem {
   phone?: string;
   website?: string;
   social?: FabricShopSocialLink[];
+  allowCustomerCalls?: boolean;
+  allowCustomerSocial?: boolean;
   experience?: {
     years: number;
     months: number;

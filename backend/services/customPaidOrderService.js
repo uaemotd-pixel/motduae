@@ -32,7 +32,9 @@ import {
 } from "../utils/motdCommission.js";
 
 const isApprovedTailorOwner = (owner) =>
-  owner?.role === "tailor" && owner?.approvalStatus === "approved";
+  owner?.role === "tailor" &&
+  owner?.approvalStatus === "approved" &&
+  owner?.isActive !== false;
 
 export const REQUIRED_MEASUREMENT_FIELDS = [
   "totalLength",
@@ -226,7 +228,7 @@ async function loadDesignWithApprovedShop(designId) {
 
   const shop = await TailorShop.findById(design.tailorShopId).populate(
     "ownerId",
-    "_id role approvalStatus",
+    "_id role approvalStatus isActive",
   );
 
   if (!shop?.isActive || !isApprovedTailorOwner(shop.ownerId)) {

@@ -55,6 +55,7 @@ import {
   isShopProfileComplete,
   isValidShopSlug,
   respondIfShopNotReady,
+  applyFabricShopVisibility,
 } from "../utils/shopReady.js";
 import { parsePayoutBankInput } from "../utils/partnerPayoutBank.js";
 import {
@@ -334,6 +335,45 @@ fabricPortalRouter.get(
       return;
     }
     res.json({ success: true, item: await enrichShopWithApplication(shop) });
+  }),
+);
+
+// PATCH /api/fabric/shop/visibility — partner pause / resume (does not lock account)
+fabricPortalRouter.patch(
+  "/shop/visibility",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res
+        .status(404)
+        .json({ success: false, message: "Fabric shop not found" });
+      return;
+    }
+
+    const wantActive = Boolean(req.body?.isActive);
+
+    if (shop.isActive === wantActive && wantActive) {
+      if (shop.inactiveUntil) {
+        shop.inactiveUntil = null;
+        await shop.save();
+      }
+      res.json({
+        success: true,
+        message: "Shop is already active",
+        item: await enrichShopWithApplication(shop),
+      });
+      return;
+    }
+
+    await applyFabricShopVisibility(shop, wantActive);
+
+    res.json({
+      success: true,
+      message: wantActive
+        ? "Shop activated successfully"
+        : "Shop deactivated successfully",
+      item: await enrichShopWithApplication(shop),
+    });
   }),
 );
 

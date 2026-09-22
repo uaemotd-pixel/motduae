@@ -306,17 +306,17 @@ export default function CustomerSettings({
               <button
                 type="submit"
                 disabled={isLoading || !isPasswordValid(password)}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-black px-6 py-2.5 text-sm font-medium text-white disabled:opacity-50 hover:bg-gray-800 transition hover:cursor-pointer min-w-36 w-full sm:w-auto"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-black px-8 py-3 text-xs font-medium uppercase tracking-[0.18em] text-white transition hover:bg-[#1A1A1A] disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer min-w-36 w-full sm:w-auto"
               >
                 {isLoading ? (
                   <>
                     <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    {isAr ? "جارٍ الحفظ..." : "Saving..."}
+                    {isAr ? "جارٍ الحفظ..." : "SAVING..."}
                   </>
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    {isAr ? "حفظ كلمة المرور" : "Save password"}
+                    {isAr ? "حفظ كلمة المرور" : "SAVE PASSWORD"}
                   </>
                 )}
               </button>

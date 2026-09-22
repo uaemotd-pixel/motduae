@@ -418,3 +418,14 @@ export async function updateTailorShop(
   );
   return response.item;
 }
+
+export async function updateTailorShopVisibility(payload: {
+  isActive: boolean;
+}): Promise<TailorShopProfile> {
+  const response = await api.patch<{
+    success: boolean;
+    message?: string;
+    item: TailorShopProfile;
+  }>("/api/tailor/shop/visibility", payload);
+  return response.item;
+}
