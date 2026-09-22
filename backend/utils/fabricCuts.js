@@ -405,8 +405,13 @@ export async function findInStockFabricParentIds(extraMatch = {}) {
 }
 
 /**
- * Parent ids with no remaining cut stock on the parent or any variant.
- * This is the admin Fabrics "Sold" tab (sold out), not inactive listings.
+ * Parent ids for the admin Fabrics "Sold" tab.
+ *
+ * A fabric belongs here when it is no longer sellable:
+ * - every cut on the parent and its variants is at 0 (sold out), OR
+ * - the parent listing is inactive (pulled from sale; legacy Sold behaviour)
+ *
+ * "Available" is the complement: active parents that still have cut stock.
  */
 export async function findSoldOutFabricParentIds(extraMatch = {}) {
   const inStock = new Set(await findInStockFabricParentIds(extraMatch));
@@ -414,10 +419,37 @@ export async function findSoldOutFabricParentIds(extraMatch = {}) {
     $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
     ...extraMatch,
   })
+    .select("_id isActive")
+    .lean();
+
+  const soldIds = [];
+  for (const parent of parents) {
+    const id = String(parent._id);
+    const inactive = parent.isActive === false;
+    const soldOut = !inStock.has(id);
+    if (soldOut || inactive) soldIds.push(id);
+  }
+  return soldIds;
+}
+
+/**
+ * Parent ids for the admin Fabrics "Available" tab:
+ * active listings that still have at least one cut piece (parent or variant).
+ */
+export async function findAvailableFabricParentIds(extraMatch = {}) {
+  const inStock = new Set(await findInStockFabricParentIds(extraMatch));
+  if (inStock.size === 0) return [];
+
+  const activeParents = await Fabric.find({
+    _id: {
+      $in: [...inStock].map((id) => new mongoose.Types.ObjectId(id)),
+    },
+    isActive: { $ne: false },
+    $or: [{ isVariantOf: null }, { isVariantOf: { $exists: false } }],
+    ...extraMatch,
+  })
     .select("_id")
     .lean();
 
-  return parents
-    .map((doc) => String(doc._id))
-    .filter((id) => !inStock.has(id));
+  return activeParents.map((doc) => String(doc._id));
 }
