@@ -41,12 +41,12 @@ function ctaBlock(url, label) {
 
 function introCopy(portalKind, orderType) {
   if (portalKind === "tailor") {
-    return "A customer has placed a paid custom order that includes items from your workshop.";
+    return "A customer has placed an order that includes items from your workshop at MOTD.";
   }
   if (orderType === "retail") {
-    return "A customer has placed a paid store order that includes items from your store.";
+    return "A customer has placed an order that includes items from your store at MOTD.";
   }
-  return "A customer has placed a paid custom order that includes fabric from your store.";
+  return "A customer has placed an order that includes items from your store at MOTD.";
 }
 
 function lineLabels(lines) {

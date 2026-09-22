@@ -262,6 +262,7 @@ export default function BrandDetailPage() {
     years: t("experienceYears"),
     month: t("experienceMonth"),
     months: t("experienceMonths"),
+    underOneYear: t("experienceUnderOneYear"),
   });
 
   return (

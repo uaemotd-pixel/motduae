@@ -29,7 +29,7 @@ import {
 import { formatCurrency } from "@/lib/format";
 
 import { formatDesignCategory, getDesignMinCutLength } from "@/lib/tailors";
-import { formatCutLabel } from "@/lib/fabricUnits";
+import { formatCutEquivalentClause } from "@/lib/fabricUnits";
 import {
   groupSelectedCutPieces,
   resolveOrderLeftoverMeters,
@@ -363,7 +363,10 @@ export default function OrderReviewStep() {
                       : entry.cut.name
                     : cutId;
                   const lengthLabel = entry?.cut
-                    ? formatCutLabel(entry.cut.value, entry.cut.unit, locale)
+                    ? formatCutEquivalentClause(
+                        entry.cut,
+                        locale === "ar" ? "ar" : "en",
+                      )
                     : "";
                   const lengthMeters = getFabricCutLengthInMeters(
                     item.fabric,

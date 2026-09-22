@@ -58,6 +58,7 @@ type TailorDetailViewProps = {
     experienceYears: string;
     experienceMonth: string;
     experienceMonths: string;
+    experienceUnderOneYear: string;
   };
 };
 
@@ -97,6 +98,7 @@ export default function TailorDetailView({
     years: labels.experienceYears,
     month: labels.experienceMonth,
     months: labels.experienceMonths,
+    underOneYear: labels.experienceUnderOneYear,
   });
 
   return (

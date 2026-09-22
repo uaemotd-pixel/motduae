@@ -21,7 +21,7 @@ import {
   shopPickupToFabricStorePickup,
   type FabricShopProfile,
 } from "@/lib/fabricShop";
-import { formatCutLabel } from "@/lib/fabricUnits";
+import { formatBilingualCutOption } from "@/lib/fabricUnits";
 import { applyMotdCommission } from "@/lib/motdCommission";
 import { useFabricStoreCommission } from "@/components/partner/CommissionFinalPriceField";
 import {
@@ -78,6 +78,33 @@ interface CatalogCut {
   isActive?: boolean;
 }
 
+type FabricCutsEditorCopy = {
+  loading: string;
+  empty: string;
+  title: string;
+  hint: string;
+  hintWithCommission: string;
+  addMore: string;
+  select: string;
+  placeholder: string;
+  stock: string;
+  remove: string;
+};
+
+const DEFAULT_CUTS_COPY: FabricCutsEditorCopy = {
+  loading: "Loading cuts catalog...",
+  empty: "No active cuts found. Create cuts in Settings → Cuts first.",
+  title: "Cuts — Price & Stock",
+  hint: "Select cut, set price per piece and stock.",
+  hintWithCommission:
+    "Select cut, set your price per piece and stock. Final price includes MOTD commission.",
+  addMore: "Add More Cuts",
+  select: "Select cut *",
+  placeholder: "Choose a cut...",
+  stock: "Stock *",
+  remove: "Remove cut",
+};
+
 export function FabricCutsEditor({
   cuts,
   catalogCuts,
@@ -89,6 +116,7 @@ export function FabricCutsEditor({
   commissionPercent,
   priceLabel = "Price (AED)",
   finalPriceLabel = "Final price (AED)",
+  copy,
 }: {
   cuts: FabricCutFormEntry[];
   catalogCuts: CatalogCut[];
@@ -100,7 +128,9 @@ export function FabricCutsEditor({
   commissionPercent?: number;
   priceLabel?: string;
   finalPriceLabel?: string;
+  copy?: Partial<FabricCutsEditorCopy>;
 }) {
+  const labels = { ...DEFAULT_CUTS_COPY, ...copy };
   const rows =
     cuts.length > 0 ? cuts : [createEmptyFabricCutRow()];
 
@@ -153,14 +183,14 @@ export function FabricCutsEditor({
 
   if (loading) {
     return (
-      <p className="text-xs text-gray-500 py-2">Loading cuts catalog...</p>
+      <p className="text-xs text-gray-500 py-2">{labels.loading}</p>
     );
   }
 
   if (catalogCuts.length === 0) {
     return (
       <p className="text-xs text-amber-700 py-2">
-        No active cuts found. Create cuts in Settings → Cuts first.
+        {labels.empty}
       </p>
     );
   }
@@ -175,12 +205,12 @@ export function FabricCutsEditor({
         {showTitle ? (
           <div>
             <h3 className="text-sm font-semibold text-gray-900">
-              Cuts — Price & Stock
+              {labels.title}
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
               {showFinalPrice && (commissionPercent ?? 0) > 0
-                ? "Select cut, set your price per piece and stock. Final price includes MOTD commission."
-                : "Select cut, set price per piece and stock."}
+                ? labels.hintWithCommission
+                : labels.hint}
             </p>
           </div>
         ) : (
@@ -192,7 +222,7 @@ export function FabricCutsEditor({
             onClick={addCutRow}
             className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-gray-700 hover:text-black border-b border-transparent hover:border-black pb-0.5 transition-colors shrink-0 hover:cursor-pointer"
           >
-            Add More Cuts
+            {labels.addMore}
             <Plus className="h-3.5 w-3.5" />
           </button>
         )}
@@ -225,7 +255,7 @@ export function FabricCutsEditor({
                   <label
                     className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1"
                   >
-                    Select cut *
+                    {labels.select}
                   </label>
                   <div className="relative">
                     <select
@@ -233,10 +263,10 @@ export function FabricCutsEditor({
                       onChange={(e) => selectCut(index, e.target.value)}
                       className={`${rowInputClass} appearance-none pr-7`}
                     >
-                      <option value="">Choose a cut...</option>
+                      <option value="">{labels.placeholder}</option>
                       {availableCuts.map((cut) => (
                         <option key={cut._id} value={cut._id}>
-                          {cut.name}
+                          {formatBilingualCutOption(cut)}
                         </option>
                       ))}
                     </select>
@@ -305,7 +335,7 @@ export function FabricCutsEditor({
                   <label
                     className="block text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1"
                   >
-                    Stock *
+                    {labels.stock}
                   </label>
                   <input
                     type="number"
@@ -330,7 +360,7 @@ export function FabricCutsEditor({
                     type="button"
                     onClick={() => removeCutRow(index)}
                     className="p-2 text-gray-400 hover:text-red-600 transition-colors shrink-0 self-end hover:cursor-pointer"
-                    aria-label="Remove cut"
+                    aria-label={labels.remove}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

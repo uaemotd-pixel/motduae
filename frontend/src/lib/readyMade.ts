@@ -31,6 +31,8 @@ export interface ReadyMadeListItem {
   fabricPriceAED?: number;
   mukhawarPriceAED?: number;
   availableFabricStock?: number;
+  minAge?: number;
+  maxAge?: number;
   isActive?: boolean;
   fabricShopId?: string | null;
   fabricShop?: {
