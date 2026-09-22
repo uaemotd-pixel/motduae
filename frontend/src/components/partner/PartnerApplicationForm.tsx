@@ -22,7 +22,6 @@ import {
   OFFERINGS,
   SOCIAL_MAX,
   WORK_SETUPS,
-  YEARS_OPERATING,
   collectRequiredFieldErrors,
   emptyPartnerApplication,
   fetchPartnerApplication,
@@ -77,7 +76,8 @@ const REQUIRED_FIELD_LABELS: Record<string, string> = {
   location: "fields.location",
   about: "fields.about",
   aboutAr: "fields.aboutAr",
-  yearsOperating: "fields.yearsOperating",
+  experienceYears: "fields.experienceYears",
+  experienceMonths: "fields.experienceMonths",
   makeTime: "fields.makeTime",
   workSetup: "fields.workSetup",
   offering: "fields.offering",
@@ -206,6 +206,8 @@ export default function PartnerApplicationForm({ role }: Props) {
     if (value === "invalid") {
       if (key === "phone") return t("validation.phoneInvalid");
       if (key === "website") return t("validation.websiteInvalid");
+      if (key === "experienceYears") return t("validation.experienceYearsInvalid");
+      if (key === "experienceMonths") return t("validation.experienceMonthsInvalid");
       if (key.endsWith(".url")) return t("validation.socialUrlInvalid");
       return t("validation.socialPlatformInvalid");
     }
@@ -285,7 +287,8 @@ export default function PartnerApplicationForm({ role }: Props) {
     location: form.location,
     about: form.about,
     aboutAr: form.aboutAr,
-    yearsOperating: form.yearsOperating,
+    experienceYears: form.experienceYears,
+    experienceMonths: form.experienceMonths === "" ? 0 : form.experienceMonths,
     logoUrl: form.logoUrl.trim() ? undefined : "",
     website: form.website.trim()
       ? normalizeHttpUrl(form.website.trim())
@@ -623,26 +626,57 @@ export default function PartnerApplicationForm({ role }: Props) {
           <h2 className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] sm:tracking-[0.24em] text-black">
             {t("sections.operations")}
           </h2>
-          <FormField
-            label={t("fields.yearsOperating")}
-            name="yearsOperating"
-            required
-            error={showRequired("yearsOperating")}
-          >
-            <select
-              id="yearsOperating"
-              value={form.yearsOperating}
-              onChange={(e) => setField("yearsOperating", e.target.value)}
-              className={SELECT_CLASS}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 min-w-0">
+            <FormField
+              label={t("fields.experienceYears")}
+              name="experienceYears"
+              required
+              hint={t("experienceHint")}
+              error={showRequired("experienceYears")}
             >
-              <option value="">{t("placeholders.select")}</option>
-              {YEARS_OPERATING.map((value) => (
-                <option key={value} value={value}>
-                  {t(`years.${value}`)}
-                </option>
-              ))}
-            </select>
-          </FormField>
+              <input
+                id="experienceYears"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={80}
+                step={1}
+                value={form.experienceYears}
+                onChange={(e) =>
+                  setField(
+                    "experienceYears",
+                    e.target.value === "" ? "" : Number(e.target.value),
+                  )
+                }
+                placeholder={t("placeholders.experienceYears")}
+                className={INPUT_CLASS}
+              />
+            </FormField>
+            <FormField
+              label={t("fields.experienceMonths")}
+              name="experienceMonths"
+              hint={t("experienceMonthsHint")}
+              error={showRequired("experienceMonths")}
+            >
+              <input
+                id="experienceMonths"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={11}
+                step={1}
+                value={form.experienceMonths}
+                onChange={(e) =>
+                  setField(
+                    "experienceMonths",
+                    e.target.value === "" ? "" : Number(e.target.value),
+                  )
+                }
+                placeholder={t("placeholders.experienceMonths")}
+                className={INPUT_CLASS}
+              />
+            </FormField>
+          </div>
           {role === "tailor" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 min-w-0">
               <FormField

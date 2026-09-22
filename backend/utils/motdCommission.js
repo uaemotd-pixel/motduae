@@ -49,24 +49,13 @@ export function withCustomerFabricPrices(fabric, commissionPercent) {
   };
 }
 
-export function customerPriceForPartnerItem(
-  netAmount,
-  item,
-  commissionPercent = 0,
-) {
-  const net = Number(Math.max(0, Number(netAmount) || 0).toFixed(2));
-  if (!isPartnerOwnedFabric(item)) return net;
-  return applyMotdCommission(net, commissionPercent);
-}
-
 export function withCustomerReadyMadePrice(item, commissionPercent) {
   if (!item) return item;
   const obj = item.toObject ? item.toObject() : { ...item };
   return {
     ...obj,
-    finalSellingPriceAED: customerPriceForPartnerItem(
+    finalSellingPriceAED: applyMotdCommission(
       obj.finalSellingPriceAED,
-      obj,
       commissionPercent,
     ),
   };
@@ -77,7 +66,7 @@ export function withCustomerAddonPrice(item, commissionPercent) {
   const obj = item.toObject ? item.toObject() : { ...item };
   return {
     ...obj,
-    price: customerPriceForPartnerItem(obj.price, obj, commissionPercent),
+    price: applyMotdCommission(obj.price, commissionPercent),
   };
 }
 
@@ -86,7 +75,7 @@ export function sumCustomerAddonPrices(addons = [], commissionPercent = 0) {
     addons
       .reduce(
         (sum, addon) =>
-          sum + customerPriceForPartnerItem(addon?.price, addon, commissionPercent),
+          sum + applyMotdCommission(addon?.price, commissionPercent),
         0,
       )
       .toFixed(2),

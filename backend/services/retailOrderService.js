@@ -191,19 +191,12 @@ export async function prepareRetailOrder(orderItems) {
       throw new Error(`${product.name} is out of stock`);
     }
 
-    let finalPrice;
-    if (isAddon) {
-      finalPrice = product.fabricShopId
-        ? applyMotdCommission(product.price, fabricCommissionPercent)
-        : product.price;
-    } else {
-      finalPrice = product.fabricShopId
-        ? applyMotdCommission(
-            product.finalSellingPriceAED,
-            fabricCommissionPercent,
-          )
-        : product.finalSellingPriceAED;
-    }
+    const finalPrice = isAddon
+      ? applyMotdCommission(product.price, fabricCommissionPercent)
+      : applyMotdCommission(
+          product.finalSellingPriceAED,
+          fabricCommissionPercent,
+        );
 
     const sizeLabel = isAddon ? "N/A" : product.metersPerFabric;
     const kind = isAddon ? "addon" : "readyMade";

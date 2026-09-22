@@ -27,6 +27,13 @@ export type PartnerApplication = {
   about: string;
   aboutAr: string;
   yearsOperating: string;
+  experienceYears: number | "";
+  experienceMonths: number | "";
+  experience?: {
+    years: number;
+    months: number;
+    yearsOperating?: string;
+  } | null;
   logoUrl: string;
   website: string;
   social: PartnerSocialLink[];
@@ -61,6 +68,8 @@ export function emptyPartnerApplication(role: PartnerRole): PartnerApplication {
     about: "",
     aboutAr: "",
     yearsOperating: "",
+    experienceYears: "",
+    experienceMonths: "",
     logoUrl: "",
     website: "",
     social: [],
@@ -133,8 +142,23 @@ export function collectRequiredFieldErrors(
   requireText("location", "required");
   requireText("about", "required");
   requireText("aboutAr", "required");
-  if (!YEARS_OPERATING.includes(form.yearsOperating as (typeof YEARS_OPERATING)[number])) {
-    errors.yearsOperating = "required";
+  if (form.experienceYears === "" || form.experienceYears == null) {
+    errors.experienceYears = "required";
+  } else if (
+    !Number.isInteger(form.experienceYears) ||
+    form.experienceYears < 0 ||
+    form.experienceYears > 80
+  ) {
+    errors.experienceYears = "invalid";
+  }
+  if (
+    form.experienceMonths !== "" &&
+    form.experienceMonths != null &&
+    (!Number.isInteger(form.experienceMonths) ||
+      form.experienceMonths < 0 ||
+      form.experienceMonths > 11)
+  ) {
+    errors.experienceMonths = "invalid";
   }
   if (role === "tailor") {
     if (!MAKE_TIMES.includes(form.makeTime as (typeof MAKE_TIMES)[number])) {
@@ -193,6 +217,19 @@ export function collectRequiredFieldErrors(
   return errors;
 }
 
+const WINDOW_BASELINE_MONTHS: Record<string, number> = {
+  under_1: 0,
+  "1_3": 12,
+  "3_10": 36,
+  "10_plus": 120,
+};
+
+function readExperienceCount(value: unknown): number | "" {
+  if (value === "" || value == null) return "";
+  const count = Number(value);
+  return Number.isInteger(count) && count >= 0 ? count : "";
+}
+
 export function isApplicationComplete(form: PartnerApplication, role: PartnerRole) {
   return Object.keys(collectRequiredFieldErrors(form, role)).length === 0;
 }
@@ -204,8 +241,22 @@ function hydrateApplication(
 function hydrateApplication(application: PartnerApplication | null | undefined) {
   if (!application) return application;
   const legacyArea = (application as { area?: string }).area;
+  let experienceYears = readExperienceCount(application.experienceYears);
+  let experienceMonths = readExperienceCount(application.experienceMonths);
+  if (experienceYears === "") {
+    const baseline = WINDOW_BASELINE_MONTHS[application.yearsOperating];
+    if (baseline != null) {
+      experienceYears = Math.floor(baseline / 12);
+      experienceMonths = baseline % 12;
+    }
+  }
+  if (experienceYears !== "" && experienceMonths === "") {
+    experienceMonths = 0;
+  }
   return {
     ...application,
+    experienceYears,
+    experienceMonths,
     location: String(application.location || legacyArea || "").trim(),
     social: normalizeSocialLinks(application.social),
     requestNumber: String(application.requestNumber || "").trim(),

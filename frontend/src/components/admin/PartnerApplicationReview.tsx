@@ -17,6 +17,7 @@ import {
   normalizeSocialLinks,
   type PartnerApplication,
 } from "@/lib/partnerApplication";
+import { formatPartnerExperience } from "@/lib/partnerExperience";
 
 type PartnerKind = "tailor" | "fabric_store";
 
@@ -686,9 +687,19 @@ export default function PartnerApplicationReview({
             </div>
             <div>
               <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400 mb-1">
-                Years operating
+                Experience
               </p>
-              <p>{app.yearsOperating || "—"}</p>
+              <p>
+                {app.experience
+                  ? formatPartnerExperience(app.experience, {
+                      year: "year",
+                      years: "years",
+                      month: "month",
+                      months: "months",
+                      underOneYear: "Under 1 year",
+                    })
+                  : "—"}
+              </p>
             </div>
           </div>
           {kind === "tailor" ? (

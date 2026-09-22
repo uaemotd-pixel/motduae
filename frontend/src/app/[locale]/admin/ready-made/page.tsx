@@ -29,6 +29,7 @@ import { LowStockBadge } from "@/components/shared/LowStockBadge";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 import { isLowStockQty } from "@/lib/lowStock";
+import { PartnerListingPrice, useFabricStoreCommission } from "@/components/partner/CommissionFinalPriceField";
 
 interface ReadyMadeItem {
   _id: string;
@@ -60,6 +61,7 @@ type ApiResponse = {
 
 export default function AdminReadyMadePage() {
   const { user } = useAuth();
+  const commissionPercent = useFabricStoreCommission();
   const [items, setItems] = useState<ReadyMadeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -613,10 +615,13 @@ export default function AdminReadyMadePage() {
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                           {item.tailorName || "—"}
                         </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 font-mono">
-                          <span className="text-gray-500">
-                            AED {item.finalSellingPriceAED}
-                          </span>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                          <PartnerListingPrice
+                            netAmount={item.finalSellingPriceAED}
+                            commissionPercent={commissionPercent}
+                            stacked
+                            className="text-xs sm:text-sm"
+                          />
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm">
                           <span className="inline-flex items-center gap-1.5">
@@ -705,7 +710,12 @@ export default function AdminReadyMadePage() {
                       <span>{item.tailorName || "—"}</span>
                     </div>
                     <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
-                      <span>AED {item.finalSellingPriceAED}</span>
+                      <PartnerListingPrice
+                        netAmount={item.finalSellingPriceAED}
+                        commissionPercent={commissionPercent}
+                        stacked
+                        className="text-xs sm:text-sm"
+                      />
                     </div>
                     <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
                       <Box className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />

@@ -25,6 +25,9 @@ import {
   computePartnerExperience,
   syncExperienceAnchor,
   baselineMonthsFromYearsOperating,
+  parseExactExperience,
+  writeExactExperience,
+  windowFromExactMonths,
 } from "../../utils/partnerExperience.js";
 import {
   isPayoutBankComplete,
@@ -65,6 +68,10 @@ export function toApplicationDto(doc) {
     about: doc.about || "",
     aboutAr: doc.aboutAr || "",
     yearsOperating: doc.yearsOperating || "",
+    experienceYears:
+      Number.isInteger(doc.experienceYears) ? doc.experienceYears : null,
+    experienceMonths:
+      Number.isInteger(doc.experienceMonths) ? doc.experienceMonths : null,
     experience: computePartnerExperience(plain),
     logoUrl: doc.logoUrl || "",
     website: doc.website || "",
@@ -174,7 +181,19 @@ export function applySubmitMutation(owner, doc, now, mintedNumber) {
 
   // Lock experience clock on first submit so draft delays do not inflate tenure.
   const isFirstSubmit = !owner.applicationSubmittedAt;
-  if (doc.yearsOperating) {
+  const exact = parseExactExperience(doc.experienceYears, doc.experienceMonths ?? 0);
+  if (exact) {
+    const previousBaseline = doc.experienceBaselineMonths;
+    doc.experienceBaselineMonths = exact.totalMonths;
+    doc.yearsOperating = windowFromExactMonths(exact.totalMonths);
+    if (
+      isFirstSubmit ||
+      !doc.experienceAnchorAt ||
+      previousBaseline !== exact.totalMonths
+    ) {
+      doc.experienceAnchorAt = now;
+    }
+  } else if (doc.yearsOperating) {
     const baseline = baselineMonthsFromYearsOperating(doc.yearsOperating);
     if (baseline != null) {
       doc.experienceBaselineMonths = baseline;
@@ -273,6 +292,29 @@ export function applyPatch(doc, body = {}) {
   if (body.partnerNote !== undefined) {
     doc.partnerNote = trimText(body.partnerNote, PARTNER_NOTE_MAX_LENGTH);
   }
+
+  if (body.experienceYears !== undefined || body.experienceMonths !== undefined) {
+    const years =
+      body.experienceYears !== undefined
+        ? body.experienceYears
+        : doc.experienceYears;
+    const months =
+      body.experienceMonths !== undefined
+        ? body.experienceMonths
+        : doc.experienceMonths ?? 0;
+    if (years === "" || years == null) {
+      doc.experienceYears = undefined;
+      doc.experienceMonths = undefined;
+      doc.experienceBaselineMonths = undefined;
+      doc.yearsOperating = "";
+      doc.experienceAnchorAt = undefined;
+    } else if (!writeExactExperience(doc, years, months === "" ? 0 : months)) {
+      const yearsNumber = Number(years);
+      const monthsNumber = Number(months === "" ? 0 : months);
+      if (Number.isFinite(yearsNumber)) doc.experienceYears = yearsNumber;
+      if (Number.isFinite(monthsNumber)) doc.experienceMonths = monthsNumber;
+    }
+  }
 }
 
 export function collectSubmitErrors(user, doc) {
@@ -294,8 +336,22 @@ export function collectSubmitErrors(user, doc) {
   }
   requireText("about", "About");
   requireText("aboutAr", "About (Arabic)");
-  if (!YEARS_OPERATING.includes(doc.yearsOperating)) {
-    errors.yearsOperating = "Years operating is required";
+  const exactExperience = parseExactExperience(
+    doc.experienceYears,
+    doc.experienceMonths ?? 0,
+  );
+  if (!exactExperience && !YEARS_OPERATING.includes(doc.yearsOperating)) {
+    errors.experienceYears = "Years of experience is required";
+  } else if (
+    doc.experienceYears != null &&
+    doc.experienceYears !== "" &&
+    !exactExperience
+  ) {
+    errors.experienceYears = "Enter a whole number of years from 0 to 80";
+    const months = Number(doc.experienceMonths);
+    if (!Number.isInteger(months) || months < 0 || months > 11) {
+      errors.experienceMonths = "Months must be from 0 to 11";
+    }
   }
 
   if (user.role === "tailor") {

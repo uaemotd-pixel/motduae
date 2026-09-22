@@ -39,7 +39,7 @@ import PlatformSettings from "../models/PlatformSettings.js";
 import { prepareRetailOrder } from "../services/retailOrderService.js";
 import { hydrateRetailOrders } from "../services/retailOrderHydrate.js";
 import {
-  customerPriceForPartnerItem,
+  applyMotdCommission,
   sumCustomerAddonPrices,
 } from "../utils/motdCommission.js";
 import { maybeMarkEarningsAvailable } from "../services/partnerPayout/index.js";
@@ -666,7 +666,7 @@ orderRoutes.post("/custom/preview", async (req, res) => {
       addonId: a._id,
       name: a.name,
       nameAr: a.nameAr,
-      price: customerPriceForPartnerItem(a.price, a, fabricCommission),
+      price: applyMotdCommission(a.price, fabricCommission),
       thumbnailImage: a.thumbnailImage,
       fabricShopId: a.fabricShopId || null,
     }));
