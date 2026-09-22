@@ -100,48 +100,50 @@ export default function TailorShopDetailPage() {
 
   return (
     <MainLayout>
-      <FadeInSection>
-        <TailorDetailView
-          shop={shop}
-          designs={designs}
-          locale={locale}
-          labels={{
-            tailors: t("tailors"),
-            reviews: t("reviews"),
-            designsTitle: t("designsTitle"),
-            designsEmpty: t("designsEmpty"),
-            fromPrice: t("fromPrice"),
-            estimatedDays: t("estimatedDays"),
-            days: t("days"),
-            startOrder: t("startOrder"),
-            aboutTitle: t("aboutTitle"),
-            designsCount: t("designsCount", { count: designs.length }),
-            callShop: t("callShop"),
-            viewDesigns: t("viewDesigns"),
-            connectTitle: t("connectTitle"),
-            website: t("website"),
-            experienceTitle: t("experienceTitle"),
-            experienceYear: t("experienceYear"),
-            experienceYears: t("experienceYears"),
-            experienceMonth: t("experienceMonth"),
-            experienceMonths: t("experienceMonths"),
-          }}
-        />
-      </FadeInSection>
+      <div className="w-full min-w-0 overflow-x-clip">
+        <FadeInSection>
+          <TailorDetailView
+            shop={shop}
+            designs={designs}
+            locale={locale}
+            labels={{
+              tailors: t("tailors"),
+              reviews: t("reviews"),
+              designsTitle: t("designsTitle"),
+              designsEmpty: t("designsEmpty"),
+              fromPrice: t("fromPrice"),
+              estimatedDays: t("estimatedDays"),
+              days: t("days"),
+              startOrder: t("startOrder"),
+              aboutTitle: t("aboutTitle"),
+              designsCount: t("designsCount", { count: designs.length }),
+              callShop: t("callShop"),
+              viewDesigns: t("viewDesigns"),
+              connectTitle: t("connectTitle"),
+              website: t("website"),
+              experienceTitle: t("experienceTitle"),
+              experienceYear: t("experienceYear"),
+              experienceYears: t("experienceYears"),
+              experienceMonth: t("experienceMonth"),
+              experienceMonths: t("experienceMonths"),
+            }}
+          />
+        </FadeInSection>
 
-      <div id="reviews" className="scroll-mt-24">
-        <ProductReviewsSection
-          tailorShopId={String(shop._id)}
-          locale={locale}
-          labels={{
-            title: t("reviewsTitle"),
-            empty: t("reviewsEmpty"),
-            loading: t("reviewsLoading"),
-            averageLabel: t.raw("reviewsAverage"),
-            countLabel: t.raw("reviewsCount"),
-            verifiedLabel: t("verifiedPurchase"),
-          }}
-        />
+        <div id="reviews" className="scroll-mt-20 sm:scroll-mt-24">
+          <ProductReviewsSection
+            tailorShopId={String(shop._id)}
+            locale={locale}
+            labels={{
+              title: t("reviewsTitle"),
+              empty: t("reviewsEmpty"),
+              loading: t("reviewsLoading"),
+              averageLabel: t.raw("reviewsAverage"),
+              countLabel: t.raw("reviewsCount"),
+              verifiedLabel: t("verifiedPurchase"),
+            }}
+          />
+        </div>
       </div>
     </MainLayout>
   );

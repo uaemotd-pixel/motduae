@@ -1,11 +1,25 @@
 import express from "express";
 import Fabric from "../models/Fabric.js";
+import FabricShop from "../models/FabricShop.js";
 import Material from "../models/Material.js";
 import { enrichFabricWithCuts } from "../utils/fabricCuts.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { withCustomerFabricPrices } from "../utils/motdCommission.js";
 
 const fabricRoutes = express.Router();
+
+async function activeFabricShopCatalogFilter() {
+  const activeShopIds = await FabricShop.find({ isActive: true }).distinct(
+    "_id",
+  );
+  return {
+    $or: [
+      { fabricShopId: null },
+      { fabricShopId: { $exists: false } },
+      { fabricShopId: { $in: activeShopIds } },
+    ],
+  };
+}
 
 const toListItem = (fabric) => ({
   _id: fabric._id,
@@ -97,10 +111,15 @@ fabricRoutes.get("/", async (req, res) => {
       isActive: true,
       "cuts.0": { $exists: true },
       "cuts.stock": { $gt: 0 },
-      $or: [
-        { isVariantOf: null },
-        { isVariantOf: { $exists: false } }
-      ]
+      $and: [
+        {
+          $or: [
+            { isVariantOf: null },
+            { isVariantOf: { $exists: false } },
+          ],
+        },
+        await activeFabricShopCatalogFilter(),
+      ],
     };
 
     if (material) {
@@ -211,10 +230,22 @@ fabricRoutes.get("/:slug", async (req, res) => {
       isActive: true,
     })
       .populate("listedByStore", "_id name nameAr role slug")
-      .populate("fabricShopId", "_id name nameAr slug")
+      .populate("fabricShopId", "_id name nameAr slug isActive")
       .select("-__v");
 
     if (!fabric) {
+      return res.status(404).json({
+        success: false,
+        message: "Fabric not found",
+      });
+    }
+
+    const linkedShop = fabric.fabricShopId;
+    if (
+      linkedShop &&
+      typeof linkedShop === "object" &&
+      linkedShop.isActive === false
+    ) {
       return res.status(404).json({
         success: false,
         message: "Fabric not found",

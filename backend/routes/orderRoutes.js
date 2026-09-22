@@ -74,7 +74,9 @@ const isStripePaymentMethod = (method) =>
   STRIPE_PAYMENT_METHODS.includes(method);
 
 const isApprovedTailorOwner = (owner) =>
-  owner?.role === "tailor" && owner?.approvalStatus === "approved";
+  owner?.role === "tailor" &&
+  owner?.approvalStatus === "approved" &&
+  owner?.isActive !== false;
 
 const toIdString = (value) => {
   if (value == null || value === "") return "";
@@ -241,7 +243,7 @@ async function loadDesignWithApprovedShop(designId) {
 
   const shop = await TailorShop.findById(design.tailorShopId).populate(
     "ownerId",
-    "_id role approvalStatus",
+    "_id role approvalStatus isActive",
   );
 
   if (!shop?.isActive || !isApprovedTailorOwner(shop.ownerId)) {
