@@ -217,14 +217,6 @@ export function collectRequiredFieldErrors(
   return errors;
 }
 
-export function isApplicationComplete(form: PartnerApplication, role: PartnerRole) {
-  return Object.keys(collectRequiredFieldErrors(form, role)).length === 0;
-}
-
-function hydrateApplication(application: PartnerApplication): PartnerApplication;
-function hydrateApplication(
-  application: PartnerApplication | null | undefined,
-): PartnerApplication | null | undefined;
 const WINDOW_BASELINE_MONTHS: Record<string, number> = {
   under_1: 0,
   "1_3": 12,
@@ -238,6 +230,14 @@ function readExperienceCount(value: unknown): number | "" {
   return Number.isInteger(count) && count >= 0 ? count : "";
 }
 
+export function isApplicationComplete(form: PartnerApplication, role: PartnerRole) {
+  return Object.keys(collectRequiredFieldErrors(form, role)).length === 0;
+}
+
+function hydrateApplication(application: PartnerApplication): PartnerApplication;
+function hydrateApplication(
+  application: PartnerApplication | null | undefined,
+): PartnerApplication | null | undefined;
 function hydrateApplication(application: PartnerApplication | null | undefined) {
   if (!application) return application;
   const legacyArea = (application as { area?: string }).area;
