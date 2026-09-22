@@ -312,23 +312,16 @@ export default function TailorDesignForm({
         if (cancelled) return;
         setCategoryOptions(cats);
         setCommissionPercent(settings.motdCommissionFromTailor);
-        setFormData((prev) => {
-          let next = prev;
-          if (prev.category === "" && cats.length > 0) {
-            next = {
-              ...next,
-              category: cats[0].name,
-              categoryAr: cats[0].nameAr || cats[0].name,
-            };
-          }
-          if (
-            !isEditMode &&
-            Number.isFinite(settings.defaultTailoringFee)
-          ) {
-            next = { ...next, tailoringFee: settings.defaultTailoringFee };
-          }
-          return next;
-        });
+        // Do not preselect a category on create — leave placeholder until the user chooses.
+        if (
+          !isEditMode &&
+          Number.isFinite(settings.defaultTailoringFee)
+        ) {
+          setFormData((prev) => ({
+            ...prev,
+            tailoringFee: settings.defaultTailoringFee,
+          }));
+        }
       } catch {
         // silently fail
       } finally {
@@ -708,35 +701,47 @@ export default function TailorDesignForm({
                       {adminT.form.tailor_empty}
                     </p>
                   ) : (
-                    tailorShops.map((shop) => (
+                    <>
                       <button
-                        key={shop._id}
                         type="button"
-                        className="w-full text-left px-3 py-2 text-xs sm:text-sm hover:bg-gray-50 hover:cursor-pointer"
+                        className="w-full text-left px-3 py-2 text-xs sm:text-sm text-gray-400 hover:bg-gray-50 hover:cursor-pointer"
                         onClick={() => {
-                          setTailorShopId(shop._id);
+                          setTailorShopId("");
                           setOpenTailor(false);
-                          if (fieldErrors.tailorShopId) {
-                            setFieldErrors((prev) => ({
-                              ...prev,
-                              tailorShopId: undefined,
-                            }));
-                          }
                         }}
                       >
-                        <span className="block truncate">{shop.name}</span>
-                        {typeof shop.ownerId === "object" &&
-                        shop.ownerId?.email ? (
-                          <span className="block truncate text-[10px] text-gray-400">
-                            {shop.ownerId.email}
-                          </span>
-                        ) : shop.phone ? (
-                          <span className="block truncate text-[10px] text-gray-400">
-                            {shop.phone}
-                          </span>
-                        ) : null}
+                        {adminT.form.tailor_placeholder}
                       </button>
-                    ))
+                      {tailorShops.map((shop) => (
+                        <button
+                          key={shop._id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-xs sm:text-sm hover:bg-gray-50 hover:cursor-pointer"
+                          onClick={() => {
+                            setTailorShopId(shop._id);
+                            setOpenTailor(false);
+                            if (fieldErrors.tailorShopId) {
+                              setFieldErrors((prev) => ({
+                                ...prev,
+                                tailorShopId: undefined,
+                              }));
+                            }
+                          }}
+                        >
+                          <span className="block truncate">{shop.name}</span>
+                          {typeof shop.ownerId === "object" &&
+                          shop.ownerId?.email ? (
+                            <span className="block truncate text-[10px] text-gray-400">
+                              {shop.ownerId.email}
+                            </span>
+                          ) : shop.phone ? (
+                            <span className="block truncate text-[10px] text-gray-400">
+                              {shop.phone}
+                            </span>
+                          ) : null}
+                        </button>
+                      ))}
+                    </>
                   )}
                 </AnimatedDropdown>
               </FormField>

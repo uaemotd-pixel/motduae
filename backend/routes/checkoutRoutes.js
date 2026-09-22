@@ -98,7 +98,15 @@ router.post("/preview", async (req, res) => {
     });
   } catch (err) {
     console.error("/api/checkout/preview error:", err);
-    return res.status(500).json({ error: err.message || "Server error" });
+    const message = err?.message || "Server error";
+    const isAvailability =
+      /out of stock|insufficient stock|not available|not found|Product not found/i.test(
+        message,
+      );
+    return res.status(isAvailability ? 409 : 500).json({
+      error: message,
+      code: isAvailability ? "ITEM_UNAVAILABLE" : "PREVIEW_FAILED",
+    });
   }
 });
 
