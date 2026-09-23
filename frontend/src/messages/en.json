@@ -1620,7 +1620,7 @@
         "selectPattern": "Select pattern",
         "selectTag": "Select tag (optional)",
         "selectMinCut": "Select minimum cut",
-        "selectCategory": "Select category"
+        "selectCategory": "Select Category"
       },
       "categories": {
         "hand-embroidered": "Hand Embroidered",

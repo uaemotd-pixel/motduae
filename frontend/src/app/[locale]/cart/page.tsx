@@ -19,11 +19,18 @@ import { clearBuyNowCheckout } from "@/lib/buyNowCheckout";
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api/client";
 import { ImageModal } from "@/components/shared/ImageModal";
+import toast from "react-hot-toast";
+import { ERROR_TOAST } from "@/lib/tailorPortalToast";
+import { getTranslation } from "@/lib/getTranslation";
+import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, clearCart } = useCart();
+  const { items, removeItem, updateQuantity, clearCart, purgeUnavailableItems } =
+    useCart();
   const params = useParams();
   const locale = params.locale as string;
+  const t = getTranslation(locale);
+  const { unit: measurementUnit } = useMeasurementUnit();
   const [vatRate, setVatRate] = useState<number | null>(null);
   const [vatError, setVatError] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
@@ -32,6 +39,39 @@ export default function CartPage() {
   useEffect(() => {
     clearBuyNowCheckout();
   }, []);
+
+  // Drop sold-out / unavailable lines before the customer reaches checkout.
+  useEffect(() => {
+    if (!items.length) return;
+
+    let cancelled = false;
+
+    const validate = async () => {
+      const { purgedNames } = await purgeUnavailableItems(measurementUnit);
+      if (cancelled || purgedNames.length === 0) return;
+
+      if (purgedNames.length === 1) {
+        toast.error(
+          t.checkout.itemUnavailableRemoved.replace("{name}", purgedNames[0]),
+          ERROR_TOAST,
+        );
+      } else {
+        toast.error(
+          t.checkout.itemsUnavailableRemoved.replace(
+            "{count}",
+            String(purgedNames.length),
+          ),
+          ERROR_TOAST,
+        );
+      }
+    };
+
+    void validate();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.map((item) => `${item.id}:${item.quantity}`).join("|"), measurementUnit]);
 
   // Fetch VAT rate from platform settings
   useEffect(() => {

@@ -47,6 +47,11 @@
     "okButton": "حسناً",
     "trackCta": "تتبّع طلبك",
     "copyLink": "نسخ الرابط",
-    "copied": "تم النسخ"
+    "copied": "تم النسخ",
+    "pricingLoadFailed": "فشل تحميل الأسعار. يرجى التحديث.",
+    "itemUnavailableRemoved": "{name} لم يعد متاحاً وتمت إزالته من سلة التسوق.",
+    "itemsUnavailableRemoved": "تمت إزالة {count} منتجات لم تعد متاحة من سلة التسوق.",
+    "cartEmptyAfterSoldOut": "سلتك فارغة لأن المنتجات نفدت. تابع التسوق لإضافة منتجات متاحة.",
+    "unavailableInCheckout": "بعض المنتجات في سلتك لم تعد متاحة."
   }
 }
