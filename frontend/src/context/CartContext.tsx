@@ -533,7 +533,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems(next);
 
     const userId = accountUserIdRef.current;
-    if (!userId || toastType === "error") return;
+    if (!userId) return;
     const previous = snapshot.find((line) => line.id === id);
     const saved = next.find((line) => line.id === id);
     const delta = (saved?.quantity || 0) - (previous?.quantity || 0);
