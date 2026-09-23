@@ -96,7 +96,6 @@ function buildPreviewPayload(items: CartItem[], measurementUnit?: string) {
     };
   });
 }
-
 function normalizeStoredItems(stored: unknown): CartItem[] {
   if (!Array.isArray(stored)) return [];
   return stored
@@ -381,7 +380,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   );
 
   const clearCart = useCallback(() => setItems([]), []);
-
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
