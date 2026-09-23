@@ -5,7 +5,8 @@
 
 import { useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCart } from "@/context/CartContext";
+import { Link } from "@/i18n/navigation";
+import { useCart, isCartAvailabilityError } from "@/context/CartContext";
 import { useAuth, needsEmailVerification } from "@/context/AuthContext";
 import { useParams } from "next/navigation";
 import MainLayout from "../main/layout";
@@ -14,7 +15,7 @@ import { getTranslation } from "@/lib/getTranslation";
 import { useLocale } from "next-intl";
 import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import SuccessModal from "@/components/shared/SuccessModal";
-import { api } from "@/lib/api/client";
+import { api, getApiErrorMessage } from "@/lib/api/client";
 import type { ApiError } from "@/lib/api/client";
 import type { CartItem } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
@@ -147,8 +148,8 @@ function CheckoutPageContent() {
   const locale = useLocale();
   const initialFillDone = useRef<boolean>(false);
   const fromWishlistAllRef = useRef<boolean>(false);
-
-  const { items, clearCart } = useCart();
+  const { items, clearCart, syncStockFromPreview, purgeUnavailableItems } =
+    useCart();
   const { user, isLoading, isAuthenticated, applyUserResponse } = useAuth();
   const { clearWishlist, removeItem: removeWishlistItem } = useWishlist();
   const { unit: measurementUnit } = useMeasurementUnit();
@@ -156,6 +157,7 @@ function CheckoutPageContent() {
   const fromWishlist = checkoutQuery.get("fromWishlist") === "true";
   const buyNowLockedRef = useRef(checkoutQuery.get("buyNow") === "true");
   const previewRequestIdRef = useRef(0);
+  const pricePreviewRef = useRef(false);
   const tVerify = getTranslation(locale).verifyEmail;
   const guestEmailCopy = {
     guestEmailRequired: tVerify.guestEmailRequired,
@@ -505,7 +507,6 @@ function CheckoutPageContent() {
     const requestId = ++previewRequestIdRef.current;
 
     async function fetchPrices() {
-      setPriceLoading(true);
       try {
         let itemsToPreview: Array<{
           productId: string;
@@ -563,6 +564,8 @@ function CheckoutPageContent() {
           return;
         }
 
+        // Soft-load after the first successful preview so stock sync cannot blink the page.
+        setPriceLoading((wasLoading) => wasLoading || !pricePreviewRef.current);
         const response = await api.post<PricePreviewResponse>(
           "/api/checkout/preview",
           {
@@ -571,11 +574,111 @@ function CheckoutPageContent() {
         );
 
         if (requestId !== previewRequestIdRef.current) return;
+        pricePreviewRef.current = true;
         setPricePreview(response);
+
+        if (!isBuyNow && items.length > 0 && Array.isArray(response.items)) {
+          const removedNames = syncStockFromPreview(
+            items.map((item, index) => ({
+              id: item.id,
+              maxStock: Number(response.items[index]?.maxStock) || 0,
+            })),
+          );
+          if (removedNames.length === 1) {
+            toast.error(
+              t.checkout.itemUnavailableRemoved.replace(
+                "{name}",
+                removedNames[0],
+              ),
+              ERROR_TOAST,
+            );
+          } else if (removedNames.length > 1) {
+            toast.error(
+              t.checkout.itemsUnavailableRemoved.replace(
+                "{count}",
+                String(removedNames.length),
+              ),
+              ERROR_TOAST,
+            );
+          }
+        }
       } catch (error) {
         if (requestId !== previewRequestIdRef.current) return;
         console.error("Failed to fetch price preview:", error);
-        toast.error("Failed to load pricing. Please refresh.", ERROR_TOAST);
+        const message = getApiErrorMessage(
+          error,
+          t.checkout.pricingLoadFailed,
+        );
+
+        if (!isBuyNow && isCartAvailabilityError(message) && items.length > 0) {
+          const { purgedNames, lastError, remainingItems } =
+            await purgeUnavailableItems(measurementUnit);
+
+          if (purgedNames.length === 1) {
+            toast.error(
+              t.checkout.itemUnavailableRemoved.replace(
+                "{name}",
+                purgedNames[0],
+              ),
+              ERROR_TOAST,
+            );
+          } else if (purgedNames.length > 1) {
+            toast.error(
+              t.checkout.itemsUnavailableRemoved.replace(
+                "{count}",
+                String(purgedNames.length),
+              ),
+              ERROR_TOAST,
+            );
+          } else if (lastError) {
+            toast.error(lastError || message, ERROR_TOAST);
+          }
+
+          // Always re-price remaining lines — even if removing sold-out
+          // items already started a newer preview effect.
+          if (remainingItems.length > 0) {
+            try {
+              const retry = await api.post<PricePreviewResponse>(
+                "/api/checkout/preview",
+                {
+                  items: remainingItems.map((item) => {
+                    const payload = buildRetailCheckoutItem(item);
+                    return {
+                      ...payload,
+                      ...(item.size === "Per Meter" &&
+                      !isFabricCutCartId(item.id)
+                        ? { measurementUnit }
+                        : {}),
+                    };
+                  }),
+                },
+              );
+              pricePreviewRef.current = true;
+              setPricePreview(retry);
+              syncStockFromPreview(
+                remainingItems.map((item, index) => ({
+                  id: item.id,
+                  maxStock: Number(retry.items[index]?.maxStock) || 0,
+                })),
+              );
+              return;
+            } catch (retryError) {
+              console.error("Failed to re-price remaining cart:", retryError);
+              toast.error(
+                getApiErrorMessage(retryError, t.checkout.pricingLoadFailed),
+                ERROR_TOAST,
+              );
+            }
+          }
+
+          pricePreviewRef.current = false;
+          setPricePreview(null);
+          return;
+        }
+
+        toast.error(message, ERROR_TOAST);
+        pricePreviewRef.current = false;
+        setPricePreview(null);
       } finally {
         if (requestId === previewRequestIdRef.current) {
           setPriceLoading(false);
@@ -583,7 +686,8 @@ function CheckoutPageContent() {
       }
     }
 
-    fetchPrices();
+    void fetchPrices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isBuyNow,
     buyNowProductId,
@@ -595,6 +699,9 @@ function CheckoutPageContent() {
       ? ""
       : items.map((item) => `${item.id}:${item.quantity}`).join("|"),
     measurementUnit,
+    t.checkout.pricingLoadFailed,
+    t.checkout.itemUnavailableRemoved,
+    t.checkout.itemsUnavailableRemoved,
   ]);
 
   // --- Build display items with server prices ---
@@ -635,13 +742,13 @@ function CheckoutPageContent() {
       return [];
     }
 
-    if (!pricePreview) return [];
+    if (!pricePreview) return items;
 
     return items.map((item, index) => {
       const previewItem = pricePreview.items[index];
       return {
         ...item,
-        price: previewItem?.unitPrice || 0,
+        price: previewItem?.unitPrice || item.price || 0,
       };
     });
   };
@@ -1068,10 +1175,19 @@ function CheckoutPageContent() {
                 <div className="md:sticky md:top-24">
                   <div className="bg-white border border-(--color-border) rounded-lg p-6 md:p-8">
                     {displayItems.length === 0 ? (
-                      <p className="text-center text-(--color-grey-muted) py-8">
-                        No items in checkout.
-                      </p>
-                    ) : (
+                      <div className="text-center py-8 space-y-3">
+                        <p className="text-(--color-grey-muted)">
+                          {items.length === 0
+                            ? t.checkout.cartEmptyAfterSoldOut
+                            : t.checkout.unavailableInCheckout}
+                        </p>
+                        <Link
+                          href="/"
+                          className="inline-block text-sm text-black underline underline-offset-4"
+                        >
+                          {t.checkout.continueShopping}
+                        </Link>
+                      </div>
                       <>
                         <ul className="space-y-6">
                           {displayItems.map((item, index) => (

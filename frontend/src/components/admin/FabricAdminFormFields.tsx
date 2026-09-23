@@ -396,6 +396,11 @@ export default function FabricAdminFormFields({
   const [openVariantColorDropdown, setOpenVariantColorDropdown] = useState<
     number | null
   >(null);
+  const variantColorDropdownRefs = useRef<
+    Record<number, HTMLDivElement | null>
+  >({});
+  const openVariantColorDropdownRef = useRef<number | null>(null);
+  openVariantColorDropdownRef.current = openVariantColorDropdown;
   const [dbMaterials, setDbMaterials] = useState<
     { name: string; nameAr: string; _id: string }[]
   >([]);
@@ -435,6 +440,18 @@ export default function FabricAdminFormFields({
   const listedBy = (formData.listedByStore || "").trim();
   const commissionPercent = listedBy === "MOTD" ? 0 : fabricCommission;
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const openVariantIdx = openVariantColorDropdownRef.current;
+      if (openVariantIdx === null) return;
+      const variantEl = variantColorDropdownRefs.current[openVariantIdx];
+      if (variantEl && !variantEl.contains(e.target as Node)) {
+        setOpenVariantColorDropdown(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   const applyPickupForPartner = useCallback(
     (partnerId: string, shops: Record<string, AdminFabricShop>) => {
       if (!partnerId) {
@@ -1608,7 +1625,12 @@ export default function FabricAdminFormFields({
                         error={fieldErrors[`${prefix}.colors`]}
                         required
                       >
-                        <div className="relative">
+                        <div
+                          className="relative"
+                          ref={(node) => {
+                            variantColorDropdownRefs.current[index] = node;
+                          }}
+                        >
                           <button
                             type="button"
                             onClick={() =>

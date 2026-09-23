@@ -312,23 +312,16 @@ export default function TailorDesignForm({
         if (cancelled) return;
         setCategoryOptions(cats);
         setCommissionPercent(settings.motdCommissionFromTailor);
-        setFormData((prev) => {
-          let next = prev;
-          if (prev.category === "" && cats.length > 0) {
-            next = {
-              ...next,
-              category: cats[0].name,
-              categoryAr: cats[0].nameAr || cats[0].name,
-            };
-          }
-          if (
-            !isEditMode &&
-            Number.isFinite(settings.defaultTailoringFee)
-          ) {
-            next = { ...next, tailoringFee: settings.defaultTailoringFee };
-          }
-          return next;
-        });
+        // Do not preselect a category on create — leave placeholder until the user chooses.
+        if (
+          !isEditMode &&
+          Number.isFinite(settings.defaultTailoringFee)
+        ) {
+          setFormData((prev) => ({
+            ...prev,
+            tailoringFee: settings.defaultTailoringFee,
+          }));
+        }
       } catch {
         // silently fail
       } finally {
