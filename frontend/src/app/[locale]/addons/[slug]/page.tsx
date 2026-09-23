@@ -803,9 +803,9 @@ export default function AddonDetailPage() {
 
   const { addItem: addToCart } = useCart();
   const {
-    wishItems,
     addItem: addToWishlist,
     removeItem: removeFromWishlist,
+    isInWishlist,
   } = useWishlist();
 
   const [addon, setAddon] = useState<any | null>(null);
@@ -848,24 +848,29 @@ export default function AddonDetailPage() {
   }, [slug]);
 
   const handleAddToCart = () => {
-    if (!addon) return;
+    if (!addon?._id) return;
+    const title = isAr ? addon.nameAr || addon.name : addon.name;
+    const stock = Number(addon.stock);
     addToCart({
-      id: addon._id,
+      id: String(addon._id),
       slug: addon.slug,
-      name: addon.name,
+      name: title,
       image: resolveMediaUrl(addon.thumbnailImage) || "",
       price: addon.price,
       size: "N/A",
-      maxStock: addon.stock || 0,
+      itemType: "addon",
+      maxStock: Number.isFinite(stock) ? Math.max(0, stock) : 0,
+      quantity,
     });
   };
 
   const handleBuyNow = () => {
     if (!addon) return;
+    const title = isAr ? addon.nameAr || addon.name : addon.name;
     const checkoutParams = new URLSearchParams({
       productId: addon._id,
       slug: addon.slug,
-      name: addon.name,
+      name: title,
       image: resolveMediaUrl(addon.thumbnailImage) || "",
       size: "N/A",
       quantity: String(quantity),
@@ -873,7 +878,7 @@ export default function AddonDetailPage() {
     saveSingleBuyNowCheckout({
       productId: addon._id,
       slug: addon.slug,
-      name: addon.name,
+      name: title,
       image: resolveMediaUrl(addon.thumbnailImage) || "",
       size: "N/A",
       quantity,
@@ -882,7 +887,7 @@ export default function AddonDetailPage() {
     router.push(`/${locale}/checkout?buyNow=true&${checkoutParams.toString()}`);
   };
 
-  const liked = addon ? wishItems.some((item) => item.id === addon._id) : false;
+  const liked = addon ? isInWishlist(addon._id) : false;
 
   const toggleWishlist = () => {
     if (!addon) return;

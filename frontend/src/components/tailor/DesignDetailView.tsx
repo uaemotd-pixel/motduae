@@ -104,12 +104,12 @@ export default function DesignDetailView({
     locale,
   );
   const {
-    wishItems,
     addItem: addToWishlist,
     removeItem: removeFromWishlist,
+    isInWishlist,
   } = useWishlist();
 
-  const liked = wishItems.some((item) => item.id === design._id);
+  const liked = isInWishlist(design._id);
   const toggleWishlist = () => {
     if (liked) {
       removeFromWishlist(design._id);
