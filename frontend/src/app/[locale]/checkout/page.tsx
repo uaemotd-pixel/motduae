@@ -148,7 +148,6 @@ function CheckoutPageContent() {
   const locale = useLocale();
   const initialFillDone = useRef<boolean>(false);
   const fromWishlistAllRef = useRef<boolean>(false);
-
   const { items, clearCart, syncStockFromPreview, purgeUnavailableItems } =
     useCart();
   const { user, isLoading, isAuthenticated, applyUserResponse } = useAuth();
@@ -562,7 +561,6 @@ function CheckoutPageContent() {
 
         // Soft-load after the first successful preview so stock sync cannot blink the page.
         setPriceLoading((wasLoading) => wasLoading || !pricePreviewRef.current);
-
         const response = await api.post<PricePreviewResponse>(
           "/api/checkout/preview",
           {

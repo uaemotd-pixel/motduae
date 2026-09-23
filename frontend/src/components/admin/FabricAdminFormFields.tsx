@@ -452,7 +452,6 @@ export default function FabricAdminFormFields({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
   const applyPickupForPartner = useCallback(
     (partnerId: string, shops: Record<string, AdminFabricShop>) => {
       if (!partnerId) {

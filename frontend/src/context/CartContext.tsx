@@ -157,7 +157,6 @@ function buildPreviewPayload(items: CartItem[], measurementUnit?: string) {
     };
   });
 }
-
 function normalizeStoredItems(stored: unknown): CartItem[] {
   if (!Array.isArray(stored)) return [];
   const byId = new Map<string, CartItem>();
