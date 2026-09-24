@@ -19,7 +19,8 @@ import {
   sendOtpEmail,
 } from "../services/emailService.js";
 import { createAdminNotificationForNewUser } from "../services/adminNotificationService.js";
-import { clearAuthCookie, setAuthCookie } from "../utils/authCookie.js";
+import { clearAuthCookie, setAuthCookie, extractAuthToken } from "../utils/authCookie.js";
+import jwt from "jsonwebtoken";
 import { isEmailVerified } from "../services/emailVerification/isEmailVerified.js";
 import { isGuestUser } from "../services/emailVerification/isGuestUser.js";
 import {
@@ -61,10 +62,134 @@ import {
   newsletterLimiter,
 } from "../middleware/rateLimiter.js";
 import partnerApplicationRouter from "./partnerApplicationRoutes.js";
+import { logActivity, clientIp, normalizeActorRole } from "../services/activityLogService.js";
 
 const userRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+
+const TRACKED_SIGNIN_ROLES = new Set([
+  "admin",
+  "sub-admin",
+  "customer",
+  "tailor",
+  "fabric_store",
+]);
+
+function maybeLogUserSignIn(req, user, method = "password") {
+  if (!user || !TRACKED_SIGNIN_ROLES.has(user.role)) {
+    return;
+  }
+  // Guest checkout identity is noisy and not useful for staff monitoring.
+  if (isGuestUser(user)) {
+    return;
+  }
+  void logActivity({
+    actorId: user._id,
+    actorEmail: user.email,
+    actorName: user.name,
+    actorRole: normalizeActorRole(user.role),
+    action: "auth.login",
+    category: "auth",
+    method: "POST",
+    path: req.originalUrl || "/api/users/signin",
+    resourceType: "session",
+    resourceId: String(user._id),
+    summary: `Signed in (${method})`,
+    meta: { method, role: user.role },
+    ip: clientIp(req),
+    userAgent: String(req.get?.("user-agent") || ""),
+    statusCode: 200,
+    success: true,
+  });
+}
+
+function maybeLogUserRegister(req, user, method = "password") {
+  if (!user || !TRACKED_SIGNIN_ROLES.has(user.role)) {
+    return;
+  }
+  if (isGuestUser(user)) {
+    return;
+  }
+  void logActivity({
+    actorId: user._id,
+    actorEmail: user.email,
+    actorName: user.name,
+    actorRole: normalizeActorRole(user.role),
+    action: "auth.register",
+    category: "auth",
+    method: "POST",
+    path: req.originalUrl || "/api/users/signup",
+    resourceType: "session",
+    resourceId: String(user._id),
+    summary: `Registered as ${String(user.role).replace("_", " ")} (${method})`,
+    meta: { method, role: user.role },
+    ip: clientIp(req),
+    userAgent: String(req.get?.("user-agent") || ""),
+    statusCode: 200,
+    success: true,
+  });
+}
+
+function maybeLogLoginFailed(
+  req,
+  {
+    email = "",
+    reason = "invalid_credentials",
+    method = "password",
+    statusCode = 401,
+    actorId = null,
+    actorName = "",
+    actorRole = "customer",
+  } = {},
+) {
+  const normalizedEmail = String(email || "").toLowerCase().trim();
+  void logActivity({
+    actorId,
+    actorEmail: normalizedEmail,
+    actorName,
+    actorRole: normalizeActorRole(actorRole),
+    action: "auth.login_failed",
+    category: "auth",
+    method: "POST",
+    path: req.originalUrl || "/api/users/signin",
+    resourceType: "session",
+    resourceId: actorId ? String(actorId) : "",
+    summary: `Sign-in failed (${method})`,
+    meta: { method, reason },
+    ip: clientIp(req),
+    userAgent: String(req.get?.("user-agent") || ""),
+    statusCode,
+    success: false,
+  });
+}
+
+function maybeLogUserLogout(req, user) {
+  if (!user || !TRACKED_SIGNIN_ROLES.has(user.role)) {
+    return;
+  }
+  if (isGuestUser(user)) {
+    return;
+  }
+  void logActivity({
+    actorId: user._id,
+    actorEmail: user.email,
+    actorName: user.name,
+    actorRole: normalizeActorRole(user.role),
+    action: "auth.logout",
+    category: "auth",
+    method: "POST",
+    path: req.originalUrl || "/api/users/logout",
+    resourceType: "session",
+    resourceId: String(user._id),
+    summary: "Signed out",
+    meta: { role: user.role },
+    ip: clientIp(req),
+    userAgent: String(req.get?.("user-agent") || ""),
+    statusCode: 200,
+    success: true,
+  });
+}
 
 const googleClient = env.googleClientId
   ? new OAuth2Client(env.googleClientId)
@@ -227,8 +352,25 @@ userRouter.get(
 
 userRouter.post(
   "/logout",
-  expressAsyncHandler(async (_req, res) => {
+  expressAsyncHandler(async (req, res) => {
+    const token = extractAuthToken(req);
+    let user = null;
+    if (token) {
+      try {
+        const decode = jwt.verify(token, env.jwtSecret);
+        if (decode?._id) {
+          user = await User.findById(decode._id).select(
+            "name email role isActive",
+          );
+        }
+      } catch {
+        // Expired/invalid token — still clear cookie; skip logout log.
+      }
+    }
     clearAuthCookie(res);
+    if (user) {
+      maybeLogUserLogout(req, user);
+    }
     res.json({ message: "Logged out" });
   }),
 );
@@ -262,11 +404,24 @@ userRouter.post(
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
+      maybeLogLoginFailed(req, {
+        email,
+        reason: "unknown_email",
+        method: "password",
+      });
       res.status(401).send({ message: "Invalid email or password" });
       return;
     }
 
     if (!user.password) {
+      maybeLogLoginFailed(req, {
+        email: user.email,
+        reason: "google_only_account",
+        method: "password",
+        actorId: user._id,
+        actorName: user.name,
+        actorRole: user.role,
+      });
       res.status(401).send({
         message:
           "This account uses Google sign-in. Please continue with Google.",
@@ -275,11 +430,28 @@ userRouter.post(
     }
 
     if (!bcrypt.compareSync(password, user.password)) {
+      maybeLogLoginFailed(req, {
+        email: user.email,
+        reason: "bad_password",
+        method: "password",
+        actorId: user._id,
+        actorName: user.name,
+        actorRole: user.role,
+      });
       res.status(401).send({ message: "Invalid email or password" });
       return;
     }
 
     if (user.isActive === false) {
+      maybeLogLoginFailed(req, {
+        email: user.email,
+        reason: "deactivated",
+        method: "password",
+        statusCode: 403,
+        actorId: user._id,
+        actorName: user.name,
+        actorRole: user.role,
+      });
       res.status(403).send({ message: "Account is deactivated" });
       return;
     }
@@ -291,6 +463,7 @@ userRouter.post(
     }
     const isGuest = isGuestUser(user);
     setAuthCookie(res, generateToken(user));
+    maybeLogUserSignIn(req, user, "password");
     res.json({
       _id: user._id,
       name: user.name,
@@ -351,6 +524,10 @@ userRouter.post(
       });
       payload = ticket.getPayload();
     } catch {
+      maybeLogLoginFailed(req, {
+        reason: "invalid_google_token",
+        method: "google",
+      });
       res.status(401).send({ message: "Invalid Google sign-in token" });
       return;
     }
@@ -365,6 +542,11 @@ userRouter.post(
     }
 
     if (payload.email_verified === false) {
+      maybeLogLoginFailed(req, {
+        email,
+        reason: "google_email_unverified",
+        method: "google",
+      });
       res.status(401).send({ message: "Google email is not verified" });
       return;
     }
@@ -391,6 +573,7 @@ userRouter.post(
 
         linkGoogleToUser(user, { googleId, name });
         await user.save();
+        maybeLogUserSignIn(req, user, "google");
         sendUserResponse(res, user);
         return;
       }
@@ -428,12 +611,22 @@ userRouter.post(
         });
       }
 
+      maybeLogUserRegister(req, user, "google");
       sendUserResponse(res, user);
       return;
     }
 
     if (user) {
       if (!GOOGLE_AUTH_ROLES.has(user.role)) {
+        maybeLogLoginFailed(req, {
+          email: user.email,
+          reason: "google_role_blocked",
+          method: "google",
+          statusCode: 403,
+          actorId: user._id,
+          actorName: user.name,
+          actorRole: user.role,
+        });
         res.status(403).send({
           message: "Google sign-in is not available for this account type",
         });
@@ -441,6 +634,15 @@ userRouter.post(
       }
 
       if (loginRoleHint && user.role !== loginRoleHint) {
+        maybeLogLoginFailed(req, {
+          email: user.email,
+          reason: "role_mismatch",
+          method: "google",
+          statusCode: 403,
+          actorId: user._id,
+          actorName: user.name,
+          actorRole: user.role,
+        });
         res.status(403).send({
           message: `This account is not a ${loginRoleHint.replace("_", " ")} account`,
         });
@@ -448,17 +650,33 @@ userRouter.post(
       }
 
       if (user.isActive === false) {
+        maybeLogLoginFailed(req, {
+          email: user.email,
+          reason: "deactivated",
+          method: "google",
+          statusCode: 403,
+          actorId: user._id,
+          actorName: user.name,
+          actorRole: user.role,
+        });
         res.status(403).send({ message: "Account is deactivated" });
         return;
       }
 
       linkGoogleToUser(user, { googleId, name });
       await user.save();
+      maybeLogUserSignIn(req, user, "google");
       sendUserResponse(res, user);
       return;
     }
 
     if (loginRoleHint) {
+      maybeLogLoginFailed(req, {
+        email,
+        reason: "no_account",
+        method: "google",
+        statusCode: 404,
+      });
       res.status(404).send({
         message: "No account found. Please register first.",
       });
@@ -491,6 +709,7 @@ userRouter.post(
       userId: user._id,
     });
 
+    maybeLogUserRegister(req, user, "google");
     sendUserResponse(res, user);
   }),
 );
@@ -617,6 +836,7 @@ userRouter.post(
 
     const createdUser = await user.save();
 
+    maybeLogUserRegister(req, createdUser, "password");
     sendUserResponse(res, createdUser);
   }),
 );
@@ -654,6 +874,7 @@ userRouter.post(
 
     const createdUser = await user.save();
 
+    maybeLogUserRegister(req, createdUser, "password");
     sendUserResponse(res, createdUser);
 
   }),
@@ -719,6 +940,7 @@ userRouter.post(
     });
     await customer.save();
 
+    maybeLogUserRegister(req, createdUser, "password");
     sendUserResponse(res, createdUser);
   }),
 );

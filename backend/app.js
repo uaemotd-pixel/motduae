@@ -37,6 +37,11 @@ import filterRoutes from "./routes/filterRoutes.js";
 import cronRoutes from "./routes/cronRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js";
+import activityLogRouter from "./routes/activityLogRoutes.js";
+import {
+  captureActivity,
+  captureAdminActivity,
+} from "./middleware/activityLog.js";
 
 const app = express();
 
@@ -72,6 +77,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/cron", cronRoutes);
+app.use("/api/dev/activity-log", activityLogRouter);
 
 app.use("/api/users", userRouter);
 app.use("/api/ready-made", readyMadeRoutes);
@@ -79,22 +85,57 @@ app.use("/api/fabrics", fabricRoutes);
 app.use("/api/fabric-shops", fabricShopPublicRoutes);
 app.use("/api/addons", addOnRoutes);
 app.use("/api/tailors", tailorRoutes);
-app.use("/api/tailor", isAuth, isApprovedTailor, tailorPortalRoutes);
-app.use("/api/fabric", isAuth, isApprovedFabricStore, fabricPortalRoutes);
+app.use("/api/tailor", isAuth, isApprovedTailor, captureActivity(), tailorPortalRoutes);
+app.use(
+  "/api/fabric",
+  isAuth,
+  isApprovedFabricStore,
+  captureActivity(),
+  fabricPortalRoutes,
+);
 app.use("/api/orders/track", orderPublicTrackRoutes);
-app.use("/api/orders", orderRoutes);
+app.use(
+  "/api/orders",
+  captureActivity({ skipPathIncludes: ["/preview"] }),
+  orderRoutes,
+);
 // Expose order routes under admin namespace as well so admin UI can call
 // /api/admin/orders/custom/:id/return-accept and /return-reject
-app.use("/api/admin/orders", isAuth, isAdmin, enforceStaffPerm, orderRoutes);
-app.use("/api/payments", paymentRoutes);
-app.use("/api/checkout", checkoutRoutes);
+app.use(
+  "/api/admin/orders",
+  isAuth,
+  isAdmin,
+  enforceStaffPerm,
+  captureAdminActivity,
+  orderRoutes,
+);
+app.use("/api/payments", captureActivity(), paymentRoutes);
+app.use(
+  "/api/checkout",
+  captureActivity({ skipPathIncludes: ["/preview"] }),
+  checkoutRoutes,
+);
 app.use("/api/cart", cartRoutes);
 app.use("/api/wishlist", wishlistRoutes);
+app.use(
+  "/api/admin",
+  isAuth,
+  isAdmin,
+  enforceStaffPerm,
+  captureAdminActivity,
+);
 app.use("/api/admin", isAuth, isAdmin, enforceStaffPerm, adminRouter);
 app.use("/api/admin", isAuth, isAdmin, enforceStaffPerm, notificationRouter);
+app.use("/api/customer", captureActivity());
 app.use("/api/customer", customerRouter);
 app.use("/api/customer", customerNotificationRouter);
-app.use("/api/subadmins", isAuth, isFullAdmin, subAdminRouter);
+app.use(
+  "/api/subadmins",
+  isAuth,
+  isFullAdmin,
+  captureAdminActivity,
+  subAdminRouter,
+);
 app.use("/api/filters", filterRoutes);
 app.use(notFound);
 app.use(errorHandler);
