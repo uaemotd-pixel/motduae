@@ -155,6 +155,7 @@ export default function AdminNotificationsPage() {
         try {
           const found = await api.get<any>(
             `/api/admin/orders/retail/${orderId}`,
+            { "x-motd-activity-skip": "1" },
           );
           const order = found?.order || found;
           if (order?._id || order?.orderItems) {
@@ -172,7 +173,9 @@ export default function AdminNotificationsPage() {
 
       setLoadingOrdersForDropdown(true);
       try {
-        const found = await api.get<any>(`/api/admin/orders/custom/${orderId}`);
+        const found = await api.get<any>(`/api/admin/orders/custom/${orderId}`, {
+          "x-motd-activity-skip": "1",
+        });
         const order = found?.order || found;
         if (order?._id || order?.customerDeliveryAddress || order?.status) {
           setCustomOrderDetails((prev) => ({ ...prev, [orderId]: order }));
