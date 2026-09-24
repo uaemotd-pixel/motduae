@@ -566,9 +566,8 @@ export default function TailorOrdersPage() {
                             className="text-[11px] text-black"
                           >
                             {locale === "ar"
-                              ? addon.nameAr || addon.name
-                              : addon.name ||
-                                (locale === "ar" ? "إضافة" : "Add-on")}
+                              ? addon.nameAr || addon.name || "إضافة"
+                              : addon.name || "Add-on"}
                           </p>
                         ))}
                       </div>
