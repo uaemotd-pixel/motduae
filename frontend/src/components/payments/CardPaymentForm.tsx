@@ -83,15 +83,14 @@ function CardFormInner({
   }, [createIntent, onPaid, onError, onAttemptPay]);
 
   const [processing, setProcessing] = useState(false);
+  const cardReadyRef = useRef(false);
   const [cardComplete, setCardComplete] = useState(false);
   const [cardError, setCardError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!stripe || !elements || processing || disabled) return;
     if (onAttemptPayRef.current && !onAttemptPayRef.current()) return;
-
-    const cardElement = elements.getElement(CardElement);
-    if (!cardElement || !cardComplete) return;
+    if (!cardReadyRef.current || !cardComplete) return;
 
     setProcessing(true);
     setCardError(null);
@@ -99,6 +98,16 @@ function CardFormInner({
     try {
       const intent = await createIntentRef.current();
       if (!intent?.clientSecret) {
+        setProcessing(false);
+        return;
+      }
+
+      const cardElement = elements.getElement(CardElement);
+      if (!cardElement) {
+        const message =
+          "Card form was reset. Please enter your card details again.";
+        setCardError(message);
+        onErrorRef.current?.(message);
         setProcessing(false);
         return;
       }
@@ -145,6 +154,7 @@ function CardFormInner({
     processing ||
     !stripe ||
     !elements ||
+    !cardReadyRef.current ||
     (!allowClickWhenIncomplete && !cardComplete);
 
   return (
@@ -152,9 +162,15 @@ function CardFormInner({
       <div className="border border-(--color-border) rounded-md bg-white px-4 py-3.5">
         <CardElement
           options={CARD_ELEMENT_OPTIONS}
+          onReady={() => {
+            cardReadyRef.current = true;
+          }}
           onChange={(event) => {
-            setCardComplete(event.complete);
-            setCardError(event.error ? event.error.message : null);
+            setCardComplete((prev) =>
+              prev === event.complete ? prev : event.complete,
+            );
+            const message = event.error?.message ?? null;
+            setCardError((prev) => (prev === message ? prev : message));
           }}
         />
       </div>

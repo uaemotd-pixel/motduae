@@ -80,6 +80,9 @@ function ApplePayButtonInner({
     }
 
     let cancelled = false;
+    setPaymentRequest(null);
+    setCanUseApplePay(false);
+    setStatus("loading");
     const request = stripe.paymentRequest({
       country: "AE",
       currency: "aed",
@@ -232,36 +235,41 @@ function ApplePayButtonInner({
     );
   }
 
-  if (status === "processing" || disabled) {
-    return (
-      <button
-        type="button"
-        disabled
-        className="w-full px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase opacity-40 cursor-not-allowed [font-family:var(--font-ui)]"
-      >
-        {processingLabel}
-      </button>
-    );
-  }
-
   if (!paymentRequest) {
     return null;
   }
 
+  const showBusyOverlay = status === "processing" || disabled;
+
   return (
-    <div className="apple-pay-button-wrapper [&_.StripeElement]:w-full">
-      <PaymentRequestButtonElement
-        options={{
-          paymentRequest,
-          style: {
-            paymentRequestButton: {
-              type: "buy",
-              theme: "dark",
-              height: "48px",
+    <div className="relative apple-pay-button-wrapper [&_.StripeElement]:w-full">
+      <div
+        className={
+          showBusyOverlay ? "invisible pointer-events-none" : undefined
+        }
+      >
+        <PaymentRequestButtonElement
+          options={{
+            paymentRequest,
+            style: {
+              paymentRequestButton: {
+                type: "buy",
+                theme: "dark",
+                height: "48px",
+              },
             },
-          },
-        }}
-      />
+          }}
+        />
+      </div>
+      {showBusyOverlay ? (
+        <button
+          type="button"
+          disabled
+          className="absolute inset-0 w-full px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase opacity-40 cursor-not-allowed [font-family:var(--font-ui)]"
+        >
+          {processingLabel}
+        </button>
+      ) : null}
     </div>
   );
 }

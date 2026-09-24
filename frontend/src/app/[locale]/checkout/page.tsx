@@ -148,7 +148,6 @@ function CheckoutPageContent() {
   const locale = useLocale();
   const initialFillDone = useRef<boolean>(false);
   const fromWishlistAllRef = useRef<boolean>(false);
-
   const { items, clearCart, syncStockFromPreview, purgeUnavailableItems } =
     useCart();
   const { user, isLoading, isAuthenticated, applyUserResponse } = useAuth();
@@ -256,13 +255,8 @@ function CheckoutPageContent() {
     next: checkoutReturnPath,
   });
 
-  const persistWishlistItemsForReturn = () => {
-    if (
-      (searchParams.get("fromWishlistAll") === "true" ||
-        fromWishlistAllRef.current) &&
-      buyNowItemsArray &&
-      buyNowItemsArray.length > 0
-    ) {
+  const persistBuyNowItemsForReturn = () => {
+    if (buyNowItemsArray && buyNowItemsArray.length > 0) {
       try {
         saveMultiBuyNowCheckout(buyNowItemsArray);
       } catch {
@@ -338,7 +332,7 @@ function CheckoutPageContent() {
   };
 
   const startGuestCheckoutOtp = async () => {
-    persistWishlistItemsForReturn();
+    persistBuyNowItemsForReturn();
     const ok = await checkGuestContactEmail(formData.email);
     if (!ok) {
       window.setTimeout(() => {
@@ -422,34 +416,56 @@ function CheckoutPageContent() {
     const fromWishlistAll = params.get("fromWishlistAll") === "true";
     const storedSnapshot = readBuyNowCheckout();
 
-    if (isBuyNowParam && fromWishlistAll) {
+    if (isBuyNowParam) {
+      const parsed = parseBuyNowFromSearchParams(params);
+      if (parsed?.productId) {
+        const snapshot: BuyNowCheckoutSnapshot = {
+          fromWishlistAll: false,
+          productId: parsed.productId,
+          size: parsed.size || storedSnapshot?.size || "",
+          quantity: parsed.quantity || storedSnapshot?.quantity || 2,
+          slug: parsed.slug || storedSnapshot?.slug || "",
+          name: parsed.name || storedSnapshot?.name || "",
+          image: parsed.image || storedSnapshot?.image || "",
+          maxStock: parsed.maxStock || storedSnapshot?.maxStock || 0,
+          cutId: parsed.cutId || storedSnapshot?.cutId || null,
+          cutLength: parsed.cutLength || storedSnapshot?.cutLength || "",
+          items: null,
+        };
+        applyBuyNowSnapshot(snapshot);
+        saveBuyNowCheckout(snapshot);
+        return;
+      }
+
       let parsedItems = storedSnapshot?.items || null;
       if (!parsedItems) {
         const stored = sessionStorage.getItem(BUY_NOW_ITEMS_STORAGE_KEY);
         if (stored) {
           try {
-            const parsed = JSON.parse(stored);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              parsedItems = parsed;
+            const parsedStored = JSON.parse(stored);
+            if (Array.isArray(parsedStored) && parsedStored.length > 0) {
+              parsedItems = parsedStored;
             }
           } catch (error) {
-            console.error("Failed to parse wishlist items:", error);
+            console.error("Failed to parse buy-now items:", error);
           }
         }
       }
 
       if (parsedItems && parsedItems.length > 0) {
         const snapshot: BuyNowCheckoutSnapshot = {
-          fromWishlistAll: true,
-          productId: parsedItems[0]?.id || "",
-          slug: parsedItems[0]?.slug || "",
-          name: parsedItems[0]?.name || "",
-          image: parsedItems[0]?.image || "",
-          size: parsedItems[0]?.size || "",
-          quantity: parsedItems[0]?.quantity || 1,
-          maxStock: parsedItems[0]?.maxStock || 0,
-          cutId: null,
-          cutLength: parsedItems[0]?.cutLength || "",
+          fromWishlistAll:
+            fromWishlistAll || Boolean(storedSnapshot?.fromWishlistAll),
+          productId: parsedItems[0]?.id || storedSnapshot?.productId || "",
+          slug: parsedItems[0]?.slug || storedSnapshot?.slug || "",
+          name: parsedItems[0]?.name || storedSnapshot?.name || "",
+          image: parsedItems[0]?.image || storedSnapshot?.image || "",
+          size: parsedItems[0]?.size || storedSnapshot?.size || "",
+          quantity: parsedItems[0]?.quantity || storedSnapshot?.quantity || 1,
+          maxStock: parsedItems[0]?.maxStock || storedSnapshot?.maxStock || 0,
+          cutId: storedSnapshot?.cutId || null,
+          cutLength:
+            parsedItems[0]?.cutLength || storedSnapshot?.cutLength || "",
           items: parsedItems,
         };
         applyBuyNowSnapshot(snapshot);
@@ -465,28 +481,6 @@ function CheckoutPageContent() {
 
       buyNowLockedRef.current = true;
       setIsBuyNow(true);
-      return;
-    }
-
-    if (isBuyNowParam) {
-      const parsed = parseBuyNowFromSearchParams(params);
-      const snapshot: BuyNowCheckoutSnapshot = {
-        fromWishlistAll: false,
-        productId: parsed?.productId || storedSnapshot?.productId || "",
-        size: parsed?.size || storedSnapshot?.size || "",
-        quantity: parsed?.quantity || storedSnapshot?.quantity || 2,
-        slug: parsed?.slug || storedSnapshot?.slug || "",
-        name: parsed?.name || storedSnapshot?.name || "",
-        image: parsed?.image || storedSnapshot?.image || "",
-        maxStock: parsed?.maxStock || storedSnapshot?.maxStock || 0,
-        cutId: parsed?.cutId || storedSnapshot?.cutId || null,
-        cutLength: parsed?.cutLength || storedSnapshot?.cutLength || "",
-        items: null,
-      };
-      applyBuyNowSnapshot(snapshot);
-      if (snapshot.productId) {
-        saveBuyNowCheckout(snapshot);
-      }
       return;
     }
 
@@ -567,7 +561,6 @@ function CheckoutPageContent() {
 
         // Soft-load after the first successful preview so stock sync cannot blink the page.
         setPriceLoading((wasLoading) => wasLoading || !pricePreviewRef.current);
-
         const response = await api.post<PricePreviewResponse>(
           "/api/checkout/preview",
           {
@@ -877,8 +870,12 @@ function CheckoutPageContent() {
     }
   }, [user, customerProfile, profileLoading]);
 
-  // --- Loading states ---
-  if (isLoading || profileLoading || priceLoading) {
+  const checkoutFormShownRef = useRef(false);
+  if (!isLoading && !profileLoading && pricePreview) {
+    checkoutFormShownRef.current = true;
+  }
+
+  if (!checkoutFormShownRef.current && (isLoading || profileLoading || priceLoading)) {
     return (
       <MainLayout>
         <FormPageSkeleton fields={8} />
@@ -1210,7 +1207,14 @@ function CheckoutPageContent() {
                                   {item.name}
                                 </h3>
                                 <ul className="mt-2 space-y-1 [font-family:var(--font-ui)] text-[12px] text-(--color-grey-muted)">
-                                  {item.itemType === "fabric" ||
+                                  {item.itemType === "addon" || item.size === "N/A" ? (
+                                    <li className="flex flex-wrap gap-4">
+                                      {t.checkout.quantity}{" "}
+                                      <span className="ml-auto">
+                                        {item.quantity}
+                                      </span>
+                                    </li>
+                                  ) : item.itemType === "fabric" ||
                                   isFabricCutCartId(item.id) ? (
                                     <>
                                       <li className="flex flex-wrap gap-4">
@@ -1332,7 +1336,7 @@ function CheckoutPageContent() {
                     ctaLabel={tVerify.verifyNow}
                     href={verifyEmailHref}
                     emphasize={emailVerifyEmphasize}
-                    onBeforeNavigate={persistWishlistItemsForReturn}
+                    onBeforeNavigate={persistBuyNowItemsForReturn}
                   />
                 ) : null}
 
@@ -1473,7 +1477,7 @@ function CheckoutPageContent() {
                           ctaLabel={tVerify.verifyNow}
                           href={verifyEmailHref}
                           emphasize={emailVerifyEmphasize}
-                          onBeforeNavigate={persistWishlistItemsForReturn}
+                          onBeforeNavigate={persistBuyNowItemsForReturn}
                           onCta={startGuestCheckoutOtp}
                         />
                       </div>
@@ -1719,6 +1723,7 @@ function CheckoutPageContent() {
                       }
                       disabled={
                         isSubmitting ||
+                        priceLoading ||
                         displayItems.length === 0 ||
                         vatError ||
                         vatRate === null
@@ -1741,6 +1746,7 @@ function CheckoutPageContent() {
                       orderLabel={t.checkout.applePayOrderLabel}
                       disabled={
                         isSubmitting ||
+                        priceLoading ||
                         displayItems.length === 0 ||
                         vatError ||
                         vatRate === null

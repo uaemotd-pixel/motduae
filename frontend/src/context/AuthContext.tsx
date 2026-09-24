@@ -11,7 +11,16 @@ import {
 } from 'react';
 
 import { api } from '@/lib/api/client';
+import {
+    AUTH_SESSION_EXPIRED_EVENT,
+    AUTH_SESSION_KEY,
+    broadcastSignedIn,
+    broadcastSignedOut,
+} from '@/lib/auth/sessionBroadcast';
 import { clearLegacyAuthToken } from '@/lib/auth/token';
+import { clearLocalCartStorage } from '@/lib/cartStorage';
+import { clearLocalWishlistStorage } from '@/lib/wishlistStorage';
+import { isSecureIframeFocused } from '@/lib/secureIframeFocus';
 
 /** Backend signin/profile payload (see sendUserResponse in userRoutes.js) */
 interface ApiUserResponse {
@@ -129,6 +138,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const loggedOutRef = useRef(false);
+    const userRef = useRef<User | null>(null);
+    userRef.current = user;
 
     useEffect(() => {
         const loadUser = async () => {
@@ -153,12 +164,79 @@ export function AuthProvider({ children }: AuthProviderProps) {
         };
 
         loadUser();
+
+        const dropSession = () => {
+            loggedOutRef.current = true;
+            setUser(null);
+            setIsLoading(false);
+        };
+
+        const syncSession = async (force = false) => {
+            if (loggedOutRef.current && !force) return;
+            try {
+                const profile = await api.get<ApiUserResponse>("/api/users/profile");
+                if (loggedOutRef.current && !force) return;
+                loggedOutRef.current = false;
+                setUser((prev) => {
+                    const next = mapApiUser(profile);
+                    if (
+                        prev?.id === next.id &&
+                        prev?.email === next.email &&
+                        prev?.isGuest === next.isGuest &&
+                        prev?.emailVerified === next.emailVerified &&
+                        prev?.name === next.name
+                    ) {
+                        return prev;
+                    }
+                    return next;
+                });
+            } catch (error) {
+                const status = (error as { status?: number })?.status;
+                if (status === 401 || status === 403) {
+                    dropSession();
+                }
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        const onSessionExpired = () => dropSession();
+        const onStorage = (event: StorageEvent) => {
+            if (event.key !== AUTH_SESSION_KEY) return;
+            if (!event.newValue) {
+                dropSession();
+                return;
+            }
+            loggedOutRef.current = false;
+            void syncSession(true);
+        };
+        const onPageShow = (event: PageTransitionEvent) => {
+            if (event.persisted) void syncSession(true);
+        };
+        const onVisible = () => {
+            if (document.visibilityState !== "visible") return;
+            if (!userRef.current) return;
+            if (isSecureIframeFocused()) return;
+            void syncSession();
+        };
+
+        window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired);
+        window.addEventListener("storage", onStorage);
+        window.addEventListener("pageshow", onPageShow);
+        document.addEventListener("visibilitychange", onVisible);
+        return () => {
+            window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired);
+            window.removeEventListener("storage", onStorage);
+            window.removeEventListener("pageshow", onPageShow);
+            document.removeEventListener("visibilitychange", onVisible);
+        };
     }, []);
 
     const persistSession = (response: ApiUserResponse) => {
         loggedOutRef.current = false;
         const mappedUser = mapApiUser(response);
         setUser(mappedUser);
+        broadcastSignedIn(mappedUser.id);
         return mappedUser;
     };
 
@@ -238,6 +316,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // Still leave the page; the local session is dropped below.
         }
         setUser(null);
+        clearLocalCartStorage();
+        clearLocalWishlistStorage();
+        broadcastSignedOut();
         if (typeof window !== "undefined") {
             window.location.replace(resolveLogoutLocation(redirectTo));
         }

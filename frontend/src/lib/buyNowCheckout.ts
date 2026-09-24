@@ -145,7 +145,7 @@ export function saveMultiBuyNowCheckout(items: CartItem[]): void {
   if (!items.length) return;
   const first = items[0];
   saveBuyNowCheckout({
-    fromWishlistAll: true,
+    fromWishlistAll: false,
     productId: first.id,
     slug: first.slug,
     name: first.name,

@@ -1,15 +1,22 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import { useAuth } from "@/context/AuthContext";
+import {
+  addAccountCartItem,
+  cartItemToLine,
+  clearAccountCart,
+  getAccountCart,
+  mergeAccountCart,
+  removeAccountCartItem,
+  setAccountCartQuantity,
+  type AccountCart,
+} from "@/lib/api/cart";
 import { api, getApiErrorMessage } from "@/lib/api/client";
+import { broadcastSignedOut } from "@/lib/auth/sessionBroadcast";
+import { CART_KEY, CART_OWNER_KEY, clearLocalCartStorage } from "@/lib/cartStorage";
+import { isSecureIframeFocused } from "@/lib/secureIframeFocus";
 import { buildRetailCheckoutItem } from "@/lib/fabrics";
 
 export type CartItem = {
@@ -55,7 +62,61 @@ type CartContextType = {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-const CART_KEY = "readyMadeCart";
+function cartLineId(id: unknown): string {
+  if (typeof id === "string") return id.trim();
+  if (id == null) return "";
+  if (typeof id === "object" && "toString" in id) {
+    const text = String(id).trim();
+    if (text && text !== "[object Object]") return text;
+  }
+  return "";
+}
+
+function readSize(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
+}
+
+function readMaxStock(value: unknown): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : undefined;
+}
+
+function readItemType(value: unknown): CartItem["itemType"] {
+  return value === "fabric" || value === "readyMade" || value === "addon"
+    ? value
+    : undefined;
+}
+
+function toCartLine(item: {
+  id: unknown;
+  slug?: unknown;
+  name?: unknown;
+  image?: unknown;
+  price?: unknown;
+  size?: unknown;
+  quantity?: unknown;
+  cutLength?: unknown;
+  itemType?: unknown;
+  maxStock?: unknown;
+}): CartItem | null {
+  const id = cartLineId(item.id);
+  if (!id) return null;
+  const maxStock = readMaxStock(item.maxStock);
+  return {
+    id,
+    slug: typeof item.slug === "string" ? item.slug : "",
+    name: typeof item.name === "string" ? item.name : "",
+    image: typeof item.image === "string" ? item.image : "",
+    price: Number(item.price) || 0,
+    size: readSize(item.size),
+    quantity: Math.max(1, Number(item.quantity) || 1),
+    cutLength: typeof item.cutLength === "string" ? item.cutLength : undefined,
+    itemType: readItemType(item.itemType),
+    ...(maxStock != null ? { maxStock } : {}),
+  };
+}
 
 export function isCartAvailabilityError(message: string): boolean {
   return /out of stock|insufficient stock|not available|product not found|not found:/i.test(
@@ -96,59 +157,155 @@ function buildPreviewPayload(items: CartItem[], measurementUnit?: string) {
     };
   });
 }
-
 function normalizeStoredItems(stored: unknown): CartItem[] {
   if (!Array.isArray(stored)) return [];
-  return stored
-    .filter((item) => item && typeof item.id === "string")
-    .map((item) => ({
-      id: item.id,
-      slug: item.slug ?? "",
-      name: item.name ?? "",
-      image: item.image ?? "",
-      price: Number(item.price) || 0,
-      size: item.size ?? "",
-      quantity: Math.max(1, Number(item.quantity) || 1),
-      cutLength: typeof item.cutLength === "string" ? item.cutLength : undefined,
-      itemType:
-        item.itemType === "fabric" ||
-        item.itemType === "readyMade" ||
-        item.itemType === "addon"
-          ? item.itemType
-          : undefined,
-      maxStock: ((): number | undefined => {
-        const parsed = Number(item.maxStock);
-        return Number.isFinite(parsed) ? Math.max(0, parsed) : undefined;
-      })(),
-    }));
+  const byId = new Map<string, CartItem>();
+  for (const item of stored) {
+    const line = item && typeof item === "object" ? toCartLine(item) : null;
+    if (!line) continue;
+    const previous = byId.get(line.id);
+    if (!previous || line.quantity > previous.quantity) byId.set(line.id, line);
+  }
+  return [...byId.values()];
+}
+
+function addQuantity(
+  existingQty: number,
+  addQty: number,
+  maxStock: number | undefined,
+): number {
+  const next = existingQty + addQty;
+  if (maxStock == null || existingQty >= maxStock) return existingQty;
+  return Math.min(next, maxStock);
+}
+
+function readCart(): CartItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = localStorage.getItem(CART_KEY);
+    if (!stored) return [];
+    return normalizeStoredItems(JSON.parse(stored));
+  } catch {
+    return [];
+  }
+}
+
+function writeCart(next: CartItem[]) {
+  localStorage.setItem(CART_KEY, JSON.stringify(next));
+}
+
+function readOwner(): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(CART_OWNER_KEY) || "";
+}
+
+function writeOwner(userId: string) {
+  if (userId) localStorage.setItem(CART_OWNER_KEY, userId);
+  else localStorage.removeItem(CART_OWNER_KEY);
+}
+
+function clearLocalCart() {
+  clearLocalCartStorage();
+}
+
+function keepAnonymousAdds(
+  snapshot: CartItem[],
+  current: CartItem[],
+): CartItem[] {
+  const previousQuantity = new Map(
+    snapshot.map((item) => [item.id, item.quantity]),
+  );
+  return current.flatMap((item) => {
+    const added = item.quantity - (previousQuantity.get(item.id) || 0);
+    if (added < 1) return [];
+    return [{ ...item, quantity: added }];
+  });
+}
+
+function errorStatus(error: unknown): number {
+  if (error && typeof error === "object" && "status" in error) {
+    const status = Number((error as { status: unknown }).status);
+    return Number.isFinite(status) ? status : 0;
+  }
+  return 0;
+}
+
+const cartMergeByUser = new Map<string, Promise<AccountCart>>();
+
+function mergeAccountCartOnce(
+  userId: string,
+  items: Parameters<typeof mergeAccountCart>[0],
+) {
+  const pending = cartMergeByUser.get(userId);
+  if (pending) return pending;
+  const request = mergeAccountCart(items).finally(() => {
+    cartMergeByUser.delete(userId);
+  });
+  cartMergeByUser.set(userId, request);
+  return request;
+}
+
+/**
+ * Apply a change to the saved cart, not this tab's memory.
+ * Another tab may have added lines this tab has never seen.
+ */
+function commitCart(mutator: (current: CartItem[]) => CartItem[]): CartItem[] {
+  const current = readCart();
+  const next = mutator(current);
+  if (JSON.stringify(next) === JSON.stringify(current)) return current;
+
+  const payload = JSON.stringify(next);
+  writeCart(next);
+  if (localStorage.getItem(CART_KEY) === payload) return next;
+
+  const retried = mutator(readCart());
+  writeCart(retried);
+  return retried;
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
-  const [isHydrated, setIsHydrated] = useState(false);
   const toastScheduledRef = useRef<string | null>(null);
-  const itemsRef = useRef<CartItem[]>([]);
+  const chainRef = useRef(Promise.resolve());
+  const generationRef = useRef(0);
+  const accountUserIdRef = useRef("");
+  const cartBeforeAuthRef = useRef<CartItem[] | null>(null);
+  if (cartBeforeAuthRef.current === null && typeof window !== "undefined") {
+    cartBeforeAuthRef.current = readCart();
+  }
 
-  useEffect(() => {
-    itemsRef.current = items;
-  }, [items]);
+  const realUserId =
+    !isLoading && user && !user.isGuest && user.id ? user.id : "";
+  accountUserIdRef.current = realUserId;
 
-  useEffect(() => {
-    const stored = localStorage.getItem(CART_KEY);
-    if (stored) {
-      try {
-        setItems(normalizeStoredItems(JSON.parse(stored)));
-      } catch {
-        setItems([]);
-      }
-    }
-    setIsHydrated(true);
-  }, []);
+  const enqueue = (task: () => Promise<void>) => {
+    chainRef.current = chainRef.current.then(task).then(
+      () => undefined,
+      () => undefined,
+    );
+  };
 
-  useEffect(() => {
-    if (!isHydrated) return;
-    localStorage.setItem(CART_KEY, JSON.stringify(items));
-  }, [items, isHydrated]);
+  const applyAccountCart = (next: unknown, userId: string) => {
+    const normalized = normalizeStoredItems(next);
+    writeCart(normalized);
+    writeOwner(userId);
+    setItems((prev) =>
+      JSON.stringify(prev) === JSON.stringify(normalized) ? prev : normalized,
+    );
+  };
+
+  const dropAccountCartSync = () => {
+    accountUserIdRef.current = "";
+    generationRef.current += 1;
+    writeOwner("");
+    broadcastSignedOut();
+  };
+
+  const sessionEnded = (error: unknown): boolean => {
+    const status = errorStatus(error);
+    return status === 401 || status === 403;
+  };
 
   const showToast = (
     message: string,
@@ -166,221 +323,472 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }, 500);
   };
 
-  const addItem = useCallback(
-    (
-      item: Omit<CartItem, "quantity" | "maxStock"> & {
-        maxStock: number;
-        quantity?: number;
-      },
-    ) => {
-      const addQty = Math.max(1, Number(item.quantity) || 1);
-      setItems((prev) => {
-        const existing = prev.find((p) => p.id === item.id);
+  const reconcileAccountWrite = async (
+    snapshot: CartItem[],
+    error: unknown,
+    userId: string,
+    generation: number,
+  ) => {
+    if (sessionEnded(error)) {
+      dropAccountCartSync();
+      return;
+    }
+    if (generationRef.current !== generation) return;
+    if (accountUserIdRef.current !== userId) return;
 
-        if (existing) {
-          if (
-            existing.maxStock != null &&
-            existing.quantity >= existing.maxStock
-          ) {
-            setTimeout(() => {
-              showToast(`Only ${existing.maxStock} in stock`, "error");
-            }, 0);
-            return prev;
-          }
-
-          const nextQty =
-            existing.maxStock != null
-              ? Math.min(existing.quantity + addQty, existing.maxStock)
-              : existing.quantity + addQty;
-          setTimeout(() => {
-            showToast(`${item.name} quantity increased to ${nextQty}`);
-          }, 0);
-          return prev.map((p) =>
-            p.id === item.id ? { ...p, quantity: nextQty } : p,
-          );
+    if (errorStatus(error) > 0) {
+      try {
+        const data = await getAccountCart();
+        if (generationRef.current !== generation) return;
+        if (accountUserIdRef.current !== userId) return;
+        applyAccountCart(data.items, userId);
+        showToast(getApiErrorMessage(error, "Could not update cart"), "error");
+        return;
+      } catch (retryError) {
+        if (sessionEnded(retryError)) {
+          dropAccountCartSync();
+          return;
         }
-
-        setTimeout(() => {
-          showToast(`${item.name} added to cart`);
-        }, 0);
-        const parsed = Number(item.maxStock);
-        const maxStock = Number.isFinite(parsed)
-          ? Math.max(0, parsed)
-          : undefined;
-        const initialQty =
-          maxStock != null ? Math.min(addQty, Math.max(1, maxStock)) : addQty;
-        return [
-          ...prev,
-          {
-            id: item.id,
-            slug: item.slug,
-            name: item.name,
-            image: item.image,
-            price: item.price,
-            size: item.size,
-            quantity: initialQty,
-            ...(item.cutLength ? { cutLength: item.cutLength } : {}),
-            ...(item.itemType ? { itemType: item.itemType } : {}),
-            ...(maxStock != null ? { maxStock } : {}),
-          },
-        ];
-      });
-    },
-    [],
-  );
-
-  const removeItem = useCallback(
-    (id: string, options?: { silent?: boolean }) => {
-      const removedItem = itemsRef.current.find((p) => p.id === id);
-      if (removedItem && !options?.silent) {
-        showToast(`${removedItem.name} removed from cart`);
       }
-      setItems((prev) => prev.filter((p) => p.id !== id));
-    },
-    [],
-  );
+    }
 
-  const syncStockFromPreview = useCallback(
-    (stockByCartId: Array<{ id: string; maxStock: number }>): string[] => {
-      const stockMap = new Map(
-        stockByCartId.map((row) => [
-          row.id,
-          Math.max(0, Number(row.maxStock) || 0),
-        ]),
-      );
-      const removedNames: string[] = [];
+    if (generationRef.current !== generation) return;
+    if (accountUserIdRef.current !== userId) return;
+    writeCart(snapshot);
+    setItems(snapshot);
+    showToast(getApiErrorMessage(error, "Could not update cart"), "error");
+  };
 
-      setItems((prev) => {
-        let changed = false;
-        const next: CartItem[] = [];
+  useEffect(() => {
+    setItems(readCart());
+  }, []);
 
-        for (const item of prev) {
-          if (!stockMap.has(item.id)) {
-            next.push(item);
-            continue;
-          }
+  useEffect(() => {
+    if (isLoading) return;
 
-          const maxStock = stockMap.get(item.id)!;
-          if (maxStock < 1) {
-            removedNames.push(item.name || "Item");
-            changed = true;
-            continue;
-          }
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
+    const userId = user && !user.isGuest && user.id ? user.id : "";
+    accountUserIdRef.current = userId;
 
-          const quantity = Math.min(item.quantity, maxStock);
-          if (item.maxStock !== maxStock || item.quantity !== quantity) {
-            changed = true;
-            next.push({ ...item, maxStock, quantity });
-          } else {
-            next.push(item);
-          }
+    if (!userId) {
+      cartMergeByUser.clear();
+      if (readOwner()) {
+        const kept = keepAnonymousAdds(
+          cartBeforeAuthRef.current || [],
+          readCart(),
+        );
+        writeCart(kept);
+        writeOwner("");
+        setItems(kept);
+      }
+      return;
+    }
+
+    const owner = readOwner();
+    if (owner && owner !== userId) {
+      clearLocalCart();
+      setItems([]);
+    }
+    const localSnapshot = owner ? [] : readCart();
+    enqueue(async () => {
+      if (generationRef.current !== generation) return;
+      if (accountUserIdRef.current !== userId) return;
+      try {
+        const data =
+          owner && owner !== userId
+            ? await getAccountCart()
+            : !owner
+              ? localSnapshot.length
+                ? await mergeAccountCartOnce(
+                    userId,
+                    localSnapshot.map((item) =>
+                      cartItemToLine(item, item.quantity),
+                    ),
+                  )
+                : await getAccountCart()
+              : await getAccountCart();
+
+        if (generationRef.current !== generation) return;
+        if (accountUserIdRef.current !== userId) return;
+        applyAccountCart(data.items, userId);
+      } catch (error) {
+        if (generationRef.current !== generation) return;
+        if (sessionEnded(error)) {
+          dropAccountCartSync();
+          setItems(readCart());
+          return;
         }
+        showToast(getApiErrorMessage(error, "Could not load your cart"), "error");
+      }
+    });
+  }, [isLoading, user?.id, user?.isGuest]);
 
-        return changed ? next : prev;
+  useEffect(() => {
+    const refreshFromStorage = () => setItems(readCart());
+    const refreshAccount = () => {
+      if (isSecureIframeFocused()) return;
+      const userId = accountUserIdRef.current;
+      if (!userId) {
+        refreshFromStorage();
+        return;
+      }
+      const generation = generationRef.current;
+      enqueue(async () => {
+        if (generationRef.current !== generation) return;
+        if (accountUserIdRef.current !== userId) return;
+        try {
+          const data = await getAccountCart();
+          if (generationRef.current !== generation) return;
+          if (accountUserIdRef.current !== userId) return;
+          applyAccountCart(data.items, userId);
+        } catch (error) {
+          if (sessionEnded(error)) {
+            dropAccountCartSync();
+          }
+          refreshFromStorage();
+        }
       });
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== CART_KEY && event.key !== CART_OWNER_KEY) return;
+      refreshAccount();
+    };
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (isSecureIframeFocused()) return;
+      refreshAccount();
+    };
 
-      return removedNames;
+    window.addEventListener("storage", onStorage);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+
+  const addItem = (
+    item: Omit<CartItem, "quantity" | "maxStock"> & {
+      maxStock: number;
+      quantity?: number;
     },
-    [],
-  );
+  ) => {
+    const id = cartLineId(item.id);
+    if (!id) return;
+    const addQty = Math.max(1, Number(item.quantity) || 1);
+    const incomingMaxStock = readMaxStock(item.maxStock);
+    const snapshot = readCart();
+    let toastMessage = "";
+    let toastType: "success" | "error" = "success";
 
-  const purgeUnavailableItems = useCallback(
-    async (
-      measurementUnit?: string,
-    ): Promise<{
-      purgedNames: string[];
-      lastError: string | null;
-      remainingItems: CartItem[];
-    }> => {
-      const purgedNames: string[] = [];
-      let remaining = [...itemsRef.current];
-      let lastError: string | null = null;
+    const next = commitCart((current) => {
+      const existing = current.find((p) => p.id === id);
 
-      const dropItem = (item: CartItem) => {
-        removeItem(item.id, { silent: true });
-        purgedNames.push(item.name || "Item");
-        remaining = remaining.filter((row) => row.id !== item.id);
-      };
-
-      const dropUnavailableByProbing = async () => {
-        const candidates = [...remaining];
-        const stillOk: CartItem[] = [];
-        for (const item of candidates) {
-          try {
-            await api.post("/api/checkout/preview", {
-              items: buildPreviewPayload([item], measurementUnit),
-            });
-            stillOk.push(item);
-          } catch (err: unknown) {
-            const message = getApiErrorMessage(err, "Failed to validate cart");
-            if (isCartAvailabilityError(message)) {
-              removeItem(item.id, { silent: true });
-              purgedNames.push(item.name || "Item");
-            } else {
-              lastError = message;
-              stillOk.push(item);
-            }
-          }
+      if (existing) {
+        const maxStock = incomingMaxStock ?? existing.maxStock;
+        if (maxStock != null && existing.quantity >= maxStock) {
+          toastMessage = `Only ${maxStock} in stock`;
+          toastType = "error";
+          return current;
         }
-        remaining = stillOk;
-      };
 
-      for (let attempt = 0; attempt < 12 && remaining.length > 0; attempt++) {
+        const nextQty = addQuantity(existing.quantity, addQty, maxStock);
+        toastMessage = `${item.name} quantity increased to ${nextQty}`;
+        return current.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                quantity: nextQty,
+                itemType: p.itemType ?? readItemType(item.itemType),
+                ...(maxStock != null ? { maxStock } : {}),
+              }
+            : p,
+        );
+      }
+
+      if (incomingMaxStock != null && incomingMaxStock < 1) {
+        toastMessage = `${item.name} is out of stock`;
+        toastType = "error";
+        return current;
+      }
+
+      const initialQty =
+        incomingMaxStock != null ? Math.min(addQty, incomingMaxStock) : addQty;
+      const line = toCartLine({
+        ...item,
+        id,
+        quantity: initialQty,
+        maxStock: incomingMaxStock,
+      });
+      if (!line) return current;
+      toastMessage = `${item.name} added to cart`;
+      return [...current, line];
+    });
+
+    if (toastMessage) {
+      setTimeout(() => showToast(toastMessage, toastType), 0);
+    }
+    setItems(next);
+
+    const userId = accountUserIdRef.current;
+    if (!userId) return;
+    const previous = snapshot.find((line) => line.id === id);
+    const saved = next.find((line) => line.id === id);
+    const delta = (saved?.quantity || 0) - (previous?.quantity || 0);
+    if (delta < 1) return;
+
+    const generation = generationRef.current;
+    enqueue(async () => {
+      if (generationRef.current !== generation) return;
+      if (accountUserIdRef.current !== userId) return;
+      try {
+        const data = await addAccountCartItem(
+          cartItemToLine(
+            { id, itemType: item.itemType ?? saved?.itemType },
+            delta,
+          ),
+        );
+        if (generationRef.current !== generation) return;
+        if (accountUserIdRef.current !== userId) return;
+        applyAccountCart(data.items, userId);
+      } catch (error) {
+        await reconcileAccountWrite(snapshot, error, userId, generation);
+      }
+    });
+  };
+
+  const removeItem = (id: string, options?: { silent?: boolean }) => {
+    const lineId = cartLineId(id);
+    if (!lineId) return;
+    const snapshot = readCart();
+    const removedItem = snapshot.find((p) => p.id === lineId);
+    if (removedItem && !options?.silent) {
+      showToast(`${removedItem.name} removed from cart`);
+    }
+    setItems(commitCart((current) => current.filter((p) => p.id !== lineId)));
+
+    const userId = accountUserIdRef.current;
+    if (!userId) return;
+    const generation = generationRef.current;
+    enqueue(async () => {
+      if (generationRef.current !== generation) return;
+      if (accountUserIdRef.current !== userId) return;
+      try {
+        const data = await removeAccountCartItem(lineId);
+        if (generationRef.current !== generation) return;
+        if (accountUserIdRef.current !== userId) return;
+        applyAccountCart(data.items, userId);
+      } catch (error) {
+        await reconcileAccountWrite(snapshot, error, userId, generation);
+      }
+    });
+  };
+
+  const syncStockFromPreview = (
+    stockByCartId: Array<{ id: string; maxStock: number }>,
+  ): string[] => {
+    const stockMap = new Map(
+      stockByCartId.map((row) => [
+        row.id,
+        Math.max(0, Number(row.maxStock) || 0),
+      ]),
+    );
+    const removedNames: string[] = [];
+    const snapshot = readCart();
+    const next = commitCart((current) => {
+      const updated: CartItem[] = [];
+      for (const item of current) {
+        if (!stockMap.has(item.id)) {
+          updated.push(item);
+          continue;
+        }
+        const maxStock = stockMap.get(item.id)!;
+        if (maxStock < 1) {
+          removedNames.push(item.name || "Item");
+          continue;
+        }
+        const quantity = Math.min(item.quantity, maxStock);
+        updated.push({ ...item, maxStock, quantity });
+      }
+      return updated;
+    });
+    setItems(next);
+
+    const userId = accountUserIdRef.current;
+    if (!userId || JSON.stringify(snapshot) === JSON.stringify(next)) {
+      return removedNames;
+    }
+
+    const generation = generationRef.current;
+    const removedIds = snapshot
+      .filter((item) => !next.some((row) => row.id === item.id))
+      .map((item) => item.id);
+    const quantityChanges = next.filter((item) => {
+      const previous = snapshot.find((row) => row.id === item.id);
+      return previous && previous.quantity !== item.quantity;
+    });
+
+    enqueue(async () => {
+      if (generationRef.current !== generation) return;
+      if (accountUserIdRef.current !== userId) return;
+      try {
+        for (const lineId of removedIds) {
+          await removeAccountCartItem(lineId);
+        }
+        for (const item of quantityChanges) {
+          await setAccountCartQuantity(item.id, item.quantity);
+        }
+        const data = await getAccountCart();
+        if (generationRef.current !== generation) return;
+        if (accountUserIdRef.current !== userId) return;
+        applyAccountCart(data.items, userId);
+      } catch (error) {
+        await reconcileAccountWrite(snapshot, error, userId, generation);
+      }
+    });
+
+    return removedNames;
+  };
+
+  const purgeUnavailableItems = async (
+    measurementUnit?: string,
+  ): Promise<{
+    purgedNames: string[];
+    lastError: string | null;
+    remainingItems: CartItem[];
+  }> => {
+    const purgedNames: string[] = [];
+    let remaining = readCart();
+    let lastError: string | null = null;
+
+    const dropItem = (item: CartItem) => {
+      removeItem(item.id, { silent: true });
+      purgedNames.push(item.name || "Item");
+      remaining = remaining.filter((row) => row.id !== item.id);
+    };
+
+    const dropUnavailableByProbing = async () => {
+      const candidates = [...remaining];
+      const stillOk: CartItem[] = [];
+      for (const item of candidates) {
         try {
           await api.post("/api/checkout/preview", {
-            items: buildPreviewPayload(remaining, measurementUnit),
+            items: buildPreviewPayload([item], measurementUnit),
           });
-          lastError = null;
-          break;
+          stillOk.push(item);
         } catch (err: unknown) {
           const message = getApiErrorMessage(err, "Failed to validate cart");
-          lastError = message;
-
-          if (!isCartAvailabilityError(message)) {
-            break;
-          }
-
-          const match = findUnavailableCartItem(remaining, message);
-          if (match) {
-            dropItem(match);
-            continue;
-          }
-
-          const before = remaining.length;
-          await dropUnavailableByProbing();
-          if (remaining.length === before || remaining.length === 0) {
-            break;
+          if (isCartAvailabilityError(message)) {
+            removeItem(item.id, { silent: true });
+            purgedNames.push(item.name || "Item");
+          } else {
+            lastError = message;
+            stillOk.push(item);
           }
         }
       }
+      remaining = stillOk;
+    };
 
-      return { purgedNames, lastError, remainingItems: remaining };
-    },
-    [removeItem],
-  );
+    for (let attempt = 0; attempt < 12 && remaining.length > 0; attempt++) {
+      try {
+        await api.post("/api/checkout/preview", {
+          items: buildPreviewPayload(remaining, measurementUnit),
+        });
+        lastError = null;
+        break;
+      } catch (err: unknown) {
+        const message = getApiErrorMessage(err, "Failed to validate cart");
+        lastError = message;
 
-  const updateQuantity = useCallback(
-    (id: string, quantity: number) => {
-      const item = itemsRef.current.find((p) => p.id === id);
-      if (!item) return;
+        if (!isCartAvailabilityError(message)) {
+          break;
+        }
 
-      if (item.maxStock != null && quantity > item.maxStock) {
-        showToast(`Only ${item.maxStock} in stock`, "error");
-        return;
+        const match = findUnavailableCartItem(remaining, message);
+        if (match) {
+          dropItem(match);
+          continue;
+        }
+
+        const before = remaining.length;
+        await dropUnavailableByProbing();
+        if (remaining.length === before || remaining.length === 0) {
+          break;
+        }
       }
-      if (quantity <= 0) {
-        removeItem(id);
-        return;
+    }
+
+    return { purgedNames, lastError, remainingItems: remaining };
+  };
+
+  const updateQuantity = (id: string, quantity: number) => {
+    const lineId = cartLineId(id);
+    if (!lineId) return;
+    const snapshot = readCart();
+    const item = snapshot.find((p) => p.id === lineId);
+    if (!item) {
+      setItems(snapshot);
+      return;
+    }
+
+    if (item.maxStock != null && quantity > item.maxStock) {
+      showToast(`Only ${item.maxStock} in stock`, "error");
+      setItems(snapshot);
+      return;
+    }
+    if (quantity <= 0) {
+      removeItem(lineId);
+      return;
+    }
+
+    setItems(
+      commitCart((latest) =>
+        latest.map((p) => (p.id === lineId ? { ...p, quantity } : p)),
+      ),
+    );
+
+    const userId = accountUserIdRef.current;
+    if (!userId) return;
+    const generation = generationRef.current;
+    enqueue(async () => {
+      if (generationRef.current !== generation) return;
+      if (accountUserIdRef.current !== userId) return;
+      try {
+        const data = await setAccountCartQuantity(lineId, quantity);
+        if (generationRef.current !== generation) return;
+        if (accountUserIdRef.current !== userId) return;
+        applyAccountCart(data.items, userId);
+      } catch (error) {
+        await reconcileAccountWrite(snapshot, error, userId, generation);
       }
+    });
+  };
 
-      setItems((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, quantity } : p)),
-      );
-    },
-    [removeItem],
-  );
+  const clearCart = () => {
+    const snapshot = readCart();
+    writeCart([]);
+    setItems([]);
 
-  const clearCart = useCallback(() => setItems([]), []);
+    const userId = accountUserIdRef.current;
+    if (!userId) return;
+    const generation = generationRef.current;
+    enqueue(async () => {
+      if (generationRef.current !== generation) return;
+      if (accountUserIdRef.current !== userId) return;
+      try {
+        await clearAccountCart();
+        if (generationRef.current !== generation) return;
+        if (accountUserIdRef.current !== userId) return;
+        writeCart([]);
+        writeOwner(userId);
+        setItems([]);
+      } catch (error) {
+        await reconcileAccountWrite(snapshot, error, userId, generation);
+      }
+    });
+  };
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 

@@ -137,11 +137,7 @@ export function Navbar() {
   const accountLabel = user ? t.navbar.actions.account : t.navbar.actions.login;
   const { items } = useCart();
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-  const { wishItems } = useWishlist();
-  const wishlistTotalItems = wishItems.reduce(
-    (sum, item) => sum + item.quantity,
-    0,
-  );
+  const { totalItems: wishlistTotalItems } = useWishlist();
 
   // Role Based Logic after Login
   const getAccountHref = () => {
