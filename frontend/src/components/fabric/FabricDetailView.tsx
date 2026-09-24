@@ -89,17 +89,15 @@ export default function FabricDetailView({
   const { addItem: addToCart } = useCart();
   const { selectSingleFabric, setFirstStep } = useCustomOrder();
   const {
-    wishItems,
     addItem: addToWishlist,
     removeItem: removeFromWishlist,
+    isInWishlist,
   } = useWishlist();
 
   const liked =
     hasSelection &&
     selectedCutEntries.every((entry) =>
-      wishItems.some(
-        (item) => item.id === buildFabricCutCartId(fabric._id, entry.cutId),
-      ),
+      isInWishlist(buildFabricCutCartId(fabric._id, entry.cutId)),
     );
 
   useEffect(() => {
@@ -219,7 +217,7 @@ export default function FabricDetailView({
     }
 
     saveMultiBuyNowCheckout(cartItems);
-    router.push(`/${locale}/checkout?buyNow=true&fromWishlistAll=true`);
+    router.push(`/${locale}/checkout?buyNow=true`);
   };
   const containerRef = useRef<HTMLDivElement>(null);
   const leftRef = useRef<HTMLDivElement>(null);

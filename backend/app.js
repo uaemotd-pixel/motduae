@@ -35,6 +35,8 @@ import notificationRouter from "./routes/notificationRoutes.js";
 import customerNotificationRouter from "./routes/customerNotificationRoutes.js";
 import filterRoutes from "./routes/filterRoutes.js";
 import cronRoutes from "./routes/cronRoutes.js";
+import cartRoutes from "./routes/cartRoutes.js";
+import wishlistRoutes from "./routes/wishlistRoutes.js";
 
 const app = express();
 
@@ -86,6 +88,8 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/admin/orders", isAuth, isAdmin, enforceStaffPerm, orderRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/checkout", checkoutRoutes);
+app.use("/api/cart", cartRoutes);
+app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/admin", isAuth, isAdmin, enforceStaffPerm, adminRouter);
 app.use("/api/admin", isAuth, isAdmin, enforceStaffPerm, notificationRouter);
 app.use("/api/customer", customerRouter);

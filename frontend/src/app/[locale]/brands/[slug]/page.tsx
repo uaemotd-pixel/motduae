@@ -17,6 +17,9 @@ import {
   resolveFabricImage,
   formatFabricListingPrice,
   getFabricMinListingPrice,
+  getFabricDefaultCut,
+  getCutDisplayName,
+  buildFabricCutCartId,
   type FabricListItem,
 } from "@/lib/fabrics";
 import {
@@ -525,7 +528,12 @@ export default function BrandDetailPage() {
                         ? fabric.materialAr || fabric.material
                         : fabric.material;
                     const hrefPath = `/fabrics/${fabric.slug}`;
-                    const price = getFabricMinListingPrice(fabric);
+                    const listingCut = getFabricDefaultCut(fabric);
+                    const cutLabel = listingCut
+                      ? getCutDisplayName(listingCut, locale)
+                      : fabric.material || "fabric";
+                    const price =
+                      listingCut?.price ?? getFabricMinListingPrice(fabric);
 
                     return (
                       <motion.div
@@ -581,14 +589,22 @@ export default function BrandDetailPage() {
                               </button>
                               <WishlistButton
                                 item={{
-                                  id: fabric._id,
+                                  id: listingCut
+                                    ? buildFabricCutCartId(
+                                        fabric._id,
+                                        listingCut.cutId,
+                                      )
+                                    : fabric._id,
                                   name: fabricName,
                                   image,
                                   price,
                                   slug: fabric.slug,
-                                  size: fabric.material || "fabric",
+                                  size: cutLabel,
                                   quantity: 1,
                                   type: "fabric",
+                                  ...(listingCut
+                                    ? { maxStock: listingCut.stock }
+                                    : {}),
                                 }}
                                 inline
                                 className="size-6! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90! shadow-sm backdrop-blur-sm xs:size-7!"

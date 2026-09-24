@@ -204,6 +204,7 @@ export default function CartPage() {
                             <h3 className="[font-family:var(--font-display)] text-[16px] xs:text-[18px] sm:text-[20px] font-normal text-black">
                               {item.name}
                             </h3>
+                            {item.itemType === "addon" || item.size === "N/A" ? null : (
                             <p className="[font-family:var(--font-ui)] text-[11px] xs:text-[12px] text-(--color-grey-muted)">
                               {item.itemType === "fabric" || isFabricCutCartId(item.id) ? (
                                 <>
@@ -227,6 +228,7 @@ export default function CartPage() {
                                 </>
                               )}
                             </p>
+                            )}
                             <p className="[font-family:var(--font-ui)] text-[14px] xs:text-[16px] font-medium text-black">
                               AED {item.price.toFixed(2)}
                               {(item.itemType === "fabric" ||

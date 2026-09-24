@@ -753,11 +753,12 @@ export default function ReadyMadeDetailPage() {
   const slug = params.slug as string;
   const locale = params.locale as string;
   const t = getTranslation(locale).readyMade.detail;
+  const { formatLength } = useMeasurementUnit();
   const { addItem: addToCart } = useCart();
   const {
-    wishItems,
     addItem: addToWishlist,
     removeItem: removeFromWishlist,
+    isInWishlist,
   } = useWishlist();
 
   const [product, setProduct] = useState<any | null>(null);
@@ -805,17 +806,21 @@ export default function ReadyMadeDetailPage() {
   }, [slug]);
 
   const handleAddToCart = () => {
-    if (!product) return;
+    if (!product?._id) return;
     const price = product.finalSellingPriceAED || 0;
-    const maxStock = product.availableFabricStock || 0;
+    const maxStock = Number(product.availableFabricStock) || 0;
+    const title = locale === "ar" ? product.nameAr || product.name : product.name;
+    const meters = Number(product.metersPerFabric);
     addToCart({
-      id: product._id,
+      id: String(product._id),
       slug: product.slug,
-      name: product.name,
+      name: title,
       image: resolveReadyMadeImage(product.images?.[0]),
       price,
-      size: product.metersPerFabric,
+      size: formatLength(meters) || String(product.metersPerFabric ?? ""),
+      itemType: "readyMade",
       maxStock,
+      quantity,
     });
   };
 
@@ -841,9 +846,7 @@ export default function ReadyMadeDetailPage() {
     router.push(`/${locale}/checkout?buyNow=true&${checkoutParams.toString()}`);
   };
 
-  const liked = product
-    ? wishItems.some((item) => item.id === product._id)
-    : false;
+  const liked = product ? isInWishlist(product._id) : false;
 
   const toggleWishlist = () => {
     if (!product) return;

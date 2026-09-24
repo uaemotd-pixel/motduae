@@ -10,6 +10,9 @@ import type { FabricDetailItem, FabricListItem } from "@/lib/fabrics";
 import {
   getFabricDisplayFields,
   getFabricMinListingPrice,
+  getFabricDefaultCut,
+  getCutDisplayName,
+  buildFabricCutCartId,
   resolveFabricImage,
 } from "@/lib/fabrics";
 import { formatCurrency } from "@/lib/format";
@@ -117,7 +120,12 @@ function RelatedFabricsSection({
           {items.map((item, idx) => {
             const { title } = getFabricDisplayFields(item, lang);
             const image = resolveFabricImage(item.images);
-            const price = getFabricMinListingPrice(item);
+            const listingCut = getFabricDefaultCut(item);
+            const cutLabel = listingCut
+              ? getCutDisplayName(listingCut, lang)
+              : item.material || "fabric";
+            const price =
+              listingCut?.price ?? getFabricMinListingPrice(item);
             const inStock = (item.cuts || []).some(
               (cut) => Number(cut.stock) > 0,
             );
@@ -186,14 +194,17 @@ function RelatedFabricsSection({
                       </button>
                       <WishlistButton
                         item={{
-                          id: item._id,
+                          id: listingCut
+                            ? buildFabricCutCartId(item._id, listingCut.cutId)
+                            : item._id,
                           name: title,
                           image,
                           price,
                           slug: item.slug,
-                          size: item.material || "fabric",
+                          size: cutLabel,
                           quantity: 1,
                           type: "fabric",
+                          ...(listingCut ? { maxStock: listingCut.stock } : {}),
                         }}
                         inline
                         className="size-5! p-0! inline-flex shrink-0 items-center justify-center rounded-full border-0 bg-white/90 shadow-sm backdrop-blur-sm sm:size-6!"
