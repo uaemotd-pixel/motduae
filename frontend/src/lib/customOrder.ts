@@ -350,6 +350,8 @@ function normalizeFabric(value: unknown): CustomOrderFabricSelection | null {
   const fabric = value as Partial<CustomOrderFabricSelection>;
   if (!fabric._id || !fabric.slug || !fabric.name) return null;
 
+  const fabricShopId = asEntityId(fabric.fabricShopId) || undefined;
+
   return {
     _id: fabric._id,
     slug: fabric.slug,
@@ -363,6 +365,7 @@ function normalizeFabric(value: unknown): CustomOrderFabricSelection | null {
       fabric.stockInMeters !== undefined
         ? Number(fabric.stockInMeters)
         : undefined,
+    fabricShopId,
   };
 }
 
@@ -619,16 +622,56 @@ export function useOwnFabric(draft: CustomOrderDraft): boolean {
   return draft.fabricSource === "self";
 }
 
+/** Canonical id from ObjectId, populated `{ _id }`, or string. */
+export function asEntityId(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "object") {
+    const rec = value as { _id?: unknown; toHexString?: () => string };
+    if (rec._id != null && rec._id !== value) return asEntityId(rec._id);
+    if (typeof rec.toHexString === "function") return rec.toHexString();
+    return null;
+  }
+  const text = String(value);
+  return !text || text === "[object Object]" ? null : text;
+}
+
+export function fabricShopIdsFromFabrics(
+  fabrics: CustomOrderFabricSelection[] | undefined,
+): string[] {
+  const ids = new Set<string>();
+  for (const fabric of fabrics || []) {
+    const id = asEntityId(fabric.fabricShopId);
+    if (id) ids.add(id);
+  }
+  return [...ids].sort();
+}
+
+export function fabricShopSetKey(
+  fabrics: CustomOrderFabricSelection[] | undefined,
+): string {
+  return fabricShopIdsFromFabrics(fabrics).join(",");
+}
+
+/** Fabric shops on the current storefront custom-order draft. */
+export function getCustomOrderFabricShopIds(draft: CustomOrderDraft): string[] {
+  if (draft.fabricSource !== "storefront") return [];
+  return fabricShopIdsFromFabrics(draft.selectedFabrics);
+}
+
+export function addonBelongsToFabricShops(
+  addon: { fabricShopId?: unknown; fabricShop?: { _id?: unknown } },
+  shopIds: string[],
+): boolean {
+  if (shopIds.length === 0) return false;
+  const shopId =
+    asEntityId(addon.fabricShopId) || asEntityId(addon.fabricShop?._id);
+  return Boolean(shopId && shopIds.includes(shopId));
+}
+
 export function toCustomOrderFabricSelection(
   item: FabricListItem,
 ): CustomOrderFabricSelection {
-  const storeId =
-    item.fabricShopId ||
-    (typeof item.listedByStore === "object" && item.listedByStore
-      ? item.listedByStore._id
-      : typeof item.listedByStore === "string"
-        ? item.listedByStore
-        : undefined);
+  const shopId = asEntityId(item.fabricShopId);
 
   return {
     _id: item._id,
@@ -640,7 +683,7 @@ export function toCustomOrderFabricSelection(
     cuts: item.cuts,
     image: resolveFabricImage(item.images?.[0]),
     stockInMeters: item.stockInMeters,
-    fabricShopId: storeId ? String(storeId) : undefined,
+    fabricShopId: shopId || undefined,
   };
 }
 

@@ -28,6 +28,7 @@ import {
   pruneLineItemsForSelections,
   toggleDesignInList,
   toggleFabricInList,
+  fabricShopSetKey,
   useOwnFabric,
   buildCustomOrderPreviewPayload,
   FabricUnit,
@@ -164,6 +165,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
         source === "self"
           ? prev.lineItems.map((item) => ({ ...item, fabric: null }))
           : prev.lineItems,
+      addonIds: source === "self" ? [] : prev.addonIds,
     }));
   }, []);
 
@@ -183,12 +185,16 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
         prev.selectedDesigns,
         "storefront",
       );
+      const shopChanged =
+        fabricShopSetKey(selectedFabrics) !==
+        fabricShopSetKey(prev.selectedFabrics);
 
       return {
         ...prev,
         fabricSource: "storefront",
         selectedFabrics,
         lineItems,
+        addonIds: shopChanged ? [] : prev.addonIds,
       };
     });
   }, []);
@@ -204,11 +210,16 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
           "storefront",
         );
 
+        const shopChanged =
+          fabricShopSetKey(selectedFabrics) !==
+          fabricShopSetKey(prev.selectedFabrics);
+
         return {
           ...prev,
           fabricSource: "storefront",
           selectedFabrics,
           lineItems,
+          addonIds: shopChanged ? [] : prev.addonIds,
         };
       });
     },
