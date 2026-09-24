@@ -359,11 +359,58 @@ async function resolveFabricShopById(fabricShopId) {
   return { id: shop._id, name: shop.name || shop.nameAr || 'Shop' };
 }
 
+function fabricInboundShopKeys(entry) {
+  return [entry?.from?.id, entry?.fabricShopId].map(idStr).filter(Boolean);
+}
+
+/** First fabric→tailor inbound per shop, keyed by shop / origin id. */
+export function indexFabricInboundsByShop(parcelMap) {
+  const byShop = new Map();
+  for (const entry of parcelMap.values()) {
+    if (entry.type !== PARCEL_TYPES.FABRIC_TO_TAILOR) continue;
+    for (const key of fabricInboundShopKeys(entry)) {
+      if (!byShop.has(key)) byShop.set(key, entry);
+    }
+  }
+  return byShop;
+}
+
+export function findFabricInboundForAddon(byShop, origin, originParty) {
+  const keys = [originParty?.id, origin?.fabricShopId, origin?.shopId]
+    .map(idStr)
+    .filter(Boolean);
+  for (const key of keys) {
+    if (byShop.has(key)) return byShop.get(key);
+  }
+  return null;
+}
+
+/**
+ * Canonical FabricShop ids for storefront custom-order lines (no listing fallbacks).
+ */
+export async function collectCustomOrderFabricShopKeys({ fabricSource, items }) {
+  const keys = new Set();
+  if (fabricSource !== 'storefront' || !Array.isArray(items)) return keys;
+
+  for (const item of items) {
+    if (!item?.fabricId) continue;
+    const fabric = await Fabric.findById(item.fabricId).select(
+      'fabricShopId listedByStore name',
+    );
+    const fabricShop = await resolveFabricShopForFabric(fabric);
+    if (!fabricShop?.id || String(fabricShop.id).startsWith('fabric:')) continue;
+    const key = idStr(fabricShop.id);
+    if (key) keys.add(key);
+  }
+  return keys;
+}
+
 /**
  * Plan parcels for a custom order draft / create payload.
  *
- * Billed: fabric inbounds + one last mile from the tailor + one last mile
- * per add-on origin (direct to the customer; no MOTD packing hop).
+ * Billed: fabric inbounds + one last mile from the tailor. Same fabric-shop
+ * add-ons ride inbound with the fabric. Other-shop add-ons (historical) keep
+ * a last mile to the customer.
  *
  * @param {object} params
  * @param {'storefront'|'self'} params.fabricSource
@@ -451,13 +498,40 @@ export async function planCustomOrderParcels({
     const addons = await AddOn.find({ _id: { $in: addonIds }, isActive: true }).select(
       'fabricShopId name ownerName pickupAddress',
     );
+    const fabricInboundByShop = indexFabricInboundsByShop(parcelMap);
 
     for (const addon of addons) {
       const origin = await resolveAddonOrigin(addon, shopCache);
+      const originParty = lastMileOriginParty(origin);
+      const fabricInbound = findFabricInboundForAddon(
+        fabricInboundByShop,
+        origin,
+        originParty,
+      );
+
+      if (fabricInbound) {
+        upsertParcel(parcelMap, {
+          type: PARCEL_TYPES.FABRIC_TO_TAILOR,
+          from: fabricInbound.from,
+          to: fabricInbound.to,
+          fabricShopId: fabricInbound.fabricShopId,
+          tailorShopId: fabricInbound.tailorShopId,
+          addonId: addon._id,
+          billable: true,
+        });
+        upsertDirectLastMile(parcelMap, {
+          type: PARCEL_TYPES.TAILOR_TO_CUSTOMER,
+          originParty: fabricInbound.to,
+          customerParty,
+          tailorShopId: fabricInbound.tailorShopId,
+          addonId: addon._id,
+        });
+        continue;
+      }
 
       upsertDirectLastMile(parcelMap, {
         type: PARCEL_TYPES.ADDON_TO_CUSTOMER,
-        originParty: lastMileOriginParty(origin),
+        originParty,
         customerParty,
         fabricShopId: origin.fabricShopId,
         addonId: addon._id,

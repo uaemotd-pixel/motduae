@@ -842,6 +842,7 @@ export async function createShipmentsForOrder(
         parcelKey: shipment.parcelKey,
         orderId: String(order._id),
         shipmentType: shipment.type,
+        addonIds: shipment.addonIds || [],
         pickup: pickupAddress,
         dropoff: dropoffAddress,
         metadata: {

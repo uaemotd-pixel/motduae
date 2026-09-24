@@ -200,6 +200,12 @@ export function toShipaV2OrderBody(payload) {
   );
   const packageRef = sanitizeShipaRef(payload.parcelKey || customerRef);
   const shipmentType = payload.shipmentType || "parcel";
+  const addonCount = Array.isArray(payload.addonIds)
+    ? payload.addonIds.filter(Boolean).length
+    : 0;
+  const packageDescription = addonCount
+    ? `${shipmentType} (includes ${addonCount} add-on${addonCount === 1 ? "" : "s"})`
+    : String(shipmentType);
   const origin = toShipaParty(payload.pickup);
   const destination = toShipaParty(payload.dropoff);
 
@@ -230,7 +236,7 @@ export function toShipaV2OrderBody(payload) {
         name: INTERNAL_SHIPMENT_TYPES.has(shipmentType)
           ? "MOTD parcel"
           : "Customer delivery",
-        description: String(shipmentType).slice(0, 1000),
+        description: packageDescription.slice(0, 1000),
         quantity: 1,
       },
     ],
