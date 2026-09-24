@@ -77,6 +77,7 @@ interface Order {
     designBase: number;
   };
   items?: CustomOrderItem[];
+  addons?: Array<{ name?: string; nameAr?: string }>;
   payoutNet?: number;
   payoutPaid?: number;
   payoutPending?: number;
@@ -815,6 +816,14 @@ export default function TailorDashboardPage() {
                         <p className="font-medium text-(--dash-ink)">
                           #{order._id.slice(-6)}
                         </p>
+                        {Array.isArray(order.addons) &&
+                        order.addons.length > 0 ? (
+                          <p className="mt-0.5 text-[10px] text-(--dash-muted)">
+                            {locale === "ar"
+                              ? "يشمل إضافات مع التصميم"
+                              : "Include add-ons with garment"}
+                          </p>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         {formatOrderDateLocal(order.createdAt)}

@@ -1453,6 +1453,13 @@ export default function FabricOrdersPage() {
 
                   {(hasFabric || hasAddons) && isShipmentsExpanded && (
                     <div className="mt-4 p-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                      {hasFabric && hasAddons ? (
+                        <p className="mb-3 text-[11px] text-gray-600 [font-family:var(--font-body)]">
+                          {locale === "ar"
+                            ? "أرسل القماش والإضافات في طرد واحد إلى الخياط."
+                            : "Pack fabric and add-ons in one shipment to the tailor."}
+                        </p>
+                      ) : null}
                       <ShipmentList
                         shipments={order.shipments}
                         locale={locale}

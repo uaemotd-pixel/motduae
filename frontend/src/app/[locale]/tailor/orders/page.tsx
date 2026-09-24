@@ -72,6 +72,13 @@ interface Order {
   fabricSnapshot?: { name: string } | null;
   fabricMeters?: number;
   leftoverMeters?: number;
+  addons?: Array<{
+    addonId?: string;
+    name?: string;
+    nameAr?: string;
+    price?: number;
+    thumbnailImage?: string;
+  }>;
   selectedCuts?: Array<{
     cutId?: string;
     name: string;
@@ -546,6 +553,26 @@ export default function TailorOrdersPage() {
                     <p className="text-xs text-gray-500 mt-0.5">
                       {t("fabricLabel", { name: fabricName })}
                     </p>
+                    {Array.isArray(order.addons) && order.addons.length > 0 ? (
+                      <div className="mt-2 rounded-xl border border-gray-100 bg-gray-50/80 p-2 space-y-1">
+                        <p className="text-[10px] uppercase tracking-wider text-gray-400">
+                          {locale === "ar"
+                            ? "أرسل مع التصميم"
+                            : "Include with garment"}
+                        </p>
+                        {order.addons.map((addon, idx) => (
+                          <p
+                            key={addon.addonId || idx}
+                            className="text-[11px] text-black"
+                          >
+                            {locale === "ar"
+                              ? addon.nameAr || addon.name
+                              : addon.name ||
+                                (locale === "ar" ? "إضافة" : "Add-on")}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
                     {cutRows.length > 0 ? (
                       <p className="text-[11px] text-gray-600 mt-1">
                         {cutRows

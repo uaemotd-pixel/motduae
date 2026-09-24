@@ -4,7 +4,8 @@ import Fabric from '../models/Fabric.js';
 import Cut from '../models/Cut.js';
 import { cutValueToMeters } from '../utils/fabricUnits.js';
 import { FABRIC_SOURCES } from '../models/CustomOrder.js';
-import { planCustomOrderParcels } from './parcelPlanService.js';
+import { planCustomOrderParcels, collectCustomOrderFabricShopKeys } from './parcelPlanService.js';
+import AddOn from '../models/AddOn.js';
 import {
   applyMotdCommission,
   splitMotdCommission as splitPartnerCommission,
@@ -15,6 +16,49 @@ export class PricingValidationError extends Error {
     super(message);
     this.name = 'PricingValidationError';
   }
+}
+
+function addonShopId(addon) {
+  const value = addon?.fabricShopId;
+  if (value == null || value === '') return '';
+  if (typeof value === 'object' && value._id) return String(value._id);
+  return String(value);
+}
+
+export async function assertCustomOrderAddonIdsAllowed({
+  fabricSource,
+  items,
+  addonIds = [],
+}) {
+  const ids = Array.isArray(addonIds) ? addonIds.filter(Boolean) : [];
+  if (ids.length === 0) return ids;
+
+  if (fabricSource === 'self') {
+    throw new PricingValidationError('Add-ons are not available with own fabric');
+  }
+
+  const shopKeys = await collectCustomOrderFabricShopKeys({ fabricSource, items });
+  if (!shopKeys.size) {
+    throw new PricingValidationError('Add-ons require fabric from a store');
+  }
+
+  const addons = await AddOn.find({ _id: { $in: ids }, isActive: true }).select(
+    'fabricShopId',
+  );
+  if (addons.length !== ids.length) {
+    throw new PricingValidationError('One or more add-ons are not available');
+  }
+
+  for (const addon of addons) {
+    const shopId = addonShopId(addon);
+    if (!shopId || !shopKeys.has(shopId)) {
+      throw new PricingValidationError(
+        'Add-ons must belong to the selected fabric store',
+      );
+    }
+  }
+
+  return ids;
 }
 
 const roundMoney = (amount) => Number(amount.toFixed(2));
@@ -678,6 +722,12 @@ export async function getCustomOrderPricing({
     throw new PricingValidationError('design is not active');
   }
 
+  await assertCustomOrderAddonIdsAllowed({
+    fabricSource,
+    items: [{ designId, fabricId, fabricMeters }],
+    addonIds,
+  });
+
   let fabric = null;
 
   if (fabricSource === 'storefront') {
@@ -818,6 +868,12 @@ export async function getMultiItemCustomOrderPricing({
   if (!Array.isArray(items) || items.length === 0) {
     throw new PricingValidationError('At least one item is required');
   }
+
+  await assertCustomOrderAddonIdsAllowed({
+    fabricSource,
+    items,
+    addonIds,
+  });
 
   const settings = await PlatformSettings.getSettings();
   const itemPricings = [];
