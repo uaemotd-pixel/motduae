@@ -16,10 +16,16 @@
     }
   ],
   "crons": [
-    {
-      "path": "/api/cron/purge-old-data",
-      "schedule": "0 2 * * *"
-    }
+    { "path": "/api/cron/purge-pending-emails", "schedule": "0 2 * * *" },
+    { "path": "/api/cron/purge-expired-otps", "schedule": "0 2 * * *" },
+    { "path": "/api/cron/purge-reset-tokens", "schedule": "0 2 * * *" },
+    { "path": "/api/cron/purge-guest-otps", "schedule": "0 2 * * *" },
+    { "path": "/api/cron/purge-pending-checkouts", "schedule": "0 2 * * *" },
+    { "path": "/api/cron/purge-email-logs", "schedule": "0 2 * * *" },
+    { "path": "/api/cron/purge-notifications", "schedule": "0 2 * * *" },
+    { "path": "/api/cron/purge-activity-logs", "schedule": "0 2 * * *" },
+    { "path": "/api/cron/purge-carts", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/purge-wishlists", "schedule": "0 4 * * *" }
   ],
   "routes": [
     {

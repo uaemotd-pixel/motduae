@@ -117,7 +117,7 @@ In **Project → Settings → Environment Variables**, add these for **Productio
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (see Stripe webhooks below) |
 | `BLOB_READ_WRITE_TOKEN` | Auto-set when Blob store is linked to the Vercel project |
 
-**Cron retention** lives in `backend/jobs/purgePolicy.js` (not env). Those numbers are “delete if older than N days”, not “run every N days”. The job already runs daily at 02:00 UTC. `pendingCheckoutSettledDays` (30) only removes **completed** checkout snapshots after an order exists. Abandoned `pending` / `failed` / `expired` rows are recovered against Stripe first, then deleted after `pendingCheckoutDays` (15). Guest OTP leftovers (no live code) are removed after `guestOtpDays` (2); expired codes still drop as soon as `otpExpires` passes. Each run is stored in the `cronruns` collection.
+**Cron retention and clock** live in `backend/jobs/purgePolicy.js` (not env). `*_Days` values are “delete if older than N days”. Each job has a five-field UTC cron in `PURGE_JOB_CRON` (example `0 3 * * *` = 03:00 UTC every day). Vercel calls **that job’s own path** at that time — it does not hit a shared checker every hour. Keep `vercel.json` `crons` matching those expressions. `pendingCheckoutSettledDays` (30) only removes **completed** checkout snapshots after an order exists. Abandoned `pending` / `failed` / `expired` rows are recovered against Stripe first, then deleted after `pendingCheckoutDays` (15). Guest OTP leftovers (no live code) are removed after `guestOtpDays` (2); expired codes still drop as soon as `otpExpires` passes. Account carts last updated more than `cartDays` (30) and wishlists last updated more than `wishlistDays` (60) are deleted whether empty or still holding products. Activity logs older than `activityLogDays` (90 / 3 months) are deleted. Guest cart/wishlist stay on the device and are not in Mongo. Each run is stored in the `cronruns` collection.
 
 You do **not** need `NEXT_PUBLIC_API_URL` on Vercel — frontend and API share the same domain, so requests go to `/api/...` automatically.
 
@@ -125,7 +125,7 @@ Each purge is its own GET/POST route so you can run them from Postman:
 
 | Method | Path |
 |---|---|
-| GET/POST | `/api/cron` (lists jobs) |
+| GET/POST | `/api/cron` (lists jobs and each job’s cron schedule) |
 | GET/POST | `/api/cron/purge-pending-emails` |
 | GET/POST | `/api/cron/purge-expired-otps` |
 | GET/POST | `/api/cron/purge-reset-tokens` |
@@ -133,9 +133,12 @@ Each purge is its own GET/POST route so you can run them from Postman:
 | GET/POST | `/api/cron/purge-pending-checkouts` |
 | GET/POST | `/api/cron/purge-email-logs` |
 | GET/POST | `/api/cron/purge-notifications` |
+| GET/POST | `/api/cron/purge-activity-logs` |
+| GET/POST | `/api/cron/purge-carts` |
+| GET/POST | `/api/cron/purge-wishlists` |
 | GET/POST | `/api/cron/purge-old-data` (all of the above) |
 
-Pass `?dryRun=1` or JSON `{ "dryRun": true }` to count without deleting. Vercel runs `/api/cron/purge-old-data` daily at 02:00 UTC. Local Postman needs no secret when `CRON_SECRET` is empty; production always needs `CRON_SECRET`.
+Pass `?dryRun=1` or JSON `{ "dryRun": true }` to count without deleting. Vercel hits each `/api/cron/<job>` at that job’s cron in `vercel.json`. Postman `purge-old-data` still runs every job immediately. Local Postman needs no secret when `CRON_SECRET` is empty; production always needs `CRON_SECRET`.
 
 On multiple backend instances (Node cluster, PM2, Kubernetes), **only one instance runs a given job**. Vercel Cron sends a single HTTP request. If several processes still try to run at once, a Mongo lock skips the extras (`skipped: true`). Dry-runs do not take the lock.
 
