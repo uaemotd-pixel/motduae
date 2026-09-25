@@ -4,6 +4,9 @@ import GuestContactOtp from "../models/GuestContactOtp.js";
 import PendingCheckout from "../models/PendingCheckout.js";
 import EmailLog from "../models/EmailLog.js";
 import AdminNotification from "../models/AdminNotification.js";
+import Cart from "../models/Cart.js";
+import Wishlist from "../models/Wishlist.js";
+import ActivityLog from "../models/ActivityLog.js";
 import { pendingEmailClearUpdate } from "../services/emailVerification/emailOccupancy.js";
 import { env } from "../config/env.js";
 import { acquireCronLock, releaseCronLock } from "./cronLock.js";
@@ -12,6 +15,8 @@ import {
   ABANDONED_CHECKOUT_STATUSES,
   PURGE_DEFAULTS,
   SETTLED_CHECKOUT_STATUSES,
+  jobCron,
+  msUntilNextCron,
 } from "./purgePolicy.js";
 import { recoverOrClassifyPendingCheckout } from "../services/pendingCheckoutService.js";
 
@@ -71,6 +76,9 @@ function retentionSnapshot() {
     emailLogDays: PURGE_DEFAULTS.emailLogDays,
     notificationSoftDeleteDays: PURGE_DEFAULTS.notificationSoftDeleteDays,
     notificationReadDays: PURGE_DEFAULTS.notificationReadDays,
+    cartDays: PURGE_DEFAULTS.cartDays,
+    wishlistDays: PURGE_DEFAULTS.wishlistDays,
+    activityLogDays: PURGE_DEFAULTS.activityLogDays,
   };
 }
 
@@ -296,6 +304,45 @@ export async function purgeNotifications({
   };
 }
 
+export async function purgeCarts({ dryRun = false, now = new Date() } = {}) {
+  const days = PURGE_DEFAULTS.cartDays;
+  if (days <= 0) {
+    return skipped("cartDays=0");
+  }
+  const count = await countOrDelete(
+    Cart,
+    { updatedAt: { $lte: daysAgo(days, now) } },
+    { dryRun },
+  );
+  return { counts: { cartsDeleted: count } };
+}
+
+export async function purgeWishlists({ dryRun = false, now = new Date() } = {}) {
+  const days = PURGE_DEFAULTS.wishlistDays;
+  if (days <= 0) {
+    return skipped("wishlistDays=0");
+  }
+  const count = await countOrDelete(
+    Wishlist,
+    { updatedAt: { $lte: daysAgo(days, now) } },
+    { dryRun },
+  );
+  return { counts: { wishlistsDeleted: count } };
+}
+
+export async function purgeActivityLogs({ dryRun = false, now = new Date() } = {}) {
+  const days = PURGE_DEFAULTS.activityLogDays;
+  if (days <= 0) {
+    return skipped("activityLogDays=0");
+  }
+  const count = await countOrDelete(
+    ActivityLog,
+    { createdAt: { $lte: daysAgo(days, now) } },
+    { dryRun },
+  );
+  return { counts: { activityLogsDeleted: count } };
+}
+
 /**
  * Run every purge. Does not touch orders, users, shops, payouts, or catalog data.
  */
@@ -339,8 +386,20 @@ export const CRON_JOBS = {
     description: "Hard-delete old soft-deleted and old read notifications",
     run: purgeNotifications,
   },
+  "purge-activity-logs": {
+    description: "Delete activity log rows older than retention",
+    run: purgeActivityLogs,
+  },
+  "purge-carts": {
+    description: "Delete account carts last updated older than retention",
+    run: purgeCarts,
+  },
+  "purge-wishlists": {
+    description: "Delete account wishlists last updated older than retention",
+    run: purgeWishlists,
+  },
   "purge-old-data": {
-    description: "Run every purge job",
+    description: "Run every purge job now (manual / Postman)",
     run: purgeOldData,
   },
 };
@@ -355,6 +414,7 @@ export function listCronJobs() {
     description: job.description,
     methods: ["GET", "POST"],
     path: `/api/cron/${id}`,
+    schedule: id === "purge-old-data" ? null : jobCron(id),
     dryRun: "Pass ?dryRun=1 or JSON { \"dryRun\": true }",
   }));
 }
@@ -423,28 +483,9 @@ export async function runCronJob(jobId, { dryRun = false, now = new Date() } = {
   }
 }
 
-function msUntilNextUtcHour(hour) {
-  const now = new Date();
-  const next = new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      hour,
-      0,
-      0,
-      0,
-    ),
-  );
-  if (next.getTime() <= now.getTime()) {
-    next.setUTCDate(next.getUTCDate() + 1);
-  }
-  return next.getTime() - now.getTime();
-}
-
 /**
- * Daily 02:00 UTC sweep for long-running Node (`npm start`).
- * Skipped on Vercel — use vercel.json crons instead.
+ * One timer per job from PURGE_JOB_CRON. Skipped on Vercel — vercel.json
+ * hits each job path at that job's schedule only.
  */
 export function startOldDataPurgeScheduler() {
   if (process.env.VERCEL) return;
@@ -454,27 +495,29 @@ export function startOldDataPurgeScheduler() {
   }
   if (!env.purgeOldData.schedulerEnabled) return;
 
-  const hour = env.purgeOldData.schedulerHourUtc;
-
-  const run = async () => {
+  const arm = (jobId) => {
+    const schedule = jobCron(jobId);
+    let delay;
     try {
-      const summary = await runCronJob("purge-old-data");
-      console.log("[purge-old-data]", JSON.stringify(summary));
+      delay = msUntilNextCron(schedule);
     } catch (error) {
-      console.error("[purge-old-data] failed:", error);
+      console.error(`[${jobId}] bad cron ${schedule}:`, error.message);
+      return;
     }
-  };
-
-  const scheduleNext = () => {
     const timer = setTimeout(async () => {
-      await run();
-      scheduleNext();
-    }, msUntilNextUtcHour(hour));
+      try {
+        const summary = await runCronJob(jobId);
+        console.log(`[${jobId}]`, JSON.stringify(summary));
+      } catch (error) {
+        console.error(`[${jobId}] failed:`, error);
+      }
+      arm(jobId);
+    }, delay);
     if (typeof timer.unref === "function") timer.unref();
+    console.log(`[${jobId}] next run in ${Math.round(delay / 60000)} min (${schedule} UTC)`);
   };
 
-  scheduleNext();
-  console.log(
-    `[purge-old-data] scheduler armed for ${String(hour).padStart(2, "0")}:00 UTC`,
-  );
+  for (const jobId of INDIVIDUAL_JOB_IDS) {
+    arm(jobId);
+  }
 }
