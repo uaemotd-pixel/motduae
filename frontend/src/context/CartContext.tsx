@@ -56,6 +56,8 @@ type CartContextType = {
     lastError: string | null;
     remainingItems: CartItem[];
   }>;
+  /** Re-fetch the signed-in account cart from the server (cross-device sync). */
+  refreshFromAccount: () => Promise<void>;
   clearCart: () => void;
   totalItems: number;
 };
@@ -208,20 +210,6 @@ function clearLocalCart() {
   clearLocalCartStorage();
 }
 
-function keepAnonymousAdds(
-  snapshot: CartItem[],
-  current: CartItem[],
-): CartItem[] {
-  const previousQuantity = new Map(
-    snapshot.map((item) => [item.id, item.quantity]),
-  );
-  return current.flatMap((item) => {
-    const added = item.quantity - (previousQuantity.get(item.id) || 0);
-    if (added < 1) return [];
-    return [{ ...item, quantity: added }];
-  });
-}
-
 function errorStatus(error: unknown): number {
   if (error && typeof error === "object" && "status" in error) {
     const status = Number((error as { status: unknown }).status);
@@ -270,10 +258,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const chainRef = useRef(Promise.resolve());
   const generationRef = useRef(0);
   const accountUserIdRef = useRef("");
-  const cartBeforeAuthRef = useRef<CartItem[] | null>(null);
-  if (cartBeforeAuthRef.current === null && typeof window !== "undefined") {
-    cartBeforeAuthRef.current = readCart();
-  }
+  /** Last authenticated (non-guest) user id — used to detect logout / switch. */
+  const lastAccountUserIdRef = useRef("");
 
   const realUserId =
     !isLoading && user && !user.isGuest && user.id ? user.id : "";
@@ -295,10 +281,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const wipeAccountLocalCart = () => {
+    clearLocalCart();
+    writeOwner("");
+    setItems([]);
+  };
+
   const dropAccountCartSync = () => {
     accountUserIdRef.current = "";
+    lastAccountUserIdRef.current = "";
     generationRef.current += 1;
-    writeOwner("");
+    // Never leave a prior account cart as "guest" for the next user on this device.
+    wipeAccountLocalCart();
     broadcastSignedOut();
   };
 
@@ -327,19 +321,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     snapshot: CartItem[],
     error: unknown,
     userId: string,
-    generation: number,
   ) => {
     if (sessionEnded(error)) {
       dropAccountCartSync();
       return;
     }
-    if (generationRef.current !== generation) return;
     if (accountUserIdRef.current !== userId) return;
 
     if (errorStatus(error) > 0) {
       try {
         const data = await getAccountCart();
-        if (generationRef.current !== generation) return;
         if (accountUserIdRef.current !== userId) return;
         applyAccountCart(data.items, userId);
         showToast(getApiErrorMessage(error, "Could not update cart"), "error");
@@ -352,7 +343,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    if (generationRef.current !== generation) return;
     if (accountUserIdRef.current !== userId) return;
     writeCart(snapshot);
     setItems(snapshot);
@@ -373,41 +363,63 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     if (!userId) {
       cartMergeByUser.clear();
-      if (readOwner()) {
-        const kept = keepAnonymousAdds(
-          cartBeforeAuthRef.current || [],
-          readCart(),
-        );
-        writeCart(kept);
-        writeOwner("");
-        setItems(kept);
+      const hadAccountSession =
+        Boolean(lastAccountUserIdRef.current) || Boolean(readOwner());
+      lastAccountUserIdRef.current = "";
+      if (hadAccountSession) {
+        // Account logout / session end: never leave that cart for the next user.
+        wipeAccountLocalCart();
+      } else {
+        // Pure guest session — keep the anonymous local cart.
+        setItems(readCart());
       }
       return;
     }
 
+    const previousUserId = lastAccountUserIdRef.current;
+    lastAccountUserIdRef.current = userId;
+
     const owner = readOwner();
-    if (owner && owner !== userId) {
+    const switchedUser =
+      (Boolean(owner) && owner !== userId) ||
+      (Boolean(previousUserId) && previousUserId !== userId);
+
+    // Another account's cart on this device — drop it before loading ours.
+    if (switchedUser) {
       clearLocalCart();
       setItems([]);
     }
-    const localSnapshot = owner ? [] : readCart();
+
+    // Same user / guest leftovers on this device: merge up so nothing stays
+    // local-only. Empty local → pull the server cart (cross-device sync).
+    const localSnapshot = switchedUser ? [] : readCart();
+
     enqueue(async () => {
       if (generationRef.current !== generation) return;
       if (accountUserIdRef.current !== userId) return;
+
+      const loadCart = async (): Promise<AccountCart> => {
+        if (localSnapshot.length > 0) {
+          return mergeAccountCartOnce(
+            userId,
+            localSnapshot.map((item) => cartItemToLine(item, item.quantity)),
+          );
+        }
+        return getAccountCart();
+      };
+
       try {
-        const data =
-          owner && owner !== userId
-            ? await getAccountCart()
-            : !owner
-              ? localSnapshot.length
-                ? await mergeAccountCartOnce(
-                    userId,
-                    localSnapshot.map((item) =>
-                      cartItemToLine(item, item.quantity),
-                    ),
-                  )
-                : await getAccountCart()
-              : await getAccountCart();
+        let data: AccountCart;
+        try {
+          data = await loadCart();
+        } catch (firstError) {
+          if (sessionEnded(firstError)) throw firstError;
+          // Transient network / 409 — one retry so a new device still hydrates.
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          if (generationRef.current !== generation) return;
+          if (accountUserIdRef.current !== userId) return;
+          data = await getAccountCart();
+        }
 
         if (generationRef.current !== generation) return;
         if (accountUserIdRef.current !== userId) return;
@@ -424,6 +436,35 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   }, [isLoading, user?.id, user?.isGuest]);
 
+  const refreshFromAccount = () => {
+    const userId =
+      (user && !user.isGuest && user.id) || accountUserIdRef.current;
+    if (!userId) return Promise.resolve();
+
+    return new Promise<void>((resolve) => {
+      enqueue(async () => {
+        if (accountUserIdRef.current !== userId) {
+          resolve();
+          return;
+        }
+        try {
+          const data = await getAccountCart();
+          if (accountUserIdRef.current !== userId) {
+            resolve();
+            return;
+          }
+          applyAccountCart(data.items, userId);
+        } catch (error) {
+          if (sessionEnded(error)) {
+            dropAccountCartSync();
+          }
+        } finally {
+          resolve();
+        }
+      });
+    });
+  };
+
   useEffect(() => {
     const refreshFromStorage = () => setItems(readCart());
     const refreshAccount = () => {
@@ -433,13 +474,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         refreshFromStorage();
         return;
       }
-      const generation = generationRef.current;
       enqueue(async () => {
-        if (generationRef.current !== generation) return;
+        // Do not abort on generation bumps — visibility refresh must still
+        // pull the latest account cart (e.g. after shopping on another device).
         if (accountUserIdRef.current !== userId) return;
         try {
           const data = await getAccountCart();
-          if (generationRef.current !== generation) return;
           if (accountUserIdRef.current !== userId) return;
           applyAccountCart(data.items, userId);
         } catch (error) {
@@ -459,11 +499,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (isSecureIframeFocused()) return;
       refreshAccount();
     };
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) refreshAccount();
+    };
 
     window.addEventListener("storage", onStorage);
+    window.addEventListener("pageshow", onPageShow);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.removeEventListener("storage", onStorage);
+      window.removeEventListener("pageshow", onPageShow);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
@@ -531,16 +576,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
     setItems(next);
 
-    const userId = accountUserIdRef.current;
+    // Prefer the live auth user so adds still sync if the ref was briefly cleared.
+    const userId =
+      (user && !user.isGuest && user.id) || accountUserIdRef.current;
     if (!userId) return;
+    accountUserIdRef.current = userId;
     const previous = snapshot.find((line) => line.id === id);
     const saved = next.find((line) => line.id === id);
     const delta = (saved?.quantity || 0) - (previous?.quantity || 0);
     if (delta < 1) return;
 
-    const generation = generationRef.current;
     enqueue(async () => {
-      if (generationRef.current !== generation) return;
       if (accountUserIdRef.current !== userId) return;
       try {
         const data = await addAccountCartItem(
@@ -549,11 +595,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             delta,
           ),
         );
-        if (generationRef.current !== generation) return;
         if (accountUserIdRef.current !== userId) return;
         applyAccountCart(data.items, userId);
       } catch (error) {
-        await reconcileAccountWrite(snapshot, error, userId, generation);
+        await reconcileAccountWrite(snapshot, error, userId);
       }
     });
   };
@@ -568,19 +613,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
     setItems(commitCart((current) => current.filter((p) => p.id !== lineId)));
 
-    const userId = accountUserIdRef.current;
+    const userId =
+      (user && !user.isGuest && user.id) || accountUserIdRef.current;
     if (!userId) return;
-    const generation = generationRef.current;
+    accountUserIdRef.current = userId;
     enqueue(async () => {
-      if (generationRef.current !== generation) return;
       if (accountUserIdRef.current !== userId) return;
       try {
         const data = await removeAccountCartItem(lineId);
-        if (generationRef.current !== generation) return;
         if (accountUserIdRef.current !== userId) return;
         applyAccountCart(data.items, userId);
       } catch (error) {
-        await reconcileAccountWrite(snapshot, error, userId, generation);
+        await reconcileAccountWrite(snapshot, error, userId);
       }
     });
   };
@@ -615,12 +659,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
     setItems(next);
 
-    const userId = accountUserIdRef.current;
+    const userId =
+      (user && !user.isGuest && user.id) || accountUserIdRef.current;
     if (!userId || JSON.stringify(snapshot) === JSON.stringify(next)) {
       return removedNames;
     }
+    accountUserIdRef.current = userId;
 
-    const generation = generationRef.current;
     const removedIds = snapshot
       .filter((item) => !next.some((row) => row.id === item.id))
       .map((item) => item.id);
@@ -630,7 +675,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
 
     enqueue(async () => {
-      if (generationRef.current !== generation) return;
       if (accountUserIdRef.current !== userId) return;
       try {
         for (const lineId of removedIds) {
@@ -640,11 +684,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           await setAccountCartQuantity(item.id, item.quantity);
         }
         const data = await getAccountCart();
-        if (generationRef.current !== generation) return;
         if (accountUserIdRef.current !== userId) return;
         applyAccountCart(data.items, userId);
       } catch (error) {
-        await reconcileAccountWrite(snapshot, error, userId, generation);
+        await reconcileAccountWrite(snapshot, error, userId);
       }
     });
 
@@ -749,19 +792,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       ),
     );
 
-    const userId = accountUserIdRef.current;
+    const userId =
+      (user && !user.isGuest && user.id) || accountUserIdRef.current;
     if (!userId) return;
-    const generation = generationRef.current;
+    accountUserIdRef.current = userId;
     enqueue(async () => {
-      if (generationRef.current !== generation) return;
       if (accountUserIdRef.current !== userId) return;
       try {
         const data = await setAccountCartQuantity(lineId, quantity);
-        if (generationRef.current !== generation) return;
         if (accountUserIdRef.current !== userId) return;
         applyAccountCart(data.items, userId);
       } catch (error) {
-        await reconcileAccountWrite(snapshot, error, userId, generation);
+        await reconcileAccountWrite(snapshot, error, userId);
       }
     });
   };
@@ -771,21 +813,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     writeCart([]);
     setItems([]);
 
-    const userId = accountUserIdRef.current;
+    const userId =
+      (user && !user.isGuest && user.id) || accountUserIdRef.current;
     if (!userId) return;
-    const generation = generationRef.current;
+    accountUserIdRef.current = userId;
     enqueue(async () => {
-      if (generationRef.current !== generation) return;
       if (accountUserIdRef.current !== userId) return;
       try {
         await clearAccountCart();
-        if (generationRef.current !== generation) return;
         if (accountUserIdRef.current !== userId) return;
         writeCart([]);
         writeOwner(userId);
         setItems([]);
       } catch (error) {
-        await reconcileAccountWrite(snapshot, error, userId, generation);
+        await reconcileAccountWrite(snapshot, error, userId);
       }
     });
   };
@@ -801,6 +842,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         updateQuantity,
         syncStockFromPreview,
         purgeUnavailableItems,
+        refreshFromAccount,
         clearCart,
         totalItems,
       }}

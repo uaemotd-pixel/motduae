@@ -3,7 +3,7 @@
 
 "use client";
 
-import { useEffect, useRef, useState, Suspense } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { useCart, isCartAvailabilityError } from "@/context/CartContext";
@@ -56,6 +56,10 @@ import {
   type FamilyMember,
 } from "@/lib/checkoutAddresses";
 import { buildRetailCheckoutItem, isFabricCutCartId } from "@/lib/fabrics";
+import {
+  clearCartCheckoutSelection,
+  readCartCheckoutSelection,
+} from "@/lib/cartStorage";
 import {
   BUY_NOW_ITEMS_STORAGE_KEY,
   clearBuyNowCheckout,
@@ -148,8 +152,13 @@ function CheckoutPageContent() {
   const locale = useLocale();
   const initialFillDone = useRef<boolean>(false);
   const fromWishlistAllRef = useRef<boolean>(false);
-  const { items, clearCart, syncStockFromPreview, purgeUnavailableItems } =
-    useCart();
+  const {
+    items,
+    clearCart,
+    removeItem,
+    syncStockFromPreview,
+    purgeUnavailableItems,
+  } = useCart();
   const { user, isLoading, isAuthenticated, applyUserResponse } = useAuth();
   const { clearWishlist, removeItem: removeWishlistItem } = useWishlist();
   const { unit: measurementUnit } = useMeasurementUnit();
@@ -158,6 +167,16 @@ function CheckoutPageContent() {
   const buyNowLockedRef = useRef(checkoutQuery.get("buyNow") === "true");
   const previewRequestIdRef = useRef(0);
   const pricePreviewRef = useRef(false);
+
+  /** Cart lines the customer chose to check out (partial cart supported). */
+  const checkoutCartItems = useMemo(() => {
+    const selection = readCartCheckoutSelection();
+    if (!selection?.length) return items;
+    const selected = new Set(selection);
+    const filtered = items.filter((item) => selected.has(item.id));
+    return filtered.length > 0 ? filtered : items;
+  }, [items]);
+
   const tVerify = getTranslation(locale).verifyEmail;
   const guestEmailCopy = {
     guestEmailRequired: tVerify.guestEmailRequired,
@@ -540,7 +559,7 @@ function CheckoutPageContent() {
             return;
           }
         } else {
-          itemsToPreview = items.map((item) => {
+          itemsToPreview = checkoutCartItems.map((item) => {
             const payload = buildRetailCheckoutItem(item);
             return {
               ...payload,
@@ -572,9 +591,13 @@ function CheckoutPageContent() {
         pricePreviewRef.current = true;
         setPricePreview(response);
 
-        if (!isBuyNow && items.length > 0 && Array.isArray(response.items)) {
+        if (
+          !isBuyNow &&
+          checkoutCartItems.length > 0 &&
+          Array.isArray(response.items)
+        ) {
           const removedNames = syncStockFromPreview(
-            items.map((item, index) => ({
+            checkoutCartItems.map((item, index) => ({
               id: item.id,
               maxStock: Number(response.items[index]?.maxStock) || 0,
             })),
@@ -605,7 +628,11 @@ function CheckoutPageContent() {
           t.checkout.pricingLoadFailed,
         );
 
-        if (!isBuyNow && isCartAvailabilityError(message) && items.length > 0) {
+        if (
+          !isBuyNow &&
+          isCartAvailabilityError(message) &&
+          checkoutCartItems.length > 0
+        ) {
           const { purgedNames, lastError, remainingItems } =
             await purgeUnavailableItems(measurementUnit);
 
@@ -631,12 +658,20 @@ function CheckoutPageContent() {
 
           // Always re-price remaining lines — even if removing sold-out
           // items already started a newer preview effect.
-          if (remainingItems.length > 0) {
+          const selection = readCartCheckoutSelection();
+          const selectedSet = selection?.length
+            ? new Set(selection)
+            : null;
+          const remainingCheckoutItems = selectedSet
+            ? remainingItems.filter((item) => selectedSet.has(item.id))
+            : remainingItems;
+
+          if (remainingCheckoutItems.length > 0) {
             try {
               const retry = await api.post<PricePreviewResponse>(
                 "/api/checkout/preview",
                 {
-                  items: remainingItems.map((item) => {
+                  items: remainingCheckoutItems.map((item) => {
                     const payload = buildRetailCheckoutItem(item);
                     return {
                       ...payload,
@@ -651,7 +686,7 @@ function CheckoutPageContent() {
               pricePreviewRef.current = true;
               setPricePreview(retry);
               syncStockFromPreview(
-                remainingItems.map((item, index) => ({
+                remainingCheckoutItems.map((item, index) => ({
                   id: item.id,
                   maxStock: Number(retry.items[index]?.maxStock) || 0,
                 })),
@@ -692,7 +727,9 @@ function CheckoutPageContent() {
     buyNowItemsArray,
     isBuyNow
       ? ""
-      : items.map((item) => `${item.id}:${item.quantity}`).join("|"),
+      : checkoutCartItems
+          .map((item) => `${item.id}:${item.quantity}`)
+          .join("|"),
     measurementUnit,
     t.checkout.pricingLoadFailed,
     t.checkout.itemUnavailableRemoved,
@@ -737,9 +774,9 @@ function CheckoutPageContent() {
       return [];
     }
 
-    if (!pricePreview) return items;
+    if (!pricePreview) return checkoutCartItems;
 
-    return items.map((item, index) => {
+    return checkoutCartItems.map((item, index) => {
       const previewItem = pricePreview.items[index];
       return {
         ...item,
@@ -1025,9 +1062,18 @@ function CheckoutPageContent() {
 
   const clearCompletedCheckoutItems = () => {
     if (!isBuyNow) {
-      clearCart();
+      const purchasedIds = new Set(displayItems.map((item) => item.id));
+      const hasRemaining = items.some((item) => !purchasedIds.has(item.id));
+      if (hasRemaining) {
+        displayItems.forEach((item) =>
+          removeItem(item.id, { silent: true }),
+        );
+      } else {
+        clearCart();
+      }
     }
     clearBuyNowCheckout();
+    clearCartCheckoutSelection();
 
     if (fromWishlistAllRef.current) {
       clearWishlist();
@@ -1176,7 +1222,7 @@ function CheckoutPageContent() {
                     {displayItems.length === 0 ? (
                       <div className="text-center py-8 space-y-3">
                         <p className="text-(--color-grey-muted)">
-                          {items.length === 0
+                          {checkoutCartItems.length === 0
                             ? t.checkout.cartEmptyAfterSoldOut
                             : t.checkout.unavailableInCheckout}
                         </p>

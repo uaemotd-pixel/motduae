@@ -238,7 +238,7 @@ export default function NewReadyMadePage() {
     handleChange("colors", updated);
   };
 
-  const validate = (): boolean => {
+  const validate = (): Record<string, string> => {
     const errors: Record<string, string> = {};
 
     if (!formData.name.trim()) errors.name = "Name required";
@@ -256,8 +256,16 @@ export default function NewReadyMadePage() {
       errors.fabricPriceAED = "Price cannot be negative";
     if (formData.mukhawarPriceAED < 0)
       errors.mukhawarPriceAED = "Price cannot be negative";
-    if (formData.finalSellingPriceAED < 0)
-      errors.finalSellingPriceAED = "Price cannot be negative";
+
+    const sellingPrice = Number(formData.finalSellingPriceAED);
+    if (!Number.isFinite(sellingPrice) || sellingPrice <= 0) {
+      errors.finalSellingPriceAED = "Price is required";
+    }
+
+    if (!Array.isArray(formData.colors) || formData.colors.length === 0) {
+      errors.colors = "At least one color is required";
+    }
+
     if (
       formData.availableFabricStock === "" ||
       formData.availableFabricStock === undefined ||
@@ -272,14 +280,15 @@ export default function NewReadyMadePage() {
     }
 
     setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
+    return errors;
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!validate()) {
-      const errorMessages = Object.values(fieldErrors).filter(Boolean);
+    const errors = validate();
+    if (Object.keys(errors).length > 0) {
+      const errorMessages = Object.values(errors).filter(Boolean);
       let errorText = "Please check the highlighted fields and try again.";
       if (errorMessages.length > 0) {
         errorText = `Please fix: ${errorMessages.join("; ")}.`;
@@ -1069,7 +1078,12 @@ export default function NewReadyMadePage() {
               </AnimatedDropdown>
             </FormField>
 
-            <FormField label="Colors" name="colors" required>
+            <FormField
+              label="Colors"
+              name="colors"
+              required
+              error={fieldErrors.colors}
+            >
               <AnimatedDropdown
                 isOpen={colorsOpen}
                 onClose={() => setColorsOpen(false)}
@@ -1077,7 +1091,11 @@ export default function NewReadyMadePage() {
                   <button
                     type="button"
                     onClick={() => setColorsOpen(!colorsOpen)}
-                    className="w-full py-1 border-b border-gray-300 focus:border-black text-left bg-transparent min-h-7 flex items-center hover:cursor-pointer"
+                    className={`w-full py-1 border-b focus:border-black text-left bg-transparent min-h-7 flex items-center hover:cursor-pointer ${
+                      fieldErrors.colors
+                        ? "border-red-500"
+                        : "border-gray-300"
+                    }`}
                   >
                     {formData.colors.length === 0 ? (
                       <span className="text-[10px] sm:text-xs text-black/60 leading-none">

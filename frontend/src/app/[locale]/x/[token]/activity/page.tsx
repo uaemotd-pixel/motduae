@@ -13,8 +13,9 @@ export const metadata: Metadata = {
 };
 
 export default async function ActivityLogPage({ params }: Props) {
-  const { token } = await params;
-  if (token !== ACTIVITY_LOG_URL_KEY) {
+  const { token: rawToken } = await params;
+  const token = String(rawToken ?? "").trim();
+  if (!token || token !== ACTIVITY_LOG_URL_KEY) {
     notFound();
   }
 
