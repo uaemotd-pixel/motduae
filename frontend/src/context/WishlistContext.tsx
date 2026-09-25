@@ -143,20 +143,6 @@ function writeOwner(userId: string) {
   else localStorage.removeItem(WISHLIST_OWNER_KEY);
 }
 
-function keepAnonymousAdds(
-  snapshot: WishlistItem[],
-  current: WishlistItem[],
-): WishlistItem[] {
-  const previousQuantity = new Map(
-    snapshot.map((item) => [item.id, item.quantity]),
-  );
-  return current.flatMap((item) => {
-    const added = item.quantity - (previousQuantity.get(item.id) || 0);
-    if (added < 1) return [];
-    return [{ ...item, quantity: added }];
-  });
-}
-
 function errorStatus(error: unknown): number {
   if (error && typeof error === "object" && "status" in error) {
     const status = Number((error as { status: unknown }).status);
@@ -188,10 +174,8 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   const chainRef = useRef(Promise.resolve());
   const generationRef = useRef(0);
   const accountUserIdRef = useRef("");
-  const wishlistBeforeAuthRef = useRef<WishlistItem[] | null>(null);
-  if (wishlistBeforeAuthRef.current === null && typeof window !== "undefined") {
-    wishlistBeforeAuthRef.current = readWishlist();
-  }
+  /** Last authenticated (non-guest) user id — used to detect logout / switch. */
+  const lastAccountUserIdRef = useRef("");
 
   const realUserId =
     !isLoading && user && !user.isGuest && user.id ? user.id : "";
@@ -213,10 +197,18 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const wipeAccountLocalWishlist = () => {
+    clearLocalWishlistStorage();
+    writeOwner("");
+    setItems([]);
+  };
+
   const dropAccountWishlistSync = () => {
     accountUserIdRef.current = "";
+    lastAccountUserIdRef.current = "";
     generationRef.current += 1;
-    writeOwner("");
+    // Never leave a prior account wishlist as "guest" for the next user.
+    wipeAccountLocalWishlist();
     broadcastSignedOut();
   };
 
@@ -289,40 +281,42 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     accountUserIdRef.current = userId;
 
     if (!userId) {
-      if (readOwner()) {
-        const kept = keepAnonymousAdds(
-          wishlistBeforeAuthRef.current || [],
-          readWishlist(),
-        );
-        writeWishlist(kept);
-        writeOwner("");
-        setItems(kept);
+      const hadAccountSession =
+        Boolean(lastAccountUserIdRef.current) || Boolean(readOwner());
+      lastAccountUserIdRef.current = "";
+      if (hadAccountSession) {
+        wipeAccountLocalWishlist();
+      } else {
+        setItems(readWishlist());
       }
       return;
     }
 
+    const previousUserId = lastAccountUserIdRef.current;
+    lastAccountUserIdRef.current = userId;
+
     const owner = readOwner();
-    if (owner && owner !== userId) {
+    if (
+      (owner && owner !== userId) ||
+      (previousUserId && previousUserId !== userId)
+    ) {
       clearLocalWishlistStorage();
       setItems([]);
     }
-    const localSnapshot = owner ? [] : readWishlist();
+    const canMergeGuestWishlist = !owner && !previousUserId;
+    const localSnapshot = canMergeGuestWishlist ? readWishlist() : [];
     enqueue(async () => {
       if (generationRef.current !== generation) return;
       if (accountUserIdRef.current !== userId) return;
       try {
         const data =
-          owner && owner !== userId
-            ? await getAccountWishlist()
-            : !owner
-              ? localSnapshot.length
-                ? await mergeAccountWishlist(
-                    localSnapshot.map((item) =>
-                      wishlistItemToLine(item, item.quantity),
-                    ),
-                  )
-                : await getAccountWishlist()
-              : await getAccountWishlist();
+          localSnapshot.length > 0
+            ? await mergeAccountWishlist(
+                localSnapshot.map((item) =>
+                  wishlistItemToLine(item, item.quantity),
+                ),
+              )
+            : await getAccountWishlist();
 
         if (generationRef.current !== generation) return;
         if (accountUserIdRef.current !== userId) return;

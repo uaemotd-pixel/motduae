@@ -143,6 +143,37 @@ export function AddOnsSection() {
     [emblaApi],
   );
 
+  // Cap dots at 5; active indicator loops as slides advance.
+  const MAX_DOTS = 5;
+  const snapCount = scrollSnaps.length;
+  const dotCount = Math.min(MAX_DOTS, snapCount);
+  const activeDot =
+    dotCount > 0 ? ((selectedIndex % dotCount) + dotCount) % dotCount : 0;
+  const scrollToDot = useCallback(
+    (dotIndex: number) => {
+      if (dotCount <= 0) return;
+      if (snapCount <= dotCount) {
+        scrollTo(dotIndex);
+        return;
+      }
+      const blockStart = selectedIndex - activeDot;
+      const inBlock = blockStart + dotIndex;
+      if (dotIndex !== activeDot && inBlock >= 0 && inBlock < snapCount) {
+        scrollTo(inBlock);
+        return;
+      }
+      const startOffset = dotIndex === activeDot ? 1 : 0;
+      for (let step = startOffset; step < snapCount; step++) {
+        const idx = (selectedIndex + step) % snapCount;
+        if (idx % dotCount === dotIndex) {
+          scrollTo(idx);
+          return;
+        }
+      }
+    },
+    [activeDot, dotCount, scrollTo, selectedIndex, snapCount],
+  );
+
   const getFullUrl = useCallback(
     (hrefPath: string) => {
       const origin =
@@ -447,18 +478,19 @@ export function AddOnsSection() {
           </div>
         </div>
 
-        {products.length > 0 && (
+        {products.length > 0 && dotCount > 0 && (
           <div className="mt-6 flex justify-center gap-1.5 xs:mt-8 sm:mt-10 md:mt-12 lg:mt-(--space-32)">
-            {scrollSnaps.map((_, index) => (
+            {Array.from({ length: dotCount }, (_, index) => (
               <button
                 key={index}
-                onClick={() => scrollTo(index)}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  index === selectedIndex
+                type="button"
+                onClick={() => scrollToDot(index)}
+                className={`h-1.5 rounded-full transition-all duration-300 hover:cursor-pointer ${
+                  index === activeDot
                     ? "w-5 bg-black"
                     : "w-1.5 bg-black/25 hover:bg-black/45"
                 }`}
-                aria-label={`Go to slide ${index + 1}`}
+                aria-label={`Go to slide group ${index + 1}`}
               />
             ))}
           </div>

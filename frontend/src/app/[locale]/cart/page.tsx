@@ -1,6 +1,6 @@
 "use client";
 
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { useParams } from "next/navigation";
 import {
   Trash2,
@@ -16,7 +16,8 @@ import { useCart } from "@/context/CartContext";
 import { resolveMediaUrl } from "@/lib/media";
 import { isFabricCutCartId } from "@/lib/fabrics";
 import { clearBuyNowCheckout } from "@/lib/buyNowCheckout";
-import { useState, useEffect } from "react";
+import { saveCartCheckoutSelection } from "@/lib/cartStorage";
+import { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api/client";
 import { ImageModal } from "@/components/shared/ImageModal";
 import toast from "react-hot-toast";
@@ -25,8 +26,15 @@ import { getTranslation } from "@/lib/getTranslation";
 import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, clearCart, purgeUnavailableItems } =
-    useCart();
+  const {
+    items,
+    removeItem,
+    updateQuantity,
+    clearCart,
+    purgeUnavailableItems,
+    refreshFromAccount,
+  } = useCart();
+  const router = useRouter();
   const params = useParams();
   const locale = params.locale as string;
   const t = getTranslation(locale);
@@ -35,10 +43,44 @@ export default function CartPage() {
   const [vatError, setVatError] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(items.map((item) => item.id)),
+  );
+  const knownCartIdsRef = useRef<Set<string>>(
+    new Set(items.map((item) => item.id)),
+  );
 
   useEffect(() => {
     clearBuyNowCheckout();
   }, []);
+
+  // Pull the signed-in account cart so items added on another device appear.
+  useEffect(() => {
+    void refreshFromAccount();
+    // Only on mount / when landing on the cart page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep selection in sync when cart lines are added or removed.
+  // Surviving lines keep their checked state; new lines default to selected.
+  useEffect(() => {
+    const currentIds = items.map((item) => item.id);
+    const known = knownCartIdsRef.current;
+
+    setSelectedIds((prev) => {
+      const next = new Set<string>();
+      for (const id of currentIds) {
+        if (known.has(id)) {
+          if (prev.has(id)) next.add(id);
+        } else {
+          next.add(id);
+        }
+      }
+      return next;
+    });
+
+    knownCartIdsRef.current = new Set(currentIds);
+  }, [items.map((item) => item.id).join("|")]);
 
   // Drop sold-out / unavailable lines before the customer reaches checkout.
   useEffect(() => {
@@ -93,14 +135,45 @@ export default function CartPage() {
     fetchVatRate();
   }, []);
 
-  // Calculate totals
-  const subtotal = items.reduce(
+  const selectedItems = items.filter((item) => selectedIds.has(item.id));
+  const allSelected = items.length > 0 && selectedItems.length === items.length;
+  const someSelected = selectedItems.length > 0;
+
+  // Calculate totals for selected items only
+  const subtotal = selectedItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0,
   );
   const vat = subtotal * (vatRate || 0);
   const total = subtotal + vat;
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  const selectedQty = selectedItems.reduce(
+    (sum, item) => sum + item.quantity,
+    0,
+  );
+
+  const toggleItem = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(items.map((item) => item.id)));
+    }
+  };
+
+  const handleProceedToCheckout = () => {
+    if (!someSelected || vatError) return;
+    saveCartCheckoutSelection(selectedItems.map((item) => item.id));
+    router.push("/checkout?fromCart=true");
+  };
 
   // Quantity handlers
   const increaseQty = (id: string, currentQty: number) => {
@@ -131,7 +204,7 @@ export default function CartPage() {
               Your cart is empty
             </h1>
             <p className="text-[13px] xs:text-[14px] text-[#5A5A56] mb-6">
-              Looks like you haven't added any ready‑made items yet.
+              Looks like you haven&apos;t added any ready‑made items yet.
             </p>
             <Link
               href="/"
@@ -158,6 +231,9 @@ export default function CartPage() {
                 </h1>
                 <p className="[font-family:var(--font-ui)] text-[9px] xs:text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mt-2">
                   {totalItems} {totalItems === 1 ? "item" : "items"}
+                  {someSelected && selectedItems.length < items.length
+                    ? ` · ${selectedQty} selected`
+                    : ""}
                 </p>
               </div>
               <Link
@@ -173,14 +249,56 @@ export default function CartPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 xs:gap-10 md:gap-12">
               {/* Items list */}
               <div className="lg:col-span-2 space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <label className="flex items-center gap-2.5 [font-family:var(--font-ui)] text-[12px] xs:text-[13px] text-black cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={(el) => {
+                        if (el) {
+                          el.indeterminate = someSelected && !allSelected;
+                        }
+                      }}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-(--color-border) accent-black cursor-pointer"
+                      aria-label={
+                        locale === "ar" ? "تحديد الكل" : "Select all items"
+                      }
+                    />
+                    {locale === "ar" ? "تحديد الكل" : "Select all"}
+                  </label>
+                  <span className="[font-family:var(--font-ui)] text-[11px] xs:text-[12px] text-(--color-grey-muted)">
+                    {locale === "ar"
+                      ? `${selectedItems.length} من ${items.length} محددة`
+                      : `${selectedItems.length} of ${items.length} selected`}
+                  </span>
+                </div>
+
                 <div className="bg-(--bg-page) border border-(--color-border) rounded-lg overflow-hidden divide-y divide-(--color-border)">
                   {items.map((item) => {
                     const imageUrl = resolveMediaUrl(item.image);
+                    const isSelected = selectedIds.has(item.id);
                     return (
                       <div
                         key={item.id}
-                        className="p-4 xs:p-5 sm:p-6 flex flex-row gap-4 sm:gap-6"
+                        className={`p-4 xs:p-5 sm:p-6 flex flex-row gap-3 sm:gap-5 transition-opacity ${
+                          isSelected ? "" : "opacity-55"
+                        }`}
                       >
+                        <div className="flex items-start pt-1 shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleItem(item.id)}
+                            className="h-4 w-4 rounded border-(--color-border) accent-black cursor-pointer"
+                            aria-label={
+                              locale === "ar"
+                                ? `تحديد ${item.name}`
+                                : `Select ${item.name}`
+                            }
+                          />
+                        </div>
+
                         {/* Image with click to enlarge */}
                         <div className="w-24 h-24 sm:w-28 sm:h-28 bg-[#F5F5F0] rounded-md overflow-hidden shrink-0 relative group">
                           <img
@@ -309,6 +427,9 @@ export default function CartPage() {
                     <div className="flex justify-between [font-family:var(--font-ui)] text-[13px] xs:text-[14px]">
                       <span className="text-(--color-grey-muted)">
                         Subtotal
+                        {someSelected && selectedItems.length < items.length
+                          ? ` (${selectedItems.length})`
+                          : ""}
                       </span>
                       <span className="text-black">
                         AED {subtotal.toFixed(2)}
@@ -333,24 +454,25 @@ export default function CartPage() {
                       </p>
                     </div>
                   )}
+                  {!someSelected && !vatError && (
+                    <p className="mb-4 [font-family:var(--font-ui)] text-[12px] text-(--color-grey-muted)">
+                      {locale === "ar"
+                        ? "حدد منتجًا واحدًا على الأقل للمتابعة إلى الدفع."
+                        : "Select at least one item to proceed to checkout."}
+                    </p>
+                  )}
                   <div className="flex justify-between [font-family:var(--font-ui)] text-[16px] xs:text-[18px] font-normal mb-8">
                     <span>Total</span>
                     <span>AED {total.toFixed(2)}</span>
                   </div>
-                  {vatError ? (
-                    <button
-                      disabled
-                      className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] opacity-40 cursor-not-allowed mt-6 md:mt-7"
-                    >
-                      Proceed to Checkout
-                    </button>
-                  ) : (
-                    <Link href="/checkout?fromCart=true">
-                      <button className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] mt-6 md:mt-7 disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer">
-                        Proceed to Checkout
-                      </button>
-                    </Link>
-                  )}
+                  <button
+                    type="button"
+                    disabled={vatError || !someSelected}
+                    onClick={handleProceedToCheckout}
+                    className="w-full h-12 md:h-13 bg-black text-white font-label-sm text-[12px] md:text-[13px] uppercase tracking-[0.25em] hover:bg-black/80 transition-all duration-300 active:scale-[0.98] mt-6 md:mt-7 disabled:opacity-40 disabled:cursor-not-allowed hover:cursor-pointer"
+                  >
+                    Proceed to Checkout
+                  </button>
                 </div>
               </div>
             </div>
