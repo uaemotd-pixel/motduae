@@ -12,6 +12,7 @@ import {
   buildFabricStoreCustomOrderMatch,
   isStoreOwnedCustomAddon,
   isStoreOwnedCustomItem,
+  isStoreRetailItem,
 } from "./fabricPortalCustomOrderScope.js";
 
 const DEFAULT_FABRIC_COMMISSION_PERCENT = 15;
@@ -197,22 +198,16 @@ export async function computeFabricUnpaidBreakdown(ownerUserId) {
   const sumCustomFabricFee = (order) =>
     sumStoreCustomOrderGross(order, storeGrossCtx);
 
-  const isStoreRetailItem = (item) => {
-    const pid =
-      item.productId?._id?.toString?.() || item.productId?.toString?.() || "";
-    if (!pid) return false;
-    if (
-      (item.kind === "fabric" || item.cutId || item.size === "Per Meter") &&
-      storeFabricIdSet.has(pid)
-    )
-      return true;
-    if (storeProductIdSet.has(pid) || storeAddonIdSet.has(pid)) return true;
-    return false;
+  const retailItemCtx = {
+    shopIdStr,
+    storeFabricIdSet,
+    storeProductIdSet,
+    storeAddonIdSet,
   };
 
   const sumRetailFabricFee = (order) =>
     (order.orderItems || [])
-      .filter(isStoreRetailItem)
+      .filter((item) => isStoreRetailItem(item, retailItemCtx))
       .reduce(
         (sum, item) =>
           sum + (Number(item.price) || 0) * (Number(item.quantity) || 0),
