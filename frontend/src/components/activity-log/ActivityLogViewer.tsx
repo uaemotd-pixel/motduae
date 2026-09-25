@@ -789,72 +789,93 @@ export default function ActivityLogViewer() {
       })
     : null;
 
-  const sidebar = (
-    <aside className="flex h-full w-65 shrink-0 flex-col bg-[#111312] text-[#f4f2ec]">
-      <div className="border-b border-white/10 px-5 py-5">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-[#9aa39a] [font-family:var(--font-ui)]">
-          MOTD
-        </p>
-        <h1 className="mt-1 text-[26px] leading-none [font-family:var(--font-display)]">
-          Who did what
-        </h1>
-        <p className="mt-2 text-[13px] leading-snug text-[#9aa39a]">
-          Pick a group on the left, then read the list on the right.
-        </p>
-      </div>
+  function renderSidebar(onClose?: () => void) {
+    return (
+      <aside className="flex h-dvh w-[min(17.5rem,88vw)] shrink-0 flex-col bg-[#111312] text-[#f4f2ec] lg:w-70">
+        <div className="shrink-0 border-b border-white/10 px-4 py-4 sm:px-5 sm:py-5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-[#9aa39a] [font-family:var(--font-ui)]">
+                MOTD
+              </p>
+              <h1 className="mt-1 text-[22px] leading-none [font-family:var(--font-display)] sm:text-[26px]">
+                Who did what
+              </h1>
+              <p className="mt-2 text-[12px] leading-snug text-[#9aa39a] sm:text-[13px]">
+                Pick a group, then read the list.
+              </p>
+            </div>
+            {onClose ? (
+              <button
+                type="button"
+                aria-label="Close menu"
+                onClick={onClose}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-[#d7dbd6] hover:bg-white/10"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
+        </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        <p className="mb-2 px-3 text-[11px] font-medium uppercase tracking-[0.16em] text-[#6f776f]">
-          Show activity for
-        </p>
-        {ROLE_NAV.map((item) => {
-          const Icon = item.icon;
-          const active = actorRole === item.id;
-          return (
-            <button
-              key={item.id || "all"}
-              type="button"
-              onClick={() => selectRole(item.id)}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
-                active
-                  ? "bg-[#d8efe4] text-[#13201a]"
-                  : "text-[#d7dbd6] hover:bg-white/8"
-              }`}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span>
-                <span className="block text-[14px] font-medium">{item.label}</span>
-                <span
-                  className={`block text-[11px] ${active ? "text-[#3d5248]" : "text-[#7e877e]"}`}
-                >
-                  {item.hint}
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-4">
+          <p className="mb-2 px-3 text-[11px] font-medium uppercase tracking-[0.16em] text-[#6f776f]">
+            Show activity for
+          </p>
+          {ROLE_NAV.map((item) => {
+            const Icon = item.icon;
+            const active = actorRole === item.id;
+            return (
+              <button
+                key={item.id || "all"}
+                type="button"
+                onClick={() => selectRole(item.id)}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+                  active
+                    ? "bg-[#d8efe4] text-[#13201a]"
+                    : "text-[#d7dbd6] hover:bg-white/8"
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-[14px] font-medium">
+                    {item.label}
+                  </span>
+                  <span
+                    className={`block text-[11px] ${active ? "text-[#3d5248]" : "text-[#7e877e]"}`}
+                  >
+                    {item.hint}
+                  </span>
                 </span>
-              </span>
-            </button>
-          );
-        })}
-      </nav>
+              </button>
+            );
+          })}
+        </nav>
 
-      <div className="border-t border-white/10 p-4 text-[12px] text-[#9aa39a]">
-        <p>
-          <span className="font-semibold text-[#d8efe4]">
-            {stats?.todayCount ?? 0}
-          </span>{" "}
-          actions today
-        </p>
-        <p className="mt-1">
-          <span className="font-semibold text-[#d8efe4]">
-            {stats?.topActors?.length ?? 0}
-          </span>{" "}
-          people active this week
-        </p>
-      </div>
-    </aside>
-  );
+        <div className="shrink-0 border-t border-white/10 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-[12px] text-[#9aa39a]">
+          <p>
+            <span className="font-semibold text-[#d8efe4]">
+              {stats?.todayCount ?? 0}
+            </span>{" "}
+            actions today
+          </p>
+          <p className="mt-1">
+            <span className="font-semibold text-[#d8efe4]">
+              {stats?.topActors?.length ?? 0}
+            </span>{" "}
+            people active this week
+          </p>
+        </div>
+      </aside>
+    );
+  }
 
   return (
-    <div className="flex min-h-screen bg-[#f6f4ef] text-[#121412] [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_select]:cursor-pointer [&_label]:cursor-pointer [&_input[type=checkbox]]:cursor-pointer [&_input[type=checkbox]:disabled]:cursor-not-allowed [&_option]:cursor-pointer">
-      <div className="sticky top-0 hidden h-screen lg:block">{sidebar}</div>
+    <div className="min-h-screen overflow-x-hidden bg-[#f6f4ef] text-[#121412] [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_select]:cursor-pointer [&_label]:cursor-pointer [&_input[type=checkbox]]:cursor-pointer [&_input[type=checkbox]:disabled]:cursor-not-allowed [&_option]:cursor-pointer">
+      {/* Desktop: fixed full-height sidebar; page content scrolls beside it */}
+      <div className="fixed inset-y-0 left-0 z-30 hidden lg:block">
+        {renderSidebar()}
+      </div>
 
       {sidebarOpen ? (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -864,40 +885,44 @@ export default function ActivityLogViewer() {
             className="absolute inset-0 bg-black/45"
             onClick={() => setSidebarOpen(false)}
           />
-          <div className="absolute inset-y-0 left-0 shadow-2xl">{sidebar}</div>
+          <div className="absolute inset-y-0 left-0 max-w-[88vw] shadow-2xl">
+            {renderSidebar(() => setSidebarOpen(false))}
+          </div>
         </div>
       ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 border-b border-[#e6e2d8] bg-[#f6f4ef]/95 backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-            <div className="flex items-center gap-3">
+      <div className="flex min-h-screen min-w-0 flex-col lg:pl-70">
+        <header className="sticky top-0 z-20 border-b border-[#e6e2d8] bg-[#f6f4ef]/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+          <div className="flex items-start justify-between gap-2 px-3 py-3 sm:items-center sm:gap-3 sm:px-6 sm:py-4">
+            <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
               <button
                 type="button"
                 onClick={() => setSidebarOpen(true)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#ddd7cb] bg-white lg:hidden"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#ddd7cb] bg-white lg:hidden"
+                aria-label="Open menu"
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <div>
-                <h2 className="text-[24px] leading-tight [font-family:var(--font-display)] sm:text-[28px]">
+              <div className="min-w-0">
+                <h2 className="truncate text-[20px] leading-tight [font-family:var(--font-display)] sm:text-[28px]">
                   {activeNav.label}
                 </h2>
-                <p className="text-[13px] text-[#6d6960]">
-                  Showing{" "}
+                <p className="truncate text-[12px] text-[#6d6960] sm:text-[13px]">
                   <strong className="font-semibold text-[#121412]">
                     {stats?.matchedCount ?? 0}
                   </strong>{" "}
                   action{(stats?.matchedCount ?? 0) === 1 ? "" : "s"}
-                  {actorRole ? ` by ${activeNav.label.toLowerCase()}` : ""}
+                  <span className="hidden sm:inline">
+                    {actorRole ? ` by ${activeNav.label.toLowerCase()}` : ""}
+                  </span>
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => setLive((v) => !v)}
-                className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2.5 text-[13px] font-medium ${
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-[12px] font-medium sm:gap-2 sm:px-3 sm:py-2.5 sm:text-[13px] ${
                   live
                     ? "border-[#1f7a4d]/30 bg-[#e8f6ee] text-[#1f7a4d]"
                     : "border-[#e6e2d8] bg-white text-[#6d6960]"
@@ -918,29 +943,31 @@ export default function ActivityLogViewer() {
               <button
                 type="button"
                 onClick={() => setRefreshKey((n) => n + 1)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#111312] px-4 py-2.5 text-[13px] font-medium text-white"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#111312] px-2.5 py-2 text-[12px] font-medium text-white sm:px-4 sm:py-2.5 sm:text-[13px]"
+                aria-label="Refresh now"
               >
                 <RefreshCw
                   className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
                 />
-                Refresh now
+                <span className="hidden sm:inline">Refresh now</span>
               </button>
             </div>
           </div>
           {lastUpdatedLabel ? (
-            <p className="mt-1 px-4 text-[11px] text-[#8a8578] sm:px-6">
-              Last updated {lastUpdatedLabel}
-              {live ? " · checking for new activity every 6 seconds" : ""}
+            <p className="px-3 pb-2 text-[10px] leading-snug text-[#8a8578] sm:px-6 sm:text-[11px]">
+              Updated {lastUpdatedLabel}
+              <span className="hidden sm:inline">
+                {live ? " · checking every 6 seconds" : ""}
+              </span>
               {newCount > 0
-                ? ` · ${newCount} new action${newCount === 1 ? "" : "s"} just appeared`
+                ? ` · ${newCount} new`
                 : ""}
             </p>
           ) : null}
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 sm:px-6">
-          {/* How to read colors — short and plain */}
-          <div className="mb-4 rounded-xl border border-[#e6e2d8] bg-white px-4 py-3">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-4 sm:px-6 sm:py-5">
+          <div className="mb-3 hidden rounded-xl border border-[#e6e2d8] bg-white px-4 py-3 sm:mb-4 sm:block">
             <p className="mb-2 text-[12px] font-medium text-[#6d6960]">
               How to read this list
             </p>
@@ -963,9 +990,9 @@ export default function ActivityLogViewer() {
             </div>
           </div>
 
-          <div className="mb-4 rounded-xl border border-[#e6e2d8] bg-white p-3 sm:p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-              <label className="min-w-0 flex-1">
+          <div className="mb-3 rounded-xl border border-[#e6e2d8] bg-white p-3 sm:mb-4 sm:p-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_16rem_11rem_auto] lg:items-end">
+              <label className="min-w-0 sm:col-span-2 lg:col-span-1">
                 <span className="mb-1 block text-[12px] font-medium text-[#6d6960]">
                   Search
                 </span>
@@ -974,12 +1001,12 @@ export default function ActivityLogViewer() {
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="Type a name, email, or words from the action…"
+                    placeholder="Name, email, or action…"
                     className="w-full rounded-xl border border-[#e6e2d8] bg-[#faf8f3] py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#111312]/35 focus:bg-white focus:ring-2 focus:ring-[#111312]/10"
                   />
                 </div>
               </label>
-              <label className="lg:w-64">
+              <label className="min-w-0">
                 <span className="mb-1 block text-[12px] font-medium text-[#6d6960]">
                   {areaDropdownTitle(actorRole)}
                 </span>
@@ -1000,7 +1027,7 @@ export default function ActivityLogViewer() {
                   ))}
                 </select>
               </label>
-              <label className="lg:w-44">
+              <label className="min-w-0">
                 <span className="mb-1 block text-[12px] font-medium text-[#6d6960]">
                   Did it work?
                 </span>
@@ -1022,7 +1049,7 @@ export default function ActivityLogViewer() {
                     setCategory("");
                     setSuccessFilter("");
                   }}
-                  className="inline-flex items-center justify-center gap-1 rounded-xl border border-[#e6e2d8] px-3 py-2.5 text-sm text-[#6d6960]"
+                  className="inline-flex h-10 items-center justify-center gap-1 rounded-xl border border-[#e6e2d8] px-3 text-sm text-[#6d6960] sm:col-span-2 lg:col-span-1"
                 >
                   <X className="h-4 w-4" />
                   Clear filters
@@ -1052,7 +1079,7 @@ export default function ActivityLogViewer() {
           ) : null}
 
           <section className="overflow-hidden rounded-xl border border-[#e6e2d8] bg-white">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#efebe3] bg-[#faf8f3] px-4 py-2.5">
+            <div className="flex flex-col gap-2 border-b border-[#efebe3] bg-[#faf8f3] px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4">
               <label className="inline-flex items-center gap-2 text-[12px] text-[#6d6960]">
                 <input
                   type="checkbox"
@@ -1068,27 +1095,27 @@ export default function ActivityLogViewer() {
                   type="button"
                   disabled={exporting || loading}
                   onClick={() => void exportLogs()}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#e6e2d8] bg-white px-3 py-1.5 text-[12px] font-medium text-[#2a2a28] disabled:opacity-40"
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#e6e2d8] bg-white px-3 py-2 text-[12px] font-medium text-[#2a2a28] disabled:opacity-40 sm:flex-none sm:py-1.5"
                 >
                   {exporting ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <Download className="h-3.5 w-3.5" />
                   )}
-                  Export CSV
+                  Export
                 </button>
                 <button
                   type="button"
                   disabled={!someSelected || deletingIds.size > 0}
                   onClick={() => void deleteLogs(Array.from(selectedIds))}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#c23b3b] px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-40"
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#c23b3b] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-40 sm:flex-none sm:py-1.5"
                 >
                   {deletingIds.size > 0 ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <Trash2 className="h-3.5 w-3.5" />
                   )}
-                  Delete selected
+                  Delete
                   {someSelected ? ` (${selectedIds.size})` : ""}
                 </button>
               </div>
@@ -1119,7 +1146,7 @@ export default function ActivityLogViewer() {
                     Nothing to show
                   </p>
                   <p className="mt-1 text-sm text-[#7a766c]">
-                    Try another group on the left, or clear your filters.
+                    Try another group, or clear your filters.
                   </p>
                 </div>
               ) : null}
@@ -1146,144 +1173,218 @@ export default function ActivityLogViewer() {
                       isSelected ? "ring-1 ring-inset ring-[#111312]/20" : ""
                     }`}
                   >
-                    <div className="px-4 py-3.5 md:grid md:grid-cols-[2rem_8.5rem_10rem_6rem_minmax(0,1fr)_6rem_2.75rem] md:items-start md:gap-3">
-                    <div className="mb-2 flex items-center gap-2 md:mb-0 md:pt-1">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(item._id)}
-                        disabled={isDeleting}
-                        className="h-4 w-4 rounded border-[#cfc9bc]"
-                        aria-label="Select this activity log"
-                      />
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9a9588] md:hidden">
-                        Select
-                      </span>
-                    </div>
-
-                    {/* Time of action */}
-                    <div className="mb-2 md:mb-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9a9588] md:hidden">
-                        Time of action
-                      </p>
-                      {isFresh ? (
-                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1f7a4d]">
-                          Just now · new
-                        </p>
-                      ) : null}
-                      <p className="text-[13px] font-semibold text-[#121412]">
-                        {when.relative}
-                      </p>
-                      <p className="text-[11px] text-[#7a766c]">
-                        {when.day} · {when.time}
-                      </p>
-                    </div>
-
-                    {/* Person involved */}
-                    <div className="mb-2 md:mb-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9a9588] md:hidden">
-                        Person involved
-                      </p>
-                      <p className="truncate text-[13px] font-semibold text-[#121412]">
-                        {item.actorName || "Unknown person"}
-                      </p>
-                      <p className="text-[11px] font-medium text-[#1c2b24]">
-                        {roleLabel(item.actorRole)}
-                      </p>
-                      <p className="truncate text-[11px] text-[#7a766c]">
-                        {item.actorEmail || "No email"}
-                      </p>
-                    </div>
-
-                    {/* Type of change */}
-                    <div className="mb-2 md:mb-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9a9588] md:hidden">
-                        Type of change
-                      </p>
-                      <span
-                        className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold ${
-                          failed ? "bg-[#c23b3b] text-white" : style.badge
-                        }`}
-                      >
-                        {failed ? "Failed" : style.label}
-                      </span>
-                      <p className="mt-1 text-[10px] leading-snug text-[#8a8578]">
-                        {style.meaning}
-                      </p>
-                    </div>
-
-                    {/* Description */}
-                    <div className="mb-2 min-w-0 md:mb-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9a9588] md:hidden">
-                        Description
-                      </p>
-                      <p className="text-[14px] leading-relaxed text-[#1a1a18]">
-                        {sentence}
-                      </p>
-                      <p className="mt-1 text-[11px] text-[#8a8578]">
-                        Section:{" "}
-                        <span className="font-medium text-[#4a4a46]">
-                          {item.categoryLabel || item.category || "General"}
-                        </span>
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedId((id) =>
-                            id === item._id ? null : item._id,
-                          )
-                        }
-                        className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-[#6d6960] hover:text-[#121412]"
-                      >
-                        <ChevronDown
-                          className={`h-3.5 w-3.5 transition ${
-                            isExpanded ? "rotate-180" : ""
-                          }`}
+                    {/* Mobile card */}
+                    <div className="space-y-2.5 px-3 py-3 md:hidden">
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(item._id)}
+                          disabled={isDeleting}
+                          className="mt-1 h-4 w-4 shrink-0 rounded border-[#cfc9bc]"
+                          aria-label="Select this activity log"
                         />
-                        {isExpanded ? "Hide details" : "Show details"}
-                      </button>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              {isFresh ? (
+                                <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1f7a4d]">
+                                  Just now · new
+                                </p>
+                              ) : null}
+                              <p className="text-[13px] font-semibold text-[#121412]">
+                                {when.relative}
+                              </p>
+                              <p className="text-[11px] text-[#7a766c]">
+                                {when.day} · {when.time}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              title="Delete this log"
+                              disabled={isDeleting || deletingIds.size > 0}
+                              onClick={() => void deleteLogs([item._id])}
+                              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#e6e2d8] bg-white text-[#c23b3b] disabled:opacity-40"
+                            >
+                              {isDeleting ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+
+                          <p className="mt-2 truncate text-[13px] font-semibold text-[#121412]">
+                            {item.actorName || "Unknown person"}
+                          </p>
+                          <p className="truncate text-[11px] text-[#7a766c]">
+                            {roleLabel(item.actorRole)}
+                            {item.actorEmail ? ` · ${item.actorEmail}` : ""}
+                          </p>
+
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <span
+                              className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold ${
+                                failed ? "bg-[#c23b3b] text-white" : style.badge
+                              }`}
+                            >
+                              {failed ? "Failed" : style.label}
+                            </span>
+                            {failed ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#c23b3b]">
+                                <AlertCircle className="h-3.5 w-3.5" />
+                                Did not work
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#1f7a4d]">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Worked
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="mt-2 text-[13px] leading-relaxed text-[#1a1a18]">
+                            {sentence}
+                          </p>
+                          <p className="mt-1 text-[11px] text-[#8a8578]">
+                            {item.categoryLabel || item.category || "General"}
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedId((id) =>
+                                id === item._id ? null : item._id,
+                              )
+                            }
+                            className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-[#6d6960]"
+                          >
+                            <ChevronDown
+                              className={`h-3.5 w-3.5 transition ${
+                                isExpanded ? "rotate-180" : ""
+                              }`}
+                            />
+                            {isExpanded ? "Hide details" : "Show details"}
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Outcome */}
-                    <div className="mb-2 md:mb-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9a9588] md:hidden">
-                        Outcome
-                      </p>
-                      {failed ? (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-[#c23b3b] px-2 py-1 text-[11px] font-semibold text-white">
-                          <AlertCircle className="h-3.5 w-3.5" />
-                          Did not work
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[12px] font-medium text-[#1f7a4d]">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Worked
-                        </span>
-                      )}
-                    </div>
+                    {/* Desktop row */}
+                    <div className="hidden px-4 py-3.5 md:grid md:grid-cols-[2rem_8.5rem_10rem_6rem_minmax(0,1fr)_6rem_2.75rem] md:items-start md:gap-3">
+                      <div className="pt-1">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(item._id)}
+                          disabled={isDeleting}
+                          className="h-4 w-4 rounded border-[#cfc9bc]"
+                          aria-label="Select this activity log"
+                        />
+                      </div>
 
-                    {/* Delete */}
-                    <div className="flex md:justify-end">
-                      <button
-                        type="button"
-                        title="Delete this log"
-                        disabled={isDeleting || deletingIds.size > 0}
-                        onClick={() => void deleteLogs([item._id])}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#e6e2d8] text-[#c23b3b] transition hover:bg-[#fff5f5] disabled:opacity-40"
-                      >
-                        {isDeleting ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                      <div>
+                        {isFresh ? (
+                          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1f7a4d]">
+                            Just now · new
+                          </p>
+                        ) : null}
+                        <p className="text-[13px] font-semibold text-[#121412]">
+                          {when.relative}
+                        </p>
+                        <p className="text-[11px] text-[#7a766c]">
+                          {when.day} · {when.time}
+                        </p>
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-semibold text-[#121412]">
+                          {item.actorName || "Unknown person"}
+                        </p>
+                        <p className="text-[11px] font-medium text-[#1c2b24]">
+                          {roleLabel(item.actorRole)}
+                        </p>
+                        <p className="truncate text-[11px] text-[#7a766c]">
+                          {item.actorEmail || "No email"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <span
+                          className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold ${
+                            failed ? "bg-[#c23b3b] text-white" : style.badge
+                          }`}
+                        >
+                          {failed ? "Failed" : style.label}
+                        </span>
+                        <p className="mt-1 text-[10px] leading-snug text-[#8a8578]">
+                          {style.meaning}
+                        </p>
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="text-[14px] leading-relaxed text-[#1a1a18]">
+                          {sentence}
+                        </p>
+                        <p className="mt-1 text-[11px] text-[#8a8578]">
+                          Section:{" "}
+                          <span className="font-medium text-[#4a4a46]">
+                            {item.categoryLabel || item.category || "General"}
+                          </span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedId((id) =>
+                              id === item._id ? null : item._id,
+                            )
+                          }
+                          className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-[#6d6960] hover:text-[#121412]"
+                        >
+                          <ChevronDown
+                            className={`h-3.5 w-3.5 transition ${
+                              isExpanded ? "rotate-180" : ""
+                            }`}
+                          />
+                          {isExpanded ? "Hide details" : "Show details"}
+                        </button>
+                      </div>
+
+                      <div>
+                        {failed ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-[#c23b3b] px-2 py-1 text-[11px] font-semibold text-white">
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            Did not work
+                          </span>
                         ) : (
-                          <Trash2 className="h-4 w-4" />
+                          <span className="inline-flex items-center gap-1 text-[12px] font-medium text-[#1f7a4d]">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Worked
+                          </span>
                         )}
-                      </button>
-                    </div>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          title="Delete this log"
+                          disabled={isDeleting || deletingIds.size > 0}
+                          onClick={() => void deleteLogs([item._id])}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#e6e2d8] text-[#c23b3b] transition hover:bg-[#fff5f5] disabled:opacity-40"
+                        >
+                          {isDeleting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
 
                     {isExpanded ? (
-                      <div className="border-t border-[#efebe3]/80 bg-white/60 px-4 py-3 text-[12px] text-[#4a4a46]">
-                        <div className="grid gap-2 md:grid-cols-2">
-                          <p>
+                      <div className="border-t border-[#efebe3]/80 bg-white/60 px-3 py-3 text-[12px] text-[#4a4a46] sm:px-4">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <p className="min-w-0">
                             <span className="font-semibold text-[#7a766c]">
                               Path:{" "}
                             </span>
@@ -1300,7 +1401,7 @@ export default function ActivityLogViewer() {
                               ? ` · HTTP ${item.statusCode}`
                               : ""}
                           </p>
-                          <p className="md:col-span-2">
+                          <p className="min-w-0 sm:col-span-2">
                             <span className="font-semibold text-[#7a766c]">
                               Device:{" "}
                             </span>
@@ -1316,7 +1417,7 @@ export default function ActivityLogViewer() {
               })}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#efebe3] px-4 py-3">
+            <div className="flex flex-col gap-3 border-t border-[#efebe3] px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4">
               <p className="text-[12px] text-[#7a766c]">
                 Page {data?.page || page} of {totalPages}
                 {typeof data?.total === "number"
@@ -1324,45 +1425,47 @@ export default function ActivityLogViewer() {
                   : ""}
                 {someSelected ? ` · ${selectedIds.size} selected` : ""}
               </p>
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 sm:justify-end">
                 <button
                   type="button"
                   disabled={page <= 1 || loading}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="inline-flex items-center gap-1 rounded-xl border border-[#e6e2d8] px-3 py-1.5 text-sm disabled:opacity-40"
+                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-[#e6e2d8] px-3 py-2 text-sm disabled:opacity-40 sm:flex-none sm:py-1.5"
                 >
                   <ChevronLeft className="h-4 w-4" />
-                  Previous
+                  Prev
                 </button>
-                {pageNumbers.map((entry, idx) =>
-                  entry === "…" ? (
-                    <span
-                      key={`ellipsis-${idx}`}
-                      className="px-1 text-sm text-[#9a9588]"
-                    >
-                      …
-                    </span>
-                  ) : (
-                    <button
-                      key={entry}
-                      type="button"
-                      disabled={loading}
-                      onClick={() => setPage(entry)}
-                      className={`min-w-9 rounded-xl px-2.5 py-1.5 text-sm ${
-                        entry === (data?.page || page)
-                          ? "bg-[#111312] font-semibold text-white"
-                          : "border border-[#e6e2d8] text-[#2a2a28] hover:bg-[#faf8f3]"
-                      }`}
-                    >
-                      {entry}
-                    </button>
-                  ),
-                )}
+                <div className="hidden items-center gap-1.5 sm:flex">
+                  {pageNumbers.map((entry, idx) =>
+                    entry === "…" ? (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        className="px-1 text-sm text-[#9a9588]"
+                      >
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        key={entry}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => setPage(entry)}
+                        className={`min-w-9 rounded-xl px-2.5 py-1.5 text-sm ${
+                          entry === (data?.page || page)
+                            ? "bg-[#111312] font-semibold text-white"
+                            : "border border-[#e6e2d8] text-[#2a2a28] hover:bg-[#faf8f3]"
+                        }`}
+                      >
+                        {entry}
+                      </button>
+                    ),
+                  )}
+                </div>
                 <button
                   type="button"
                   disabled={page >= totalPages || loading}
                   onClick={() => setPage((p) => p + 1)}
-                  className="inline-flex items-center gap-1 rounded-xl border border-[#e6e2d8] px-3 py-1.5 text-sm disabled:opacity-40"
+                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-[#e6e2d8] px-3 py-2 text-sm disabled:opacity-40 sm:flex-none sm:py-1.5"
                 >
                   Next
                   <ChevronRight className="h-4 w-4" />
@@ -1372,7 +1475,7 @@ export default function ActivityLogViewer() {
           </section>
 
           {stats?.topActors?.length ? (
-            <section className="mt-5 rounded-xl border border-[#e6e2d8] bg-white p-4">
+            <section className="mt-4 rounded-xl border border-[#e6e2d8] bg-white p-3 sm:mt-5 sm:p-4">
               <h3 className="text-[18px] [font-family:var(--font-display)]">
                 Busiest people this week
               </h3>
@@ -1383,22 +1486,24 @@ export default function ActivityLogViewer() {
                 {stats.topActors.slice(0, 8).map((actor, i) => (
                   <li
                     key={actor.email}
-                    className="flex items-center justify-between rounded-lg bg-[#f8f6f1] px-3 py-2 text-sm"
+                    className="flex items-center justify-between gap-2 rounded-lg bg-[#f8f6f1] px-3 py-2 text-sm"
                   >
-                    <span className="min-w-0">
-                      <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#111312] text-[10px] font-semibold text-white">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#111312] text-[10px] font-semibold text-white">
                         {i + 1}
                       </span>
-                      <span className="font-medium">
-                        {actor.name || actor.email}
-                      </span>
-                      <span className="text-[#7a766c]">
-                        {" "}
-                        · {roleLabel(actor.role)}
+                      <span className="min-w-0 truncate">
+                        <span className="font-medium">
+                          {actor.name || actor.email}
+                        </span>
+                        <span className="text-[#7a766c]">
+                          {" "}
+                          · {roleLabel(actor.role)}
+                        </span>
                       </span>
                     </span>
-                    <span className="shrink-0 font-semibold">
-                      {actor.count} action{actor.count === 1 ? "" : "s"}
+                    <span className="shrink-0 text-[12px] font-semibold sm:text-sm">
+                      {actor.count}
                     </span>
                   </li>
                 ))}
