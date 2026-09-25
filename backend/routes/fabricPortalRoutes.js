@@ -47,9 +47,11 @@ import {
   buildFabricStoreAddonOnlyMatch,
   buildFabricStoreCustomOrderMatch,
   isStoreOwnedCustomAddon,
+  isStoreRetailItem,
   orderHasFabricForThisStore,
   toFabricPortalCustomAddonRetailView,
   toFabricPortalCustomOrderView,
+  toFabricPortalRetailOrderView,
 } from "../services/fabricPortalCustomOrderScope.js";
 import {
   isShopProfileComplete,
@@ -1130,6 +1132,9 @@ fabricPortalRouter.get(
     const storeFabricIdSet = new Set(
       storeFabrics.map((f) => String(f._id)),
     );
+    const storeProductIdSet = new Set(
+      storeProducts.map((p) => String(p._id)),
+    );
     const storeItemIds = [
       ...storeProducts.map((p) => p._id),
       ...storeFabrics.map((f) => f._id),
@@ -1140,6 +1145,7 @@ fabricPortalRouter.get(
       ownerUserIdStr,
       shopIdStr,
       storeFabricIdSet,
+      storeProductIdSet,
       storeAddonIdSet,
     };
 
@@ -1165,11 +1171,14 @@ fabricPortalRouter.get(
     ]);
 
     const hydratedRetail = await hydrateRetailOrders(retailOrders);
+    const scopedRetail = (hydratedRetail || [])
+      .map((order) => toFabricPortalRetailOrderView(order, scopeCtx))
+      .filter(Boolean);
     const projectedAddons = (customAddonOrders || [])
       .map((order) => toFabricPortalCustomAddonRetailView(order, scopeCtx))
       .filter(Boolean);
 
-    const merged = [...(hydratedRetail || []), ...projectedAddons].sort(
+    const merged = [...scopedRetail, ...projectedAddons].sort(
       (a, b) =>
         new Date(b.createdAt || 0).getTime() -
         new Date(a.createdAt || 0).getTime(),
@@ -2180,27 +2189,16 @@ fabricPortalRouter.get(
       return fabricPieces + addonPieces;
     };
 
-    // Retail lines belonging to this store: fabric-by-meter, ready-made, and add-ons.
-    const isStoreRetailItem = (item) => {
-      const pid =
-        item.productId?._id?.toString?.() ||
-        item.productId?.toString?.() ||
-        "";
-      if (!pid) return false;
-      if (
-        (item.kind === "fabric" ||
-          item.cutId ||
-          item.size === "Per Meter") &&
-        storeFabricIdSet.has(pid)
-      )
-        return true;
-      if (storeProductIdSet.has(pid) || storeAddonIdSet.has(pid)) return true;
-      return false;
+    const retailItemCtx = {
+      shopIdStr,
+      storeFabricIdSet,
+      storeProductIdSet,
+      storeAddonIdSet,
     };
 
     const sumRetailFabricFee = (order) =>
       (order.orderItems || [])
-        .filter(isStoreRetailItem)
+        .filter((item) => isStoreRetailItem(item, retailItemCtx))
         .reduce(
           (sum, item) =>
             sum + (Number(item.price) || 0) * (Number(item.quantity) || 0),
@@ -2339,7 +2337,7 @@ fabricPortalRouter.get(
       statusMap.set(st, (statusMap.get(st) || 0) + 1);
 
       for (const item of order.orderItems || []) {
-        if (!isStoreRetailItem(item)) continue;
+        if (!isStoreRetailItem(item, retailItemCtx)) continue;
         const name = item.name || "Unknown item";
         const itemGross =
           (Number(item.price) || 0) * (Number(item.quantity) || 0);

@@ -33,6 +33,50 @@ export function isStoreOwnedCustomAddon(
   return Boolean(shopIdStr && addonShopId === shopIdStr);
 }
 
+function roundMoney(value) {
+  return Number((Number(value) || 0).toFixed(2));
+}
+
+export function retailLineGross(item) {
+  return (Number(item?.price) || 0) * (Number(item?.quantity) || 0);
+}
+
+/**
+ * Retail cart line belonging to this fabric shop. Product-id sets survive
+ * hydrate (productId becomes an object). fabricShopId is the fallback when
+ * catalog ids drifted; MOTD-owned lines with a null shop do not match.
+ */
+export function isStoreRetailItem(
+  item,
+  {
+    shopIdStr = "",
+    storeFabricIdSet,
+    storeProductIdSet,
+    storeAddonIdSet,
+  } = {},
+) {
+  const pid = asEntityId(item?.productId);
+  if (pid) {
+    if (storeFabricIdSet instanceof Set && storeFabricIdSet.has(pid)) {
+      return true;
+    }
+    if (storeProductIdSet instanceof Set && storeProductIdSet.has(pid)) {
+      return true;
+    }
+    if (storeAddonIdSet instanceof Set && storeAddonIdSet.has(pid)) {
+      return true;
+    }
+  }
+  const shopOnItem = asEntityId(item?.fabricShopId);
+  return Boolean(shopIdStr && shopOnItem === shopIdStr);
+}
+
+export function sumStoreRetailItemsGross(order, ctx) {
+  return (order?.orderItems || [])
+    .filter((item) => isStoreRetailItem(item, ctx))
+    .reduce((sum, item) => sum + retailLineGross(item), 0);
+}
+
 export function orderHasFabricForThisStore(order, ctx) {
   if (String(order?.fabricSource || "") === "self") return false;
 
@@ -333,6 +377,104 @@ export function toFabricPortalCustomAddonRetailView(order, ctx) {
       shopIdStr: ctx.shopIdStr,
       storeAddonIdSet: ctx.storeAddonIdSet,
     }),
+  };
+}
+
+function retailLogisticsBelongsToStore(entry, { shopIdStr, storeAddonIdSet }) {
+  const fromId = asEntityId(entry?.from?.id);
+  const shopOnEntry = asEntityId(entry?.fabricShopId);
+  if (shopIdStr && (fromId === shopIdStr || shopOnEntry === shopIdStr)) {
+    return true;
+  }
+  const addonIds = Array.isArray(entry?.addonIds)
+    ? entry.addonIds.map(asEntityId)
+    : [];
+  return addonIds.some(
+    (id) => id && storeAddonIdSet instanceof Set && storeAddonIdSet.has(id),
+  );
+}
+
+function filterStoreRetailLogistics(order, ctx) {
+  const allShipments = Array.isArray(order?.shipments) ? order.shipments : [];
+  const allBreakdown = Array.isArray(order?.deliveryBreakdown)
+    ? order.deliveryBreakdown
+    : [];
+  const shipments = allShipments.filter((shipment) =>
+    retailLogisticsBelongsToStore(shipment, ctx),
+  );
+  const deliveryBreakdown = allBreakdown.filter((entry) =>
+    retailLogisticsBelongsToStore(entry, ctx),
+  );
+
+  let shippingPrice = 0;
+  if (deliveryBreakdown.length > 0) {
+    shippingPrice = roundMoney(
+      deliveryBreakdown.reduce((sum, entry) => {
+        if (entry?.billable === false) return sum;
+        return sum + (Number(entry.fee) || 0);
+      }, 0),
+    );
+  } else if (
+    shipments.length > 0 &&
+    shipments.length === allShipments.length
+  ) {
+    shippingPrice = roundMoney(order?.shippingPrice);
+  } else if (shipments.length > 0 && Number(order?.perParcelFee) > 0) {
+    shippingPrice = roundMoney(shipments.length * Number(order.perParcelFee));
+  }
+
+  const parcelCount =
+    deliveryBreakdown.length > 0 ? deliveryBreakdown.length : shipments.length;
+
+  return { shipments, deliveryBreakdown, shippingPrice, parcelCount };
+}
+
+/**
+ * Partner-scoped retail order for the fabric portal. One checkout stays one
+ * document; this view keeps only this shop's lines, parcels, and totals.
+ */
+export function toFabricPortalRetailOrderView(order, ctx) {
+  if (!order) return null;
+
+  const storeItems = (order.orderItems || []).filter((item) =>
+    isStoreRetailItem(item, ctx),
+  );
+  if (storeItems.length === 0) return null;
+
+  const itemsGross = roundMoney(
+    storeItems.reduce((sum, item) => sum + retailLineGross(item), 0),
+  );
+  const logistics = filterStoreRetailLogistics(order, ctx);
+  const shippingGross = roundMoney(logistics.shippingPrice);
+  const gross = roundMoney(itemsGross + shippingGross);
+  const shopIdStr = ctx?.shopIdStr || "";
+
+  const fabricStores = (order.fabricStores || []).filter((shop) => {
+    const id = asEntityId(shop?._id || shop);
+    return Boolean(shopIdStr && id === shopIdStr);
+  });
+  const fabricStoreId =
+    fabricStores[0] ||
+    (asEntityId(order.fabricStoreId) === shopIdStr
+      ? order.fabricStoreId
+      : null);
+
+  return {
+    ...order,
+    orderItems: storeItems,
+    itemsPrice: itemsGross,
+    shippingPrice: shippingGross,
+    parcelCount: logistics.parcelCount,
+    deliveryBreakdown: logistics.deliveryBreakdown,
+    shipments: logistics.shipments,
+    fabricStores,
+    fabricStoreId,
+    totalPrice: gross,
+    storeScope: {
+      itemsGross,
+      shippingGross,
+      gross,
+    },
   };
 }
 
