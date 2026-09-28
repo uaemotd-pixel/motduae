@@ -169,6 +169,8 @@ interface Order {
     canUpdateFabricStatus?: boolean;
     fabricGross?: number;
     addonsGross?: number;
+    itemsGross?: number;
+    shippingGross?: number;
     gross?: number;
   };
   shippingPrice?: number;
@@ -689,6 +691,14 @@ export default function FabricOrdersPage() {
                 fabricGross > 0
                   ? splitFabricCommission(fabricGross, commissionPercent)
                   : null;
+              const displayTotal =
+                typeof retailOrder.storeScope?.gross === "number"
+                  ? retailOrder.storeScope.gross
+                  : retailOrder.totalPrice || 0;
+              const displayShipping =
+                typeof retailOrder.storeScope?.shippingGross === "number"
+                  ? retailOrder.storeScope.shippingGross
+                  : retailOrder.shippingPrice || 0;
 
               return (
                 <div
@@ -792,18 +802,18 @@ export default function FabricOrdersPage() {
                       </p>
                       <p className="font-semibold text-black text-base [font-family:var(--font-body)]">
                         {formatCurrency(
-                          retailOrder.totalPrice || 0,
+                          displayTotal,
                           retailOrder.currency || "AED",
                         )}
                       </p>
-                      {(retailOrder.shippingPrice || 0) > 0 && (
+                      {displayShipping > 0 && (
                         <div className="mt-2 space-y-0.5 text-[10px] text-gray-500 [font-family:var(--font-body)]">
                           <p>
                             {locale === "ar"
                               ? "رسوم توصيل الطرود: "
                               : "Parcel delivery fee: "}
                             {formatCurrency(
-                              retailOrder.shippingPrice || 0,
+                              displayShipping,
                               retailOrder.currency || "AED",
                             )}
                           </p>
