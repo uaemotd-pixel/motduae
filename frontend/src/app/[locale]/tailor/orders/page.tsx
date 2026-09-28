@@ -36,6 +36,15 @@ import {
 import type { Locale } from "@/i18n/routing";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
 import { isWithinLocalDateRange } from "@/lib/dateRange";
+import { resolveMediaUrl } from "@/lib/media";
+
+type CatalogMedia = {
+  _id?: string;
+  name?: string;
+  nameAr?: string;
+  images?: string[];
+  thumbnailImage?: string;
+};
 
 interface OrderUser {
   _id: string;
@@ -64,12 +73,16 @@ interface Order {
   _id: string;
   userId: OrderUser | string | null;
   contactEmail?: string;
+  designId?: CatalogMedia | string | null;
   designSnapshot?: {
     name: string;
+    nameAr?: string;
     minCutSnapshot?: { lengthInMeters?: number; name?: string; nameAr?: string };
     estimatedMeters?: number;
   };
-  fabricSnapshot?: { name: string } | null;
+  fabricId?: CatalogMedia | string | null;
+  fabricSnapshot?: { name: string; nameAr?: string; image?: string; images?: string[] } | null;
+  fabricImage?: string;
   fabricMeters?: number;
   leftoverMeters?: number;
   addons?: Array<{
@@ -87,12 +100,16 @@ interface Order {
     price?: number;
   }>;
   items?: Array<{
+    designId?: CatalogMedia | string | null;
     designSnapshot?: {
       name: string;
+      nameAr?: string;
       minCutSnapshot?: { lengthInMeters?: number; name?: string; nameAr?: string };
       estimatedMeters?: number;
     };
-    fabricSnapshot?: { name: string } | null;
+    fabricId?: CatalogMedia | string | null;
+    fabricSnapshot?: { name: string; nameAr?: string; image?: string; images?: string[] } | null;
+    fabricImage?: string;
     fabricMeters?: number;
     leftoverMeters?: number;
     selectedCuts?: Array<{
@@ -167,6 +184,25 @@ function getOrderUser(
 ): OrderUser | null {
   if (!userId || typeof userId !== "object") return null;
   return userId;
+}
+
+function catalogImageFromRef(
+  ref?: CatalogMedia | string | null,
+  snapshot?: { image?: string; images?: string[] } | null,
+  fallback?: string | null,
+): string {
+  if (fallback) return resolveMediaUrl(fallback);
+  if (ref && typeof ref === "object") {
+    if (ref.thumbnailImage) return resolveMediaUrl(ref.thumbnailImage);
+    if (Array.isArray(ref.images) && ref.images[0]) {
+      return resolveMediaUrl(ref.images[0]);
+    }
+  }
+  if (snapshot?.image) return resolveMediaUrl(snapshot.image);
+  if (Array.isArray(snapshot?.images) && snapshot.images[0]) {
+    return resolveMediaUrl(snapshot.images[0]);
+  }
+  return "";
 }
 
 export default function TailorOrdersPage() {
@@ -521,6 +557,21 @@ export default function TailorOrdersPage() {
                 ? itemData.selectedCuts
                 : order.selectedCuts) || [];
             const cutRows = groupSelectedCutPieces(cuts, locale);
+            const garmentItems =
+              Array.isArray(order.items) && order.items.length > 0
+                ? order.items
+                : [
+                    {
+                      designId: order.designId,
+                      designSnapshot: order.designSnapshot,
+                      fabricId: order.fabricId,
+                      fabricSnapshot: order.fabricSnapshot,
+                      fabricImage: order.fabricImage,
+                      fabricMeters: order.fabricMeters,
+                      leftoverMeters: order.leftoverMeters,
+                      selectedCuts: order.selectedCuts,
+                    },
+                  ];
 
             return (
               <div
@@ -532,7 +583,7 @@ export default function TailorOrdersPage() {
                 }`}
               >
                 {/* Upper card info grid */}
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-5">
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4 p-5">
                   <div>
                     <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">
                       {t("customer")}
@@ -543,37 +594,104 @@ export default function TailorOrdersPage() {
                     </p>
                   </div>
 
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">
-                      {t("design")}
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">
+                      {locale === "ar" ? "المنتجات المطلوبة" : "Ordered Items"}
                     </p>
-                    <p className="text-sm font-medium text-black">
-                      {order.designSnapshot?.name || "Bespoke Design"}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {t("fabricLabel", { name: fabricName })}
-                    </p>
-                    {Array.isArray(order.addons) && order.addons.length > 0 ? (
-                      <div className="mt-2 rounded-xl border border-gray-100 bg-gray-50/80 p-2 space-y-1">
-                        <p className="text-[10px] uppercase tracking-wider text-gray-400">
-                          {locale === "ar"
-                            ? "أرسل مع التصميم"
-                            : "Include with garment"}
-                        </p>
-                        {order.addons.map((addon, idx) => (
-                          <p
-                            key={addon.addonId || idx}
-                            className="text-[11px] text-black"
+                    <div className="flex flex-col gap-3">
+                      {garmentItems.map((item, idx) => {
+                        const designName =
+                          (locale === "ar"
+                            ? item.designSnapshot?.nameAr ||
+                              item.designSnapshot?.name
+                            : item.designSnapshot?.name) ||
+                          order.designSnapshot?.name ||
+                          "Bespoke Design";
+                        const itemFabricName =
+                          item.fabricSnapshot?.name ||
+                          (typeof item.fabricId === "object"
+                            ? locale === "ar"
+                              ? item.fabricId?.nameAr || item.fabricId?.name
+                              : item.fabricId?.name
+                            : "") ||
+                          fabricName;
+                        const designImage = catalogImageFromRef(
+                          item.designId,
+                          null,
+                        );
+                        const fabricImage = catalogImageFromRef(
+                          item.fabricId,
+                          item.fabricSnapshot,
+                          item.fabricImage,
+                        );
+                        const thumb = designImage || fabricImage;
+
+                        return (
+                          <div
+                            key={`tailor-item-${order._id}-${idx}`}
+                            className="flex items-center gap-3 bg-gray-50/50 p-2 rounded-xl border border-gray-100/50"
                           >
-                            {locale === "ar"
+                            {thumb ? (
+                              <img
+                                src={thumb}
+                                alt={designName}
+                                className="w-10 h-10 object-cover rounded-lg border border-gray-200 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center shrink-0">
+                                <Package className="w-5 h-5 text-gray-400" />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-black [font-family:var(--font-body)]">
+                                {designName}
+                              </p>
+                              <p className="text-[10px] text-gray-400 mt-0.5 [font-family:var(--font-body)]">
+                                {t("fabricLabel", { name: itemFabricName })}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {Array.isArray(order.addons) &&
+                        order.addons.map((addon, idx) => {
+                          const addonName =
+                            locale === "ar"
                               ? addon.nameAr || addon.name || "إضافة"
-                              : addon.name || "Add-on"}
-                          </p>
-                        ))}
-                      </div>
-                    ) : null}
+                              : addon.name || "Add-on";
+                          const addonImage = resolveMediaUrl(
+                            addon.thumbnailImage,
+                          );
+                          return (
+                            <div
+                              key={addon.addonId || `addon-${idx}`}
+                              className="flex items-center gap-3 bg-gray-50/50 p-2 rounded-xl border border-gray-100/50"
+                            >
+                              {addonImage ? (
+                                <img
+                                  src={addonImage}
+                                  alt={addonName}
+                                  className="w-10 h-10 object-cover rounded-lg border border-gray-200 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center shrink-0">
+                                  <Package className="w-5 h-5 text-gray-400" />
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-semibold text-black [font-family:var(--font-body)]">
+                                  {addonName}
+                                  <span className="ml-1.5 text-[10px] font-normal text-amber-800 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">
+                                    {locale === "ar" ? "إضافة" : "Add-on"}
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
                     {cutRows.length > 0 ? (
-                      <p className="text-[11px] text-gray-600 mt-1">
+                      <p className="text-[11px] text-gray-600 mt-2">
                         {cutRows
                           .map((row) =>
                             t("piecesCount", {
