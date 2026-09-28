@@ -96,13 +96,16 @@ export function Navbar() {
   const t = getTranslation(localParams);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLLIElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
 
   const handleScrollToSection = (e: React.MouseEvent, targetId: string) => {
     e.preventDefault();
     setDropdownOpen(false);
+    setAccountMenuOpen(false);
     closeMenu();
 
     const isHome =
@@ -152,11 +155,18 @@ export function Navbar() {
   };
   const accountHref = getAccountHref();
   const isCustomerAccount = Boolean(user && accountHref === "/account");
+  const showAccountMenu = Boolean(user && !user.isGuest && accountHref);
   const { count: customerNotificationCount } = useNotificationUnreadCount(
     "customer",
     isCustomerAccount,
     30000,
   );
+
+  const handleLogout = () => {
+    setAccountMenuOpen(false);
+    closeMenu();
+    void logout();
+  };
 
   // Toggle menu with animation
   const toggleMenu = useCallback(() => {
@@ -187,6 +197,7 @@ export function Navbar() {
 
   const closeMenu = useCallback(() => {
     setDropdownOpen(false);
+    setAccountMenuOpen(false);
     if (mobileOpen) {
       if (menuRef.current) {
         menuRef.current.style.opacity = "0";
@@ -222,19 +233,28 @@ export function Navbar() {
       ) {
         setDropdownOpen(false);
       }
+      if (
+        accountMenuOpen &&
+        accountMenuRef.current &&
+        !accountMenuRef.current.contains(e.target as Node)
+      ) {
+        setAccountMenuOpen(false);
+      }
     };
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
-  }, [mobileOpen, closeMenu, dropdownOpen]);
+  }, [mobileOpen, closeMenu, dropdownOpen, accountMenuOpen]);
 
   // Handle Escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && mobileOpen) closeMenu();
+      if (e.key !== "Escape") return;
+      if (accountMenuOpen) setAccountMenuOpen(false);
+      if (mobileOpen) closeMenu();
     };
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [mobileOpen, closeMenu]);
+  }, [mobileOpen, closeMenu, accountMenuOpen]);
 
   useEffect(() => {
     return () => {
@@ -290,7 +310,10 @@ export function Navbar() {
           ))}
           <li className="relative" ref={dropdownRef}>
             <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
+              onClick={() => {
+                setAccountMenuOpen(false);
+                setDropdownOpen(!dropdownOpen);
+              }}
               className={`${desktopNavLinkClass} flex items-center gap-1 bg-transparent border-0 p-0 hover:cursor-pointer`}
             >
               <span>{isArabic ? "جاهز للطلب" : "Ready to Order"}</span>
@@ -316,8 +339,8 @@ export function Navbar() {
                   {isArabic ? "مخوّر" : "Mukhawar"}
                 </Link>
                 <Link
-                  href="/#ready-made"
-                  onClick={(e) => handleScrollToSection(e, "ready-made")}
+                  href="/ready-made"
+                  onClick={closeMenu}
                   className="px-4 py-2 text-[10px] uppercase tracking-[0.14em] text-black hover:bg-[#FAF9F6] transition border-t border-[#FAF9F6] font-medium"
                 >
                   {isArabic ? "جاهز للارتداء" : "Ready to Wear"}
@@ -365,6 +388,46 @@ export function Navbar() {
               >
                 <LogOutIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
               </button>
+            ) : showAccountMenu ? (
+              <div className="relative" ref={accountMenuRef}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDropdownOpen(false);
+                    setAccountMenuOpen((open) => !open);
+                  }}
+                  className={`flex ${navIconClass} bg-transparent border-0 hover:cursor-pointer`}
+                  aria-label={accountLabel}
+                  aria-expanded={accountMenuOpen}
+                  aria-haspopup="menu"
+                >
+                  <UserIcon className="w-4 h-4 xs:w-4 sm:w-4 md:w-4 lg:w-5 xl:w-5 2xl:w-6" />
+                </button>
+                {accountMenuOpen && accountHref && (
+                  <div
+                    role="menu"
+                    className="absolute top-full inset-e-0 mt-2 w-40 bg-white border border-(--color-border) rounded-lg shadow-lg py-1.5 z-50 flex flex-col overflow-hidden"
+                  >
+                    <Link
+                      href={accountHref}
+                      role="menuitem"
+                      onClick={closeMenu}
+                      className="px-4 py-2.5 text-[10px] uppercase tracking-[0.14em] text-black hover:bg-[#F2F2F0] hover:text-[#1A1A1A] transition-colors duration-200 font-medium text-start"
+                    >
+                      {t.navbar.actions.dashboard}
+                    </Link>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={handleLogout}
+                      className="px-4 py-2.5 text-[10px] uppercase tracking-[0.14em] text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors duration-200 font-medium text-start border-t border-(--color-border) bg-transparent cursor-pointer"
+                    >
+                      {t.navbar.actions.logout}
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : accountHref ? (
               <Link
                 href={accountHref}
@@ -458,7 +521,10 @@ export function Navbar() {
             ))}
             <li className="flex flex-col">
               <button
-                onClick={() => setDropdownOpen(!dropdownOpen)}
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  setDropdownOpen(!dropdownOpen);
+                }}
                 className={`${mobileNavLinkClass} flex items-center gap-1.5 bg-transparent border-0 p-0 text-left rtl:text-right hover:cursor-pointer`}
               >
                 <span>{isArabic ? "جاهز للطلب" : "Ready to Order"}</span>
@@ -487,9 +553,9 @@ export function Navbar() {
                   </li>
                   <li>
                     <Link
-                      href="/#ready-made"
+                      href="/ready-made"
                       className={`${mobileNavLinkClass} text-[10px] text-black/70`}
-                      onClick={(e) => handleScrollToSection(e, "ready-made")}
+                      onClick={closeMenu}
                     >
                       {isArabic ? "جاهز للارتداء" : "Ready to Wear"}
                     </Link>

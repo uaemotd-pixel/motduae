@@ -14,7 +14,7 @@ export default function WishlistPage() {
   const router = useRouter();
   const params = useParams();
   const locale = params.locale as string;
-  const { wishItems, removeItem, clearWishlist } = useWishlist();
+  const { wishItems, isHydrated, removeItem, clearWishlist } = useWishlist();
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
 
@@ -41,6 +41,18 @@ export default function WishlistPage() {
       setImageModalOpen(true);
     }
   };
+
+  if (!isHydrated) {
+    return (
+      <MainLayout>
+        <div className="min-h-screen bg-(--bg-page) flex items-center justify-center px-4 py-12">
+          <p className="[font-family:var(--font-ui)] text-[13px] xs:text-[14px] text-[#5A5A56]">
+            {locale === "ar" ? "جاري تحميل قائمة الأمنيات..." : "Loading wishlist..."}
+          </p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   if (wishItems.length === 0) {
     return (
