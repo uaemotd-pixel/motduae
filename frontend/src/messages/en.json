@@ -610,7 +610,9 @@
   "Testimonials": {
     "title": "The Client Experience",
     "verifiedPurchase": "Verified purchase",
-    "empty": "No client reviews yet"
+    "empty": "No client reviews yet",
+    "loadMore": "Load more",
+    "loadingMore": "Loading…"
   },
   "TailorRegister": {
     "eyebrow": "Partner with MOTD",

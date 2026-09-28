@@ -152,7 +152,10 @@ export default function TailorsListing() {
                   ? resolveMediaUrl(tailor.logo.trim())
                   : "";
                 const showLogoBadge = Boolean(logoUrl && logoUrl !== imageUrl);
-                const rating = formatTailorRating(tailor.rating);
+                const rating =
+                  (tailor.reviewCount ?? 0) > 0
+                    ? formatTailorRating(tailor.rating)
+                    : "0.0";
                 const reviewCount = tailor.reviewCount ?? 0;
                 const locationLabel = badge || location;
 

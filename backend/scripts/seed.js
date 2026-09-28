@@ -1078,6 +1078,15 @@ async function seed() {
   await seedReadyMadeProducts();
   await verifySeed();
 
+  const { backfillReviewShopIds, recomputeAllShopRatings } = await import(
+    "../services/reviewShopRatings.js"
+  );
+  await backfillReviewShopIds();
+  const ratings = await recomputeAllShopRatings();
+  console.log(
+    `Shop ratings synced from approved reviews (${ratings.updated} shops updated).`,
+  );
+
   console.log("Seed complete");
 }
 
