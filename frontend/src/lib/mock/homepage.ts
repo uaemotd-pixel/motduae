@@ -314,20 +314,20 @@ export const artisanTailors: ArtisanTailor[] = [
   {
     slug: "ayesha-al-riaz",
     image: publicImage("./images/tailor-1.png"),
-    rating: 4.9,
-    reviewCount: 247,
+    rating: 0,
+    reviewCount: 0,
   },
   {
     slug: "asma-al-naeem",
     image: publicImage("./images/tailor-2.png"),
-    rating: 5.0,
-    reviewCount: 189,
+    rating: 0,
+    reviewCount: 0,
   },
   {
     slug: "fatima-al-qasimi",
     image: publicImage("./images/tailor-3.png"),
-    rating: 4.8,
-    reviewCount: 312,
+    rating: 0,
+    reviewCount: 0,
   },
 ];
 

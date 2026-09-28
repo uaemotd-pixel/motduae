@@ -33,7 +33,10 @@ import {
   processFabricImage,
 } from "../middleware/uploadFabricImages.js";
 import Customer from "../models/customer.js";
-import { createAdminNotificationForNewUser } from "../services/adminNotificationService.js";
+import {
+  createAdminNotificationForNewUser,
+  createNotification,
+} from "../services/adminNotificationService.js";
 import { findEmailOccupant } from "../services/emailVerification/emailOccupancy.js";
 import AddOn from "../models/AddOn.js";
 import Category from "../models/Category.js";
@@ -5641,6 +5644,26 @@ function isValidHalfStarRatingAdmin(rating) {
   return Math.abs(n * 2 - Math.round(n * 2)) < 1e-9;
 }
 
+async function notifyCustomerReviewModeration(customer, nextStatus) {
+  if (nextStatus !== "approved" && nextStatus !== "rejected") return;
+  if (!customer?.userId) return;
+  try {
+    await createNotification({
+      type: nextStatus === "approved" ? "review_approved" : "review_rejected",
+      title:
+        nextStatus === "approved" ? "Review approved" : "Review not published",
+      message:
+        nextStatus === "approved"
+          ? "Your review is now visible on MOTD."
+          : "Your review was not published. You can edit it and submit again.",
+      audience: "customer",
+      recipientUserId: customer.userId,
+    });
+  } catch (err) {
+    console.error("Failed to notify customer of review moderation:", err);
+  }
+}
+
 // GET /api/admin/reviews?status=pending|approved|rejected|all&search=&page=&limit=
 adminRouter.get(
   "/reviews",
@@ -5772,9 +5795,13 @@ adminRouter.patch(
       return;
     }
 
+    const prevStatus = review.status;
     review.status = nextStatus;
     await customer.save();
     await recomputeShopRatingsForReview(review);
+    if (prevStatus !== nextStatus) {
+      await notifyCustomerReviewModeration(customer, nextStatus);
+    }
 
     res.json({
       success: true,
@@ -5820,6 +5847,7 @@ adminRouter.put(
       return;
     }
 
+    const prevStatus = review.status;
     review.rating = Number(rating);
     review.quoteEn = trimmedQuoteEn || trimmedQuoteAr;
     review.quoteAr = trimmedQuoteAr || trimmedQuoteEn;
@@ -5840,6 +5868,9 @@ adminRouter.put(
 
     await customer.save();
     await recomputeShopRatingsForReview(review);
+    if (prevStatus !== review.status) {
+      await notifyCustomerReviewModeration(customer, review.status);
+    }
 
     res.json({
       success: true,

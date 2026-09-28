@@ -247,8 +247,9 @@ export default function BrandDetailPage() {
   const coverImage = resolveFabricShopImage(shop.logo, shop.coverImage);
   const logoImage =
     resolveMediaUrl(shop.logo?.trim() || "") || coverImage;
-  const rating = formatFabricShopRating(shop.rating);
   const reviewCount = shop.reviewCount ?? 0;
+  const rating =
+    reviewCount > 0 ? formatFabricShopRating(shop.rating) : "0.0";
 
   const websiteUrl = shop.website?.trim()
     ? normalizeHttpUrl(shop.website)

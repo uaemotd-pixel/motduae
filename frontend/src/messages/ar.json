@@ -705,7 +705,9 @@
     "ariaLabel": "تجربة العملاء",
     "title": "تجربة العميل",
     "verifiedPurchase": "شراء موثّق",
-    "empty": "لا توجد تقييمات عملاء بعد"
+    "empty": "لا توجد تقييمات عملاء بعد",
+    "loadMore": "تحميل المزيد",
+    "loadingMore": "جاري التحميل…"
   },
   "TailorRegister": {
     "eyebrow": "شارك مع MOTD",

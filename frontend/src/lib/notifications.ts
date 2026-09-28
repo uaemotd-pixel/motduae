@@ -530,11 +530,14 @@ export function isReviewPromptType(type: string): boolean {
   const key = type.toLowerCase();
   // Delivered notifications include the leave-a-review CTA.
   // Keep legacy *_review_prompt types for older notifications already in the DB.
+  // review_approved / review_rejected deep-link to the customer's reviews tab.
   return (
     key === "custom_status_delivered" ||
     key === "retail_status_delivered" ||
     key === "custom_review_prompt" ||
-    key === "retail_review_prompt"
+    key === "retail_review_prompt" ||
+    key === "review_approved" ||
+    key === "review_rejected"
   );
 }
 

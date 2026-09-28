@@ -5,6 +5,7 @@ import CustomOrder from "../models/CustomOrder.js";
 import Fabric from "../models/Fabric.js";
 import FabricShop from "../models/FabricShop.js";
 import AddOn from "../models/AddOn.js";
+import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
 import { isAuth } from "../middleware/auth.js";
 import { createNotification } from "../services/notificationService.js";
 import { recomputeShopRatingsForReview } from "../services/reviewShopRatings.js";
@@ -97,9 +98,26 @@ function denyIfNotReviewCustomer(req, res) {
 
 async function resolveRetailShopIds(item) {
   const kind = item.kind || "readyMade";
+  let tailorShopId = item.tailorShopId ? String(item.tailorShopId) : null;
   let fabricShopId = item.fabricShopId ? String(item.fabricShopId) : null;
 
-  if ((kind === "fabric" || kind === "addon") && !fabricShopId) {
+  if (kind === "readyMade") {
+    // Ready-made is tailor inventory. Do not attribute to fabric shops even if
+    // a stale fabricShopId was copied onto the order line.
+    fabricShopId = null;
+    if (!tailorShopId && item.productId) {
+      const product = await ReadyMadeProduct.findById(item.productId)
+        .select("tailorShopId")
+        .lean();
+      if (product?.tailorShopId) {
+        tailorShopId = String(product.tailorShopId);
+      }
+    }
+    return { tailorShopId, fabricShopId };
+  }
+
+  tailorShopId = null;
+  if (!fabricShopId && item.productId) {
     if (kind === "fabric") {
       const fabric = await Fabric.findById(item.productId)
         .select("fabricShopId listedByStore")
@@ -114,7 +132,7 @@ async function resolveRetailShopIds(item) {
           .lean();
         if (shop) fabricShopId = String(shop._id);
       }
-    } else {
+    } else if (kind === "addon") {
       const addon = await AddOn.findById(item.productId)
         .select("fabricShopId")
         .lean();
@@ -122,7 +140,7 @@ async function resolveRetailShopIds(item) {
     }
   }
 
-  return { tailorShopId: null, fabricShopId };
+  return { tailorShopId, fabricShopId };
 }
 
 async function findRetailReviewMatch(userId, productId) {
@@ -384,6 +402,8 @@ export function registerCustomerReviewRoutes(customerRouter) {
       if (wasApproved) {
         await recomputeShopRatingsForReview(review);
       }
+
+      await notifyAdminsOfNewReviews(customer, 1);
 
       return res.json({
         success: true,
