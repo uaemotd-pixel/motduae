@@ -48,11 +48,6 @@ export default function StoreAttribution({
                 <p className="[font-family:var(--font-body)] text-sm text-black leading-relaxed">
                     {pickupLine}
                 </p>
-                {pickupAddress.phone?.trim() && (
-                    <p className="[font-family:var(--font-body)] text-sm text-(--color-grey-muted) mt-1">
-                        {pickupAddress.phone}
-                    </p>
-                )}
             </div>
         </div>
     );

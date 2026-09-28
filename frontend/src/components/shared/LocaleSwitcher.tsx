@@ -32,9 +32,14 @@ const LocaleSwitcher = () => {
         grid-cols-2
         items-center
         shrink-0
-        h-8
-        w-14
-        p-[3px]
+        h-6
+        w-10
+        p-0.5
+        sm:h-7
+        sm:w-12
+        lg:h-8
+        lg:w-14
+        lg:p-0.75
         rounded-full
         border
         border-[#D7D2C9]
@@ -50,7 +55,7 @@ const LocaleSwitcher = () => {
     >
       <motion.span
         aria-hidden
-        className="pointer-events-none absolute top-[3px] bottom-[3px] left-[3px] w-[calc(50%-3px)] rounded-full bg-black"
+        className="pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-full bg-black lg:top-0.75 lg:bottom-0.75 lg:left-0.75 lg:w-[calc(50%-3px)]"
         initial={false}
         animate={{ x: isArabic ? "100%" : "0%" }}
         transition={{
@@ -63,7 +68,7 @@ const LocaleSwitcher = () => {
       <span
         className={`
           relative z-10 text-center
-          text-[9px] tracking-[0.08em] font-medium leading-none
+          text-[7px] xs:text-[8px] lg:text-[9px] tracking-[0.08em] font-medium leading-none
           transition-colors duration-300
           ${!isArabic ? "text-white" : "text-[#6F6B63]"}
         `}
@@ -74,7 +79,7 @@ const LocaleSwitcher = () => {
       <span
         className={`
           relative z-10 text-center
-          text-[9px] tracking-[0.08em] font-medium leading-none
+          text-[7px] xs:text-[8px] lg:text-[9px] tracking-[0.08em] font-medium leading-none
           transition-colors duration-300
           ${isArabic ? "text-white" : "text-[#6F6B63]"}
         `}

@@ -102,6 +102,7 @@ export function AddOnsSection() {
       loop: products.length > 1,
       slidesToScroll: 1,
       axis: "x",
+      direction: isAr ? "rtl" : "ltr",
     },
     [
       Autoplay({
@@ -133,8 +134,8 @@ export function AddOnsSection() {
   }, [emblaApi, onSelect]);
 
   useEffect(() => {
-    if (emblaApi) emblaApi.reInit();
-  }, [products, emblaApi]);
+    if (emblaApi) emblaApi.reInit({ direction: isAr ? "rtl" : "ltr" });
+  }, [products, emblaApi, isAr]);
 
   const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
   const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
@@ -296,7 +297,9 @@ export function AddOnsSection() {
           <button
             onClick={scrollPrev}
             disabled={!prevBtnEnabled}
-            className={`hidden sm:flex absolute left-2 xs:left-3 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/prev ${
+            className={`hidden sm:flex absolute ${
+              isAr ? "right-2 xs:right-3 sm:right-4" : "left-2 xs:left-3 sm:left-4"
+            } top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/prev ${
               !prevBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
             }`}
             aria-label="Previous slide"
@@ -310,14 +313,16 @@ export function AddOnsSection() {
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <path d="M15 18l-6-6 6-6" />
+              {isAr ? <path d="M9 18l6-6-6-6" /> : <path d="M15 18l-6-6 6-6" />}
             </svg>
           </button>
 
           <button
             onClick={scrollNext}
             disabled={!nextBtnEnabled}
-            className={`hidden sm:flex absolute right-2 xs:right-3 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/next ${
+            className={`hidden sm:flex absolute ${
+              isAr ? "left-2 xs:left-3 sm:left-4" : "right-2 xs:right-3 sm:right-4"
+            } top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/next ${
               !nextBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
             }`}
             aria-label="Next slide"
@@ -331,7 +336,7 @@ export function AddOnsSection() {
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <path d="M9 18l6-6-6-6" />
+              {isAr ? <path d="M15 18l-6-6 6-6" /> : <path d="M9 18l6-6-6-6" />}
             </svg>
           </button>
 

@@ -11,6 +11,7 @@ import {
   removeAccountWishlistItem,
   setAccountWishlistQuantity,
   wishlistItemToLine,
+  type AccountWishlist,
 } from "@/lib/api/wishlist";
 import { getApiErrorMessage } from "@/lib/api/client";
 import { broadcastSignedOut } from "@/lib/auth/sessionBroadcast";
@@ -36,6 +37,8 @@ export type WishlistItem = {
 
 type WishlistContextType = {
   wishItems: WishlistItem[];
+  /** False until localStorage has been read (and account sync has settled when logged in). */
+  isHydrated: boolean;
   addItem: (
     item: Omit<WishlistItem, "quantity"> & { maxStock?: number },
   ) => void;
@@ -170,6 +173,7 @@ function commitWishlist(
 export function WishlistProvider({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const [items, setItems] = useState<WishlistItem[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
   const toastScheduledRef = useRef<string | null>(null);
   const chainRef = useRef(Promise.resolve());
   const generationRef = useRef(0);
@@ -188,6 +192,8 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const markHydrated = () => setIsHydrated(true);
+
   const applyAccountWishlist = (next: unknown, userId: string) => {
     const normalized = normalizeStoredItems(next);
     writeWishlist(normalized);
@@ -195,6 +201,19 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) =>
       JSON.stringify(prev) === JSON.stringify(normalized) ? prev : normalized,
     );
+  };
+
+  /** Pull server wishlist, but push any local lines up first so we never clobber a fuller local list. */
+  const loadAccountWishlist = async (
+    userId: string,
+    localSnapshot: WishlistItem[],
+  ): Promise<AccountWishlist> => {
+    if (localSnapshot.length > 0) {
+      return mergeAccountWishlist(
+        localSnapshot.map((item) => wishlistItemToLine(item, item.quantity)),
+      );
+    }
+    return getAccountWishlist();
   };
 
   const wipeAccountLocalWishlist = () => {
@@ -281,14 +300,16 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     accountUserIdRef.current = userId;
 
     if (!userId) {
-      const hadAccountSession =
-        Boolean(lastAccountUserIdRef.current) || Boolean(readOwner());
+      // Only wipe when an account session ended in this tab (logout / mid-session 401).
+      // A fresh page load with a leftover owner key must NOT clear localStorage.
+      const hadInMemorySession = Boolean(lastAccountUserIdRef.current);
       lastAccountUserIdRef.current = "";
-      if (hadAccountSession) {
+      if (hadInMemorySession) {
         wipeAccountLocalWishlist();
       } else {
         setItems(readWishlist());
       }
+      markHydrated();
       return;
     }
 
@@ -296,27 +317,33 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     lastAccountUserIdRef.current = userId;
 
     const owner = readOwner();
-    if (
-      (owner && owner !== userId) ||
-      (previousUserId && previousUserId !== userId)
-    ) {
+    const switchedUser =
+      (Boolean(owner) && owner !== userId) ||
+      (Boolean(previousUserId) && previousUserId !== userId);
+
+    // Another account's wishlist on this device — drop it before loading ours.
+    if (switchedUser) {
       clearLocalWishlistStorage();
       setItems([]);
     }
-    const canMergeGuestWishlist = !owner && !previousUserId;
-    const localSnapshot = canMergeGuestWishlist ? readWishlist() : [];
+
+    // Same user / guest leftovers: merge up so nothing stays local-only.
+    const localSnapshot = switchedUser ? [] : readWishlist();
+
     enqueue(async () => {
       if (generationRef.current !== generation) return;
       if (accountUserIdRef.current !== userId) return;
       try {
-        const data =
-          localSnapshot.length > 0
-            ? await mergeAccountWishlist(
-                localSnapshot.map((item) =>
-                  wishlistItemToLine(item, item.quantity),
-                ),
-              )
-            : await getAccountWishlist();
+        let data: AccountWishlist;
+        try {
+          data = await loadAccountWishlist(userId, localSnapshot);
+        } catch (firstError) {
+          if (sessionEnded(firstError)) throw firstError;
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          if (generationRef.current !== generation) return;
+          if (accountUserIdRef.current !== userId) return;
+          data = await loadAccountWishlist(userId, readWishlist());
+        }
 
         if (generationRef.current !== generation) return;
         if (accountUserIdRef.current !== userId) return;
@@ -332,6 +359,8 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           getApiErrorMessage(error, "Could not load your wishlist"),
           "error",
         );
+      } finally {
+        markHydrated();
       }
     });
   }, [isLoading, user?.id, user?.isGuest]);
@@ -345,13 +374,12 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         refreshFromStorage();
         return;
       }
-      const generation = generationRef.current;
       enqueue(async () => {
-        if (generationRef.current !== generation) return;
+        // Do not abort on generation bumps — visibility refresh must still
+        // pull the latest account wishlist (e.g. after shopping on another device).
         if (accountUserIdRef.current !== userId) return;
         try {
-          const data = await getAccountWishlist();
-          if (generationRef.current !== generation) return;
+          const data = await loadAccountWishlist(userId, readWishlist());
           if (accountUserIdRef.current !== userId) return;
           applyAccountWishlist(data.items, userId);
         } catch (error) {
@@ -371,11 +399,16 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       if (isSecureIframeFocused()) return;
       refreshAccount();
     };
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) refreshAccount();
+    };
 
     window.addEventListener("storage", onStorage);
+    window.addEventListener("pageshow", onPageShow);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.removeEventListener("storage", onStorage);
+      window.removeEventListener("pageshow", onPageShow);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
@@ -539,6 +572,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     <WishlistContext.Provider
       value={{
         wishItems: items,
+        isHydrated,
         addItem,
         toggleItem,
         removeItem,

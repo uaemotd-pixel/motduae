@@ -23,6 +23,8 @@
       "search": "Search",
       "login": "Login",
       "account": "Account",
+      "dashboard": "Dashboard",
+      "logout": "Logout",
       "wishlist": "Wishlist",
       "cart": "Cart",
       "openMenu": "Open menu",

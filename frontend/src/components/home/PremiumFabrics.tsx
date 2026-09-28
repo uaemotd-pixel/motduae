@@ -127,6 +127,7 @@ export function PremiumFabrics() {
       dragFree: false,
       loop: filteredItems.length > 1,
       slidesToScroll: 1,
+      direction: locale === "ar" ? "rtl" : "ltr",
       breakpoints: {
         "(max-width: 480px)": { slidesToScroll: 1 },
         "(min-width: 481px) and (max-width: 640px)": { slidesToScroll: 1 },
@@ -254,9 +255,9 @@ export function PremiumFabrics() {
 
   useEffect(() => {
     if (emblaApi) {
-      emblaApi.reInit();
+      emblaApi.reInit({ direction: locale === "ar" ? "rtl" : "ltr" });
     }
-  }, [filteredItems, emblaApi]);
+  }, [filteredItems, emblaApi, locale]);
 
   if (loading) {
     return (
@@ -355,7 +356,11 @@ export function PremiumFabrics() {
             <button
               onClick={scrollPrev}
               disabled={!prevBtnEnabled}
-              className={`hidden sm:flex absolute left-2 xs:left-3 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/prev ${
+              className={`hidden sm:flex absolute ${
+                locale === "ar"
+                  ? "right-2 xs:right-3 sm:right-4"
+                  : "left-2 xs:left-3 sm:left-4"
+              } top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/prev ${
                 !prevBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
               }`}
               aria-label="Previous slide"
@@ -369,14 +374,22 @@ export function PremiumFabrics() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <path d="M15 18l-6-6 6-6" />
+                {locale === "ar" ? (
+                  <path d="M9 18l6-6-6-6" />
+                ) : (
+                  <path d="M15 18l-6-6 6-6" />
+                )}
               </svg>
             </button>
 
             <button
               onClick={scrollNext}
               disabled={!nextBtnEnabled}
-              className={`hidden sm:flex absolute right-2 xs:right-3 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/next ${
+              className={`hidden sm:flex absolute ${
+                locale === "ar"
+                  ? "left-2 xs:left-3 sm:left-4"
+                  : "right-2 xs:right-3 sm:right-4"
+              } top-1/2 -translate-y-1/2 z-20 w-8 xs:w-9 sm:w-10 h-8 xs:h-9 sm:h-10 rounded-full bg-white border border-[#E5E5E0] items-center justify-center transition-all duration-300 shadow-md opacity-0 group-hover/carousel:opacity-100 pointer-events-auto hover:scale-110 hover:bg-[#1A2A3A] hover:border-[#1A2A3A] group/next ${
                 !nextBtnEnabled ? "opacity-50 cursor-not-allowed" : ""
               }`}
               aria-label="Next slide"
@@ -390,7 +403,11 @@ export function PremiumFabrics() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <path d="M9 18l6-6-6-6" />
+                {locale === "ar" ? (
+                  <path d="M15 18l-6-6 6-6" />
+                ) : (
+                  <path d="M9 18l6-6-6-6" />
+                )}
               </svg>
             </button>
 

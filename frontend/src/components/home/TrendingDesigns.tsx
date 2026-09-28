@@ -268,9 +268,9 @@ export function TrendingSection() {
 
   useEffect(() => {
     if (emblaApi) {
-      emblaApi.reInit();
+      emblaApi.reInit({ direction: isArabic ? "rtl" : "ltr" });
     }
-  }, [filteredDesigns, emblaApi]);
+  }, [filteredDesigns, emblaApi, isArabic]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.hash === "#designs") {
