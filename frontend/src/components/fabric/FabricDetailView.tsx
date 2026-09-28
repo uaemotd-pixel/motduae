@@ -178,7 +178,11 @@ export default function FabricDetailView({
 
   const handleAddToCart = () => {
     if (!hasSelection) return;
-    buildCartItemsFromSelection().forEach((item) => addToCart(item));
+    const unique = new Map<string, ReturnType<typeof buildCartItemsFromSelection>[number]>();
+    for (const item of buildCartItemsFromSelection()) {
+      if (!unique.has(item.id)) unique.set(item.id, item);
+    }
+    unique.forEach((item) => addToCart(item));
   };
 
   const handleBuyNow = () => {
@@ -842,6 +846,7 @@ export default function FabricDetailView({
                   {/* Buy Now */}
                   <div className="flex flex-col sm:flex-row gap-3">
                     <button
+                      type="button"
                       onClick={handleBuyNow}
                       disabled={!hasSelection}
                       className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
@@ -854,6 +859,7 @@ export default function FabricDetailView({
                     </button>
 
                     <button
+                      type="button"
                       onClick={handleAddToCart}
                       disabled={!hasSelection}
                       className={`w-full py-3 px-6 border border-black text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${

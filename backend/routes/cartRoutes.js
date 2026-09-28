@@ -54,7 +54,7 @@ router.patch("/items/:lineId", async (req, res) => {
   try {
     const lineId = decodeURIComponent(req.params.lineId || "");
     res.json(
-      await setLineQuantity(req.user._id, lineId, req.body?.quantity),
+      await setLineQuantity(req.user._id, lineId, req.body?.quantity, req.body || {}),
     );
   } catch (err) {
     sendCartError(res, err);
