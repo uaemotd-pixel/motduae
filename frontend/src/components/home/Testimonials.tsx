@@ -132,6 +132,25 @@ function TestimonialCard({
   );
 }
 
+const TESTIMONIALS_PER_PAGE = 12;
+const MAX_NAV_DOTS = 5;
+
+function hasQuote(item: Testimonial) {
+  return Boolean(String(item.quoteEn || item.quoteAr || "").trim());
+}
+
+function mergeTestimonials(existing: Testimonial[], incoming: Testimonial[]) {
+  const seen = new Set(existing.map((item) => String(item.id)));
+  const next = [...existing];
+  for (const item of incoming) {
+    const id = String(item.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    next.push(item);
+  }
+  return next;
+}
+
 export function Testimonials() {
   const t = useTranslations("Testimonials");
   const params = useParams();
@@ -139,30 +158,71 @@ export function Testimonials() {
   const isArabic = currentLanguage === "ar";
 
   const [allTestimonials, setAllTestimonials] = useState<Testimonial[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const fetchPage = useCallback(async (nextPage: number) => {
+    const query = new URLSearchParams({
+      page: String(nextPage),
+      limit: String(TESTIMONIALS_PER_PAGE),
+    });
+    const fetched = await api.get<{
+      items?: Testimonial[];
+      totalPages?: number;
+    }>(`/api/customer/reviews?${query.toString()}`);
+    const items = (Array.isArray(fetched?.items) ? fetched.items : []).filter(
+      hasQuote,
+    );
+    return {
+      items,
+      page: nextPage,
+      totalPages: Number(fetched?.totalPages) || 0,
+    };
+  }, []);
 
   useEffect(() => {
-    const fetchReviews = async () => {
+    let cancelled = false;
+    const load = async () => {
       try {
         setLoading(true);
-        const fetched = await api.get<{ items?: Testimonial[] }>(
-          "/api/customer/reviews?limit=12",
-        );
-        const items = Array.isArray(fetched?.items) ? fetched.items : [];
-        setAllTestimonials(
-          items.filter((item) =>
-            Boolean(String(item.quoteEn || item.quoteAr || "").trim()),
-          ),
-        );
+        const result = await fetchPage(1);
+        if (cancelled) return;
+        setAllTestimonials(result.items);
+        setPage(result.page);
+        setTotalPages(result.totalPages);
       } catch (err) {
         console.error("Failed to load customer reviews:", err);
-        setAllTestimonials([]);
+        if (!cancelled) {
+          setAllTestimonials([]);
+          setPage(1);
+          setTotalPages(0);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    fetchReviews();
-  }, []);
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchPage]);
+
+  const handleLoadMore = async () => {
+    if (loadingMore || page >= totalPages) return;
+    try {
+      setLoadingMore(true);
+      const result = await fetchPage(page + 1);
+      setAllTestimonials((prev) => mergeTestimonials(prev, result.items));
+      setPage(result.page);
+      setTotalPages(result.totalPages);
+    } catch (err) {
+      console.error("Failed to load more reviews:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const [emblaRef, emblaApi] = useEmblaCarousel(
     {
@@ -196,10 +256,6 @@ export function Testimonials() {
 
   const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
   const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
-  const scrollTo = useCallback(
-    (index: number) => emblaApi?.scrollTo(index),
-    [emblaApi],
-  );
 
   useEffect(() => {
     if (!emblaApi) return;
@@ -217,10 +273,33 @@ export function Testimonials() {
   }, [emblaApi, onSelect]);
 
   useEffect(() => {
-    if (emblaApi) emblaApi.reInit();
+    if (!emblaApi) return;
+    const index = emblaApi.selectedScrollSnap();
+    emblaApi.reInit();
+    emblaApi.scrollTo(index, true);
   }, [emblaApi, allTestimonials, isArabic]);
 
   const showNav = scrollSnaps.length > 1;
+  const hasMore = page < totalPages;
+  const snapCount = scrollSnaps.length;
+  const dotCount = Math.min(MAX_NAV_DOTS, snapCount);
+  const activeDot = snapCount > 0 ? selectedIndex % dotCount : 0;
+
+  const scrollToDot = useCallback(
+    (dotIndex: number) => {
+      if (!emblaApi || dotCount <= 0) return;
+      const cycle = Math.floor(selectedIndex / dotCount);
+      let target = cycle * dotCount + dotIndex;
+      if (target === selectedIndex && target + dotCount < snapCount) {
+        target += dotCount;
+      }
+      if (target >= snapCount) {
+        target = dotIndex < snapCount ? dotIndex : snapCount - 1;
+      }
+      emblaApi.scrollTo(target);
+    },
+    [emblaApi, selectedIndex, dotCount, snapCount],
+  );
 
   return (
     <section className="py-12 xs:py-16 sm:py-20 md:py-24 lg:py-section-gap px-4 xs:px-6 sm:px-8 md:px-12 lg:px-margin-desktop max-w-container-max mx-auto bg-(--bg-page) mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-(--space-80)">
@@ -317,20 +396,33 @@ export function Testimonials() {
 
           {showNav && (
             <div className="mt-6 flex justify-center gap-1.5 xs:mt-8 sm:mt-10 md:mt-12 lg:mt-(--space-32)">
-              {scrollSnaps.map((_, index) => (
+              {Array.from({ length: dotCount }).map((_, index) => (
                 <button
                   type="button"
                   key={index}
-                  onClick={() => scrollTo(index)}
+                  onClick={() => scrollToDot(index)}
                   className={`h-1.5 rounded-full transition-all duration-300 hover:cursor-pointer ${
-                    index === selectedIndex
+                    index === activeDot
                       ? "w-5 bg-black"
                       : "w-1.5 bg-black/25 hover:bg-black/45"
                   }`}
-                  aria-label={`Go to review ${index + 1}`}
-                  aria-current={index === selectedIndex ? "true" : undefined}
+                  aria-label={`Go to review group ${index + 1}`}
+                  aria-current={index === activeDot ? "true" : undefined}
                 />
               ))}
+            </div>
+          )}
+
+          {hasMore && (
+            <div className="mt-8 flex justify-center xs:mt-10 sm:mt-12">
+              <button
+                type="button"
+                onClick={() => void handleLoadMore()}
+                disabled={loadingMore}
+                className="inline-flex items-center justify-center min-w-[10rem] px-6 py-2.5 border border-black bg-transparent text-black text-[11px] uppercase tracking-[0.2em] [font-family:var(--font-ui)] transition-colors hover:bg-black hover:text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {loadingMore ? t("loadingMore") : t("loadMore")}
+              </button>
             </div>
           )}
         </>

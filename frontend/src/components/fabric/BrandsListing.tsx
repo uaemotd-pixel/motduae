@@ -152,7 +152,10 @@ export default function BrandsListing() {
                   ? resolveMediaUrl(brand.logo.trim())
                   : "";
                 const showLogoBadge = Boolean(logoUrl && logoUrl !== imageUrl);
-                const rating = formatFabricShopRating(brand.rating);
+                const rating =
+                  (brand.reviewCount ?? 0) > 0
+                    ? formatFabricShopRating(brand.rating)
+                    : "0.0";
                 const reviewCount = brand.reviewCount ?? 0;
                 const locationLabel = badge || location;
 

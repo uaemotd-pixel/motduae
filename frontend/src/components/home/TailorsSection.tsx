@@ -96,16 +96,14 @@ function TailorPortraitCard({
           <div>
             <div className="flex items-center justify-between gap-3 mb-3 sm:mb-4">
               <div className="flex items-center gap-2">
-                <StarRating rating={tailor.rating ?? 0} />
+                <StarRating rating={reviewCount > 0 ? tailor.rating ?? 0 : 0} />
                 <span className="[font-family:var(--font-ui)] text-[9px] sm:text-[10px] tracking-[0.16em] text-white/80 font-normal">
-                  {rating}
+                  {reviewCount > 0 ? rating : "0.0"}
                 </span>
               </div>
-              {reviewCount > 0 && (
-                <span className="[font-family:var(--font-ui)] text-[8px] sm:text-[9px] uppercase tracking-[0.2em] text-white/50 font-normal">
-                  {reviewCount} {t("reviews")}
-                </span>
-              )}
+              <span className="[font-family:var(--font-ui)] text-[8px] sm:text-[9px] uppercase tracking-[0.2em] text-white/50 font-normal">
+                {reviewCount} {t("reviews")}
+              </span>
             </div>
 
             <h3 className="[font-family:var(--font-display)] text-[22px] sm:text-[24px] md:text-[26px] font-normal leading-[1.1] tracking-[-0.02em] text-white mb-1.5 sm:mb-2 line-clamp-2">

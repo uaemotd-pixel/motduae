@@ -766,14 +766,13 @@ export function buildCustomerNotificationFilter(userId, orderIds, query = {}) {
         },
       ],
     },
-    { type: { $nin: ["review_approved", "review_rejected"] } },
   ];
 
   if (searchOr) {
     clauses.push({ $or: searchOr });
   }
 
-  return { $and: clauses };
+  return clauses.length === 1 ? clauses[0] : { $and: clauses };
 }
 
 export function buildAdminNotificationFilter(query = {}) {
