@@ -28,11 +28,11 @@ import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 export default function CartPage() {
   const {
     items,
+    isHydrated,
     removeItem,
     updateQuantity,
     clearCart,
     purgeUnavailableItems,
-    refreshFromAccount,
   } = useCart();
   const router = useRouter();
   const params = useParams();
@@ -52,13 +52,6 @@ export default function CartPage() {
 
   useEffect(() => {
     clearBuyNowCheckout();
-  }, []);
-
-  // Pull the signed-in account cart so items added on another device appear.
-  useEffect(() => {
-    void refreshFromAccount();
-    // Only on mount / when landing on the cart page.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Keep selection in sync when cart lines are added or removed.
@@ -84,7 +77,7 @@ export default function CartPage() {
 
   // Drop sold-out / unavailable lines before the customer reaches checkout.
   useEffect(() => {
-    if (!items.length) return;
+    if (!isHydrated || !items.length) return;
 
     let cancelled = false;
 
@@ -113,7 +106,7 @@ export default function CartPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.map((item) => `${item.id}:${item.quantity}`).join("|"), measurementUnit]);
+  }, [isHydrated, items.map((item) => `${item.id}:${item.quantity}`).join("|"), measurementUnit]);
 
   // Fetch VAT rate from platform settings
   useEffect(() => {
@@ -191,7 +184,20 @@ export default function CartPage() {
     }
   };
 
-  // Empty cart state
+  // Empty cart state — wait for hydration so refresh doesn't flash "empty"
+  // before localStorage / account cart has loaded.
+  if (!isHydrated) {
+    return (
+      <MainLayout>
+        <div className="min-h-screen bg-(--bg-page) flex items-center justify-center px-4 py-12">
+          <p className="[font-family:var(--font-ui)] text-[13px] xs:text-[14px] text-[#5A5A56]">
+            {locale === "ar" ? "جاري تحميل السلة..." : "Loading cart..."}
+          </p>
+        </div>
+      </MainLayout>
+    );
+  }
+
   if (!items.length) {
     return (
       <MainLayout>

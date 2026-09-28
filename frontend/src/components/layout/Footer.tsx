@@ -37,10 +37,15 @@ const POLICY_LINKS = [
 ] as const;
 
 const columnHeadingClass =
-  "[font-family:var(--font-ui)] text-[14px] xs:text-[12px] sm:text-[13px] md:text-[14px] lg:text-[15px] xl:text-[16px] uppercase tracking-[0.32em] text-white/80 font-normal py-[15px] xs:py-[20px] sm:py-[25px] md:py-[30px] lg:py-[30px]";
+  "[font-family:var(--font-ui)] text-[9px] xs:text-[10px] sm:text-[11px] md:text-[12px] lg:text-[13px] uppercase tracking-[0.28em] text-white/80 font-normal py-1 md:py-1.5";
 
 const columnLinkClass =
-  "[font-family:var(--font-body)] text-[15px] xs:text-[13px] sm:text-[14px] md:text-[15px] lg:text-[16px] text-white hover:text-white/60 transition-colors duration-300";
+  "[font-family:var(--font-body)] text-[11px] xs:text-[11px] sm:text-[12px] md:text-[13px] lg:text-[14px] text-white hover:text-white/60 transition-colors duration-300";
+
+const socialBtnClass =
+  "w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full border border-white/20 flex items-center justify-center text-white/60 transition-all duration-300";
+
+const socialIconClass = "w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current";
 
 export function Footer() {
   const t = useTranslations("Footer");
@@ -51,39 +56,39 @@ export function Footer() {
       className="w-full bg-black/90 border-t border-white/10 py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) overflow-x-clip pb-[max(3rem,var(--safe-bottom))]"
     >
       {/* Main Footer */}
-      <div className="w-full px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) mx-auto grid grid-cols-1 md:grid-cols-12 gap-y-10 xs:gap-y-12 sm:gap-y-14 md:gap-y-16 lg:gap-y-(--space-64) gap-x-6 md:gap-x-8 lg:gap-x-(--space-48)">
+      <div className="w-full px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) mx-auto grid grid-cols-1 lg:grid-cols-12 gap-y-8 xs:gap-y-10 sm:gap-y-12 md:gap-y-16 lg:gap-y-0 gap-x-0 lg:gap-x-16 xl:gap-x-20">
         {/* Brand Column */}
-        <div className="md:col-span-12 lg:col-span-4 flex flex-col gap-5 xs:gap-6 sm:gap-7 md:gap-8 lg:gap-(--space-32)">
+        <div className="lg:col-span-4 flex flex-col gap-5 xs:gap-6 sm:gap-7 md:gap-8 lg:gap-(--space-32)">
           <div className="p-0">
             <Link href="/" className="inline-block">
               <img
                 src="/PNG/White/MOTD_Wordmark_White.png"
                 alt={t("logoAlt")}
-                className="w-35 xs:w-[160px] sm:w-45 md:w-50 lg:w-55 object-contain brightness-0 invert"
+                className="w-28 xs:w-32 sm:w-40 md:w-45 lg:w-50 object-contain brightness-0 invert"
               />
             </Link>
           </div>
 
-          <p className="[font-family:var(--font-display)] text-[24px] xs:text-[24px] sm:text-[26px] md:text-[28px] lg:text-[32px] xl:text-[36px] leading-tight xs:leading-[1.28] sm:leading-[1.3] tracking-[-0.02em] text-white font-normal max-w-105">
+          <p className="[font-family:var(--font-display)] text-[18px] xs:text-[20px] sm:text-[22px] md:text-[26px] lg:text-[30px] xl:text-[32px] leading-tight xs:leading-[1.28] sm:leading-[1.3] tracking-[-0.02em] text-white font-normal max-w-105">
             {t("tagline")}
           </p>
 
-          <p className="[font-family:var(--font-body)] text-[14px] xs:text-[13px] sm:text-[14px] md:text-[15px] lg:text-[16px] xl:text-[17px] leading-[1.6] xs:leading-[1.7] sm:leading-[1.8] md:leading-[1.9] text-white/60 max-w-105 font-normal text-justify">
+          <p className="[font-family:var(--font-body)] text-[12px] xs:text-[12px] sm:text-[13px] md:text-[14px] lg:text-[15px] leading-[1.6] xs:leading-[1.7] sm:leading-[1.8] text-white/60 max-w-105 font-normal text-justify">
             {t("description")}
           </p>
 
           {/* Social Icons */}
-          <div className="flex flex-wrap gap-3 pt-2">
+          <div className="flex flex-wrap gap-2 xs:gap-2.5 sm:gap-3 pt-1">
             {/* YouTube */}
             <a
               href="https://www.YouTube.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-11 h-11 rounded-full border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-[#FF0000] hover:bg-[#FF0000] transition-all duration-300 group"
+              className={`${socialBtnClass} hover:text-white hover:border-[#FF0000] hover:bg-[#FF0000]`}
               aria-label="YouTube"
             >
               <svg
-                className="w-4.5 h-4.5 fill-current"
+                className={socialIconClass}
                 viewBox="0 0 24 24"
                 fill="currentColor"
                 stroke="none"
@@ -98,11 +103,11 @@ export function Footer() {
               href="https://www.instagram.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-11 h-11 rounded-full border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/40 transition-all duration-300 group"
+              className={`${socialBtnClass} hover:text-white hover:border-white/40`}
               aria-label="Instagram"
             >
               <svg
-                className="w-4.5 h-4.5 fill-current"
+                className={socialIconClass}
                 viewBox="0 0 24 24"
                 fill="currentColor"
                 stroke="none"
@@ -116,11 +121,11 @@ export function Footer() {
               href="https://www.facebook.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-11 h-11 rounded-full border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-[#1877F2] hover:bg-[#1877F2] transition-all duration-300 group"
+              className={`${socialBtnClass} hover:text-white hover:border-[#1877F2] hover:bg-[#1877F2]`}
               aria-label="Facebook"
             >
               <svg
-                className="w-4.5 h-4.5 fill-current"
+                className={socialIconClass}
                 viewBox="0 0 24 24"
                 fill="currentColor"
                 stroke="none"
@@ -134,11 +139,11 @@ export function Footer() {
               href="https://x.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-11 h-11 rounded-full border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-black hover:bg-black transition-all duration-300 group"
+              className={`${socialBtnClass} hover:text-white hover:border-black hover:bg-black`}
               aria-label="Twitter"
             >
               <svg
-                className="w-4.5 h-4.5 fill-current"
+                className={socialIconClass}
                 viewBox="0 0 24 24"
                 fill="currentColor"
                 stroke="none"
@@ -152,11 +157,11 @@ export function Footer() {
               href="https://www.pinterest.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-11 h-11 rounded-full border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-[#E60023] hover:bg-[#E60023] transition-all duration-300 group"
+              className={`${socialBtnClass} hover:text-white hover:border-[#E60023] hover:bg-[#E60023]`}
               aria-label="Pinterest"
             >
               <svg
-                className="w-4.5 h-4.5 fill-current"
+                className={socialIconClass}
                 viewBox="0 0 24 24"
                 fill="currentColor"
                 stroke="none"
@@ -167,63 +172,66 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Quick Links Column */}
-        <div className="md:col-span-6 lg:col-span-2 flex flex-col gap-4 xs:gap-5 sm:gap-6 md:gap-7 lg:gap-(--space-28)">
-          <h3 className={columnHeadingClass}>{t("quickLinks")}</h3>
-          <ul className="flex flex-col gap-4 xs:gap-3.5 sm:gap-4 md:gap-4.5 lg:gap-5 list-none m-0 p-0">
-            {QUICK_LINKS.map(({ key, href }) => (
-              <li key={key}>
-                <Link href={href} className={columnLinkClass}>
-                  {t(`quickLinksList.${key}`)}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {/* Link columns — equal width & equal gap */}
+        <div className="lg:col-span-8 grid grid-cols-2 lg:grid-cols-3 gap-x-6 xs:gap-x-8 sm:gap-x-10 md:gap-x-12 lg:gap-x-12 xl:gap-x-16 gap-y-8">
+          {/* Quick Links */}
+          <div className="flex flex-col gap-1.5 md:gap-2">
+            <h3 className={columnHeadingClass}>{t("quickLinks")}</h3>
+            <ul className="flex flex-col gap-1.5 md:gap-2 list-none m-0 p-0">
+              {QUICK_LINKS.map(({ key, href }) => (
+                <li key={key}>
+                  <Link href={href} className={columnLinkClass}>
+                    {t(`quickLinksList.${key}`)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-        {/* Customer Services Column */}
-        <div className="md:col-span-6 lg:col-span-3 flex flex-col gap-4 xs:gap-5 sm:gap-6 md:gap-7 lg:gap-(--space-28)">
-          <h3 className={columnHeadingClass}>{t("services")}</h3>
-          <ul className="flex flex-col gap-4 xs:gap-3.5 sm:gap-4 md:gap-4.5 lg:gap-5 list-none m-0 p-0">
-            {CUSTOMER_LINKS.map(({ key, href }) => (
-              <li key={key}>
-                <Link href={href} className={columnLinkClass}>
-                  {t(`customerLinks.${key}`)}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+          {/* Customer Services */}
+          <div className="flex flex-col gap-1.5 md:gap-2">
+            <h3 className={columnHeadingClass}>{t("services")}</h3>
+            <ul className="flex flex-col gap-1.5 md:gap-2 list-none m-0 p-0">
+              {CUSTOMER_LINKS.map(({ key, href }) => (
+                <li key={key}>
+                  <Link href={href} className={columnLinkClass}>
+                    {t(`customerLinks.${key}`)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-        {/* Business Column */}
-        <div className="md:col-span-12 lg:col-span-3 flex flex-col gap-4 xs:gap-5 sm:gap-6 md:gap-7 lg:gap-(--space-28)">
-          <h3 className={columnHeadingClass}>{t("business")}</h3>
-          <ul className="flex flex-col gap-4 xs:gap-3.5 sm:gap-4 md:gap-4.5 lg:gap-5 list-none m-0 p-0">
-            {BUSINESS_LINKS.map(({ key, href }) => (
-              <li key={key}>
-                <Link href={href} className={columnLinkClass}>
-                  {t(`businessLinks.${key}`)}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {/* Business */}
+          <div className="flex flex-col gap-1.5 md:gap-2">
+            <h3 className={columnHeadingClass}>{t("business")}</h3>
+            <ul className="flex flex-col gap-1.5 md:gap-2 list-none m-0 p-0">
+              {BUSINESS_LINKS.map(({ key, href }) => (
+                <li key={key}>
+                  <Link href={href} className={columnLinkClass}>
+                    {t(`businessLinks.${key}`)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
 
       {/* Bottom Footer */}
       <div className="w-full px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) mx-auto mt-10 xs:mt-12 sm:mt-14 md:mt-16 lg:mt-(--space-80) pt-6 xs:pt-7 sm:pt-8 md:pt-9 lg:pt-(--space-32) border-t border-white/10 flex flex-col lg:flex-row justify-between items-center gap-4 xs:gap-5 lg:gap-6">
         {/* Copyright */}
-        <div className="[font-family:var(--font-ui)] text-[10px] xs:text-[9px] sm:text-[10px] md:text-[11px] lg:text-[12px] uppercase tracking-[0.28em] text-white/40 text-center lg:text-left">
+        <div className="[font-family:var(--font-ui)] text-[8px] xs:text-[8px] sm:text-[9px] md:text-[10px] lg:text-[11px] uppercase tracking-[0.24em] text-white/40 text-center lg:text-left">
           {t("copyright")}
         </div>
 
         {/* Policies */}
-        <div className="flex flex-wrap justify-center gap-4 xs:gap-5 sm:gap-6 md:gap-7 lg:gap-8">
+        <div className="flex flex-wrap justify-center gap-3 xs:gap-4 sm:gap-5 md:gap-6 lg:gap-8">
           {POLICY_LINKS.map(({ key, href }) => (
             <Link
               key={key}
               href={href}
-              className="[font-family:var(--font-ui)] text-[10px] xs:text-[9px] sm:text-[10px] md:text-[11px] lg:text-[12px] uppercase tracking-[0.18em] text-white/40 hover:text-white/70 transition-colors duration-300"
+              className="[font-family:var(--font-ui)] text-[8px] xs:text-[8px] sm:text-[9px] md:text-[10px] lg:text-[11px] uppercase tracking-[0.16em] text-white/40 hover:text-white/70 transition-colors duration-300"
             >
               {t(`policies.${key}`)}
             </Link>
@@ -231,9 +239,9 @@ export function Footer() {
         </div>
 
         {/* Payment Icons */}
-        <div className="flex gap-3 xs:gap-3.5 sm:gap-4 text-white/40">
+        <div className="flex gap-2.5 xs:gap-3 sm:gap-3.5 text-white/40">
           <svg
-            className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 text-current"
+            className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-current"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -245,7 +253,7 @@ export function Footer() {
             <path d="M15 13a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" />
           </svg>
           <svg
-            className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 text-current"
+            className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-current"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -258,7 +266,7 @@ export function Footer() {
             <path d="M6 14h3" />
           </svg>
           <svg
-            className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 text-current"
+            className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-current"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"

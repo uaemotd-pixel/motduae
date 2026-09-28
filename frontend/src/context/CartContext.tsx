@@ -36,6 +36,8 @@ export type CartItem = {
 
 type CartContextType = {
   items: CartItem[];
+  /** False until localStorage has been read (and account sync has settled when logged in). */
+  isHydrated: boolean;
   addItem: (
     item: Omit<CartItem, "quantity" | "maxStock"> & {
       maxStock: number;
@@ -254,6 +256,7 @@ function commitCart(mutator: (current: CartItem[]) => CartItem[]): CartItem[] {
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
   const toastScheduledRef = useRef<string | null>(null);
   const chainRef = useRef(Promise.resolve());
   const generationRef = useRef(0);
@@ -272,6 +275,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const markHydrated = () => setIsHydrated(true);
+
   const applyAccountCart = (next: unknown, userId: string) => {
     const normalized = normalizeStoredItems(next);
     writeCart(normalized);
@@ -279,6 +284,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) =>
       JSON.stringify(prev) === JSON.stringify(normalized) ? prev : normalized,
     );
+  };
+
+  /** Pull server cart, but push any local lines up first so we never clobber a fuller local cart. */
+  const loadAccountCart = async (userId: string, localSnapshot: CartItem[]) => {
+    if (localSnapshot.length > 0) {
+      return mergeAccountCartOnce(
+        userId,
+        localSnapshot.map((item) => cartItemToLine(item, item.quantity)),
+      );
+    }
+    return getAccountCart();
   };
 
   const wipeAccountLocalCart = () => {
@@ -363,16 +379,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     if (!userId) {
       cartMergeByUser.clear();
-      const hadAccountSession =
-        Boolean(lastAccountUserIdRef.current) || Boolean(readOwner());
+      // Only wipe when an account session ended in this tab (logout / mid-session 401).
+      // A fresh page load with a leftover owner key must NOT clear localStorage — that
+      // was wiping carts on refresh whenever the cookie was briefly missing.
+      const hadInMemorySession = Boolean(lastAccountUserIdRef.current);
       lastAccountUserIdRef.current = "";
-      if (hadAccountSession) {
-        // Account logout / session end: never leave that cart for the next user.
+      if (hadInMemorySession) {
         wipeAccountLocalCart();
       } else {
-        // Pure guest session — keep the anonymous local cart.
         setItems(readCart());
       }
+      markHydrated();
       return;
     }
 
@@ -398,27 +415,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (generationRef.current !== generation) return;
       if (accountUserIdRef.current !== userId) return;
 
-      const loadCart = async (): Promise<AccountCart> => {
-        if (localSnapshot.length > 0) {
-          return mergeAccountCartOnce(
-            userId,
-            localSnapshot.map((item) => cartItemToLine(item, item.quantity)),
-          );
-        }
-        return getAccountCart();
-      };
-
       try {
         let data: AccountCart;
         try {
-          data = await loadCart();
+          data = await loadAccountCart(userId, localSnapshot);
         } catch (firstError) {
           if (sessionEnded(firstError)) throw firstError;
           // Transient network / 409 — one retry so a new device still hydrates.
           await new Promise((resolve) => setTimeout(resolve, 400));
           if (generationRef.current !== generation) return;
           if (accountUserIdRef.current !== userId) return;
-          data = await getAccountCart();
+          data = await loadAccountCart(userId, readCart());
         }
 
         if (generationRef.current !== generation) return;
@@ -432,6 +439,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         showToast(getApiErrorMessage(error, "Could not load your cart"), "error");
+      } finally {
+        // Always settle the loading gate — even if session drop bumped generation.
+        markHydrated();
       }
     });
   }, [isLoading, user?.id, user?.isGuest]);
@@ -448,7 +458,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         try {
-          const data = await getAccountCart();
+          // Merge local first — a bare GET can overwrite items that haven't synced yet.
+          const data = await loadAccountCart(userId, readCart());
           if (accountUserIdRef.current !== userId) {
             resolve();
             return;
@@ -479,7 +490,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         // pull the latest account cart (e.g. after shopping on another device).
         if (accountUserIdRef.current !== userId) return;
         try {
-          const data = await getAccountCart();
+          const data = await loadAccountCart(userId, readCart());
           if (accountUserIdRef.current !== userId) return;
           applyAccountCart(data.items, userId);
         } catch (error) {
@@ -837,6 +848,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     <CartContext.Provider
       value={{
         items,
+        isHydrated,
         addItem,
         removeItem,
         updateQuantity,
