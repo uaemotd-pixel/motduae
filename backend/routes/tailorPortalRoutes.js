@@ -26,7 +26,7 @@ import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
 import {
   createNotification,
 } from "../services/notificationService.js";
-import { getCompletedPayoutTotals, PartnerPayoutError } from "../services/partnerPayout/index.js";
+import { getCompletedPayoutTotals, PartnerPayoutError, payoutFromSettlement, payoutWindowStatus, serializePortalReleases } from "../services/partnerPayout/index.js";
 import {
   createPartnerPayoutRequest,
   deleteOwnPayoutRequest,
@@ -55,11 +55,15 @@ const resolveTailorCommissionPercent = (settings) => {
 };
 
 /**
- * Paid totals for this tailor shop from completed / processing ledger batches.
+ * Paid and in-progress totals for this tailor shop from ledger batches.
  */
 async function getTailorSettlement(shop) {
   if (!shop?._id) {
-    return { paidTotal: 0, paidByOrderId: new Map() };
+    return {
+      paidTotal: 0,
+      paidByOrderId: new Map(),
+      processingByOrderId: new Map(),
+    };
   }
   return getCompletedPayoutTotals(String(shop._id), "tailor");
 }
@@ -545,6 +549,10 @@ tailorPortalRouter.get(
       $or: [{ tailorShopId: shop._id }, { "items.tailorShopId": shop._id }],
     })
       .populate("userId", "name email phone")
+      .populate("designId", "name nameAr images")
+      .populate("fabricId", "name nameAr images")
+      .populate("items.designId", "name nameAr images")
+      .populate("items.fabricId", "name nameAr images")
       .sort({ createdAt: -1 });
 
     res.json({
@@ -823,19 +831,9 @@ tailorPortalRouter.get(
           commissionPercent,
         );
         const orderId = o._id.toString();
-        const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
-        const pendingForOrder = Math.max(
-          0,
-          Number((breakdown.net - paidForOrder).toFixed(2)),
-        );
+        const alloc = payoutFromSettlement(orderId, breakdown.net, settlement);
         const paymentStatus =
-          breakdown.net <= 0
-            ? o.status
-            : pendingForOrder <= 0
-              ? "paid"
-              : paidForOrder > 0
-                ? "partially_paid"
-                : "pending_payment";
+          breakdown.net <= 0 ? o.status : alloc.paymentStatus;
         return {
           id: orderId,
           amount: breakdown.net,
@@ -854,28 +852,18 @@ tailorPortalRouter.get(
         const gross = designFee + tailoringFee;
         const breakdown = splitMotdCommission(gross, commissionPercent);
         const orderId = o._id.toString();
-        const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
-        const pendingForOrder = Math.max(
-          0,
-          Number((breakdown.net - paidForOrder).toFixed(2)),
-        );
+        const alloc = payoutFromSettlement(orderId, breakdown.net, settlement);
         const paymentStatus =
-          breakdown.net <= 0
-            ? "pending"
-            : pendingForOrder <= 0
-              ? "paid"
-              : paidForOrder > 0
-                ? "partially_paid"
-                : "pending_payment";
-        // Lean payload — no gross/commission fields for tailor privacy.
+          breakdown.net <= 0 ? "pending" : alloc.paymentStatus;
         return {
           _id: o._id,
           userId: o.userId,
           createdAt: o.createdAt,
           status: o.status,
           payoutNet: breakdown.net,
-          payoutPaid: paidForOrder,
-          payoutPending: pendingForOrder,
+          payoutPaid: alloc.paid,
+          payoutPending: alloc.pending,
+          payoutProcessing: alloc.processing,
           paymentStatus,
         };
       })
@@ -886,6 +874,7 @@ tailorPortalRouter.get(
     // Do NOT fall back to shop-level paidTotal — that wrongly marks the
     // current timeframe as paid from historical/unattributed releases.
     let paidInWindow = 0;
+    let processingInWindow = 0;
     for (const order of ordersInWindow) {
       const orderId = String(order._id);
       const net = splitMotdCommission(
@@ -893,24 +882,30 @@ tailorPortalRouter.get(
         commissionPercent,
       ).net;
       if (net <= 0) continue;
-      const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
-      paidInWindow += Math.min(paidForOrder, net);
+      const alloc = payoutFromSettlement(orderId, net, settlement);
+      paidInWindow += alloc.paid;
+      processingInWindow += alloc.processing;
     }
     paidInWindow = Number(paidInWindow.toFixed(2));
+    processingInWindow = Number(processingInWindow.toFixed(2));
     const pendingInWindow = Math.max(
       0,
-      Number((tailorRevenue - paidInWindow).toFixed(2)),
+      Number(
+        (tailorRevenue - paidInWindow - processingInWindow).toFixed(2),
+      ),
     );
-    const payoutStatus =
-      tailorRevenue <= 0
-        ? null
-        : pendingInWindow > 0
-          ? "pending"
-          : "approved";
+    const payoutStatus = payoutWindowStatus({
+      net: tailorRevenue,
+      pending: pendingInWindow,
+      processing: processingInWindow,
+    });
 
-    // KPI "Your payout": still owed when pending, otherwise amount already paid.
     const kpiPayoutValue =
-      pendingInWindow > 0 ? pendingInWindow : paidInWindow;
+      pendingInWindow > 0
+        ? pendingInWindow
+        : processingInWindow > 0
+          ? processingInWindow
+          : paidInWindow;
 
     const tailoringFeeEnabled = defaultTailoringFee > 0 || tailoringFees > 0;
 
@@ -918,7 +913,6 @@ tailorPortalRouter.get(
       success: true,
       currency: "AED",
       tailorShopId: shopId,
-      // Intentionally omit commissionPercent / MOTD earnings from tailor clients.
       tailoringFeeEnabled,
       kpis: {
         tailorRevenue: Number(kpiPayoutValue.toFixed(2)),
@@ -926,6 +920,7 @@ tailorPortalRouter.get(
         activeDesigns,
         inProgress,
         paid: paidInWindow,
+        processing: processingInWindow,
         pending: pendingInWindow,
         netDue: Number(tailorRevenue.toFixed(2)),
       },
@@ -934,6 +929,7 @@ tailorPortalRouter.get(
       payout: {
         netDue: Number(tailorRevenue.toFixed(2)),
         paid: paidInWindow,
+        processing: processingInWindow,
         pending: pendingInWindow,
         status: payoutStatus,
       },
@@ -978,6 +974,7 @@ tailorPortalRouter.get(
       hasPayoutBank: Boolean(view.identity.hasPayoutBank),
       identity: view.identity,
       items,
+      releases: serializePortalReleases(view.releases),
     });
   }),
 );

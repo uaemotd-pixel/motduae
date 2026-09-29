@@ -4,7 +4,6 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import {
-  addAccountCartItem,
   cartItemToLine,
   clearAccountCart,
   getAccountCart,
@@ -244,13 +243,21 @@ function commitCart(mutator: (current: CartItem[]) => CartItem[]): CartItem[] {
   const next = mutator(current);
   if (JSON.stringify(next) === JSON.stringify(current)) return current;
 
-  const payload = JSON.stringify(next);
   writeCart(next);
-  if (localStorage.getItem(CART_KEY) === payload) return next;
+  const intended = normalizeStoredItems(next);
+  const latest = readCart();
+  if (JSON.stringify(latest) === JSON.stringify(intended)) return intended;
 
-  const retried = mutator(readCart());
-  writeCart(retried);
-  return retried;
+  // Write did not stick, but do not re-run an additive mutator on a cart that
+  // already includes this change — that doubled qty on a single click.
+  if (JSON.stringify(latest) !== JSON.stringify(current)) {
+    const retried = mutator(latest);
+    writeCart(retried);
+    return retried;
+  }
+
+  writeCart(next);
+  return intended;
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
@@ -258,6 +265,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
   const toastScheduledRef = useRef<string | null>(null);
+  const addingIdsRef = useRef(new Set<string>());
   const chainRef = useRef(Promise.resolve());
   const generationRef = useRef(0);
   const accountUserIdRef = useRef("");
@@ -286,8 +294,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  /** Pull server cart, but push any local lines up first so we never clobber a fuller local cart. */
+  /** Pull server cart. Merge only on login handoff (no owner yet). */
   const loadAccountCart = async (userId: string, localSnapshot: CartItem[]) => {
+    const owner = readOwner();
+    // Already this user's cart on this device. Merging here + addItem POST
+    // summed the same click (merge wrote qty 1, then add added +1).
+    if (owner === userId) {
+      return getAccountCart();
+    }
     if (localSnapshot.length > 0) {
       return mergeAccountCartOnce(
         userId,
@@ -532,6 +546,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   ) => {
     const id = cartLineId(item.id);
     if (!id) return;
+    // Same-tick duplicate (duplicate fabric cuts / bubbled click) must not +1 twice.
+    if (addingIdsRef.current.has(id)) return;
+    addingIdsRef.current.add(id);
+    queueMicrotask(() => addingIdsRef.current.delete(id));
     const addQty = Math.max(1, Number(item.quantity) || 1);
     const incomingMaxStock = readMaxStock(item.maxStock);
     const snapshot = readCart();
@@ -592,19 +610,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       (user && !user.isGuest && user.id) || accountUserIdRef.current;
     if (!userId) return;
     accountUserIdRef.current = userId;
-    const previous = snapshot.find((line) => line.id === id);
     const saved = next.find((line) => line.id === id);
-    const delta = (saved?.quantity || 0) - (previous?.quantity || 0);
-    if (delta < 1) return;
+    if (!saved || saved.quantity < 1) return;
 
     enqueue(async () => {
       if (accountUserIdRef.current !== userId) return;
       try {
-        const data = await addAccountCartItem(
-          cartItemToLine(
-            { id, itemType: item.itemType ?? saved?.itemType },
-            delta,
-          ),
+        const data = await setAccountCartQuantity(
+          id,
+          saved.quantity,
+          item.itemType ?? saved.itemType,
         );
         if (accountUserIdRef.current !== userId) return;
         applyAccountCart(data.items, userId);

@@ -36,7 +36,7 @@ export function buildTailorPartnerIdentity(shop) {
 
 async function getTailorSettlement(shop) {
   if (!shop?._id) {
-    return { paidByOrderId: new Map() };
+    return { paidByOrderId: new Map(), processingByOrderId: new Map() };
   }
   return getCompletedPayoutTotals(String(shop._id), "tailor");
 }

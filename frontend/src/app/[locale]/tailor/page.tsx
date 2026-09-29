@@ -29,6 +29,11 @@ import TimeframePills from "@/components/dashboard/TimeframePills";
 import ActivityFeed from "@/components/dashboard/ActivityFeed";
 import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import {
+  partnerPaymentStatusLabel,
+  payoutReleaseBadgeClass,
+  payoutReleaseStatusLabel,
+} from "@/lib/partnerPayoutDisplay";
 import { DASH_PALETTE, withAlpha } from "@/components/dashboard/palette";
 import {
   chartTooltip,
@@ -81,6 +86,7 @@ interface Order {
   payoutNet?: number;
   payoutPaid?: number;
   payoutPending?: number;
+  payoutProcessing?: number;
   paymentStatus?: string;
 }
 
@@ -95,6 +101,7 @@ interface TailorDashboardData {
     activeDesigns: number;
     inProgress: number;
     paid?: number;
+    processing?: number;
     pending?: number;
     netDue?: number;
   };
@@ -106,8 +113,9 @@ interface TailorDashboardData {
   payout?: {
     netDue: number;
     paid: number;
+    processing?: number;
     pending: number;
-    status: "pending" | "approved" | null;
+    status: "pending" | "approved" | "processing" | null;
   };
   recentOrders: Array<{
     id: string;
@@ -128,6 +136,21 @@ interface TailorPayoutRequestSummary {
   adminNote?: string;
 }
 
+interface TailorPayoutReleaseItem {
+  _id: string;
+  amount: number;
+  currency?: string;
+  orderCount: number;
+  orders?: Array<{
+    orderId: string;
+    orderType: string;
+    amount: number;
+  }>;
+  releasedAt?: string;
+  note?: string;
+  status?: string;
+}
+
 interface TailorPayoutRequestsResponse {
   success: boolean;
   currency: string;
@@ -138,9 +161,11 @@ interface TailorPayoutRequestsResponse {
   pendingAmount?: number;
   pendingOrderCount?: number;
   pendingOrders?: Array<{ orderId: string; remainingAed?: number }>;
+  processingAmount?: number;
   pendingRequest: TailorPayoutRequestSummary | null;
   hasPayoutBank?: boolean;
   items: TailorPayoutRequestSummary[];
+  releases?: TailorPayoutReleaseItem[];
 }
 
 export default function TailorDashboardPage() {
@@ -167,6 +192,10 @@ export default function TailorDashboardPage() {
     useState<TailorPayoutRequestSummary | null>(null);
   const [requestHistory, setRequestHistory] = useState<
     TailorPayoutRequestSummary[]
+  >([]);
+  const [processingAmount, setProcessingAmount] = useState(0);
+  const [payoutReleases, setPayoutReleases] = useState<
+    TailorPayoutReleaseItem[]
   >([]);
   const [showRequestConfirm, setShowRequestConfirm] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
@@ -196,6 +225,8 @@ export default function TailorDashboardPage() {
       setPendingOrders(Array.isArray(res.pendingOrders) ? res.pendingOrders : []);
       setPendingRequest(res.pendingRequest || null);
       setRequestHistory(Array.isArray(res.items) ? res.items : []);
+      setProcessingAmount(Number(res.processingAmount) || 0);
+      setPayoutReleases(Array.isArray(res.releases) ? res.releases : []);
       setHasPayoutBank(
         typeof res.hasPayoutBank === "boolean"
           ? res.hasPayoutBank
@@ -464,13 +495,15 @@ export default function TailorDashboardPage() {
     activeDesigns: 0,
     inProgress: 0,
     paid: 0,
+    processing: 0,
     pending: 0,
     netDue: 0,
   };
   const payoutPaid = data?.payout?.paid ?? kpis.paid ?? 0;
   const payoutPending = data?.payout?.pending ?? kpis.pending ?? 0;
+  const payoutProcessing = data?.payout?.processing ?? kpis.processing ?? 0;
   const totalEarnings =
-    data?.payout?.netDue ?? kpis.netDue ?? payoutPaid + payoutPending;
+    data?.payout?.netDue ?? kpis.netDue ?? payoutPaid + payoutPending + payoutProcessing;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -574,7 +607,7 @@ export default function TailorDashboardPage() {
           label={t("kpiPaid")}
           value={formatKpiCurrency(payoutPaid)}
           subValue={
-            totalEarnings > 0 && payoutPending <= 0
+            totalEarnings > 0 && payoutPending <= 0 && payoutProcessing <= 0
               ? t("kpiPaidInFull")
               : t("kpiPaidSub")
           }
@@ -664,6 +697,7 @@ export default function TailorDashboardPage() {
         pendingRequest ||
         unpaidAmount > 0 ||
         pendingAmount > 0 ||
+        processingAmount > 0 ||
         hasPayoutBank === false) && (
         <div className="border border-(--color-border) bg-white px-4 py-3 text-sm">
           {hasPayoutBank === false ? (
@@ -682,6 +716,13 @@ export default function TailorDashboardPage() {
           ) : null}
           {requestSuccess ? (
             <p className="text-emerald-700">{requestSuccess}</p>
+          ) : null}
+          {processingAmount > 0 ? (
+            <p className="text-(--color-grey-muted)">
+              {t("requestPayoutInProgress", {
+                amount: formatKpiCurrency(processingAmount),
+              })}
+            </p>
           ) : null}
           {pendingRequest ? (
             <p className="text-(--color-grey-muted)">
@@ -750,6 +791,7 @@ export default function TailorDashboardPage() {
       <ActivityFeed
         items={data?.recentOrders || []}
         formatCurrency={formatCurrency}
+        formatStatusLabel={(status) => partnerPaymentStatusLabel(status, t)}
         title={t("recentActivity")}
         emptyLabel={t("noRecent")}
       />
@@ -802,11 +844,10 @@ export default function TailorDashboardPage() {
               </thead>
               <tbody>
                 {filteredPricingOrders.map((order) => {
-                  const statusLabel = (
-                    order.paymentStatus ||
-                    order.status ||
-                    ""
-                  ).replace(/_/g, " ");
+                  const statusLabel = partnerPaymentStatusLabel(
+                    order.paymentStatus || order.status || "",
+                    t,
+                  );
                   return (
                     <tr
                       key={order._id}
@@ -844,6 +885,67 @@ export default function TailorDashboardPage() {
           </div>
         )}
       </div>
+
+      {payoutReleases.length > 0 ? (
+        <div className="rounded-(--dash-radius) border border-(--dash-border) bg-(--dash-surface) p-5 shadow-sm sm:p-6">
+          <div className="mb-4">
+            <h3 className="[font-family:var(--font-display)] text-lg text-(--dash-ink)">
+              {t("releasesTitle")}
+            </h3>
+            <p className="mt-1 text-xs text-(--dash-muted)">
+              {t("releasesDesc")}
+            </p>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-(--dash-border)">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-(--dash-bg) text-[10px] uppercase tracking-[0.16em] text-(--dash-muted)">
+                <tr>
+                  <th className="px-4 py-3 font-medium">{t("colDate")}</th>
+                  <th className="px-4 py-3 font-medium">{t("colYourPayout")}</th>
+                  <th className="px-4 py-3 font-medium">{t("releasesOrders")}</th>
+                  <th className="px-4 py-3 font-medium">{t("colStatus")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payoutReleases.map((release) => (
+                  <tr
+                    key={release._id}
+                    className="border-t border-(--dash-border) bg-white"
+                  >
+                    <td className="px-4 py-3 text-xs text-(--dash-ink)">
+                      {release.releasedAt
+                        ? formatOrderDateLocal(release.releasedAt)
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-medium text-(--dash-ink)">
+                      {formatKpiCurrency(Number(release.amount) || 0)}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-(--dash-muted)">
+                      {t("releasesOrderCount", {
+                        count: Number(release.orderCount) || 0,
+                      })}
+                      {(release.orders || []).length > 0 ? (
+                        <span className="mt-1 block text-[10px]">
+                          {(release.orders || [])
+                            .map((o) => `#${String(o.orderId).slice(-6)}`)
+                            .join(", ")}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${payoutReleaseBadgeClass(release.status)}`}
+                      >
+                        {payoutReleaseStatusLabel(release.status, t)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
 
       {requestHistory.filter((item) => item.status !== "pending").length >
       0 ? (

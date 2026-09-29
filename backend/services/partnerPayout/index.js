@@ -19,6 +19,13 @@ export {
   approvePayoutRequest,
 } from "./release.js";
 export { previewFifo, buildEarningDraftsFromOrder, splitCommissionFils } from "./split.js";
+export {
+  foldPayoutTotals,
+  allocateOrderPayout,
+  payoutFromSettlement,
+  payoutWindowStatus,
+  serializePortalReleases,
+} from "./portalDisplay.js";
 export { requireIdempotencyKey } from "./keys.js";
 export { PartnerPayoutError } from "./errors.js";
 export {
