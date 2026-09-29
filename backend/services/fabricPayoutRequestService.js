@@ -109,7 +109,12 @@ export function buildFabricPartnerIdentity(shop, ownerUserId) {
 export async function getFabricSettlement(shop, ownerUserId) {
   const partnerId = shop?._id ? String(shop._id) : String(ownerUserId || "");
   if (!partnerId) {
-    return { paidByOrderId: new Map(), paidTotal: 0, releases: [] };
+    return {
+      paidByOrderId: new Map(),
+      processingByOrderId: new Map(),
+      paidTotal: 0,
+      releases: [],
+    };
   }
   return getCompletedPayoutTotals(partnerId, "fabric");
 }

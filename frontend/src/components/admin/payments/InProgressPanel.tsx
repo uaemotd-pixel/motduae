@@ -61,18 +61,18 @@ export default function InProgressPanel({
               ) : (
                 <div className="min-w-0 flex-1" />
               )}
-              <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex w-full shrink-0 flex-col gap-2 sm:max-w-xs sm:flex-row sm:flex-wrap">
                 <button
                   type="button"
                   onClick={() => onConfirm(tx)}
-                  className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-(--dash-charcoal) px-3 py-2 text-xs text-white"
+                  className="inline-flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-(--dash-charcoal) px-3 py-2.5 text-xs text-white sm:flex-1"
                 >
                   Confirm payment
                 </button>
                 <button
                   type="button"
                   onClick={() => onCancel(tx)}
-                  className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-(--dash-border) bg-white px-3 py-2 text-xs text-(--dash-ink) hover:text-(--dash-ink)"
+                  className="inline-flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-(--dash-border) bg-white px-3 py-2.5 text-xs text-(--dash-ink) hover:text-(--dash-ink) sm:flex-1"
                 >
                   Cancel
                 </button>

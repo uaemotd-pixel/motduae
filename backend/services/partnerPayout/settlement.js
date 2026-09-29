@@ -16,6 +16,7 @@ import {
 } from "./constants.js";
 import { healDeliveredEarnings, loadExcludedOrderIdSet } from "./available.js";
 import { previewFifo } from "./split.js";
+import { foldPayoutTotals } from "./portalDisplay.js";
 import {
   emptyPayoutBank,
   isPayoutBankComplete,
@@ -693,56 +694,7 @@ export async function getCompletedPayoutTotals(partnerId, partnerKind) {
     ? await PartnerPayoutLine.find({ payoutId: { $in: ids } }).lean()
     : [];
 
-  const linesByPayout = new Map();
-  const paidByOrderId = new Map();
-  let paidTotalFils = 0;
-
-  for (const line of lines) {
-    const payoutKey = String(line.payoutId);
-    if (!linesByPayout.has(payoutKey)) linesByPayout.set(payoutKey, []);
-    linesByPayout.get(payoutKey).push(line);
-    const orderId = String(line.orderId || "");
-    if (!orderId) continue;
-    paidByOrderId.set(
-      orderId,
-      (paidByOrderId.get(orderId) || 0) + (Number(line.amountFils) || 0),
-    );
-  }
-
-  for (const batch of batches) {
-    if (batch.status === "completed") {
-      paidTotalFils += Number(batch.amountFils) || 0;
-    }
-  }
-
-  const releases = batches.map((batch) => {
-    const payoutLines = linesByPayout.get(String(batch._id)) || [];
-    return {
-      _id: batch._id,
-      amount: filsToAed(batch.amountFils),
-      currency: batch.currency || "AED",
-      orderCount: payoutLines.length,
-      orders: payoutLines.map((line) => ({
-        orderId: String(line.orderId),
-        orderType: line.orderType,
-        amount: filsToAed(line.amountFils),
-      })),
-      releasedAt: batch.releasedAt,
-      note: batch.note || "",
-      status: batch.status,
-    };
-  });
-
-  const paidByOrderAed = new Map();
-  for (const [orderId, fils] of paidByOrderId) {
-    paidByOrderAed.set(orderId, filsToAed(fils));
-  }
-
-  return {
-    paidTotal: filsToAed(paidTotalFils),
-    paidByOrderId: paidByOrderAed,
-    releases,
-  };
+  return foldPayoutTotals(batches, lines, filsToAed);
 }
 
 export async function findPendingPayoutRequest(partnerId, partnerKind) {

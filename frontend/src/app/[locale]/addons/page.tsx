@@ -35,6 +35,8 @@ interface AddOnListItem {
   images?: string[];
   tag?: string;
   tagAr?: string;
+  category?: string;
+  categoryAr?: string;
   material?: string;
   materialAr?: string;
   design?: string;
@@ -47,6 +49,7 @@ interface AddOnListItem {
 }
 
 interface FilterState {
+  categories: string[];
   colors: string[];
   materials: string[];
   designs: string[];
@@ -64,9 +67,10 @@ const PRICE_STEP = 10;
 function addonMatchesCatalogOption(
   addon: AddOnListItem,
   option: FilterOption,
-  field: "material" | "design" | "season" | "tag",
+  field: "category" | "material" | "design" | "season" | "tag",
 ): boolean {
   const values: Record<typeof field, { value?: string; valueAr?: string }> = {
+    category: { value: addon.category, valueAr: addon.categoryAr },
     material: { value: addon.material, valueAr: addon.materialAr },
     design: { value: addon.design, valueAr: addon.designAr },
     season: { value: addon.season, valueAr: addon.seasonAr },
@@ -528,6 +532,7 @@ export default function AddOnsCatalogPage() {
   const isAr = locale === "ar";
 
   const [addons, setAddons] = useState<AddOnListItem[]>([]);
+  const [categories, setCategories] = useState<FilterOption[]>([]);
   const [materials, setMaterials] = useState<FilterOption[]>([]);
   const [designs, setDesigns] = useState<FilterOption[]>([]);
   const [seasons, setSeasons] = useState<FilterOption[]>([]);
@@ -542,6 +547,7 @@ export default function AddOnsCatalogPage() {
 
   // Filters State
   const [filters, setFilters] = useState<FilterState>({
+    categories: [],
     colors: [],
     materials: [],
     designs: [],
@@ -623,15 +629,18 @@ export default function AddOnsCatalogPage() {
   useEffect(() => {
     const fetchFilters = async () => {
       try {
-        const data = await api.get<{
-          success: boolean;
-          data: {
-            materials: FilterOption[];
-            patterns: FilterOption[];
-            seasons: FilterOption[];
-            tags: FilterOption[];
-          };
-        }>("/api/filters/all");
+        const [data, categoryList] = await Promise.all([
+          api.get<{
+            success: boolean;
+            data: {
+              materials: FilterOption[];
+              patterns: FilterOption[];
+              seasons: FilterOption[];
+              tags: FilterOption[];
+            };
+          }>("/api/filters/all"),
+          api.get<FilterOption[]>("/api/filters/categories?domain=add-ons"),
+        ]);
 
         if (data?.success && data.data) {
           setMaterials(data.data.materials || []);
@@ -639,6 +648,7 @@ export default function AddOnsCatalogPage() {
           setSeasons(data.data.seasons || []);
           setTags(data.data.tags || []);
         }
+        setCategories(Array.isArray(categoryList) ? categoryList : []);
       } catch (err) {
         console.error("Filter fetch failed:", err);
       }
@@ -646,6 +656,16 @@ export default function AddOnsCatalogPage() {
 
     fetchFilters();
   }, []);
+
+  const categoryOptions = useMemo(() => {
+    return categories.map((cat) => ({
+      id: cat._id,
+      label: getFilterOptionLabel(cat, isAr),
+      count: addons.filter((addon) =>
+        addonMatchesCatalogOption(addon, cat, "category"),
+      ).length,
+    }));
+  }, [categories, addons, isAr]);
 
   const materialOptions = useMemo(() => {
     return materials.map((mat) => ({
@@ -735,6 +755,16 @@ export default function AddOnsCatalogPage() {
     setCurrentPage(1);
   };
 
+  const toggleCategory = (id: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      categories: prev.categories.includes(id)
+        ? prev.categories.filter((c) => c !== id)
+        : [...prev.categories, id],
+    }));
+    setCurrentPage(1);
+  };
+
   const toggleMaterial = (id: string) => {
     setFilters((prev) => ({
       ...prev,
@@ -782,6 +812,7 @@ export default function AddOnsCatalogPage() {
 
   const clearAllFilters = () => {
     setFilters({
+      categories: [],
       colors: [],
       materials: [],
       designs: [],
@@ -795,6 +826,7 @@ export default function AddOnsCatalogPage() {
   };
 
   const hasActiveFilters =
+    filters.categories.length > 0 ||
     filters.colors.length > 0 ||
     filters.materials.length > 0 ||
     filters.designs.length > 0 ||
@@ -805,6 +837,7 @@ export default function AddOnsCatalogPage() {
     filters.inStockOnly;
 
   const activeFilterCount =
+    filters.categories.length +
     filters.colors.length +
     filters.materials.length +
     filters.designs.length +
@@ -826,6 +859,14 @@ export default function AddOnsCatalogPage() {
   const filteredProducts = useMemo(() => {
     let result = addons.filter((item) => {
       if (!addonMatchesColorFilter(item, filters.colors)) return false;
+
+      if (filters.categories.length > 0) {
+        const isMatch = filters.categories.some((catId) => {
+          const cat = categories.find((c) => c._id === catId);
+          return cat ? addonMatchesCatalogOption(item, cat, "category") : false;
+        });
+        if (!isMatch) return false;
+      }
 
       if (filters.materials.length > 0) {
         const isMatch = filters.materials.some((matId) => {
@@ -882,7 +923,7 @@ export default function AddOnsCatalogPage() {
     }
 
     return result;
-  }, [addons, filters, sortBy, materials, designs, seasons, tags]);
+  }, [addons, filters, sortBy, categories, materials, designs, seasons, tags]);
 
   // Pagination calculation
   const startIndex = (currentPage - 1) * productsPerPage;
@@ -908,6 +949,33 @@ export default function AddOnsCatalogPage() {
 
   const sidebarContent = (
     <div className="flex flex-col gap-4">
+      {categories.length > 0 && (
+        <CollapsibleFilter
+          label={isAr ? "الفئة" : "Category"}
+          count={filters.categories.length}
+        >
+          <div className="flex flex-col gap-2">
+            {categoryOptions.map((cat) => (
+              <label
+                key={cat.id}
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <CustomCheckbox
+                  checked={filters.categories.includes(cat.id)}
+                  onChange={() => toggleCategory(cat.id)}
+                />
+                <span className="flex-1 text-[11px] tracking-[0.14em] uppercase text-black group-hover:opacity-60 transition-opacity">
+                  {cat.label}
+                </span>
+                <span className="text-[10px] text-[#8A8A80] font-mono">
+                  ({cat.count})
+                </span>
+              </label>
+            ))}
+          </div>
+        </CollapsibleFilter>
+      )}
+
       {materials.length > 0 && (
         <CollapsibleFilter
           label={isAr ? "نوع القماش" : "Material"}
@@ -1137,6 +1205,33 @@ export default function AddOnsCatalogPage() {
 
                   {hasActiveFilters && (
                     <div className="hidden lg:flex items-center gap-2 flex-wrap">
+                      {filters.categories.map((catId) => (
+                        <span
+                          key={catId}
+                          className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-widest sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full max-w-40 sm:max-w-none truncate"
+                        >
+                          {getOptionLabel(categories, catId)}
+                          <button
+                            type="button"
+                            onClick={() => toggleCategory(catId)}
+                            className="hover:opacity-70 flex items-center justify-center cursor-pointer"
+                          >
+                            <svg
+                              className="w-3 h-3"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
                       {filters.materials.map((matId) => (
                         <span
                           key={matId}

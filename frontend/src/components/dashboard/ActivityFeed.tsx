@@ -14,6 +14,7 @@ export type ActivityItem = {
 type ActivityFeedProps = {
   items: ActivityItem[];
   formatCurrency: (n: number) => string;
+  formatStatusLabel?: (status: string) => string;
   title?: string;
   emptyLabel?: string;
 };
@@ -25,6 +26,7 @@ function formatStatus(status: string) {
 export default function ActivityFeed({
   items,
   formatCurrency,
+  formatStatusLabel,
   title = "Recent Activity",
   emptyLabel = "No recent orders",
 }: ActivityFeedProps) {
@@ -63,7 +65,7 @@ export default function ActivityFeed({
                   </span>
                 </p>
                 <p className="mt-0.5 text-[11px] capitalize text-[var(--dash-muted)]">
-                  {formatStatus(item.status)}
+                  {(formatStatusLabel || formatStatus)(item.status)}
                   {item.date
                     ? ` · ${new Date(item.date).toLocaleDateString()}`
                     : ""}

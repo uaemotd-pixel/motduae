@@ -418,8 +418,11 @@ export async function addLine(userId, body) {
   return readHydrated(userId);
 }
 
-export async function setLineQuantity(userId, lineId, quantity) {
-  const parsed = parseCartLineInput({ lineId, quantity }, { allowZero: true });
+export async function setLineQuantity(userId, lineId, quantity, extra = {}) {
+  const parsed = parseCartLineInput(
+    { lineId, quantity, kind: extra.kind },
+    { allowZero: true },
+  );
   if (parsed.quantity <= 0) {
     return removeLine(userId, parsed.lineId);
   }
@@ -431,7 +434,12 @@ export async function setLineQuantity(userId, lineId, quantity) {
 
   await mutateCart(userId, (items) => {
     const index = items.findIndex((item) => item.lineId === parsed.lineId);
-    if (index < 0) return items;
+    if (index < 0) {
+      if (items.length >= MAX_LINES) {
+        throw new CartError("Cart is full");
+      }
+      return [...items, storedFrom(parsed, loaded.kind, parsed.quantity)];
+    }
     const next = items.slice();
     next[index] = storedFrom(parsed, loaded.kind, parsed.quantity);
     return next;

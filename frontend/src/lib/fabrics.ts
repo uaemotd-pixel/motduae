@@ -380,7 +380,13 @@ export function getSelectedFabricCutEntries(
   selections: Record<string, number>,
 ): FabricCutEntry[] {
   const cuts = getFabricCuts(item);
-  return cuts.filter((entry) => (selections[entry.cutId] ?? 0) > 0);
+  const seen = new Set<string>();
+  return cuts.filter((entry) => {
+    if ((selections[entry.cutId] ?? 0) <= 0) return false;
+    if (seen.has(entry.cutId)) return false;
+    seen.add(entry.cutId);
+    return true;
+  });
 }
 
 export function filterFabricsByMaterial(

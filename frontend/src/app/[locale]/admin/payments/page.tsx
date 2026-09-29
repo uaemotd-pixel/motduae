@@ -32,6 +32,8 @@ import {
   formatCurrency,
   newIdempotencyKey,
   parsePaymentTab,
+  partnerKindLabel,
+  payoutTransactionAmount,
 } from "@/components/admin/payments/helpers";
 import type {
   DashboardStats,
@@ -121,6 +123,7 @@ export default function AdminPaymentsPage() {
     useState<PartnerPayoutTransaction | null>(null);
   const [completeBankRef, setCompleteBankRef] = useState("");
   const [completeKey, setCompleteKey] = useState("");
+  const [completeStep, setCompleteStep] = useState<"ref" | "review">("ref");
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [cancelConfirm, setCancelConfirm] =
     useState<PartnerPayoutTransaction | null>(null);
@@ -460,7 +463,7 @@ export default function AdminPaymentsPage() {
   };
 
   const completePayout = async () => {
-    if (!completeConfirm || completingId) return;
+    if (!completeConfirm || completingId || completeStep !== "review") return;
     const bankRef = completeBankRef.trim();
     if (!bankRef) {
       toast.error("A bank transfer number is required.");
@@ -475,13 +478,16 @@ export default function AdminPaymentsPage() {
       );
       setCompleteConfirm(null);
       setCompleteBankRef("");
+      setCompleteStep("ref");
       await Promise.all([
         fetchProcessingPayouts(),
         fetchSettlement(),
         fetchHistoryPayouts(1, historyDebounced, historyKind),
       ]);
       setHistoryPage(1);
-      toast.success("Payment marked as completed.");
+      toast.success(
+        `Payment of ${formatCurrency(payoutTransactionAmount(completeConfirm))} to ${completeConfirm.partnerName} is completed. Transfer number ${bankRef}.`,
+      );
     } catch (err: any) {
       toast.error(
         err?.message || "Unable to complete this payment. Please try again.",
@@ -697,28 +703,102 @@ export default function AdminPaymentsPage() {
       </ConfirmationModal>
 
       <ConfirmationModal
-        isOpen={!!completeConfirm}
-        title="Confirm payment"
+        isOpen={!!completeConfirm && completeStep === "ref"}
+        title="Transfer number"
         message={
           completeConfirm
-            ? `Confirm that ${formatCurrency(Number(completeConfirm.amountAed ?? completeConfirm.amount) || 0)} has been transferred to ${completeConfirm.partnerName}. Enter the bank transfer number from the receipt.`
+            ? `Enter the bank transfer number for the ${formatCurrency(payoutTransactionAmount(completeConfirm))} payment to ${completeConfirm.partnerName}. You will review the details before this payment is completed.`
             : ""
         }
-        confirmLabel={completingId ? "Saving…" : "Confirm payment"}
+        confirmLabel="Continue"
         cancelLabel="Cancel"
+        onConfirm={() => {
+          if (!completeBankRef.trim()) {
+            toast.error("A bank transfer number is required.");
+            return;
+          }
+          setCompleteStep("review");
+        }}
+        onCancel={() => {
+          setCompleteConfirm(null);
+          setCompleteBankRef("");
+          setCompleteStep("ref");
+        }}
+        confirmDisabled={!completeBankRef.trim()}
+      >
+        {completeConfirm ? (
+          <label className="mt-4 block min-w-0">
+            <span className="text-[10px] uppercase tracking-[0.16em] text-gray-500">
+              Transfer number
+            </span>
+            <input
+              type="text"
+              value={completeBankRef}
+              onChange={(e) => setCompleteBankRef(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && completeBankRef.trim()) {
+                  e.preventDefault();
+                  setCompleteStep("review");
+                }
+              }}
+              className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-black"
+              placeholder="Bank transfer / receipt number"
+              autoComplete="off"
+              autoFocus
+            />
+          </label>
+        ) : null}
+      </ConfirmationModal>
+
+      <ConfirmationModal
+        isOpen={!!completeConfirm && completeStep === "review"}
+        title="Complete payment"
+        message={
+          completeConfirm
+            ? `You are about to complete the release payment of ${formatCurrency(payoutTransactionAmount(completeConfirm))} to ${completeConfirm.partnerName} with these details. Confirm only if the bank transfer has been sent.`
+            : ""
+        }
+        confirmLabel={completingId ? "Completing…" : "Confirm"}
+        cancelLabel="Back"
         onConfirm={() => {
           void completePayout();
         }}
         onCancel={() => {
-          if (!completingId) {
-            setCompleteConfirm(null);
-            setCompleteBankRef("");
-          }
+          if (!completingId) setCompleteStep("ref");
         }}
         isLoading={!!completingId}
       >
         {completeConfirm ? (
           <div className="mt-4 space-y-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">
+                  Partner
+                </p>
+                <p className="mt-1 break-words text-sm font-medium text-black">
+                  {completeConfirm.partnerName}
+                </p>
+                <p className="mt-0.5 text-[11px] text-gray-500">
+                  {partnerKindLabel(completeConfirm.partnerKind)}
+                </p>
+              </div>
+              <div className="min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">
+                  Amount
+                </p>
+                <p className="mt-1 text-sm font-medium text-black">
+                  {formatCurrency(payoutTransactionAmount(completeConfirm))}
+                </p>
+              </div>
+            </div>
+            <div className="min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-gray-500">
+                Transfer number
+              </p>
+              <p className="mt-1 break-all text-sm font-medium text-black">
+                {completeBankRef.trim()}
+              </p>
+            </div>
             {completeConfirm.partnerKind !== "shipping" ? (
               <PayoutBankCard
                 bank={completeConfirm.payoutBank}
@@ -728,18 +808,6 @@ export default function AdminPaymentsPage() {
                 }
               />
             ) : null}
-            <label className="block">
-              <span className="text-[10px] uppercase tracking-[0.16em] text-gray-500">
-                Transfer number
-              </span>
-              <input
-                type="text"
-                value={completeBankRef}
-                onChange={(e) => setCompleteBankRef(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-black"
-                placeholder="Bank transfer / receipt number"
-              />
-            </label>
           </div>
         ) : null}
       </ConfirmationModal>
@@ -911,6 +979,7 @@ export default function AdminPaymentsPage() {
           onConfirm={(tx) => {
             setCompleteConfirm(tx);
             setCompleteBankRef("");
+            setCompleteStep("ref");
             setCompleteKey(newIdempotencyKey());
           }}
           onCancel={setCancelConfirm}

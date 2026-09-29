@@ -34,10 +34,14 @@ export function addAccountCartItem(line: CartLineInput) {
   return api.post<AccountCart>("/api/cart/items", line);
 }
 
-export function setAccountCartQuantity(lineId: string, quantity: number) {
+export function setAccountCartQuantity(
+  lineId: string,
+  quantity: number,
+  kind?: CartItem["itemType"],
+) {
   return api.patch<AccountCart>(
     `/api/cart/items/${encodeURIComponent(lineId)}`,
-    { quantity },
+    { quantity, ...(kind ? { kind } : {}) },
   );
 }
 

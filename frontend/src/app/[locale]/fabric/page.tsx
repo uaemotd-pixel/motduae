@@ -31,6 +31,11 @@ import ActivityFeed from "@/components/dashboard/ActivityFeed";
 import RankList from "@/components/dashboard/RankList";
 import DashboardSkeleton from "@/components/dashboard/DashboardSkeleton";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import {
+  partnerPaymentStatusLabel,
+  payoutReleaseBadgeClass,
+  payoutReleaseStatusLabel,
+} from "@/lib/partnerPayoutDisplay";
 import { DASH_PALETTE, withAlpha } from "@/components/dashboard/palette";
 import {
   chartTooltip,
@@ -55,6 +60,7 @@ interface Order {
   payoutNet?: number;
   payoutPaid?: number;
   payoutPending?: number;
+  payoutProcessing?: number;
   paymentStatus?: string;
 }
 
@@ -72,6 +78,7 @@ interface FabricDashboardData {
     lowReadyMade?: number;
     lowAddons?: number;
     paid?: number;
+    processing?: number;
     pending?: number;
     netDue?: number;
   };
@@ -80,8 +87,9 @@ interface FabricDashboardData {
   payout?: {
     netDue: number;
     paid: number;
+    processing?: number;
     pending: number;
-    status: "pending" | "approved" | null;
+    status: "pending" | "approved" | "processing" | null;
   };
   topFabrics: Array<{ id: string; name: string; value: number; meta?: string }>;
   recentOrders: Array<{
@@ -115,6 +123,7 @@ interface FabricPayoutReleaseItem {
   }>;
   releasedAt?: string;
   note?: string;
+  status?: string;
 }
 
 interface FabricPayoutRequestsResponse {
@@ -127,6 +136,7 @@ interface FabricPayoutRequestsResponse {
   pendingAmount?: number;
   pendingOrderCount?: number;
   pendingOrders?: Array<{ orderId: string; remainingAed?: number }>;
+  processingAmount?: number;
   pendingRequest: FabricPayoutRequestSummary | null;
   hasPayoutBank?: boolean;
   items: FabricPayoutRequestSummary[];
@@ -161,6 +171,7 @@ export default function FabricDashboardPage() {
   const [payoutReleases, setPayoutReleases] = useState<
     FabricPayoutReleaseItem[]
   >([]);
+  const [processingAmount, setProcessingAmount] = useState(0);
   const [showRequestConfirm, setShowRequestConfirm] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
@@ -190,6 +201,7 @@ export default function FabricDashboardPage() {
       setPendingRequest(res.pendingRequest || null);
       setRequestHistory(Array.isArray(res.items) ? res.items : []);
       setPayoutReleases(Array.isArray(res.releases) ? res.releases : []);
+      setProcessingAmount(Number(res.processingAmount) || 0);
       setHasPayoutBank(
         typeof res.hasPayoutBank === "boolean"
           ? res.hasPayoutBank
@@ -474,13 +486,15 @@ export default function FabricDashboardPage() {
     lowReadyMade: 0,
     lowAddons: 0,
     paid: 0,
+    processing: 0,
     pending: 0,
     netDue: 0,
   };
   const payoutPaid = data?.payout?.paid ?? kpis.paid ?? 0;
   const payoutPending = data?.payout?.pending ?? kpis.pending ?? 0;
+  const payoutProcessing = data?.payout?.processing ?? kpis.processing ?? 0;
   const totalEarnings =
-    data?.payout?.netDue ?? kpis.netDue ?? payoutPaid + payoutPending;
+    data?.payout?.netDue ?? kpis.netDue ?? payoutPaid + payoutPending + payoutProcessing;
   const lowStockTotal = kpis.lowStock ?? 0;
   const lowStockHref =
     (kpis.lowFabrics ?? 0) > 0
@@ -591,7 +605,7 @@ export default function FabricDashboardPage() {
           label={t("kpiPaid")}
           value={formatKpiCurrency(payoutPaid)}
           subValue={
-            totalEarnings > 0 && payoutPending <= 0
+            totalEarnings > 0 && payoutPending <= 0 && payoutProcessing <= 0
               ? t("kpiPaidInFull")
               : t("kpiPaidSub")
           }
@@ -714,6 +728,7 @@ export default function FabricDashboardPage() {
         pendingRequest ||
         unpaidAmount > 0 ||
         pendingAmount > 0 ||
+        processingAmount > 0 ||
         hasPayoutBank === false) && (
         <div className="border border-(--color-border) bg-white px-4 py-3 text-sm">
           {hasPayoutBank === false ? (
@@ -732,6 +747,13 @@ export default function FabricDashboardPage() {
           ) : null}
           {requestSuccess ? (
             <p className="text-emerald-700">{requestSuccess}</p>
+          ) : null}
+          {processingAmount > 0 ? (
+            <p className="text-(--color-grey-muted)">
+              {t("requestPayoutInProgress", {
+                amount: formatKpiCurrency(processingAmount),
+              })}
+            </p>
           ) : null}
           {pendingRequest ? (
             <p className="text-(--color-grey-muted)">
@@ -808,6 +830,7 @@ export default function FabricDashboardPage() {
           <ActivityFeed
             items={data?.recentOrders || []}
             formatCurrency={formatCurrency}
+            formatStatusLabel={(status) => partnerPaymentStatusLabel(status, t)}
             title={t("recentActivity")}
             emptyLabel={t("noRecent")}
           />
@@ -862,11 +885,10 @@ export default function FabricDashboardPage() {
               </thead>
               <tbody>
                 {filteredPricingOrders.map((order) => {
-                  const statusLabel = (
-                    order.paymentStatus ||
-                    order.status ||
-                    ""
-                  ).replace(/_/g, " ");
+                  const statusLabel = partnerPaymentStatusLabel(
+                    order.paymentStatus || order.status || "",
+                    t,
+                  );
                   return (
                     <tr
                       key={order._id}
@@ -952,8 +974,10 @@ export default function FabricDashboardPage() {
                       ) : null}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-800">
-                        {t("releasesPaid")}
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${payoutReleaseBadgeClass(release.status)}`}
+                      >
+                        {payoutReleaseStatusLabel(release.status, t)}
                       </span>
                     </td>
                   </tr>

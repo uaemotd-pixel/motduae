@@ -37,6 +37,9 @@ import {
 import { sumStoreCustomOrderGross, getFabricSettlement } from "../services/fabricPayoutRequestService.js";
 import {
   PartnerPayoutError,
+  payoutFromSettlement,
+  payoutWindowStatus,
+  serializePortalReleases,
 } from "../services/partnerPayout/index.js";
 import {
   createPartnerPayoutRequest,
@@ -2448,19 +2451,8 @@ fabricPortalRouter.get(
 
     const mapRecentOrder = (order, net, type) => {
       const orderId = order._id.toString();
-      const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
-      const pendingForOrder = Math.max(
-        0,
-        Number((net - paidForOrder).toFixed(2)),
-      );
-      const paymentStatus =
-        net <= 0
-          ? order.status
-          : pendingForOrder <= 0
-            ? "paid"
-            : paidForOrder > 0
-              ? "partially_paid"
-              : "pending_payment";
+      const alloc = payoutFromSettlement(orderId, net, settlement);
+      const paymentStatus = net <= 0 ? order.status : alloc.paymentStatus;
       return {
         id: orderId,
         amount: net,
@@ -2492,19 +2484,8 @@ fabricPortalRouter.get(
 
     const mapPricingOrder = (order, net, kind) => {
       const orderId = order._id.toString();
-      const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
-      const pendingForOrder = Math.max(
-        0,
-        Number((net - paidForOrder).toFixed(2)),
-      );
-      const paymentStatus =
-        net <= 0
-          ? "pending"
-          : pendingForOrder <= 0
-            ? "paid"
-            : paidForOrder > 0
-              ? "partially_paid"
-              : "pending_payment";
+      const alloc = payoutFromSettlement(orderId, net, settlement);
+      const paymentStatus = net <= 0 ? "pending" : alloc.paymentStatus;
       return {
         _id: order._id,
         userId: order.userId,
@@ -2512,8 +2493,9 @@ fabricPortalRouter.get(
         status: order.status,
         kind,
         payoutNet: net,
-        payoutPaid: paidForOrder,
-        payoutPending: pendingForOrder,
+        payoutPaid: alloc.paid,
+        payoutPending: alloc.pending,
+        payoutProcessing: alloc.processing,
         paymentStatus,
       };
     };
@@ -2545,10 +2527,8 @@ fabricPortalRouter.get(
       customInWindow.length +
       retailInWindow.filter((o) => sumRetailFabricFee(o) > 0).length;
 
-    // Attribute admin releases only via per-order settlement rows.
-    // Do NOT fall back to shop-level paidTotal — that wrongly marks the
-    // current timeframe as paid from historical/unattributed releases.
     let paidInWindow = 0;
+    let processingInWindow = 0;
     for (const order of customInWindow) {
       const orderId = String(order._id);
       const net = splitMotdCommission(
@@ -2556,8 +2536,9 @@ fabricPortalRouter.get(
         commissionPercent,
       ).net;
       if (net <= 0) continue;
-      const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
-      paidInWindow += Math.min(paidForOrder, net);
+      const alloc = payoutFromSettlement(orderId, net, settlement);
+      paidInWindow += alloc.paid;
+      processingInWindow += alloc.processing;
     }
     for (const order of retailInWindow) {
       const gross = sumRetailFabricFee(order);
@@ -2565,28 +2546,34 @@ fabricPortalRouter.get(
       const orderId = String(order._id);
       const net = splitMotdCommission(gross, commissionPercent).net;
       if (net <= 0) continue;
-      const paidForOrder = Number(settlement.paidByOrderId.get(orderId)) || 0;
-      paidInWindow += Math.min(paidForOrder, net);
+      const alloc = payoutFromSettlement(orderId, net, settlement);
+      paidInWindow += alloc.paid;
+      processingInWindow += alloc.processing;
     }
     paidInWindow = Number(paidInWindow.toFixed(2));
+    processingInWindow = Number(processingInWindow.toFixed(2));
     const pendingInWindow = Math.max(
       0,
-      Number((fabricRevenue - paidInWindow).toFixed(2)),
+      Number(
+        (fabricRevenue - paidInWindow - processingInWindow).toFixed(2),
+      ),
     );
-    const payoutStatus =
-      fabricRevenue <= 0
-        ? null
-        : pendingInWindow > 0
-          ? "pending"
-          : "approved";
+    const payoutStatus = payoutWindowStatus({
+      net: fabricRevenue,
+      pending: pendingInWindow,
+      processing: processingInWindow,
+    });
     const kpiPayoutValue =
-      pendingInWindow > 0 ? pendingInWindow : paidInWindow;
+      pendingInWindow > 0
+        ? pendingInWindow
+        : processingInWindow > 0
+          ? processingInWindow
+          : paidInWindow;
 
     res.json({
       success: true,
       currency: "AED",
       fabricShopId: shop?._id?.toString?.() || ownerUserIdStr,
-      // Intentionally omit commissionPercent / MOTD earnings from fabric clients.
       generatedAt: new Date().toISOString(),
       kpis: {
         fabricRevenue: Number(kpiPayoutValue.toFixed(2)),
@@ -2598,6 +2585,7 @@ fabricPortalRouter.get(
         lowReadyMade,
         lowAddons,
         paid: paidInWindow,
+        processing: processingInWindow,
         pending: pendingInWindow,
         netDue: Number(fabricRevenue.toFixed(2)),
       },
@@ -2606,6 +2594,7 @@ fabricPortalRouter.get(
       payout: {
         netDue: Number(fabricRevenue.toFixed(2)),
         paid: paidInWindow,
+        processing: processingInWindow,
         pending: pendingInWindow,
         status: payoutStatus,
       },
@@ -2651,17 +2640,7 @@ fabricPortalRouter.get(
       hasPayoutBank: Boolean(view.identity.hasPayoutBank),
       identity: view.identity,
       items,
-      releases: (view.releases || []).map((row) => ({
-        _id: row._id,
-        amount: row.amountAed,
-        currency: row.currency || "AED",
-        orderCount: Array.isArray(row.orders) ? row.orders.length : 0,
-        orders: row.orders || [],
-        releasedAt: row.releasedAt,
-        note: row.note || "",
-        status: row.status,
-        bankRef: row.bankRef || "",
-      })),
+      releases: serializePortalReleases(view.releases),
     });
   }),
 );
