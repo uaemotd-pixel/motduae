@@ -11,6 +11,7 @@ import { ERROR_TOAST, SUCCESS_TOAST } from "@/lib/tailorPortalToast";
 import {
   deleteTailorDesign,
   fetchTailorDesigns,
+  formatEstimatedLeadTime,
   isShopMissingError,
   type TailorDesignProfile,
 } from "@/lib/tailorDesigns";
@@ -236,7 +237,16 @@ export default function TailorDesignsList() {
                           )}
                         </>
                       ) : null}{" "}
-                      · {t("estimatedDays", { days: design.estimatedDays })}
+                      ·{" "}
+                      {formatEstimatedLeadTime(
+                        design.estimatedDaysMin ?? design.estimatedDays,
+                        design.estimatedDays,
+                        design.estimatedTimeUnit,
+                        {
+                          days: t("unitDays"),
+                          weeks: t("unitWeeks"),
+                        },
+                      )}
                     </p>
                     <p className="hidden sm:block [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) line-clamp-2 mt-1.5">
                       {locale === "ar"

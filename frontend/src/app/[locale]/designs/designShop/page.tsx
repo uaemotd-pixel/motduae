@@ -25,6 +25,7 @@ import {
   type TailorDesignListItem,
 } from "@/lib/tailors";
 import { formatDesignBasePrice } from "@/lib/tailors";
+import { formatEstimatedLeadTime } from "@/lib/tailorDesigns";
 import {
   getFilterOptionLabel,
   formatFilterLabel,
@@ -1407,9 +1408,16 @@ export default function DesignShopCatalogPage() {
                             </p>
 
                             <p className="[font-family:var(--font-ui)] text-[8px] xs:text-[9px] uppercase tracking-[0.16em] sm:tracking-[0.24em] text-[#8A8A80] mt-2 sm:mt-3 font-normal line-clamp-1">
-                              {isAr
-                                ? `توقع ${design.estimatedDays} أيام`
-                                : `Estimated ${design.estimatedDays} days`}
+                              {isAr ? "توقع" : "Estimated"}{" "}
+                              {formatEstimatedLeadTime(
+                                design.estimatedDaysMin ?? design.estimatedDays,
+                                design.estimatedDays,
+                                design.estimatedTimeUnit,
+                                {
+                                  days: isAr ? "أيام" : "days",
+                                  weeks: isAr ? "أسابيع" : "weeks",
+                                },
+                              )}
                             </p>
                           </div>
                         </Link>

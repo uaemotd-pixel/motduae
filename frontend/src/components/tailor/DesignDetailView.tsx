@@ -15,6 +15,7 @@ import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import { useWishlist } from "@/context/WishlistContext";
 import { useCustomOrder } from "@/context/CustomOrderContext";
 import { buildCustomOrderHrefFromDesign } from "@/lib/customOrder";
+import { formatEstimatedLeadTime } from "@/lib/tailorDesigns";
 import { Share2, ArrowUpRight, Heart } from "lucide-react";
 import { ProductReviewCount } from "@/components/reviews/CustomerReviewsView";
 
@@ -65,7 +66,9 @@ export interface DesignDetailItem {
     lengthInMeters: number;
   };
   estimatedMeters: number;
+  estimatedDaysMin?: number;
   estimatedDays: number;
+  estimatedTimeUnit?: "days" | "weeks";
   minAge?: number;
   maxAge?: number;
   tailorShop: TailorShopInfo;
@@ -80,6 +83,7 @@ type DesignDetailViewProps = {
     estimatedMeters: string;
     estimatedDays: string;
     days: string;
+    weeks: string;
     ageRange: string;
     years: string;
     city: string;
@@ -220,10 +224,12 @@ export default function DesignDetailView({
     : design.estimatedMeters != null
       ? formatLength(design.estimatedMeters)
       : "";
-  const daysValue =
-    design.estimatedDays != null && Number(design.estimatedDays) >= 0
-      ? `${design.estimatedDays} ${labels.days}`
-      : "";
+  const daysValue = formatEstimatedLeadTime(
+    design.estimatedDaysMin ?? design.estimatedDays,
+    design.estimatedDays,
+    design.estimatedTimeUnit,
+    { days: labels.days, weeks: labels.weeks },
+  );
   const ageValue =
     design.minAge != null || design.maxAge != null
       ? `${Number(design.minAge) || 0}–${Number(design.maxAge) || 0} ${labels.years}`
@@ -285,7 +291,9 @@ export default function DesignDetailView({
       priceType: design.priceType,
       tailoringFee: design.tailoringFee,
       estimatedMeters: design.estimatedMeters,
+      estimatedDaysMin: design.estimatedDaysMin,
       estimatedDays: design.estimatedDays,
+      estimatedTimeUnit: design.estimatedTimeUnit,
       image: resolveDesignImage(design.images?.[0]),
       tailor: {
         _id: design.tailorShop._id,

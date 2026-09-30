@@ -147,7 +147,12 @@ const toDesignListItem = (design) => {
     minCutSnapshot: snapshot,
     minCut: snapshot,
     estimatedMeters: lengthInMeters,
+    estimatedDaysMin: Number.isFinite(Number(design.estimatedDaysMin))
+      ? Number(design.estimatedDaysMin)
+      : design.estimatedDays,
     estimatedDays: design.estimatedDays,
+    estimatedTimeUnit:
+      design.estimatedTimeUnit === "weeks" ? "weeks" : "days",
     minAge: Number.isFinite(Number(design.minAge)) ? Number(design.minAge) : 0,
     maxAge: Number.isFinite(Number(design.maxAge)) ? Number(design.maxAge) : 0,
   };

@@ -46,6 +46,7 @@ type TailorDetailViewProps = {
     fromPrice: string;
     estimatedDays: string;
     days: string;
+    weeks: string;
     startOrder: string;
     aboutTitle: string;
     designsCount: string;
@@ -346,6 +347,7 @@ export default function TailorDetailView({
               fromPrice: labels.fromPrice,
               estimatedDays: labels.estimatedDays,
               days: labels.days,
+              weeks: labels.weeks,
               startOrder: labels.startOrder,
               countLabel: labels.designsCount,
             }}
