@@ -449,6 +449,11 @@ customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
 
     // cleanupSavedUserAddresses(customer.savedUsers);
     await customer.save();
+    const idTail = String(memberId).slice(-6);
+    req.activityLogOverride = {
+      action: "family.member_updated",
+      summary: `Updated family member details #${idTail}`,
+    };
     res.json(member);
   } catch (err) {
     console.error("❌ Error updating family member:", err);
@@ -768,10 +773,35 @@ customerRouter.put(
       }
     });
 
+    const prior = member.measurements;
+    const priorObj =
+      prior && typeof prior.toObject === "function" ? prior.toObject() : prior;
+    const hadMeasurements = Boolean(
+      priorObj &&
+        typeof priorObj === "object" &&
+        fields.some(
+          (field) =>
+            priorObj[field] !== undefined &&
+            priorObj[field] !== null &&
+            priorObj[field] !== "",
+        ),
+    );
+
     // Set measurements on member
     member.measurements = measurementData;
 
     await customer.save();
+
+    const idTail = String(memberId).slice(-6);
+    req.activityLogOverride = hadMeasurements
+      ? {
+          action: "family.measurement_updated",
+          summary: `Updated family member measurements #${idTail}`,
+        }
+      : {
+          action: "family.measurement_added",
+          summary: `Added family member measurements #${idTail}`,
+        };
 
     res.json({
       success: true,

@@ -372,6 +372,13 @@ fabricPortalRouter.patch(
 
     await applyFabricShopVisibility(shop, wantActive);
 
+    req.activityLogOverride = {
+      action: wantActive ? "shop.activated" : "shop.deactivated",
+      summary: wantActive ? "Activated the shop" : "Deactivated the shop",
+      resourceType: "shop",
+      meta: { isActive: wantActive },
+    };
+
     res.json({
       success: true,
       message: wantActive
@@ -2071,6 +2078,16 @@ fabricPortalRouter.patch(
 
     addon.isActive = !addon.isActive;
     await addon.save();
+    const idTail = String(addon._id).slice(-6);
+    req.activityLogOverride = {
+      action: addon.isActive ? "addons.activated" : "addons.deactivated",
+      summary: addon.isActive
+        ? `Activated add-on #${idTail}`
+        : `Deactivated add-on #${idTail}`,
+      resourceType: "addons",
+      resourceId: String(addon._id),
+      meta: { isActive: addon.isActive },
+    };
     res.json({
       success: true,
       message: `Addon ${addon.isActive ? "activated" : "deactivated"} successfully`,
@@ -2674,6 +2691,18 @@ fabricPortalRouter.post(
         createdBy: req.user._id,
         dedupeKey: `admin:fabric_payout_requested:${requestDoc._id}`,
       });
+      const idTail = String(requestDoc._id).slice(-6);
+      req.activityLogOverride = {
+        action: "payments.payout_requested",
+        summary: `Submitted payout request #${idTail}`,
+        category: "payments",
+        resourceType: "payout-requests",
+        resourceId: String(requestDoc._id),
+        meta: {
+          amount: requestDoc.amount,
+          partnerKind: "fabric",
+        },
+      };
       res.status(201).json({ success: true, request: requestDoc });
     } catch (err) {
       if (err instanceof PartnerPayoutError) {

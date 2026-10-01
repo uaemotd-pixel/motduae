@@ -814,6 +814,16 @@ orderRoutes.post("/custom", isAuth, requireEmailVerified, async (req, res) => {
       fulfilledBy: "client",
     });
 
+    const idTail = String(order._id).slice(-6);
+    req.activityLogOverride = {
+      action: "orders.placed",
+      summary: `Placed custom order (Order #${idTail})`,
+      category: "orders",
+      resourceType: "custom",
+      resourceId: String(order._id),
+      meta: { created, orderId: String(order._id) },
+    };
+
     return res.status(created ? 201 : 200).json({
       success: true,
       message: created
@@ -1005,6 +1015,16 @@ orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
       paymentMethod,
       fulfilledBy: "client",
     });
+
+    const idTail = String(order._id).slice(-6);
+    req.activityLogOverride = {
+      action: "orders.placed",
+      summary: `Placed retail order (Order #${idTail})`,
+      category: "orders",
+      resourceType: "retail",
+      resourceId: String(order._id),
+      meta: { created, orderId: String(order._id) },
+    };
 
     return res.status(created ? 201 : 200).json({
       success: true,

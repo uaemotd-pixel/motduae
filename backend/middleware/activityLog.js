@@ -32,13 +32,19 @@ export function captureActivity(options = {}) {
     }
 
     const method = String(req.method || "").toUpperCase();
-    const path = String(req.originalUrl || req.url || "");
+    const originalPath = String(req.originalUrl || "").split("?")[0];
+    const mountedPath = `${String(req.baseUrl || "")}${String(req.url || "")}`.split(
+      "?",
+    )[0];
+    const path = originalPath || mountedPath || String(req.url || "");
 
     const isMutating = MUTATING.has(method);
     const getHintMatch =
       method === "GET" &&
       Array.isArray(alsoLogGetPathIncludes) &&
-      alsoLogGetPathIncludes.some((hint) => path.includes(hint));
+      alsoLogGetPathIncludes.some(
+        (hint) => path.includes(hint) || mountedPath.includes(hint),
+      );
     const isSensitiveGet =
       getHintMatch && (!getDetailOnly || pathHasResourceId(path));
 
@@ -47,13 +53,23 @@ export function captureActivity(options = {}) {
       return;
     }
 
-    if (shouldSkipActivityPath(path)) {
+    // Multipart image uploads (design/fabric/add-on/ready-made) happen before the
+    // real create/update POST — logging them doubles Busiest People counts.
+    const contentType = String(req.headers?.["content-type"] || "").toLowerCase();
+    if (contentType.includes("multipart/form-data")) {
+      next();
+      return;
+    }
+
+    if (shouldSkipActivityPath(path) || shouldSkipActivityPath(mountedPath)) {
       next();
       return;
     }
     if (
       Array.isArray(skipPathIncludes) &&
-      skipPathIncludes.some((hint) => path.includes(hint))
+      skipPathIncludes.some(
+        (hint) => path.includes(hint) || mountedPath.includes(hint),
+      )
     ) {
       next();
       return;
@@ -97,4 +113,5 @@ const ADMIN_SENSITIVE_GETS = [
 export const captureAdminActivity = captureActivity({
   alsoLogGetPathIncludes: ADMIN_SENSITIVE_GETS,
   getDetailOnly: true,
+  skipPathIncludes: ["/uploads"],
 });

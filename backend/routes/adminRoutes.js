@@ -473,58 +473,80 @@ adminRouter.post(
 
 // GET /api/admin/ready-made
 // Admin can view all ready-made products (including inactive/sold)
-// Supports ?page=1&limit=10&search=...&status=available|sold
+// Supports ?page=1&limit=10&search=...&status=available|sold|low|active|inactive
 adminRouter.get(
   "/ready-made",
   expressAsyncHandler(async (req, res) => {
     const { search, status, page = 1, limit = 10 } = req.query;
 
-    const filter = {};
+    const searchFilter = {};
 
     // Search by name, fabricType, or tailorName
     if (search && typeof search === "string") {
       const regex = new RegExp(search.trim(), "i");
-      filter.$and = [
-        {
-          $or: [
-            { name: regex },
-            { nameAr: regex },
-            { fabricType: regex },
-            { fabricTypeAr: regex },
-            { tailorName: regex },
-            { tailorNameAr: regex },
-          ],
-        },
+      searchFilter.$or = [
+        { name: regex },
+        { nameAr: regex },
+        { fabricType: regex },
+        { fabricTypeAr: regex },
+        { tailorName: regex },
+        { tailorNameAr: regex },
       ];
     }
 
-    // Status filter based on availableFabricStock
+    const filter = { ...searchFilter };
+
+    // Status filter based on stock / listing state
     if (status === "available") {
       filter.availableFabricStock = { $gt: 0 };
     } else if (status === "sold") {
       filter.availableFabricStock = 0;
+    } else if (status === "low") {
+      filter.availableFabricStock = {
+        $gt: 0,
+        $lte: LOW_FABRIC_CUT_STOCK_THRESHOLD,
+      };
+    } else if (status === "active") {
+      filter.isActive = true;
+    } else if (status === "inactive") {
+      filter.isActive = false;
     }
 
     const pageNumber = Math.max(Number(page) || 1, 1);
     const limitNumber = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const skip = (pageNumber - 1) * limitNumber;
 
-    const [products, total] = await Promise.all([
-      ReadyMadeProduct.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limitNumber),
-      ReadyMadeProduct.countDocuments(filter),
-    ]);
-
-    const available = await ReadyMadeProduct.countDocuments({
-      ...filter,
-      availableFabricStock: { $gt: 0 },
-    });
-    const sold = await ReadyMadeProduct.countDocuments({
-      ...filter,
-      availableFabricStock: 0,
-    });
+    const [products, total, available, sold, low, active, inactive] =
+      await Promise.all([
+        ReadyMadeProduct.find(filter)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limitNumber),
+        ReadyMadeProduct.countDocuments(filter),
+        ReadyMadeProduct.countDocuments({
+          ...searchFilter,
+          availableFabricStock: { $gt: 0 },
+        }),
+        ReadyMadeProduct.countDocuments({
+          ...searchFilter,
+          availableFabricStock: 0,
+        }),
+        ReadyMadeProduct.countDocuments({
+          ...searchFilter,
+          availableFabricStock: {
+            $gt: 0,
+            $lte: LOW_FABRIC_CUT_STOCK_THRESHOLD,
+          },
+        }),
+        ReadyMadeProduct.countDocuments({
+          ...searchFilter,
+          isActive: true,
+        }),
+        ReadyMadeProduct.countDocuments({
+          ...searchFilter,
+          isActive: false,
+        }),
+      ]);
 
     res.send({
       success: true,
@@ -533,9 +555,12 @@ adminRouter.get(
       total,
       totalPages: Math.ceil(total / limitNumber) || 0,
       stats: {
-        total,
+        total: available + sold,
         available,
         sold,
+        low,
+        active,
+        inactive,
       },
       items: products,
     });
@@ -1386,6 +1411,19 @@ async function toggleFabricStorePartnerActive(req, res) {
     await syncFabricShopCatalogActive(shop._id, user.isActive);
   }
 
+  const idTail = String(user._id).slice(-6);
+  req.activityLogOverride = {
+    action: updated.isActive
+      ? "partners.activated"
+      : "partners.deactivated",
+    summary: updated.isActive
+      ? `Activated fabric store partner #${idTail}`
+      : `Deactivated fabric store partner #${idTail}`,
+    resourceType: "partners",
+    resourceId: String(user._id),
+    meta: { isActive: updated.isActive },
+  };
+
   res.send({
     success: true,
     message: `Partner successfully ${updated.isActive ? "activated" : "deactivated"}`,
@@ -1540,14 +1578,14 @@ function resolveAdminFabricStoreDisplay(fabric) {
 
 // GET /api/admin/fabrics
 // Admin can view all fabrics in the catalog (including inactive)
-// Supports ?page=1&limit=10&search=...&status=available|sold|low
+// Supports ?page=1&limit=10&search=...&status=available|sold|low|active|inactive&fabricShopId=...&listedByStore=...
 // available = active + remaining cut stock
 // sold = sold out (all cuts at 0) OR inactive listing
 adminRouter.get(
   "/fabrics",
   expressAsyncHandler(async (req, res) => {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 500);
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
     const status = req.query.status || "";
@@ -1559,6 +1597,13 @@ adminRouter.get(
 
     if (req.query.listedByStore) {
       baseFilter.listedByStore = req.query.listedByStore;
+    }
+
+    if (
+      req.query.fabricShopId &&
+      mongoose.Types.ObjectId.isValid(String(req.query.fabricShopId))
+    ) {
+      baseFilter.fabricShopId = req.query.fabricShopId;
     }
 
     const searchClause = await adminFabricSearchClause(search);
@@ -1588,6 +1633,10 @@ adminRouter.get(
       filter._id = {
         $in: parentIds.map((id) => new mongoose.Types.ObjectId(id)),
       };
+    } else if (status === "active") {
+      filter.isActive = true;
+    } else if (status === "inactive") {
+      filter.isActive = { $ne: true };
     }
 
     // KPI cards must stay stable across pagination. Build a dedicated match that
@@ -1597,6 +1646,12 @@ adminRouter.get(
     };
     if (req.query.listedByStore) {
       statsFilter.listedByStore = req.query.listedByStore;
+    }
+    if (
+      req.query.fabricShopId &&
+      mongoose.Types.ObjectId.isValid(String(req.query.fabricShopId))
+    ) {
+      statsFilter.fabricShopId = req.query.fabricShopId;
     }
 
     const [fabrics, total, active, inactive] = await Promise.all([
@@ -2476,6 +2531,17 @@ async function toggleTailorShopActive(req, res) {
   // Keep designs in sync: deactivated shops must not leave designs publicly active
   await syncTailorShopCatalogActive(shop._id, shop.isActive);
 
+  const idTail = String(shop._id).slice(-6);
+  req.activityLogOverride = {
+    action: updatedShop.isActive ? "tailors.activated" : "tailors.deactivated",
+    summary: updatedShop.isActive
+      ? `Activated tailor #${idTail}`
+      : `Deactivated tailor #${idTail}`,
+    resourceType: "tailors",
+    resourceId: String(shop._id),
+    meta: { isActive: updatedShop.isActive },
+  };
+
   res.send({
     success: true,
     message: `Tailor shop successfully ${updatedShop.isActive ? "activated" : "deactivated"}`,
@@ -2709,6 +2775,17 @@ async function toggleFabricShopActive(req, res) {
 
   // Keep catalog products in sync with shop visibility
   await syncFabricShopCatalogActive(shop._id, shop.isActive);
+
+  const idTail = String(shop._id).slice(-6);
+  req.activityLogOverride = {
+    action: updatedShop.isActive ? "shop.activated" : "shop.deactivated",
+    summary: updatedShop.isActive
+      ? `Activated fabric shop #${idTail}`
+      : `Deactivated fabric shop #${idTail}`,
+    resourceType: "shop",
+    resourceId: String(shop._id),
+    meta: { isActive: updatedShop.isActive },
+  };
 
   res.send({
     success: true,
@@ -4239,6 +4316,14 @@ adminRouter.patch(
     }
     user.isActive = !user.isActive;
     await user.save();
+    const idTail = String(user._id).slice(-6);
+    req.activityLogOverride = {
+      action: user.isActive ? "customers.activated" : "customers.deactivated",
+      summary: user.isActive
+        ? `Activated customer #${idTail}`
+        : `Deactivated customer #${idTail}`,
+      meta: { isActive: user.isActive },
+    };
     res.send({
       message: `Customer ${user.isActive ? "activated" : "deactivated"} successfully`,
       isActive: user.isActive,
@@ -4583,6 +4668,16 @@ adminRouter.patch(
     }
     addon.isActive = !addon.isActive;
     await addon.save();
+    const idTail = String(addon._id).slice(-6);
+    req.activityLogOverride = {
+      action: addon.isActive ? "addons.activated" : "addons.deactivated",
+      summary: addon.isActive
+        ? `Activated add-on #${idTail}`
+        : `Deactivated add-on #${idTail}`,
+      resourceType: "addons",
+      resourceId: String(addon._id),
+      meta: { isActive: addon.isActive },
+    };
     res.send({
       message: `Addon ${addon.isActive ? "activated" : "deactivated"} successfully`,
       isActive: addon.isActive,
@@ -5807,6 +5902,27 @@ adminRouter.patch(
     await recomputeShopRatingsForReview(review);
     if (prevStatus !== nextStatus) {
       await notifyCustomerReviewModeration(customer, nextStatus);
+    }
+
+    const idTail = String(id).slice(-6);
+    if (nextStatus === "approved") {
+      req.activityLogOverride = {
+        action: "reviews.approved",
+        summary: `Approved review #${idTail}`,
+        meta: { status: nextStatus, prevStatus },
+      };
+    } else if (nextStatus === "rejected") {
+      req.activityLogOverride = {
+        action: "reviews.rejected",
+        summary: `Rejected review #${idTail}`,
+        meta: { status: nextStatus, prevStatus },
+      };
+    } else {
+      req.activityLogOverride = {
+        action: "reviews.pending",
+        summary: `Marked review as pending #${idTail}`,
+        meta: { status: nextStatus, prevStatus },
+      };
     }
 
     res.json({

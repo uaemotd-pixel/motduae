@@ -45,8 +45,6 @@ import {
 import PartnerPayoutBankFields from "@/components/partners/PartnerPayoutBankFields";
 import {
   payoutBankFieldErrors,
-  payoutBankTouched,
-  isPayoutBankComplete,
   type PayoutBankField,
 } from "@/lib/partnerPayoutBank";
 
@@ -467,48 +465,12 @@ export default function FabricShopForm() {
     return digits.slice(0, 9);
   };
 
-  const handleImageChange = async (
-    field: "logo" | "coverImage",
-    url: string,
-  ) => {
-    const nextForm = { ...formData, [field]: url };
-    setFormData(nextForm);
+  const handleImageChange = (field: "logo" | "coverImage", url: string) => {
+    // Keep images in form state only. Auto-saving here used to PUT /shop
+    // immediately, then Save PUT again — two Activity Log entries for one edit.
+    setFormData((prev) => ({ ...prev, [field]: url }));
     if (fieldErrors[field]) {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
-    }
-
-    if (!shop) return;
-
-    setSubmitting(true);
-
-    try {
-      const payload = {
-        ...nextForm,
-        phone: normalizeUaePhone(nextForm.phone),
-        payoutBank:
-          payoutBankTouched(nextForm.payoutBank) &&
-          !isPayoutBankComplete(nextForm.payoutBank)
-            ? shop.payoutBank || nextForm.payoutBank
-            : nextForm.payoutBank,
-      };
-      const savedShop = await updateFabricShop(payload);
-      setShop(savedShop);
-      const form = fabricShopToForm(savedShop);
-      if (form.phone) {
-        form.phone = normalizeUaePhone(form.phone);
-      }
-      setFormData({ ...form, payoutBank: nextForm.payoutBank });
-      toast.success(
-        url.trim() ? t("imageSaved") : t("imageRemoved"),
-        SUCCESS_TOAST,
-      );
-    } catch (err: unknown) {
-      toast.error(
-        getApiErrorMessage(err, t("errors.updateFailed")),
-        ERROR_TOAST,
-      );
-    } finally {
-      setSubmitting(false);
     }
   };
 

@@ -1006,6 +1006,18 @@ tailorPortalRouter.post(
         createdBy: req.user._id,
         dedupeKey: `admin:tailor_payout_requested:${requestDoc._id}`,
       });
+      const idTail = String(requestDoc._id).slice(-6);
+      req.activityLogOverride = {
+        action: "payments.payout_requested",
+        summary: `Submitted payout request #${idTail}`,
+        category: "payments",
+        resourceType: "payout-requests",
+        resourceId: String(requestDoc._id),
+        meta: {
+          amount: requestDoc.amount,
+          partnerKind: "tailor",
+        },
+      };
       res.status(201).json({ success: true, request: requestDoc });
     } catch (err) {
       if (err instanceof PartnerPayoutError) {
