@@ -106,10 +106,6 @@ export function sanitizeMeta(value, depth = 0) {
 }
 
 function clientIp(req) {
-  const forwarded = req.get?.("x-forwarded-for");
-  if (forwarded) {
-    return String(forwarded).split(",")[0].trim();
-  }
   return String(req.ip || req.socket?.remoteAddress || "").trim();
 }
 

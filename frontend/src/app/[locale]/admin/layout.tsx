@@ -31,6 +31,7 @@ import {
   X,
   UserRoundPlus,
   UserRoundPen,
+  Activity,
   Bell,
   Sparkles,
   ChevronDown,
@@ -193,6 +194,12 @@ export default function AdminLayout({
         label: "Sub Admin",
         href: "/admin/sub-admin",
         icon: UserRoundPen,
+        perm: "subAdmins",
+      },
+      {
+        label: "Activity",
+        href: "/admin/activity",
+        icon: Activity,
         perm: "subAdmins",
       },
       {

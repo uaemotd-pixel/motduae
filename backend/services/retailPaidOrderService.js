@@ -57,6 +57,7 @@ export async function createPaidRetailOrder({
   contactEmail = "",
   paymentIntentId,
   paymentMethod,
+  guestSessionId = "",
 }) {
   const existing = await findRetailOrderByPaymentIntent(paymentIntentId);
   if (existing) {
@@ -111,6 +112,7 @@ export async function createPaidRetailOrder({
     isPaid: true,
     paidAt: confirmedAt,
     stripePaymentIntentId: paymentIntentId,
+    guestSessionId: String(guestSessionId || ""),
   };
   let order;
   try {

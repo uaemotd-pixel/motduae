@@ -9,7 +9,7 @@ import { normalizeEmail } from "../services/emailVerification/emailOccupancy.js"
 
 export const generateToken = (
   user,
-  { guestContactEmail, guestPendingEmail } = {},
+  { guestContactEmail, guestPendingEmail, guestSessionId } = {},
 ) => {
   const isGuest = isGuestUser(user);
   const payload = {
@@ -23,6 +23,11 @@ export const generateToken = (
   };
 
   if (isGuest) {
+    const sessionId = String(guestSessionId || "").trim();
+    if (!sessionId) {
+      throw new Error("Guest session id is required");
+    }
+    payload.guestSessionId = sessionId;
     const contact = normalizeEmail(guestContactEmail);
     const pending = normalizeEmail(guestPendingEmail);
     if (contact) payload.guestContactEmail = contact;
@@ -59,6 +64,14 @@ export const isAuth = async (req, res, next) => {
     }
 
     const isGuest = isGuestUser(user);
+    const guestSessionId = isGuest
+      ? String(decode.guestSessionId || "").trim()
+      : "";
+    if (isGuest && !guestSessionId) {
+      res.status(401).send({ message: "Invalid Token" });
+      return;
+    }
+
     // Revalidate privileged claims from DB so revoked admin/role cannot linger in JWT
     req.user = {
       _id: user._id,
@@ -72,6 +85,7 @@ export const isAuth = async (req, res, next) => {
       rejectionNote: user.rejectionNote || "",
       emailVerified: isEmailVerified(user),
       isGuest,
+      guestSessionId: isGuest ? guestSessionId : undefined,
       guestContactEmail: isGuest
         ? normalizeEmail(decode.guestContactEmail) || undefined
         : undefined,
