@@ -28,10 +28,6 @@ import {
   Users,
   X,
 } from "lucide-react";
-import {
-  ACTIVITY_LOG_ACCESS_HEADER,
-  ACTIVITY_LOG_URL_KEY,
-} from "@/lib/activityLog/access";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import toast from "react-hot-toast";
 import { ERROR_TOAST, SUCCESS_TOAST } from "@/lib/tailorPortalToast";
@@ -536,14 +532,6 @@ export default function ActivityLogViewer() {
     setSelectedIds(new Set());
   }, [page]);
 
-  const headers = useMemo(
-    () => ({
-      Accept: "application/json",
-      [ACTIVITY_LOG_ACCESS_HEADER]: ACTIVITY_LOG_URL_KEY,
-    }),
-    [],
-  );
-
   const fetchList = useCallback(
     async (opts: { silent?: boolean } = {}) => {
       const silent = Boolean(opts.silent);
@@ -563,8 +551,12 @@ export default function ActivityLogViewer() {
         if (actorRole) params.set("actorRole", actorRole);
 
         const res = await fetch(
-          `${apiBase()}/api/dev/activity-log?${params.toString()}`,
-          { headers, credentials: "omit", cache: "no-store" },
+          `${apiBase()}/api/admin/activity-log?${params.toString()}`,
+          {
+            headers: { Accept: "application/json" },
+            credentials: "include",
+            cache: "no-store",
+          },
         );
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -617,7 +609,7 @@ export default function ActivityLogViewer() {
         if (!silent) setLoading(false);
       }
     },
-    [page, debouncedQ, category, successFilter, actorRole, headers],
+    [page, debouncedQ, category, successFilter, actorRole],
   );
 
   // Initial + filter/page changes
@@ -709,13 +701,13 @@ export default function ActivityLogViewer() {
     setDeleteError("");
     setDeletingIds(new Set(unique));
     try {
-      const res = await fetch(`${apiBase()}/api/dev/activity-log`, {
+      const res = await fetch(`${apiBase()}/api/admin/activity-log`, {
         method: "DELETE",
         headers: {
-          ...headers,
+          Accept: "application/json",
           "Content-Type": "application/json",
         },
-        credentials: "omit",
+        credentials: "include",
         cache: "no-store",
         body: JSON.stringify({ ids: unique }),
       });
@@ -773,10 +765,10 @@ export default function ActivityLogViewer() {
       if (actorRole) params.set("actorRole", actorRole);
 
       const res = await fetch(
-        `${apiBase()}/api/dev/activity-log/export?${params.toString()}`,
+        `${apiBase()}/api/admin/activity-log/export?${params.toString()}`,
         {
-          headers,
-          credentials: "omit",
+          headers: { Accept: "application/json" },
+          credentials: "include",
           cache: "no-store",
         },
       );
@@ -812,7 +804,7 @@ export default function ActivityLogViewer() {
 
   function renderSidebar(onClose?: () => void) {
     return (
-      <aside className="flex h-dvh w-[min(17.5rem,88vw)] shrink-0 flex-col bg-[#111312] text-[#f4f2ec] lg:w-70">
+      <aside className="flex h-full min-h-[calc(100dvh-6rem)] w-[min(17.5rem,88vw)] shrink-0 flex-col bg-[#111312] text-[#f4f2ec] lg:w-70">
         <div className="shrink-0 border-b border-white/10 px-4 py-4 sm:px-5 sm:py-5">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -892,9 +884,9 @@ export default function ActivityLogViewer() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#f6f4ef] text-[#121412] [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_select]:cursor-pointer [&_label]:cursor-pointer [&_input[type=checkbox]]:cursor-pointer [&_input[type=checkbox]:disabled]:cursor-not-allowed [&_option]:cursor-pointer">
-      {/* Desktop: fixed full-height sidebar; page content scrolls beside it */}
-      <div className="fixed inset-y-0 left-0 z-30 hidden lg:block">
+    <div className="-mx-4 -mt-4 min-h-[calc(100dvh-8rem)] overflow-x-hidden bg-[#f6f4ef] text-[#121412] xs:-mx-6 xs:-mt-6 sm:-mx-8 sm:-mt-8 md:-mx-10 md:-mt-10 [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_select]:cursor-pointer [&_label]:cursor-pointer [&_input[type=checkbox]]:cursor-pointer [&_input[type=checkbox]:disabled]:cursor-not-allowed [&_option]:cursor-pointer">
+      <div className="flex min-h-[calc(100dvh-8rem)] min-w-0">
+      <div className="hidden shrink-0 lg:block">
         {renderSidebar()}
       </div>
 
@@ -912,7 +904,7 @@ export default function ActivityLogViewer() {
         </div>
       ) : null}
 
-      <div className="flex min-h-screen min-w-0 flex-col lg:pl-70">
+      <div className="flex min-h-[calc(100dvh-8rem)] min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 border-b border-[#e6e2d8] bg-[#f6f4ef]/95 pt-[env(safe-area-inset-top)] backdrop-blur">
           <div className="flex items-start justify-between gap-2 px-3 py-3 sm:items-center sm:gap-3 sm:px-6 sm:py-4">
             <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
@@ -1532,6 +1524,7 @@ export default function ActivityLogViewer() {
             </section>
           ) : null}
         </main>
+      </div>
       </div>
 
       <ConfirmationModal

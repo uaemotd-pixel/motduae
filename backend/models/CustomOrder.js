@@ -336,6 +336,11 @@ const customOrderSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    guestSessionId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     fabricSource: {
       type: String,
       enum: FABRIC_SOURCES,
@@ -480,6 +485,7 @@ const customOrderSchema = new mongoose.Schema(
 );
 
 customOrderSchema.index({ userId: 1, createdAt: -1 });
+customOrderSchema.index({ userId: 1, guestSessionId: 1 });
 customOrderSchema.index({ status: 1, createdAt: -1 });
 customOrderSchema.index({ tailorShopId: 1, status: 1 });
 customOrderSchema.index({ "shipments.awb": 1 });

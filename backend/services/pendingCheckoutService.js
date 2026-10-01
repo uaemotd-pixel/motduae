@@ -31,6 +31,7 @@ export async function savePendingCheckout({
   orderType,
   payload,
   amountAed,
+  guestSessionId = "",
 }) {
   // Never overwrite an in-flight or completed fulfillment (client/webhook race).
   const existing = await PendingCheckout.findOne({ paymentIntentId });
@@ -50,6 +51,7 @@ export async function savePendingCheckout({
         orderType,
         payload,
         amountAed,
+        guestSessionId: String(guestSessionId || ""),
         status: "pending",
         orderId: null,
         lastError: "",
@@ -214,6 +216,7 @@ export async function fulfillPaidCheckout({
         contactEmail: pending.payload.contactEmail,
         paymentIntentId,
         paymentMethod: resolvedMethod,
+        guestSessionId: pending.guestSessionId,
       });
     } else if (pending.orderType === "custom") {
       result = await createPaidCustomOrder({
@@ -222,6 +225,7 @@ export async function fulfillPaidCheckout({
         payload: pending.payload,
         paymentIntentId,
         paymentMethod: resolvedMethod,
+        guestSessionId: pending.guestSessionId,
       });
     } else {
       throw new Error(`Unsupported order type: ${pending.orderType}`);
