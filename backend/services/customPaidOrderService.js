@@ -686,6 +686,7 @@ export async function createPaidCustomOrder({
   payload,
   paymentIntentId,
   paymentMethod,
+  guestSessionId = "",
 }) {
   const existing = await findCustomOrderByPaymentIntent(paymentIntentId);
   if (existing) {
@@ -763,6 +764,9 @@ export async function createPaidCustomOrder({
   }));
 
   const confirmedAt = new Date();
+  const sessionFields = {
+    guestSessionId: String(guestSessionId || ""),
+  };
   let order;
 
   try {
@@ -784,6 +788,7 @@ export async function createPaidCustomOrder({
 
       order = await createCustomOrderWithTrackingToken({
         userId,
+        ...sessionFields,
         fabricSource: orderInput.fabricSource,
         ...legacyFields,
         items: orderItems,
@@ -878,6 +883,7 @@ export async function createPaidCustomOrder({
 
       order = await createCustomOrderWithTrackingToken({
         userId,
+        ...sessionFields,
         fabricSource: orderInput.fabricSource,
         fabricId: fabric?._id ?? null,
         fabricStoreId: fabric?.listedByStore ?? null,

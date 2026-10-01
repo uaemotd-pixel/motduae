@@ -45,8 +45,12 @@ import {
 
 const app = express();
 
-// Behind Vercel / reverse proxies so req.ip (rate limits, etc.) is correct
-app.set("trust proxy", 1);
+// Production is a direct Lightsail process: leave TRUST_PROXY unset and use the socket.
+// Vercel sets VERCEL itself, and only the current UAT host runs there.
+// TRUST_PROXY=1 is for a later reverse proxy in front of Lightsail.
+const trustProxyHops =
+  process.env.VERCEL || process.env.TRUST_PROXY === "1" ? 1 : false;
+app.set("trust proxy", trustProxyHops);
 
 ensureUploadDirs();
 
@@ -77,7 +81,6 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/cron", cronRoutes);
-app.use("/api/dev/activity-log", activityLogRouter);
 
 app.use("/api/users", userRouter);
 app.use("/api/ready-made", readyMadeRoutes);
@@ -123,6 +126,13 @@ app.use(
   isAdmin,
   enforceStaffPerm,
   captureAdminActivity,
+);
+app.use(
+  "/api/admin/activity-log",
+  isAuth,
+  isAdmin,
+  enforceStaffPerm,
+  activityLogRouter,
 );
 app.use("/api/admin", isAuth, isAdmin, enforceStaffPerm, adminRouter);
 app.use("/api/admin", isAuth, isAdmin, enforceStaffPerm, notificationRouter);

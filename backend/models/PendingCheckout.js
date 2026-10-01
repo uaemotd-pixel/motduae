@@ -26,6 +26,12 @@ const pendingCheckoutSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    /** Set for guest checkout so one shared user cannot read another session's order. */
+    guestSessionId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     orderType: {
       type: String,
       enum: ["retail", "custom"],
@@ -66,6 +72,7 @@ const pendingCheckoutSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+pendingCheckoutSchema.index({ userId: 1, guestSessionId: 1 });
 pendingCheckoutSchema.index({ status: 1, createdAt: 1 });
 pendingCheckoutSchema.index(
   { createdAt: 1 },
