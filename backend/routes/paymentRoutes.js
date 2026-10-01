@@ -239,6 +239,7 @@ paymentRoutes.post(
         userId: req.user._id,
         orderType: "retail",
         amountAed: prepared.totalPrice,
+        guestSessionId: req.user?.isGuest ? req.user.guestSessionId : "",
         payload: {
           orderItems,
           shippingAddress: normalizedShipping,
@@ -304,6 +305,7 @@ paymentRoutes.post(
         userId: req.user._id,
         orderType: "custom",
         amountAed: total,
+        guestSessionId: req.user?.isGuest ? req.user.guestSessionId : "",
         payload: checkoutPayload,
       });
 
@@ -376,6 +378,18 @@ paymentRoutes.post(
           success: false,
           message: "This payment does not belong to your account",
         });
+      }
+
+      if (req.user.isGuest) {
+        const sessionId = String(
+          pending?.guestSessionId || existing?.order?.guestSessionId || "",
+        );
+        if (!sessionId || sessionId !== req.user.guestSessionId) {
+          return res.status(403).json({
+            success: false,
+            message: "This payment does not belong to your account",
+          });
+        }
       }
 
       const result = await fulfillPaidCheckout({

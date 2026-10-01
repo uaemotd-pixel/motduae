@@ -150,6 +150,11 @@ const retailOrderSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    guestSessionId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     orderItems: {
       type: [orderItemSchema],
       required: true,
@@ -219,6 +224,7 @@ const retailOrderSchema = new mongoose.Schema(
 );
 
 retailOrderSchema.index({ userId: 1, createdAt: -1 });
+retailOrderSchema.index({ userId: 1, guestSessionId: 1 });
 retailOrderSchema.index({ status: 1, createdAt: -1 });
 retailOrderSchema.index({ "shipments.awb": 1 });
 retailOrderSchema.index({ "shipments.shipaOrderId": 1 });

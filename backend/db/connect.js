@@ -1,9 +1,16 @@
+import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { env } from '../config/env.js';
 import User from '../models/User.js';
 import Customer from '../models/customer.js';
 import bcrypt from 'bcryptjs';
 import { alignPurgeIndexes } from './alignPurgeIndexes.js';
+
+const RETIRED_GUEST_PASSWORD = 'MotdSeed123!';
+
+function randomGuestPasswordHash() {
+  return bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+}
 
 const globalCache = globalThis;
 
@@ -16,7 +23,7 @@ async function ensureGuestUser() {
     const email = env.guestCustomerEmail;
     const exists = await User.findOne({ email });
     if (!exists) {
-      const passwordHash = await bcrypt.hash('MotdSeed123!', 10);
+      const passwordHash = await randomGuestPasswordHash();
       const newUser = await User.create({
         name: 'Customer',
         email,
@@ -32,6 +39,13 @@ async function ensureGuestUser() {
         await customerProfile.save();
       }
     } else {
+      if (
+        exists.password &&
+        bcrypt.compareSync(RETIRED_GUEST_PASSWORD, exists.password)
+      ) {
+        exists.password = await randomGuestPasswordHash();
+        await exists.save();
+      }
       if (exists.name !== 'Customer') {
         exists.name = 'Customer';
         await exists.save();

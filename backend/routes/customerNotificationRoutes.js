@@ -15,6 +15,10 @@ import {
 
 const customerNotificationRouter = express.Router();
 
+function guestSessionId(req) {
+  return req.user?.isGuest ? String(req.user.guestSessionId || "") : "";
+}
+
 // GET /api/customer/notifications
 customerNotificationRouter.get(
   "/notifications",
@@ -26,8 +30,14 @@ customerNotificationRouter.get(
       return;
     }
 
-    const orderIds = await getCustomerOrderIds(userId);
-    const filter = buildCustomerNotificationFilter(userId, orderIds, req.query);
+    const sessionId = guestSessionId(req);
+    const orderIds = await getCustomerOrderIds(userId, sessionId);
+    const filter = buildCustomerNotificationFilter(
+      userId,
+      orderIds,
+      req.query,
+      sessionId,
+    );
     const { notifications, pagination } = await listNotifications(filter, req.query);
     const enriched = await enrichCustomerNotifications(notifications);
 
@@ -50,8 +60,14 @@ customerNotificationRouter.get(
       return;
     }
 
-    const orderIds = await getCustomerOrderIds(userId);
-    const filter = buildCustomerNotificationFilter(userId, orderIds);
+    const sessionId = guestSessionId(req);
+    const orderIds = await getCustomerOrderIds(userId, sessionId);
+    const filter = buildCustomerNotificationFilter(
+      userId,
+      orderIds,
+      {},
+      sessionId,
+    );
     const count = await countUnread(filter);
 
     res.send({ success: true, count });
@@ -81,7 +97,13 @@ customerNotificationRouter.post(
       return;
     }
 
-    if (!(await customerOwnsNotification(notification, userId))) {
+    if (
+      !(await customerOwnsNotification(
+        notification,
+        userId,
+        guestSessionId(req),
+      ))
+    ) {
       res.status(403).send({ success: false, message: "Forbidden" });
       return;
     }
@@ -107,8 +129,14 @@ customerNotificationRouter.post(
       return;
     }
 
-    const orderIds = await getCustomerOrderIds(userId);
-    const filter = buildCustomerNotificationFilter(userId, orderIds);
+    const sessionId = guestSessionId(req);
+    const orderIds = await getCustomerOrderIds(userId, sessionId);
+    const filter = buildCustomerNotificationFilter(
+      userId,
+      orderIds,
+      {},
+      sessionId,
+    );
 
     const result = await AdminNotification.updateMany(
       {
@@ -151,7 +179,13 @@ customerNotificationRouter.delete(
       return;
     }
 
-    if (!(await customerOwnsNotification(notification, userId))) {
+    if (
+      !(await customerOwnsNotification(
+        notification,
+        userId,
+        guestSessionId(req),
+      ))
+    ) {
       res.status(403).send({ success: false, message: "Forbidden" });
       return;
     }

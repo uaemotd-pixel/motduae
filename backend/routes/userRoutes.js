@@ -22,7 +22,10 @@ import { createAdminNotificationForNewUser } from "../services/adminNotification
 import { clearAuthCookie, setAuthCookie, extractAuthToken } from "../utils/authCookie.js";
 import jwt from "jsonwebtoken";
 import { isEmailVerified } from "../services/emailVerification/isEmailVerified.js";
-import { isGuestUser } from "../services/emailVerification/isGuestUser.js";
+import {
+  isGuestCustomerEmail,
+  isGuestUser,
+} from "../services/emailVerification/isGuestUser.js";
 import {
   EmailVerificationError,
   issueOtp,
@@ -222,6 +225,7 @@ const guestSessionClaims = (req, extra = {}) => {
     guestContactEmail: extra.guestContactEmail ?? req.user?.guestContactEmail,
     guestPendingEmail: extra.guestPendingEmail ?? req.user?.guestPendingEmail,
     ...extra,
+    guestSessionId: extra.guestSessionId || req.user?.guestSessionId,
   };
 };
 
@@ -229,6 +233,7 @@ const sendUserResponse = (res, user, claims = {}) => {
   const isGuest = isGuestUser(user);
   const guestClaims = isGuest
     ? {
+        guestSessionId: claims.guestSessionId,
         guestContactEmail: claims.guestContactEmail,
         guestPendingEmail: claims.guestPendingEmail,
       }
@@ -388,7 +393,9 @@ userRouter.post(
       res.status(403).send({ message: "Account is deactivated" });
       return;
     }
-    sendUserResponse(res, user);
+    sendUserResponse(res, user, {
+      guestSessionId: crypto.randomBytes(32).toString("hex"),
+    });
   }),
 );
 
@@ -402,7 +409,18 @@ userRouter.post(
       return;
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    if (isGuestCustomerEmail(normalizedEmail)) {
+      maybeLogLoginFailed(req, {
+        email: normalizedEmail,
+        reason: "guest_password_blocked",
+        method: "password",
+      });
+      res.status(401).send({ message: "Invalid email or password" });
+      return;
+    }
+
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       maybeLogLoginFailed(req, {
         email,
@@ -538,6 +556,16 @@ userRouter.post(
 
     if (!googleId || !email) {
       res.status(400).send({ message: "Google account email is required" });
+      return;
+    }
+
+    if (isGuestCustomerEmail(email)) {
+      maybeLogLoginFailed(req, {
+        email,
+        reason: "guest_google_blocked",
+        method: "google",
+      });
+      res.status(401).send({ message: "Invalid email or password" });
       return;
     }
 
@@ -738,7 +766,12 @@ userRouter.post(
     const normalizedEmail = email.toLowerCase().trim();
     const user = await User.findOne({ email: normalizedEmail });
 
-    if (user && GOOGLE_AUTH_ROLES.has(user.role) && user.isActive !== false) {
+    if (
+      user &&
+      !isGuestUser(user) &&
+      GOOGLE_AUTH_ROLES.has(user.role) &&
+      user.isActive !== false
+    ) {
       const rawToken = crypto.randomBytes(32).toString("hex");
       user.resetPasswordToken = hashResetToken(rawToken);
       user.resetPasswordExpires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
@@ -790,7 +823,12 @@ userRouter.post(
       resetPasswordExpires: { $gt: new Date() },
     });
 
-    if (!user) {
+    if (!user || isGuestUser(user)) {
+      if (user && isGuestUser(user)) {
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
+        await user.save();
+      }
       res.status(400).send({ message: "Reset link is invalid or has expired" });
       return;
     }
@@ -981,13 +1019,17 @@ userRouter.post(
     }
 
     const user = await User.findById(req.user._id);
-    sendUserResponse(res, user, {
-      guestPendingEmail: started.email,
-      guestContactEmail:
-        normalizeEmail(req.user.guestContactEmail) === started.email
-          ? started.email
-          : undefined,
-    });
+    sendUserResponse(
+      res,
+      user,
+      guestSessionClaims(req, {
+        guestPendingEmail: started.email,
+        guestContactEmail:
+          normalizeEmail(req.user.guestContactEmail) === started.email
+            ? started.email
+            : undefined,
+      }),
+    );
   }),
 );
 
@@ -1015,10 +1057,13 @@ userRouter.post(
     const user = await User.findById(req.user._id);
     setAuthCookie(
       res,
-      generateToken(user, {
-        guestPendingEmail: issued.email,
-        guestContactEmail: req.user.guestContactEmail,
-      }),
+      generateToken(
+        user,
+        guestSessionClaims(req, {
+          guestPendingEmail: issued.email,
+          guestContactEmail: req.user.guestContactEmail,
+        }),
+      ),
     );
     res.json({
       ok: true,
@@ -1047,10 +1092,14 @@ userRouter.post(
     }
 
     const user = await User.findById(req.user._id);
-    sendUserResponse(res, user, {
-      guestContactEmail: verified.email,
-      guestPendingEmail: undefined,
-    });
+    sendUserResponse(
+      res,
+      user,
+      guestSessionClaims(req, {
+        guestContactEmail: verified.email,
+        guestPendingEmail: undefined,
+      }),
+    );
   }),
 );
 
@@ -1313,7 +1362,7 @@ userRouter.put(
     }
 
     const updatedUser = await user.save();
-    sendUserResponse(res, updatedUser);
+    sendUserResponse(res, updatedUser, guestSessionClaims(req));
   }),
 );
 
@@ -1356,7 +1405,7 @@ userRouter.put(
     }
 
     const updatedUser = await user.save();
-    sendUserResponse(res, updatedUser);
+    sendUserResponse(res, updatedUser, guestSessionClaims(req));
   }),
 );
 

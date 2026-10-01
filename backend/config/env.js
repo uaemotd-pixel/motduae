@@ -14,9 +14,63 @@ function requireEnv(name) {
   return value;
 }
 
-function parseCorsOrigin(value) {
-  if (!value) return 'http://localhost:3000';
-  const origins = value.split(',').map((origin) => origin.trim()).filter(Boolean);
+function isLocalHostname(hostname) {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]'
+  );
+}
+
+function parseCorsOriginList(value, { production }) {
+  const origins = String(value || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (origins.includes('*')) {
+    throw new Error(
+      'CORS_ORIGIN must not be * when credentials are enabled',
+    );
+  }
+
+  if (!production) {
+    return origins;
+  }
+
+  if (origins.length === 0) {
+    throw new Error('CORS_ORIGIN is required in production');
+  }
+
+  for (const origin of origins) {
+    let url;
+    try {
+      url = new URL(origin);
+    } catch {
+      throw new Error(`CORS_ORIGIN entry is not a valid URL: ${origin}`);
+    }
+    if (url.protocol !== 'https:') {
+      throw new Error(`CORS_ORIGIN must use https in production: ${origin}`);
+    }
+    if (url.username || url.password) {
+      throw new Error(`CORS_ORIGIN must not include credentials: ${origin}`);
+    }
+    if ((url.pathname && url.pathname !== '/') || url.search || url.hash) {
+      throw new Error(`CORS_ORIGIN must be an origin without a path: ${origin}`);
+    }
+    if (isLocalHostname(url.hostname)) {
+      throw new Error(
+        `CORS_ORIGIN must not use localhost in production: ${origin}`,
+      );
+    }
+  }
+
+  return origins;
+}
+
+function corsOriginValue(origins, fallback) {
+  if (!origins.length) return fallback;
   return origins.length === 1 ? origins[0] : origins;
 }
 
@@ -26,10 +80,20 @@ function vercelOrigin() {
 }
 
 function defaultCorsOrigin() {
-  if (process.env.CORS_ORIGIN) {
-    return parseCorsOrigin(process.env.CORS_ORIGIN);
+  const isProd = (process.env.NODE_ENV || 'development') === 'production';
+  if (isProd) {
+    const origins = parseCorsOriginList(process.env.CORS_ORIGIN, {
+      production: true,
+    });
+    return corsOriginValue(origins);
   }
-  return vercelOrigin() || 'http://localhost:3000';
+  if (process.env.CORS_ORIGIN) {
+    const origins = parseCorsOriginList(process.env.CORS_ORIGIN, {
+      production: false,
+    });
+    return corsOriginValue(origins, 'http://localhost:3000');
+  }
+  return 'http://localhost:3000';
 }
 
 function defaultFrontendUrl() {
