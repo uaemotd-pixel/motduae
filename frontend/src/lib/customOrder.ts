@@ -83,7 +83,9 @@ export interface CustomOrderDesignSelection {
     lengthInMeters: number;
   };
   estimatedMeters: number;
+  estimatedDaysMin?: number;
   estimatedDays?: number;
+  estimatedTimeUnit?: "days" | "weeks";
   image?: string;
 }
 
@@ -403,7 +405,10 @@ function normalizeDesign(value: unknown): CustomOrderDesignSelection | null {
     priceType: design.priceType || "fixed",
     tailoringFee: Number(design.tailoringFee) || 0,
     estimatedMeters: Number(design.estimatedMeters) || 0,
+    estimatedDaysMin: design.estimatedDaysMin,
     estimatedDays: design.estimatedDays,
+    estimatedTimeUnit:
+      design.estimatedTimeUnit === "weeks" ? "weeks" : "days",
     image: design.image,
   };
 }
@@ -728,7 +733,9 @@ export function toCustomOrderDesignSelection(
     minCutSnapshot: cutSnapshot,
     minCut: cutSnapshot,
     estimatedMeters: cutSnapshot?.lengthInMeters ?? item.estimatedMeters,
+    estimatedDaysMin: item.estimatedDaysMin,
     estimatedDays: item.estimatedDays,
+    estimatedTimeUnit: item.estimatedTimeUnit,
     image: resolveDesignImage(item.images?.[0]),
   };
 }

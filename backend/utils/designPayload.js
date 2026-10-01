@@ -28,7 +28,9 @@ export const DESIGN_FIELDS = [
   "tailoringFee",
   "minCutId",
   "estimatedMeters",
+  "estimatedDaysMin",
   "estimatedDays",
+  "estimatedTimeUnit",
   "minAge",
   "maxAge",
   "isActive",
@@ -61,7 +63,12 @@ export const formatDesign = (design) => ({
   minCut: design.minCutSnapshot || null,
   estimatedMeters:
     design.minCutSnapshot?.lengthInMeters ?? (design.estimatedMeters || 0),
+  estimatedDaysMin: Number.isFinite(Number(design.estimatedDaysMin))
+    ? Number(design.estimatedDaysMin)
+    : design.estimatedDays,
   estimatedDays: design.estimatedDays,
+  estimatedTimeUnit:
+    design.estimatedTimeUnit === "weeks" ? "weeks" : "days",
   minAge: Number.isFinite(Number(design.minAge)) ? Number(design.minAge) : 0,
   maxAge: Number.isFinite(Number(design.maxAge)) ? Number(design.maxAge) : 0,
   isActive: design.isActive,
@@ -127,12 +134,20 @@ export const pickDesignFields = (body) => {
         "basePrice",
         "tailoringFee",
         "estimatedMeters",
+        "estimatedDaysMin",
         "estimatedDays",
         "minAge",
         "maxAge",
       ].includes(field)
     ) {
       data[field] = Number(body[field]);
+      continue;
+    }
+
+    if (field === "estimatedTimeUnit") {
+      data.estimatedTimeUnit = String(body.estimatedTimeUnit || "")
+        .trim()
+        .toLowerCase();
       continue;
     }
 
@@ -214,9 +229,29 @@ export const validateDesignPayload = (data, { requireCore = false } = {}) => {
     }
   }
 
+  if (data.estimatedDaysMin !== undefined) {
+    if (!Number.isFinite(data.estimatedDaysMin) || data.estimatedDaysMin < 1) {
+      return "estimatedDaysMin must be at least 1";
+    }
+  }
+
   if (data.estimatedDays !== undefined) {
     if (!Number.isFinite(data.estimatedDays) || data.estimatedDays < 1) {
       return "estimatedDays must be at least 1";
+    }
+  }
+
+  if (
+    data.estimatedDaysMin !== undefined &&
+    data.estimatedDays !== undefined &&
+    data.estimatedDays < data.estimatedDaysMin
+  ) {
+    return "estimatedDays must be greater than or equal to estimatedDaysMin";
+  }
+
+  if (data.estimatedTimeUnit !== undefined) {
+    if (!["days", "weeks"].includes(data.estimatedTimeUnit)) {
+      return "estimatedTimeUnit must be either days or weeks";
     }
   }
 

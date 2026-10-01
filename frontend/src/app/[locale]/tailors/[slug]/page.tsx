@@ -114,6 +114,7 @@ export default function TailorShopDetailPage() {
               fromPrice: t("fromPrice"),
               estimatedDays: t("estimatedDays"),
               days: t("days"),
+              weeks: t("weeks"),
               startOrder: t("startOrder"),
               aboutTitle: t("aboutTitle"),
               designsCount: t("designsCount", { count: designs.length }),

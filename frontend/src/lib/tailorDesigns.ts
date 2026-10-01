@@ -49,7 +49,9 @@ export interface TailorDesignProfile {
     lengthInMeters: number;
   };
   estimatedMeters?: number;
+  estimatedDaysMin: number;
   estimatedDays: number;
+  estimatedTimeUnit: "days" | "weeks";
   minAge: number;
   maxAge: number;
   isActive: boolean;
@@ -79,7 +81,9 @@ export interface TailorDesignFormData {
   tailoringFee: number;
   minCutId: string;
   estimatedMeters?: number;
+  estimatedDaysMin: number;
   estimatedDays: number;
+  estimatedTimeUnit: "days" | "weeks";
   minAge: number;
   maxAge: number;
   isActive: boolean;
@@ -145,7 +149,9 @@ export function emptyTailorDesignForm(
     tailoringFee: defaultTailoringFee,
     minCutId: "",
     estimatedMeters: 3.5,
+    estimatedDaysMin: 7,
     estimatedDays: 7,
+    estimatedTimeUnit: "days",
     minAge: 0,
     maxAge: 0,
     isActive: true,
@@ -195,7 +201,12 @@ export function designToForm(
     minCutId,
     estimatedMeters:
       design.minCutSnapshot?.lengthInMeters ?? design.estimatedMeters ?? 3.5,
+    estimatedDaysMin: Number.isFinite(Number(design.estimatedDaysMin))
+      ? Number(design.estimatedDaysMin)
+      : (design.estimatedDays ?? 7),
     estimatedDays: design.estimatedDays ?? 7,
+    estimatedTimeUnit:
+      design.estimatedTimeUnit === "weeks" ? "weeks" : "days",
     minAge: Number.isFinite(Number(design.minAge)) ? Number(design.minAge) : 0,
     maxAge: Number.isFinite(Number(design.maxAge)) ? Number(design.maxAge) : 0,
     isActive: design.isActive ?? true,
@@ -230,7 +241,10 @@ export function toTailorDesignPayload(
     tailoringFee,
     minCutId: form.minCutId,
     estimatedMeters: form.estimatedMeters ? Number(form.estimatedMeters) : undefined,
+    estimatedDaysMin: Number(form.estimatedDaysMin),
     estimatedDays: Number(form.estimatedDays),
+    estimatedTimeUnit:
+      form.estimatedTimeUnit === "weeks" ? "weeks" : "days",
     minAge: Number(form.minAge ?? 0),
     maxAge: Number(form.maxAge ?? 0),
     isActive: form.isActive,
@@ -284,6 +298,40 @@ export async function deleteTailorDesign(id: string): Promise<void> {
 export function isShopMissingError(error: unknown): boolean {
   if ((error as ApiError)?.status === 404) return true;
   return isShopIncompleteError(error);
+}
+
+export type EstimatedTimeUnit = "days" | "weeks";
+
+export function normalizeEstimatedTimeUnit(
+  unit?: string | null,
+): EstimatedTimeUnit {
+  return unit === "weeks" ? "weeks" : "days";
+}
+
+export function formatEstimatedLeadTime(
+  min: number | null | undefined,
+  max: number | null | undefined,
+  unit: string | null | undefined,
+  labels: { days: string; weeks: string },
+): string {
+  const maxValue =
+    max != null && Number.isFinite(Number(max)) ? Number(max) : null;
+  const minValue =
+    min != null && Number.isFinite(Number(min)) ? Number(min) : maxValue;
+
+  if (maxValue == null || maxValue < 0) return "";
+  if (minValue == null || minValue < 0) return "";
+
+  const unitLabel =
+    normalizeEstimatedTimeUnit(unit) === "weeks" ? labels.weeks : labels.days;
+
+  if (minValue === maxValue) {
+    return `${maxValue} ${unitLabel}`;
+  }
+
+  const from = Math.min(minValue, maxValue);
+  const to = Math.max(minValue, maxValue);
+  return `${from}–${to} ${unitLabel}`;
 }
 
 export async function fetchDesignCategories(): Promise<DesignCategoryOption[]> {

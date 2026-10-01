@@ -173,8 +173,8 @@ export const STATIC_SEO_PAGES: StaticSeoPage[] = [
     path: "/brands",
     titleEn: "Brands",
     titleAr: "العلامات التجارية",
-    descriptionEn: "Browse approved MOTD fabric store partners across the UAE.",
-    descriptionAr: "تصفّحي متاجر الأقمشة المعتمدة من MOTD في الإمارات.",
+    descriptionEn: "Browse approved MOTD fabric brands and tailor partners across the UAE.",
+    descriptionAr: "تصفّحي علامات الأقمشة والخياطين المعتمدين من MOTD في الإمارات.",
   },
   {
     path: "/contact-us",

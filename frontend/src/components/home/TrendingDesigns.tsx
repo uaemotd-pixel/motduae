@@ -40,6 +40,8 @@ interface TailorDesignExtended {
   tailoringFee: number;
   estimatedMeters: number;
   estimatedDays: number;
+  estimatedDaysMin?: number;
+  estimatedTimeUnit?: "days" | "weeks";
   tailorSlug: string;
   tailorName: string;
   tailorNameAr?: string;

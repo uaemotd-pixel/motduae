@@ -12,6 +12,7 @@ import {
   getDesignDisplayFields,
   resolveDesignImage,
 } from "@/lib/tailors";
+import { formatEstimatedLeadTime } from "@/lib/tailorDesigns";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "hand-embroidered": "#8B6B4D",
@@ -32,6 +33,7 @@ type DesignGalleryProps = {
     fromPrice: string;
     estimatedDays: string;
     days: string;
+    weeks: string;
     startOrder: string;
     countLabel?: string;
   };
@@ -214,7 +216,13 @@ export default function DesignGallery({
                     </span>
                   </p>
                   <p className="text-[9px] text-(--color-grey-muted) [font-family:var(--font-ui)] sm:text-[10px]">
-                    {labels.estimatedDays} {design.estimatedDays} {labels.days}
+                    {labels.estimatedDays}{" "}
+                    {formatEstimatedLeadTime(
+                      design.estimatedDaysMin ?? design.estimatedDays,
+                      design.estimatedDays,
+                      design.estimatedTimeUnit,
+                      { days: labels.days, weeks: labels.weeks },
+                    )}
                   </p>
                 </div>
               </Link>
