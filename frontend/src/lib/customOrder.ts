@@ -818,11 +818,28 @@ export function getLineItemCutIds(item: CustomOrderLineItem): string[] {
   return Object.keys(getLineItemCutSelections(item));
 }
 
+/** Resolve a fabric cut entry id whether `cutId` is a string or populated `{ _id }`. */
+export function getFabricCutEntryId(cut: {
+  cutId?: unknown;
+  cut?: { _id?: string } | null;
+}): string {
+  const ref = cut.cutId;
+  if (ref && typeof ref === "object" && "_id" in (ref as object)) {
+    return String((ref as { _id?: unknown })._id || "");
+  }
+  if (typeof ref === "string" && ref.trim()) return ref.trim();
+  if (cut.cut?._id) return String(cut.cut._id);
+  return "";
+}
+
 export function getFabricCutStock(
   fabric: CustomOrderFabricSelection | null | undefined,
   cutId: string,
 ): number {
-  const entry = fabric?.cuts?.find((cut) => cut.cutId === cutId);
+  const id = String(cutId || "");
+  const entry = fabric?.cuts?.find(
+    (cut) => getFabricCutEntryId(cut) === id,
+  );
   if (!entry) return 0;
   return Math.max(0, Math.floor(Number(entry.stockPieces ?? entry.stock) || 0));
 }
@@ -831,9 +848,30 @@ export function getFabricCutLengthInMeters(
   fabric: CustomOrderFabricSelection | null | undefined,
   cutId: string,
 ): number {
-  const entry = fabric?.cuts?.find((cut) => cut.cutId === cutId);
-  if (!entry?.cut) return 0;
-  return cutValueToMeters(entry.cut.value, entry.cut.unit);
+  const id = String(cutId || "");
+  const entry = fabric?.cuts?.find(
+    (cut) => getFabricCutEntryId(cut) === id,
+  );
+  if (!entry) return 0;
+
+  const nested = entry.cut;
+  if (nested) {
+    if (
+      typeof nested.lengthInMeters === "number" &&
+      Number.isFinite(nested.lengthInMeters) &&
+      nested.lengthInMeters > 0
+    ) {
+      return Number(nested.lengthInMeters);
+    }
+    if (typeof nested.value === "number" && Number.isFinite(nested.value)) {
+      return cutValueToMeters(
+        nested.value,
+        nested.unit === "war" ? "war" : "meter",
+      );
+    }
+  }
+
+  return 0;
 }
 
 export function getSelectedCutsLengthInMeters(
@@ -841,18 +879,30 @@ export function getSelectedCutsLengthInMeters(
 ): number {
   const selections = getLineItemCutSelections(item);
   const cutIds = Object.keys(selections);
-  if (cutIds.length === 0) return 0;
-  return Number(
-    cutIds
-      .reduce(
-        (sum, cutId) =>
-          sum +
-          getFabricCutLengthInMeters(item.fabric, cutId) *
-            (selections[cutId] || 0),
-        0,
-      )
-      .toFixed(2),
-  );
+  if (cutIds.length > 0) {
+    const fromFabricMeta = Number(
+      cutIds
+        .reduce(
+          (sum, cutId) =>
+            sum +
+            getFabricCutLengthInMeters(item.fabric, cutId) *
+              (selections[cutId] || 0),
+          0,
+        )
+        .toFixed(2),
+    );
+    if (fromFabricMeta > 0) return fromFabricMeta;
+  }
+
+  if (item.selectedCuts && item.selectedCuts.length > 0) {
+    return Number(
+      item.selectedCuts
+        .reduce((sum, cut) => sum + (Number(cut.lengthInMeters) || 0), 0)
+        .toFixed(2),
+    );
+  }
+
+  return 0;
 }
 
 export function buildCutSelectionsPayload(
@@ -882,11 +932,28 @@ export function isLineItemComplete(
 ): boolean {
   if (fabricSource === "storefront") {
     if (!item.fabric) return false;
+
+    const selectedLength =
+      getLineItemFabricLengthInMeters(item) ??
+      getSelectedCutsLengthInMeters(item);
+    if (!(selectedLength > 0)) return false;
+
     if (item.selectedCuts && item.selectedCuts.length > 0) {
-      return true;
+      return isFabricLengthSufficientForDesign({
+        ...item,
+        fabricMeters: selectedLength,
+        fabricUnit: "meters",
+      });
     }
     if (isStorefrontCutSelectionRequired(item, fabricSource)) {
-      return getLineItemCutIds(item).length > 0;
+      return (
+        getLineItemCutIds(item).length > 0 &&
+        isFabricLengthSufficientForDesign({
+          ...item,
+          fabricMeters: selectedLength,
+          fabricUnit: "meters",
+        })
+      );
     }
     return item.fabricMeters !== null && item.fabricMeters > 0;
   }
@@ -1025,16 +1092,19 @@ export function buildCustomOrderPreviewPayload(
   const items: CustomOrderPreviewItemPayload[] = [];
 
   for (const item of draft.lineItems) {
-    if (!isLineItemComplete(item, draft.fabricSource) || !item.fabricMeters) {
+    if (!isLineItemComplete(item, draft.fabricSource)) {
       return null;
     }
 
-    // Convert to meters before sending to backend
-    let metersInMeters = item.fabricMeters;
-    if (item.fabricUnit === "war" || item.fabricUnit === "wara") {
-      metersInMeters = item.fabricMeters * WAR_TO_METER;
+    // Prefer stored meters; fall back to selected-cut lengths (storefront path
+    // can mark the meters step complete via selectedCuts even when fabricMeters
+    // was left null/0).
+    let metersInMeters = getLineItemFabricLengthInMeters(item);
+    if (metersInMeters === null || metersInMeters <= 0) {
+      const fromCuts = getSelectedCutsLengthInMeters(item);
+      if (fromCuts <= 0) return null;
+      metersInMeters = fromCuts;
     }
-    // Round to 2 decimal places
     metersInMeters = Number(metersInMeters.toFixed(2));
 
     const cutSelectionsPayload = buildCutSelectionsPayload(item);

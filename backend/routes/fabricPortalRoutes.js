@@ -1823,12 +1823,13 @@ fabricPortalRouter.post(
       stock === null ||
       stock === "" ||
       Number.isNaN(Number(stock)) ||
-      Number(stock) < 0
+      Number(stock) < 1 ||
+      !Number.isInteger(Number(stock))
     ) {
       res.status(400).json({
         success: false,
         message:
-          "Stock quantity is required and must be a whole number 0 or greater",
+          "Stock quantity is required and must be a whole number of at least 1",
       });
       return;
     }
@@ -1937,11 +1938,12 @@ fabricPortalRouter.put(
         stock === null ||
         stock === "" ||
         Number.isNaN(stockNum) ||
-        stockNum < 0
+        stockNum < 1 ||
+        !Number.isInteger(stockNum)
       ) {
         res.status(400).json({
           success: false,
-          message: "Stock quantity must be a whole number 0 or greater",
+          message: "Stock quantity must be a whole number of at least 1",
         });
         return;
       }

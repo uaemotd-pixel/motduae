@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/context/AuthContext";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -15,6 +16,7 @@ import {
   Trash2,
   Sparkles,
   AlertCircle,
+  AlertTriangle,
   Search,
   RefreshCw,
   MoreVertical,
@@ -57,6 +59,7 @@ interface AddOnListResponse {
 
 export default function FabricAddOnsPage() {
   const { user } = useAuth();
+  const tShop = useTranslations("FabricPortal.fabrics");
   const searchParams = useSearchParams();
   const router = useRouter();
   const commissionPercent = useFabricStoreCommission();
@@ -166,7 +169,7 @@ export default function FabricAddOnsPage() {
   const handleAddClick = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
     if (!shop || !isShopProfileComplete(shop)) {
-      toast.error("Please set up your store profile first before managing addons.");
+      toast.error(tShop("shopRequiredDescription"));
       setShowIncompleteModal(true);
       return;
     }
@@ -268,18 +271,18 @@ export default function FabricAddOnsPage() {
 
   if (shopMissing) {
     return (
-      <div className="max-w-2xl border border-gray-200 bg-white p-8 rounded-2xl shadow-sm">
-        <h1 className="[font-family:var(--font-display)] text-2xl font-light text-black mb-3">
-          Store Profile Required
+      <div className="max-w-2xl border border-(--color-border) bg-white p-8">
+        <h1 className="[font-family:var(--font-display)] text-[28px] text-black mb-3">
+          {tShop("shopRequiredTitle")}
         </h1>
-        <p className="text-gray-500 text-sm mb-6">
-          You must set up your store profile first before you can manage add-ons.
+        <p className="[font-family:var(--font-body)] text-[14px] text-(--color-grey-muted) mb-6">
+          {tShop("shopRequiredDescription")}
         </p>
         <Link
           href="/fabric/shop"
-          className="inline-flex items-center justify-center px-6 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition"
+          className="inline-block px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition [font-family:var(--font-ui)]"
         >
-          Create Store Profile
+          {tShop("shopRequiredCta")}
         </Link>
       </div>
     );
@@ -357,21 +360,21 @@ export default function FabricAddOnsPage() {
       {shop && !isShopProfileComplete(shop) && (
         <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-amber-900">
-                Store Profile Required
+              <p className="text-sm font-medium text-amber-900 [font-family:var(--font-display)]">
+                {tShop("shopRequiredTitle")}
               </p>
-              <p className="text-xs text-amber-800">
-                You must set up your store profile first before you can manage addons.
+              <p className="text-xs text-amber-800 [font-family:var(--font-body)]">
+                {tShop("shopRequiredDescription")}
               </p>
             </div>
           </div>
           <Link
             href="/fabric/shop"
-            className="inline-flex items-center justify-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-xs font-semibold uppercase tracking-wider shrink-0"
+            className="inline-flex items-center justify-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-xs font-semibold uppercase tracking-wider shrink-0 [font-family:var(--font-ui)]"
           >
-            Create Store Profile
+            {tShop("shopRequiredCta")}
           </Link>
         </div>
       )}
@@ -681,9 +684,9 @@ export default function FabricAddOnsPage() {
       {/* Confirmation Modal for Profile Incomplete */}
       <ConfirmationModal
         isOpen={showIncompleteModal}
-        title="Store Profile Required"
-        message="You must set up your store profile first before you can manage addons."
-        confirmLabel="Create Store Profile"
+        title={tShop("shopRequiredTitle")}
+        message={tShop("shopRequiredDescription")}
+        confirmLabel={tShop("shopRequiredCta")}
         cancelLabel="Cancel"
         onConfirm={() => {
           setShowIncompleteModal(false);

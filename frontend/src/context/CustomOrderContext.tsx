@@ -34,6 +34,7 @@ import {
   FabricUnit,
   getFabricCutLengthInMeters,
   getFabricCutStock,
+  getFabricCutEntryId,
   getLineItemCutSelections,
   getMinimumMetersForDesign,
   isDraftEmpty,
@@ -397,15 +398,44 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
   const applyCutSelectionsToItem = (
     item: CustomOrderLineItem,
     nextSelections: Record<string, number>,
+    hints?: Record<
+      string,
+      { value: number; unit: "war" | "meter"; name?: string; nameAr?: string }
+    >,
   ) => {
     const cleaned: Record<string, number> = {};
     for (const [cutId, quantity] of Object.entries(nextSelections)) {
       const qty = Math.floor(Number(quantity));
       if (cutId && Number.isFinite(qty) && qty > 0) {
-        cleaned[cutId] = qty;
+        cleaned[String(cutId)] = qty;
       }
     }
     const cutIds = Object.keys(cleaned);
+
+    const resolveLength = (cutId: string): number => {
+      const fromFabric = getFabricCutLengthInMeters(item.fabric, cutId);
+      if (fromFabric > 0) return fromFabric;
+      const hint = hints?.[cutId];
+      if (hint && Number.isFinite(hint.value)) {
+        const meters = cutValueToMeters(
+          hint.value,
+          hint.unit === "war" ? "war" : "meter",
+        );
+        if (meters > 0) return meters;
+      }
+      const snapshot = item.selectedCuts?.find(
+        (cut) => String(cut.cutId) === String(cutId),
+      );
+      if (
+        snapshot &&
+        typeof snapshot.lengthInMeters === "number" &&
+        snapshot.lengthInMeters > 0
+      ) {
+        return snapshot.lengthInMeters;
+      }
+      return 0;
+    };
+
     const nextMeters =
       cutIds.length === 0
         ? null
@@ -413,9 +443,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
             cutIds
               .reduce(
                 (sum, cutId) =>
-                  sum +
-                  getFabricCutLengthInMeters(item.fabric, cutId) *
-                    cleaned[cutId],
+                  sum + resolveLength(cutId) * cleaned[cutId],
                 0,
               )
               .toFixed(2),
@@ -423,21 +451,37 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
 
     const selectedCuts: CustomOrderSelectedCut[] = [];
     for (const cutId of cutIds) {
-      const entry = item.fabric?.cuts?.find((cut) => cut.cutId === cutId);
       const qty = cleaned[cutId];
-      if (!entry?.cut || qty <= 0) continue;
+      if (qty <= 0) continue;
+      const lengthInMeters = resolveLength(cutId);
+      if (!(lengthInMeters > 0)) continue;
+
+      const entry = item.fabric?.cuts?.find(
+        (cut) => getFabricCutEntryId(cut) === String(cutId),
+      );
+      const hint = hints?.[cutId];
+      const prior = item.selectedCuts?.find(
+        (cut) => String(cut.cutId) === String(cutId),
+      );
       const snapshot: CustomOrderSelectedCut = {
-        cutId,
-        name: entry.cut.name,
-        nameAr: entry.cut.nameAr,
-        lengthInMeters: getFabricCutLengthInMeters(item.fabric, cutId),
-        price: Number(entry.price) || 0,
+        cutId: String(cutId),
+        name: entry?.cut?.name || hint?.name || prior?.name || "Cut",
+        nameAr:
+          entry?.cut?.nameAr || hint?.nameAr || prior?.nameAr || undefined,
+        lengthInMeters,
+        price: Number(entry?.price ?? prior?.price) || 0,
         stock: Math.max(
           0,
-          Math.floor(Number(entry.stockPieces ?? entry.stock) || 0),
+          Math.floor(
+            Number(entry?.stockPieces ?? entry?.stock ?? prior?.stock) || 0,
+          ),
         ),
-        value: entry.cut.value,
-        unit: entry.cut.unit,
+        value:
+          entry?.cut?.value ??
+          hint?.value ??
+          prior?.value ??
+          lengthInMeters,
+        unit: entry?.cut?.unit ?? hint?.unit ?? prior?.unit ?? "meter",
       };
       for (let i = 0; i < qty; i += 1) {
         selectedCuts.push(snapshot);
@@ -449,7 +493,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       cutSelections: cleaned,
       cutIds,
       cutId: cutIds[0] ?? null,
-      fabricMeters: nextMeters,
+      fabricMeters: nextMeters !== null && nextMeters > 0 ? nextMeters : null,
       fabricUnit: "meters" as FabricUnit,
       selectedCuts,
     };
@@ -462,11 +506,34 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
     ) => {
       setDraft((prev) => ({
         ...prev,
-        lineItems: prev.lineItems.map((item) =>
-          item.id === itemId
-            ? applyCutSelectionsToItem(item, { [cut._id]: 1 })
-            : item,
-        ),
+        lineItems: prev.lineItems.map((item) => {
+          if (item.id !== itemId) return item;
+
+          const fromFabric = getFabricCutLengthInMeters(item.fabric, cut._id);
+          // Own-fabric orders have no fabric cuts snapshot — use the cut definition.
+          if (fromFabric <= 0 || !item.fabric) {
+            const meters = cutValueToMeters(
+              cut.value,
+              cut.unit === "war" ? "war" : "meter",
+            );
+            return {
+              ...item,
+              cutId: cut._id,
+              cutIds: [cut._id],
+              cutSelections: { [cut._id]: 1 },
+              selectedCuts: [],
+              fabricMeters: Number(meters.toFixed(2)),
+              fabricUnit: "meters" as FabricUnit,
+            };
+          }
+
+          return applyCutSelectionsToItem(item, { [cut._id]: 1 }, {
+            [String(cut._id)]: {
+              value: cut.value,
+              unit: cut.unit === "war" ? "war" : "meter",
+            },
+          });
+        }),
       }));
     },
     [],
@@ -518,7 +585,12 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
           } else {
             next[cut._id] = 1;
           }
-          return applyCutSelectionsToItem(item, next);
+          return applyCutSelectionsToItem(item, next, {
+            [String(cut._id)]: {
+              value: cut.value,
+              unit: cut.unit === "war" ? "war" : "meter",
+            },
+          });
         }),
       }));
     },
@@ -537,9 +609,10 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
           if (item.id !== itemId) return item;
 
           const current = getLineItemCutSelections(item);
-          const currentQty = current[cut._id] || 0;
+          const cutKey = String(cut._id);
+          const currentQty = current[cutKey] || current[cut._id] || 0;
           const maxStock = Math.max(
-            getFabricCutStock(item.fabric, cut._id),
+            getFabricCutStock(item.fabric, cutKey),
             currentQty,
           );
           let nextQty = Math.floor(Number(quantity));
@@ -551,18 +624,29 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
             return item;
           }
 
+          const hintLength = cutValueToMeters(
+            cut.value,
+            cut.unit === "war" ? "war" : "meter",
+          );
+          const cutLength =
+            hintLength || getFabricCutLengthInMeters(item.fabric, cutKey);
+
           // When increasing, only allow enough pieces to reach requirement
           if (nextQty > currentQty) {
             const required = getMinimumMetersForDesign(item.design);
-            const cutLength =
-              cutValueToMeters(cut.value, cut.unit) ||
-              getFabricCutLengthInMeters(item.fabric, cut._id);
             if (cutLength > 0) {
               const otherMeters = Object.entries(current).reduce(
                 (sum, [cutId, qty]) => {
-                  if (cutId === cut._id) return sum;
+                  if (String(cutId) === cutKey) return sum;
+                  const fromFabric =
+                    getFabricCutLengthInMeters(item.fabric, cutId) * qty;
+                  if (fromFabric > 0) return sum + fromFabric;
+                  const snap = item.selectedCuts?.find(
+                    (c) => String(c.cutId) === String(cutId),
+                  );
                   return (
-                    sum + getFabricCutLengthInMeters(item.fabric, cutId) * qty
+                    sum +
+                    (snap?.lengthInMeters || 0) * qty
                   );
                 },
                 0,
@@ -575,11 +659,17 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
 
           const next = { ...current };
           if (nextQty <= 0) {
+            delete next[cutKey];
             delete next[cut._id];
           } else {
-            next[cut._id] = nextQty;
+            next[cutKey] = nextQty;
           }
-          return applyCutSelectionsToItem(item, next);
+          return applyCutSelectionsToItem(item, next, {
+            [cutKey]: {
+              value: cut.value,
+              unit: cut.unit === "war" ? "war" : "meter",
+            },
+          });
         }),
       }));
 

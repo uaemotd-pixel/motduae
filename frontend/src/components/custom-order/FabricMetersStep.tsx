@@ -12,6 +12,7 @@ import {
   getBackPathFromMeters,
   getCustomOrderResumePath,
   getCustomOrderStepNumber,
+  getFabricCutEntryId,
   getLineItemCutIds,
   getLineItemCutSelections,
   getMinimumMetersForDesign,
@@ -79,45 +80,51 @@ function StorefrontCutPicker({
   const availableCuts: CustomOrderSelectedCut[] = useMemo(() => {
     const rawCuts = item.fabric?.cuts || [];
     if (rawCuts.length > 0) {
-      return rawCuts
-        .map((c) => {
-          const matchedAdminCut = cutOptions.find(
-            (opt) =>
-              String(opt._id) ===
-              String(c.cutId || (typeof c.cut === "object" ? c.cut?._id : "")),
-          );
-          const name = c.cut?.name || matchedAdminCut?.name || "Standard Cut";
-          const nameAr = c.cut?.nameAr || matchedAdminCut?.nameAr || name;
-          const value = c.cut?.value ?? matchedAdminCut?.value ?? 3.5;
-          const unit = c.cut?.unit ?? matchedAdminCut?.unit ?? "meter";
-          const lengthInMeters =
-            c.cut?.lengthInMeters ??
-            (matchedAdminCut
-              ? (matchedAdminCut.metersEquivalent ??
-                cutValueToMeters(
-                  matchedAdminCut.value,
-                  matchedAdminCut.unit === "war" ? "war" : "meter",
-                ))
-              : 3.5);
-          const cutId = String(
-            c.cutId || (typeof c.cut === "object" ? c.cut?._id : "") || "",
-          );
+      return rawCuts.flatMap((c) => {
+        const cutId = getFabricCutEntryId(c);
+        if (!cutId) return [];
 
-          return {
+        const matchedAdminCut = cutOptions.find(
+          (opt) => String(opt._id) === cutId,
+        );
+        const value = c.cut?.value ?? matchedAdminCut?.value;
+        const unit =
+          c.cut?.unit ?? matchedAdminCut?.unit ?? ("meter" as const);
+        if (typeof value !== "number" || !Number.isFinite(value)) {
+          return [];
+        }
+
+        const lengthInMeters =
+          (typeof c.cut?.lengthInMeters === "number" &&
+          c.cut.lengthInMeters > 0
+            ? c.cut.lengthInMeters
+            : null) ??
+          matchedAdminCut?.metersEquivalent ??
+          cutValueToMeters(value, unit === "war" ? "war" : "meter");
+        if (!(lengthInMeters > 0)) return [];
+
+        const name = c.cut?.name || matchedAdminCut?.name || "Standard Cut";
+        const nameAr = c.cut?.nameAr || matchedAdminCut?.nameAr || name;
+        const stock = Math.max(
+          0,
+          Math.floor(Number(c.stockPieces ?? c.stock) || 0),
+        );
+
+        if (!(stock > 0 || (selections[cutId] || 0) > 0)) return [];
+
+        return [
+          {
             cutId,
             name,
             nameAr,
-            lengthInMeters,
+            lengthInMeters: Number(lengthInMeters),
             price: c.price,
-            stock: Math.max(
-              0,
-              Math.floor(Number(c.stockPieces ?? c.stock) || 0),
-            ),
+            stock,
             value,
             unit,
-          };
-        })
-        .filter((c) => c.stock > 0 || (selections[c.cutId] || 0) > 0);
+          } satisfies CustomOrderSelectedCut,
+        ];
+      });
     }
 
     return cutOptions.map((opt) => ({
@@ -136,7 +143,7 @@ function StorefrontCutPicker({
                   opt.unit === "war" ? "war" : "meter",
                 )),
           )
-        : 350,
+        : 0,
       stock: Math.max(0, Math.floor(Number(opt.stock) || 0)),
       value: opt.value,
       unit: opt.unit,
@@ -179,7 +186,7 @@ function StorefrontCutPicker({
 
   return (
     <div className="space-y-6 pt-2">
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-1">
         <label className="block [font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.24em] font-medium text-black">
           {t("cutPickerTitle")}
         </label>
@@ -207,17 +214,17 @@ function StorefrontCutPicker({
             >
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="[font-family:var(--font-display)] text-[15px] font-semibold">
+                  <span className="[font-family:var(--font-display)] text-[15px] font-semibold break-words min-w-0">
                     {getCutDisplayName(cut)}
                   </span>
                   {selected && (
-                    <span className="px-2 py-0.5 text-[9px] uppercase tracking-wider bg-white text-black font-medium rounded-xs">
+                    <span className="shrink-0 px-2 py-0.5 text-[9px] uppercase tracking-wider bg-white text-black font-medium rounded-xs">
                       {t("selectedBadge")}
                     </span>
                   )}
                 </div>
                 <p
-                  className={`text-xs [font-family:var(--font-ui)] ${
+                  className={`text-xs [font-family:var(--font-ui)] leading-snug break-words ${
                     selected ? "text-neutral-300" : "text-(--color-grey-muted)"
                   }`}
                 >
@@ -528,11 +535,13 @@ export default function FabricMetersStep() {
     }
 
     const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed >= 2 && parsed <= 7) {
-      updateLineItemMeters(itemId, parsed);
-    } else {
+    if (!Number.isFinite(parsed)) {
       updateLineItemMeters(itemId, null);
+      return;
     }
+
+    // Keep the typed value so the input stays responsive; range is validated via isLineItemMetersValid.
+    updateLineItemMeters(itemId, Number(parsed.toFixed(2)));
   };
 
   const handleUnitChange = (itemId: string, newUnit: FabricUnit) => {
@@ -707,7 +716,7 @@ export default function FabricMetersStep() {
                     </label>
 
                     {cutOptions.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
                         {cutOptions.map((cut) => {
                           const selected = item.cutId === cut._id;
                           return (
@@ -721,24 +730,34 @@ export default function FabricMetersStep() {
                                   unit: cut.unit,
                                 })
                               }
-                              className={`px-3 py-2 border text-[10px] uppercase tracking-[0.16em] [font-family:var(--font-ui)] transition hover:cursor-pointer ${
+                              className={`w-full px-3 py-2.5 sm:py-2 border text-left transition hover:cursor-pointer ${
                                 selected
                                   ? "bg-black text-white border-black"
                                   : "bg-white text-black border-(--color-border) hover:border-black"
                               }`}
                             >
-                              {cutName(cut)} ·{" "}
-                              {formatCutEquivalentClause(
-                                cut,
-                                locale === "ar" ? "ar" : "en",
-                              )}
+                              <span className="block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.14em] sm:tracking-[0.16em]">
+                                {cutName(cut)}
+                              </span>
+                              <span
+                                className={`block mt-1 [font-family:var(--font-ui)] text-[11px] sm:text-[10px] leading-snug break-words ${
+                                  selected
+                                    ? "text-neutral-300"
+                                    : "text-(--color-grey-muted)"
+                                }`}
+                              >
+                                {formatCutEquivalentClause(
+                                  cut,
+                                  locale === "ar" ? "ar" : "en",
+                                )}
+                              </span>
                             </button>
                           );
                         })}
                       </div>
                     )}
 
-                    <div className="flex items-center gap-3 max-w-xs">
+                    <div className="flex items-center gap-2 sm:gap-3 w-full sm:max-w-xs">
                       <input
                         type="number"
                         min={
@@ -758,7 +777,7 @@ export default function FabricMetersStep() {
                           handleMetersChange(item.id, e.target.value)
                         }
                         placeholder={t("inputPlaceholder")}
-                        className="flex-1 border bg-white px-4 py-3 [font-family:var(--font-body)] text-[14px]"
+                        className="min-w-0 flex-1 border bg-white px-3 sm:px-4 py-3 [font-family:var(--font-body)] text-[14px]"
                       />
 
                       <select
@@ -766,7 +785,7 @@ export default function FabricMetersStep() {
                         onChange={(e) =>
                           handleUnitChange(item.id, e.target.value as FabricUnit)
                         }
-                        className="border border-(--color-border) bg-white px-3 py-3 [font-family:var(--font-body)] text-[14px] shrink-0"
+                        className="border border-(--color-border) bg-white px-2 sm:px-3 py-3 [font-family:var(--font-body)] text-[14px] shrink-0"
                       >
                         <option value="meters">Meters</option>
                         <option value="war">War</option>
@@ -797,8 +816,8 @@ export default function FabricMetersStep() {
       )}
 
       {usingOwnFabric && (
-        <div className="border border-(--color-border) bg-white p-6 max-w-2xl mb-10">
-          <p className="[font-family:var(--font-body)] text-[14px] leading-relaxed text-(--color-grey-muted)">
+        <div className="border border-(--color-border) bg-white p-6 w-full mb-10">
+          <p className="[font-family:var(--font-body)] text-[14px] text-justify leading-relaxed text-(--color-grey-muted)">
             {t("ownFabricNote")}
           </p>
         </div>
@@ -816,7 +835,7 @@ export default function FabricMetersStep() {
           type="button"
           onClick={() => router.push("/custom-order/measurements")}
           disabled={!canContinue}
-          className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)] hover:cursor-pointer"
+          className="w-full sm:w-auto px-6 py-3.5 sm:px-12 sm:py-4 bg-black text-white text-[11px] sm:text-[12px] tracking-[0.18em] sm:tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)] hover:cursor-pointer text-center"
         >
           {t("continue")}
         </button>
