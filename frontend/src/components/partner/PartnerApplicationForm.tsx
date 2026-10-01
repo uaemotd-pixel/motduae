@@ -206,8 +206,10 @@ export default function PartnerApplicationForm({ role }: Props) {
     if (value === "invalid") {
       if (key === "phone") return t("validation.phoneInvalid");
       if (key === "website") return t("validation.websiteInvalid");
-      if (key === "experienceYears") return t("validation.experienceYearsInvalid");
-      if (key === "experienceMonths") return t("validation.experienceMonthsInvalid");
+      if (key === "experienceYears")
+        return t("validation.experienceYearsInvalid");
+      if (key === "experienceMonths")
+        return t("validation.experienceMonthsInvalid");
       if (key.endsWith(".url")) return t("validation.socialUrlInvalid");
       return t("validation.socialPlatformInvalid");
     }
@@ -245,8 +247,7 @@ export default function PartnerApplicationForm({ role }: Props) {
       );
       const nextPlatform =
         SOCIAL_PLATFORMS.find(
-          (p) =>
-            p.value !== "Other" && !used.has(p.value.toLowerCase()),
+          (p) => p.value !== "Other" && !used.has(p.value.toLowerCase()),
         )?.value || "";
       return {
         ...prev,
@@ -290,9 +291,7 @@ export default function PartnerApplicationForm({ role }: Props) {
     experienceYears: form.experienceYears,
     experienceMonths: form.experienceMonths === "" ? 0 : form.experienceMonths,
     logoUrl: form.logoUrl.trim() ? undefined : "",
-    website: form.website.trim()
-      ? normalizeHttpUrl(form.website.trim())
-      : "",
+    website: form.website.trim() ? normalizeHttpUrl(form.website.trim()) : "",
     social: form.social
       .map((link) => ({
         name: normalizeSocialPlatformName(link.name),
@@ -300,9 +299,7 @@ export default function PartnerApplicationForm({ role }: Props) {
       }))
       .filter(
         (link) =>
-          link.name &&
-          link.url &&
-          link.name.trim().toLowerCase() !== "other",
+          link.name && link.url && link.name.trim().toLowerCase() !== "other",
       ),
     licenceNumber: form.licenceNumber,
     licenceFileUrl: form.licenceFileUrl.trim() ? undefined : "",
@@ -422,10 +419,12 @@ export default function PartnerApplicationForm({ role }: Props) {
     try {
       await patchPartnerApplication(payloadFromForm());
       await submitPartnerApplication();
-      const profile = await api.get<Parameters<typeof applyUserResponse>[0]>(
-        "/api/users/profile",
-      );
+      const profile =
+        await api.get<Parameters<typeof applyUserResponse>[0]>(
+          "/api/users/profile",
+        );
       applyUserResponse(profile);
+      toast.success(t("submitSuccess"), TOAST_BASE);
     } catch (err) {
       const code = getApiErrorCode(err);
       if (code === "EMAIL_NOT_VERIFIED") {
@@ -533,7 +532,10 @@ export default function PartnerApplicationForm({ role }: Props) {
                 inputMode="numeric"
                 value={phoneDigits(form.phone)}
                 onChange={(e) =>
-                  setField("phone", normalizeUaePhone(phoneDigits(e.target.value)))
+                  setField(
+                    "phone",
+                    normalizeUaePhone(phoneDigits(e.target.value)),
+                  )
                 }
                 placeholder="50 123 4567"
                 maxLength={9}
@@ -838,9 +840,7 @@ export default function PartnerApplicationForm({ role }: Props) {
                               type="button"
                               id={`social-name-${index}`}
                               aria-haspopup="listbox"
-                              aria-expanded={
-                                socialPlatformOpenIndex === index
-                              }
+                              aria-expanded={socialPlatformOpenIndex === index}
                               onClick={() =>
                                 setSocialPlatformOpenIndex((prev) =>
                                   prev === index ? null : index,
@@ -1120,7 +1120,10 @@ export default function PartnerApplicationForm({ role }: Props) {
               id="partnerNote"
               value={form.partnerNote}
               onChange={(e) =>
-                setField("partnerNote", e.target.value.slice(0, PARTNER_NOTE_MAX))
+                setField(
+                  "partnerNote",
+                  e.target.value.slice(0, PARTNER_NOTE_MAX),
+                )
               }
               placeholder={t("placeholders.partnerNote")}
               maxLength={PARTNER_NOTE_MAX}

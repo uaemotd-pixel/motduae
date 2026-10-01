@@ -50,6 +50,8 @@ export default function CartPage() {
     new Set(items.map((item) => item.id)),
   );
 
+  const [clearedDueToSoldOut, setClearedDueToSoldOut] = useState(false);
+
   useEffect(() => {
     clearBuyNowCheckout();
   }, []);
@@ -82,8 +84,15 @@ export default function CartPage() {
     let cancelled = false;
 
     const validate = async () => {
-      const { purgedNames } = await purgeUnavailableItems(measurementUnit);
+      const { purgedNames, remainingItems } =
+        await purgeUnavailableItems(measurementUnit);
       if (cancelled || purgedNames.length === 0) return;
+
+      if (remainingItems.length === 0) {
+        setClearedDueToSoldOut(true);
+        toast.error(t.checkout.cartEmptyAfterSoldOut, ERROR_TOAST);
+        return;
+      }
 
       if (purgedNames.length === 1) {
         toast.error(
@@ -207,10 +216,16 @@ export default function CartPage() {
               <ShoppingBag className="w-10 h-10 text-[#5A5A56]" />
             </div>
             <h1 className="[font-family:var(--font-display)] text-[28px] xs:text-[32px] sm:text-[36px] text-black mb-3">
-              Your cart is empty
+              {clearedDueToSoldOut
+                ? locale === "ar"
+                  ? "سلتك فارغة"
+                  : "Your cart is empty"
+                : "Your cart is empty"}
             </h1>
             <p className="text-[13px] xs:text-[14px] text-[#5A5A56] mb-6">
-              Looks like you haven&apos;t added any ready‑made items yet.
+              {clearedDueToSoldOut
+                ? t.checkout.cartEmptyAfterSoldOut
+                : "Looks like you haven&apos;t added any ready‑made items yet."}
             </p>
             <Link
               href="/"

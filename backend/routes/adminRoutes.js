@@ -4129,7 +4129,7 @@ adminRouter.get(
     // Enrich customers with profile data from Customer model (profilePic, gender)
     const userIds = customers.map((c) => c._id);
     const customerProfiles = await Customer.find({ userId: { $in: userIds } })
-      .select("profilePic gender userId")
+      .select("profilePic gender userId phone")
       .lean();
 
     const profileMap = new Map();
@@ -4143,6 +4143,10 @@ adminRouter.get(
       if (profile) {
         userObj.profilePic = profile.profilePic || null;
         userObj.gender = profile.gender || null;
+        // Prefer account phone; fall back to customer profile phone from DB.
+        if (!userObj.phone && profile.phone) {
+          userObj.phone = profile.phone;
+        }
       } else {
         userObj.profilePic = null;
         userObj.gender = null;
@@ -4377,11 +4381,12 @@ adminRouter.post(
       stock === null ||
       stock === "" ||
       Number.isNaN(Number(stock)) ||
-      Number(stock) < 0
+      Number(stock) < 1 ||
+      !Number.isInteger(Number(stock))
     ) {
       res.status(400).send({
         message:
-          "Stock quantity is required and must be a whole number 0 or greater",
+          "Stock quantity is required and must be a whole number of at least 1",
       });
       return;
     }
@@ -4477,10 +4482,11 @@ adminRouter.put(
         stock === null ||
         stock === "" ||
         Number.isNaN(stockNum) ||
-        stockNum < 0
+        stockNum < 1 ||
+        !Number.isInteger(stockNum)
       ) {
         res.status(400).send({
-          message: "Stock quantity must be a whole number 0 or greater",
+          message: "Stock quantity must be a whole number of at least 1",
         });
         return;
       }

@@ -15,7 +15,6 @@ import {
   getCustomOrderStepNumber,
   getFabricCutLengthInMeters,
   getLineItemCutSelections,
-  isLineItemComplete,
   isMeasurementsStepComplete,
   isMetersStepComplete,
   isReviewStepComplete,
@@ -290,20 +289,30 @@ export default function OrderReviewStep() {
       return "Add at least one item to calculate pricing.";
     }
 
+    if (!draft.fabricSource) {
+      return "Fabric source is missing. Go back and select a fabric (or own fabric), then continue.";
+    }
+
     if (draft.fabricSource === "storefront") {
       const missingFabric = draft.lineItems.some((li) => !li.fabric);
       if (missingFabric) return "Please select fabric for all items.";
     }
 
     if (!isMetersStepComplete(draft)) {
-      const incomplete = draft.lineItems.some(
-        (li) => !isLineItemComplete(li, draft.fabricSource),
-      );
-      if (incomplete) return t("pricingNotReady.invalidMeters");
+      return t("pricingNotReady.invalidMeters");
+    }
+
+    if (!previewPayload) {
+      return t("pricingNotReady.invalidMeters");
     }
 
     return t("pricingNotReady.generic");
-  }, [draft, t]);
+  }, [draft, previewPayload, t]);
+
+  const waitingForSettings =
+    Boolean(previewPayload) &&
+    !settingsError &&
+    (shippingFee === null || vatRate === null);
 
   if (!isHydrated) {
     return <CustomOrderStepSkeleton />;
@@ -811,7 +820,7 @@ export default function OrderReviewStep() {
                 </div>
               </div>
             </div>
-          ) : loadingPricing ? (
+          ) : loadingPricing || waitingForSettings ? (
             <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted) py-8">
               {t("loadingPricing")}
             </p>

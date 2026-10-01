@@ -8,6 +8,7 @@ import { Link } from "@/i18n/navigation";
 import toast from "react-hot-toast";
 import { Pencil, Trash2 } from "lucide-react";
 import { Tag } from "@/components/ui/Tag";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
 /* ─── Shared star helpers (display + half-star input) ─── */
 
@@ -662,6 +663,7 @@ export default function CustomerReviewsView({
   /** "" | product:<id> */
   const [selectedTarget, setSelectedTarget] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [reviewToDelete, setReviewToDelete] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingProductLabel, setEditingProductLabel] = useState("");
 
@@ -912,9 +914,19 @@ export default function CustomerReviewsView({
     }
   };
 
-  const handleDelete = async (reviewId: string) => {
+  const openDeleteModal = (reviewId: string) => {
     if (!canReview || !reviewId) return;
-    if (!window.confirm(t("confirmDelete"))) return;
+    setReviewToDelete(reviewId);
+  };
+
+  const closeDeleteModal = () => {
+    if (deletingId) return;
+    setReviewToDelete(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    const reviewId = reviewToDelete;
+    if (!canReview || !reviewId) return;
 
     setDeletingId(reviewId);
     try {
@@ -922,6 +934,7 @@ export default function CustomerReviewsView({
       toast.success(t("deleteSuccess"), SUCCESS_TOAST);
       if (editingId === reviewId) resetForm();
       setReviews((prev) => prev.filter((rev) => rev._id !== reviewId));
+      setReviewToDelete(null);
       fetchProfileAndReviews();
     } catch (err: unknown) {
       const msg =
@@ -1253,7 +1266,7 @@ export default function CustomerReviewsView({
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(rev._id)}
+                        onClick={() => openDeleteModal(rev._id)}
                         disabled={deletingId === rev._id || submitting}
                         className="p-1.5 text-gray-600 hover:text-red-600 disabled:opacity-50 cursor-pointer transition-colors"
                         aria-label={t("deleteAria")}
@@ -1282,6 +1295,18 @@ export default function CustomerReviewsView({
           </div>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={!!reviewToDelete}
+        title={t("delete")}
+        message={t("confirmDelete")}
+        confirmLabel={deletingId ? t("deleting") : t("delete")}
+        cancelLabel={t("cancelEdit")}
+        onConfirm={handleDeleteConfirm}
+        onCancel={closeDeleteModal}
+        isLoading={!!deletingId}
+        isDanger
+      />
     </div>
   );
 }

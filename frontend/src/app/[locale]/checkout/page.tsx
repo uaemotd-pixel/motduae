@@ -55,7 +55,7 @@ import {
   findCheckoutAddressOption,
   type FamilyMember,
 } from "@/lib/checkoutAddresses";
-import { buildRetailCheckoutItem, isFabricCutCartId } from "@/lib/fabrics";
+import { buildRetailCheckoutItem, isFabricCutCartId, parseFabricCutCartId } from "@/lib/fabrics";
 import {
   clearCartCheckoutSelection,
   readCartCheckoutSelection,
@@ -100,17 +100,25 @@ type CustomerProfile = {
 };
 
 type PricePreviewItem = {
-  productId: string;
-  size: string;
-  quantity: number;
+  productId?: string | null;
+  cutId?: string | null;
+  size?: string;
+  quantity?: number;
   unitPrice: number;
   name: string;
   image: string;
   maxStock: number;
 };
 
+type UnavailablePreviewItem = {
+  productId?: string | null;
+  cutId?: string | null;
+  message?: string;
+};
+
 type PricePreviewResponse = {
   items: PricePreviewItem[];
+  unavailableItems?: UnavailablePreviewItem[];
   subtotal: number;
   shipping?: number;
   shippingPrice?: number;
@@ -157,6 +165,7 @@ function CheckoutPageContent() {
     clearCart,
     removeItem,
     syncStockFromPreview,
+    removeUnavailablePreviewItems,
     purgeUnavailableItems,
   } = useCart();
   const { user, isLoading, isAuthenticated, applyUserResponse } = useAuth();
@@ -520,6 +529,26 @@ function CheckoutPageContent() {
   useEffect(() => {
     const requestId = ++previewRequestIdRef.current;
 
+    const notifyRemoved = (removedNames: string[]) => {
+      if (removedNames.length === 1) {
+        toast.error(
+          t.checkout.itemUnavailableRemoved.replace(
+            "{name}",
+            removedNames[0],
+          ),
+          ERROR_TOAST,
+        );
+      } else if (removedNames.length > 1) {
+        toast.error(
+          t.checkout.itemsUnavailableRemoved.replace(
+            "{count}",
+            String(removedNames.length),
+          ),
+          ERROR_TOAST,
+        );
+      }
+    };
+
     async function fetchPrices() {
       try {
         let itemsToPreview: Array<{
@@ -588,6 +617,30 @@ function CheckoutPageContent() {
         );
 
         if (requestId !== previewRequestIdRef.current) return;
+
+        if (!isBuyNow && Array.isArray(response.unavailableItems)) {
+          const removedNames = removeUnavailablePreviewItems(
+            response.unavailableItems,
+          );
+          notifyRemoved(removedNames);
+        }
+
+        if (
+          !isBuyNow &&
+          (!Array.isArray(response.items) || response.items.length === 0)
+        ) {
+          pricePreviewRef.current = false;
+          setPricePreview(null);
+          setPriceLoading(false);
+          if (
+            Array.isArray(response.unavailableItems) &&
+            response.unavailableItems.length > 0
+          ) {
+            toast.error(t.checkout.cartEmptyAfterSoldOut, ERROR_TOAST);
+          }
+          return;
+        }
+
         pricePreviewRef.current = true;
         setPricePreview(response);
 
@@ -596,29 +649,26 @@ function CheckoutPageContent() {
           checkoutCartItems.length > 0 &&
           Array.isArray(response.items)
         ) {
+          const unavailable = response.unavailableItems || [];
+          const remainingLines = checkoutCartItems.filter(
+            (item) =>
+              !unavailable.some((entry) => {
+                const { fabricId, cutId } = parseFabricCutCartId(item.id);
+                const productId = String(entry.productId || "");
+                if (fabricId !== productId && item.id !== productId) {
+                  return false;
+                }
+                if (entry.cutId) return cutId === String(entry.cutId);
+                return !cutId;
+              }),
+          );
           const removedNames = syncStockFromPreview(
-            checkoutCartItems.map((item, index) => ({
+            remainingLines.map((item, index) => ({
               id: item.id,
               maxStock: Number(response.items[index]?.maxStock) || 0,
             })),
           );
-          if (removedNames.length === 1) {
-            toast.error(
-              t.checkout.itemUnavailableRemoved.replace(
-                "{name}",
-                removedNames[0],
-              ),
-              ERROR_TOAST,
-            );
-          } else if (removedNames.length > 1) {
-            toast.error(
-              t.checkout.itemsUnavailableRemoved.replace(
-                "{count}",
-                String(removedNames.length),
-              ),
-              ERROR_TOAST,
-            );
-          }
+          notifyRemoved(removedNames);
         }
       } catch (error) {
         if (requestId !== previewRequestIdRef.current) return;
@@ -627,73 +677,96 @@ function CheckoutPageContent() {
           error,
           t.checkout.pricingLoadFailed,
         );
+        const apiUnavailable =
+          error &&
+          typeof error === "object" &&
+          (error as ApiError).data &&
+          Array.isArray((error as ApiError).data.unavailableItems)
+            ? ((error as ApiError).data
+                .unavailableItems as UnavailablePreviewItem[])
+            : null;
 
         if (
           !isBuyNow &&
-          isCartAvailabilityError(message) &&
+          (isCartAvailabilityError(message, error) ||
+            (apiUnavailable && apiUnavailable.length > 0)) &&
           checkoutCartItems.length > 0
         ) {
-          const { purgedNames, lastError, remainingItems } =
-            await purgeUnavailableItems(measurementUnit);
-
-          if (purgedNames.length === 1) {
-            toast.error(
-              t.checkout.itemUnavailableRemoved.replace(
-                "{name}",
-                purgedNames[0],
-              ),
-              ERROR_TOAST,
-            );
-          } else if (purgedNames.length > 1) {
-            toast.error(
-              t.checkout.itemsUnavailableRemoved.replace(
-                "{count}",
-                String(purgedNames.length),
-              ),
-              ERROR_TOAST,
-            );
-          } else if (lastError) {
-            toast.error(lastError || message, ERROR_TOAST);
+          let purgedNames: string[] = [];
+          if (apiUnavailable && apiUnavailable.length > 0) {
+            purgedNames = removeUnavailablePreviewItems(apiUnavailable);
           }
 
-          // Always re-price remaining lines — even if removing sold-out
-          // items already started a newer preview effect.
+          const {
+            purgedNames: probedNames,
+            remainingItems,
+          } = await purgeUnavailableItems(measurementUnit);
+          purgedNames = [...new Set([...purgedNames, ...probedNames])];
+
           const selection = readCartCheckoutSelection();
-          const selectedSet = selection?.length
-            ? new Set(selection)
-            : null;
+          const selectedSet = selection?.length ? new Set(selection) : null;
           const remainingCheckoutItems = selectedSet
             ? remainingItems.filter((item) => selectedSet.has(item.id))
             : remainingItems;
 
-          if (remainingCheckoutItems.length > 0) {
-            try {
-              const retry = await api.post<PricePreviewResponse>(
-                "/api/checkout/preview",
-                {
-                  items: remainingCheckoutItems.map((item) => {
-                    const payload = buildRetailCheckoutItem(item);
-                    return {
-                      ...payload,
-                      ...(item.size === "Per Meter" &&
-                      !isFabricCutCartId(item.id)
-                        ? { measurementUnit }
-                        : {}),
-                    };
-                  }),
-                },
+          if (remainingCheckoutItems.length === 0) {
+            pricePreviewRef.current = false;
+            setPricePreview(null);
+            toast.error(t.checkout.cartEmptyAfterSoldOut, ERROR_TOAST);
+            return;
+          }
+
+          notifyRemoved(purgedNames);
+
+          try {
+            const retry = await api.post<PricePreviewResponse>(
+              "/api/checkout/preview",
+              {
+                items: remainingCheckoutItems.map((item) => {
+                  const payload = buildRetailCheckoutItem(item);
+                  return {
+                    ...payload,
+                    ...(item.size === "Per Meter" &&
+                    !isFabricCutCartId(item.id)
+                      ? { measurementUnit }
+                      : {}),
+                  };
+                }),
+              },
+            );
+            if (
+              Array.isArray(retry.unavailableItems) &&
+              retry.unavailableItems.length > 0
+            ) {
+              notifyRemoved(
+                removeUnavailablePreviewItems(retry.unavailableItems),
               );
-              pricePreviewRef.current = true;
-              setPricePreview(retry);
-              syncStockFromPreview(
-                remainingCheckoutItems.map((item, index) => ({
-                  id: item.id,
-                  maxStock: Number(retry.items[index]?.maxStock) || 0,
-                })),
-              );
+            }
+            if (!Array.isArray(retry.items) || retry.items.length === 0) {
+              pricePreviewRef.current = false;
+              setPricePreview(null);
+              toast.error(t.checkout.cartEmptyAfterSoldOut, ERROR_TOAST);
               return;
-            } catch (retryError) {
-              console.error("Failed to re-price remaining cart:", retryError);
+            }
+            pricePreviewRef.current = true;
+            setPricePreview(retry);
+            syncStockFromPreview(
+              remainingCheckoutItems.map((item, index) => ({
+                id: item.id,
+                maxStock: Number(retry.items[index]?.maxStock) || 0,
+              })),
+            );
+            return;
+          } catch (retryError) {
+            console.error("Failed to re-price remaining cart:", retryError);
+            if (
+              isCartAvailabilityError(
+                getApiErrorMessage(retryError, ""),
+                retryError,
+              )
+            ) {
+              toast.error(t.checkout.cartEmptyAfterSoldOut, ERROR_TOAST);
+            } else {
               toast.error(
                 getApiErrorMessage(retryError, t.checkout.pricingLoadFailed),
                 ERROR_TOAST,
@@ -706,7 +779,11 @@ function CheckoutPageContent() {
           return;
         }
 
-        toast.error(message, ERROR_TOAST);
+        if (isCartAvailabilityError(message, error)) {
+          toast.error(t.checkout.cartEmptyAfterSoldOut, ERROR_TOAST);
+        } else {
+          toast.error(message, ERROR_TOAST);
+        }
         pricePreviewRef.current = false;
         setPricePreview(null);
       } finally {
@@ -734,6 +811,7 @@ function CheckoutPageContent() {
     t.checkout.pricingLoadFailed,
     t.checkout.itemUnavailableRemoved,
     t.checkout.itemsUnavailableRemoved,
+    t.checkout.cartEmptyAfterSoldOut,
   ]);
 
   // --- Build display items with server prices ---

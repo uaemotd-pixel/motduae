@@ -312,7 +312,7 @@ export function getAdminDeepLinkHref(
   ) {
     const tailorId = notification.tailorId || notification.createdBy;
     return {
-      href: `/admin/tailors?tab=pending&highlight=${encodeURIComponent(tailorId!)}`,
+      href: `/admin/tailors/${tailorId}/application`,
       label: _locale === "ar" ? "مراجعة الخياط" : "Review Tailor",
     };
   }
@@ -342,7 +342,7 @@ export function getAdminDeepLinkHref(
     const storeId = notification.createdBy;
     return {
       href: storeId
-        ? `/admin/partners?tab=pending&highlight=${encodeURIComponent(storeId)}`
+        ? `/admin/partners/${storeId}/application`
         : "/admin/partners?tab=pending",
       label: _locale === "ar" ? "مراجعة متجر الأقمشة" : "Review Fabric Store",
     };

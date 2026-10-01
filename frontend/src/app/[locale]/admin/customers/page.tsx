@@ -27,6 +27,7 @@ import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
 import { Tag } from "@/components/ui/Tag";
+import { formatPhoneDisplay } from "@/lib/uaePhone";
 
 // ============================================
 // Types
@@ -643,7 +644,7 @@ export default function AdminCustomersPage() {
                         {customer.email}
                       </td>
                       <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600 font-mono">
-                        {customer.phone || "-"}
+                        {formatPhoneDisplay(customer.phone) || "-"}
                       </td>
                       <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
                         {formatDate(customer.createdAt)}
@@ -700,8 +701,8 @@ export default function AdminCustomersPage() {
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600">
                     <Phone className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                    <span className="text-xs sm:text-sm">
-                      {customer.phone || "-"}
+                    <span className="text-xs sm:text-sm font-mono">
+                      {formatPhoneDisplay(customer.phone) || "-"}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
@@ -802,7 +803,7 @@ export default function AdminCustomersPage() {
                       Phone Number
                     </p>
                     <p className="text-sm font-medium text-black font-mono">
-                      {detailsCustomer.phone || "—"}
+                      {formatPhoneDisplay(detailsCustomer.phone) || "—"}
                     </p>
                   </div>
                 </div>

@@ -704,6 +704,7 @@
     "confirmRequired": "Confirm the information is accurate before submitting",
     "loadError": "Could not load your application.",
     "submitError": "Could not submit your application.",
+    "submitSuccess": "Application submitted successfully. MOTD will review it shortly.",
     "incomplete": "Please complete the required fields",
     "requiredField": "This field is required",
     "fieldRequired": "{field} is required.",

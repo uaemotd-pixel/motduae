@@ -9,9 +9,12 @@ import { useCustomOrder } from "@/context/CustomOrderContext";
 import { api } from "@/lib/api/client";
 import {
   CUSTOM_ORDER_TOTAL_STEPS,
+  CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS,
+  EMPTY_MEASUREMENTS,
   getCustomOrderStepNumber,
   isMeasurementsStepComplete,
   type CustomOrderMeasurementField,
+  type CustomOrderMeasurements,
 } from "@/lib/customOrder";
 import {
   BODY_MEASUREMENT_FIELDS,
@@ -36,6 +39,44 @@ function parseOptionalNumber(value: string): number | null {
 
 function formatMeasurementValue(value: number | null): string {
   return value !== null && value > 0 ? String(value) : "";
+}
+
+/** True when the order draft already has user-entered measurement data. */
+function draftHasEnteredMeasurements(
+  measurements: CustomOrderMeasurements,
+): boolean {
+  const hasField = CUSTOM_ORDER_MEASUREMENT_FIELD_KEYS.some((field) => {
+    const value = measurements[field];
+    return typeof value === "number" && Number.isFinite(value) && value > 0;
+  });
+  return hasField || Boolean(measurements.notes?.trim());
+}
+
+function mapApiMeasurements(
+  saved: Record<string, unknown>,
+): CustomOrderMeasurements {
+  const numberOrNull = (value: unknown): number | null => {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+      return null;
+    }
+    return value;
+  };
+
+  return {
+    totalLength: numberOrNull(saved.totalLength),
+    shoulderWidth: numberOrNull(saved.shoulderWidth),
+    armLength: numberOrNull(saved.armLength),
+    chestWidth: numberOrNull(saved.chestWidth),
+    waist: numberOrNull(saved.waist),
+    hips: numberOrNull(saved.hips),
+    neckWidth: numberOrNull(saved.neckWidth),
+    neckDepth: numberOrNull(saved.neckDepth),
+    armholeHeight: numberOrNull(saved.armholeHeight),
+    sleeveOpeningWidth: numberOrNull(saved.sleeveOpeningWidth),
+    cuffWidth: numberOrNull(saved.cuffWidth),
+    cuffLength: numberOrNull(saved.cuffLength),
+    notes: typeof saved.notes === "string" ? saved.notes : "",
+  };
 }
 
 type MeasurementInputProps = {
@@ -116,8 +157,10 @@ export default function MeasurementsStep() {
 
   const [isHydratingCustomerMeasurements, setIsHydratingCustomerMeasurements] =
     useState(false);
-  const [lastFetched, setLastFetched] = useState<number>(0);
   const isFetchingRef = useRef(false);
+  const draftMeasurementsRef = useRef(draft.measurements);
+  const previousMemberIdRef = useRef<string | null>(null);
+  const hasAttemptedInitialHydrationRef = useRef(false);
   const [authChecked, setAuthChecked] = useState(false);
 
   // Member related state
@@ -127,6 +170,10 @@ export default function MeasurementsStep() {
   const [memberDropdownOpen, setMemberDropdownOpen] = useState(false);
   const [attemptedContinue, setAttemptedContinue] = useState(false);
   const memberRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    draftMeasurementsRef.current = draft.measurements;
+  }, [draft.measurements]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -175,122 +222,79 @@ export default function MeasurementsStep() {
     fetchMembers();
   }, [isAuthenticated, authChecked]);
 
-  const fetchCustomerMeasurements = useCallback(async () => {
-    if (!isAuthenticated || isFetchingRef.current) return;
+  const fetchCustomerMeasurements = useCallback(
+    async (options?: { force?: boolean }) => {
+      if (!isAuthenticated || isFetchingRef.current) return;
 
-    isFetchingRef.current = true;
-    setIsHydratingCustomerMeasurements(true);
+      const force = options?.force === true;
 
-    try {
-      let url = "/api/customer/customer_measurements";
-      if (selectedMemberId) {
-        url = `/api/customer/family-members/${selectedMemberId}/measurements`;
-      }
-
-      const res = await api.get<{
-        success: boolean;
-        measurements: Record<string, any> | null;
-      }>(url);
-
-      const saved = res?.measurements;
-      if (!saved) {
-        // Reset to empty if no measurements
-        const emptyMeasurements = {
-          totalLength: null,
-          shoulderWidth: null,
-          armLength: null,
-          chestWidth: null,
-          waist: null,
-          hips: null,
-          neckWidth: null,
-          neckDepth: null,
-          armholeHeight: null,
-          sleeveOpeningWidth: null,
-          cuffWidth: null,
-          cuffLength: null,
-          notes: "",
-        };
-        updateMeasurements(emptyMeasurements);
+      // Order draft is source of truth for in-progress entries. Only prefill
+      // from the profile API when the draft is still empty (unless force).
+      if (!force && draftHasEnteredMeasurements(draftMeasurementsRef.current)) {
         return;
       }
 
-      const mapped: Partial<typeof draft.measurements> = {
-        totalLength: saved.totalLength !== undefined ? saved.totalLength : null,
-        shoulderWidth:
-          saved.shoulderWidth !== undefined ? saved.shoulderWidth : null,
-        armLength: saved.armLength !== undefined ? saved.armLength : null,
-        chestWidth: saved.chestWidth !== undefined ? saved.chestWidth : null,
-        waist: saved.waist !== undefined ? saved.waist : null,
-        hips: saved.hips !== undefined ? saved.hips : null,
-        neckWidth: saved.neckWidth !== undefined ? saved.neckWidth : null,
-        neckDepth: saved.neckDepth !== undefined ? saved.neckDepth : null,
-        armholeHeight:
-          saved.armholeHeight !== undefined ? saved.armholeHeight : null,
-        sleeveOpeningWidth:
-          saved.sleeveOpeningWidth !== undefined
-            ? saved.sleeveOpeningWidth
-            : null,
-        cuffWidth: saved.cuffWidth !== undefined ? saved.cuffWidth : null,
-        cuffLength: saved.cuffLength !== undefined ? saved.cuffLength : null,
-        notes: typeof saved.notes === "string" ? saved.notes : "",
-      };
+      isFetchingRef.current = true;
+      setIsHydratingCustomerMeasurements(true);
 
-      updateMeasurements(mapped as Partial<any>);
-      setLastFetched(Date.now());
-    } catch (e) {
-      // ignore
-    } finally {
-      isFetchingRef.current = false;
-      setIsHydratingCustomerMeasurements(false);
-    }
-  }, [isAuthenticated, selectedMemberId, updateMeasurements]);
+      try {
+        let url = "/api/customer/customer_measurements";
+        if (selectedMemberId) {
+          url = `/api/customer/family-members/${selectedMemberId}/measurements`;
+        }
 
-  // Fetch measurements when member changes
+        const res = await api.get<{
+          success: boolean;
+          measurements: Record<string, unknown> | null;
+        }>(url);
+
+        const saved = res?.measurements;
+        if (!saved) {
+          // Never wipe an in-progress draft just because the profile is empty.
+          // Only clear when the user explicitly switched member/profile.
+          if (force) {
+            updateMeasurements({ ...EMPTY_MEASUREMENTS });
+          }
+          return;
+        }
+
+        updateMeasurements(mapApiMeasurements(saved));
+      } catch {
+        // Keep the current draft if the profile fetch fails.
+      } finally {
+        isFetchingRef.current = false;
+        setIsHydratingCustomerMeasurements(false);
+      }
+    },
+    [isAuthenticated, selectedMemberId, updateMeasurements],
+  );
+
+  // Prefill once when empty; re-load only when the selected member changes.
   useEffect(() => {
     if (!isHydrated || !isAuthenticated || isLoading) return;
-    fetchCustomerMeasurements();
+
+    const memberChanged =
+      previousMemberIdRef.current !== null &&
+      previousMemberIdRef.current !== selectedMemberId;
+
+    previousMemberIdRef.current = selectedMemberId;
+
+    if (memberChanged) {
+      void fetchCustomerMeasurements({ force: true });
+      return;
+    }
+
+    if (!hasAttemptedInitialHydrationRef.current) {
+      hasAttemptedInitialHydrationRef.current = true;
+      void fetchCustomerMeasurements({ force: false });
+    }
   }, [
     isHydrated,
     isAuthenticated,
     isLoading,
-    fetchCustomerMeasurements,
     selectedMemberId,
+    fetchCustomerMeasurements,
   ]);
-
-  // Refetch when tab becomes visible
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (
-        document.visibilityState === "visible" &&
-        isHydrated &&
-        isAuthenticated
-      ) {
-        const timeSinceLastFetch = Date.now() - lastFetched;
-        if (timeSinceLastFetch > 5000) {
-          fetchCustomerMeasurements();
-        }
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [isHydrated, isAuthenticated, lastFetched, fetchCustomerMeasurements]);
-
-  // Refetch on page focus
-  useEffect(() => {
-    const handleFocus = () => {
-      if (isHydrated && isAuthenticated) {
-        const timeSinceLastFetch = Date.now() - lastFetched;
-        if (timeSinceLastFetch > 5000) {
-          fetchCustomerMeasurements();
-        }
-      }
-    };
-
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [isHydrated, isAuthenticated, lastFetched, fetchCustomerMeasurements]);
 
   const canContinue = isMeasurementsStepComplete(draft);
   const stepNumber = getCustomOrderStepNumber("measurements", draft.firstStep);
@@ -359,7 +363,7 @@ export default function MeasurementsStep() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 lg:py-14">
+    <div className="max-w-6xl mx-auto text-justify px-4 sm:px-6 lg:px-8 py-6 sm:py-10 lg:py-14">
       <ConfiguratorStepHeader
         title={t("title")}
         description={t("description")}
@@ -369,7 +373,7 @@ export default function MeasurementsStep() {
         })}
       />
 
-      <p className="font-body text-[13px] sm:text-[14px] text-gray-400 mb-6 sm:mb-8 max-w-2xl">
+      <p className="font-body text-[13px] sm:text-[14px] text-justify text-gray-400 mb-6 sm:mb-8 max-w-2xl">
         {t("optionalNote")}
       </p>
 
@@ -564,7 +568,7 @@ export default function MeasurementsStep() {
         </aside>
       </div>
 
-      <div className="max-w-3xl mb-8 sm:mb-10">
+      <div className="mb-8 sm:mb-10">
         <label
           htmlFor="measurement-notes"
           className="block font-ui text-[10px] uppercase tracking-[0.24em] text-black mb-1.5 sm:mb-2"
@@ -581,7 +585,7 @@ export default function MeasurementsStep() {
         />
       </div>
 
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 pt-5 sm:pt-6 border-t border-gray-200 max-w-3xl">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 pt-5 sm:pt-6 border-t border-gray-200">
         <Link
           href="/custom-order/meters"
           className="font-ui text-[11px] sm:text-[12px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition text-center sm:text-left hover:cursor-pointer"

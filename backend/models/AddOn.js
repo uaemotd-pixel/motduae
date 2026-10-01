@@ -36,8 +36,7 @@ const addOnSchema = new mongoose.Schema(
     stock: {
       type: Number,
       required: true,
-      default: 0,
-      min: 0,
+      min: 1,
     },
     thumbnailImage: {
       type: String,

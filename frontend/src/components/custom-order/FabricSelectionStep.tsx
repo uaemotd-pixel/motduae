@@ -8,537 +8,590 @@ import toast from "react-hot-toast";
 import { api, type ApiError } from "@/lib/api/client";
 import { useCustomOrder } from "@/context/CustomOrderContext";
 import {
-    CUSTOM_ORDER_TOTAL_STEPS,
-    getCustomOrderStepNumber,
-    getNextPathAfterFabric,
-    isFabricStepComplete,
-    isTailorStepComplete,
-    toCustomOrderDesignSelection,
-    toCustomOrderFabricSelection,
-    toCustomOrderSelectedDesign,
-    toCustomOrderTailorSelection,
+  CUSTOM_ORDER_TOTAL_STEPS,
+  getCustomOrderStepNumber,
+  getNextPathAfterFabric,
+  isFabricStepComplete,
+  isTailorStepComplete,
+  toCustomOrderDesignSelection,
+  toCustomOrderFabricSelection,
+  toCustomOrderSelectedDesign,
+  toCustomOrderTailorSelection,
 } from "@/lib/customOrder";
 import {
-    FABRIC_FILTER_OPTIONS,
-    type FabricFilter,
-    type FabricListItem,
-    filterFabricsByMaterial,
-    formatMaterialLabel,
-    formatFabricListingPrice,
-    getFabricDisplayFields,
-    isFabricInStock,
-
-    getFabricMaxCutLength,
-
-    filterPublicFabrics,
-
+  FABRIC_FILTER_OPTIONS,
+  type FabricFilter,
+  type FabricListItem,
+  filterFabricsByMaterial,
+  formatMaterialLabel,
+  formatFabricListingPrice,
+  getFabricDisplayFields,
+  isFabricInStock,
+  getFabricMaxCutLength,
+  filterPublicFabrics,
 } from "@/lib/fabrics";
 import {
-    type TailorDesignListItem,
-    getDesignMinCutLength,
+  type TailorDesignListItem,
+  getDesignMinCutLength,
 } from "@/lib/tailors";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 import CustomOrderFloatingNext from "@/components/custom-order/CustomOrderFloatingNext";
-import { CustomOrderStepSkeleton, ProductGridSkeleton } from "@/components/ui/Skeleton";
+import {
+  CustomOrderStepSkeleton,
+  ProductGridSkeleton,
+} from "@/components/ui/Skeleton";
 import { resolveMediaUrl } from "@/lib/media";
 
 export default function FabricSelectionStep() {
-    const t = useTranslations("CustomOrderFabric");
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const params = useParams();
-    const locale = params.locale === "ar" ? "ar" : "en";
-    const fabricSlug = searchParams.get("fabricSlug");
-    const designSlug = searchParams.get("designSlug");
+  const t = useTranslations("CustomOrderFabric");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const params = useParams();
+  const locale = params.locale === "ar" ? "ar" : "en";
+  const fabricSlug = searchParams.get("fabricSlug");
+  const designSlug = searchParams.get("designSlug");
 
-    const {
-        draft,
-        isHydrated,
-        useOwnFabric,
-        toggleFabric,
-        selectSingleFabric,
-        selectSingleDesign,
-        setFabricSource,
-        setUseOwnFabric,
-        claimFirstStep,
-        setFirstStep,
-    } = useCustomOrder();
+  const {
+    draft,
+    isHydrated,
+    useOwnFabric,
+    toggleFabric,
+    selectSingleFabric,
+    selectSingleDesign,
+    setFabricSource,
+    setUseOwnFabric,
+    claimFirstStep,
+    setFirstStep,
+  } = useCustomOrder();
 
-    const [fabrics, setFabrics] = useState<FabricListItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [selectedFilter, setSelectedFilter] = useState<FabricFilter>("all");
-    const [prefilledSlug, setPrefilledSlug] = useState<string | null>(null);
-    const [prefilledDesignSlug, setPrefilledDesignSlug] = useState<string | null>(null);
+  const [fabrics, setFabrics] = useState<FabricListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedFilter, setSelectedFilter] = useState<FabricFilter>("all");
+  const [prefilledSlug, setPrefilledSlug] = useState<string | null>(null);
+  const [prefilledDesignSlug, setPrefilledDesignSlug] = useState<string | null>(
+    null,
+  );
 
-    useEffect(() => {
-        const fetchFabrics = async () => {
-            try {
-                setLoading(true);
-                setError(null);
+  useEffect(() => {
+    const fetchFabrics = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-                const data = await api.get<{ success: boolean; items: FabricListItem[] }>(
-                    "/api/fabrics?limit=100",
-                );
+        const data = await api.get<{
+          success: boolean;
+          items: FabricListItem[];
+        }>("/api/fabrics?limit=100");
 
-                if (!data?.success) {
-                    throw new Error("Failed to load fabrics");
-                }
+        if (!data?.success) {
+          throw new Error("Failed to load fabrics");
+        }
 
-                setFabrics(filterPublicFabrics(data.items || []));
-            } catch (err: unknown) {
-                const message =
-                    (err as ApiError)?.message ||
-                    (err instanceof Error ? err.message : "Failed to load fabrics");
-                setError(message);
-            } finally {
-                setLoading(false);
+        setFabrics(filterPublicFabrics(data.items || []));
+      } catch (err: unknown) {
+        const message =
+          (err as ApiError)?.message ||
+          (err instanceof Error ? err.message : "Failed to load fabrics");
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFabrics();
+  }, []);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (designSlug) {
+      setFirstStep("tailor");
+    } else {
+      claimFirstStep("fabric");
+    }
+    if (draft.selectedFabrics.length > 0 && !draft.fabricSource) {
+      setFabricSource("storefront");
+    }
+    if (draft.firstStep === "fabric" && useOwnFabric) {
+      setUseOwnFabric(false);
+    }
+  }, [
+    isHydrated,
+    designSlug,
+    claimFirstStep,
+    setFirstStep,
+    draft.selectedFabrics.length,
+    draft.fabricSource,
+    draft.firstStep,
+    useOwnFabric,
+    setFabricSource,
+    setUseOwnFabric,
+  ]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (!designSlug) {
+      setPrefilledDesignSlug(null);
+    }
+  }, [isHydrated, designSlug]);
+
+  useEffect(() => {
+    if (!isHydrated || !designSlug || prefilledDesignSlug === designSlug)
+      return;
+
+    const prefillDesign = async () => {
+      try {
+        const designData = await api.get<{
+          success: boolean;
+          item: TailorDesignListItem & {
+            tailorShop?: Parameters<typeof toCustomOrderTailorSelection>[0];
+          };
+        }>(`/api/tailors/designs/${designSlug}`);
+
+        if (!designData?.success || !designData.item) return;
+
+        const selected = designData.item.tailorShop
+          ? {
+              ...toCustomOrderDesignSelection(designData.item),
+              tailor: toCustomOrderTailorSelection(designData.item.tailorShop),
             }
-        };
+          : toCustomOrderSelectedDesign(designData.item);
 
-        fetchFabrics();
-    }, []);
-
-    useEffect(() => {
-        if (!isHydrated) return;
-        if (designSlug) {
-            setFirstStep("tailor");
-        } else {
-            claimFirstStep("fabric");
+        if (selected) {
+          selectSingleDesign(selected);
         }
-        if (draft.selectedFabrics.length > 0 && !draft.fabricSource) {
-            setFabricSource("storefront");
-        }
-        if (draft.firstStep === "fabric" && useOwnFabric) {
-            setUseOwnFabric(false);
-        }
-    }, [
-        isHydrated,
-        designSlug,
-        claimFirstStep,
-        setFirstStep,
-        draft.selectedFabrics.length,
-        draft.fabricSource,
-        draft.firstStep,
-        useOwnFabric,
-        setFabricSource,
-        setUseOwnFabric,
-    ]);
-
-    useEffect(() => {
-        if (!isHydrated) return;
-        if (!designSlug) {
-            setPrefilledDesignSlug(null);
-        }
-    }, [isHydrated, designSlug]);
-
-    useEffect(() => {
-        if (!isHydrated || !designSlug || prefilledDesignSlug === designSlug) return;
-
-        const prefillDesign = async () => {
-            try {
-                const designData = await api.get<{
-                    success: boolean;
-                    item: TailorDesignListItem & {
-                        tailorShop?: Parameters<typeof toCustomOrderTailorSelection>[0];
-                    };
-                }>(`/api/tailors/designs/${designSlug}`);
-
-                if (!designData?.success || !designData.item) return;
-
-                const selected = designData.item.tailorShop
-                    ? {
-                          ...toCustomOrderDesignSelection(designData.item),
-                          tailor: toCustomOrderTailorSelection(designData.item.tailorShop),
-                      }
-                    : toCustomOrderSelectedDesign(designData.item);
-
-                if (selected) {
-                    selectSingleDesign(selected);
-                }
-            } catch (err) {
-                console.error("[Design Prefill Error]:", err);
-            } finally {
-                setPrefilledDesignSlug(designSlug);
-            }
-        };
-
-        prefillDesign();
-    }, [designSlug, isHydrated, prefilledDesignSlug, selectSingleDesign]);
-
-    useEffect(() => {
-        if (!isHydrated || !fabricSlug || prefilledSlug === fabricSlug) return;
-
-        const prefillFabric = async () => {
-            try {
-                const data = await api.get<{ success: boolean; item: FabricListItem }>(
-                    `/api/fabrics/${fabricSlug}`,
-                );
-
-                if (data?.success && data.item) {
-                    setFabricSource("storefront");
-                    selectSingleFabric(toCustomOrderFabricSelection(data.item));
-                }
-            } catch (err) {
-                console.error("[Fabric Prefill Error]:", err);
-            } finally {
-                setPrefilledSlug(fabricSlug);
-            }
-        };
-
-        prefillFabric();
-    }, [fabricSlug, isHydrated, prefilledSlug, selectSingleFabric, setFabricSource]);
-
-    const storefrontFabrics = useMemo(
-        () => fabrics.filter((f) => (f.cuts?.length ?? 0) > 0),
-        [fabrics],
-    );
-
-    const filteredFabrics = useMemo(
-        () => filterFabricsByMaterial(storefrontFabrics, selectedFilter),
-        [storefrontFabrics, selectedFilter],
-    );
-
-    const allOutOfStock = useMemo(
-        () => storefrontFabrics.length > 0 && storefrontFabrics.every((f) => !isFabricInStock(f)),
-        [storefrontFabrics],
-    );
-
-    const selectedDesign = draft.selectedDesigns[0] ?? null;
-    const designMinLength = selectedDesign ? getDesignMinCutLength(selectedDesign) : 0;
-
-    const selectedCount = draft.selectedFabrics.length;
-    const canContinue = isFabricStepComplete(draft);
-    const footerContinueRef = useRef<HTMLButtonElement>(null);
-    const hasSelectedOutOfStock = draft.selectedFabrics.some(
-        (f) => !isFabricInStock(f),
-    );
-    const stepNumber = getCustomOrderStepNumber("fabric", draft.firstStep);
-    const nextPath = getNextPathAfterFabric(draft);
-    const continueLabel = nextPath.includes("/meters")
-        ? t("continueToMeters")
-        : t("continueToTailor");
-    const showBackToTailor = draft.firstStep === "tailor";
-    const showOwnFabricOption = draft.firstStep === "tailor";
-
-    const handleToggleFabric = (item: FabricListItem) => {
-        if (!isFabricInStock(item)) {
-            toast.error(
-                locale === "ar"
-                    ? "هذا القماش غير متوفر في المخزن."
-                    : "This fabric is out of stock."
-            );
-            return;
-        }
-
-        setFabricSource("storefront");
-        toggleFabric(toCustomOrderFabricSelection(item));
+      } catch (err) {
+        console.error("[Design Prefill Error]:", err);
+      } finally {
+        setPrefilledDesignSlug(designSlug);
+      }
     };
 
-    const handleContinue = () => {
-        if (!canContinue) return;
-        router.push(getNextPathAfterFabric(draft));
-    };
+    prefillDesign();
+  }, [designSlug, isHydrated, prefilledDesignSlug, selectSingleDesign]);
 
-    const handleUseOwnFabric = () => {
-        setUseOwnFabric(true);
-        if (isTailorStepComplete(draft)) {
-            router.push(
-                getNextPathAfterFabric({ ...draft, fabricSource: "self" }),
-            );
+  useEffect(() => {
+    if (!isHydrated || !fabricSlug || prefilledSlug === fabricSlug) return;
+
+    const prefillFabric = async () => {
+      try {
+        const data = await api.get<{ success: boolean; item: FabricListItem }>(
+          `/api/fabrics/${fabricSlug}`,
+        );
+
+        if (data?.success && data.item) {
+          setFabricSource("storefront");
+          selectSingleFabric(toCustomOrderFabricSelection(data.item));
         }
+      } catch (err) {
+        console.error("[Fabric Prefill Error]:", err);
+      } finally {
+        setPrefilledSlug(fabricSlug);
+      }
     };
 
-    const handleUsePlatformFabric = () => {
-        setUseOwnFabric(false);
-    };
+    prefillFabric();
+  }, [
+    fabricSlug,
+    isHydrated,
+    prefilledSlug,
+    selectSingleFabric,
+    setFabricSource,
+  ]);
 
-    if (!isHydrated) {
-        return <CustomOrderStepSkeleton />;
+  const storefrontFabrics = useMemo(
+    () => fabrics.filter((f) => (f.cuts?.length ?? 0) > 0),
+    [fabrics],
+  );
+
+  const filteredFabrics = useMemo(
+    () => filterFabricsByMaterial(storefrontFabrics, selectedFilter),
+    [storefrontFabrics, selectedFilter],
+  );
+
+  const allOutOfStock = useMemo(
+    () =>
+      storefrontFabrics.length > 0 &&
+      storefrontFabrics.every((f) => !isFabricInStock(f)),
+    [storefrontFabrics],
+  );
+
+  const selectedDesign = draft.selectedDesigns[0] ?? null;
+  const designMinLength = selectedDesign
+    ? getDesignMinCutLength(selectedDesign)
+    : 0;
+
+  const selectedCount = draft.selectedFabrics.length;
+  const canContinue = isFabricStepComplete(draft);
+  const footerContinueRef = useRef<HTMLButtonElement>(null);
+  const hasSelectedOutOfStock = draft.selectedFabrics.some(
+    (f) => !isFabricInStock(f),
+  );
+  const stepNumber = getCustomOrderStepNumber("fabric", draft.firstStep);
+  const nextPath = getNextPathAfterFabric(draft);
+  const continueLabel = nextPath.includes("/meters")
+    ? t("continueToMeters")
+    : t("continueToTailor");
+  const showBackToTailor = draft.firstStep === "tailor";
+  const showOwnFabricOption = draft.firstStep === "tailor";
+
+  const handleToggleFabric = (item: FabricListItem) => {
+    if (!isFabricInStock(item)) {
+      toast.error(
+        locale === "ar"
+          ? "هذا القماش غير متوفر في المخزن."
+          : "This fabric is out of stock.",
+      );
+      return;
     }
 
-    return (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-            <ConfiguratorStepHeader
-                title={t("title")}
-                description={
-                    showOwnFabricOption
-                        ? t("descriptionAfterDesign")
-                        : t("description")
-                }
-                stepLabel={t("stepLabel", {
-                    step: stepNumber,
-                    total: CUSTOM_ORDER_TOTAL_STEPS,
-                })}
-            />
+    setFabricSource("storefront");
+    toggleFabric(toCustomOrderFabricSelection(item));
+  };
 
-            {draft.selectedDesigns.length > 0 && (
-                <div className="mb-6 border border-(--color-border) bg-white p-4 sm:p-6">
-                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
-                        {t("crossStepDesigns")}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                        {draft.selectedDesigns.map((design) => {
-                            const label =
-                                locale === "ar"
-                                    ? design.nameAr || design.name
-                                    : design.name;
-                            return (
-                                <span
-                                    key={design._id}
-                                    className="px-3 py-1.5 border border-black text-black [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em]"
-                                >
-                                    {label}
-                                </span>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
+  const handleContinue = () => {
+    if (!canContinue) return;
+    router.push(getNextPathAfterFabric(draft));
+  };
 
-            {selectedCount > 0 && (
-                <div className="mb-8 border border-(--color-border) bg-white p-4 sm:p-6">
-                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
-                        {t("selectedCount", { count: selectedCount })}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                        {draft.selectedFabrics.map((fabric) => {
-                            const label =
-                                locale === "ar"
-                                    ? fabric.nameAr || fabric.name
-                                    : fabric.name;
-                            return (
-                                <span
-                                    key={fabric._id}
-                                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-black text-white [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em]"
-                                >
-                                    {label}
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setFabricSource("storefront");
-                                            toggleFabric(fabric);
-                                        }}
-                                        className="opacity-70 hover:opacity-100"
-                                        aria-label={t("removeFabric", { name: label })}
-                                    >
-                                        ×
-                                    </button>
-                                </span>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
+  const handleUseOwnFabric = () => {
+    setUseOwnFabric(true);
+    if (isTailorStepComplete(draft)) {
+      router.push(getNextPathAfterFabric({ ...draft, fabricSource: "self" }));
+    }
+  };
 
-            {showOwnFabricOption && useOwnFabric && (
-                <div className="mb-8 border border-(--color-border) bg-white p-6 sm:p-8">
-                    <h3 className="[font-family:var(--font-display)] text-[20px] mb-3">
-                        {t("ownFabricConfirmedTitle")}
-                    </h3>
-                    <p className="[font-family:var(--font-body)] text-[14px] leading-relaxed text-(--color-grey-muted) max-w-2xl mb-4">
-                        {t("ownFabricConfirmedDescription")}
-                    </p>
-                    <button
-                        type="button"
-                        onClick={handleUsePlatformFabric}
-                        className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition"
-                    >
-                        {t("usePlatformFabricInstead")}
-                    </button>
-                </div>
-            )}
+  const handleUsePlatformFabric = () => {
+    setUseOwnFabric(false);
+  };
 
-            {!useOwnFabric && (
-                <>
-                    <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                        <button
-                            type="button"
-                            onClick={() => setSelectedFilter("all")}
-                            className={`px-3 py-1.5 border text-[9px] uppercase tracking-[0.24em] whitespace-nowrap [font-family:var(--font-ui)] transition-all ${
-                                selectedFilter === "all"
-                                    ? "bg-black text-white border-black"
-                                    : "text-black border-(--color-border) hover:bg-black hover:text-white hover:border-black"
-                            }`}
-                        >
-                            {t("filters.all")}
-                        </button>
-                        {FABRIC_FILTER_OPTIONS.map((material) => (
-                            <button
-                                key={material}
-                                type="button"
-                                onClick={() => setSelectedFilter(material)}
-                                className={`px-3 py-1.5 border text-[9px] uppercase tracking-[0.24em] whitespace-nowrap [font-family:var(--font-ui)] transition-all ${
-                                    selectedFilter === material
-                                        ? "bg-black text-white border-black"
-                                        : "text-black border-(--color-border) hover:bg-black hover:text-white hover:border-black"
-                                }`}
-                            >
-                                {t(`filters.${material}`)}
-                            </button>
-                        ))}
-                    </div>
+  if (!isHydrated) {
+    return <CustomOrderStepSkeleton />;
+  }
 
-                    {loading ? (
-                        <ProductGridSkeleton
-                            count={6}
-                            columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-                            className="mb-10"
-                        />
-                    ) : error ? (
-                        <p className="text-center text-red-600 py-16">{error}</p>
-                    ) : storefrontFabrics.length === 0 ? (
-                        <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-16 text-(--color-grey-muted)">
-                            {t("noFabricsWithCuts")}
-                        </p>
-                    ) : allOutOfStock ? (
-                        <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-16 text-(--color-grey-muted)">
-                            {t("allOutOfStock")}
-                        </p>
-                    ) : filteredFabrics.length === 0 ? (
-                        <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-16 text-(--color-grey-muted)">
-                            {t("empty")}
-                        </p>
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-                            {filteredFabrics.map((item) => {
-                                const { title, location } = getFabricDisplayFields(item, locale);
-                                const imageUrl = resolveMediaUrl(item.images?.[0]);
-                                const isSelected = draft.selectedFabrics.some(
-                                    (fabric) => fabric._id === item._id,
-                                );
-                                const isOutOfStock = !isFabricInStock(item);
-                                const fabricMaxCut = getFabricMaxCutLength(item);
-                                const needsSecondCutHint =
-                                    designMinLength > 0 &&
-                                    fabricMaxCut > 0 &&
-                                    fabricMaxCut < designMinLength;
+  return (
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+      <ConfiguratorStepHeader
+        title={t("title")}
+        description={
+          showOwnFabricOption ? t("descriptionAfterDesign") : t("description")
+        }
+        stepLabel={t("stepLabel", {
+          step: stepNumber,
+          total: CUSTOM_ORDER_TOTAL_STEPS,
+        })}
+      />
 
-                                return (
-                                    <button
-                                        key={item._id}
-                                        type="button"
-                                        disabled={isOutOfStock}
-                                        onClick={() => handleToggleFabric(item)}
-                                        className={`group text-left border rounded-lg transition-all duration-500 ${
-                                            isSelected
-                                                ? "border-black ring-2 ring-black bg-white shadow-md"
-                                                : isOutOfStock
-                                                  ? "border-neutral-200 bg-neutral-50/70 opacity-60 cursor-not-allowed"
-                                                  : "border-(--color-border) bg-white hover:border-black hover:shadow-2xl hover:-translate-y-2"
-                                        }`}
-                                    >
-                                        <div className="aspect-4/5 bg-neutral-100 overflow-hidden relative rounded-t-lg">
-                                            <img
-                                                src={imageUrl}
-                                                alt={title}
-                                                className={`w-full h-full object-cover object-top transition-all duration-700 ${
-                                                    isOutOfStock ? "grayscale-30" : "group-hover:scale-105"
-                                                }`}
-                                            />
-                                            {isOutOfStock && (
-                                                <span className="absolute top-3 left-3 bg-neutral-900/90 backdrop-blur-xs text-white [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.16em] px-2.5 py-1 rounded">
-                                                    {t("outOfStockBadge")}
-                                                </span>
-                                            )}
-                                            {isSelected && (
-                                                <span className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black text-white flex items-center justify-center [font-family:var(--font-ui)] text-[12px]">
-                                                    ✓
-                                                </span>
-                                            )}
-                                            {!isOutOfStock && (
-                                                <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                            )}
-                                        </div>
-                                        <div className="p-4">
-                                            <h3 className="[font-family:var(--font-display)] text-[16px] mb-1 line-clamp-2">
-                                                {title}
-                                            </h3>
-                                            <p className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.2em] text-(--color-grey-muted) mb-2">
-                                                {location}
-                                            </p>
-                                            <p className="[font-family:var(--font-ui)] text-[11px] text-black">
-                                                {formatFabricListingPrice(item, locale)}
-                                            </p>
-                                            <p className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.16em] text-(--color-grey-muted) mt-1">
-                                                {formatMaterialLabel(item.material, locale)}
-                                            </p>
-
-                                            {needsSecondCutHint && (
-                                                <div className="mt-3 p-2.5 bg-amber-50/90 border border-amber-200/80 rounded text-[11px] leading-relaxed text-amber-950">
-                                                    <span className="font-semibold block [font-family:var(--font-ui)] text-[10px] tracking-wide text-amber-900">
-                                                        💡 {t("designLengthHint", { min: designMinLength })}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
-                </>
-            )}
-
-            {hasSelectedOutOfStock && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-center gap-3">
-                    <svg className="w-5 h-5 shrink-0 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <span className="[font-family:var(--font-ui)] text-xs tracking-wide">
-                        {locale === "ar"
-                            ? "الرجاء اختيار قماش آخر. القماش المختار حالياً غير متوفر في المخزن."
-                            : "Please select another fabric. The currently selected fabric is out of stock."}
-                    </span>
-                </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-6 border-t border-(--color-border)">
-                {showBackToTailor ? (
-                    <Link
-                        href="/custom-order/tailor"
-                        className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition text-center sm:text-left"
-                    >
-                        {t("backToTailor")}
-                    </Link>
-                ) : (
-                    <Link
-                        href="/fabrics/fabricStore"
-                        className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition text-center sm:text-left"
-                    >
-                        {t("browseFabrics")}
-                    </Link>
-                )}
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 sm:ml-auto">
-                    {showOwnFabricOption && !useOwnFabric && (
-                        <button
-                            type="button"
-                            onClick={handleUseOwnFabric}
-                            className="px-8 py-3 border border-black text-black text-[10px] tracking-[0.22em] uppercase hover:bg-black hover:text-white transition [font-family:var(--font-ui)]"
-                        >
-                            {t("useOwnFabric")}
-                        </button>
-                    )}
-
-                    <button
-                        type="button"
-                        ref={footerContinueRef}
-                        onClick={handleContinue}
-                        disabled={!canContinue}
-                        className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)]"
-                    >
-                        {continueLabel}
-                    </button>
-                </div>
-            </div>
-
-            <CustomOrderFloatingNext
-                enabled={canContinue}
-                onClick={handleContinue}
-                ariaLabel={continueLabel}
-                footerRef={footerContinueRef}
-            />
+      {draft.selectedDesigns.length > 0 && (
+        <div className="mb-6 border border-(--color-border) bg-white p-4 sm:p-6">
+          <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
+            {t("crossStepDesigns")}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {draft.selectedDesigns.map((design) => {
+              const label =
+                locale === "ar" ? design.nameAr || design.name : design.name;
+              return (
+                <span
+                  key={design._id}
+                  className="px-3 py-1.5 border border-black text-black [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em]"
+                >
+                  {label}
+                </span>
+              );
+            })}
+          </div>
         </div>
-    );
+      )}
+
+      {selectedCount > 0 && (
+        <div className="mb-8 border border-(--color-border) bg-white p-4 sm:p-6">
+          <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted) mb-3">
+            {t("selectedCount", { count: selectedCount })}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {draft.selectedFabrics.map((fabric) => {
+              const label =
+                locale === "ar" ? fabric.nameAr || fabric.name : fabric.name;
+              return (
+                <span
+                  key={fabric._id}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-black text-white [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em]"
+                >
+                  {label}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFabricSource("storefront");
+                      toggleFabric(fabric);
+                    }}
+                    className="opacity-70 hover:opacity-100"
+                    aria-label={t("removeFabric", { name: label })}
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {showOwnFabricOption && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
+          <button
+            type="button"
+            onClick={handleUsePlatformFabric}
+            className={`text-left p-6 border transition-all duration-200 ${
+              !useOwnFabric
+                ? "border-black bg-black text-white"
+                : "border-(--color-border) bg-white hover:border-black"
+            }`}
+          >
+            <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] mb-2 opacity-80">
+              {t("platformOptionEyebrow")}
+            </p>
+            <h2 className="[font-family:var(--font-display)] text-[22px] font-normal mb-2">
+              {t("platformOptionTitle")}
+            </h2>
+            <p className="[font-family:var(--font-body)] text-[13px] leading-relaxed opacity-90">
+              {t("platformOptionDescription")}
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleUseOwnFabric}
+            className={`text-left p-6 border transition-all duration-200 ${
+              useOwnFabric
+                ? "border-black bg-black text-white"
+                : "border-(--color-border) bg-white hover:border-black"
+            }`}
+          >
+            <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] mb-2 opacity-80">
+              {t("ownFabricOptionEyebrow")}
+            </p>
+            <h2 className="[font-family:var(--font-display)] text-[22px] font-normal mb-2">
+              {t("ownFabricOptionTitle")}
+            </h2>
+            <p className="[font-family:var(--font-body)] text-[13px] leading-relaxed opacity-90">
+              {t("ownFabricOptionDescription")}
+            </p>
+          </button>
+        </div>
+      )}
+
+      {showOwnFabricOption && useOwnFabric && (
+        <div className="mb-8 border border-(--color-border) bg-white p-6 sm:p-8">
+          <h3 className="[font-family:var(--font-display)] text-[20px] mb-3">
+            {t("ownFabricConfirmedTitle")}
+          </h3>
+          <p className="[font-family:var(--font-body)] text-[14px] leading-relaxed text-(--color-grey-muted) max-w-2xl mb-4">
+            {t("ownFabricConfirmedDescription")}
+          </p>
+          <button
+            type="button"
+            onClick={handleUsePlatformFabric}
+            className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition"
+          >
+            {t("usePlatformFabricInstead")}
+          </button>
+        </div>
+      )}
+
+      {!useOwnFabric && (
+        <>
+          <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+            <button
+              type="button"
+              onClick={() => setSelectedFilter("all")}
+              className={`px-3 py-1.5 border text-[9px] uppercase tracking-[0.24em] whitespace-nowrap [font-family:var(--font-ui)] transition-all ${
+                selectedFilter === "all"
+                  ? "bg-black text-white border-black"
+                  : "text-black border-(--color-border) hover:bg-black hover:text-white hover:border-black"
+              }`}
+            >
+              {t("filters.all")}
+            </button>
+            {FABRIC_FILTER_OPTIONS.map((material) => (
+              <button
+                key={material}
+                type="button"
+                onClick={() => setSelectedFilter(material)}
+                className={`px-3 py-1.5 border text-[9px] uppercase tracking-[0.24em] whitespace-nowrap [font-family:var(--font-ui)] transition-all ${
+                  selectedFilter === material
+                    ? "bg-black text-white border-black"
+                    : "text-black border-(--color-border) hover:bg-black hover:text-white hover:border-black"
+                }`}
+              >
+                {t(`filters.${material}`)}
+              </button>
+            ))}
+          </div>
+
+          {loading ? (
+            <ProductGridSkeleton
+              count={6}
+              columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+              className="mb-10"
+            />
+          ) : error ? (
+            <p className="text-center text-red-600 py-16">{error}</p>
+          ) : storefrontFabrics.length === 0 ? (
+            <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-16 text-(--color-grey-muted)">
+              {t("noFabricsWithCuts")}
+            </p>
+          ) : allOutOfStock ? (
+            <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-16 text-(--color-grey-muted)">
+              {t("allOutOfStock")}
+            </p>
+          ) : filteredFabrics.length === 0 ? (
+            <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-center py-16 text-(--color-grey-muted)">
+              {t("empty")}
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+              {filteredFabrics.map((item) => {
+                const { title, location } = getFabricDisplayFields(
+                  item,
+                  locale,
+                );
+                const imageUrl = resolveMediaUrl(item.images?.[0]);
+                const isSelected = draft.selectedFabrics.some(
+                  (fabric) => fabric._id === item._id,
+                );
+                const isOutOfStock = !isFabricInStock(item);
+                const fabricMaxCut = getFabricMaxCutLength(item);
+                const needsSecondCutHint =
+                  designMinLength > 0 &&
+                  fabricMaxCut > 0 &&
+                  fabricMaxCut < designMinLength;
+
+                return (
+                  <button
+                    key={item._id}
+                    type="button"
+                    disabled={isOutOfStock}
+                    onClick={() => handleToggleFabric(item)}
+                    className={`group text-left border rounded-lg transition-all duration-500 ${
+                      isSelected
+                        ? "border-black ring-2 ring-black bg-white shadow-md"
+                        : isOutOfStock
+                          ? "border-neutral-200 bg-neutral-50/70 opacity-60 cursor-not-allowed"
+                          : "border-(--color-border) bg-white hover:border-black hover:shadow-2xl hover:-translate-y-2"
+                    }`}
+                  >
+                    <div className="aspect-4/5 bg-neutral-100 overflow-hidden relative rounded-t-lg">
+                      <img
+                        src={imageUrl}
+                        alt={title}
+                        className={`w-full h-full object-cover object-top transition-all duration-700 ${
+                          isOutOfStock
+                            ? "grayscale-30"
+                            : "group-hover:scale-105"
+                        }`}
+                      />
+                      {isOutOfStock && (
+                        <span className="absolute top-3 left-3 bg-neutral-900/90 backdrop-blur-xs text-white [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.16em] px-2.5 py-1 rounded">
+                          {t("outOfStockBadge")}
+                        </span>
+                      )}
+                      {isSelected && (
+                        <span className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black text-white flex items-center justify-center [font-family:var(--font-ui)] text-[12px]">
+                          ✓
+                        </span>
+                      )}
+                      {!isOutOfStock && (
+                        <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <h3 className="[font-family:var(--font-display)] text-[16px] mb-1 line-clamp-2">
+                        {title}
+                      </h3>
+                      <p className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.2em] text-(--color-grey-muted) mb-2">
+                        {location}
+                      </p>
+                      <p className="[font-family:var(--font-ui)] text-[11px] text-black">
+                        {formatFabricListingPrice(item, locale)}
+                      </p>
+                      <p className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.16em] text-(--color-grey-muted) mt-1">
+                        {formatMaterialLabel(item.material, locale)}
+                      </p>
+
+                      {needsSecondCutHint && (
+                        <div className="mt-3 p-2.5 bg-amber-50/90 border border-amber-200/80 rounded text-[11px] leading-relaxed text-amber-950">
+                          <span className="font-semibold block [font-family:var(--font-ui)] text-[10px] tracking-wide text-amber-900">
+                            💡 {t("designLengthHint", { min: designMinLength })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {hasSelectedOutOfStock && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-center gap-3">
+          <svg
+            className="w-5 h-5 shrink-0 text-red-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+          <span className="[font-family:var(--font-ui)] text-xs tracking-wide">
+            {locale === "ar"
+              ? "الرجاء اختيار قماش آخر. القماش المختار حالياً غير متوفر في المخزن."
+              : "Please select another fabric. The currently selected fabric is out of stock."}
+          </span>
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-6 border-t border-(--color-border)">
+        {showBackToTailor ? (
+          <Link
+            href="/custom-order/tailor"
+            className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition text-center sm:text-left"
+          >
+            {t("backToTailor")}
+          </Link>
+        ) : (
+          <Link
+            href="/fabrics/fabricStore"
+            className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-black border-b border-black pb-0.5 hover:opacity-50 transition text-center sm:text-left"
+          >
+            {t("browseFabrics")}
+          </Link>
+        )}
+
+        <button
+          type="button"
+          ref={footerContinueRef}
+          onClick={handleContinue}
+          disabled={!canContinue}
+          className="px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition disabled:opacity-40 disabled:cursor-not-allowed [font-family:var(--font-ui)] sm:ml-auto"
+        >
+          {continueLabel}
+        </button>
+      </div>
+
+      <CustomOrderFloatingNext
+        enabled={canContinue}
+        onClick={handleContinue}
+        ariaLabel={continueLabel}
+        footerRef={footerContinueRef}
+      />
+    </div>
+  );
 }
