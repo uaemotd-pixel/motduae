@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, FormEvent, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { isShopProfileComplete } from "@/lib/shopProfile";
@@ -62,6 +63,7 @@ function isUsablePickup(address: ShopPickupAddress) {
 
 export default function FabricNewAddOnPage() {
   const { user } = useAuth();
+  const tShop = useTranslations("FabricPortal.fabrics");
   const userName = user?.name || "";
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -124,7 +126,7 @@ export default function FabricNewAddOnPage() {
         if (cancelled) return;
         if (!shop || !isShopProfileComplete(shop)) {
           setShopMissing(true);
-          toast.error("Please set up your store profile first before managing addons.");
+          toast.error(tShop("shopRequiredDescription"));
           return;
         }
         const shopPickup = normalizeShopPickupAddress(shop.pickupAddress);
@@ -307,12 +309,13 @@ export default function FabricNewAddOnPage() {
     }
 
     const stockNum = Number(formData.stock);
-    if (!Number.isFinite(stockNum) || stockNum < 0 || !Number.isInteger(stockNum)) {
-      toast.error("Stock must be a whole number 0 or greater");
+    if (!Number.isFinite(stockNum) || stockNum < 1 || !Number.isInteger(stockNum)) {
+      toast.error("Stock must be a whole number of at least 1");
       setFieldErrors((prev) => ({
         ...prev,
-        stock: "Stock must be a whole number 0 or greater",
+        stock: "Stock must be a whole number of at least 1",
       }));
+      document.getElementById("stock")?.focus();
       return;
     }
 
@@ -424,18 +427,18 @@ export default function FabricNewAddOnPage() {
 
   if (shopMissing) {
     return (
-      <div className="max-w-2xl mx-auto border border-gray-200 bg-white p-8 rounded-2xl shadow-sm">
-        <h1 className="[font-family:var(--font-display)] text-2xl font-light text-black mb-3">
-          Store Profile Required
+      <div className="max-w-2xl border border-(--color-border) bg-white p-8">
+        <h1 className="[font-family:var(--font-display)] text-[28px] text-black mb-3">
+          {tShop("shopRequiredTitle")}
         </h1>
-        <p className="text-gray-500 text-sm mb-6">
-          You must set up your store profile first before you can manage addons.
+        <p className="[font-family:var(--font-body)] text-[14px] text-(--color-grey-muted) mb-6">
+          {tShop("shopRequiredDescription")}
         </p>
         <Link
           href="/fabric/shop"
-          className="inline-flex items-center justify-center px-6 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition"
+          className="inline-block px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition [font-family:var(--font-ui)]"
         >
-          Create Store Profile
+          {tShop("shopRequiredCta")}
         </Link>
       </div>
     );
@@ -896,8 +899,10 @@ export default function FabricNewAddOnPage() {
               <input
                 id="stock"
                 type="number"
-                min="0"
-                value={formData.stock}
+                min="1"
+                step="1"
+                required
+                value={formData.stock === "" ? "" : formData.stock}
                 onChange={(e) => handleNumberChange("stock", e.target.value)}
                 className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
                 placeholder="40"

@@ -338,7 +338,7 @@ export default function TailorDesignSelectionStep() {
                                         </span>
                                     )}
                                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                    <span className="absolute top-3 left-3 [font-family:var(--font-ui)] text-[10px] xs:text-[12px] uppercase tracking-[0.24em] bg-neutral-100 text-black px-2.5 xs:px-3 py-1 xs:py-1.25 font-bold">
+                                    <span className="absolute top-3 left-3 [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.16em] bg-black text-white px-2 py-0.5 font-normal">
                                         {category}
                                     </span>
                                 </div>

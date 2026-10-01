@@ -32,6 +32,9 @@ import {
   ACTIVITY_LOG_ACCESS_HEADER,
   ACTIVITY_LOG_URL_KEY,
 } from "@/lib/activityLog/access";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import toast from "react-hot-toast";
+import { ERROR_TOAST, SUCCESS_TOAST } from "@/lib/tailorPortalToast";
 
 type CategoryOption = { value: string; label: string };
 
@@ -494,6 +497,9 @@ export default function ActivityLogViewer() {
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(
+    null,
+  );
   const [deleteError, setDeleteError] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -683,16 +689,22 @@ export default function ActivityLogViewer() {
     });
   }
 
-  async function deleteLogs(ids: string[]) {
+  function requestDeleteLogs(ids: string[]) {
     const unique = Array.from(new Set(ids.filter(Boolean)));
     if (!unique.length) return;
+    setPendingDeleteIds(unique);
+  }
 
-    const confirmed = window.confirm(
-      unique.length === 1
-        ? "Delete this activity log entry? This cannot be undone."
-        : `Delete ${unique.length} activity log entries? This cannot be undone.`,
-    );
-    if (!confirmed) return;
+  function closeDeleteModal() {
+    if (deletingIds.size > 0) return;
+    setPendingDeleteIds(null);
+  }
+
+  async function confirmDeleteLogs() {
+    const unique = pendingDeleteIds
+      ? Array.from(new Set(pendingDeleteIds.filter(Boolean)))
+      : [];
+    if (!unique.length) return;
 
     setDeleteError("");
     setDeletingIds(new Set(unique));
@@ -723,6 +735,14 @@ export default function ActivityLogViewer() {
         return next;
       });
       for (const id of unique) knownIdsRef.current.delete(id);
+      setPendingDeleteIds(null);
+
+      toast.success(
+        unique.length === 1
+          ? "Activity log entry deleted."
+          : `${unique.length} activity log entries deleted.`,
+        SUCCESS_TOAST,
+      );
 
       // If we deleted the last items on this page, step back one page.
       const remainingOnPage = items.filter((item) => !unique.includes(item._id));
@@ -732,9 +752,10 @@ export default function ActivityLogViewer() {
         setRefreshKey((n) => n + 1);
       }
     } catch (err) {
-      setDeleteError(
-        err instanceof Error ? err.message : "Could not delete activity logs",
-      );
+      const message =
+        err instanceof Error ? err.message : "Could not delete activity logs";
+      setDeleteError(message);
+      toast.error(message, ERROR_TOAST);
     } finally {
       setDeletingIds(new Set());
     }
@@ -1107,7 +1128,7 @@ export default function ActivityLogViewer() {
                 <button
                   type="button"
                   disabled={!someSelected || deletingIds.size > 0}
-                  onClick={() => void deleteLogs(Array.from(selectedIds))}
+                  onClick={() => requestDeleteLogs(Array.from(selectedIds))}
                   className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#c23b3b] px-3 py-2 text-[12px] font-medium text-white disabled:opacity-40 sm:flex-none sm:py-1.5"
                 >
                   {deletingIds.size > 0 ? (
@@ -1203,7 +1224,7 @@ export default function ActivityLogViewer() {
                               type="button"
                               title="Delete this log"
                               disabled={isDeleting || deletingIds.size > 0}
-                              onClick={() => void deleteLogs([item._id])}
+                              onClick={() => requestDeleteLogs([item._id])}
                               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#e6e2d8] bg-white text-[#c23b3b] disabled:opacity-40"
                             >
                               {isDeleting ? (
@@ -1369,7 +1390,7 @@ export default function ActivityLogViewer() {
                           type="button"
                           title="Delete this log"
                           disabled={isDeleting || deletingIds.size > 0}
-                          onClick={() => void deleteLogs([item._id])}
+                          onClick={() => requestDeleteLogs([item._id])}
                           className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#e6e2d8] text-[#c23b3b] transition hover:bg-[#fff5f5] disabled:opacity-40"
                         >
                           {isDeleting ? (
@@ -1512,6 +1533,22 @@ export default function ActivityLogViewer() {
           ) : null}
         </main>
       </div>
+
+      <ConfirmationModal
+        isOpen={!!pendingDeleteIds?.length}
+        title="Delete activity logs"
+        message={
+          pendingDeleteIds?.length === 1
+            ? "Delete this activity log entry? This cannot be undone."
+            : `Delete ${pendingDeleteIds?.length ?? 0} activity log entries? This cannot be undone.`
+        }
+        confirmLabel={deletingIds.size > 0 ? "Deleting…" : "Delete"}
+        cancelLabel="Cancel"
+        onConfirm={() => void confirmDeleteLogs()}
+        onCancel={closeDeleteModal}
+        isLoading={deletingIds.size > 0}
+        isDanger
+      />
     </div>
   );
 }

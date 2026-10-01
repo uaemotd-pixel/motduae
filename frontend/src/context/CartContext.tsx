@@ -13,10 +13,11 @@ import {
   type AccountCart,
 } from "@/lib/api/cart";
 import { api, getApiErrorMessage } from "@/lib/api/client";
+import type { ApiError } from "@/lib/api/client";
 import { broadcastSignedOut } from "@/lib/auth/sessionBroadcast";
 import { CART_KEY, CART_OWNER_KEY, clearLocalCartStorage } from "@/lib/cartStorage";
 import { isSecureIframeFocused } from "@/lib/secureIframeFocus";
-import { buildRetailCheckoutItem } from "@/lib/fabrics";
+import { buildRetailCheckoutItem, parseFabricCutCartId } from "@/lib/fabrics";
 
 export type CartItem = {
   id: string;
@@ -48,6 +49,14 @@ type CartContextType = {
   /** Apply live stock from checkout preview; drops lines with maxStock < 1. */
   syncStockFromPreview: (
     stockByCartId: Array<{ id: string; maxStock: number }>,
+  ) => string[];
+  /** Remove cart lines that match sold-out preview entries. */
+  removeUnavailablePreviewItems: (
+    unavailableItems: Array<{
+      productId?: string | null;
+      cutId?: string | null;
+      message?: string;
+    }>,
   ) => string[];
   /** Drop sold-out / unavailable lines via checkout preview. */
   purgeUnavailableItems: (
@@ -121,10 +130,37 @@ function toCartLine(item: {
   };
 }
 
-export function isCartAvailabilityError(message: string): boolean {
-  return /out of stock|insufficient stock|not available|product not found|not found:/i.test(
+export function isCartAvailabilityError(
+  message: string,
+  error?: unknown,
+): boolean {
+  if (error && typeof error === "object") {
+    const apiError = error as ApiError;
+    if (apiError.status === 409) {
+      const code =
+        apiError.data && typeof apiError.data === "object"
+          ? (apiError.data as { code?: string }).code
+          : undefined;
+      if (code === "ITEM_UNAVAILABLE") return true;
+    }
+  }
+
+  return /out of stock|insufficient stock|not available|product not found|not found:|sold out|all items.*unavailable|all items.*sold out/i.test(
     message,
   );
+}
+
+function cartLineMatchesUnavailable(
+  item: CartItem,
+  entry: { productId?: string | null; cutId?: string | null },
+): boolean {
+  const productId = String(entry.productId || "").trim();
+  if (!productId) return false;
+  const { fabricId, cutId } = parseFabricCutCartId(item.id);
+  if (fabricId !== productId && item.id !== productId) return false;
+  const entryCutId = entry.cutId ? String(entry.cutId) : null;
+  if (entryCutId) return cutId === entryCutId;
+  return !cutId;
 }
 
 function findUnavailableCartItem(
@@ -136,6 +172,17 @@ function findUnavailableCartItem(
     (item) => item.name && normalized.includes(item.name.toLowerCase()),
   );
   if (byName) return byName;
+
+  // Fabric cut labels are longer than API messages ("Name — Cut" vs "Name — insufficient…").
+  for (const item of items) {
+    const baseName = item.name
+      .split(/\s+[—–-]\s+/)[0]
+      ?.trim()
+      .toLowerCase();
+    if (baseName && baseName.length >= 3 && normalized.includes(baseName)) {
+      return item;
+    }
+  }
 
   const idMatches = message.match(/[a-f0-9]{24}/gi) || [];
   for (const productId of idMatches) {
@@ -720,6 +767,52 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return removedNames;
   };
 
+  const removeUnavailablePreviewItems = (
+    unavailableItems: Array<{
+      productId?: string | null;
+      cutId?: string | null;
+      message?: string;
+    }>,
+  ): string[] => {
+    if (!Array.isArray(unavailableItems) || unavailableItems.length === 0) {
+      return [];
+    }
+
+    const snapshot = readCart();
+    const toRemove = snapshot.filter((item) =>
+      unavailableItems.some((entry) => cartLineMatchesUnavailable(item, entry)),
+    );
+    if (toRemove.length === 0) return [];
+
+    const removeIds = new Set(toRemove.map((item) => item.id));
+    const removedNames = toRemove.map((item) => item.name || "Item");
+    const next = commitCart((current) =>
+      current.filter((item) => !removeIds.has(item.id)),
+    );
+    setItems(next);
+
+    const userId =
+      (user && !user.isGuest && user.id) || accountUserIdRef.current;
+    if (!userId) return removedNames;
+    accountUserIdRef.current = userId;
+
+    enqueue(async () => {
+      if (accountUserIdRef.current !== userId) return;
+      try {
+        for (const lineId of removeIds) {
+          await removeAccountCartItem(lineId);
+        }
+        const data = await getAccountCart();
+        if (accountUserIdRef.current !== userId) return;
+        applyAccountCart(data.items, userId);
+      } catch (error) {
+        await reconcileAccountWrite(snapshot, error, userId);
+      }
+    });
+
+    return removedNames;
+  };
+
   const purgeUnavailableItems = async (
     measurementUnit?: string,
   ): Promise<{
@@ -748,8 +841,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           stillOk.push(item);
         } catch (err: unknown) {
           const message = getApiErrorMessage(err, "Failed to validate cart");
-          if (isCartAvailabilityError(message)) {
-            removeItem(item.id, { silent: true });
+          if (isCartAvailabilityError(message, err)) {
+            const apiUnavailable =
+              err &&
+              typeof err === "object" &&
+              (err as ApiError).data &&
+              Array.isArray((err as ApiError).data.unavailableItems)
+                ? ((err as ApiError).data.unavailableItems as Array<{
+                    productId?: string | null;
+                    cutId?: string | null;
+                  }>)
+                : null;
+            if (apiUnavailable?.length) {
+              removeUnavailablePreviewItems(apiUnavailable);
+            } else {
+              removeItem(item.id, { silent: true });
+            }
             purgedNames.push(item.name || "Item");
           } else {
             lastError = message;
@@ -757,21 +864,56 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           }
         }
       }
-      remaining = stillOk;
+      remaining = readCart().filter((item) =>
+        stillOk.some((ok) => ok.id === item.id),
+      );
     };
 
     for (let attempt = 0; attempt < 12 && remaining.length > 0; attempt++) {
       try {
-        await api.post("/api/checkout/preview", {
+        const response = await api.post<{
+          unavailableItems?: Array<{
+            productId?: string | null;
+            cutId?: string | null;
+          }>;
+        }>("/api/checkout/preview", {
           items: buildPreviewPayload(remaining, measurementUnit),
         });
+        const softUnavailable = Array.isArray(response?.unavailableItems)
+          ? response.unavailableItems
+          : [];
+        if (softUnavailable.length > 0) {
+          const removed = removeUnavailablePreviewItems(softUnavailable);
+          purgedNames.push(...removed);
+          remaining = readCart();
+          if (removed.length > 0) continue;
+        }
         lastError = null;
         break;
       } catch (err: unknown) {
         const message = getApiErrorMessage(err, "Failed to validate cart");
         lastError = message;
 
-        if (!isCartAvailabilityError(message)) {
+        const apiUnavailable =
+          err &&
+          typeof err === "object" &&
+          (err as ApiError).data &&
+          Array.isArray((err as ApiError).data.unavailableItems)
+            ? ((err as ApiError).data.unavailableItems as Array<{
+                productId?: string | null;
+                cutId?: string | null;
+              }>)
+            : null;
+
+        if (apiUnavailable && apiUnavailable.length > 0) {
+          const removed = removeUnavailablePreviewItems(apiUnavailable);
+          purgedNames.push(...removed);
+          remaining = readCart();
+          if (remaining.length === 0) break;
+          if (removed.length > 0) continue;
+        }
+
+        if (!isCartAvailabilityError(message, err)) {
           break;
         }
 
@@ -783,13 +925,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
         const before = remaining.length;
         await dropUnavailableByProbing();
+        remaining = readCart();
         if (remaining.length === before || remaining.length === 0) {
           break;
         }
       }
     }
 
-    return { purgedNames, lastError, remainingItems: remaining };
+    return { purgedNames, lastError, remainingItems: readCart() };
   };
 
   const updateQuantity = (id: string, quantity: number) => {
@@ -868,6 +1011,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         removeItem,
         updateQuantity,
         syncStockFromPreview,
+        removeUnavailablePreviewItems,
         purgeUnavailableItems,
         refreshFromAccount,
         clearCart,

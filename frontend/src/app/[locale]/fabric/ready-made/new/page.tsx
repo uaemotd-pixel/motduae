@@ -2,6 +2,7 @@
 
 import { useEffect, useState, FormEvent, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { isShopProfileComplete } from "@/lib/shopProfile";
@@ -36,6 +37,7 @@ export default function NewReadyMadePage() {
   const params = useParams();
   const localeParam = params.locale as string;
   const t = getTranslation(localeParam);
+  const tShop = useTranslations("FabricPortal.fabrics");
 
   const [loading, setLoading] = useState(false);
   const [shopMissing, setShopMissing] = useState(false);
@@ -101,7 +103,7 @@ export default function NewReadyMadePage() {
         const shop = shopRes.item;
         if (!shop || !isShopProfileComplete(shop)) {
           setShopMissing(true);
-          toast.error("Please set up your store profile first before managing ready-to-wear items.");
+          toast.error(tShop("shopRequiredDescription"));
           return;
         }
 
@@ -330,18 +332,18 @@ export default function NewReadyMadePage() {
 
   if (shopMissing) {
     return (
-      <div className="max-w-2xl mx-auto border border-gray-200 bg-white p-8 rounded-2xl shadow-sm">
-        <h1 className="[font-family:var(--font-display)] text-2xl font-light text-black mb-3">
-          Store Profile Required
+      <div className="max-w-2xl border border-(--color-border) bg-white p-8">
+        <h1 className="[font-family:var(--font-display)] text-[28px] text-black mb-3">
+          {tShop("shopRequiredTitle")}
         </h1>
-        <p className="text-gray-500 text-sm mb-6">
-          You must set up your store profile first before you can manage ready-to-wear items.
+        <p className="[font-family:var(--font-body)] text-[14px] text-(--color-grey-muted) mb-6">
+          {tShop("shopRequiredDescription")}
         </p>
         <Link
           href="/fabric/shop"
-          className="inline-flex items-center justify-center px-6 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition"
+          className="inline-block px-8 py-3 bg-black text-white text-[10px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition [font-family:var(--font-ui)]"
         >
-          Create Store Profile
+          {tShop("shopRequiredCta")}
         </Link>
       </div>
     );

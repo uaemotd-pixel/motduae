@@ -35,6 +35,7 @@ import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAcco
 import { isWithinLocalDateRange } from "@/lib/dateRange";
 import { splitFabricCommission } from "@/lib/fabricCommission";
 import { formatCutEquivalentClause } from "@/lib/fabricUnits";
+import { formatPhoneDisplay } from "@/lib/uaePhone";
 
 function isFabricRetailLine(item: {
   kind?: string;
@@ -717,7 +718,7 @@ export default function FabricOrdersPage() {
                       {customerPhone && (
                         <p className="text-xs text-black font-semibold mt-1 flex items-center gap-1.5 bg-[#FFFDF9] border border-amber-100 px-2 py-0.5 rounded w-max [font-family:var(--font-body)]">
                           <Phone className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                          {customerPhone}
+                          {formatPhoneDisplay(customerPhone)}
                         </p>
                       )}
                       {customerEmail && (
@@ -916,7 +917,7 @@ export default function FabricOrdersPage() {
                     {customerPhone && (
                       <p className="text-xs text-black font-semibold mt-1 flex items-center gap-1.5 bg-[#FFFDF9] border border-amber-100 px-2 py-0.5 rounded w-max [font-family:var(--font-body)]">
                         <Phone className="w-3 h-3 text-amber-600 shrink-0" />
-                        {customerPhone}
+                        {formatPhoneDisplay(customerPhone)}
                       </p>
                     )}
                     {customerEmail && (

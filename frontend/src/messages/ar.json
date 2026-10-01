@@ -799,6 +799,7 @@
     "confirmRequired": "أكد صحة المعلومات قبل الإرسال",
     "loadError": "تعذر تحميل طلبك.",
     "submitError": "تعذر إرسال طلبك.",
+    "submitSuccess": "تم إرسال الطلب بنجاح. سيراجعه فريق MOTD قريباً.",
     "incomplete": "يرجى إكمال الحقول المطلوبة",
     "requiredField": "هذا الحقل مطلوب",
     "fieldRequired": "{field} مطلوب.",

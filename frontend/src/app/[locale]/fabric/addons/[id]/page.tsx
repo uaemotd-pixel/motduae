@@ -341,12 +341,13 @@ export default function FabricEditAddOnPage() {
     }
 
     const stockNum = Number(formData.stock);
-    if (!Number.isFinite(stockNum) || stockNum < 0 || !Number.isInteger(stockNum)) {
-      toast.error("Stock must be a whole number 0 or greater");
+    if (!Number.isFinite(stockNum) || stockNum < 1 || !Number.isInteger(stockNum)) {
+      toast.error("Stock must be a whole number of at least 1");
       setFieldErrors((prev) => ({
         ...prev,
-        stock: "Stock must be a whole number 0 or greater",
+        stock: "Stock must be a whole number of at least 1",
       }));
+      document.getElementById("stock")?.focus();
       return;
     }
 
@@ -908,8 +909,10 @@ export default function FabricEditAddOnPage() {
               <input
                 id="stock"
                 type="number"
-                min="0"
-                value={formData.stock}
+                min="1"
+                step="1"
+                required
+                value={formData.stock === "" ? "" : formData.stock}
                 onChange={(e) => handleNumberChange("stock", e.target.value)}
                 className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
                 placeholder="40"
