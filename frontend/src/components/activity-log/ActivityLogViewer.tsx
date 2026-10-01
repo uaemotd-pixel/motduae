@@ -802,6 +802,13 @@ export default function ActivityLogViewer() {
       })
     : null;
 
+  const deleteConfirmCount = pendingDeleteIds?.length ?? 0;
+  const deleteConfirmMessage =
+    deleteConfirmCount === 1
+      ? "Delete this activity log entry? This cannot be undone."
+      : `Delete ${deleteConfirmCount} activity log entries? This cannot be undone.`;
+  const isDeletingLogs = deletingIds.size > 0;
+
   function renderSidebar(onClose?: () => void) {
     return (
       <aside className="flex h-full min-h-[calc(100dvh-6rem)] w-[min(17.5rem,88vw)] shrink-0 flex-col bg-[#111312] text-[#f4f2ec] lg:w-70">
@@ -1528,18 +1535,14 @@ export default function ActivityLogViewer() {
       </div>
 
       <ConfirmationModal
-        isOpen={!!pendingDeleteIds?.length}
+        isOpen={deleteConfirmCount > 0}
         title="Delete activity logs"
-        message={
-          pendingDeleteIds?.length === 1
-            ? "Delete this activity log entry? This cannot be undone."
-            : `Delete ${pendingDeleteIds?.length ?? 0} activity log entries? This cannot be undone.`
-        }
-        confirmLabel={deletingIds.size > 0 ? "Deleting…" : "Delete"}
+        message={deleteConfirmMessage}
+        confirmLabel={isDeletingLogs ? "Deleting..." : "Delete"}
         cancelLabel="Cancel"
         onConfirm={() => void confirmDeleteLogs()}
         onCancel={closeDeleteModal}
-        isLoading={deletingIds.size > 0}
+        isLoading={isDeletingLogs}
         isDanger
       />
     </div>
