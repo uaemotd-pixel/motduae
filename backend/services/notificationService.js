@@ -733,10 +733,14 @@ export async function enrichCustomerNotifications(notifications) {
   });
 }
 
-export async function getCustomerOrderIds(userId) {
+export async function getCustomerOrderIds(userId, guestSessionId = "") {
+  const filter = { userId };
+  if (guestSessionId) {
+    filter.guestSessionId = guestSessionId;
+  }
   const [customOrders, retailOrders] = await Promise.all([
-    CustomOrder.find({ userId }).select("_id"),
-    RetailOrder.find({ userId }).select("_id"),
+    CustomOrder.find(filter).select("_id"),
+    RetailOrder.find(filter).select("_id"),
   ]);
 
   return [
@@ -745,17 +749,20 @@ export async function getCustomerOrderIds(userId) {
   ];
 }
 
-export function buildCustomerNotificationFilter(userId, orderIds, query = {}) {
+export function buildCustomerNotificationFilter(
+  userId,
+  orderIds,
+  query = {},
+  guestSessionId = "",
+) {
   // Search also uses `$or` (title/message/type). Keep it as its own `$and`
   // clause so it does not overwrite the recipient/order ownership `$or`.
   const listFilters = buildListFilters(query);
   const { $or: searchOr, ...restListFilters } = listFilters;
 
-  const clauses = [
-    {
-      audience: "customer",
-      ...restListFilters,
-      $or: [
+  const ownership = guestSessionId
+    ? [{ orderId: { $in: orderIds } }]
+    : [
         { recipientUserId: userId },
         {
           orderId: { $in: orderIds },
@@ -764,7 +771,13 @@ export function buildCustomerNotificationFilter(userId, orderIds, query = {}) {
             { recipientUserId: null },
           ],
         },
-      ],
+      ];
+
+  const clauses = [
+    {
+      audience: "customer",
+      ...restListFilters,
+      $or: ownership,
     },
   ];
 
@@ -814,9 +827,38 @@ export async function softDeleteNotification(filter) {
   );
 }
 
-export async function customerOwnsNotification(notification, userId) {
+async function orderMatchesCustomer(orderId, userId, guestSessionId = "") {
+  const select = guestSessionId ? "userId guestSessionId" : "userId";
+  const customOrder = await CustomOrder.findById(orderId).select(select);
+  const retailOrder = customOrder
+    ? null
+    : await RetailOrder.findById(orderId).select(select);
+  const order = customOrder || retailOrder;
+  if (!order || order.userId.toString() !== userId.toString()) {
+    return false;
+  }
+  if (guestSessionId) {
+    return order.guestSessionId === guestSessionId;
+  }
+  return true;
+}
+
+export async function customerOwnsNotification(
+  notification,
+  userId,
+  guestSessionId = "",
+) {
   if (notification.audience !== "customer" || notification.deletedAt) {
     return false;
+  }
+
+  if (guestSessionId) {
+    if (!notification.orderId) return false;
+    return orderMatchesCustomer(
+      notification.orderId,
+      userId,
+      guestSessionId,
+    );
   }
 
   if (notification.recipientUserId) {
@@ -827,17 +869,7 @@ export async function customerOwnsNotification(notification, userId) {
     return false;
   }
 
-  const customOrder = await CustomOrder.findById(notification.orderId).select("userId");
-  if (customOrder && customOrder.userId.toString() === userId.toString()) {
-    return true;
-  }
-
-  const retailOrder = await RetailOrder.findById(notification.orderId).select("userId");
-  if (retailOrder && retailOrder.userId.toString() === userId.toString()) {
-    return true;
-  }
-
-  return false;
+  return orderMatchesCustomer(notification.orderId, userId);
 }
 
 export async function getAdminNotificationSummary() {

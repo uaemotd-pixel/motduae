@@ -97,6 +97,7 @@ export function resolveAdminPagePerm(
   if (path.startsWith("/admin/notifications")) return "notifications";
   if (path.startsWith("/admin/settings")) return "settings";
   if (path.startsWith("/admin/sub-admin")) return "subAdmins";
+  if (path.startsWith("/admin/activity")) return "subAdmins";
 
   return "subAdmins";
 }

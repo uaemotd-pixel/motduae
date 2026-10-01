@@ -93,8 +93,23 @@ const isSameUserId = (left, right) => {
   return Boolean(leftId) && Boolean(rightId) && leftId === rightId;
 };
 
-const canAccessOrder = (order, user) =>
-  Boolean(user?.isAdmin) || isSameUserId(order?.userId, user?._id);
+const canAccessOrder = (order, user) => {
+  if (user?.isAdmin) return true;
+  if (!isSameUserId(order?.userId, user?._id)) return false;
+  if (user?.isGuest) {
+    const sessionId = String(user.guestSessionId || "");
+    return Boolean(sessionId) && order?.guestSessionId === sessionId;
+  }
+  return true;
+};
+
+const mineOrderFilter = (user) => {
+  const filter = { userId: user._id };
+  if (user?.isGuest) {
+    filter.guestSessionId = String(user.guestSessionId || "");
+  }
+  return filter;
+};
 
 function parseFabricMeters(fabricMeters) {
   const meters = Number(fabricMeters);
@@ -790,6 +805,7 @@ orderRoutes.post("/custom", isAuth, requireEmailVerified, async (req, res) => {
       orderType: "custom",
       amountAed,
       payload: customPayload,
+      guestSessionId: req.user?.isGuest ? req.user.guestSessionId : "",
     });
 
     const { order, created } = await fulfillPaidCheckout({
@@ -833,9 +849,7 @@ orderRoutes.post("/custom", isAuth, requireEmailVerified, async (req, res) => {
 
 orderRoutes.get("/custom/mine", isAuth, async (req, res) => {
   try {
-    const orders = await CustomOrder.find({
-      userId: req.user._id,
-    })
+    const orders = await CustomOrder.find(mineOrderFilter(req.user))
       .sort({ createdAt: -1 })
       .populate("tailorShopId", "name nameAr slug")
       .populate("items.tailorShopId", "name nameAr slug")
@@ -983,6 +997,7 @@ orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
       orderType: "retail",
       amountAed: prepared.totalPrice,
       payload: { orderItems, shippingAddress, contactEmail: storedContactEmail },
+      guestSessionId: req.user?.isGuest ? req.user.guestSessionId : "",
     });
 
     const { order, created } = await fulfillPaidCheckout({
@@ -1021,7 +1036,7 @@ orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
 // This route is for getting only my orders means the logged-in user orders
 orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
   try {
-    const orders = await RetailOrder.find({ userId: req.user._id })
+    const orders = await RetailOrder.find(mineOrderFilter(req.user))
       .sort({ createdAt: -1 })
       .select(
         "_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments",
