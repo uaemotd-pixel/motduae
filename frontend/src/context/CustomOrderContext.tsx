@@ -34,6 +34,7 @@ import {
   FabricUnit,
   getFabricCutLengthInMeters,
   getFabricCutStock,
+  getFabricCutEntryId,
   getLineItemCutSelections,
   getMinimumMetersForDesign,
   isDraftEmpty,
@@ -456,12 +457,7 @@ export function CustomOrderProvider({ children }: { children: ReactNode }) {
       if (!(lengthInMeters > 0)) continue;
 
       const entry = item.fabric?.cuts?.find(
-        (cut) =>
-          String(
-            (cut as { cutId?: { _id?: string } | string }).cutId?._id ||
-              cut.cutId ||
-              "",
-          ) === String(cutId),
+        (cut) => getFabricCutEntryId(cut) === String(cutId),
       );
       const hint = hints?.[cutId];
       const prior = item.selectedCuts?.find(

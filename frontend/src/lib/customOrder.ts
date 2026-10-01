@@ -818,13 +818,27 @@ export function getLineItemCutIds(item: CustomOrderLineItem): string[] {
   return Object.keys(getLineItemCutSelections(item));
 }
 
+/** Resolve a fabric cut entry id whether `cutId` is a string or populated `{ _id }`. */
+export function getFabricCutEntryId(cut: {
+  cutId?: unknown;
+  cut?: { _id?: string } | null;
+}): string {
+  const ref = cut.cutId;
+  if (ref && typeof ref === "object" && "_id" in (ref as object)) {
+    return String((ref as { _id?: unknown })._id || "");
+  }
+  if (typeof ref === "string" && ref.trim()) return ref.trim();
+  if (cut.cut?._id) return String(cut.cut._id);
+  return "";
+}
+
 export function getFabricCutStock(
   fabric: CustomOrderFabricSelection | null | undefined,
   cutId: string,
 ): number {
   const id = String(cutId || "");
   const entry = fabric?.cuts?.find(
-    (cut) => String((cut as { cutId?: { _id?: string } | string }).cutId?._id || cut.cutId || "") === id,
+    (cut) => getFabricCutEntryId(cut) === id,
   );
   if (!entry) return 0;
   return Math.max(0, Math.floor(Number(entry.stockPieces ?? entry.stock) || 0));
@@ -836,7 +850,7 @@ export function getFabricCutLengthInMeters(
 ): number {
   const id = String(cutId || "");
   const entry = fabric?.cuts?.find(
-    (cut) => String((cut as { cutId?: { _id?: string } | string }).cutId?._id || cut.cutId || "") === id,
+    (cut) => getFabricCutEntryId(cut) === id,
   );
   if (!entry) return 0;
 

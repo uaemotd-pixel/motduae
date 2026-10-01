@@ -12,6 +12,7 @@ import {
   getBackPathFromMeters,
   getCustomOrderResumePath,
   getCustomOrderStepNumber,
+  getFabricCutEntryId,
   getLineItemCutIds,
   getLineItemCutSelections,
   getMinimumMetersForDesign,
@@ -79,57 +80,51 @@ function StorefrontCutPicker({
   const availableCuts: CustomOrderSelectedCut[] = useMemo(() => {
     const rawCuts = item.fabric?.cuts || [];
     if (rawCuts.length > 0) {
-      return rawCuts
-        .map((c) => {
-          const cutId = String(
-            (c as { cutId?: { _id?: string } | string }).cutId?._id ||
-              c.cutId ||
-              (typeof c.cut === "object" ? c.cut?._id : "") ||
-              "",
-          );
-          if (!cutId) return null;
+      return rawCuts.flatMap((c) => {
+        const cutId = getFabricCutEntryId(c);
+        if (!cutId) return [];
 
-          const matchedAdminCut = cutOptions.find(
-            (opt) => String(opt._id) === cutId,
-          );
-          const value = c.cut?.value ?? matchedAdminCut?.value;
-          const unit =
-            c.cut?.unit ?? matchedAdminCut?.unit ?? ("meter" as const);
-          if (typeof value !== "number" || !Number.isFinite(value)) {
-            return null;
-          }
+        const matchedAdminCut = cutOptions.find(
+          (opt) => String(opt._id) === cutId,
+        );
+        const value = c.cut?.value ?? matchedAdminCut?.value;
+        const unit =
+          c.cut?.unit ?? matchedAdminCut?.unit ?? ("meter" as const);
+        if (typeof value !== "number" || !Number.isFinite(value)) {
+          return [];
+        }
 
-          const lengthInMeters =
-            (typeof c.cut?.lengthInMeters === "number" &&
-            c.cut.lengthInMeters > 0
-              ? c.cut.lengthInMeters
-              : null) ??
-            matchedAdminCut?.metersEquivalent ??
-            cutValueToMeters(
-              value,
-              unit === "war" ? "war" : "meter",
-            );
-          if (!(lengthInMeters > 0)) return null;
+        const lengthInMeters =
+          (typeof c.cut?.lengthInMeters === "number" &&
+          c.cut.lengthInMeters > 0
+            ? c.cut.lengthInMeters
+            : null) ??
+          matchedAdminCut?.metersEquivalent ??
+          cutValueToMeters(value, unit === "war" ? "war" : "meter");
+        if (!(lengthInMeters > 0)) return [];
 
-          const name = c.cut?.name || matchedAdminCut?.name || "Standard Cut";
-          const nameAr = c.cut?.nameAr || matchedAdminCut?.nameAr || name;
+        const name = c.cut?.name || matchedAdminCut?.name || "Standard Cut";
+        const nameAr = c.cut?.nameAr || matchedAdminCut?.nameAr || name;
+        const stock = Math.max(
+          0,
+          Math.floor(Number(c.stockPieces ?? c.stock) || 0),
+        );
 
-          return {
+        if (!(stock > 0 || (selections[cutId] || 0) > 0)) return [];
+
+        return [
+          {
             cutId,
             name,
             nameAr,
             lengthInMeters: Number(lengthInMeters),
             price: c.price,
-            stock: Math.max(
-              0,
-              Math.floor(Number(c.stockPieces ?? c.stock) || 0),
-            ),
+            stock,
             value,
             unit,
-          };
-        })
-        .filter((c): c is CustomOrderSelectedCut => c !== null)
-        .filter((c) => c.stock > 0 || (selections[c.cutId] || 0) > 0);
+          } satisfies CustomOrderSelectedCut,
+        ];
+      });
     }
 
     return cutOptions.map((opt) => ({
