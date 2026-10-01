@@ -1,5 +1,6 @@
 import express from "express";
 import { isAuth } from "../middleware/auth.js";
+import { clientErrorMessage } from "../middleware/errorHandler.js";
 import {
   CartError,
   addLine,
@@ -24,11 +25,11 @@ function rejectGuest(req, res) {
 
 function sendCartError(res, err) {
   if (err instanceof CartError) {
-    res.status(err.status).json({ message: err.message });
+    res.status(err.status).json({ message: clientErrorMessage(err, err.status) });
     return;
   }
   console.error(err);
-  res.status(500).json({ message: "Internal Server Error" });
+  res.status(500).json({ message: clientErrorMessage(err, 500) });
 }
 
 router.get("/", async (req, res) => {

@@ -10,6 +10,7 @@ import {
   isValidEmirate,
   UAE_EMIRATES,
 } from "../utils/uaeAddress.js";
+import { clientErrorMessage } from "../middleware/errorHandler.js";
 
 const subAdminRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -142,7 +143,8 @@ subAdminRouter.get("/", async (req, res) => {
       totalPages: Math.ceil(total / limit),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: clientErrorMessage(err, 500) });
   }
 });
 
@@ -152,7 +154,8 @@ subAdminRouter.get("/:id", async (req, res) => {
     if (!admin) return res.status(404).json({ error: "Not found" });
     res.json(admin);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: clientErrorMessage(err, 500) });
   }
 });
 
@@ -180,7 +183,8 @@ subAdminRouter.patch("/:id/toggle-active", async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: clientErrorMessage(err, 500) });
   }
 });
 
@@ -254,7 +258,8 @@ subAdminRouter.put("/:id", async (req, res) => {
     res.json(updatedSubAdmin);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: clientErrorMessage(err, 500) });
   }
 });
 
@@ -283,7 +288,8 @@ subAdminRouter.delete("/:id", async (req, res) => {
     res.json({ message: "Sub-admin and associated user deleted" });
   } catch (err) {
     console.error("Delete error:", err);
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: clientErrorMessage(err, 500) });
   }
 });
 

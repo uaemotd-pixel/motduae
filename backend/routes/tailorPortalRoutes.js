@@ -1,5 +1,6 @@
 import express from "express";
 import expressAsyncHandler from "express-async-handler";
+import { clientErrorMessage } from "../middleware/errorHandler.js";
 import TailorShop from "../models/TailorShop.js";
 import CustomOrder, { CUSTOM_STATUSES } from "../models/CustomOrder.js";
 import Design from "../models/Design.js";
@@ -1010,7 +1011,7 @@ tailorPortalRouter.post(
     } catch (err) {
       if (err instanceof PartnerPayoutError) {
         res.status(err.status).send({
-          message: err.message,
+          message: clientErrorMessage(err, err.status),
           ...(err.pendingRequest ? { pendingRequest: err.pendingRequest } : {}),
         });
         return;
@@ -1032,7 +1033,9 @@ tailorPortalRouter.delete(
       res.send({ success: true, message: "Request deleted", id: String(req.params.id) });
     } catch (err) {
       if (err instanceof PartnerPayoutError) {
-        res.status(err.status).send({ message: err.message });
+        res.status(err.status).send({
+          message: clientErrorMessage(err, err.status),
+        });
         return;
       }
       throw err;

@@ -7,6 +7,7 @@ import FabricShop from "../models/FabricShop.js";
 import AddOn from "../models/AddOn.js";
 import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
 import { isAuth } from "../middleware/auth.js";
+import { clientErrorMessage } from "../middleware/errorHandler.js";
 import { createNotification } from "../services/notificationService.js";
 import { recomputeShopRatingsForReview } from "../services/reviewShopRatings.js";
 import {
@@ -358,7 +359,7 @@ export function registerCustomerReviewRoutes(customerRouter) {
     } catch (err) {
       console.error(err);
       const status = err.status || 500;
-      return res.status(status).json({ error: err.message || "Server error" });
+      return res.status(status).json({ error: clientErrorMessage(err, status) });
     }
   });
 
@@ -411,7 +412,7 @@ export function registerCustomerReviewRoutes(customerRouter) {
       });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message || "Server error" });
+      return res.status(500).json({ error: clientErrorMessage(err, 500) });
     }
   });
 
@@ -448,7 +449,7 @@ export function registerCustomerReviewRoutes(customerRouter) {
       return res.json({ success: true });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message || "Server error" });
+      return res.status(500).json({ error: clientErrorMessage(err, 500) });
     }
   });
 
@@ -557,7 +558,7 @@ export function registerCustomerReviewRoutes(customerRouter) {
       return res.json({ success: true, products, customOrders: [] });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message || "Server error" });
+      return res.status(500).json({ error: clientErrorMessage(err, 500) });
     }
   });
 
@@ -650,7 +651,7 @@ export function registerCustomerReviewRoutes(customerRouter) {
       });
     } catch (err) {
       console.error(err);
-      return res.status(500).json({ error: err.message || "Server error" });
+      return res.status(500).json({ error: clientErrorMessage(err, 500) });
     }
   });
 }

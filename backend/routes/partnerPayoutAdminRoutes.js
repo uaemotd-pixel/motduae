@@ -18,6 +18,7 @@ import {
   releasePayout,
 } from "../services/partnerPayout/index.js";
 import { healStalePendingRequests } from "../services/partnerPayout/portal.js";
+import { clientErrorMessage } from "../middleware/errorHandler.js";
 
 function readIdempotencyKey(req) {
   return req.get("Idempotency-Key") || req.get("idempotency-key") || "";
@@ -25,7 +26,10 @@ function readIdempotencyKey(req) {
 
 function sendPayoutError(res, err) {
   if (err instanceof PartnerPayoutError) {
-    res.status(err.status).send({ message: err.message, code: err.code });
+    res.status(err.status).send({
+      message: clientErrorMessage(err, err.status),
+      code: err.code,
+    });
     return true;
   }
   return false;
