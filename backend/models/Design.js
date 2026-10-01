@@ -54,7 +54,13 @@ const designSchema = new mongoose.Schema(
       lengthInMeters: { type: Number, default: 0 },
     },
     estimatedMeters: { type: Number, required: false, min: 0 },
+    estimatedDaysMin: { type: Number, default: 7, min: 1 },
     estimatedDays: { type: Number, default: 7, min: 1 },
+    estimatedTimeUnit: {
+      type: String,
+      enum: ["days", "weeks"],
+      default: "days",
+    },
     minAge: { type: Number, required: true, default: 0, min: 0, max: 150 },
     maxAge: {
       type: Number,

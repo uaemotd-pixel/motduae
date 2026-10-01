@@ -73,7 +73,9 @@ export interface TailorDesignListItem {
     lengthInMeters: number;
   };
   estimatedMeters: number;
+  estimatedDaysMin?: number;
   estimatedDays: number;
+  estimatedTimeUnit?: "days" | "weeks";
   tailorSlug?: string;
   tailorName?: string;
   tailorNameAr?: string;

@@ -253,7 +253,7 @@ export default function TailorDesignForm({
   const previousImageCountRef = useRef(formData.images.length);
 
   const handleNumberChange = (
-    field: "basePrice" | "tailoringFee" | "estimatedDays",
+    field: "basePrice" | "tailoringFee" | "estimatedDaysMin" | "estimatedDays",
     value: string,
   ) => {
     if (value === "") {
@@ -262,7 +262,7 @@ export default function TailorDesignForm({
     }
 
     const num =
-      field === "estimatedDays"
+      field === "estimatedDaysMin" || field === "estimatedDays"
         ? parseInt(value, 10)
         : parseFloat(value);
 
@@ -540,10 +540,14 @@ export default function TailorDesignForm({
       errors.minCutId = t("validation.minCutRequired");
     }
     if (
+      !Number.isFinite(formData.estimatedDaysMin) ||
+      formData.estimatedDaysMin < 1 ||
       !Number.isFinite(formData.estimatedDays) ||
       formData.estimatedDays < 1
     ) {
-      errors.estimatedDays = t("validation.estimatedDaysInvalid");
+      errors.estimatedDays = t("validation.estimatedTimeInvalid");
+    } else if (formData.estimatedDays < formData.estimatedDaysMin) {
+      errors.estimatedDays = t("validation.estimatedTimeRangeInvalid");
     }
 
     setFieldErrors(errors);
@@ -901,99 +905,172 @@ export default function TailorDesignForm({
           </div>
 
           <div className="col-span-2 space-y-4 sm:space-y-5">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-4 sm:gap-5">
-              <FormField
-                label={t("fields.price")}
-                name="basePrice"
-                required
-                error={fieldErrors.basePrice}
-              >
-                <NumericInput
-                  id="basePrice"
-                  min={0}
-                  step={1}
-                  value={formData.basePrice}
-                  onChange={(value) => {
-                    handleChange("basePrice", value);
-                  }}
-                  className={INPUT_CLASS}
-                />
-              </FormField>
+            <div className="space-y-4 sm:space-y-5">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-4 sm:gap-5">
+                <FormField
+                  label={t("fields.price")}
+                  name="basePrice"
+                  required
+                  error={fieldErrors.basePrice}
+                >
+                  <NumericInput
+                    id="basePrice"
+                    min={0}
+                    step={1}
+                    value={formData.basePrice}
+                    onChange={(value) => {
+                      handleChange("basePrice", value);
+                    }}
+                    className={INPUT_CLASS}
+                  />
+                </FormField>
 
-              <FormField
-                label={t("fields.finalPrice")}
-                name="finalPrice"
-                hint={
-                  commissionPercent > 0
-                    ? t("fields.finalPriceHint", { percent: commissionPercent })
-                    : undefined
-                }
-              >
-                <input
-                  id="finalPrice"
-                  readOnly
-                  tabIndex={-1}
-                  value={finalPriceDisplay}
-                  className={`${INPUT_CLASS} text-black/60 cursor-default`}
-                />
-              </FormField>
-
-              <BilingualFilterDropdown
-                label={t("fields.minCut")}
-                name="minCutId"
-                required
-                error={fieldErrors.minCutId}
-                value={formData.minCutId}
-                options={cutDropdownOptions}
-                loading={cutsLoading}
-                loadingText={filterLoadingText}
-                emptyText={filterEmptyText}
-                placeholder={t("filters.selectMinCut")}
-                clearLabel={t("filters.selectMinCut")}
-                isOpen={openMinCut}
-                onToggle={() => setOpenMinCut(!openMinCut)}
-                onClose={() => setOpenMinCut(false)}
-                onSelect={(_en, _ar, val) => {
-                  const selectedCut = cutOptions.find((c) => c._id === val);
-                  const meters = selectedCut
-                    ? (selectedCut.metersEquivalent ??
-                      selectedCut.lengthInMeters ??
-                      selectedCut.value)
-                    : undefined;
-                  setFormData((prev) => ({
-                    ...prev,
-                    minCutId: val,
-                    ...(meters ? { estimatedMeters: meters } : {}),
-                  }));
-                  if (fieldErrors.minCutId) {
-                    setFieldErrors((prev) => ({
-                      ...prev,
-                      minCutId: undefined,
-                    }));
+                <FormField
+                  label={t("fields.finalPrice")}
+                  name="finalPrice"
+                  hint={
+                    commissionPercent > 0
+                      ? t("fields.finalPriceHint", {
+                          percent: commissionPercent,
+                        })
+                      : undefined
                   }
-                }}
-                onClear={() => {
-                  setFormData((prev) => ({ ...prev, minCutId: "" }));
-                }}
-              />
+                >
+                  <input
+                    id="finalPrice"
+                    readOnly
+                    tabIndex={-1}
+                    value={finalPriceDisplay}
+                    className={`${INPUT_CLASS} text-black/60 cursor-default`}
+                  />
+                </FormField>
+
+                <div className="col-span-2 lg:col-span-1">
+                  <BilingualFilterDropdown
+                    label={t("fields.minCut")}
+                    name="minCutId"
+                    required
+                    error={fieldErrors.minCutId}
+                    value={formData.minCutId}
+                    options={cutDropdownOptions}
+                    loading={cutsLoading}
+                    loadingText={filterLoadingText}
+                    emptyText={filterEmptyText}
+                    placeholder={t("filters.selectMinCut")}
+                    clearLabel={t("filters.selectMinCut")}
+                    isOpen={openMinCut}
+                    onToggle={() => setOpenMinCut(!openMinCut)}
+                    onClose={() => setOpenMinCut(false)}
+                    onSelect={(_en, _ar, val) => {
+                      const selectedCut = cutOptions.find((c) => c._id === val);
+                      const meters = selectedCut
+                        ? (selectedCut.metersEquivalent ??
+                          selectedCut.lengthInMeters ??
+                          selectedCut.value)
+                        : undefined;
+                      setFormData((prev) => ({
+                        ...prev,
+                        minCutId: val,
+                        ...(meters ? { estimatedMeters: meters } : {}),
+                      }));
+                      if (fieldErrors.minCutId) {
+                        setFieldErrors((prev) => ({
+                          ...prev,
+                          minCutId: undefined,
+                        }));
+                      }
+                    }}
+                    onClear={() => {
+                      setFormData((prev) => ({ ...prev, minCutId: "" }));
+                    }}
+                  />
+                </div>
+              </div>
 
               <FormField
-                label={t("fields.estimatedDays")}
+                label={t("fields.estimatedTime")}
                 name="estimatedDays"
                 required
                 error={fieldErrors.estimatedDays}
               >
-                <input
-                  id="estimatedDays"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={getNumberDisplay(formData.estimatedDays)}
-                  onChange={(e) =>
-                    handleNumberChange("estimatedDays", e.target.value)
-                  }
-                  className={INPUT_CLASS}
-                />
+                <div className="flex max-w-lg flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="w-full sm:w-36">
+                    <label
+                      htmlFor="estimatedTimeUnit"
+                      className="mb-1 block text-[10px] uppercase tracking-[0.14em] text-gray-400 [font-family:var(--font-ui)]"
+                    >
+                      {t("fields.estimatedTimeUnit")}
+                    </label>
+                    <select
+                      id="estimatedTimeUnit"
+                      value={formData.estimatedTimeUnit}
+                      onChange={(e) =>
+                        handleChange(
+                          "estimatedTimeUnit",
+                          e.target.value === "weeks" ? "weeks" : "days",
+                        )
+                      }
+                      className={`${INPUT_CLASS} hover:cursor-pointer`}
+                    >
+                      <option value="days">{t("fields.unitDays")}</option>
+                      <option value="weeks">{t("fields.unitWeeks")}</option>
+                    </select>
+                  </div>
+
+                  <div className="flex min-w-0 flex-1 items-end gap-2">
+                    <div className="min-w-0 flex-1">
+                      <label
+                        htmlFor="estimatedDaysMin"
+                        className="mb-1 block text-[10px] uppercase tracking-[0.14em] text-gray-400 [font-family:var(--font-ui)]"
+                      >
+                        {t("fields.estimatedTimeFrom")}
+                      </label>
+                      <input
+                        id="estimatedDaysMin"
+                        type="number"
+                        min="1"
+                        step="1"
+                        inputMode="numeric"
+                        value={getNumberDisplay(formData.estimatedDaysMin)}
+                        onChange={(e) =>
+                          handleNumberChange(
+                            "estimatedDaysMin",
+                            e.target.value,
+                          )
+                        }
+                        className={INPUT_CLASS}
+                      />
+                    </div>
+
+                    <span
+                      className="pb-1.5 text-xs text-gray-400 [font-family:var(--font-ui)]"
+                      aria-hidden
+                    >
+                      –
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <label
+                        htmlFor="estimatedDays"
+                        className="mb-1 block text-[10px] uppercase tracking-[0.14em] text-gray-400 [font-family:var(--font-ui)]"
+                      >
+                        {t("fields.estimatedTimeTo")}
+                      </label>
+                      <input
+                        id="estimatedDays"
+                        type="number"
+                        min="1"
+                        step="1"
+                        inputMode="numeric"
+                        value={getNumberDisplay(formData.estimatedDays)}
+                        onChange={(e) =>
+                          handleNumberChange("estimatedDays", e.target.value)
+                        }
+                        className={INPUT_CLASS}
+                      />
+                    </div>
+                  </div>
+                </div>
               </FormField>
             </div>
           </div>

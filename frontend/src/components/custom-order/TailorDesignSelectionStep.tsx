@@ -23,6 +23,7 @@ import {
     resolveDesignImage,
     getDesignMinCutLength,
 } from "@/lib/tailors";
+import { formatEstimatedLeadTime } from "@/lib/tailorDesigns";
 import { type FabricListItem, getFabricMaxCutLength } from "@/lib/fabrics";
 import ConfiguratorStepHeader from "@/components/custom-order/ConfiguratorStepHeader";
 import CustomOrderFloatingNext from "@/components/custom-order/CustomOrderFloatingNext";
@@ -358,8 +359,17 @@ export default function TailorDesignSelectionStep() {
                                             </span>
                                         </span>
                                         <span>
-                                            {t("estimatedDays")}: {item.estimatedDays}{" "}
-                                            {t("days")}
+                                            {t("estimatedDays")}:{" "}
+                                            {formatEstimatedLeadTime(
+                                                item.estimatedDaysMin ??
+                                                    item.estimatedDays,
+                                                item.estimatedDays,
+                                                item.estimatedTimeUnit,
+                                                {
+                                                    days: t("days"),
+                                                    weeks: t("weeks"),
+                                                },
+                                            )}
                                         </span>
                                         <span>
                                             {t("estimatedMeters")}:{" "}

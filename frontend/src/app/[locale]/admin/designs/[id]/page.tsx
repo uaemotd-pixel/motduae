@@ -15,6 +15,7 @@ import {
   getDesignTailorShopName,
   type AdminDesignProfile,
 } from "@/lib/adminDesigns";
+import { formatEstimatedLeadTime } from "@/lib/tailorDesigns";
 
 export default function AdminDesignDetailsPage() {
   const params = useParams();
@@ -186,7 +187,17 @@ export default function AdminDesignDetailsPage() {
           <DetailRow label={t.view.min_cut} value={cutName} />
           <DetailRow
             label={t.view.estimated_days}
-            value={String(design.estimatedDays || "—")}
+            value={
+              formatEstimatedLeadTime(
+                design.estimatedDaysMin ?? design.estimatedDays,
+                design.estimatedDays,
+                design.estimatedTimeUnit,
+                {
+                  days: isAr ? "أيام" : "days",
+                  weeks: isAr ? "أسابيع" : "weeks",
+                },
+              ) || "—"
+            }
           />
           <DetailRow
             label={t.view.age_range}
