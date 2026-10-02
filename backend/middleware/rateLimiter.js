@@ -97,6 +97,15 @@ const buildKeyGenerator = (prefix) => {
   };
 };
 
+const buildUserKeyGenerator = (prefix) => {
+  return (req) => {
+    const ip = ipKeyGenerator(req.ip);
+    const userId = req.user?._id ? String(req.user._id) : "";
+    const baseKey = userId ? `${ip}_${userId}` : ip;
+    return `${prefix}_${baseKey}`;
+  };
+};
+
 const defaultHandler = (message) => {
   return (req, res, next, options) => {
     res.status(options.statusCode).json({
@@ -169,6 +178,34 @@ export const newsletterLimiter = rateLimit({
   statusCode: 429,
   message: "Too many subscription attempts. Please try again in 15 minutes",
   handler: defaultHandler("Too many subscription attempts. Please try again in 15 minutes"),
+});
+
+export const signupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  store: new SlidingWindowStore(),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: buildKeyGenerator("signup"),
+  validate: limiterValidation,
+  statusCode: 429,
+  message: "Too many signup attempts, please try again in 15 minutes",
+  handler: defaultHandler(
+    "Too many signup attempts, please try again in 15 minutes",
+  ),
+});
+
+export const customerUploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  store: new SlidingWindowStore(),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: buildUserKeyGenerator("customer_upload"),
+  validate: limiterValidation,
+  statusCode: 429,
+  message: "Too many uploads, please try again in 15 minutes",
+  handler: defaultHandler("Too many uploads, please try again in 15 minutes"),
 });
 
 export const publicOrderTrackLimiter = rateLimit({

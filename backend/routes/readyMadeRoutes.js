@@ -22,7 +22,12 @@ async function activeFabricShopCatalogFilter() {
 // GET API ready-made
 readyMadeRoutes.get("/", async (req, res) => {
     try {
-        const { size, page = 1, limit = 10 } = req.query;
+        const { size, page = 1, limit: limitQuery = 10 } = req.query;
+        const parsedLimit = Number(limitQuery);
+        const limit =
+          Number.isFinite(parsedLimit) && parsedLimit >= 1
+            ? Math.min(Math.floor(parsedLimit), 48)
+            : 10;
         const filter = {
             isActive: true,
             ...(await activeFabricShopCatalogFilter()),
@@ -33,12 +38,12 @@ readyMadeRoutes.get("/", async (req, res) => {
             filter.size = size.trim();
         }
 
-        const skip = (Number(page) - 1) * Number(limit);
+        const skip = (Number(page) - 1) * limit;
 
         const products = await ReadyMadeProduct.find(filter)
             .populate("fabricShopId", "_id name nameAr slug")
             .skip(skip)
-            .limit(Number(limit))
+            .limit(limit)
             .sort({ createdAt: -1 });
         const total = await ReadyMadeProduct.countDocuments(filter);
         const settings = await PlatformSettings.getSettings();
@@ -101,7 +106,7 @@ readyMadeRoutes.get("/", async (req, res) => {
         res.json({
             success: true,
             page: Number(page),
-            limit: Number(limit),
+            limit,
             total,
             totalPages: Math.ceil(total / limit),
             items,

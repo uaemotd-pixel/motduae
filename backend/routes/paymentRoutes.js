@@ -97,6 +97,9 @@ function validateMultiItemOrderInput({ fabricSource, items }) {
   if (!Array.isArray(items) || items.length === 0) {
     throw new PricingValidationError("At least one item is required");
   }
+  if (items.length > 30) {
+    throw new PricingValidationError("A checkout can include at most 30 items");
+  }
 
   return {
     fabricSource,
@@ -222,6 +225,13 @@ paymentRoutes.post(
           success: false,
           message: "Client-supplied price is not allowed",
         });
+    }
+
+    if (Array.isArray(orderItems) && orderItems.length > 30) {
+      return res.status(400).json({
+        success: false,
+        message: "A checkout can include at most 30 items",
+      });
     }
 
     try {
