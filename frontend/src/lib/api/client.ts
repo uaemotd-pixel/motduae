@@ -139,6 +139,11 @@ class ApiClient {
             const response = await fetch(url, {
                 method: 'POST',
                 credentials: 'include',
+                // Image uploads are supporting steps for create/update — never count
+                // them as separate Activity Log / Busiest People actions.
+                headers: {
+                    'x-motd-activity-skip': '1',
+                },
                 body: formData,
             });
 

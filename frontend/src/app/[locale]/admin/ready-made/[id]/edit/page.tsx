@@ -74,7 +74,6 @@ export default function EditReadyMadePage() {
       try {
         const [
           shopsRes,
-          fabricsRes,
           tailorsRes,
           designsRes,
           categoriesRes,
@@ -84,8 +83,6 @@ export default function EditReadyMadePage() {
           seasonsRes,
         ] = await Promise.all([
           api.get<any>("/api/admin/fabric-shops"),
-          // /api/admin/fabrics returns { items: [...], total, page, totalPages }
-          api.get<any>("/api/admin/fabrics"),
           api.get<any>("/api/admin/tailors"),
           api.get<any[]>("/api/admin/designs"),
           api.get<any[]>("/api/filters/categories?domain=ready-made"),
@@ -95,11 +92,6 @@ export default function EditReadyMadePage() {
           api.get<any[]>("/api/filters/seasons?domain=ready-made"),
         ]);
         setFabricShops(shopsRes.items || []);
-        setAllFabrics(
-          (Array.isArray(fabricsRes)
-            ? fabricsRes
-            : (fabricsRes as any)?.items || []) as any[],
-        );
         setTailorShops(tailorsRes.items || []);
         setAllDesigns(
           (Array.isArray(designsRes)
@@ -125,6 +117,35 @@ export default function EditReadyMadePage() {
     };
     loadDropdownData();
   }, []);
+
+  useEffect(() => {
+    const shopId = formData?.fabricShopId;
+    if (!shopId) {
+      setAllFabrics([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadShopFabrics = async () => {
+      try {
+        const fabricsRes = await api.get<{ items?: any[] }>(
+          `/api/admin/fabrics?fabricShopId=${encodeURIComponent(shopId)}&limit=500`,
+        );
+        if (!cancelled) {
+          setAllFabrics(fabricsRes?.items || []);
+        }
+      } catch {
+        if (!cancelled) {
+          setAllFabrics([]);
+          toast.error("Failed to load fabrics for the selected store");
+        }
+      }
+    };
+    void loadShopFabrics();
+    return () => {
+      cancelled = true;
+    };
+  }, [formData?.fabricShopId]);
 
   const filteredFabrics = useMemo(() => {
     if (!formData?.fabricShopId) return [];
@@ -205,6 +226,7 @@ export default function EditReadyMadePage() {
       delete next["pickupAddress.phone"];
       delete next["pickupAddress.line1"];
       delete next["pickupAddress.line2"];
+      delete next["pickupAddress.building"];
       delete next["pickupAddress.city"];
       delete next["pickupAddress.emirate"];
       return next;
@@ -429,7 +451,7 @@ export default function EditReadyMadePage() {
     <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 px-3 sm:px-0">
       <div>
         <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
-          Edit Ready-Made Product
+          Edit Ready Made Product
         </h1>
         <p className="text-gray-500 text-xs sm:text-sm mt-1">
           Update the product details

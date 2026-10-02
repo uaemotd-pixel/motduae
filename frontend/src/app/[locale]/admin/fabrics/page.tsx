@@ -87,7 +87,13 @@ interface ApiResponse {
   };
 }
 
-type FabricStatusFilter = "all" | "available" | "sold" | "low";
+type FabricStatusFilter =
+  | "all"
+  | "available"
+  | "sold"
+  | "low"
+  | "active"
+  | "inactive";
 
 /** Must match backend LOW_FABRIC_CUT_STOCK_THRESHOLD. */
 const LOW_FABRIC_CUT_STOCK = 5;
@@ -235,7 +241,7 @@ export default function AdminFabricsPage() {
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
 
-  // Filter tabs (All / Available / Sold / Low stock)
+  // Filter tabs (All / Available / Sold / Low stock / Active / Inactive)
   const [statusFilter, setStatusFilter] = useState<FabricStatusFilter>(
     searchParams.get("stock") === "low" ? "low" : "all",
   );
@@ -676,46 +682,28 @@ export default function AdminFabricsPage() {
       {/* Tabs & Search */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
-          <button
-            onClick={() => applyStatusFilter("all")}
-            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
-              statusFilter === "all"
-                ? "border-b-2 border-black text-black"
-                : "text-gray-500 hover:text-black"
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => applyStatusFilter("available")}
-            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
-              statusFilter === "available"
-                ? "border-b-2 border-black text-black"
-                : "text-gray-500 hover:text-black"
-            }`}
-          >
-            Available
-          </button>
-          <button
-            onClick={() => applyStatusFilter("sold")}
-            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
-              statusFilter === "sold"
-                ? "border-b-2 border-black text-black"
-                : "text-gray-500 hover:text-black"
-            }`}
-          >
-            Sold
-          </button>
-          <button
-            onClick={() => applyStatusFilter("low")}
-            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
-              statusFilter === "low"
-                ? "border-b-2 border-black text-black"
-                : "text-gray-500 hover:text-black"
-            }`}
-          >
-            {t.adminFabrics.list.tab_low_stock}
-          </button>
+          {(
+            [
+              { key: "all", label: "All" },
+              { key: "available", label: "Available" },
+              { key: "sold", label: "Sold" },
+              { key: "low", label: t.adminFabrics.list.tab_low_stock },
+              { key: "active", label: "Active" },
+              { key: "inactive", label: "Inactive" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => applyStatusFilter(tab.key)}
+              className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
+                statusFilter === tab.key
+                  ? "border-b-2 border-black text-black"
+                  : "text-gray-500 hover:text-black"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">

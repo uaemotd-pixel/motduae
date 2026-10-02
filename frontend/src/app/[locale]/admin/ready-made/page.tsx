@@ -39,15 +39,27 @@ interface ReadyMadeItem {
   finalSellingPriceAED: number;
   availableFabricStock: number;
   status: "available" | "sold";
+  isActive?: boolean;
   createdAt: string;
   updatedAt: string;
   images?: string[];
 }
 
+type ReadyMadeTab =
+  | "all"
+  | "available"
+  | "sold"
+  | "low"
+  | "active"
+  | "inactive";
+
 type Stats = {
   total: number;
   available: number;
   sold: number;
+  low?: number;
+  active?: number;
+  inactive?: number;
 };
 
 type ApiResponse = {
@@ -66,9 +78,7 @@ export default function AdminReadyMadePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "available" | "sold">(
-    "all",
-  );
+  const [activeTab, setActiveTab] = useState<ReadyMadeTab>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -214,7 +224,7 @@ export default function AdminReadyMadePage() {
     }
   }, [activeTab, limit, searchTerm, fetchItems]);
 
-  const handleTabChange = (tab: "all" | "available" | "sold") => {
+  const handleTabChange = (tab: ReadyMadeTab) => {
     setActiveTab(tab);
   };
 
@@ -430,7 +440,7 @@ export default function AdminReadyMadePage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
-            Ready-made Inventory
+            Ready Made Catalog
           </h1>
           <p className="text-gray-500 text-xs sm:text-sm mt-1">
             Manage ready‑made pieces and their availability
@@ -478,36 +488,28 @@ export default function AdminReadyMadePage() {
       {/* Tabs & Search */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
         <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
-          <button
-            onClick={() => handleTabChange("all")}
-            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
-              activeTab === "all"
-                ? "border-b-2 border-black text-black"
-                : "text-gray-500 hover:text-black"
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => handleTabChange("available")}
-            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
-              activeTab === "available"
-                ? "border-b-2 border-black text-black"
-                : "text-gray-500 hover:text-black"
-            }`}
-          >
-            Available
-          </button>
-          <button
-            onClick={() => handleTabChange("sold")}
-            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
-              activeTab === "sold"
-                ? "border-b-2 border-black text-black"
-                : "text-gray-500 hover:text-black"
-            }`}
-          >
-            Sold
-          </button>
+          {(
+            [
+              { key: "all", label: "All" },
+              { key: "available", label: "Available" },
+              { key: "sold", label: "Sold" },
+              { key: "low", label: "Low Stock" },
+              { key: "active", label: "Active" },
+              { key: "inactive", label: "Inactive" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => handleTabChange(tab.key)}
+              className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium transition-colors hover:cursor-pointer whitespace-nowrap ${
+                activeTab === tab.key
+                  ? "border-b-2 border-black text-black"
+                  : "text-gray-500 hover:text-black"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
