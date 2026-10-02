@@ -11,8 +11,48 @@ import {
   findExistingOrderByPaymentIntent,
 } from "../services/pendingCheckoutService.js";
 import PendingCheckout from "../models/PendingCheckout.js";
+import User from "../models/User.js";
+import { logActivity } from "../services/activityLogService.js";
 
 const stripeWebhookRoutes = express.Router();
+
+async function logPaymentFailedActivity(paymentIntent) {
+  try {
+    const pending = await PendingCheckout.findOne({
+      paymentIntentId: paymentIntent.id,
+    }).select("userId orderType");
+    if (!pending?.userId) return;
+
+    const user = await User.findById(pending.userId).select("name email role");
+    const orderType = pending.orderType === "retail" ? "retail" : "custom";
+    void logActivity({
+      actorId: pending.userId,
+      actorEmail: user?.email || "",
+      actorName: user?.name || "",
+      actorRole: user?.role || "customer",
+      action: "payments.payment_failed",
+      category: "payments",
+      method: "POST",
+      path: "/api/payments/webhook",
+      resourceType: "payment",
+      resourceId: String(paymentIntent.id || ""),
+      summary: `Payment failed (${orderType} checkout)`,
+      meta: {
+        paymentIntentId: paymentIntent.id,
+        orderType,
+        reason:
+          paymentIntent.last_payment_error?.message || "Payment failed",
+      },
+      success: false,
+      statusCode: 402,
+    });
+  } catch (err) {
+    console.error(
+      "[stripe-webhook] activity log for payment_failed failed:",
+      err?.message || err,
+    );
+  }
+}
 
 stripeWebhookRoutes.post(
   "/",
@@ -90,6 +130,7 @@ stripeWebhookRoutes.post(
           console.info(
             `[stripe-webhook] payment_intent.payment_failed ${paymentIntent.id}`,
           );
+          void logPaymentFailedActivity(paymentIntent);
           break;
         }
 

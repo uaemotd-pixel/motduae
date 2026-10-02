@@ -56,6 +56,13 @@ const SENSITIVE_PATH_HINTS = [
   "/preview",
   "/activity-log",
   "/webhook",
+  // Image uploads happen before create/update; logging them doubles every
+  // product/design create as a second "*.created" entry (same action on
+  // portals where uploads fall under shop/designs).
+  "/uploads",
+  // Stripe PaymentIntent create is a checkout prelude — the order POST (or a
+  // real payment succeeded/failed event) is the business-level signal.
+  "/intent",
   // Inbox read/mark/delete — not useful for staff monitoring
   "/notifications",
   // Customer saved shops — low-value noise
@@ -228,6 +235,9 @@ function resolvePortalCategory(namespace, path, resourceType) {
   }
 
   if (namespace === "fabric") {
+    if (resourceType.includes("ready-made") || path.includes("/ready-made")) {
+      return "readyMade";
+    }
     if (resourceType.includes("fabric")) return "fabrics";
     if (resourceType.includes("addon") || resourceType.includes("add-on")) {
       return "addons";
@@ -301,7 +311,33 @@ function specialSummary(method, path, resourceType, resourceId) {
   if (p.includes("return-reject")) return `Rejected return${idPart}`;
   if (p.includes("mark-received")) return `Marked order received${idPart}`;
   if (p.includes("refund")) return `Processed refund${idPart}`;
-  if (p.includes("payout")) {
+  if (p.includes("/payout") && p.includes("/approve")) {
+    return `Approved payout request${idPart}`;
+  }
+  if (p.includes("/payout") && p.includes("/reject")) {
+    return `Rejected payout request${idPart}`;
+  }
+  if (
+    p.includes("/payout-requests") &&
+    method === "POST" &&
+    !p.includes("/approve") &&
+    !p.includes("/reject")
+  ) {
+    return `Submitted payout request${idPart}`;
+  }
+  if (p.includes("/partner-payouts") && p.includes("/complete")) {
+    return `Completed partner payout${idPart}`;
+  }
+  if (p.includes("/partner-payouts") && p.includes("/cancel")) {
+    return `Cancelled partner payout${idPart}`;
+  }
+  if (
+    (p.endsWith("/partner-payouts") || p.match(/\/partner-payouts\/?$/)) &&
+    method === "POST"
+  ) {
+    return `Started partner payout (In Progress)${idPart}`;
+  }
+  if (p.includes("/payout")) {
     return method === "POST" ? `Requested payout${idPart}` : `Updated payout${idPart}`;
   }
   if (resourceType === "custom" && method === "POST" && !p.includes("preview")) {
@@ -309,6 +345,21 @@ function specialSummary(method, path, resourceType, resourceId) {
   }
   if (resourceType === "retail" && method === "POST") {
     return `Placed retail order${idPart}`;
+  }
+  if (p.includes("/shop/visibility") && (method === "PUT" || method === "PATCH")) {
+    return `Updated shop visibility${idPart}`;
+  }
+  if (p.includes("/family-members") && p.includes("/measurements")) {
+    if (method === "PUT" || method === "PATCH") {
+      return `Updated family member measurements${idPart}`;
+    }
+  }
+  if (
+    (p.includes("/family-members/") || p.match(/\/family-members\/[^/]+$/)) &&
+    (method === "PUT" || method === "PATCH") &&
+    !p.includes("/measurements")
+  ) {
+    return `Updated family member details${idPart}`;
   }
   return null;
 }
@@ -404,8 +455,18 @@ export async function logActivity(entry = {}) {
 }
 
 export function shouldSkipActivityPath(url = "") {
-  const u = String(url).toLowerCase();
-  return SENSITIVE_PATH_HINTS.some((hint) => u.includes(hint));
+  const u = String(url || "").toLowerCase();
+  if (SENSITIVE_PATH_HINTS.some((hint) => u.includes(hint))) return true;
+  // Match upload endpoints even if a proxy/mount strips the leading slash
+  // (e.g. "uploads/ready-made" or "fabric/uploads/addons").
+  if (/(?:^|\/)uploads(?:\/|$|\?)/.test(u)) return true;
+  // Portal image upload filenames without an "uploads" folder segment.
+  if (
+    /(?:^|\/)(?:design-image|fabric-image|shop-image)(?:\/|$|\?)/.test(u)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function shouldSkipActivityEntry({ path = "", category = "", resourceType = "", action = "" } = {}) {
@@ -413,6 +474,28 @@ function shouldSkipActivityEntry({ path = "", category = "", resourceType = "", 
   const cat = String(category || "").toLowerCase();
   const resource = String(resourceType || "").toLowerCase();
   const act = String(action || "").toLowerCase();
+  // Image/file uploads are supporting steps for create/update — never log them
+  // as their own "added a new uploads" activity rows.
+  if (resource === "upload" || resource === "uploads" || resource.includes("upload")) {
+    return true;
+  }
+  if (
+    resource === "design-image" ||
+    resource === "fabric-image" ||
+    resource === "shop-image"
+  ) {
+    return true;
+  }
+  if (act.includes("uploads.") || act.endsWith(".uploads") || act.includes(".upload")) {
+    return true;
+  }
+  // PaymentIntent create (/api/payments/intent/…) — noisy checkout prelude.
+  if (resource === "intent" || resource === "payment-intent" || resource === "paymentintent") {
+    return true;
+  }
+  if (act.includes("intent.") || act.includes(".intent")) {
+    return true;
+  }
   if (cat === "notifications" || cat === "favourites" || cat === "favorites") {
     return true;
   }
@@ -428,10 +511,18 @@ function shouldSkipActivityEntry({ path = "", category = "", resourceType = "", 
 export function logActivityFromRequest(req, overrides = {}) {
   const user = req.user || {};
   const descriptor = buildActionDescriptor(req);
-  const path = overrides.path || descriptor.path || String(req.originalUrl || req.url || "");
-  const category = overrides.category || descriptor.category;
-  const resourceType = overrides.resourceType || descriptor.resourceType;
-  const action = overrides.action || descriptor.action;
+  const fromReq =
+    req.activityLogOverride && typeof req.activityLogOverride === "object"
+      ? req.activityLogOverride
+      : {};
+  const mergedOverrides = { ...fromReq, ...overrides };
+  const path =
+    mergedOverrides.path ||
+    descriptor.path ||
+    String(req.originalUrl || req.url || "");
+  const category = mergedOverrides.category || descriptor.category;
+  const resourceType = mergedOverrides.resourceType || descriptor.resourceType;
+  const action = mergedOverrides.action || descriptor.action;
 
   if (
     shouldSkipActivityEntry({ path, category, resourceType, action }) ||
@@ -441,22 +532,22 @@ export function logActivityFromRequest(req, overrides = {}) {
   }
 
   const statusCode =
-    typeof overrides.statusCode === "number"
-      ? overrides.statusCode
+    typeof mergedOverrides.statusCode === "number"
+      ? mergedOverrides.statusCode
       : typeof req.res?.statusCode === "number"
         ? req.res.statusCode
         : null;
   const success =
-    overrides.success != null
-      ? overrides.success
+    mergedOverrides.success != null
+      ? mergedOverrides.success
       : statusCode == null
         ? true
         : statusCode < 400;
 
   const meta =
-    overrides.meta !== undefined
-      ? overrides.meta != null
-        ? sanitizeMeta(overrides.meta)
+    mergedOverrides.meta !== undefined
+      ? mergedOverrides.meta != null
+        ? sanitizeMeta(mergedOverrides.meta)
         : null
       : buildRequestMeta(req);
 
@@ -466,13 +557,14 @@ export function logActivityFromRequest(req, overrides = {}) {
     actorName: user.name || "",
     actorRole: normalizeActorRole(user.role),
     ...descriptor,
-    ...overrides,
+    ...mergedOverrides,
     action,
     category,
-    summary: overrides.summary || descriptor.summary,
+    summary: mergedOverrides.summary || descriptor.summary,
     meta,
-    ip: overrides.ip || clientIp(req),
-    userAgent: overrides.userAgent || String(req.get?.("user-agent") || ""),
+    ip: mergedOverrides.ip || clientIp(req),
+    userAgent:
+      mergedOverrides.userAgent || String(req.get?.("user-agent") || ""),
     statusCode,
     success,
   });

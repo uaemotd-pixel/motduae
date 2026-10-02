@@ -679,7 +679,9 @@ function AdminTailorsContent() {
                   {rows.map((row) => {
                     const isPending = row.type === "pending";
                     const isRejected = row.type === "rejected";
-                    const busy = actionInProgress === row.id || actionInProgress === row.shopId;
+                    const busy =
+                      actionInProgress === row.id ||
+                      (Boolean(row.shopId) && actionInProgress === row.shopId);
                     const isHighlighted = Boolean(
                       highlightId &&
                         (row.id === highlightId || row.ownerId?._id === highlightId),
@@ -816,7 +818,9 @@ function AdminTailorsContent() {
             {rows.map((row) => {
               const isPending = row.type === "pending";
               const isRejected = row.type === "rejected";
-              const busy = actionInProgress === row.id || actionInProgress === row.shopId;
+              const busy =
+                actionInProgress === row.id ||
+                (Boolean(row.shopId) && actionInProgress === row.shopId);
 
               let statusBadge;
               if (isPending) {

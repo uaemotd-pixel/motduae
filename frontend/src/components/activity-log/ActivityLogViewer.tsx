@@ -14,7 +14,6 @@ import {
   Loader2,
   LogIn,
   LogOut,
-  Menu,
   Pencil,
   Plus,
   RefreshCw,
@@ -306,6 +305,8 @@ function roleLabel(role: string) {
 function resolveActionKind(item: ActivityItem): ActionKind {
   const action = String(item.action || "").toLowerCase();
   const method = String(item.method || "").toUpperCase();
+  const path = String(item.path || "").toLowerCase();
+  const summary = String(item.summary || "").toLowerCase();
   if (action.includes("login_failed") || action === "auth.login_failed") {
     return "login_failed";
   }
@@ -315,7 +316,26 @@ function resolveActionKind(item: ActivityItem): ActionKind {
   }
   if (action.includes("login") || action === "auth.login") return "login";
   if (action.includes(".view") || method === "GET") return "view";
-  if (action.includes("delete") || method === "DELETE") return "delete";
+  if (
+    action.includes("delete") ||
+    action.includes("cancel") ||
+    method === "DELETE" ||
+    path.includes("/cancel") ||
+    summary.includes("cancel")
+  ) {
+    return "delete";
+  }
+  if (
+    action.includes("payout_completed") ||
+    action.includes("payout_approved") ||
+    action.includes("payout_rejected") ||
+    action.includes("payout_started") ||
+    path.includes("/complete") ||
+    path.includes("/approve") ||
+    path.includes("/reject")
+  ) {
+    return "update";
+  }
   if (action.includes("create") || method === "POST") return "create";
   if (
     action.includes("update") ||
@@ -420,6 +440,12 @@ function humanResource(resourceType: string) {
     notifications: "notification",
     "ready-made": "ready-made product",
     "sub-admins": "sub-admin",
+    "partner-payouts": "partner payout",
+    "payout-requests": "payout request",
+    payout: "payout",
+    partners: "fabric store",
+    tailors: "tailor",
+    tailor: "tailor",
   };
   return map[resourceType] || resourceType.replace(/-/g, " ") || "item";
 }
@@ -430,8 +456,12 @@ function whatHappened(item: ActivityItem, kind: ActionKind): string {
   const area = item.categoryLabel || item.category || "the app";
   const thing = humanResource(item.resourceType);
   const ref = item.resourceId
-    ? ` (id ending …${String(item.resourceId).slice(-6)})`
+    ? ` (ID ending …${String(item.resourceId).slice(-6)})`
     : "";
+  const article = /^[aeiou]/i.test(thing) ? "an" : "a";
+  const summaryLower = String(item.summary || "").toLowerCase();
+  const actionLower = String(item.action || "").toLowerCase();
+  const pathLower = String(item.path || "").toLowerCase();
 
   if (kind === "login_failed") {
     return `${who || "Someone"} tried to sign in but it failed.`;
@@ -447,14 +477,144 @@ function whatHappened(item: ActivityItem, kind: ActionKind): string {
   }
   if (kind === "view") {
     return item.resourceType
-      ? `${who} opened a ${thing} under ${area}${ref}.`
+      ? `${who} opened ${article} ${thing} under ${area}${ref}.`
       : `${who} opened a record under ${area}.`;
   }
-  if (item.summary?.toLowerCase().includes("placed")) {
-    return `${who} placed a new ${thing}${ref}.`;
+  if (summaryLower.includes("placed")) {
+    const orderFromSummary = String(item.summary || "").match(
+      /Order\s*#[\w-]+/i,
+    )?.[0];
+    const orderRef = orderFromSummary
+      ? ` (${orderFromSummary})`
+      : item.resourceId
+        ? ` (Order #${String(item.resourceId).slice(-6)})`
+        : "";
+    return `${who} placed a new ${thing}${orderRef}.`;
   }
-  if (item.summary?.toLowerCase().includes("return")) {
+  if (
+    summaryLower.includes("payment completed") ||
+    actionLower.includes("payment_completed") ||
+    actionLower.includes("payment.completed")
+  ) {
+    const orderFromSummary = String(item.summary || "").match(
+      /Order\s*#[\w-]+/i,
+    )?.[0];
+    const orderRef = orderFromSummary
+      ? ` for ${orderFromSummary}`
+      : item.resourceId
+        ? ` for Order #${String(item.resourceId).slice(-6)}`
+        : "";
+    return `${who}: Payment completed${orderRef}.`;
+  }
+  if (
+    summaryLower.includes("payment failed") ||
+    actionLower.includes("payment_failed") ||
+    actionLower.includes("payment.failed")
+  ) {
+    const orderFromSummary = String(item.summary || "").match(
+      /Order\s*#[\w-]+/i,
+    )?.[0];
+    const orderRef = orderFromSummary
+      ? ` for ${orderFromSummary}`
+      : item.resourceId
+        ? ` for Order #${String(item.resourceId).slice(-6)}`
+        : "";
+    return `${who}: Payment failed${orderRef}.`;
+  }
+  if (summaryLower.includes("return")) {
     return `${who}: ${item.summary}.`;
+  }
+  if (
+    summaryLower.includes("deactivated") ||
+    actionLower.includes("deactivated")
+  ) {
+    if (thing === "shop" || actionLower.startsWith("shop.")) {
+      return `${who} deactivated the shop.`;
+    }
+    return `${who} deactivated ${article} ${thing}${ref}.`;
+  }
+  if (
+    summaryLower.includes("activated") ||
+    actionLower.includes("activated")
+  ) {
+    if (thing === "shop" || actionLower.startsWith("shop.")) {
+      return `${who} activated the shop.`;
+    }
+    return `${who} activated ${article} ${thing}${ref}.`;
+  }
+  if (
+    actionLower.includes("payout_requested") ||
+    summaryLower.includes("submitted payout request")
+  ) {
+    return `${who} submitted a payout request${ref}.`;
+  }
+  if (
+    actionLower.includes("payout_started") ||
+    summaryLower.includes("started partner payout") ||
+    (pathLower.includes("/partner-payouts") &&
+      !pathLower.includes("/complete") &&
+      !pathLower.includes("/cancel") &&
+      !pathLower.includes("/preview") &&
+      kind === "create" &&
+      (thing === "partner payout" || thing === "payout"))
+  ) {
+    return `${who} started a partner payout (In Progress)${ref}.`;
+  }
+  if (
+    actionLower.includes("payout_completed") ||
+    summaryLower.includes("completed partner payout") ||
+    (pathLower.includes("/partner-payouts") && pathLower.includes("/complete"))
+  ) {
+    return `${who} completed a partner payout${ref}.`;
+  }
+  if (
+    actionLower.includes("payout_cancelled") ||
+    actionLower.includes("payout_canceled") ||
+    summaryLower.includes("cancelled partner payout") ||
+    summaryLower.includes("canceled partner payout") ||
+    (pathLower.includes("/partner-payouts") && pathLower.includes("/cancel")) ||
+    ((thing === "partner payout" || thing === "payout") &&
+      (summaryLower.includes("cancel") || actionLower.includes("cancel")))
+  ) {
+    return `${who} cancelled a partner payout${ref}.`;
+  }
+  if (
+    summaryLower.includes("rejected") ||
+    actionLower.includes("rejected") ||
+    actionLower.includes("payout_rejected")
+  ) {
+    if (thing === "payout request" || actionLower.includes("payout")) {
+      return `${who} rejected a payout request${ref}.`;
+    }
+    return `${who} rejected a ${thing}${ref}.`;
+  }
+  if (
+    summaryLower.includes("approved") ||
+    actionLower.includes("approved") ||
+    actionLower.includes("payout_approved")
+  ) {
+    if (thing === "payout request" || actionLower.includes("payout")) {
+      return `${who} approved a payout request${ref}.`;
+    }
+    return `${who} approved a ${thing}${ref}.`;
+  }
+  if (
+    actionLower.includes("measurement_added") ||
+    summaryLower.includes("added family member measurements")
+  ) {
+    return `${who} added measurements for a family member${ref}.`;
+  }
+  if (
+    actionLower.includes("measurement_updated") ||
+    summaryLower.includes("updated family member measurements")
+  ) {
+    return `${who} updated measurements for a family member${ref}.`;
+  }
+  if (
+    actionLower.includes("member_updated") ||
+    summaryLower.includes("updated family member details")
+  ) {
+    return `${who} updated a family member's details${ref}.`;
   }
   if (kind === "create") {
     return item.resourceType
@@ -481,7 +641,6 @@ export default function ActivityLogViewer() {
   const [successFilter, setSuccessFilter] = useState("");
   const [actorRole, setActorRole] = useState<RoleFilter>("");
   const [page, setPage] = useState(1);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -654,7 +813,6 @@ export default function ActivityLogViewer() {
 
   function selectRole(role: RoleFilter) {
     setActorRole(role);
-    setSidebarOpen(false);
   }
 
   function toggleSelect(id: string) {
@@ -809,39 +967,13 @@ export default function ActivityLogViewer() {
       : `Delete ${deleteConfirmCount} activity log entries? This cannot be undone.`;
   const isDeletingLogs = deletingIds.size > 0;
 
-  function renderSidebar(onClose?: () => void) {
+  function renderRoleFilters() {
     return (
-      <aside className="flex h-full min-h-[calc(100dvh-6rem)] w-[min(17.5rem,88vw)] shrink-0 flex-col bg-[#111312] text-[#f4f2ec] lg:w-70">
-        <div className="shrink-0 border-b border-white/10 px-4 py-4 sm:px-5 sm:py-5">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-[#9aa39a] [font-family:var(--font-ui)]">
-                MOTD
-              </p>
-              <h1 className="mt-1 text-[22px] leading-none [font-family:var(--font-display)] sm:text-[26px]">
-                Who did what
-              </h1>
-              <p className="mt-2 text-[12px] leading-snug text-[#9aa39a] sm:text-[13px]">
-                Pick a group, then read the list.
-              </p>
-            </div>
-            {onClose ? (
-              <button
-                type="button"
-                aria-label="Close menu"
-                onClick={onClose}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 text-[#d7dbd6] hover:bg-white/10"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-4">
-          <p className="mb-2 px-3 text-[11px] font-medium uppercase tracking-[0.16em] text-[#6f776f]">
-            Show activity for
-          </p>
+      <div className="space-y-2">
+        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-gray-400 [font-family:var(--font-ui)]">
+          Show activities for
+        </p>
+        <div className="flex flex-wrap gap-2">
           {ROLE_NAV.map((item) => {
             const Icon = item.icon;
             const active = actorRole === item.id;
@@ -850,143 +982,111 @@ export default function ActivityLogViewer() {
                 key={item.id || "all"}
                 type="button"
                 onClick={() => selectRole(item.id)}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+                title={item.hint}
+                className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition ${
                   active
-                    ? "bg-[#d8efe4] text-[#13201a]"
-                    : "text-[#d7dbd6] hover:bg-white/8"
+                    ? "border-black bg-black text-white"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-black hover:text-black"
                 }`}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="min-w-0">
-                  <span className="block text-[14px] font-medium">
-                    {item.label}
-                  </span>
-                  <span
-                    className={`block text-[11px] ${active ? "text-[#3d5248]" : "text-[#7e877e]"}`}
-                  >
-                    {item.hint}
-                  </span>
-                </span>
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="font-medium">{item.label}</span>
               </button>
             );
           })}
-        </nav>
-
-        <div className="shrink-0 border-t border-white/10 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-[12px] text-[#9aa39a]">
-          <p>
-            <span className="font-semibold text-[#d8efe4]">
-              {stats?.todayCount ?? 0}
-            </span>{" "}
-            actions today
-          </p>
-          <p className="mt-1">
-            <span className="font-semibold text-[#d8efe4]">
-              {stats?.topActors?.length ?? 0}
-            </span>{" "}
-            people active this week
-          </p>
         </div>
-      </aside>
+      </div>
     );
   }
 
   return (
-    <div className="-mx-4 -mt-4 min-h-[calc(100dvh-8rem)] overflow-x-hidden bg-[#f6f4ef] text-[#121412] xs:-mx-6 xs:-mt-6 sm:-mx-8 sm:-mt-8 md:-mx-10 md:-mt-10 [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_select]:cursor-pointer [&_label]:cursor-pointer [&_input[type=checkbox]]:cursor-pointer [&_input[type=checkbox]:disabled]:cursor-not-allowed [&_option]:cursor-pointer">
-      <div className="flex min-h-[calc(100dvh-8rem)] min-w-0">
-      <div className="hidden shrink-0 lg:block">
-        {renderSidebar()}
-      </div>
-
-      {sidebarOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
+    <div className="space-y-6 text-[#121412] [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_select]:cursor-pointer [&_label]:cursor-pointer [&_input[type=checkbox]]:cursor-pointer [&_input[type=checkbox]:disabled]:cursor-not-allowed [&_option]:cursor-pointer">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="font-display text-xl font-light tracking-tight text-black sm:text-2xl md:text-3xl">
+            Activity Log
+          </h1>
+          <p className="mt-1 text-xs text-gray-500 sm:text-sm">
+            <strong className="font-semibold text-black">
+              {stats?.matchedCount ?? 0}
+            </strong>{" "}
+            action{(stats?.matchedCount ?? 0) === 1 ? "" : "s"}
+            {actorRole ? ` by ${activeNav.label.toLowerCase()}` : ""}
+            {lastUpdatedLabel ? (
+              <span className="text-gray-400">
+                {" "}
+                · Updated {lastUpdatedLabel}
+                {live ? " · live" : ""}
+                {newCount > 0 ? ` · ${newCount} new` : ""}
+              </span>
+            ) : null}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            aria-label="Close menu"
-            className="absolute inset-0 bg-black/45"
-            onClick={() => setSidebarOpen(false)}
-          />
-          <div className="absolute inset-y-0 left-0 max-w-[88vw] shadow-2xl">
-            {renderSidebar(() => setSidebarOpen(false))}
-          </div>
+            onClick={() => setLive((v) => !v)}
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium sm:text-sm ${
+              live
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-gray-200 bg-white text-gray-500"
+            }`}
+            title={
+              live
+                ? "Live updates are on — list refreshes every few seconds"
+                : "Live updates are off"
+            }
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${
+                live ? "animate-pulse bg-emerald-600" : "bg-gray-300"
+              }`}
+            />
+            {live ? "Live" : "Paused"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setRefreshKey((n) => n + 1)}
+            className="inline-flex items-center gap-2 rounded-xl bg-black px-3 py-2 text-xs font-medium text-white sm:px-4 sm:text-sm"
+            aria-label="Refresh now"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+            />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
         </div>
-      ) : null}
+      </div>
 
-      <div className="flex min-h-[calc(100dvh-8rem)] min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 border-b border-[#e6e2d8] bg-[#f6f4ef]/95 pt-[env(safe-area-inset-top)] backdrop-blur">
-          <div className="flex items-start justify-between gap-2 px-3 py-3 sm:items-center sm:gap-3 sm:px-6 sm:py-4">
-            <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(true)}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#ddd7cb] bg-white lg:hidden"
-                aria-label="Open menu"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
-              <div className="min-w-0">
-                <h2 className="truncate text-[20px] leading-tight [font-family:var(--font-display)] sm:text-[28px]">
-                  {activeNav.label}
-                </h2>
-                <p className="truncate text-[12px] text-[#6d6960] sm:text-[13px]">
-                  <strong className="font-semibold text-[#121412]">
-                    {stats?.matchedCount ?? 0}
-                  </strong>{" "}
-                  action{(stats?.matchedCount ?? 0) === 1 ? "" : "s"}
-                  <span className="hidden sm:inline">
-                    {actorRole ? ` by ${activeNav.label.toLowerCase()}` : ""}
-                  </span>
-                </p>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-              <button
-                type="button"
-                onClick={() => setLive((v) => !v)}
-                className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-[12px] font-medium sm:gap-2 sm:px-3 sm:py-2.5 sm:text-[13px] ${
-                  live
-                    ? "border-[#1f7a4d]/30 bg-[#e8f6ee] text-[#1f7a4d]"
-                    : "border-[#e6e2d8] bg-white text-[#6d6960]"
-                }`}
-                title={
-                  live
-                    ? "Live updates are on — list refreshes every few seconds"
-                    : "Live updates are off"
-                }
-              >
-                <span
-                  className={`h-2 w-2 rounded-full ${
-                    live ? "animate-pulse bg-[#1f7a4d]" : "bg-[#b0aaa0]"
-                  }`}
-                />
-                {live ? "Live" : "Paused"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setRefreshKey((n) => n + 1)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#111312] px-2.5 py-2 text-[12px] font-medium text-white sm:px-4 sm:py-2.5 sm:text-[13px]"
-                aria-label="Refresh now"
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-                />
-                <span className="hidden sm:inline">Refresh now</span>
-              </button>
-            </div>
-          </div>
-          {lastUpdatedLabel ? (
-            <p className="px-3 pb-2 text-[10px] leading-snug text-[#8a8578] sm:px-6 sm:text-[11px]">
-              Updated {lastUpdatedLabel}
-              <span className="hidden sm:inline">
-                {live ? " · checking every 6 seconds" : ""}
-              </span>
-              {newCount > 0
-                ? ` · ${newCount} new`
-                : ""}
-            </p>
-          ) : null}
-        </header>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+        <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-4">
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 sm:text-xs">
+            Today
+          </p>
+          <p className="mt-1 text-xl font-light text-black sm:text-2xl">
+            {stats?.todayCount ?? 0}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-4">
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 sm:text-xs">
+            Matching filter
+          </p>
+          <p className="mt-1 text-xl font-light text-black sm:text-2xl">
+            {stats?.matchedCount ?? 0}
+          </p>
+        </div>
+        <div className="col-span-2 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:col-span-1 sm:p-4">
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 sm:text-xs">
+            Active this week
+          </p>
+          <p className="mt-1 text-xl font-light text-black sm:text-2xl">
+            {stats?.topActors?.length ?? 0}
+          </p>
+        </div>
+      </div>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-4 sm:px-6 sm:py-5">
+      {renderRoleFilters()}
+
           <div className="mb-3 hidden rounded-xl border border-[#e6e2d8] bg-white px-4 py-3 sm:mb-4 sm:block">
             <p className="mb-2 text-[12px] font-medium text-[#6d6960]">
               How to read this list
@@ -1244,20 +1344,18 @@ export default function ActivityLogViewer() {
 
                           <div className="mt-2 flex flex-wrap items-center gap-1.5">
                             <span
-                              className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold ${
-                                failed ? "bg-[#c23b3b] text-white" : style.badge
-                              }`}
+                              className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold ${style.badge}`}
                             >
-                              {failed ? "Failed" : style.label}
+                              {style.label}
                             </span>
                             {failed ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#c23b3b]">
-                                <AlertCircle className="h-3.5 w-3.5" />
-                                Did not work
+                              <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-medium text-[#c23b3b]">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                Failed
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#1f7a4d]">
-                                <CheckCircle2 className="h-3.5 w-3.5" />
+                              <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-medium text-[#1f7a4d]">
+                                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                                 Worked
                               </span>
                             )}
@@ -1331,11 +1429,9 @@ export default function ActivityLogViewer() {
 
                       <div>
                         <span
-                          className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold ${
-                            failed ? "bg-[#c23b3b] text-white" : style.badge
-                          }`}
+                          className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold ${style.badge}`}
                         >
-                          {failed ? "Failed" : style.label}
+                          {style.label}
                         </span>
                         <p className="mt-1 text-[10px] leading-snug text-[#8a8578]">
                           {style.meaning}
@@ -1372,13 +1468,13 @@ export default function ActivityLogViewer() {
 
                       <div>
                         {failed ? (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-[#c23b3b] px-2 py-1 text-[11px] font-semibold text-white">
-                            <AlertCircle className="h-3.5 w-3.5" />
-                            Did not work
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[12px] font-medium text-[#c23b3b]">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            Failed
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[12px] font-medium text-[#1f7a4d]">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[12px] font-medium text-[#1f7a4d]">
+                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                             Worked
                           </span>
                         )}
@@ -1530,10 +1626,7 @@ export default function ActivityLogViewer() {
               </ol>
             </section>
           ) : null}
-        </main>
-      </div>
-      </div>
-
+        
       <ConfirmationModal
         isOpen={deleteConfirmCount > 0}
         title="Delete activity logs"

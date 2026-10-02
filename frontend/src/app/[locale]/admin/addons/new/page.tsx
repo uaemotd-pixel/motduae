@@ -208,6 +208,7 @@ export default function AdminNewAddOnPage() {
       delete next["pickupAddress.phone"];
       delete next["pickupAddress.line1"];
       delete next["pickupAddress.line2"];
+      delete next["pickupAddress.building"];
       delete next["pickupAddress.city"];
       delete next["pickupAddress.emirate"];
       return next;

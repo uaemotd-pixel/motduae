@@ -99,6 +99,22 @@ export function registerPartnerPayoutAdminRoutes(adminRouter) {
           idempotencyKey: readIdempotencyKey(req),
           releasedBy: req.user?._id,
         });
+        const payoutId = payout?._id || payout?.id;
+        const idTail = payoutId ? String(payoutId).slice(-6) : "";
+        req.activityLogOverride = {
+          action: "payments.payout_started",
+          summary: idTail
+            ? `Started partner payout (In Progress) #${idTail}`
+            : "Started partner payout (In Progress)",
+          category: "payments",
+          resourceType: "partner-payouts",
+          resourceId: payoutId ? String(payoutId) : "",
+          meta: {
+            partnerId: partnerId ? String(partnerId) : undefined,
+            partnerKind,
+            status: "processing",
+          },
+        };
         res.status(payout?.duplicate ? 200 : 201).send(payout);
       } catch (err) {
         if (!sendPayoutError(res, err)) throw err;
@@ -116,6 +132,20 @@ export function registerPartnerPayoutAdminRoutes(adminRouter) {
           idempotencyKey:
             readIdempotencyKey(req) || `payout:complete:${req.params.id}`,
         });
+        const idTail = String(req.params.id).slice(-6);
+        req.activityLogOverride = {
+          action: "payments.payout_completed",
+          summary: `Completed partner payout #${idTail}`,
+          category: "payments",
+          resourceType: "partner-payouts",
+          resourceId: String(req.params.id),
+          meta: {
+            bankRef: req.body?.bankRef
+              ? String(req.body.bankRef).trim().slice(0, 80)
+              : undefined,
+            status: "completed",
+          },
+        };
         res.send(payout);
       } catch (err) {
         if (!sendPayoutError(res, err)) throw err;
@@ -126,6 +156,17 @@ export function registerPartnerPayoutAdminRoutes(adminRouter) {
   adminRouter.post(
     "/partner-payouts/:id/cancel",
     expressAsyncHandler(async (req, res) => {
+      const idTail = String(req.params.id).slice(-6);
+      // Set before the write so the activity middleware always sees cancel,
+      // not a generic POST "created partner payouts" descriptor.
+      req.activityLogOverride = {
+        action: "payments.payout_cancelled",
+        summary: `Cancelled partner payout #${idTail}`,
+        category: "payments",
+        resourceType: "partner-payouts",
+        resourceId: String(req.params.id),
+        meta: { status: "cancelled" },
+      };
       try {
         const payout = await cancelPayout({
           payoutId: req.params.id,
@@ -134,6 +175,7 @@ export function registerPartnerPayoutAdminRoutes(adminRouter) {
         });
         res.send(payout);
       } catch (err) {
+        delete req.activityLogOverride;
         if (!sendPayoutError(res, err)) throw err;
       }
     }),
@@ -223,6 +265,19 @@ export function registerPartnerPayoutAdminRoutes(adminRouter) {
           idempotencyKey:
             readIdempotencyKey(req) || `payout:request:${req.params.id}`,
         });
+        const idTail = String(req.params.id).slice(-6);
+        req.activityLogOverride = {
+          action: "payments.payout_approved",
+          summary: `Approved payout request #${idTail}`,
+          category: "payments",
+          resourceType: "payout-requests",
+          resourceId: String(req.params.id),
+          meta: {
+            payoutId: result.payout?._id
+              ? String(result.payout._id)
+              : undefined,
+          },
+        };
         res.send({
           success: true,
           request: result.request,
@@ -266,6 +321,15 @@ export function registerPartnerPayoutAdminRoutes(adminRouter) {
       requestDoc.reviewedAt = new Date();
       requestDoc.adminNote = adminNote;
       await requestDoc.save();
+
+      const idTail = String(requestDoc._id).slice(-6);
+      req.activityLogOverride = {
+        action: "payments.payout_rejected",
+        summary: `Rejected payout request #${idTail}`,
+        category: "payments",
+        resourceType: "payout-requests",
+        resourceId: String(requestDoc._id),
+      };
 
       if (requestDoc.requestedBy) {
         const kind = requestDoc.partnerKind === "tailor" ? "tailor" : "fabric";

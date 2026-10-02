@@ -75,7 +75,6 @@ export default function NewReadyMadePage() {
       try {
         const [
           shopsRes,
-          fabricsRes,
           tailorsRes,
           designsRes,
           categoriesRes,
@@ -85,7 +84,6 @@ export default function NewReadyMadePage() {
           seasonsRes,
         ] = await Promise.all([
           api.get<any>("/api/admin/fabric-shops"),
-          api.get<any>("/api/admin/fabrics"),
           api.get<any>("/api/admin/tailors"),
           api.get<any[]>("/api/admin/designs"),
           api.get<any[]>("/api/filters/categories?domain=ready-made"),
@@ -95,7 +93,6 @@ export default function NewReadyMadePage() {
           api.get<any[]>("/api/filters/seasons?domain=ready-made"),
         ]);
         setFabricShops(shopsRes.items || []);
-        setAllFabrics(fabricsRes?.items || []);
         setTailorShops(tailorsRes.items || []);
         setAllDesigns(designsRes || []);
         const toOpts = (items: any[]) =>
@@ -117,6 +114,35 @@ export default function NewReadyMadePage() {
     };
     loadDropdownData();
   }, []);
+
+  useEffect(() => {
+    const shopId = formData.fabricShopId;
+    if (!shopId) {
+      setAllFabrics([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadShopFabrics = async () => {
+      try {
+        const fabricsRes = await api.get<{ items?: any[] }>(
+          `/api/admin/fabrics?fabricShopId=${encodeURIComponent(shopId)}&limit=500`,
+        );
+        if (!cancelled) {
+          setAllFabrics(fabricsRes?.items || []);
+        }
+      } catch {
+        if (!cancelled) {
+          setAllFabrics([]);
+          toast.error("Failed to load fabrics for the selected store");
+        }
+      }
+    };
+    void loadShopFabrics();
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.fabricShopId]);
 
   const filteredFabrics = useMemo(() => {
     if (!formData.fabricShopId) return [];
@@ -149,6 +175,7 @@ export default function NewReadyMadePage() {
       delete next["pickupAddress.phone"];
       delete next["pickupAddress.line1"];
       delete next["pickupAddress.line2"];
+      delete next["pickupAddress.building"];
       delete next["pickupAddress.city"];
       delete next["pickupAddress.emirate"];
       return next;

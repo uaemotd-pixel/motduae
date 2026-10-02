@@ -88,12 +88,18 @@ app.use("/api/fabrics", fabricRoutes);
 app.use("/api/fabric-shops", fabricShopPublicRoutes);
 app.use("/api/addons", addOnRoutes);
 app.use("/api/tailors", tailorRoutes);
-app.use("/api/tailor", isAuth, isApprovedTailor, captureActivity(), tailorPortalRoutes);
+app.use(
+  "/api/tailor",
+  isAuth,
+  isApprovedTailor,
+  captureActivity({ skipPathIncludes: ["/uploads"] }),
+  tailorPortalRoutes,
+);
 app.use(
   "/api/fabric",
   isAuth,
   isApprovedFabricStore,
-  captureActivity(),
+  captureActivity({ skipPathIncludes: ["/uploads"] }),
   fabricPortalRoutes,
 );
 app.use("/api/orders/track", orderPublicTrackRoutes);
@@ -112,7 +118,11 @@ app.use(
   captureAdminActivity,
   orderRoutes,
 );
-app.use("/api/payments", captureActivity(), paymentRoutes);
+app.use(
+  "/api/payments",
+  captureActivity({ skipPathIncludes: ["/intent"] }),
+  paymentRoutes,
+);
 app.use(
   "/api/checkout",
   captureActivity({ skipPathIncludes: ["/preview"] }),
