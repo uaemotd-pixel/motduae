@@ -1,5 +1,6 @@
 import { Footer } from "@/components/layout/Footer";
 import { Navbar } from "@/components/layout/Navbar";
+import FaqChatbot from "@/components/shared/FaqChatbot";
 import ScrollToTop from "@/components/shared/ScrollToTop";
 
 type Props = {
@@ -15,6 +16,7 @@ export default function MainLayout({ children }: Props) {
       </main>
       <Footer />
       <ScrollToTop />
+      <FaqChatbot />
     </>
   );
 }

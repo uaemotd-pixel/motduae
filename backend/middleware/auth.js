@@ -53,6 +53,62 @@ export const generateToken = (
   });
 };
 
+/** Sets req.user when a valid session exists; otherwise continues without auth. */
+export const optionalAuth = async (req, res, next) => {
+  const token = extractAuthToken(req);
+  if (!token) {
+    next();
+    return;
+  }
+
+  try {
+    const decode = jwt.verify(token, env.jwtSecret);
+    const user = await User.findById(decode._id).select(
+      "name email role isAdmin isActive approvalStatus emailVerified applicationSubmittedAt requestNumber rejectionNote",
+    );
+
+    if (!user || user.isActive === false) {
+      next();
+      return;
+    }
+
+    const isGuest = isGuestUser(user);
+    const guestSessionId = isGuest
+      ? String(decode.guestSessionId || "").trim()
+      : "";
+    if (isGuest && !guestSessionId) {
+      next();
+      return;
+    }
+
+    req.user = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      isAdmin: user.isAdmin,
+      approvalStatus: user.approvalStatus,
+      applicationSubmittedAt: user.applicationSubmittedAt || null,
+      requestNumber: user.requestNumber || "",
+      rejectionNote: user.rejectionNote || "",
+      emailVerified: isEmailVerified(user),
+      isGuest,
+      guestSessionId: isGuest ? guestSessionId : undefined,
+      guestContactEmail: isGuest
+        ? normalizeEmail(decode.guestContactEmail) || undefined
+        : undefined,
+      guestPendingEmail: isGuest
+        ? normalizeEmail(decode.guestPendingEmail) || undefined
+        : undefined,
+      perms: null,
+    };
+  } catch {
+    // Invalid or expired token — treat as anonymous
+  }
+
+  next();
+};
+
 export const isAuth = async (req, res, next) => {
   setPrivateNoStore(res);
   const token = extractAuthToken(req);
