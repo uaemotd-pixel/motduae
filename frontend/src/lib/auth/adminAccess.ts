@@ -12,7 +12,8 @@ export type AdminPermKey =
   | "payments"
   | "addons"
   | "notifications"
-  | "reviews";
+  | "reviews"
+  | "queries";
 
 export const ADMIN_PERM_KEYS: AdminPermKey[] = [
   "customers",
@@ -27,6 +28,7 @@ export const ADMIN_PERM_KEYS: AdminPermKey[] = [
   "addons",
   "notifications",
   "reviews",
+  "queries",
 ];
 
 export const ADMIN_PERM_LABELS: Record<AdminPermKey, string> = {
@@ -42,6 +44,7 @@ export const ADMIN_PERM_LABELS: Record<AdminPermKey, string> = {
   addons: "Add-Ons",
   notifications: "Notifications",
   reviews: "Reviews",
+  queries: "Queries",
 };
 
 export const emptyAdminPerms = (): Record<AdminPermKey, boolean> =>
@@ -87,6 +90,7 @@ export function resolveAdminPagePerm(
   if (path.startsWith("/admin/payments")) return "payments";
   if (path.startsWith("/admin/customers")) return "customers";
   if (path.startsWith("/admin/reviews")) return "reviews";
+  if (path.startsWith("/admin/queries")) return "queries";
   if (path.startsWith("/admin/ready-made")) return "readyMade";
   if (path.startsWith("/admin/fabrics")) return "fabrics";
   if (path.startsWith("/admin/designs")) return "designs";
