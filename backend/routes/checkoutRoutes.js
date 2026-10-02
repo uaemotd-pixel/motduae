@@ -3,6 +3,7 @@ import { prepareRetailOrder } from "../services/retailOrderService.js";
 import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
 import AddOn from "../models/AddOn.js";
 import Fabric from "../models/Fabric.js";
+import { clientErrorMessage } from "../middleware/errorHandler.js";
 
 const router = express.Router();
 
@@ -99,6 +100,11 @@ router.post("/preview", async (req, res) => {
         code: "ITEMS_REQUIRED",
       });
     }
+    if (items.length > 30) {
+      return res.status(400).json({
+        error: "A checkout can include at most 30 items",
+      });
+    }
 
     const availableInputs = [];
     const unavailableItems = [];
@@ -114,7 +120,7 @@ router.post("/preview", async (req, res) => {
         if (!isAvailabilityError(message)) {
           console.error("/api/checkout/preview error:", err);
           return res.status(500).json({
-            error: message,
+            error: clientErrorMessage(err, 500),
             code: "PREVIEW_FAILED",
           });
         }
@@ -165,7 +171,7 @@ router.post("/preview", async (req, res) => {
     const message = err?.message || "Server error";
     const availability = isAvailabilityError(message);
     return res.status(availability ? 409 : 500).json({
-      error: message,
+      error: availability ? message : clientErrorMessage(err, 500),
       code: availability ? "ITEM_UNAVAILABLE" : "PREVIEW_FAILED",
       unavailableItems: [],
       items: [],

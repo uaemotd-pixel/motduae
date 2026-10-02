@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import Customer from "../models/customer.js"; // adjust path/extension as needed
 import User from "../models/User.js";
 import { isAuth } from "../middleware/auth.js";
+import { customerUploadLimiter } from "../middleware/rateLimiter.js";
+import { clientErrorMessage } from "../middleware/errorHandler.js";
 import {
   uploadCustomerImageMiddleware,
   processCustomerImage,
@@ -42,6 +44,8 @@ const customerRouter = express.Router();
 
 customerRouter.post(
   "/uploads/customer",
+  isAuth,
+  customerUploadLimiter,
   uploadCustomerImageMiddleware,
   expressAsyncHandler(async (req, res) => {
     if (!req.file) {
@@ -125,7 +129,7 @@ customerRouter.post("/profile", isAuth, async (req, res) => {
       return res.status(409).json({ error: "Phone already in use" });
     }
     console.error(err);
-    return res.status(500).json({ error: err.message || "Server error" });
+    return res.status(500).json({ error: clientErrorMessage(err, 500) });
   }
 });
 
@@ -181,7 +185,7 @@ customerRouter.get("/profile", isAuth, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Error fetching profile:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: clientErrorMessage(err, 500) });
   }
 });
 
@@ -326,7 +330,7 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
       return res.status(409).json({ error: "Phone already in use" });
     }
     console.error(err);
-    res.status(500).json({ error: err.message || "Server error" });
+    res.status(500).json({ error: clientErrorMessage(err, 500) });
   }
 });
 
@@ -341,7 +345,7 @@ customerRouter.get("/family-members", isAuth, async (req, res) => {
     res.json({ items: customer.savedUsers || [] });
   } catch (err) {
     console.error("❌ Error fetching family members:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: clientErrorMessage(err, 500) });
   }
 });
 
@@ -393,7 +397,7 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
     res.status(201).json(created);
   } catch (err) {
     console.error("❌ Error adding family member:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: clientErrorMessage(err, 500) });
   }
 });
 
@@ -452,7 +456,7 @@ customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
     res.json(member);
   } catch (err) {
     console.error("❌ Error updating family member:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: clientErrorMessage(err, 500) });
   }
 });
 
@@ -474,7 +478,7 @@ customerRouter.delete("/family-members/:id", isAuth, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("❌ Error deleting family member:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: clientErrorMessage(err, 500) });
   }
 });
 

@@ -63,6 +63,7 @@ import {
   resetPasswordLimiter,
   contactLimiter,
   newsletterLimiter,
+  signupLimiter,
 } from "../middleware/rateLimiter.js";
 import partnerApplicationRouter from "./partnerApplicationRoutes.js";
 import { logActivity, clientIp, normalizeActorRole } from "../services/activityLogService.js";
@@ -273,10 +274,13 @@ const sendEmailVerificationError = (res, error) => {
   return false;
 };
 
+const SIGNUP_UNAVAILABLE_MESSAGE =
+  "Could not create the account, you already have an account, sign in or reset your password.";
+
 const rejectIfEmailTaken = async (res, email) => {
   const occupant = await findEmailOccupant(User, email);
   if (!occupant) return false;
-  res.status(400).send({ message: "User already exists" });
+  res.status(400).send({ message: SIGNUP_UNAVAILABLE_MESSAGE });
   return true;
 };
 
@@ -588,9 +592,7 @@ userRouter.post(
     if (authMode === "register") {
       if (user) {
         if (user.role !== registerRole) {
-          res.status(400).send({
-            message: `An account with this email already exists as a ${user.role.replace("_", " ")}`,
-          });
+          res.status(400).send({ message: SIGNUP_UNAVAILABLE_MESSAGE });
           return;
         }
 
@@ -844,6 +846,7 @@ userRouter.post(
 
 userRouter.post(
   "/signup/tailor",
+  signupLimiter,
   expressAsyncHandler(async (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) {
@@ -882,6 +885,7 @@ userRouter.post(
 
 userRouter.post(
   "/signup/fabricStore",
+  signupLimiter,
   expressAsyncHandler(async (req, res) => {
     const { name, email, password } = req.body;
     if (!name || !email || !password) {
@@ -920,6 +924,7 @@ userRouter.post(
 
 userRouter.post(
   "/signup",
+  signupLimiter,
   expressAsyncHandler(async (req, res) => {
     const { name, email, password, phone } = req.body;
     if (!name || !email || !password || !phone) {

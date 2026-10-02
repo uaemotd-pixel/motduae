@@ -32,7 +32,12 @@ const toShopInfo = (shop) => {
 // GET /api/addons - Fetch active add-ons
 addOnRoutes.get("/", async (req, res) => {
   try {
-    const { page = 1, limit = 12, fabricShopId } = req.query;
+    const { page = 1, limit: limitQuery = 12, fabricShopId } = req.query;
+    const parsedLimit = Number(limitQuery);
+    const limit =
+      Number.isFinite(parsedLimit) && parsedLimit >= 1
+        ? Math.min(Math.floor(parsedLimit), 48)
+        : 12;
     const filter = {
       isActive: true,
       ...(await activeFabricShopCatalogFilter()),
@@ -42,12 +47,12 @@ addOnRoutes.get("/", async (req, res) => {
       filter.fabricShopId = fabricShopId;
     }
 
-    const skip = (Number(page) - 1) * Number(limit);
+    const skip = (Number(page) - 1) * limit;
 
     const products = await AddOn.find(filter)
       .populate("fabricShopId", "_id name nameAr slug")
       .skip(skip)
-      .limit(Number(limit))
+      .limit(limit)
       .sort({ createdAt: -1 });
 
     const total = await AddOn.countDocuments(filter);
@@ -98,7 +103,7 @@ addOnRoutes.get("/", async (req, res) => {
     res.json({
       success: true,
       page: Number(page),
-      limit: Number(limit),
+      limit,
       total,
       totalPages: Math.ceil(total / limit),
       items,
