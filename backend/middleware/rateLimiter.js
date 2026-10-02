@@ -154,6 +154,21 @@ export const resetPasswordLimiter = rateLimit({
   handler: defaultHandler("Too many reset password attempts. Please try again in 15 minutes"),
 });
 
+export const faqSupportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  store: new SlidingWindowStore(),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: buildKeyGenerator("faq_support"),
+  validate: limiterValidation,
+  statusCode: 429,
+  message: "Too many support requests. Please try again in 15 minutes",
+  handler: defaultHandler(
+    "Too many support requests. Please try again in 15 minutes",
+  ),
+});
+
 export const contactLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 3, // Limit each IP + email combination to 3 requests per window
