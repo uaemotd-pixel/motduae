@@ -38,6 +38,7 @@ import cronRoutes from "./routes/cronRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js";
 import activityLogRouter from "./routes/activityLogRoutes.js";
+import faqSupportRouter from "./routes/faqSupportRoutes.js";
 import {
   captureActivity,
   captureAdminActivity,
@@ -157,6 +158,7 @@ app.use(
   subAdminRouter,
 );
 app.use("/api/filters", filterRoutes);
+app.use("/api/faq-support", faqSupportRouter);
 app.use(notFound);
 app.use(errorHandler);
 
