@@ -4,6 +4,7 @@
 import { useEffect, useState, FormEvent, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
+import { getPasswordValidationMessage } from "@/lib/auth/passwordValidation";
 import FormField from "@/components/admin/FormField";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
@@ -181,8 +182,9 @@ export default function EditSubAdminPage() {
     const errors: Record<string, string> = {};
     if (!form.name.trim()) errors.name = "Full name required";
     if (!form.email.trim()) errors.email = "Email required";
-    if (form.password.length > 0 && form.password.length < 6) {
-      errors.password = "Password must be at least 6 characters";
+    if (form.password.length > 0) {
+      const passwordMessage = getPasswordValidationMessage(form.password);
+      if (passwordMessage) errors.password = passwordMessage;
     }
     if (!form.emirate) errors.emirate = "Emirate required";
     if (!form.city.trim()) errors.city = "City required";

@@ -38,6 +38,7 @@ import {
   createNotification,
 } from "../services/adminNotificationService.js";
 import { findEmailOccupant } from "../services/emailVerification/emailOccupancy.js";
+import { validatePassword } from "../utils/passwordValidation.js";
 import AddOn from "../models/AddOn.js";
 import Category from "../models/Category.js";
 import Material from "../models/Material.js";
@@ -80,7 +81,9 @@ import {
 
 import {
   getAdminApplication,
+  licencePathForOwner,
 } from "../services/partnerApplication/partnerApplicationService.js";
+import { streamPrivateLicence } from "../utils/imageStorage.js";
 import { seedShopFromApplication } from "../services/partnerApplication/seedShopFromApplication.js";
 import { mailAfterPartnerDecision } from "../services/partnerApplication/partnerApplicationMail.js";
 import {
@@ -483,7 +486,7 @@ adminRouter.get(
 
     // Search by name, fabricType, or tailorName
     if (search && typeof search === "string") {
-      const regex = new RegExp(search.trim(), "i");
+      const regex = new RegExp(escapeRegex(search.trim()), "i");
       searchFilter.$or = [
         { name: regex },
         { nameAr: regex },
@@ -614,12 +617,13 @@ adminRouter.get(
 
     const search = String(req.query.search || "").trim();
     if (search) {
+      const safeSearch = escapeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { nameAr: { $regex: search, $options: "i" } },
-        { category: { $regex: search, $options: "i" } },
-        { material: { $regex: search, $options: "i" } },
-        { slug: { $regex: search, $options: "i" } },
+        { name: { $regex: safeSearch, $options: "i" } },
+        { nameAr: { $regex: safeSearch, $options: "i" } },
+        { category: { $regex: safeSearch, $options: "i" } },
+        { material: { $regex: safeSearch, $options: "i" } },
+        { slug: { $regex: safeSearch, $options: "i" } },
       ];
     }
 
@@ -1302,6 +1306,12 @@ adminRouter.post(
     const occupant = await findEmailOccupant(User, normalizedEmail);
     if (occupant) {
       res.status(400).send({ message: "User already exists" });
+      return;
+    }
+
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.valid) {
+      res.status(400).send({ message: passwordCheck.message });
       return;
     }
 
@@ -2331,6 +2341,25 @@ adminRouter.get(
 );
 
 adminRouter.get(
+  "/partner-applications/:id/licence",
+  expressAsyncHandler(async (req, res) => {
+    try {
+      const url = await licencePathForOwner(req.params.id);
+      await streamPrivateLicence(res, url);
+    } catch (error) {
+      if (error instanceof PartnerApplicationError) {
+        res.status(error.status).send({
+          code: error.code,
+          message: error.message,
+        });
+        return;
+      }
+      throw error;
+    }
+  }),
+);
+
+adminRouter.get(
   "/fabric-stores/:id/application",
   expressAsyncHandler(async (req, res) => {
     try {
@@ -2680,11 +2709,12 @@ adminRouter.get(
     // Build search filter for shops
     let shopFilter = {};
     if (search) {
+      const safeSearch = escapeRegex(search);
       shopFilter = {
         $or: [
-          { name: { $regex: search, $options: "i" } },
-          { "ownerId.name": { $regex: search, $options: "i" } },
-          { "ownerId.email": { $regex: search, $options: "i" } },
+          { name: { $regex: safeSearch, $options: "i" } },
+          { "ownerId.name": { $regex: safeSearch, $options: "i" } },
+          { "ownerId.email": { $regex: safeSearch, $options: "i" } },
         ],
       };
     }
@@ -4186,7 +4216,7 @@ adminRouter.get(
 
     // Search by name or email
     if (search && typeof search === "string") {
-      const regex = new RegExp(search, "i");
+      const regex = new RegExp(escapeRegex(search), "i");
       filter.$or = [{ name: regex }, { email: regex }];
     }
 
@@ -4705,7 +4735,7 @@ adminRouter.get(
     }
 
     if (search && typeof search === "string" && search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
+      const regex = new RegExp(escapeRegex(search.trim()), "i");
       filter.$or = [
         { name: regex },
         { nameAr: regex },
@@ -4855,7 +4885,7 @@ adminRouter.get(
     const filter = {};
     if (domain) filter.domain = domain;
     if (search && typeof search === "string" && search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
+      const regex = new RegExp(escapeRegex(search.trim()), "i");
       filter.$or = [
         { name: regex },
         { nameAr: regex },
@@ -5021,7 +5051,7 @@ adminRouter.get(
     const filter = {};
     if (domain) filter.domain = domain;
     if (search && typeof search === "string" && search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
+      const regex = new RegExp(escapeRegex(search.trim()), "i");
       filter.$or = [
         { name: regex },
         { nameAr: regex },
@@ -5187,7 +5217,7 @@ adminRouter.get(
     const filter = {};
     if (domain) filter.domain = domain;
     if (search && typeof search === "string" && search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
+      const regex = new RegExp(escapeRegex(search.trim()), "i");
       filter.$or = [
         { name: regex },
         { nameAr: regex },
@@ -5353,7 +5383,7 @@ adminRouter.get(
     const filter = {};
     if (domain) filter.domain = domain;
     if (search && typeof search === "string" && search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
+      const regex = new RegExp(escapeRegex(search.trim()), "i");
       filter.$or = [
         { name: regex },
         { nameAr: regex },
@@ -5537,7 +5567,7 @@ adminRouter.get(
     const filter = {};
 
     if (search && typeof search === "string" && search.trim()) {
-      const regex = new RegExp(search.trim(), "i");
+      const regex = new RegExp(escapeRegex(search.trim()), "i");
       filter.$or = [{ name: regex }, { nameAr: regex }];
     }
 
@@ -5783,10 +5813,7 @@ adminRouter.get(
       "reviews.0": { $exists: true },
       ...(search
         ? {
-            name: new RegExp(
-              search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-              "i",
-            ),
+            name: new RegExp(escapeRegex(search), "i"),
           }
         : {}),
     };

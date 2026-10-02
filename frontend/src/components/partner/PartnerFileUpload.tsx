@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getApiErrorMessage } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
+import { loadLicencePreview, openLicenceFile } from "@/lib/licenceFile";
 import { uploadPartnerApplicationFile } from "@/lib/partnerApplication";
 
 type PartnerFileUploadProps = {
@@ -30,7 +31,38 @@ export default function PartnerFileUpload({
   const accept =
     variant === "licence" ? "image/*,application/pdf" : "image/*";
   const isPdf = value.toLowerCase().includes(".pdf");
-  const previewSrc = value && !isPdf ? resolveMediaUrl(value) : "";
+  const [licencePreview, setLicencePreview] = useState("");
+  const previewSrc =
+    variant === "licence"
+      ? licencePreview
+      : value && !isPdf
+        ? resolveMediaUrl(value)
+        : "";
+
+  useEffect(() => {
+    if (variant !== "licence" || !value || isPdf) {
+      setLicencePreview("");
+      return;
+    }
+    let cancelled = false;
+    let objectUrl = "";
+    loadLicencePreview("/api/partner-applications/licence")
+      .then((url) => {
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        objectUrl = url;
+        setLicencePreview(url);
+      })
+      .catch(() => {
+        if (!cancelled) setLicencePreview("");
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [variant, value, isPdf]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -102,14 +134,19 @@ export default function PartnerFileUpload({
         />
       ) : null}
       {isPdf && value ? (
-        <a
-          href={resolveMediaUrl(value)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[13px] underline [font-family:var(--font-body)]"
+        <button
+          type="button"
+          onClick={() => {
+            void openLicenceFile("/api/partner-applications/licence").catch(
+              (err) => {
+                setUploadError(getApiErrorMessage(err, uploadFailedLabel));
+              },
+            );
+          }}
+          className="cursor-pointer border-0 bg-transparent p-0 text-[13px] underline [font-family:var(--font-body)]"
         >
           PDF
-        </a>
+        </button>
       ) : null}
       {uploadError ? (
         <p className="text-xs text-red-500">{uploadError}</p>

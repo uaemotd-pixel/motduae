@@ -21,6 +21,7 @@ import {
   trimUrl,
 } from "./policy.js";
 import { mintRequestNumber } from "./requestNumber.js";
+import { isPrivateLicenceUpload } from "../../utils/imageStorage.js";
 import {
   computePartnerExperience,
   syncExperienceAnchor,
@@ -455,6 +456,20 @@ export async function submitApplication(user) {
     application: toApplicationDto(doc),
     applicationSubmittedAt: owner.applicationSubmittedAt,
   };
+}
+
+export async function licencePathForOwner(userId) {
+  if (!/^[a-fA-F0-9]{24}$/.test(String(userId || ""))) {
+    throw new PartnerApplicationError("NOT_FOUND", "Not Found", 404);
+  }
+  const doc = await PartnerApplication.findOne({ ownerId: userId })
+    .select("licenceFileUrl")
+    .lean();
+  const url = String(doc?.licenceFileUrl || "");
+  if (!isPrivateLicenceUpload(url)) {
+    throw new PartnerApplicationError("NOT_FOUND", "Not Found", 404);
+  }
+  return url;
 }
 
 export async function getAdminApplication(userId, expectedRole) {

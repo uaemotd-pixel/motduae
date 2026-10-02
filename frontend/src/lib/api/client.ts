@@ -124,6 +124,26 @@ class ApiClient {
         return this.request<T>(endpoint, { method: 'GET', headers });
     }
 
+    async getBlob(endpoint: string): Promise<Blob> {
+        const response = await fetch(`${this.baseUrl}${endpoint}`, {
+            method: 'GET',
+            credentials: 'include',
+        });
+        if (!response.ok) {
+            let data: unknown = null;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                data = await response.json();
+            }
+            throw {
+                status: response.status,
+                message: this.sanitizeErrorMessage(data, response.status),
+                data,
+            } as ApiError;
+        }
+        return response.blob();
+    }
+
     async post<T = any>(endpoint: string, body?: any, headers?: Record<string, string>): Promise<T> {
         return this.request<T>(endpoint, {
             method: 'POST',

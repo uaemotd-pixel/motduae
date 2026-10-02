@@ -22,7 +22,7 @@ async function main() {
   await mongoose.connect(env.mongodbUri);
   console.log('Connected to MongoDB');
 
-  const partners = await User.find({ role: 'fabric_store' });
+  const partners = await User.find({ role: 'fabric_store' }).select('+password');
   let removed = 0;
 
   for (const partner of partners) {

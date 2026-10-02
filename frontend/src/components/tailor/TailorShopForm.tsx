@@ -34,7 +34,7 @@ import {
 import {
   formatPartnerExperience,
 } from "@/lib/partnerExperience";
-import { resolveMediaUrl } from "@/lib/media";
+import { openLicenceFile } from "@/lib/licenceFile";
 import { UAE_EMIRATES, getEmirateEn, getEmirateAr } from "@/lib/uaeAddress";
 import {
   isValidUaePhone,
@@ -1089,14 +1089,21 @@ export default function TailorShopForm() {
 
             <FormField label={t("fields.licenceFile")} name="licenceFile">
               {formData.licenceFileUrl ? (
-                <a
-                  href={resolveMediaUrl(formData.licenceFileUrl) || "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex [font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.16em] text-black underline underline-offset-4 hover:text-(--color-grey-muted)"
+                <button
+                  type="button"
+                  onClick={() => {
+                    void openLicenceFile("/api/partner-applications/licence").catch(
+                      (err) => {
+                        toast.error(
+                          getApiErrorMessage(err, "Could not open the licence"),
+                        );
+                      },
+                    );
+                  }}
+                  className="inline-flex cursor-pointer border-0 bg-transparent p-0 [font-family:var(--font-ui)] text-[11px] uppercase tracking-[0.16em] text-black underline underline-offset-4 hover:text-(--color-grey-muted)"
                 >
                   {t("viewLicenceFile")}
-                </a>
+                </button>
               ) : (
                 <p className="[font-family:var(--font-body)] text-[13px] text-(--color-grey-muted)">
                   {t("noLicenceFile")}
