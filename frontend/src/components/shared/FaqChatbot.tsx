@@ -220,6 +220,7 @@ export default function FaqChatbot() {
   const [supportRef, setSupportRef] = useState("");
   const [formName, setFormName] = useState("");
   const [formEmail, setFormEmail] = useState("");
+  const [formConcern, setFormConcern] = useState("");
   const [supportSubmitting, setSupportSubmitting] = useState(false);
   const [supportError, setSupportError] = useState("");
   /** Meaningful user exchanges (topic/question/typed). Support CTA unlocks after 2. */
@@ -291,7 +292,7 @@ export default function FaqChatbot() {
         showMore: (n: number) => `اختر سؤالاً (${n})`,
         showTopics: (n: number) => `اختر موضوعاً (${n})`,
         showLess: "إخفاء",
-        notFoundLabel: "لم أجد ما أبحث عنه",
+        notFoundLabel: "لم أجد ما أبحث عنه؟ تواصل مع وكيل الدعم",
         supportFormTitle: "تواصل مع فريق الرعاية",
         supportGuestHint:
           "اتركي اسمك وبريدك الإلكتروني وسيتواصل معكِ وكيل رعاية عملاء MOTD.",
@@ -310,6 +311,11 @@ export default function FaqChatbot() {
         backToTopics: "العودة إلى المواضيع",
         supportInvalidEmail: "يرجى إدخال بريد إلكتروني صالح.",
         supportInvalidName: "يرجى إدخال اسم صالح (حرفين على الأقل).",
+        supportOrderHint:
+          "إذا كان الأمر متعلقاً بطلب، يرجى ذكر رقم الطلب.",
+        supportConcern: "الاستفسار",
+        supportConcernPlaceholder: "اكتبي ما تحتاجين المساعدة بشأنه",
+        supportInvalidConcern: "يرجى وصف استفسارك (10 أحرف على الأقل).",
       }
     : {
         title: "MOTD Care",
@@ -355,7 +361,7 @@ export default function FaqChatbot() {
         showMore: (n: number) => `Choose a question (${n})`,
         showTopics: (n: number) => `Choose a topic (${n})`,
         showLess: "Hide",
-        notFoundLabel: "Did not find what you want",
+        notFoundLabel: "Did not find what you want? Contact with support agent",
         supportFormTitle: "Contact MOTD Support",
         supportGuestHint:
           "Share your name and email and a MOTD Customer Support Agent will contact you.",
@@ -374,6 +380,11 @@ export default function FaqChatbot() {
         backToTopics: "Back to topics",
         supportInvalidEmail: "Please enter a valid email address.",
         supportInvalidName: "Please enter a valid name (at least 2 characters).",
+        supportOrderHint:
+          "Please mention your order number if this is an order-related issue.",
+        supportConcern: "Your concern",
+        supportConcernPlaceholder: "Tell us what you need help with",
+        supportInvalidConcern: "Please describe your concern (at least 10 characters).",
       };
 
   useEffect(() => {
@@ -497,6 +508,7 @@ export default function FaqChatbot() {
     setSupportRef("");
     setFormName("");
     setFormEmail("");
+    setFormConcern("");
     setSupportSubmitting(false);
     setSupportError("");
   }, []);
@@ -507,6 +519,7 @@ export default function FaqChatbot() {
     setQuickReplies(null);
     setSupportError("");
     setSupportRef("");
+    setFormConcern("");
     setSupportView("form");
 
     const member = getMemberProfile();
@@ -561,11 +574,17 @@ export default function FaqChatbot() {
       email = member.email;
     }
 
+    const concern = formConcern.trim();
+    if (concern.length < 10 || concern.length > 2000) {
+      setSupportError(copy.supportInvalidConcern);
+      return;
+    }
+
     setSupportSubmitting(true);
     try {
       const data = await api.post<{ success: boolean; referenceNumber: string }>(
         "/api/faq-support/requests",
-        { name, email, locale }
+        { name, email, concern, locale }
       );
       finishSupportSuccess(data.referenceNumber);
     } catch (err) {
@@ -1015,6 +1034,24 @@ export default function FaqChatbot() {
                           </p>
                         </div>
 
+                        <motion.p
+                          role="status"
+                          initial={{ backgroundColor: "#000000", color: "#FFFFFF" }}
+                          animate={{
+                            backgroundColor: ["#000000", "#FFFFFF", "#000000"],
+                            color: ["#FFFFFF", "#000000", "#FFFFFF"],
+                            borderColor: ["#000000", "#000000", "#000000"],
+                          }}
+                          transition={{
+                            duration: 1.4,
+                            repeat: Infinity,
+                            ease: "easeInOut",
+                          }}
+                          className="rounded-xl border px-3 py-2.5 [font-family:var(--font-body)] text-[12.5px] font-medium leading-snug"
+                        >
+                          {copy.supportOrderHint}
+                        </motion.p>
+
                         {isRegisteredMember ? (
                           <dl className="space-y-2 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3 py-3">
                             <div>
@@ -1066,6 +1103,21 @@ export default function FaqChatbot() {
                             </label>
                           </div>
                         )}
+
+                        <label className="flex flex-col gap-1">
+                          <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.14em] text-[#8A8A80]">
+                            {copy.supportConcern}
+                          </span>
+                          <textarea
+                            value={formConcern}
+                            onChange={(e) => setFormConcern(e.target.value)}
+                            disabled={supportSubmitting}
+                            rows={4}
+                            maxLength={2000}
+                            placeholder={copy.supportConcernPlaceholder}
+                            className="resize-y rounded-xl border border-[#E8E8E4] bg-white px-3 py-2.5 [font-family:var(--font-body)] text-[16px] sm:text-[13px] leading-relaxed text-black outline-none placeholder:text-[#8A8A80] focus:border-black disabled:opacity-60"
+                          />
+                        </label>
 
                         {supportError ? (
                           <p className="[font-family:var(--font-body)] text-[11px] text-red-700">
@@ -1375,13 +1427,17 @@ export default function FaqChatbot() {
                                 whileHover={{ scale: 1.03 }}
                                 whileTap={{ scale: 0.97 }}
                                 className={
-                                  action.primary
-                                    ? "inline-flex items-center gap-1.5 rounded-full border border-black bg-black px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
-                                    : "inline-flex items-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-black transition hover:border-black hover:bg-black hover:text-white disabled:opacity-50 hover:cursor-pointer"
+                                  action.key === "notfound"
+                                    ? "inline-flex w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border border-black bg-black px-3.5 py-2.5 text-center [font-family:var(--font-body)] text-[12px] leading-snug text-white transition hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
+                                    : action.primary
+                                      ? "inline-flex items-center gap-1.5 rounded-full border border-black bg-black px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
+                                      : "inline-flex items-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-black transition hover:border-black hover:bg-black hover:text-white disabled:opacity-50 hover:cursor-pointer"
                                 }
                               >
-                                <Icon className="h-3 w-3" strokeWidth={1.5} />
-                                {action.label}
+                                <Icon className="h-3 w-3 shrink-0" strokeWidth={1.5} />
+                                <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                                  {action.label}
+                                </span>
                               </motion.button>
                             );
                           })}

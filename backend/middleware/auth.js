@@ -241,6 +241,7 @@ export function resolveAdminApiPerm(path = "") {
   if (matchPrefix("/payout-requests")) return "payments";
   if (matchPrefix("/customers")) return "customers";
   if (matchPrefix("/reviews")) return "reviews";
+  if (matchPrefix("/queries")) return "queries";
   if (matchPrefix("/ready-made")) return "readyMade";
   if (matchPrefix("/fabrics")) return "fabrics";
   if (matchPrefix("/designs") || matchPrefix("/uploads/designs")) return "designs";
