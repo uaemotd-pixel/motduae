@@ -44,6 +44,7 @@ import {
   Ruler,
   Wallet,
   Star,
+  MessageCircle,
 } from "lucide-react";
 import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
@@ -76,11 +77,15 @@ export default function AdminLayout({
   const canSeeReviews =
     Boolean(user) && (isFullAdmin(user) || hasAdminPerm(user, "reviews"));
 
+  const canSeeQueries =
+    Boolean(user) && (isFullAdmin(user) || hasAdminPerm(user, "queries"));
+
   const { count: unreadNotificationCount } = useNotificationUnreadCount(
     "admin",
     canSeeNotifications,
   );
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
+  const [newQueryCount, setNewQueryCount] = useState(0);
 
   useEffect(() => {
     setIsSidebarOpen(false);
@@ -108,6 +113,34 @@ export default function AdminLayout({
       cancelled = true;
     };
   }, [canSeeReviews, pathname]);
+
+  useEffect(() => {
+    if (!canSeeQueries) {
+      setNewQueryCount(0);
+      return;
+    }
+    let cancelled = false;
+    const loadNewQueryCount = () => {
+      api
+        .get<{ counts?: { new?: number } }>(
+          "/api/admin/queries?status=new&limit=1",
+        )
+        .then((data) => {
+          if (!cancelled) {
+            setNewQueryCount(Number(data?.counts?.new) || 0);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setNewQueryCount(0);
+        });
+    };
+    loadNewQueryCount();
+    window.addEventListener("motd-queries-count-refresh", loadNewQueryCount);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("motd-queries-count-refresh", loadNewQueryCount);
+    };
+  }, [canSeeQueries, pathname]);
 
   useEffect(() => {
     document.documentElement.classList.remove("lenis", "lenis-smooth");
@@ -203,6 +236,12 @@ export default function AdminLayout({
         perm: "subAdmins",
       },
       {
+        label: "Queries",
+        href: "/admin/queries",
+        icon: MessageCircle,
+        perm: "queries",
+      },
+      {
         label: "Reviews",
         href: "/admin/reviews",
         icon: Star,
@@ -293,6 +332,11 @@ export default function AdminLayout({
                 <Icon className="w-4 h-4" />
               </div>
               {item.label}
+              {item.href === "/admin/queries" && newQueryCount > 0 && (
+                <span className="min-w-5 h-5 px-1 rounded-full bg-(--dash-danger) text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
+                  {newQueryCount > 99 ? "99+" : newQueryCount}
+                </span>
+              )}
               {item.href === "/admin/reviews" && pendingReviewCount > 0 && (
                 <span className="min-w-5 h-5 px-1 rounded-full bg-(--dash-danger) text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
                   {pendingReviewCount > 99 ? "99+" : pendingReviewCount}

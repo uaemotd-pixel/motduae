@@ -7,10 +7,20 @@ import { faqSupportLimiter } from "../middleware/rateLimiter.js";
 import { generateFaqSupportReference } from "../services/faqSupport/referenceNumber.js";
 import { normalizeEmail } from "../services/emailVerification/emailOccupancy.js";
 import { isGuestUser } from "../services/emailVerification/isGuestUser.js";
+import { sendFaqSupportReceivedEmail } from "../services/emailService.js";
+import { createNotification } from "../services/notificationService.js";
 
 const faqSupportRouter = express.Router();
 
 const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CONCERN_MIN = 10;
+const CONCERN_MAX = 2000;
+
+function concernSnippet(concern) {
+  const text = String(concern || "").replace(/\s+/g, " ").trim();
+  if (text.length <= 120) return text;
+  return `${text.slice(0, 119).trimEnd()}…`;
+}
 
 async function createSupportRequest(payload) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -38,6 +48,14 @@ faqSupportRouter.post(
   expressAsyncHandler(async (req, res) => {
     const localeRaw = String(req.body?.locale || "en").toLowerCase();
     const locale = localeRaw === "ar" ? "ar" : "en";
+
+    const concern = String(req.body?.concern || "").trim();
+    if (concern.length < CONCERN_MIN || concern.length > CONCERN_MAX) {
+      res.status(400).send({
+        message: "Please describe your concern (10 to 2000 characters)",
+      });
+      return;
+    }
 
     let name = "";
     let email = "";
@@ -70,11 +88,37 @@ faqSupportRouter.post(
     const doc = await createSupportRequest({
       name,
       email,
+      concern,
       userId,
       locale,
       source: "faq_chatbot",
       status: "new",
     });
+
+    try {
+      await sendFaqSupportReceivedEmail({
+        to: email,
+        name,
+        referenceNumber: doc.referenceNumber,
+        locale,
+        userId,
+      });
+    } catch (err) {
+      console.error("Failed to send FAQ support confirmation email:", err);
+    }
+
+    try {
+      const snippet = concernSnippet(concern);
+      await createNotification({
+        type: "faq_support_received",
+        title: "New support query",
+        message: `${name} · ${email} · ${doc.referenceNumber}${snippet ? ` — ${snippet}` : ""}`,
+        audience: "admin",
+        dedupeKey: `faq_support_received:${doc._id}`,
+      });
+    } catch (err) {
+      console.error("Failed to notify admin of FAQ support request:", err);
+    }
 
     res.status(201).json({
       success: true,
