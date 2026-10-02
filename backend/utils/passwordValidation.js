@@ -13,6 +13,13 @@ export function validatePassword(password) {
     return { valid: false, message: 'Password is required' };
   }
 
+  if (password.length > 72 || Buffer.byteLength(password, "utf8") > 72) {
+    return {
+      valid: false,
+      message: "Password must be at most 72 characters",
+    };
+  }
+
   if (password.length < PASSWORD_MIN_LENGTH) {
     return {
       valid: false,

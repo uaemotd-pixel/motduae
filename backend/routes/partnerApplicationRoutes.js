@@ -6,9 +6,11 @@ import {
   attachUpload,
   assertPartnerCanMutateApplication,
   getApplicationForUser,
+  licencePathForOwner,
   patchDraft,
   submitApplication,
 } from "../services/partnerApplication/partnerApplicationService.js";
+import { streamPrivateLicence } from "../utils/imageStorage.js";
 import {
   PartnerApplicationError,
 } from "../services/partnerApplication/policy.js";
@@ -30,6 +32,20 @@ function sendApplicationError(res, error) {
   }
   return false;
 }
+
+partnerApplicationRouter.get(
+  "/licence",
+  isAuth,
+  expressAsyncHandler(async (req, res) => {
+    try {
+      const url = await licencePathForOwner(req.user._id);
+      await streamPrivateLicence(res, url);
+    } catch (error) {
+      if (sendApplicationError(res, error)) return;
+      throw error;
+    }
+  }),
+);
 
 partnerApplicationRouter.get(
   "/",

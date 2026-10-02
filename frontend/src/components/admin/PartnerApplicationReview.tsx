@@ -6,6 +6,7 @@ import { useRouter } from "@/i18n/navigation";
 import toast from "react-hot-toast";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { resolveMediaUrl } from "@/lib/media";
+import { loadLicencePreview } from "@/lib/licenceFile";
 import { Link } from "@/i18n/navigation";
 import { getEmirateAr, getEmirateEn } from "@/lib/uaeAddress";
 import { formatPhoneDisplay } from "@/lib/uaePhone";
@@ -383,6 +384,7 @@ export default function PartnerApplicationReview({
   const [reviewTab, setReviewTab] = useState<"shop" | "application">(
     "application",
   );
+  const [licencePreview, setLicencePreview] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -410,6 +412,32 @@ export default function PartnerApplicationReview({
       cancelled = true;
     };
   }, [apiBase]);
+
+  useEffect(() => {
+    const stored = data?.application?.licenceFileUrl || "";
+    if (!id || !stored) {
+      setLicencePreview("");
+      return;
+    }
+    let cancelled = false;
+    let objectUrl = "";
+    loadLicencePreview(`/api/admin/partner-applications/${id}/licence`)
+      .then((url) => {
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        objectUrl = url;
+        setLicencePreview(url);
+      })
+      .catch(() => {
+        if (!cancelled) setLicencePreview("");
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [id, data?.application?.licenceFileUrl]);
 
   const decide = async (action: "approve" | "reject") => {
     if (action === "reject" && !rejectNote.trim()) {
@@ -508,9 +536,6 @@ export default function PartnerApplicationReview({
       : "";
   const logoSrc = app?.logoUrl ? resolveMediaUrl(app.logoUrl) : "";
   const shop = data.shop;
-  const licenceSrc = app?.licenceFileUrl
-    ? resolveMediaUrl(app.licenceFileUrl)
-    : "";
   const licenceIsPdf = (app?.licenceFileUrl || "").toLowerCase().includes(".pdf");
 
   return (
@@ -761,21 +786,32 @@ export default function PartnerApplicationReview({
             <p>
               Licence number: {app.licenceNumber || "—"}
             </p>
-            {licenceSrc ? (
-              licenceIsPdf ? (
-                <ExternalLink href={licenceSrc} label="Licence PDF" />
+            {app?.licenceFileUrl ? (
+              licencePreview ? (
+                licenceIsPdf ? (
+                  <a
+                    href={licencePreview}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-black underline break-all"
+                  >
+                    Licence PDF
+                  </a>
+                ) : (
+                  <a
+                    href={licencePreview}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      src={licencePreview}
+                      alt="Licence"
+                      className="h-28 object-contain border border-gray-200"
+                    />
+                  </a>
+                )
               ) : (
-                <a
-                  href={licenceSrc}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <img
-                    src={licenceSrc}
-                    alt="Licence"
-                    className="h-28 object-contain border border-gray-200"
-                  />
-                </a>
+                <p className="text-sm text-gray-400">Licence</p>
               )
             ) : (
               <p className="text-gray-400">No licence file</p>

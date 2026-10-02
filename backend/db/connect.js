@@ -21,7 +21,7 @@ if (!globalCache._mongooseCache) {
 async function ensureGuestUser() {
   try {
     const email = env.guestCustomerEmail;
-    const exists = await User.findOne({ email });
+    const exists = await User.findOne({ email }).select("+password");
     if (!exists) {
       const passwordHash = await randomGuestPasswordHash();
       const newUser = await User.create({

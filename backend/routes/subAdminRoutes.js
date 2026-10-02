@@ -11,6 +11,8 @@ import {
   UAE_EMIRATES,
 } from "../utils/uaeAddress.js";
 import { clientErrorMessage } from "../middleware/errorHandler.js";
+import { validatePassword } from "../utils/passwordValidation.js";
+import { escapeRegex } from "../services/partnerApplication/requestNumber.js";
 
 const subAdminRouter = express.Router();
 const BCRYPT_ROUNDS = 10;
@@ -31,8 +33,9 @@ subAdminRouter.post("/", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({ error: "Password min 6 chars" });
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.valid) {
+      return res.status(400).json({ error: passwordCheck.message });
     }
 
     // Validate and normalize emirate
@@ -114,9 +117,10 @@ subAdminRouter.get("/", async (req, res) => {
     // Build search filter
     const filter = {};
     if (search) {
+      const safeSearch = escapeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
+        { name: { $regex: safeSearch, $options: "i" } },
+        { email: { $regex: safeSearch, $options: "i" } },
       ];
     }
 
@@ -249,7 +253,11 @@ subAdminRouter.put("/:id", async (req, res) => {
 
     // 4. Update User (if email changed, find by old email)
     const userUpdate = { name, email };
-    if (password && password.length >= 6) {
+    if (password) {
+      const passwordCheck = validatePassword(password);
+      if (!passwordCheck.valid) {
+        return res.status(400).json({ error: passwordCheck.message });
+      }
       userUpdate.password = await bcrypt.hash(password, 10);
     }
 

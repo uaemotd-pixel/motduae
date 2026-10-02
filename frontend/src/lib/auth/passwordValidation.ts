@@ -24,10 +24,23 @@ export function getPasswordChecks(password: string): PasswordChecks {
 }
 
 export function isPasswordValid(password: string): boolean {
+  if (
+    password.length > 72 ||
+    new TextEncoder().encode(password).length > 72
+  ) {
+    return false;
+  }
   return Object.values(getPasswordChecks(password)).every(Boolean);
 }
 
 export function getPasswordValidationMessage(password: string): string | null {
+  if (
+    password.length > 72 ||
+    new TextEncoder().encode(password).length > 72
+  ) {
+    return "Password must be at most 72 characters";
+  }
+
   const checks = getPasswordChecks(password);
 
   if (!checks.minLength) {
