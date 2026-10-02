@@ -20,6 +20,11 @@ import {
 } from "../services/emailService.js";
 import { createAdminNotificationForNewUser } from "../services/adminNotificationService.js";
 import { clearAuthCookie, setAuthCookie, extractAuthToken } from "../utils/authCookie.js";
+import {
+  createAuthSession,
+  deleteAuthSession,
+  deleteAuthSessionsForUser,
+} from "../services/authSession.js";
 import jwt from "jsonwebtoken";
 import { isEmailVerified } from "../services/emailVerification/isEmailVerified.js";
 import {
@@ -64,6 +69,8 @@ import {
   contactLimiter,
   newsletterLimiter,
   signupLimiter,
+  otpSendLimiter,
+  otpVerifyLimiter,
 } from "../middleware/rateLimiter.js";
 import partnerApplicationRouter from "./partnerApplicationRoutes.js";
 import { logActivity, clientIp, normalizeActorRole } from "../services/activityLogService.js";
@@ -219,27 +226,28 @@ const linkGoogleToUser = (user, { googleId, name }) => {
 };
 
 const guestSessionClaims = (req, extra = {}) => {
+  const sid = extra.sid || req.user?.sid;
   if (!isGuestUser(req?.user)) {
-    return extra;
+    return { ...extra, sid };
   }
   return {
     guestContactEmail: extra.guestContactEmail ?? req.user?.guestContactEmail,
     guestPendingEmail: extra.guestPendingEmail ?? req.user?.guestPendingEmail,
     ...extra,
     guestSessionId: extra.guestSessionId || req.user?.guestSessionId,
+    sid,
   };
 };
 
 const sendUserResponse = (res, user, claims = {}) => {
   const isGuest = isGuestUser(user);
-  const guestClaims = isGuest
-    ? {
-        guestSessionId: claims.guestSessionId,
-        guestContactEmail: claims.guestContactEmail,
-        guestPendingEmail: claims.guestPendingEmail,
-      }
-    : {};
-  setAuthCookie(res, generateToken(user, guestClaims));
+  const tokenClaims = { sid: claims.sid };
+  if (isGuest) {
+    tokenClaims.guestSessionId = claims.guestSessionId;
+    tokenClaims.guestContactEmail = claims.guestContactEmail;
+    tokenClaims.guestPendingEmail = claims.guestPendingEmail;
+  }
+  setAuthCookie(res, generateToken(user, tokenClaims));
   res.send({
     _id: user._id,
     name: user.name,
@@ -257,10 +265,15 @@ const sendUserResponse = (res, user, claims = {}) => {
     requestNumber: user.requestNumber || "",
     rejectionNote: user.rejectionNote || "",
     isGuest,
-    guestContactEmail: isGuest ? guestClaims.guestContactEmail || null : null,
-    guestPendingEmail: isGuest ? guestClaims.guestPendingEmail || null : null,
+    guestContactEmail: isGuest ? tokenClaims.guestContactEmail || null : null,
+    guestPendingEmail: isGuest ? tokenClaims.guestPendingEmail || null : null,
   });
 };
+
+async function sendFreshUserResponse(res, user, claims = {}) {
+  const sid = await createAuthSession(user._id);
+  sendUserResponse(res, user, { ...claims, sid });
+}
 
 const sendEmailVerificationError = (res, error) => {
   if (error instanceof EmailVerificationError) {
@@ -313,7 +326,7 @@ userRouter.get(
   isAuth,
   expressAsyncHandler(async (req, res) => {
     const user = await User.findById(req.user._id).select(
-      "-resetPasswordToken -emailVerificationOTPHash -pendingEmail -pendingEmailExpiresAt -emailVerificationPurpose",
+      "+password -resetPasswordToken -emailVerificationOTPHash -pendingEmail -pendingEmailExpiresAt -emailVerificationPurpose",
     );
     if (!user) {
       res.status(404).send({ message: "User not found" });
@@ -366,7 +379,12 @@ userRouter.post(
     let user = null;
     if (token) {
       try {
-        const decode = jwt.verify(token, env.jwtSecret);
+        const decode = jwt.verify(token, env.jwtSecret, {
+          algorithms: ["HS256"],
+        });
+        if (decode?.sid) {
+          await deleteAuthSession(decode.sid);
+        }
         if (decode?._id) {
           user = await User.findById(decode._id).select(
             "name email role isActive",
@@ -388,7 +406,9 @@ userRouter.post(
   "/signin/guest",
   loginLimiter,
   expressAsyncHandler(async (_req, res) => {
-    const user = await User.findOne({ email: env.guestCustomerEmail });
+    const user = await User.findOne({ email: env.guestCustomerEmail }).select(
+      "+password",
+    );
     if (!user) {
       res.status(503).send({ message: "Guest checkout is not available" });
       return;
@@ -397,7 +417,7 @@ userRouter.post(
       res.status(403).send({ message: "Account is deactivated" });
       return;
     }
-    sendUserResponse(res, user, {
+    await sendFreshUserResponse(res, user, {
       guestSessionId: crypto.randomBytes(32).toString("hex"),
     });
   }),
@@ -424,7 +444,9 @@ userRouter.post(
       return;
     }
 
-    const user = await User.findOne({ email: normalizedEmail });
+    const user = await User.findOne({ email: normalizedEmail }).select(
+      "+password",
+    );
     if (!user) {
       maybeLogLoginFailed(req, {
         email,
@@ -484,7 +506,8 @@ userRouter.post(
       if (subAdmin) perms = subAdmin.perms || {};
     }
     const isGuest = isGuestUser(user);
-    setAuthCookie(res, generateToken(user));
+    const sid = await createAuthSession(user._id);
+    setAuthCookie(res, generateToken(user, { sid }));
     maybeLogUserSignIn(req, user, "password");
     res.json({
       _id: user._id,
@@ -583,10 +606,10 @@ userRouter.post(
       return;
     }
 
-    let user = await User.findOne({ googleId });
+    let user = await User.findOne({ googleId }).select("+password");
 
     if (!user) {
-      user = await User.findOne({ email });
+      user = await User.findOne({ email }).select("+password");
     }
 
     if (authMode === "register") {
@@ -604,7 +627,7 @@ userRouter.post(
         linkGoogleToUser(user, { googleId, name });
         await user.save();
         maybeLogUserSignIn(req, user, "google");
-        sendUserResponse(res, user);
+        await sendFreshUserResponse(res, user);
         return;
       }
 
@@ -642,7 +665,7 @@ userRouter.post(
       }
 
       maybeLogUserRegister(req, user, "google");
-      sendUserResponse(res, user);
+      await sendFreshUserResponse(res, user);
       return;
     }
 
@@ -696,7 +719,7 @@ userRouter.post(
       linkGoogleToUser(user, { googleId, name });
       await user.save();
       maybeLogUserSignIn(req, user, "google");
-      sendUserResponse(res, user);
+      await sendFreshUserResponse(res, user);
       return;
     }
 
@@ -740,7 +763,7 @@ userRouter.post(
     });
 
     maybeLogUserRegister(req, user, "google");
-    sendUserResponse(res, user);
+    await sendFreshUserResponse(res, user);
   }),
 );
 
@@ -840,7 +863,8 @@ userRouter.post(
     user.resetPasswordExpires = undefined;
 
     await user.save();
-    sendUserResponse(res, user);
+    await deleteAuthSessionsForUser(user._id);
+    res.send({ message: "Password updated" });
   }),
 );
 
@@ -878,7 +902,7 @@ userRouter.post(
     const createdUser = await user.save();
 
     maybeLogUserRegister(req, createdUser, "password");
-    sendUserResponse(res, createdUser);
+    await sendFreshUserResponse(res, createdUser);
   }),
 );
 
@@ -917,7 +941,7 @@ userRouter.post(
     const createdUser = await user.save();
 
     maybeLogUserRegister(req, createdUser, "password");
-    sendUserResponse(res, createdUser);
+    await sendFreshUserResponse(res, createdUser);
 
   }),
 );
@@ -984,7 +1008,7 @@ userRouter.post(
     await customer.save();
 
     maybeLogUserRegister(req, createdUser, "password");
-    sendUserResponse(res, createdUser);
+    await sendFreshUserResponse(res, createdUser);
   }),
 );
 
@@ -1013,6 +1037,7 @@ userRouter.get(
 userRouter.post(
   "/email/guest/start",
   isAuth,
+  otpSendLimiter,
   expressAsyncHandler(async (req, res) => {
     const { email } = req.body || {};
     let started;
@@ -1023,7 +1048,7 @@ userRouter.post(
       throw error;
     }
 
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("+password");
     sendUserResponse(
       res,
       user,
@@ -1041,6 +1066,7 @@ userRouter.post(
 userRouter.post(
   "/email/guest/resend",
   isAuth,
+  otpSendLimiter,
   expressAsyncHandler(async (req, res) => {
     const pending = req.user?.guestPendingEmail;
     let issued;
@@ -1082,6 +1108,7 @@ userRouter.post(
 userRouter.post(
   "/email/guest/verify",
   isAuth,
+  otpVerifyLimiter,
   expressAsyncHandler(async (req, res) => {
     const { code } = req.body || {};
     let verified;
@@ -1096,7 +1123,7 @@ userRouter.post(
       throw error;
     }
 
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("+password");
     sendUserResponse(
       res,
       user,
@@ -1130,6 +1157,7 @@ userRouter.get(
 userRouter.post(
   "/email/send-otp",
   isAuth,
+  otpSendLimiter,
   expressAsyncHandler(async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) {
@@ -1185,6 +1213,7 @@ userRouter.post(
 userRouter.post(
   "/email/verify-otp",
   isAuth,
+  otpVerifyLimiter,
   expressAsyncHandler(async (req, res) => {
     const { code } = req.body || {};
 
@@ -1224,15 +1253,17 @@ userRouter.post(
       });
     }
 
-    sendUserResponse(res, user);
+    const withPassword = await User.findById(user._id).select("+password");
+    sendUserResponse(res, withPassword, { sid: req.user.sid });
   }),
 );
 
 userRouter.post(
   "/email/change",
   isAuth,
+  otpSendLimiter,
   expressAsyncHandler(async (req, res) => {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("+password");
     if (!user) {
       res.status(404).send({ message: "User not found" });
       return;
@@ -1270,6 +1301,7 @@ userRouter.post(
 userRouter.post(
   "/email/change/resend",
   isAuth,
+  otpSendLimiter,
   expressAsyncHandler(async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) {
@@ -1310,6 +1342,7 @@ userRouter.post(
 userRouter.post(
   "/email/change/verify",
   isAuth,
+  otpVerifyLimiter,
   expressAsyncHandler(async (req, res) => {
     const { code } = req.body || {};
 
@@ -1322,7 +1355,8 @@ userRouter.post(
       throw error;
     }
 
-    sendUserResponse(res, user);
+    const withPassword = await User.findById(user._id).select("+password");
+    sendUserResponse(res, withPassword, guestSessionClaims(req));
   }),
 );
 
@@ -1347,7 +1381,7 @@ userRouter.put(
   "/profile",
   isAuth,
   expressAsyncHandler(async (req, res) => {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("+password");
     if (!user) {
       res.status(404).send({ message: "User not found" });
       return;
@@ -1386,7 +1420,7 @@ userRouter.put(
       return;
     }
 
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select("+password");
     if (!user) {
       res.status(404).send({ message: "User not found" });
       return;
@@ -1410,7 +1444,12 @@ userRouter.put(
     }
 
     const updatedUser = await user.save();
-    sendUserResponse(res, updatedUser, guestSessionClaims(req));
+    await deleteAuthSessionsForUser(updatedUser._id);
+    const sid = await createAuthSession(updatedUser._id);
+    sendUserResponse(res, updatedUser, {
+      ...guestSessionClaims(req),
+      sid,
+    });
   }),
 );
 

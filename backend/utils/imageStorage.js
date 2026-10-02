@@ -128,7 +128,100 @@ export async function deleteStoredUpload(publicPath) {
   }
 }
 
+export function isPrivateLicenceUpload(uploadPath) {
+  const normalized = String(uploadPath || "")
+    .replace(/^\/uploads\//, "")
+    .replace(/^\/+/, "");
+  return (
+    normalized.startsWith("partner-application/licence-") &&
+    !normalized.includes("..")
+  );
+}
+
+function licenceContentType(blobPath) {
+  if (blobPath.endsWith(".pdf")) return "application/pdf";
+  if (blobPath.endsWith(".webp")) return "image/webp";
+  if (blobPath.endsWith(".png")) return "image/png";
+  if (blobPath.endsWith(".jpg") || blobPath.endsWith(".jpeg")) return "image/jpeg";
+  return "application/octet-stream";
+}
+
+export async function streamPrivateLicence(res, publicPath) {
+  if (!isPrivateLicenceUpload(publicPath)) {
+    res.status(404).send({ message: "Not Found" });
+    return;
+  }
+
+  const blobPath = publicPathToBlobPath(
+    String(publicPath).startsWith("/uploads/")
+      ? publicPath
+      : `/uploads/${String(publicPath).replace(/^\/+/, "")}`,
+  );
+  if (!blobPath) {
+    res.status(404).send({ message: "Not Found" });
+    return;
+  }
+
+  const sendFileHeaders = () => {
+    res.setHeader("Content-Type", licenceContentType(blobPath));
+    res.setHeader("Content-Disposition", "inline");
+    res.setHeader("Cache-Control", "private, no-store");
+  };
+
+  if (isBlobStorageEnabled()) {
+    try {
+      const { get } = await loadBlobSdk();
+      const result = await get(blobPath, {
+        access: "private",
+        ...getBlobAuthOptions(),
+      });
+      if (result?.statusCode !== 200 || !result?.stream) {
+        res.status(404).send({ message: "Not Found" });
+        return;
+      }
+      sendFileHeaders();
+      if (typeof result.stream.pipe === "function") {
+        result.stream.pipe(res);
+        return;
+      }
+      const reader = result.stream.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(Buffer.from(value));
+      }
+      res.end();
+    } catch (err) {
+      if (err?.statusCode !== 404) {
+        console.warn(`Licence serve failed for ${blobPath}:`, err.message);
+      }
+      if (!res.headersSent) {
+        res.status(404).send({ message: "Not Found" });
+      }
+    }
+    return;
+  }
+
+  const [folder, ...rest] = blobPath.split("/");
+  let localPath;
+  try {
+    localPath = getLocalUploadPath(folder, rest.join("/"));
+    await fs.access(localPath);
+  } catch {
+    res.status(404).send({ message: "Not Found" });
+    return;
+  }
+
+  const { createReadStream } = await import("fs");
+  sendFileHeaders();
+  createReadStream(localPath).pipe(res);
+}
+
 export async function tryServeUploadFromBlob(req, res) {
+  if (isPrivateLicenceUpload(req.path)) {
+    return false;
+  }
+
   if (!isBlobStorageEnabled() || req.method !== 'GET') {
     return false;
   }

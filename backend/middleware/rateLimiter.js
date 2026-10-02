@@ -208,6 +208,36 @@ export const customerUploadLimiter = rateLimit({
   handler: defaultHandler("Too many uploads, please try again in 15 minutes"),
 });
 
+export const otpSendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  store: new SlidingWindowStore(),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `otp_send_${ipKeyGenerator(req.ip)}`,
+  validate: limiterValidation,
+  statusCode: 429,
+  message: "Too many code requests. Please try again in 15 minutes",
+  handler: defaultHandler(
+    "Too many code requests. Please try again in 15 minutes",
+  ),
+});
+
+export const otpVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  store: new SlidingWindowStore(),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `otp_verify_${ipKeyGenerator(req.ip)}`,
+  validate: limiterValidation,
+  statusCode: 429,
+  message: "Too many code attempts. Please try again in 15 minutes",
+  handler: defaultHandler(
+    "Too many code attempts. Please try again in 15 minutes",
+  ),
+});
+
 export const publicOrderTrackLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,

@@ -2,7 +2,7 @@ import { env } from "../config/env.js";
 
 export const AUTH_COOKIE_NAME = "motd_auth";
 
-function jwtExpiresToMs(expiresIn) {
+export function jwtExpiresToMs(expiresIn) {
   if (typeof expiresIn === "number" && Number.isFinite(expiresIn)) {
     return expiresIn * 1000;
   }

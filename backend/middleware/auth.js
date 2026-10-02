@@ -3,14 +3,26 @@ import { env } from "../config/env.js";
 import User from "../models/User.js";
 import SubAdmin from "../models/SubAdmin.js";
 import { extractAuthToken } from "../utils/authCookie.js";
+import { authSessionIsActive } from "../services/authSession.js";
 import { isEmailVerified } from "../services/emailVerification/isEmailVerified.js";
 import { isGuestUser } from "../services/emailVerification/isGuestUser.js";
 import { normalizeEmail } from "../services/emailVerification/emailOccupancy.js";
 
+const JWT_SIGN_OPTIONS = { algorithms: ["HS256"] };
+
+function setPrivateNoStore(res) {
+  res.set("Cache-Control", "private, no-store");
+}
+
 export const generateToken = (
   user,
-  { guestContactEmail, guestPendingEmail, guestSessionId } = {},
+  { guestContactEmail, guestPendingEmail, guestSessionId, sid } = {},
 ) => {
+  const authSid = String(sid || "").trim();
+  if (!authSid) {
+    throw new Error("Auth session id is required");
+  }
+
   const isGuest = isGuestUser(user);
   const payload = {
     _id: user._id,
@@ -20,6 +32,7 @@ export const generateToken = (
     isAdmin: user.isAdmin,
     emailVerified: isEmailVerified(user),
     isGuest,
+    sid: authSid,
   };
 
   if (isGuest) {
@@ -34,10 +47,14 @@ export const generateToken = (
     if (pending) payload.guestPendingEmail = pending;
   }
 
-  return jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn });
+  return jwt.sign(payload, env.jwtSecret, {
+    algorithm: "HS256",
+    expiresIn: env.jwtExpiresIn,
+  });
 };
 
 export const isAuth = async (req, res, next) => {
+  setPrivateNoStore(res);
   const token = extractAuthToken(req);
   if (!token) {
     res.status(401).send({ message: "No Token" });
@@ -45,7 +62,12 @@ export const isAuth = async (req, res, next) => {
   }
 
   try {
-    const decode = jwt.verify(token, env.jwtSecret);
+    const decode = jwt.verify(token, env.jwtSecret, JWT_SIGN_OPTIONS);
+    const sid = String(decode.sid || "").trim();
+    if (!sid || !(await authSessionIsActive(sid, decode._id))) {
+      res.status(401).send({ message: "Invalid Token" });
+      return;
+    }
     const user = await User.findById(decode._id).select(
       "name email role isAdmin isActive approvalStatus emailVerified applicationSubmittedAt requestNumber rejectionNote",
     );
@@ -85,6 +107,7 @@ export const isAuth = async (req, res, next) => {
       rejectionNote: user.rejectionNote || "",
       emailVerified: isEmailVerified(user),
       isGuest,
+      sid,
       guestSessionId: isGuest ? guestSessionId : undefined,
       guestContactEmail: isGuest
         ? normalizeEmail(decode.guestContactEmail) || undefined
@@ -168,6 +191,7 @@ export function resolveAdminApiPerm(path = "") {
   if (matchPrefix("/tailors")) return "tailors";
   if (matchPrefix("/addons")) return "addons";
   if (matchPrefix("/orders")) return "orders";
+  if (matchPrefix("/partner-applications")) return "partners";
   if (matchPrefix("/partners")) return "partners";
   if (matchPrefix("/notifications")) return "notifications";
   if (
