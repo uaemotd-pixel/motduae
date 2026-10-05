@@ -229,6 +229,7 @@ export function getNotificationTypeLabel(type: string, t?: (key: string) => stri
     custom_review_prompt: "Leave a review",
     retail_review_prompt: "Leave a review",
     review_submitted: "New review pending",
+    faq_support_received: "New support query",
     review_approved: "Review approved",
     review_rejected: "Review not published",
     fabric_payout_requested: "Fabric payout request",
@@ -362,6 +363,19 @@ export function getAdminDeepLinkHref(
     return {
       href: "/admin/reviews?status=pending",
       label: "Moderate reviews",
+    };
+  }
+
+  if (type === "faq_support_received") {
+    const reference = String(notification.message || "").match(
+      /MOTD-CS-[A-F0-9]{8}/i,
+    )?.[0];
+    const search = reference
+      ? `&search=${encodeURIComponent(reference)}`
+      : "";
+    return {
+      href: `/admin/queries?status=new${search}`,
+      label: "View query",
     };
   }
 

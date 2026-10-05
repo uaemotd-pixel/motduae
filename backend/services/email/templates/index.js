@@ -6,6 +6,7 @@ import { orderPlacedTemplate } from "./orderPlaced.js";
 import { partnerApplicationTemplate } from "./partnerApplication.js";
 import { partnerPayoutCompletedTemplate } from "./partnerPayoutCompleted.js";
 import { vendorOrderPlacedTemplate } from "./vendorOrderPlaced.js";
+import { supportQueryReceivedTemplate } from "./supportQueryReceived.js";
 import { EMAIL_EVENTS } from "../emailEvents.js";
 
 const registry = {
@@ -23,6 +24,7 @@ const registry = {
   [EMAIL_EVENTS.ORDER_CUSTOM_PLACED_TAILOR]: vendorOrderPlacedTemplate,
   [EMAIL_EVENTS.ORDER_CUSTOM_PLACED_FABRIC]: vendorOrderPlacedTemplate,
   [EMAIL_EVENTS.ORDER_RETAIL_PLACED_FABRIC]: vendorOrderPlacedTemplate,
+  [EMAIL_EVENTS.SUPPORT_QUERY_RECEIVED]: supportQueryReceivedTemplate,
 };
 
 export function getTemplate(event) {
