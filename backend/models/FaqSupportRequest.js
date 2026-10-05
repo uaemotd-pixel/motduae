@@ -17,6 +17,12 @@ const FaqSupportRequestSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    concern: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 2000,
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

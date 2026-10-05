@@ -260,3 +260,27 @@ export async function sendPartnerPayoutCompletedEmail({
     },
   );
 }
+
+export async function sendFaqSupportReceivedEmail({
+  to,
+  name,
+  referenceNumber,
+  locale,
+  userId,
+}) {
+  return send(
+    EMAIL_EVENTS.SUPPORT_QUERY_RECEIVED,
+    {
+      name,
+      referenceNumber,
+      locale: locale === "ar" ? "ar" : "en",
+    },
+    {
+      to,
+      userId: userId || null,
+      dedupeKey: buildDedupeKey(EMAIL_EVENTS.SUPPORT_QUERY_RECEIVED, [
+        referenceNumber,
+      ]),
+    },
+  );
+}

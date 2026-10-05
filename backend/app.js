@@ -43,6 +43,7 @@ import cartRoutes from "./routes/cartRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js";
 import activityLogRouter from "./routes/activityLogRoutes.js";
 import faqSupportRouter from "./routes/faqSupportRoutes.js";
+import faqSupportAdminRouter from "./routes/faqSupportAdminRoutes.js";
 import {
   captureActivity,
   captureAdminActivity,
@@ -155,6 +156,7 @@ app.use(
   activityLogRouter,
 );
 app.use("/api/admin", isAuth, isAdmin, enforceStaffPerm, adminRouter);
+app.use("/api/admin/queries", isAuth, isAdmin, enforceStaffPerm, faqSupportAdminRouter);
 app.use("/api/admin", isAuth, isAdmin, enforceStaffPerm, notificationRouter);
 app.use("/api/customer", captureActivity());
 app.use("/api/customer", customerRouter);
