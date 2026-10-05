@@ -1,7 +1,6 @@
 import express from "express";
 import expressAsyncHandler from "express-async-handler";
-import rateLimit from "express-rate-limit";
-import { SlidingWindowStore } from "../middleware/rateLimiter.js";
+import { createLimiter } from "../middleware/rateLimiter.js";
 import mongoose from "mongoose";
 import ActivityLog from "../models/ActivityLog.js";
 import {
@@ -11,15 +10,11 @@ import {
 
 const activityLogRouter = express.Router();
 
-const activityLogLimiter = rateLimit({
+const activityLogLimiter = createLimiter("activity", {
   // Live viewer polls every few seconds — allow sustained internal monitoring.
   windowMs: 15 * 60 * 1000,
   max: 900,
-  store: new SlidingWindowStore(),
-  standardHeaders: true,
-  legacyHeaders: false,
   validate: { xForwardedForHeader: false },
-  statusCode: 429,
   message: "Too many activity log requests",
   handler: (req, res, next, options) => {
     res.status(options.statusCode).json({

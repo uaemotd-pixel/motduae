@@ -1,4 +1,8 @@
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import {
+  getRateLimitRedis,
+  RedisSlidingWindowStore,
+} from "../services/rateLimitRedis.js";
 
 // A direct host ignores X-Forwarded-For. Do not fail the request when a
 // client sends that header; the socket address is still the rate-limit key.
@@ -115,153 +119,116 @@ const defaultHandler = (message) => {
   };
 };
 
-export const loginLimiter = rateLimit({
+export function createRateLimitStore(namespace) {
+  const redis = getRateLimitRedis();
+  if (!redis) return new SlidingWindowStore();
+  return new RedisSlidingWindowStore(redis, namespace);
+}
+
+export function createLimiter(namespace, options) {
+  return rateLimit({
+    ...options,
+    store: createRateLimitStore(namespace),
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: options.validate ?? limiterValidation,
+    statusCode: options.statusCode ?? 429,
+    passOnStoreError: false,
+  });
+}
+
+export const loginLimiter = createLimiter("login", {
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // Limit each IP + email combination to 10 requests per window
-  store: new SlidingWindowStore(),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: buildKeyGenerator("login"),
-  validate: limiterValidation,
-  statusCode: 429,
   message: "Too many login attempts, please try again in 15 minutes",
   handler: defaultHandler("Too many login attempts, please try again in 15 minutes"),
 });
 
-export const forgotPasswordLimiter = rateLimit({
+export const forgotPasswordLimiter = createLimiter("forgot", {
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 3, // Limit each IP + email combination to 3 requests per window
-  store: new SlidingWindowStore(),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: buildKeyGenerator("forgot"),
-  validate: limiterValidation,
-  statusCode: 429,
   message: "Too many forgot password requests. Please try again in 15 minutes",
   handler: defaultHandler("Too many forgot password requests. Please try again in 15 minutes"),
 });
 
-export const resetPasswordLimiter = rateLimit({
+export const resetPasswordLimiter = createLimiter("reset", {
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // Limit each IP to 5 requests per window
-  store: new SlidingWindowStore(),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: buildKeyGenerator("reset"),
-  validate: limiterValidation,
-  statusCode: 429,
   message: "Too many reset password attempts. Please try again in 15 minutes",
   handler: defaultHandler("Too many reset password attempts. Please try again in 15 minutes"),
 });
 
-export const faqSupportLimiter = rateLimit({
+export const faqSupportLimiter = createLimiter("faq_support", {
   windowMs: 15 * 60 * 1000,
   max: 5,
-  store: new SlidingWindowStore(),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: buildKeyGenerator("faq_support"),
-  validate: limiterValidation,
-  statusCode: 429,
   message: "Too many support requests. Please try again in 15 minutes",
   handler: defaultHandler(
     "Too many support requests. Please try again in 15 minutes",
   ),
 });
 
-export const contactLimiter = rateLimit({
+export const contactLimiter = createLimiter("contact", {
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 3, // Limit each IP + email combination to 3 requests per window
-  store: new SlidingWindowStore(),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: buildKeyGenerator("contact"),
-  validate: limiterValidation,
-  statusCode: 429,
   message: "Too many messages sent. Please try again in 15 minutes",
   handler: defaultHandler("Too many messages sent. Please try again in 15 minutes"),
 });
 
-export const newsletterLimiter = rateLimit({
+export const newsletterLimiter = createLimiter("newsletter", {
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // Limit each IP + email combination to 5 requests per window
-  store: new SlidingWindowStore(),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: buildKeyGenerator("newsletter"),
-  validate: limiterValidation,
-  statusCode: 429,
   message: "Too many subscription attempts. Please try again in 15 minutes",
   handler: defaultHandler("Too many subscription attempts. Please try again in 15 minutes"),
 });
 
-export const signupLimiter = rateLimit({
+export const signupLimiter = createLimiter("signup", {
   windowMs: 15 * 60 * 1000,
   max: 10,
-  store: new SlidingWindowStore(),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: buildKeyGenerator("signup"),
-  validate: limiterValidation,
-  statusCode: 429,
   message: "Too many signup attempts, please try again in 15 minutes",
   handler: defaultHandler(
     "Too many signup attempts, please try again in 15 minutes",
   ),
 });
 
-export const customerUploadLimiter = rateLimit({
+export const customerUploadLimiter = createLimiter("customer_upload", {
   windowMs: 15 * 60 * 1000,
   max: 60,
-  store: new SlidingWindowStore(),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: buildUserKeyGenerator("customer_upload"),
-  validate: limiterValidation,
-  statusCode: 429,
   message: "Too many uploads, please try again in 15 minutes",
   handler: defaultHandler("Too many uploads, please try again in 15 minutes"),
 });
 
-export const otpSendLimiter = rateLimit({
+export const otpSendLimiter = createLimiter("otp_send", {
   windowMs: 15 * 60 * 1000,
   max: 5,
-  store: new SlidingWindowStore(),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => `otp_send_${ipKeyGenerator(req.ip)}`,
-  validate: limiterValidation,
-  statusCode: 429,
   message: "Too many code requests. Please try again in 15 minutes",
   handler: defaultHandler(
     "Too many code requests. Please try again in 15 minutes",
   ),
 });
 
-export const otpVerifyLimiter = rateLimit({
+export const otpVerifyLimiter = createLimiter("otp_verify", {
   windowMs: 15 * 60 * 1000,
   max: 10,
-  store: new SlidingWindowStore(),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => `otp_verify_${ipKeyGenerator(req.ip)}`,
-  validate: limiterValidation,
-  statusCode: 429,
   message: "Too many code attempts. Please try again in 15 minutes",
   handler: defaultHandler(
     "Too many code attempts. Please try again in 15 minutes",
   ),
 });
 
-export const publicOrderTrackLimiter = rateLimit({
+export const publicOrderTrackLimiter = createLimiter("track", {
   windowMs: 15 * 60 * 1000,
   max: 30,
-  store: new SlidingWindowStore(),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => `track_${ipKeyGenerator(req.ip)}`,
-  validate: limiterValidation,
-  statusCode: 429,
   message: "Too many tracking requests. Please try again in 15 minutes",
   handler: defaultHandler(
     "Too many tracking requests. Please try again in 15 minutes",
