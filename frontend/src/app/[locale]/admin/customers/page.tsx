@@ -736,7 +736,9 @@ export default function AdminCustomersPage() {
       {detailsCustomer && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-          onClick={(e) => e.target === e.currentTarget && setDetailsCustomer(null)}
+          onClick={(e) =>
+            e.target === e.currentTarget && setDetailsCustomer(null)
+          }
         >
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100 overflow-hidden flex flex-col">
             {/* Header */}
@@ -760,7 +762,9 @@ export default function AdminCustomersPage() {
                 {detailsCustomer.profilePic ? (
                   <div
                     className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 cursor-pointer shadow-inner group"
-                    onClick={() => handleImageClick(detailsCustomer.profilePic || "")}
+                    onClick={() =>
+                      handleImageClick(detailsCustomer.profilePic || "")
+                    }
                   >
                     <img
                       src={detailsCustomer.profilePic}

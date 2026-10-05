@@ -6,8 +6,6 @@ import {
   AlertCircle,
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Eye,
   LayoutDashboard,
@@ -28,9 +26,12 @@ import {
   X,
 } from "lucide-react";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 import toast from "react-hot-toast";
 import { ERROR_TOAST, SUCCESS_TOAST } from "@/lib/tailorPortalToast";
 
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100];
 type CategoryOption = { value: string; label: string };
 
 type ActivityItem = {
@@ -236,23 +237,6 @@ function areaDropdownTitle(role: RoleFilter): string {
   if (role === "admin") return "What the admin was doing";
   if (role === "sub-admin") return "What the sub-admin was doing";
   return "What they were doing";
-}
-
-function buildPageList(current: number, total: number): Array<number | "…"> {
-  if (total <= 7) {
-    return Array.from({ length: total }, (_, i) => i + 1);
-  }
-  const pages = new Set<number>([1, total, current]);
-  for (let i = current - 1; i <= current + 1; i += 1) {
-    if (i >= 1 && i <= total) pages.add(i);
-  }
-  const sorted = Array.from(pages).sort((a, b) => a - b);
-  const out: Array<number | "…"> = [];
-  for (let i = 0; i < sorted.length; i += 1) {
-    if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push("…");
-    out.push(sorted[i]);
-  }
-  return out;
 }
 
 function apiBase() {
@@ -646,6 +630,7 @@ export default function ActivityLogViewer() {
   const [successFilter, setSuccessFilter] = useState("");
   const [actorRole, setActorRole] = useState<RoleFilter>("");
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(DEFAULT_PAGE_SIZE);
 
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -690,7 +675,7 @@ export default function ActivityLogViewer() {
     setFreshIds(new Set());
     setNewCount(0);
     setSelectedIds(new Set());
-  }, [debouncedQ, category, successFilter, actorRole]);
+  }, [debouncedQ, category, successFilter, actorRole, limit]);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -708,7 +693,7 @@ export default function ActivityLogViewer() {
       try {
         const params = new URLSearchParams();
         params.set("page", String(page));
-        params.set("limit", "40");
+        params.set("limit", String(limit));
         if (debouncedQ) params.set("q", debouncedQ);
         if (category) params.set("category", category);
         if (successFilter) params.set("success", successFilter);
@@ -773,7 +758,7 @@ export default function ActivityLogViewer() {
         if (!silent) setLoading(false);
       }
     },
-    [page, debouncedQ, category, successFilter, actorRole],
+    [page, limit, debouncedQ, category, successFilter, actorRole],
   );
 
   // Initial + filter/page changes
@@ -809,12 +794,21 @@ export default function ActivityLogViewer() {
   const items = data?.items || [];
   const stats = data?.stats;
   const totalPages = data?.totalPages || 1;
+  const totalItems = data?.total || 0;
   const activeNav = ROLE_NAV.find((n) => n.id === actorRole) || ROLE_NAV[0];
   const hasExtraFilters = Boolean(category || successFilter || q);
-  const pageNumbers = buildPageList(data?.page || page, totalPages);
   const allPageSelected =
     items.length > 0 && items.every((item) => selectedIds.has(item._id));
   const someSelected = selectedIds.size > 0;
+
+  function handlePageChange(nextPage: number) {
+    setPage(nextPage);
+  }
+
+  function handleLimitChange(nextLimit: number) {
+    setLimit(nextLimit);
+    setPage(1);
+  }
 
   function selectRole(role: RoleFilter) {
     setActorRole(role);
@@ -1538,60 +1532,25 @@ export default function ActivityLogViewer() {
               })}
             </div>
 
-            <div className="flex flex-col gap-3 border-t border-[#efebe3] px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4">
-              <p className="text-[12px] text-[#7a766c]">
-                Page {data?.page || page} of {totalPages}
-                {typeof data?.total === "number"
-                  ? ` · ${data.total} total`
-                  : ""}
-                {someSelected ? ` · ${selectedIds.size} selected` : ""}
-              </p>
-              <div className="flex flex-wrap items-center justify-between gap-1.5 sm:justify-end">
-                <button
-                  type="button"
-                  disabled={page <= 1 || loading}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-[#e6e2d8] px-3 py-2 text-sm disabled:opacity-40 sm:flex-none sm:py-1.5"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Prev
-                </button>
-                <div className="hidden items-center gap-1.5 sm:flex">
-                  {pageNumbers.map((entry, idx) =>
-                    entry === "…" ? (
-                      <span
-                        key={`ellipsis-${idx}`}
-                        className="px-1 text-sm text-[#9a9588]"
-                      >
-                        …
-                      </span>
-                    ) : (
-                      <button
-                        key={entry}
-                        type="button"
-                        disabled={loading}
-                        onClick={() => setPage(entry)}
-                        className={`min-w-9 rounded-xl px-2.5 py-1.5 text-sm ${
-                          entry === (data?.page || page)
-                            ? "bg-[#111312] font-semibold text-white"
-                            : "border border-[#e6e2d8] text-[#2a2a28] hover:bg-[#faf8f3]"
-                        }`}
-                      >
-                        {entry}
-                      </button>
-                    ),
-                  )}
-                </div>
-                <button
-                  type="button"
-                  disabled={page >= totalPages || loading}
-                  onClick={() => setPage((p) => p + 1)}
-                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl border border-[#e6e2d8] px-3 py-2 text-sm disabled:opacity-40 sm:flex-none sm:py-1.5"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
+            <div className="border-t border-[#efebe3] px-3 py-3 sm:px-4">
+              {someSelected ? (
+                <p className="mb-2 text-[12px] text-[#7a766c]">
+                  {selectedIds.size} selected
+                </p>
+              ) : null}
+              {totalItems > 0 ? (
+                <GlobalPagination
+                  currentPage={data?.page || page}
+                  totalPages={Math.max(totalPages, 1)}
+                  onPageChange={handlePageChange}
+                  showItemsPerPage
+                  itemsPerPage={limit}
+                  onItemsPerPageChange={handleLimitChange}
+                  itemsPerPageOptions={PAGE_SIZE_OPTIONS}
+                  totalItems={totalItems}
+                  className="!border-t-0 !pt-0"
+                />
+              ) : null}
             </div>
           </section>
 

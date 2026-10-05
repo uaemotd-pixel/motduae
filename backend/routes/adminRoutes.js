@@ -17,7 +17,11 @@ import {
   processReadyMadeImage,
   processTailorDesignImage,
 } from "../middleware/uploadReadyMadeImage.js";
-import { respondIfShopNotReady, syncFabricShopCatalogActive, syncTailorShopCatalogActive } from "../utils/shopReady.js";
+import {
+  respondIfShopNotReady,
+  syncFabricShopCatalogActive,
+  syncTailorShopCatalogActive,
+} from "../utils/shopReady.js";
 import {
   applyCreateDefaults,
   applyMinCutToDesignData,
@@ -101,9 +105,7 @@ import {
   UAE_EMIRATES,
   isValidEmirate,
 } from "../utils/uaeAddress.js";
-import {
-  createReadyCustomShipments,
-} from "../services/shipmentService.js";
+import { createReadyCustomShipments } from "../services/shipmentService.js";
 import {
   isEmptyShopPickupAddress,
   normalizeShopPickupAddress,
@@ -165,17 +167,20 @@ function sumCustomFabricGross(order) {
   }
 
   // Only partner-owned custom add-ons (have a fabricShopId).
-  const addOnsFee = (order.addons || order.addOns || []).reduce((sum, addon) => {
-    const shopId =
-      addon?.fabricShopId?._id?.toString?.() ||
-      addon?.fabricShopId?.toString?.() ||
-      addon?.fabricShop?._id?.toString?.() ||
-      addon?.fabricShop?.toString?.() ||
-      "";
-    const ownerName = String(addon?.ownerName || "").trim();
-    if (ownerName === "MOTD Admin" || !shopId) return sum;
-    return sum + (Number(addon?.price) || 0);
-  }, 0);
+  const addOnsFee = (order.addons || order.addOns || []).reduce(
+    (sum, addon) => {
+      const shopId =
+        addon?.fabricShopId?._id?.toString?.() ||
+        addon?.fabricShopId?.toString?.() ||
+        addon?.fabricShop?._id?.toString?.() ||
+        addon?.fabricShop?.toString?.() ||
+        "";
+      const ownerName = String(addon?.ownerName || "").trim();
+      if (ownerName === "MOTD Admin" || !shopId) return sum;
+      return sum + (Number(addon?.price) || 0);
+    },
+    0,
+  );
 
   return fabricFee + addOnsFee;
 }
@@ -194,19 +199,22 @@ function sumCustomMotdOwnedGross(order) {
     }
   }
 
-  const motdAddOns = (order.addons || order.addOns || []).reduce((sum, addon) => {
-    const shopId =
-      addon?.fabricShopId?._id?.toString?.() ||
-      addon?.fabricShopId?.toString?.() ||
-      addon?.fabricShop?._id?.toString?.() ||
-      addon?.fabricShop?.toString?.() ||
-      "";
-    const ownerName = String(addon?.ownerName || "").trim();
-    if (ownerName === "MOTD Admin" || !shopId) {
-      return sum + (Number(addon?.price) || 0);
-    }
-    return sum;
-  }, 0);
+  const motdAddOns = (order.addons || order.addOns || []).reduce(
+    (sum, addon) => {
+      const shopId =
+        addon?.fabricShopId?._id?.toString?.() ||
+        addon?.fabricShopId?.toString?.() ||
+        addon?.fabricShop?._id?.toString?.() ||
+        addon?.fabricShop?.toString?.() ||
+        "";
+      const ownerName = String(addon?.ownerName || "").trim();
+      if (ownerName === "MOTD Admin" || !shopId) {
+        return sum + (Number(addon?.price) || 0);
+      }
+      return sum;
+    },
+    0,
+  );
 
   return Number((selfFabric + motdAddOns).toFixed(2));
 }
@@ -641,7 +649,10 @@ adminRouter.get(
     }
 
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const limit = Math.min(
+      100,
+      Math.max(1, parseInt(req.query.limit, 10) || 10),
+    );
     const skip = (page - 1) * limit;
 
     const [designs, total] = await Promise.all([
@@ -1423,9 +1434,7 @@ async function toggleFabricStorePartnerActive(req, res) {
 
   const idTail = String(user._id).slice(-6);
   req.activityLogOverride = {
-    action: updated.isActive
-      ? "partners.activated"
-      : "partners.deactivated",
+    action: updated.isActive ? "partners.activated" : "partners.deactivated",
     summary: updated.isActive
       ? `Activated fabric store partner #${idTail}`
       : `Deactivated fabric store partner #${idTail}`,
@@ -1595,7 +1604,10 @@ adminRouter.get(
   "/fabrics",
   expressAsyncHandler(async (req, res) => {
     const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 500);
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit, 10) || 10, 1),
+      500,
+    );
     const skip = (page - 1) * limit;
     const search = req.query.search || "";
     const status = req.query.status || "";
@@ -1825,7 +1837,8 @@ adminRouter.post(
 
     if (Array.isArray(req.body.variants)) {
       for (const variant of req.body.variants) {
-        if (!variant.name || !variant.nameAr || !createdFabric.material) continue;
+        if (!variant.name || !variant.nameAr || !createdFabric.material)
+          continue;
 
         const variantCutsResult = await prepareFabricCutsInput(variant.cuts);
         if (!variantCutsResult.ok) {
@@ -1926,7 +1939,8 @@ adminRouter.put(
     fabric.images = req.body.images ?? fabric.images;
     fabric.material = req.body.material ?? fabric.material;
     fabric.materialAr = req.body.materialAr ?? fabric.materialAr;
-    if (req.body.category !== undefined) fabric.category = req.body.category || "";
+    if (req.body.category !== undefined)
+      fabric.category = req.body.category || "";
     if (req.body.categoryAr !== undefined)
       fabric.categoryAr = req.body.categoryAr || "";
     if (req.body.pattern !== undefined) fabric.pattern = req.body.pattern || "";
@@ -2035,7 +2049,8 @@ adminRouter.put(
             await existing.save();
           }
         } else {
-          if (!variant.name || !variant.nameAr || !updatedFabric.material) continue;
+          if (!variant.name || !variant.nameAr || !updatedFabric.material)
+            continue;
 
           const variantCutsResult = await prepareFabricCutsInput(variant.cuts);
           if (!variantCutsResult.ok) {
@@ -3128,9 +3143,7 @@ adminRouter.get(
 
       for (const addon of order.addons || []) {
         const addonId =
-          addon.addonId?._id?.toString?.() ||
-          addon.addonId?.toString?.() ||
-          "";
+          addon.addonId?._id?.toString?.() || addon.addonId?.toString?.() || "";
         if (addonId) addonIds.add(addonId);
         const shopId =
           addon.fabricShopId?._id?.toString?.() ||
@@ -3187,7 +3200,8 @@ adminRouter.get(
     const withFabricShopNames = orders.map((order) => {
       const attachShopName = (storeRef) => {
         if (!storeRef || typeof storeRef !== "object") return storeRef;
-        const ownerId = storeRef._id?.toString?.() || String(storeRef._id || "");
+        const ownerId =
+          storeRef._id?.toString?.() || String(storeRef._id || "");
         const shop = fabricShopByOwner.get(ownerId);
         if (!shop) return storeRef;
         return {
@@ -3209,9 +3223,7 @@ adminRouter.get(
       const enrichAddon = (addon) => {
         if (!addon || typeof addon !== "object") return addon;
         const addonId =
-          addon.addonId?._id?.toString?.() ||
-          addon.addonId?.toString?.() ||
-          "";
+          addon.addonId?._id?.toString?.() || addon.addonId?.toString?.() || "";
         const catalog = addonId ? addonById.get(addonId) : null;
         const shopId =
           addon.fabricShopId?._id?.toString?.() ||
@@ -3364,8 +3376,8 @@ adminRouter.get(
     const timeframeRaw = req.query.timeframe;
     const timeframe =
       timeframeRaw === "week" ||
-        timeframeRaw === "month" ||
-        timeframeRaw === "year"
+      timeframeRaw === "month" ||
+      timeframeRaw === "year"
         ? timeframeRaw
         : "month";
 
@@ -4726,7 +4738,10 @@ adminRouter.get(
   expressAsyncHandler(async (req, res) => {
     const { domain, search } = req.query;
     const pageNumber = Math.max(Number(req.query.page) || 1, 1);
-    const limitNumber = Math.min(Math.max(Number(req.query.limit) || 10, 1), 100);
+    const limitNumber = Math.min(
+      Math.max(Number(req.query.limit) || 5, 1),
+      100,
+    );
     const skip = (pageNumber - 1) * limitNumber;
 
     const filter = {};
@@ -4905,7 +4920,7 @@ adminRouter.get(
 
     const pageNumber = Math.max(Number(req.query.page) || 1, 1);
     const limitNumber = Math.min(
-      Math.max(Number(req.query.limit) || 10, 1),
+      Math.max(Number(req.query.limit) || 5, 1),
       100,
     );
     const skip = (pageNumber - 1) * limitNumber;
@@ -5071,7 +5086,7 @@ adminRouter.get(
 
     const pageNumber = Math.max(Number(req.query.page) || 1, 1);
     const limitNumber = Math.min(
-      Math.max(Number(req.query.limit) || 10, 1),
+      Math.max(Number(req.query.limit) || 5, 1),
       100,
     );
     const skip = (pageNumber - 1) * limitNumber;
@@ -5237,7 +5252,7 @@ adminRouter.get(
 
     const pageNumber = Math.max(Number(req.query.page) || 1, 1);
     const limitNumber = Math.min(
-      Math.max(Number(req.query.limit) || 10, 1),
+      Math.max(Number(req.query.limit) || 5, 1),
       100,
     );
     const skip = (pageNumber - 1) * limitNumber;
@@ -5403,7 +5418,7 @@ adminRouter.get(
 
     const pageNumber = Math.max(Number(req.query.page) || 1, 1);
     const limitNumber = Math.min(
-      Math.max(Number(req.query.limit) || 10, 1),
+      Math.max(Number(req.query.limit) || 5, 1),
       100,
     );
     const skip = (pageNumber - 1) * limitNumber;
@@ -5559,7 +5574,7 @@ function enrichCutDoc(cut, usageCount = 0) {
   };
 }
 
-// GET /api/admin/cuts?page=1&limit=10&search=...
+// GET /api/admin/cuts?page=1&limit=5&search=...
 adminRouter.get(
   "/cuts",
   expressAsyncHandler(async (req, res) => {
@@ -5578,16 +5593,14 @@ adminRouter.get(
       const cuts = await Cut.find(filter).sort({ createdAt: 1 });
       const usageMap = await getCutUsageMap(cuts.map((cut) => String(cut._id)));
       res.send(
-        cuts.map((cut) =>
-          enrichCutDoc(cut, usageMap[String(cut._id)] || 0),
-        ),
+        cuts.map((cut) => enrichCutDoc(cut, usageMap[String(cut._id)] || 0)),
       );
       return;
     }
 
     const pageNumber = Math.max(Number(req.query.page) || 1, 1);
     const limitNumber = Math.min(
-      Math.max(Number(req.query.limit) || 10, 1),
+      Math.max(Number(req.query.limit) || 5, 1),
       100,
     );
     const skip = (pageNumber - 1) * limitNumber;
@@ -5804,8 +5817,8 @@ adminRouter.get(
       typeof req.query.search === "string" ? req.query.search.trim() : "";
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(
-      50,
-      Math.max(1, parseInt(req.query.limit, 10) || 20),
+      100,
+      Math.max(1, parseInt(req.query.limit, 10) || 10),
     );
     const skip = (page - 1) * limit;
 
@@ -5819,7 +5832,8 @@ adminRouter.get(
     };
 
     const unwindMatch =
-      statusFilter === "all" || !["pending", "approved", "rejected"].includes(statusFilter)
+      statusFilter === "all" ||
+      !["pending", "approved", "rejected"].includes(statusFilter)
         ? {}
         : { "reviews.status": statusFilter };
 
@@ -5866,8 +5880,7 @@ adminRouter.get(
       const key = row._id || "approved";
       if (key in countMap) countMap[key] = row.count;
     }
-    const allCount =
-      countMap.pending + countMap.approved + countMap.rejected;
+    const allCount = countMap.pending + countMap.approved + countMap.rejected;
 
     const items = (facet?.items || []).map((row) =>
       serializeAdminReview(
@@ -5964,7 +5977,8 @@ adminRouter.put(
   "/reviews/:id",
   expressAsyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { rating, quoteEn, quoteAr, titleEn, titleAr, status } = req.body || {};
+    const { rating, quoteEn, quoteAr, titleEn, titleAr, status } =
+      req.body || {};
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       res.status(400).json({ message: "Invalid review id" });
@@ -6011,7 +6025,10 @@ adminRouter.put(
       review.titleAr ||
       "عميل";
 
-    if (status && ["pending", "approved", "rejected"].includes(String(status))) {
+    if (
+      status &&
+      ["pending", "approved", "rejected"].includes(String(status))
+    ) {
       review.status = String(status);
     }
 

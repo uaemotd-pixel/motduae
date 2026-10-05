@@ -34,6 +34,8 @@ const PRICE_STEP = 10;
 const AGE_MIN = 0;
 const AGE_MAX = 150;
 const AGE_STEP = 1;
+const DEFAULT_PAGE_SIZE = 12;
+const PAGE_SIZE_OPTIONS = [5, 10, 12, 25, 50, 100] as const;
 
 interface FilterState {
   categories: string[];
@@ -47,24 +49,6 @@ interface FilterState {
   minAge: number;
   maxAge: number;
   inStockOnly: boolean;
-}
-
-function productAgeBounds(item: ReadyMadeListItem) {
-  const rawMin = Number(item.minAge);
-  const rawMax = Number(item.maxAge);
-  const min = Number.isFinite(rawMin) ? Math.max(0, rawMin) : 0;
-  const max = Number.isFinite(rawMax) ? Math.max(0, rawMax) : 0;
-  return { min: Math.min(min, max), max: Math.max(min, max) };
-}
-
-function matchesAgeFilter(
-  item: ReadyMadeListItem,
-  filterMin: number,
-  filterMax: number,
-) {
-  if (filterMin <= AGE_MIN && filterMax >= AGE_MAX) return true;
-  const { min, max } = productAgeBounds(item);
-  return min <= filterMax && max >= filterMin;
 }
 
 const SearchOffIcon = () => (
@@ -617,6 +601,24 @@ export default function ReadyMadeCatalogPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [productsPerPage, setProductsPerPage] = useState(DEFAULT_PAGE_SIZE);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [facets, setFacets] = useState<{
+    categories: Record<string, number>;
+    materials: Record<string, number>;
+    patterns: Record<string, number>;
+    seasons: Record<string, number>;
+    tags: Record<string, number>;
+    colors: Record<string, number>;
+  }>({
+    categories: {},
+    materials: {},
+    patterns: {},
+    seasons: {},
+    tags: {},
+    colors: {},
+  });
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
   const [filters, setFilters] = useState<FilterState>({
@@ -633,38 +635,110 @@ export default function ReadyMadeCatalogPage() {
     inStockOnly: false,
   });
 
-  const productsPerPage = 12;
-
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Fetch products
+  // Fetch products (server-side pagination + filters)
   useEffect(() => {
+    let cancelled = false;
+
     const fetchProducts = async () => {
       try {
         setLoading(true);
         setFetchError(null);
+
+        const params = new URLSearchParams({
+          page: String(currentPage),
+          limit: String(productsPerPage),
+          sort: sortBy,
+        });
+
+        if (filters.categories.length > 0) {
+          params.set("categories", filters.categories.join(","));
+        }
+        if (filters.materials.length > 0) {
+          params.set("materials", filters.materials.join(","));
+        }
+        if (filters.patterns.length > 0) {
+          params.set("patterns", filters.patterns.join(","));
+        }
+        if (filters.seasons.length > 0) {
+          params.set("seasons", filters.seasons.join(","));
+        }
+        if (filters.tags.length > 0) {
+          params.set("tags", filters.tags.join(","));
+        }
+        if (filters.colors.length > 0) {
+          params.set("colors", filters.colors.join(","));
+        }
+        if (filters.minPrice > PRICE_MIN) {
+          params.set("minPrice", String(filters.minPrice));
+        }
+        if (filters.maxPrice < PRICE_MAX) {
+          params.set("maxPrice", String(filters.maxPrice));
+        }
+        if (filters.minAge > AGE_MIN) {
+          params.set("minAge", String(filters.minAge));
+        }
+        if (filters.maxAge < AGE_MAX) {
+          params.set("maxAge", String(filters.maxAge));
+        }
+        if (filters.inStockOnly) {
+          params.set("inStockOnly", "true");
+        }
+
         const data = await api.get<{
           success: boolean;
           items: ReadyMadeListItem[];
-        }>("/api/ready-made?limit=1000");
+          total?: number;
+          totalPages?: number;
+          facets?: {
+            categories?: Record<string, number>;
+            materials?: Record<string, number>;
+            patterns?: Record<string, number>;
+            seasons?: Record<string, number>;
+            tags?: Record<string, number>;
+            colors?: Record<string, number>;
+          };
+        }>(`/api/ready-made?${params.toString()}`);
 
+        if (cancelled) return;
         if (!data?.success) {
           throw new Error("Failed to load products");
         }
+
         setProducts(data.items || []);
+        setTotalProducts(Number(data.total) || 0);
+        setTotalPages(Number(data.totalPages) || 0);
+        setFacets({
+          categories: data.facets?.categories || {},
+          materials: data.facets?.materials || {},
+          patterns: data.facets?.patterns || {},
+          seasons: data.facets?.seasons || {},
+          tags: data.facets?.tags || {},
+          colors: data.facets?.colors || {},
+        });
       } catch (err: unknown) {
+        if (cancelled) return;
         const message =
           (err as ApiError)?.message ||
           (err instanceof Error ? err.message : "Something went wrong");
         setFetchError(message);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
-    fetchProducts();
-  }, []);
+
+    const timer = setTimeout(fetchProducts, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [currentPage, productsPerPage, filters, sortBy]);
 
   // Fetch all filter data from /api/filters
   useEffect(() => {
@@ -719,97 +793,55 @@ export default function ReadyMadeCatalogPage() {
     fetchFilters();
   }, []);
 
-  const categoryOptions = useMemo(() => {
-    return categories.map((cat) => {
-      const count = products.filter((p) => {
-        const productCategory = isAr
-          ? p.categoryAr || p.category
-          : p.category;
-        return (
-          productCategory === cat.name ||
-          productCategory === cat.nameAr ||
-          p.category === cat.name
-        );
-      }).length;
-      return {
+  const categoryOptions = useMemo(
+    () =>
+      categories.map((cat) => ({
         id: cat._id,
         label: isAr ? cat.nameAr || cat.name : cat.name,
-        count,
-      };
-    });
-  }, [categories, products, isAr]);
+        count: facets.categories[cat._id] ?? 0,
+      })),
+    [categories, facets.categories, isAr],
+  );
 
-  const materialOptions = useMemo(() => {
-    return materials.map((mat) => {
-      const count = products.filter((p) => {
-        const value = isAr ? p.materialAr || p.material : p.material;
-        return (
-          value === mat.name ||
-          value === mat.nameAr ||
-          p.material === mat.name
-        );
-      }).length;
-      return {
+  const materialOptions = useMemo(
+    () =>
+      materials.map((mat) => ({
         id: mat._id,
         label: isAr ? mat.nameAr || mat.name : mat.name,
-        count,
-      };
-    });
-  }, [materials, products, isAr]);
+        count: facets.materials[mat._id] ?? 0,
+      })),
+    [materials, facets.materials, isAr],
+  );
 
-  const patternOptions = useMemo(() => {
-    return patterns.map((pat) => {
-      const count = products.filter((p) => {
-        const value = isAr ? p.patternAr || p.pattern : p.pattern;
-        return (
-          value === pat.name ||
-          value === pat.nameAr ||
-          p.pattern === pat.name
-        );
-      }).length;
-      return {
+  const patternOptions = useMemo(
+    () =>
+      patterns.map((pat) => ({
         id: pat._id,
         label: isAr ? pat.nameAr || pat.name : pat.name,
-        count,
-      };
-    });
-  }, [patterns, products, isAr]);
+        count: facets.patterns[pat._id] ?? 0,
+      })),
+    [patterns, facets.patterns, isAr],
+  );
 
-  const seasonOptions = useMemo(() => {
-    return seasons.map((sea) => {
-      const count = products.filter((p) => {
-        const value = isAr ? p.seasonAr || p.season : p.season;
-        return (
-          value === sea.name ||
-          value === sea.nameAr ||
-          p.season === sea.name
-        );
-      }).length;
-      return {
+  const seasonOptions = useMemo(
+    () =>
+      seasons.map((sea) => ({
         id: sea._id,
         label: isAr ? sea.nameAr || sea.name : sea.name,
-        count,
-      };
-    });
-  }, [seasons, products, isAr]);
+        count: facets.seasons[sea._id] ?? 0,
+      })),
+    [seasons, facets.seasons, isAr],
+  );
 
-  const tagOptions = useMemo(() => {
-    return tags.map((tag) => {
-      const count = products.filter((p) => {
-        const value = isAr ? p.tagAr || p.tag : p.tag;
-        return (
-          value === tag.name ||
-          value === tag.nameAr ||
-          p.tag === tag.name
-        );
-      }).length;
-      return {
+  const tagOptions = useMemo(
+    () =>
+      tags.map((tag) => ({
         id: tag._id,
         label: isAr ? tag.nameAr || tag.name : tag.name,
-        count,
-      };
-    });
-  }, [tags, products, isAr]);
+        count: facets.tags[tag._id] ?? 0,
+      })),
+    [tags, facets.tags, isAr],
+  );
 
   const getChipLabel = (
     options: { id: string; label: string }[],
@@ -819,178 +851,15 @@ export default function ReadyMadeCatalogPage() {
   const colorCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const color of colors) {
-      counts[color.value] = products.filter((p) => {
-        if (!p.colors) return false;
-        const list = Array.isArray(p.colors) ? p.colors : [p.colors];
-        return list.some((col) => {
-          const normalized = String(col).toLowerCase();
-          return (
-            normalized === color.value ||
-            normalized.includes(color.value) ||
-            color.value.includes(normalized)
-          );
-        });
-      }).length;
+      counts[color.value] = facets.colors[color.value.toLowerCase()] ?? 0;
     }
     return counts;
-  }, [products]);
+  }, [facets.colors]);
 
-  const matchesColorFilter = (
-    productColors: string[] | string | undefined,
-    selectedColors: string[],
-  ) => {
-    if (selectedColors.length === 0) return true;
-    if (!productColors) return false;
-    const colorsArray = Array.isArray(productColors)
-      ? productColors
-      : [productColors];
-    return colorsArray.some((col) => {
-      const normalized = col.toLowerCase();
-      return selectedColors.some(
-        (value) => normalized.includes(value) || value.includes(normalized),
-      );
-    });
-  };
+  const startIndex =
+    totalProducts === 0 ? 0 : (currentPage - 1) * productsPerPage;
+  const endIndex = Math.min(startIndex + products.length, totalProducts);
 
-  let filteredProducts = products.filter((item) => {
-    if (filters.categories.length > 0) {
-      const itemCategory = isAr
-        ? item.categoryAr || item.category
-        : item.category;
-      if (!itemCategory) return false;
-      const isMatch = filters.categories.some(
-        (catId) =>
-          catId === itemCategory ||
-          categories.some(
-            (c) =>
-              c._id === catId &&
-              (c.name === item.category ||
-                c.name === itemCategory ||
-                c.nameAr === itemCategory),
-          ),
-      );
-      if (!isMatch) return false;
-    }
-
-    if (filters.materials.length > 0) {
-      const itemMat = isAr
-        ? item.materialAr || item.material
-        : item.material;
-      if (!itemMat) return false;
-      const isMatch = filters.materials.some(
-        (matId) =>
-          matId === itemMat ||
-          materials.some(
-            (m) =>
-              m._id === matId &&
-              (m.name === item.material ||
-                m.name === itemMat ||
-                m.nameAr === itemMat),
-          ),
-      );
-      if (!isMatch) return false;
-    }
-
-    if (filters.patterns.length > 0) {
-      const itemPat = isAr
-        ? item.patternAr || item.pattern
-        : item.pattern;
-      if (!itemPat) return false;
-      const isMatch = filters.patterns.some(
-        (patId) =>
-          patId === itemPat ||
-          patterns.some(
-            (p) =>
-              p._id === patId &&
-              (p.name === item.pattern ||
-                p.name === itemPat ||
-                p.nameAr === itemPat),
-          ),
-      );
-      if (!isMatch) return false;
-    }
-
-    if (filters.seasons.length > 0) {
-      const itemSeason = isAr
-        ? item.seasonAr || item.season
-        : item.season;
-      if (!itemSeason) return false;
-      const isMatch = filters.seasons.some(
-        (seaId) =>
-          seaId === itemSeason ||
-          seasons.some(
-            (s) =>
-              s._id === seaId &&
-              (s.name === item.season ||
-                s.name === itemSeason ||
-                s.nameAr === itemSeason),
-          ),
-      );
-      if (!isMatch) return false;
-    }
-
-    if (filters.tags.length > 0) {
-      const itemTag = isAr ? item.tagAr || item.tag : item.tag;
-      if (!itemTag) return false;
-      const isMatch = filters.tags.some(
-        (tagId) =>
-          tagId === itemTag ||
-          tags.some(
-            (tag) =>
-              tag._id === tagId &&
-              (tag.name === item.tag ||
-                tag.name === itemTag ||
-                tag.nameAr === itemTag),
-          ),
-      );
-      if (!isMatch) return false;
-    }
-
-    // Color filter
-    if (!matchesColorFilter(item.colors, filters.colors)) return false;
-
-    // Price filter
-    const price = item.finalSellingPriceAED ?? 0;
-    if (price < filters.minPrice || price > filters.maxPrice) {
-      return false;
-    }
-
-    if (!matchesAgeFilter(item, filters.minAge, filters.maxAge)) {
-      return false;
-    }
-
-    // Stock filter
-    if (filters.inStockOnly) {
-      if (item.availableFabricStock === 0) {
-        return false;
-      }
-    }
-    return true;
-  });
-
-  switch (sortBy) {
-    case "price-low":
-      filteredProducts.sort(
-        (a, b) => (a.finalSellingPriceAED || 0) - (b.finalSellingPriceAED || 0),
-      );
-      break;
-    case "price-high":
-      filteredProducts.sort(
-        (a, b) => (b.finalSellingPriceAED || 0) - (a.finalSellingPriceAED || 0),
-      );
-      break;
-    case "newest":
-    default:
-      filteredProducts = [...filteredProducts];
-      break;
-  }
-
-  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
-  const startIndex = (currentPage - 1) * productsPerPage;
-  const paginatedProducts = filteredProducts.slice(
-    startIndex,
-    startIndex + productsPerPage,
-  );
   const hasActiveFilters =
     filters.categories.length > 0 ||
     filters.colors.length > 0 ||
@@ -1165,6 +1034,17 @@ export default function ReadyMadeCatalogPage() {
   const handlePageChange = (value: number) => {
     setCurrentPage(value);
   };
+
+  const handlePageSizeChange = (value: number) => {
+    setProductsPerPage(value);
+    setCurrentPage(1);
+  };
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   if (!mounted) return null;
 
@@ -1719,8 +1599,8 @@ export default function ReadyMadeCatalogPage() {
                 <div className="flex items-center justify-between gap-2 sm:gap-6 w-full sm:w-auto min-w-0">
                   <span className="text-[9px] xs:text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.18em] uppercase text-[#7A7A72] font-mono truncate">
                     {isAr
-                      ? `عرض ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredProducts.length)} من ${filteredProducts.length} منتج`
-                      : `Showing ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredProducts.length)} of ${filteredProducts.length} products`}
+                      ? `عرض ${totalProducts === 0 ? 0 : startIndex + 1}-${endIndex} من ${totalProducts} منتج`
+                      : `Showing ${totalProducts === 0 ? 0 : startIndex + 1}-${endIndex} of ${totalProducts} products`}
                   </span>
                   <select
                     value={sortBy}
@@ -1816,8 +1696,8 @@ export default function ReadyMadeCatalogPage() {
                     className="flex-[1.4] rounded-full bg-black px-3 sm:px-4 py-2.5 sm:py-3 text-[9px] xs:text-[10px] tracking-[0.14em] sm:tracking-[0.18em] uppercase text-white transition-colors hover:bg-[#2A2A28] cursor-pointer"
                   >
                     {isAr
-                      ? `عرض ${filteredProducts.length} منتج`
-                      : `Show ${filteredProducts.length} products`}
+                      ? `عرض ${totalProducts} منتج`
+                      : `Show ${totalProducts} products`}
                   </button>
                 </div>
               </div>
@@ -1840,7 +1720,7 @@ export default function ReadyMadeCatalogPage() {
                     {fetchError}
                   </p>
                 </div>
-              ) : filteredProducts.length === 0 ? (
+              ) : products.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-center py-28">
                   <SearchOffIcon />
                   <h3 className="text-[18px] md:text-[22px] uppercase tracking-widest text-black mb-3">
@@ -1861,7 +1741,7 @@ export default function ReadyMadeCatalogPage() {
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {paginatedProducts.map((product) => {
+                    {products.map((product) => {
                       const { title, description } = getReadyMadeDisplayFields(
                         product,
                         locale,
@@ -2029,11 +1909,30 @@ export default function ReadyMadeCatalogPage() {
                     })}
                   </div>
 
-                  <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={handlePageChange}
-                  />
+                  <div className="mt-12 flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-[#E4E0D8]">
+                    <label className="flex items-center gap-2 text-[10px] sm:text-[11px] tracking-[0.14em] uppercase text-[#7A7A72] font-mono">
+                      <span>{isAr ? "لكل صفحة" : "Per page"}</span>
+                      <select
+                        value={productsPerPage}
+                        onChange={(e) =>
+                          handlePageSizeChange(Number(e.target.value))
+                        }
+                        className="bg-transparent border border-[#E4E0D8] rounded-lg px-2 py-1.5 text-black focus:outline-none cursor-pointer"
+                      >
+                        {PAGE_SIZE_OPTIONS.map((size) => (
+                          <option key={size} value={size}>
+                            {size}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      onPageChange={handlePageChange}
+                    />
+                  </div>
                 </>
               )}
             </div>

@@ -7,7 +7,7 @@ import mongoose from "mongoose";
 import { applyCreatedAtFilter } from "../utils/dateRange.js";
 import { normalizePartnerLabel } from "./fabricPayoutRequestService.js";
 
-const DEFAULT_LIMIT = 20;
+const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
 
 export const NOTIFICATION_CATEGORIES = {

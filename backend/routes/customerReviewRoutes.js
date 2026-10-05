@@ -268,6 +268,43 @@ async function notifyAdminsOfNewReviews(customer, count) {
 }
 
 export function registerCustomerReviewRoutes(customerRouter) {
+  customerRouter.get("/reviews/mine", isAuth, async (req, res) => {
+    try {
+      if (denyIfNotReviewCustomer(req, res)) return;
+
+      const { page, limit, skip } = parsePagination(req.query, {
+        defaultLimit: 10,
+        maxLimit: 100,
+      });
+
+      const customer = await Customer.findOne({ userId: req.user._id }).select(
+        "reviews",
+      );
+      const all = omitReviewsModerationFields(customer?.reviews || [])
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt || 0).getTime() -
+            new Date(a.createdAt || 0).getTime(),
+        );
+
+      const total = all.length;
+      const reviews = all.slice(skip, skip + limit);
+
+      return res.json({
+        success: true,
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 0,
+        reviews,
+      });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: clientErrorMessage(err, 500) });
+    }
+  });
+
   customerRouter.post("/reviews", isAuth, async (req, res) => {
     if (denyIfNotReviewCustomer(req, res)) return;
 
