@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { RefreshCw, Search } from "lucide-react";
+import { Copy, Mail, RefreshCw, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import GlobalPagination from "@/components/shared/GlobalPagination";
@@ -36,6 +36,17 @@ const TOAST = {
     borderRadius: "0",
   },
 };
+
+function mailtoHref(email: string, reference: string) {
+  const subject = encodeURIComponent(
+    reference ? `MOTD support ${reference}` : "MOTD support",
+  );
+  return `mailto:${email}?subject=${subject}`;
+}
+
+async function copyEmail(email: string) {
+  await navigator.clipboard.writeText(email);
+}
 
 function readStatus(value: string | null): QueryStatus {
   if (value === "contacted" || value === "closed") return value;
@@ -254,8 +265,43 @@ export default function AdminQueriesPage() {
                           <dt className="text-[10px] uppercase tracking-wider text-gray-400">
                             Email
                           </dt>
-                          <dd className="mt-0.5 text-sm text-black break-all">
-                            {item.email || "—"}
+                          <dd className="mt-0.5 text-sm text-black">
+                            {item.email ? (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <a
+                                  href={mailtoHref(
+                                    item.email,
+                                    item.referenceNumber,
+                                  )}
+                                  className="inline-flex min-w-0 items-center gap-1.5 break-all underline underline-offset-2 hover:text-black"
+                                >
+                                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                                  <span className="break-all">{item.email}</span>
+                                </a>
+                                <button
+                                  type="button"
+                                  aria-label="Copy email"
+                                  title="Copy email"
+                                  onClick={() => {
+                                    void copyEmail(item.email)
+                                      .then(() => {
+                                        toast.success("Email copied", TOAST);
+                                      })
+                                      .catch(() => {
+                                        toast.error(
+                                          "Could not copy the email",
+                                          TOAST,
+                                        );
+                                      });
+                                  }}
+                                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center border border-gray-200 text-gray-600 hover:border-black hover:text-black"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              "—"
+                            )}
                           </dd>
                         </div>
                       </dl>
