@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api/client";
 import {
   Activity,
+  Hourglass,
   Store,
   RefreshCw,
   Scissors,
@@ -569,6 +570,10 @@ export default function AdminPaymentsPage() {
     Number(stats.partnerShares?.motdKeeps) ||
     Number(stats.partnerShares?.motdEarnings) ||
     0;
+  const inProgressAmount =
+    kindTotals.tailor.processing +
+    kindTotals.fabric.processing +
+    kindTotals.shipping.processing;
 
   const summaryCards: Array<{
     key: string;
@@ -629,6 +634,19 @@ export default function AdminPaymentsPage() {
       hint: shipaaPayCard.hint,
       accent: "amber",
       delay: 0.2,
+    },
+    {
+      key: "in-progress",
+      label: "In progress",
+      value: inProgressAmount,
+      status: null,
+      icon: Hourglass,
+      hint:
+        inProgressAmount > 0
+          ? "Released, bank transfer not confirmed"
+          : "Nothing in progress",
+      accent: "rose",
+      delay: 0.25,
     },
   ];
 
@@ -933,7 +951,7 @@ export default function AdminPaymentsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         {summaryCards.map((card) => (
           <StatCard
             key={card.key}
