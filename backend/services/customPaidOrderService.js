@@ -23,6 +23,7 @@ import {
   createPublicTrackingToken,
   isPublicTrackingTokenCollision,
 } from "./publicTrackingToken.js";
+import { createOrderWithPublicIds } from "./publicOrderId.js";
 import { sendPaidOrderPlacedEmail } from "./orderPlacedEmail.js";
 import { notifyPaidOrderVendors } from "./vendorOrderNotify.js";
 import PlatformSettings from "../models/PlatformSettings.js";
@@ -666,18 +667,13 @@ async function attachInboundShipments(order, userId) {
 }
 
 async function createCustomOrderWithTrackingToken(fields) {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      return await CustomOrder.create({
-        ...fields,
-        publicTrackingToken: createPublicTrackingToken(),
-      });
-    } catch (error) {
-      if (isPublicTrackingTokenCollision(error) && attempt === 0) continue;
-      throw error;
-    }
-  }
-  throw new Error("Failed to persist custom order tracking token");
+  return createOrderWithPublicIds({
+    Model: CustomOrder,
+    orderType: "custom",
+    fields,
+    createPublicTrackingToken,
+    isPublicTrackingTokenCollision,
+  });
 }
 
 export async function createPaidCustomOrder({

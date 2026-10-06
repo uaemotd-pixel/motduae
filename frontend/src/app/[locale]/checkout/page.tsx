@@ -1219,6 +1219,7 @@ function CheckoutPageContent() {
       let response: {
         success: boolean;
         orderId: string;
+        publicOrderId?: string | null;
         trackingUrl?: string;
         message?: string;
       };
@@ -1244,7 +1245,11 @@ function CheckoutPageContent() {
       }
 
       if (response.success) {
-        setLastOrderId(response.orderId);
+        setLastOrderId(
+          typeof response.publicOrderId === "string" && response.publicOrderId
+            ? response.publicOrderId
+            : String(response.orderId || ""),
+        );
         setLastTrackingUrl(
           typeof response.trackingUrl === "string" ? response.trackingUrl : null,
         );
@@ -1902,7 +1907,7 @@ function CheckoutPageContent() {
         }}
         title={t.checkout.successTitle}
         message={t.checkout.successMessage}
-        orderId={lastOrderId?.slice(-8) ?? undefined}
+        orderId={lastOrderId ?? undefined}
         orderIdLabel={t.checkout.orderIdLabel}
         okLabel={t.checkout.okButton}
         orderItems={lastOrderItems}

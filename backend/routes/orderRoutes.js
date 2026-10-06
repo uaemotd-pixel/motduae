@@ -65,6 +65,7 @@ import {
   formatRetailOrderListItem,
 } from "../services/orderCustomerFormat.js";
 import { buildPublicOrderTrackingUrl } from "../services/publicTrackingToken.js";
+import { displayPublicOrderId } from "../services/publicOrderId.js";
 
 const orderRoutes = express.Router();
 
@@ -817,14 +818,18 @@ orderRoutes.post("/custom", isAuth, requireEmailVerified, async (req, res) => {
       fulfilledBy: "client",
     });
 
-    const idTail = String(order._id).slice(-6);
+    const idLabel = displayPublicOrderId(order);
     req.activityLogOverride = {
       action: "orders.placed",
-      summary: `Placed custom order (Order #${idTail})`,
+      summary: `Placed custom order (Order #${idLabel})`,
       category: "orders",
       resourceType: "custom",
       resourceId: String(order._id),
-      meta: { created, orderId: String(order._id) },
+      meta: {
+        created,
+        orderId: String(order._id),
+        publicOrderId: order.publicOrderId || null,
+      },
     };
 
     return res.status(created ? 201 : 200).json({
@@ -833,6 +838,7 @@ orderRoutes.post("/custom", isAuth, requireEmailVerified, async (req, res) => {
         ? "Custom order created successfully"
         : "Order already exists for this payment",
       orderId: order._id,
+      publicOrderId: order.publicOrderId || null,
       trackingUrl: buildPublicOrderTrackingUrl(order.publicTrackingToken),
       order,
     });
@@ -884,7 +890,7 @@ orderRoutes.get("/custom/mine", isAuth, async (req, res) => {
         .populate("items.designId", "images")
         .populate("items.fabricId", "images")
         .select(
-          "_id createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters leftoverMeters selectedCuts pricing tailorShopId userId items addons",
+          "_id publicOrderId createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters leftoverMeters selectedCuts pricing tailorShopId userId items addons",
         ),
       CustomOrder.countDocuments(filter),
     ]);
@@ -964,12 +970,12 @@ orderRoutes.get("/mine", isAuth, async (req, res) => {
             .populate("items.designId", "images")
             .populate("items.fabricId", "images")
             .select(
-              "_id createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters leftoverMeters selectedCuts pricing tailorShopId userId items addons",
+              "_id publicOrderId createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters leftoverMeters selectedCuts pricing tailorShopId userId items addons",
             )
         : Promise.resolve([]),
       retailIds.length
         ? RetailOrder.find({ _id: { $in: retailIds } }).select(
-            "_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments",
+            "_id publicOrderId createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments",
           )
         : Promise.resolve([]),
     ]);
@@ -1155,14 +1161,18 @@ orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
       fulfilledBy: "client",
     });
 
-    const idTail = String(order._id).slice(-6);
+    const idLabel = displayPublicOrderId(order);
     req.activityLogOverride = {
       action: "orders.placed",
-      summary: `Placed retail order (Order #${idTail})`,
+      summary: `Placed retail order (Order #${idLabel})`,
       category: "orders",
       resourceType: "retail",
       resourceId: String(order._id),
-      meta: { created, orderId: String(order._id) },
+      meta: {
+        created,
+        orderId: String(order._id),
+        publicOrderId: order.publicOrderId || null,
+      },
     };
 
     return res.status(created ? 201 : 200).json({
@@ -1171,6 +1181,7 @@ orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
         ? "Order created successfully"
         : "Order already exists for this payment",
       orderId: order._id,
+      publicOrderId: order.publicOrderId || null,
       trackingUrl: buildPublicOrderTrackingUrl(order.publicTrackingToken),
       order,
     });
@@ -1211,7 +1222,7 @@ orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
         .skip(skip)
         .limit(limitNumber)
         .select(
-          "_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments",
+          "_id publicOrderId createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments",
         ),
       RetailOrder.countDocuments(filter),
     ]);

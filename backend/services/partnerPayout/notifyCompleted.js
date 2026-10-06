@@ -22,9 +22,21 @@ export function formatAedDisplay(amount) {
 }
 
 export function shortOrderId(orderId) {
-  const raw = String(orderId || "").replace(/^#/, "").trim();
+  const raw = String(orderId || "")
+    .replace(/^#/, "")
+    .trim()
+    .toUpperCase();
   if (!raw) return "";
-  return raw.slice(-6).toUpperCase();
+  if (/^(RO|CO)-\d+[A-Z]{3}$/.test(raw)) return raw;
+  return raw.slice(-6);
+}
+
+export function displayPayoutOrderLabel(line) {
+  const pub = String(line?.publicOrderId || "")
+    .trim()
+    .toUpperCase();
+  if (/^(RO|CO)-\d+[A-Z]{3}$/.test(pub)) return pub;
+  return shortOrderId(line?.orderId);
 }
 
 export function formatCompletedDate(value) {
@@ -91,7 +103,7 @@ export function formatOrderLinesForMail(
   const shown = list.slice(0, limit);
   return {
     rows: shown.map((line) => ({
-      label: `#${shortOrderId(line.orderId)}`,
+      label: `#${displayPayoutOrderLabel(line)}`,
       amountAed: Number(line.amountAed ?? line.amount) || 0,
       amountLabel: formatAedDisplay(line.amountAed ?? line.amount),
     })),

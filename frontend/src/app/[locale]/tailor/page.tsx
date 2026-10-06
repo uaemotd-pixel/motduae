@@ -21,6 +21,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
+import { displayOrderId } from "@/lib/customOrders";
 import Chart from "chart.js/auto";
 import type { ChartConfiguration } from "chart.js";
 import StatCard from "@/components/dashboard/StatCard";
@@ -71,6 +72,7 @@ interface CustomOrderItem {
 
 interface Order {
   _id: string;
+  publicOrderId?: string | null;
   userId: OrderUser | string;
   tailorShopId: { _id: string; name: string } | string;
   status: string;
@@ -143,6 +145,7 @@ interface TailorPayoutReleaseItem {
   orderCount: number;
   orders?: Array<{
     orderId: string;
+    publicOrderId?: string | null;
     orderType: string;
     amount: number;
   }>;
@@ -160,7 +163,11 @@ interface TailorPayoutRequestsResponse {
   availableOrderCount?: number;
   pendingAmount?: number;
   pendingOrderCount?: number;
-  pendingOrders?: Array<{ orderId: string; remainingAed?: number }>;
+  pendingOrders?: Array<{
+    orderId: string;
+    publicOrderId?: string | null;
+    remainingAed?: number;
+  }>;
   processingAmount?: number;
   pendingRequest: TailorPayoutRequestSummary | null;
   hasPayoutBank?: boolean;
@@ -186,7 +193,11 @@ export default function TailorDashboardPage() {
   const [pendingAmount, setPendingAmount] = useState(0);
   const [pendingOrderCount, setPendingOrderCount] = useState(0);
   const [pendingOrders, setPendingOrders] = useState<
-    Array<{ orderId: string; remainingAed?: number }>
+    Array<{
+      orderId: string;
+      publicOrderId?: string | null;
+      remainingAed?: number;
+    }>
   >([]);
   const [pendingRequest, setPendingRequest] =
     useState<TailorPayoutRequestSummary | null>(null);
@@ -351,7 +362,10 @@ export default function TailorDashboardPage() {
     return pricingOrders.filter((order) => {
       if (!pricingSearch.trim()) return true;
       const term = pricingSearch.toLowerCase();
-      return order._id.toLowerCase().includes(term);
+      const publicId = String(order.publicOrderId || "").toLowerCase();
+      return (
+        publicId.includes(term) || order._id.toLowerCase().includes(term)
+      );
     });
   }, [pricingOrders, pricingSearch]);
 
@@ -755,7 +769,13 @@ export default function TailorDashboardPage() {
                     <p className="mt-1 text-xs">
                       {pendingOrders
                         .slice(0, 8)
-                        .map((row) => `#${String(row.orderId).slice(-6)}`)
+                        .map(
+                          (row) =>
+                            `#${displayOrderId({
+                              publicOrderId: row.publicOrderId,
+                              id: row.orderId,
+                            })}`,
+                        )
                         .join(" · ")}
                       {pendingOrders.length > 8
                         ? ` · +${pendingOrders.length - 8}`
@@ -855,7 +875,7 @@ export default function TailorDashboardPage() {
                     >
                       <td className="px-3 py-2.5">
                         <p className="font-medium text-(--dash-ink)">
-                          #{order._id.slice(-6)}
+                          #{displayOrderId(order)}
                         </p>
                         {Array.isArray(order.addons) &&
                         order.addons.length > 0 ? (
@@ -927,7 +947,13 @@ export default function TailorDashboardPage() {
                       {(release.orders || []).length > 0 ? (
                         <span className="mt-1 block text-[10px]">
                           {(release.orders || [])
-                            .map((o) => `#${String(o.orderId).slice(-6)}`)
+                            .map(
+                              (o) =>
+                                `#${displayOrderId({
+                                  publicOrderId: o.publicOrderId,
+                                  id: o.orderId,
+                                })}`,
+                            )
                             .join(", ")}
                         </span>
                       ) : null}

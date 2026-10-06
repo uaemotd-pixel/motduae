@@ -44,16 +44,12 @@ import {
   getOrderRecipientName,
 } from "@/lib/orderDelivery";
 import { formatPhoneDisplay } from "@/lib/uaePhone";
+import { displayOrderId } from "@/lib/customOrders";
 
 function getApiErrMessage(err: unknown, fallback: string) {
   const msg = (err as ApiError)?.message;
   if (msg) return msg;
   return err instanceof Error ? err.message : fallback;
-}
-
-function shortenId(id: string): string {
-  if (!id) return "";
-  return id.length > 8 ? id.slice(0, 8) : id;
 }
 
 const CATEGORY_TABS: Array<{
@@ -154,10 +150,10 @@ export default function AdminNotificationsPage() {
         setLoadingOrdersForDropdown(true);
         try {
           const found = await api.get<any>(
-            `/api/admin/orders/retail/${orderId}`,
+            `/api/admin/orders/retail?orderId=${encodeURIComponent(orderId)}&limit=1`,
             { "x-motd-activity-skip": "1" },
           );
-          const order = found?.order || found;
+          const order = found?.items?.[0] || found?.order || found;
           if (order?._id || order?.orderItems) {
             setRetailOrderDetails((prev) => ({ ...prev, [orderId]: order }));
           }
@@ -173,10 +169,13 @@ export default function AdminNotificationsPage() {
 
       setLoadingOrdersForDropdown(true);
       try {
-        const found = await api.get<any>(`/api/admin/orders/custom/${orderId}`, {
-          "x-motd-activity-skip": "1",
-        });
-        const order = found?.order || found;
+        const found = await api.get<any>(
+          `/api/admin/orders/custom?orderId=${encodeURIComponent(orderId)}&limit=1`,
+          {
+            "x-motd-activity-skip": "1",
+          },
+        );
+        const order = found?.items?.[0] || found?.order || found;
         if (order?._id || order?.customerDeliveryAddress || order?.status) {
           setCustomOrderDetails((prev) => ({ ...prev, [orderId]: order }));
         }
@@ -923,9 +922,13 @@ export default function AdminNotificationsPage() {
                                     </span>
                                     <span className="font-mono text-black font-medium">
                                       #
-                                      {shortenId(
-                                        retailOrderDetails[n.orderId]?._id,
-                                      )}
+                                      {displayOrderId({
+                                        publicOrderId:
+                                          n.publicOrderId ||
+                                          retailOrderDetails[n.orderId]
+                                            ?.publicOrderId,
+                                        id: retailOrderDetails[n.orderId]?._id,
+                                      })}
                                     </span>
                                   </div>
 
@@ -1041,9 +1044,13 @@ export default function AdminNotificationsPage() {
                                   </span>
                                   <span className="font-mono text-black font-medium">
                                     #
-                                    {shortenId(
-                                      customOrderDetails[n.orderId]?._id,
-                                    )}
+                                    {displayOrderId({
+                                      publicOrderId:
+                                        n.publicOrderId ||
+                                        customOrderDetails[n.orderId]
+                                          ?.publicOrderId,
+                                      id: customOrderDetails[n.orderId]?._id,
+                                    })}
                                   </span>
                                 </div>
 

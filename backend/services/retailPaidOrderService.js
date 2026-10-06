@@ -13,6 +13,7 @@ import {
   createPublicTrackingToken,
   isPublicTrackingTokenCollision,
 } from "./publicTrackingToken.js";
+import { createOrderWithPublicIds } from "./publicOrderId.js";
 import { sendPaidOrderPlacedEmail } from "./orderPlacedEmail.js";
 import { notifyPaidOrderVendors } from "./vendorOrderNotify.js";
 
@@ -30,18 +31,13 @@ async function attachRetailShipments(order, userId) {
 }
 
 async function createRetailOrderWithTrackingToken(fields) {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      return await RetailOrder.create({
-        ...fields,
-        publicTrackingToken: createPublicTrackingToken(),
-      });
-    } catch (error) {
-      if (isPublicTrackingTokenCollision(error) && attempt === 0) continue;
-      throw error;
-    }
-  }
-  throw new Error("Failed to persist retail order tracking token");
+  return createOrderWithPublicIds({
+    Model: RetailOrder,
+    orderType: "retail",
+    fields,
+    createPublicTrackingToken,
+    isPublicTrackingTokenCollision,
+  });
 }
 
 /**

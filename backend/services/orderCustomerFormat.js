@@ -71,6 +71,7 @@ export function formatCustomOrderListItem(order) {
 
   return {
     id: order._id,
+    publicOrderId: order.publicOrderId || null,
     date: order.createdAt,
     status: order.status,
     fabricSource: order.fabricSource,
@@ -174,6 +175,7 @@ export function formatRetailOrderItems(orderItems = []) {
 export function formatRetailOrderListItem(order) {
   return {
     id: order._id,
+    publicOrderId: order.publicOrderId || null,
     date: order.createdAt,
     status: order.status,
     totalPrice: order.totalPrice,

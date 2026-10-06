@@ -217,6 +217,13 @@ const retailOrderSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    /** Human-facing ID: RO-0001AFG (counter + random letters). */
+    publicOrderId: {
+      type: String,
+      uppercase: true,
+      trim: true,
+      match: /^RO-\d+[A-Z]{3}$/,
+    },
   },
   {
     timestamps: true,
@@ -242,6 +249,15 @@ retailOrderSchema.index(
   {
     unique: true,
     sparse: true,
+  },
+);
+retailOrderSchema.index(
+  { publicOrderId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      publicOrderId: { $type: "string", $gt: "" },
+    },
   },
 );
 

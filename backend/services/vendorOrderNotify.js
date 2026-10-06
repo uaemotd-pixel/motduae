@@ -23,8 +23,19 @@ function isValidId(value) {
   return OBJECT_ID_RE.test(id) && mongoose.Types.ObjectId.isValid(id);
 }
 
-export function shortOrderId(id) {
-  return String(id || "").slice(-8).toUpperCase();
+export function shortOrderId(idOrOrder) {
+  if (idOrOrder && typeof idOrOrder === "object") {
+    const pub = String(idOrOrder.publicOrderId || "")
+      .trim()
+      .toUpperCase();
+    if (pub) return pub;
+    return String(idOrOrder._id || idOrOrder.id || "")
+      .slice(-8)
+      .toUpperCase();
+  }
+  const raw = String(idOrOrder || "").trim().toUpperCase();
+  if (/^(RO|CO)-\d+[A-Z]{3}$/.test(raw)) return raw;
+  return raw.slice(-8);
 }
 
 function formatAmount(value) {
@@ -472,7 +483,7 @@ export async function notifyPaidOrderVendors(order, orderType) {
       return;
     }
     const resolved = await resolveVendorRecipients(order, orderType);
-    const shortId = shortOrderId(order._id);
+    const shortId = shortOrderId(order);
     const recipients = resolved.map((recipient) => ({
       ...recipient,
       orderId: order._id,

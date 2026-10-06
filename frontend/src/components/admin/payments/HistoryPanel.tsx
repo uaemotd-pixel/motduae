@@ -11,6 +11,7 @@ import {
   payoutStatusLabel,
   payoutTransactionAmount,
 } from "./helpers";
+import { displayOrderId } from "@/lib/customOrders";
 import PayoutBankCard from "./PayoutBankCard";
 import type {
   PartnerKindFilter,
@@ -131,7 +132,13 @@ export default function HistoryPanel({
                       <td className="px-4 py-3 text-xs text-(--dash-ink)">
                         {lines.length
                           ? lines
-                              .map((o) => `#${String(o.orderId).slice(-6)}`)
+                              .map(
+                                (o) =>
+                                  `#${displayOrderId({
+                                    publicOrderId: o.publicOrderId,
+                                    id: o.orderId,
+                                  })}`,
+                              )
                               .join(", ")
                           : "—"}
                       </td>
@@ -171,7 +178,10 @@ export default function HistoryPanel({
                                 key={`${tx._id}-${line.orderId}-${line.amountFils ?? line.amount}-${index}`}
                                 className="rounded-lg border border-(--dash-border) bg-white px-3 py-2 text-xs"
                               >
-                                Order #{String(line.orderId).slice(-6)} ·{" "}
+                                Order #{displayOrderId({
+                                  publicOrderId: line.publicOrderId,
+                                  id: line.orderId,
+                                })} ·{" "}
                                 {line.orderType} ·{" "}
                                 {formatCurrency(payoutLineAmount(line))}
                                 {typeof line.commissionPercent === "number"

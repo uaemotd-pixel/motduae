@@ -858,6 +858,7 @@ tailorPortalRouter.get(
           breakdown.net <= 0 ? "pending" : alloc.paymentStatus;
         return {
           _id: o._id,
+          publicOrderId: o.publicOrderId || null,
           userId: o.userId,
           createdAt: o.createdAt,
           status: o.status,

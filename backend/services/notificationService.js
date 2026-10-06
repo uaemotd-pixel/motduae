@@ -6,6 +6,7 @@ import FabricShop from "../models/FabricShop.js";
 import mongoose from "mongoose";
 import { applyCreatedAtFilter } from "../utils/dateRange.js";
 import { normalizePartnerLabel } from "./fabricPayoutRequestService.js";
+import { displayPublicOrderId } from "./publicOrderId.js";
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
@@ -318,10 +319,11 @@ export async function notifyRetailOrderPlacedCustomer(order, createdBy) {
 }
 
 export async function notifyCustomReturnRequested(order, createdBy) {
+  const orderLabel = displayPublicOrderId(order);
   return createNotification({
     type: "custom_return_requested",
     title: "Return requested",
-    message: `Customer requested a return for order ${order._id}`,
+    message: `Customer requested a return for order ${orderLabel}`,
     audience: "admin",
     orderType: "custom",
     orderId: order._id,
@@ -331,10 +333,11 @@ export async function notifyCustomReturnRequested(order, createdBy) {
 }
 
 export async function notifyCustomReturnReceivedByCustomer(order, createdBy) {
+  const orderLabel = displayPublicOrderId(order);
   return createNotification({
     type: "custom_return_received",
     title: "Return Request Received",
-    message: `We received your return request for order ${order._id}. Our team will review it shortly.`,
+    message: `We received your return request for order ${orderLabel}. Our team will review it shortly.`,
     audience: "customer",
     recipientUserId: order.userId,
     orderType: "custom",
@@ -345,10 +348,11 @@ export async function notifyCustomReturnReceivedByCustomer(order, createdBy) {
 }
 
 export async function notifyCustomReturnApproved(order, createdBy) {
+  const orderLabel = displayPublicOrderId(order);
   return createNotification({
     type: "custom_return_approved",
     title: "Return Approved",
-    message: `Your return request for order ${order._id} has been approved. Refund will be processed shortly.`,
+    message: `Your return request for order ${orderLabel} has been approved. Refund will be processed shortly.`,
     audience: "customer",
     recipientUserId: order.userId,
     orderType: "custom",
@@ -359,10 +363,11 @@ export async function notifyCustomReturnApproved(order, createdBy) {
 }
 
 export async function notifyCustomReturnRejected(order, createdBy) {
+  const orderLabel = displayPublicOrderId(order);
   return createNotification({
     type: "return_rejected",
     title: "Return request rejected",
-    message: `Your return request for order ${order._id} has been rejected.`,
+    message: `Your return request for order ${orderLabel} has been rejected.`,
     audience: "customer",
     recipientUserId: order.userId,
     orderType: "custom",
@@ -379,13 +384,14 @@ export async function notifyCustomRefundProcessed(order, createdBy) {
     typeof amount === "number"
       ? `${currency} ${amount.toFixed(2)}`
       : null;
+  const orderLabel = displayPublicOrderId(order);
 
   return createNotification({
     type: "custom_refund_processed",
     title: "Refund Processed",
     message: amountText
-      ? `Your refund of ${amountText} for order ${order._id} has been processed. Funds typically arrive within 5–7 business days.`
-      : `Your refund for order ${order._id} has been processed. Funds typically arrive within 5–7 business days.`,
+      ? `Your refund of ${amountText} for order ${orderLabel} has been processed. Funds typically arrive within 5–7 business days.`
+      : `Your refund for order ${orderLabel} has been processed. Funds typically arrive within 5–7 business days.`,
     audience: "customer",
     recipientUserId: order.userId,
     orderType: "custom",
@@ -398,11 +404,12 @@ export async function notifyCustomRefundProcessed(order, createdBy) {
 export async function notifyCustomStatusChange(order, status, createdBy) {
   const config = CUSTOMER_STATUS_TYPES[status];
   if (!config) return null;
+  const orderLabel = displayPublicOrderId(order);
 
   return createNotification({
     type: config.type,
     title: config.title,
-    message: config.message(order._id),
+    message: config.message(orderLabel),
     audience: "customer",
     recipientUserId: order.userId,
     orderType: "custom",
@@ -415,11 +422,12 @@ export async function notifyCustomStatusChange(order, status, createdBy) {
 export async function notifyRetailStatusChange(order, status, createdBy) {
   const config = RETAIL_CUSTOMER_STATUS_TYPES[status];
   if (!config) return null;
+  const orderLabel = displayPublicOrderId(order);
 
   return createNotification({
     type: config.type,
     title: config.title,
-    message: config.message(order._id),
+    message: config.message(orderLabel),
     audience: "customer",
     recipientUserId: order.userId,
     orderType: "retail",
@@ -677,7 +685,7 @@ export async function enrichCustomerNotifications(notifications) {
   if (customOrderIds.length) {
     const orders = await CustomOrder.find({ _id: { $in: customOrderIds } })
       .select(
-        "_id status userId returnCondition returnReason returnComment returnPickupAddress pricing total designSnapshot items statusHistory designId",
+        "_id publicOrderId status userId returnCondition returnReason returnComment returnPickupAddress pricing total designSnapshot items statusHistory designId",
       )
       .populate("designId", "images")
       .populate("items.designId", "images")
@@ -692,7 +700,7 @@ export async function enrichCustomerNotifications(notifications) {
   const retailOrderMap = {};
   if (retailOrderIds.length) {
     const orders = await RetailOrder.find({ _id: { $in: retailOrderIds } })
-      .select("_id status totalPrice currency userId orderItems")
+      .select("_id publicOrderId status totalPrice currency userId orderItems")
       .lean();
 
     orders.forEach((order) => {
@@ -704,7 +712,7 @@ export async function enrichCustomerNotifications(notifications) {
     const base = { ...notification };
 
     if (!notification.orderId || isVendorOrderNotificationType(notification.type)) {
-      return { ...base, status: null, orderSummary: null };
+      return { ...base, status: null, orderSummary: null, publicOrderId: null };
     }
 
     const orderId = String(notification.orderId);
@@ -714,18 +722,34 @@ export async function enrichCustomerNotifications(notifications) {
 
     if (isRetail) {
       const retailOrder = retailOrderMap[orderId];
+      const publicOrderId = displayPublicOrderId(retailOrder);
       return {
         ...base,
         status: retailOrder?.status || null,
+        publicOrderId: publicOrderId || null,
+        message: (() => {
+          const text = String(notification.message || "");
+          const pub = String(publicOrderId || "").trim();
+          if (!text || !pub || !text.includes(orderId)) return text;
+          return text.split(orderId).join(pub);
+        })(),
         retailOrder: retailOrder || null,
         orderSummary: buildRetailOrderSummary(retailOrder),
       };
     }
 
     const customOrder = customOrderMap[orderId];
+    const publicOrderId = displayPublicOrderId(customOrder);
     return {
       ...base,
       status: customOrder?.status || null,
+      publicOrderId: publicOrderId || null,
+      message: (() => {
+        const text = String(notification.message || "");
+        const pub = String(publicOrderId || "").trim();
+        if (!text || !pub || !text.includes(orderId)) return text;
+        return text.split(orderId).join(pub);
+      })(),
       statusHistory: customOrder?.statusHistory || [],
       orderSummary: buildCustomOrderSummary(customOrder),
       ...buildReturnEnrichment(customOrder),

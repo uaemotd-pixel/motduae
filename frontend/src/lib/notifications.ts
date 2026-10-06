@@ -26,6 +26,7 @@ export type NotificationItem = {
   audience?: NotificationAudience;
   orderId?: string;
   order_id?: string;
+  publicOrderId?: string | null;
   orderType?: NotificationOrderType;
   orderSummary?: NotificationOrderSummary | null;
   tailorId?: string | null;
@@ -108,6 +109,10 @@ export function normalizeNotification(raw: Record<string, unknown>): Notificatio
           : typeof raw?.order_id === "string"
             ? raw.order_id
             : undefined,
+    publicOrderId:
+      typeof raw?.publicOrderId === "string" && raw.publicOrderId.trim()
+        ? String(raw.publicOrderId).trim().toUpperCase()
+        : null,
     orderType: (raw?.orderType as NotificationOrderType) || null,
     read: typeof raw?.read === "boolean" ? raw.read : false,
     tailorId:

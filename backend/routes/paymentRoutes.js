@@ -413,6 +413,7 @@ paymentRoutes.post(
         created: result.created,
         orderType: result.orderType,
         orderId: result.order._id,
+        publicOrderId: result.order.publicOrderId || null,
         trackingUrl: buildPublicOrderTrackingUrl(
           result.order.publicTrackingToken,
         ),

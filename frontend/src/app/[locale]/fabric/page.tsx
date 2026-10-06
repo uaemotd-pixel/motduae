@@ -22,6 +22,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
+import { displayOrderId } from "@/lib/customOrders";
 import Chart from "chart.js/auto";
 import type { ChartConfiguration } from "chart.js";
 import StatCard from "@/components/dashboard/StatCard";
@@ -53,6 +54,7 @@ interface OrderUser {
 
 interface Order {
   _id: string;
+  publicOrderId?: string | null;
   userId: OrderUser | string | null;
   status: string;
   createdAt: string;
@@ -118,6 +120,7 @@ interface FabricPayoutReleaseItem {
   orderCount: number;
   orders?: Array<{
     orderId: string;
+    publicOrderId?: string | null;
     orderType: string;
     amount: number;
   }>;
@@ -135,7 +138,11 @@ interface FabricPayoutRequestsResponse {
   availableOrderCount?: number;
   pendingAmount?: number;
   pendingOrderCount?: number;
-  pendingOrders?: Array<{ orderId: string; remainingAed?: number }>;
+  pendingOrders?: Array<{
+    orderId: string;
+    publicOrderId?: string | null;
+    remainingAed?: number;
+  }>;
   processingAmount?: number;
   pendingRequest: FabricPayoutRequestSummary | null;
   hasPayoutBank?: boolean;
@@ -161,7 +168,11 @@ export default function FabricDashboardPage() {
   const [pendingAmount, setPendingAmount] = useState(0);
   const [pendingOrderCount, setPendingOrderCount] = useState(0);
   const [pendingOrders, setPendingOrders] = useState<
-    Array<{ orderId: string; remainingAed?: number }>
+    Array<{
+      orderId: string;
+      publicOrderId?: string | null;
+      remainingAed?: number;
+    }>
   >([]);
   const [pendingRequest, setPendingRequest] =
     useState<FabricPayoutRequestSummary | null>(null);
@@ -337,6 +348,9 @@ export default function FabricDashboardPage() {
       return (
         customerName.includes(term) ||
         customerEmail.includes(term) ||
+        String(order.publicOrderId || "")
+          .toLowerCase()
+          .includes(term) ||
         order._id.toLowerCase().includes(term)
       );
     });
@@ -786,7 +800,13 @@ export default function FabricDashboardPage() {
                     <p className="mt-1 text-xs">
                       {pendingOrders
                         .slice(0, 8)
-                        .map((row) => `#${String(row.orderId).slice(-6)}`)
+                        .map(
+                          (row) =>
+                            `#${displayOrderId({
+                              publicOrderId: row.publicOrderId,
+                              id: row.orderId,
+                            })}`,
+                        )
                         .join(" · ")}
                       {pendingOrders.length > 8
                         ? ` · +${pendingOrders.length - 8}`
@@ -896,7 +916,7 @@ export default function FabricDashboardPage() {
                     >
                       <td className="px-3 py-2.5">
                         <p className="font-medium text-(--dash-ink)">
-                          #{order._id.slice(-6)}
+                          #{displayOrderId(order)}
                         </p>
                         <p className="text-[10px]">
                           {readPartnerName(
@@ -968,7 +988,13 @@ export default function FabricDashboardPage() {
                       {(release.orders || []).length > 0 ? (
                         <span className="mt-1 block text-[10px]">
                           {(release.orders || [])
-                            .map((o) => `#${String(o.orderId).slice(-6)}`)
+                            .map(
+                              (o) =>
+                                `#${displayOrderId({
+                                  publicOrderId: o.publicOrderId,
+                                  id: o.orderId,
+                                })}`,
+                            )
                             .join(", ")}
                         </span>
                       ) : null}

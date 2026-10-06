@@ -478,6 +478,13 @@ const customOrderSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    /** Human-facing ID: CO-0001AFG (counter + random letters). */
+    publicOrderId: {
+      type: String,
+      uppercase: true,
+      trim: true,
+      match: /^CO-\d+[A-Z]{3}$/,
+    },
   },
   {
     timestamps: true,
@@ -504,6 +511,15 @@ customOrderSchema.index(
   {
     unique: true,
     sparse: true,
+  },
+);
+customOrderSchema.index(
+  { publicOrderId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      publicOrderId: { $type: "string", $gt: "" },
+    },
   },
 );
 

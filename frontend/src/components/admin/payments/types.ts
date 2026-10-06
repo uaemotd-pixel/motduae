@@ -16,6 +16,7 @@ export const PAYMENT_TABS: PaymentTab[] = [
 export interface SettlementOrderLine {
   earningId: string;
   orderId: string;
+  publicOrderId?: string | null;
   orderType: string;
   productName?: string;
   remainingFils: number;
@@ -59,6 +60,7 @@ export interface PartnerSettlement {
 export interface PayoutOrderLine {
   earningId?: string;
   orderId: string;
+  publicOrderId?: string | null;
   orderType: string;
   amount: number;
   amountFils?: number;

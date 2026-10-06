@@ -20,6 +20,7 @@ import StatCard from "@/components/dashboard/StatCard";
 import { type DashAccent } from "@/components/dashboard/palette";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import toast from "react-hot-toast";
+import { displayOrderId } from "@/lib/customOrders";
 import PaymentsTabs from "@/components/admin/payments/PaymentsTabs";
 import ToPayPanel from "@/components/admin/payments/ToPayPanel";
 import InProgressPanel from "@/components/admin/payments/InProgressPanel";
@@ -671,14 +672,22 @@ export default function AdminPaymentsPage() {
               </thead>
               <tbody>
                 {releaseConfirm.preview.lines.map((line) => {
-                  const productName =
+                  const matchedOrder =
                     releaseConfirm.partner.availableOrders.find(
                       (o) => o.earningId === line.earningId,
-                    )?.productName || "";
+                    );
+                  const productName = matchedOrder?.productName || "";
                   return (
                   <tr key={line.earningId} className="border-t border-gray-100">
                     <td className="px-3 py-2">
-                      <div>#{String(line.orderId).slice(-6)} · {line.orderType}</div>
+                      <div>
+                        #
+                        {displayOrderId({
+                          publicOrderId: matchedOrder?.publicOrderId,
+                          id: line.orderId,
+                        })}{" "}
+                        · {line.orderType}
+                      </div>
                       {productName ? (
                         <div className="mt-0.5 text-[11px] text-gray-500">
                           {productName}

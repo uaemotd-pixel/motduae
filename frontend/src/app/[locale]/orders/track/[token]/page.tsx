@@ -28,7 +28,7 @@ import {
   groupSelectedCutPieces,
   hasMultipleTailors,
   resolveOrderLeftoverMeters,
-  shortenOrderId,
+  displayOrderId,
   type CustomOrderStatus,
   type PublicCustomTrackOrder,
   type PublicDeliveryAddress,
@@ -277,7 +277,7 @@ function CustomPublicCard({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-3 mb-4 gap-2">
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-ui font-medium">
-            {tCustom("orderId", { id: shortenOrderId(String(order.id)) })}
+            {tCustom("orderId", { id: displayOrderId(order) })}
           </p>
           <p className="text-[11px] text-gray-500 font-ui mt-0.5">
             {formatOrderDate(dateValue, locale)}
@@ -642,7 +642,7 @@ function RetailPublicCard({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-3 mb-4 gap-2">
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1.5 font-ui font-medium">
-            {tRetail("orderId", { id: shortenOrderId(String(order.id)) })}
+            {tRetail("orderId", { id: displayOrderId(order) })}
           </p>
           <p className="text-[11px] text-gray-500 font-ui mt-0.5">
             {formatOrderDate(dateValue, locale)}

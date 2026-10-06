@@ -12,6 +12,7 @@ import {
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { KindFilterPills, PartnerKindIcon } from "./KindFilterPills";
 import { formatCurrency, partnerKindLabel } from "./helpers";
+import { displayOrderId } from "@/lib/customOrders";
 import PayoutBankCard from "./PayoutBankCard";
 import type {
   PartnerKindFilter,
@@ -57,7 +58,10 @@ function SettlementOrderCard({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 space-y-1.5">
           <p className="text-sm font-medium text-(--dash-ink)">
-            Order #{orderLine.orderId.slice(-6)}
+            Order #{displayOrderId({
+              publicOrderId: orderLine.publicOrderId,
+              id: orderLine.orderId,
+            })}
             <span className="ml-2 rounded-md bg-(--dash-bg) px-2 py-0.5 text-[10px] font-normal capitalize text-(--dash-ink)">
               {orderLine.orderType}
             </span>

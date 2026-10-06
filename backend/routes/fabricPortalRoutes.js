@@ -2508,6 +2508,7 @@ fabricPortalRouter.get(
       const paymentStatus = net <= 0 ? "pending" : alloc.paymentStatus;
       return {
         _id: order._id,
+        publicOrderId: order.publicOrderId || null,
         userId: order.userId,
         createdAt: order.createdAt,
         status: order.status,
