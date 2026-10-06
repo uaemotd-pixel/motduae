@@ -12,10 +12,9 @@ import {
   formatFabricListingPrice,
   getFabricDefaultCut,
   getCutDisplayName,
-  getFabricMinListingPrice,
-  isFabricInStock,
   buildFabricCutCartId,
   filterPublicFabrics,
+  getFabricMinListingPrice,
 } from "@/lib/fabrics";
 import { Share2, ChevronDown, ChevronUp, X, SlidersHorizontal } from "lucide-react";
 import FadeInSection from "@/components/shared/fadeInSection";
@@ -45,62 +44,8 @@ interface FabricCatalogItem extends FabricListItem {
 const PRICE_MIN = 0;
 const PRICE_MAX = 25000;
 const PRICE_STEP = 10;
-
-function fabricMatchesCategory(
-  fabric: FabricCatalogItem,
-  category: FilterOption,
-): boolean {
-  return fabric.material === category._id || fabric.material === category.name;
-}
-
-function fabricMatchesCatalogOption(
-  fabric: FabricCatalogItem,
-  option: FilterOption,
-  field: "material" | "pattern" | "season" | "tag",
-): boolean {
-  const values: Record<typeof field, { value?: string; valueAr?: string }> = {
-    material: { value: fabric.material, valueAr: fabric.materialAr },
-    pattern: { value: fabric.pattern, valueAr: fabric.patternAr },
-    season: { value: fabric.season, valueAr: fabric.seasonAr },
-    tag: { value: fabric.tag, valueAr: fabric.tagAr },
-  };
-  const { value, valueAr } = values[field];
-
-  if (!value && !valueAr) return false;
-
-  return (
-    option._id === value ||
-    option.name === value ||
-    (!!valueAr && (option.nameAr === valueAr || option.name === valueAr))
-  );
-}
-
-function fabricMatchesColorValue(
-  fabricColors: string[] | string | undefined,
-  colorVal: string,
-): boolean {
-  if (!fabricColors) return false;
-  const colorsArray = Array.isArray(fabricColors)
-    ? fabricColors
-    : [fabricColors];
-  return colorsArray.some((col) => {
-    const normalized = col.toLowerCase();
-    return (
-      normalized.includes(colorVal.toLowerCase()) ||
-      colorVal.toLowerCase().includes(normalized)
-    );
-  });
-}
-
-function fabricMatchesColorFilter(
-  fabricColors: string[] | string | undefined,
-  selectedColors: string[],
-): boolean {
-  if (selectedColors.length === 0) return true;
-  return selectedColors.some((colorVal) =>
-    fabricMatchesColorValue(fabricColors, colorVal),
-  );
-}
+const DEFAULT_PAGE_SIZE = 12;
+const PAGE_SIZE_OPTIONS = [5, 10, 12, 25, 50, 100] as const;
 
 interface FilterState {
   categories: string[];
@@ -467,7 +412,7 @@ const Pagination = ({
   if (totalPages <= 1) return null;
 
   return (
-    <div className="flex items-center justify-center gap-2 mt-12 pt-8 border-t border-[#E4E0D8]">
+    <div className="flex items-center justify-center gap-2">
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
@@ -580,6 +525,24 @@ export default function FabricsCatalogPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [productsPerPage, setProductsPerPage] = useState(DEFAULT_PAGE_SIZE);
+  const [totalFabrics, setTotalFabrics] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [facets, setFacets] = useState<{
+    categories: Record<string, number>;
+    materials: Record<string, number>;
+    patterns: Record<string, number>;
+    seasons: Record<string, number>;
+    tags: Record<string, number>;
+    colors: Record<string, number>;
+  }>({
+    categories: {},
+    materials: {},
+    patterns: {},
+    seasons: {},
+    tags: {},
+    colors: {},
+  });
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
   const [filters, setFilters] = useState<FilterState>({
@@ -594,38 +557,101 @@ export default function FabricsCatalogPage() {
     inStockOnly: false,
   });
 
-  const fabricsPerPage = 12;
-
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Fetch fabrics
+  // Fetch fabrics (server-side pagination + filters)
   useEffect(() => {
+    let cancelled = false;
+
     const fetchFabrics = async () => {
       try {
         setLoading(true);
         setFetchError(null);
+
+        const params = new URLSearchParams({
+          page: String(currentPage),
+          limit: String(productsPerPage),
+          sort: sortBy,
+        });
+
+        if (filters.categories.length > 0) {
+          params.set("categories", filters.categories.join(","));
+        }
+        if (filters.materials.length > 0) {
+          params.set("materials", filters.materials.join(","));
+        }
+        if (filters.patterns.length > 0) {
+          params.set("patterns", filters.patterns.join(","));
+        }
+        if (filters.seasons.length > 0) {
+          params.set("seasons", filters.seasons.join(","));
+        }
+        if (filters.tags.length > 0) {
+          params.set("tags", filters.tags.join(","));
+        }
+        if (filters.colors.length > 0) {
+          params.set("colors", filters.colors.join(","));
+        }
+        if (filters.minPrice > PRICE_MIN) {
+          params.set("minPrice", String(filters.minPrice));
+        }
+        if (filters.maxPrice < PRICE_MAX) {
+          params.set("maxPrice", String(filters.maxPrice));
+        }
+
         const data = await api.get<{
           success: boolean;
           items: FabricCatalogItem[];
-        }>("/api/fabrics?limit=100");
+          total?: number;
+          totalPages?: number;
+          facets?: {
+            categories?: Record<string, number>;
+            materials?: Record<string, number>;
+            patterns?: Record<string, number>;
+            seasons?: Record<string, number>;
+            tags?: Record<string, number>;
+            colors?: Record<string, number>;
+          };
+        }>(`/api/fabrics?${params.toString()}`);
 
+        if (cancelled) return;
         if (!data?.success) {
           throw new Error("Failed to load fabrics");
         }
+
         setFabrics(filterPublicFabrics(data.items || []));
+        setTotalFabrics(Number(data.total) || 0);
+        setTotalPages(Number(data.totalPages) || 0);
+        setFacets({
+          categories: data.facets?.categories || {},
+          materials: data.facets?.materials || {},
+          patterns: data.facets?.patterns || {},
+          seasons: data.facets?.seasons || {},
+          tags: data.facets?.tags || {},
+          colors: data.facets?.colors || {},
+        });
       } catch (err: unknown) {
+        if (cancelled) return;
         const message =
           (err as ApiError)?.message ||
           (err instanceof Error ? err.message : "Something went wrong");
         setFetchError(message);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
-    fetchFabrics();
-  }, []);
+
+    const timer = setTimeout(fetchFabrics, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [currentPage, productsPerPage, filters, sortBy]);
 
   // Fetch all filter data from /api/filters
   useEffect(() => {
@@ -680,63 +706,62 @@ export default function FabricsCatalogPage() {
     fetchFilters();
   }, []);
 
-  const categoryOptions = useMemo(() => {
-    return categories.map((cat) => ({
-      id: cat._id,
-      label: getFilterOptionLabel(cat, isAr),
-      count: fabrics.filter((fabric) => fabricMatchesCategory(fabric, cat))
-        .length,
-    }));
-  }, [categories, fabrics, isAr]);
+  const categoryOptions = useMemo(
+    () =>
+      categories.map((cat) => ({
+        id: cat._id,
+        label: getFilterOptionLabel(cat, isAr),
+        count: facets.categories[cat._id] ?? 0,
+      })),
+    [categories, facets.categories, isAr],
+  );
 
-  const materialOptions = useMemo(() => {
-    return materials.map((mat) => ({
-      id: mat._id,
-      label: getFilterOptionLabel(mat, isAr),
-      count: fabrics.filter((fabric) =>
-        fabricMatchesCatalogOption(fabric, mat, "material"),
-      ).length,
-    }));
-  }, [materials, fabrics, isAr]);
+  const materialOptions = useMemo(
+    () =>
+      materials.map((mat) => ({
+        id: mat._id,
+        label: getFilterOptionLabel(mat, isAr),
+        count: facets.materials[mat._id] ?? 0,
+      })),
+    [materials, facets.materials, isAr],
+  );
 
-  const patternOptions = useMemo(() => {
-    return patterns.map((pat) => ({
-      id: pat._id,
-      label: getFilterOptionLabel(pat, isAr),
-      count: fabrics.filter((fabric) =>
-        fabricMatchesCatalogOption(fabric, pat, "pattern"),
-      ).length,
-    }));
-  }, [patterns, fabrics, isAr]);
+  const patternOptions = useMemo(
+    () =>
+      patterns.map((pat) => ({
+        id: pat._id,
+        label: getFilterOptionLabel(pat, isAr),
+        count: facets.patterns[pat._id] ?? 0,
+      })),
+    [patterns, facets.patterns, isAr],
+  );
 
-  const seasonOptions = useMemo(() => {
-    return seasons.map((sea) => ({
-      id: sea._id,
-      label: getFilterOptionLabel(sea, isAr),
-      count: fabrics.filter((fabric) =>
-        fabricMatchesCatalogOption(fabric, sea, "season"),
-      ).length,
-    }));
-  }, [seasons, fabrics, isAr]);
+  const seasonOptions = useMemo(
+    () =>
+      seasons.map((sea) => ({
+        id: sea._id,
+        label: getFilterOptionLabel(sea, isAr),
+        count: facets.seasons[sea._id] ?? 0,
+      })),
+    [seasons, facets.seasons, isAr],
+  );
 
-  const tagOptions = useMemo(() => {
-    return tags.map((tag) => ({
-      id: tag._id,
-      label: getFilterOptionLabel(tag, isAr),
-      count: fabrics.filter((fabric) =>
-        fabricMatchesCatalogOption(fabric, tag, "tag"),
-      ).length,
-    }));
-  }, [tags, fabrics, isAr]);
+  const tagOptions = useMemo(
+    () =>
+      tags.map((tag) => ({
+        id: tag._id,
+        label: getFilterOptionLabel(tag, isAr),
+        count: facets.tags[tag._id] ?? 0,
+      })),
+    [tags, facets.tags, isAr],
+  );
 
   const colorCounts = useMemo(() => {
     return colors.reduce<Record<string, number>>((acc, color) => {
-      acc[color.value] = fabrics.filter((fabric) =>
-        fabricMatchesColorValue(fabric.color, color.value),
-      ).length;
+      acc[color.value] = facets.colors[color.value.toLowerCase()] ?? 0;
       return acc;
     }, {});
-  }, [fabrics]);
+  }, [facets.colors]);
 
   const getOptionLabel = useCallback(
     (options: FilterOption[], id: string) => {
@@ -747,101 +772,10 @@ export default function FabricsCatalogPage() {
     [isAr],
   );
 
-  const filteredFabrics = useMemo(() => {
-    let result = fabrics.filter((item) => {
-      if (filters.categories.length > 0) {
-        if (!item.material) return false;
-        const isMatch = filters.categories.some(
-          (catId) =>
-            catId === item.material ||
-            categories.some((c) => c._id === catId && c.name === item.material),
-        );
-        if (!isMatch) return false;
-      }
+  const startIndex =
+    totalFabrics === 0 ? 0 : (currentPage - 1) * productsPerPage;
+  const endIndex = Math.min(startIndex + fabrics.length, totalFabrics);
 
-      if (!fabricMatchesColorFilter(item.color, filters.colors)) return false;
-
-      if (filters.materials.length > 0) {
-        const itemMat = isAr ? item.materialAr || item.material : item.material;
-        if (!itemMat) return false;
-        const isMatch = filters.materials.some(
-          (matId) =>
-            matId === itemMat ||
-            materials.some((m) => m._id === matId && m.name === itemMat),
-        );
-        if (!isMatch) return false;
-      }
-
-      if (filters.patterns.length > 0) {
-        const itemPat = isAr ? item.patternAr || item.pattern : item.pattern;
-        if (!itemPat) return false;
-        const isMatch = filters.patterns.some(
-          (patId) =>
-            patId === itemPat ||
-            patterns.some((p) => p._id === patId && p.name === itemPat),
-        );
-        if (!isMatch) return false;
-      }
-
-      if (filters.seasons.length > 0) {
-        const itemSeason = isAr ? item.seasonAr || item.season : item.season;
-        if (!itemSeason) return false;
-        const isMatch = filters.seasons.some(
-          (seaId) =>
-            seaId === itemSeason ||
-            seasons.some((s) => s._id === seaId && s.name === itemSeason),
-        );
-        if (!isMatch) return false;
-      }
-
-      if (filters.tags.length > 0) {
-        const itemTag = isAr ? item.tagAr || item.tag : item.tag;
-        if (!itemTag) return false;
-        const isMatch = filters.tags.some(
-          (tagId) =>
-            tagId === itemTag ||
-            tags.some((tag) => tag._id === tagId && tag.name === itemTag),
-        );
-        if (!isMatch) return false;
-      }
-
-      const price = getFabricMinListingPrice(item);
-      if (price < filters.minPrice || price > filters.maxPrice) return false;
-
-      if (filters.inStockOnly && !isFabricInStock(item)) return false;
-
-      return true;
-    });
-
-    if (sortBy === "price-low") {
-      result = [...result].sort(
-        (a, b) => getFabricMinListingPrice(a) - getFabricMinListingPrice(b),
-      );
-    } else if (sortBy === "price-high") {
-      result = [...result].sort(
-        (a, b) => getFabricMinListingPrice(b) - getFabricMinListingPrice(a),
-      );
-    }
-
-    return result;
-  }, [
-    fabrics,
-    filters,
-    categories,
-    materials,
-    patterns,
-    seasons,
-    tags,
-    isAr,
-    sortBy,
-  ]);
-
-  const totalPages = Math.ceil(filteredFabrics.length / fabricsPerPage);
-  const startIndex = (currentPage - 1) * fabricsPerPage;
-  const paginatedFabrics = filteredFabrics.slice(
-    startIndex,
-    startIndex + fabricsPerPage,
-  );
   const hasActiveFilters =
     filters.categories.length > 0 ||
     filters.colors.length > 0 ||
@@ -985,6 +919,17 @@ export default function FabricsCatalogPage() {
   const handlePageChange = (value: number) => {
     setCurrentPage(value);
   };
+
+  const handlePageSizeChange = (value: number) => {
+    setProductsPerPage(value);
+    setCurrentPage(1);
+  };
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   if (!mounted) return null;
 
@@ -1475,12 +1420,15 @@ export default function FabricsCatalogPage() {
               <div className="flex items-center justify-between gap-2 sm:gap-6 w-full sm:w-auto min-w-0">
                 <span className="text-[9px] xs:text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.18em] uppercase text-[#7A7A72] font-mono truncate">
                   {isAr
-                    ? `عرض ${startIndex + 1}-${Math.min(startIndex + fabricsPerPage, filteredFabrics.length)} من ${filteredFabrics.length} أصل منتج`
-                    : `Showing ${startIndex + 1}-${Math.min(startIndex + fabricsPerPage, filteredFabrics.length)} of ${filteredFabrics.length} products`}
+                    ? `عرض ${totalFabrics === 0 ? 0 : startIndex + 1}-${endIndex} من ${totalFabrics} أصل منتج`
+                    : `Showing ${totalFabrics === 0 ? 0 : startIndex + 1}-${endIndex} of ${totalFabrics} products`}
                 </span>
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={(e) => {
+                    setSortBy(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="bg-transparent text-[9px] xs:text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.18em] uppercase font-mono focus:outline-none cursor-pointer shrink-0 max-w-[45%] sm:max-w-none"
                 >
                   <option value="newest">{isAr ? "الأحدث" : "Newest"}</option>
@@ -1572,8 +1520,8 @@ export default function FabricsCatalogPage() {
                   className="flex-[1.4] rounded-full bg-black px-3 sm:px-4 py-2.5 sm:py-3 text-[9px] xs:text-[10px] tracking-[0.14em] sm:tracking-[0.18em] uppercase text-white transition-colors hover:bg-[#2A2A28] cursor-pointer"
                 >
                   {isAr
-                    ? `عرض ${filteredFabrics.length} منتج`
-                    : `Show ${filteredFabrics.length} products`}
+                    ? `عرض ${totalFabrics} منتج`
+                    : `Show ${totalFabrics} products`}
                 </button>
               </div>
             </div>
@@ -1596,7 +1544,7 @@ export default function FabricsCatalogPage() {
                   {fetchError}
                 </p>
               </div>
-            ) : filteredFabrics.length === 0 ? (
+            ) : fabrics.length === 0 ? (
               <div className="flex flex-col items-center justify-center text-center py-28">
                 <SearchOffIcon />
                 <h3 className="text-[18px] md:text-[22px] uppercase tracking-widest text-black mb-3">
@@ -1617,7 +1565,7 @@ export default function FabricsCatalogPage() {
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {paginatedFabrics.map((fabric) => {
+                  {fabrics.map((fabric) => {
                     const { title, description } = getFabricDisplayFields(
                       fabric,
                       locale,
@@ -1767,11 +1715,30 @@ export default function FabricsCatalogPage() {
                   })}
                 </div>
 
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={handlePageChange}
-                />
+                <div className="mt-12 flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-[#E4E0D8]">
+                  <label className="flex items-center gap-2 text-[10px] sm:text-[11px] tracking-[0.14em] uppercase text-[#7A7A72] font-mono">
+                    <span>{isAr ? "لكل صفحة" : "Per page"}</span>
+                    <select
+                      value={productsPerPage}
+                      onChange={(e) =>
+                        handlePageSizeChange(Number(e.target.value))
+                      }
+                      className="bg-transparent border border-[#E4E0D8] rounded-lg px-2 py-1.5 text-black focus:outline-none cursor-pointer"
+                    >
+                      {PAGE_SIZE_OPTIONS.map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
               </>
             )}
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "@/i18n/navigation";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
@@ -19,13 +19,6 @@ import { usePathname } from "next/navigation";
 import WishlistButton from "../shared/wishlistButton";
 import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 
-interface FilterOption {
-  _id: string;
-  name: string;
-  nameAr?: string;
-  isActive?: boolean;
-}
-
 interface TailorDesignExtended {
   _id: string;
   slug: string;
@@ -37,11 +30,6 @@ interface TailorDesignExtended {
   category: string;
   basePrice: number;
   priceType?: "fixed" | "per_meter";
-  tailoringFee: number;
-  estimatedMeters: number;
-  estimatedDays: number;
-  estimatedDaysMin?: number;
-  estimatedTimeUnit?: "days" | "weeks";
   tailorSlug: string;
   tailorName: string;
   tailorNameAr?: string;
@@ -60,7 +48,17 @@ const CATEGORY_COLOR_PALETTE = [
   "#6B2A2A",
 ];
 
-type FilterValue = string;
+/** Designs shown in the home carousel (~3–5 visible + a few to scroll). */
+const HOME_TRENDING_LIMIT = 8;
+
+function categoryBadgeColor(categoryKey: string): string {
+  const key = categoryKey || "";
+  let index = 0;
+  for (let i = 0; i < key.length; i++) {
+    index = (index + key.charCodeAt(i) * (i + 1)) % CATEGORY_COLOR_PALETTE.length;
+  }
+  return CATEGORY_COLOR_PALETTE[index] ?? "#000000";
+}
 
 async function copyToClipboard(text: string) {
   if (typeof navigator === "undefined") return;
@@ -84,95 +82,44 @@ export function TrendingSection() {
   const [designs, setDesigns] = useState<TailorDesignExtended[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFilter, setSelectedFilter] = useState<FilterValue>("all");
-  const [categories, setCategories] = useState<FilterOption[]>([]);
-
-  // Fetch categories from /api/filters/all
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await api.get<{
-          success: boolean;
-          data: {
-            categories: FilterOption[];
-          };
-        }>("/api/filters/all");
-
-        if (response.success && response.data) {
-          setCategories(
-            Array.isArray(response.data.categories)
-              ? response.data.categories
-              : [],
-          );
-        } else {
-          setCategories([]);
-        }
-      } catch (err) {
-        console.error("Failed to fetch categories:", err);
-        setCategories([]);
-      }
-    };
-    fetchCategories();
-  }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchDesigns = async () => {
       try {
         setLoading(true);
         setError(null);
+
         const data = await api.get<{
           success: boolean;
           items: TailorDesignExtended[];
-        }>("/api/tailors/designs/all?limit=100");
+        }>(
+          `/api/tailors/designs/trending?limit=${HOME_TRENDING_LIMIT}`,
+        );
+        if (cancelled) return;
         if (!data?.success) {
           throw new Error("Failed to load designs");
         }
         setDesigns(data.items || []);
       } catch (err: unknown) {
+        if (cancelled) return;
         const message =
           (err as ApiError)?.message ||
           (err instanceof Error ? err.message : "Failed to load designs");
         setError(message);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
     fetchDesigns();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  const filterOptions = useMemo(
-    () => [
-      {
-        key: "all",
-        labelEn: "All Designs",
-        labelAr: "جميع التصاميم",
-        value: "all",
-      },
-      ...categories.map((cat) => ({
-        key: cat._id,
-        labelEn: cat.name,
-        labelAr: cat.nameAr || cat.name,
-        value: cat._id,
-      })),
-    ],
-    [categories],
-  );
-
-  const filteredDesigns = useMemo(
-    () =>
-      selectedFilter === "all"
-        ? designs
-        : designs.filter((design) => {
-            // Check if design.category matches selected filter by _id or name
-            return (
-              design.category === selectedFilter ||
-              categories.some(
-                (c) => c._id === selectedFilter && c.name === design.category,
-              )
-            );
-          }),
-    [designs, selectedFilter, categories],
-  );
 
   // Embla Carousel with RTL direction support
   const [emblaRef, emblaApi] = useEmblaCarousel(
@@ -180,7 +127,7 @@ export function TrendingSection() {
       align: "start",
       containScroll: "trimSnaps",
       dragFree: false,
-      loop: filteredDesigns.length > 1,
+      loop: designs.length > 1,
       slidesToScroll: 1,
       direction: isArabic ? "rtl" : "ltr",
       breakpoints: {
@@ -272,7 +219,7 @@ export function TrendingSection() {
     if (emblaApi) {
       emblaApi.reInit({ direction: isArabic ? "rtl" : "ltr" });
     }
-  }, [filteredDesigns, emblaApi, isArabic]);
+  }, [designs, emblaApi, isArabic]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.hash === "#designs") {
@@ -299,17 +246,6 @@ export function TrendingSection() {
       ? "text-[11px] xs:text-[11px] sm:text-[12px] md:text-[11px] lg:text-[11px] xl:text-[12px]"
       : "text-[9px] xs:text-[9px] sm:text-[10px] md:text-[9px] lg:text-[9px] xl:text-[10px]"
   }`;
-
-  const filterChipClass = (isActive: boolean) =>
-    `px-3 xs:px-4 py-1.5 xs:py-2 border border-(--color-border) uppercase tracking-[0.24em] whitespace-nowrap [font-family:var(--font-ui)] transition-all ${
-      isActive
-        ? "bg-black text-white"
-        : "text-black hover:bg-black hover:text-white"
-    } ${
-      isArabic
-        ? "text-[12px] xs:text-[11px] sm:text-[12px] md:text-[12px] lg:text-[14px] xl:text-[16px]"
-        : "text-[9px] xs:text-[9px] sm:text-[10px] md:text-[9px] lg:text-[10px] xl:text-[11px]"
-    }`;
 
   const PrevArrowIcon = () => (
     <svg
@@ -385,7 +321,7 @@ export function TrendingSection() {
         id="designs"
         className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16 scroll-mt-20"
       >
-        <HomeSectionSkeleton showFilters cardCount={4} />
+        <HomeSectionSkeleton showFilters={false} cardCount={4} />
       </section>
     );
   }
@@ -430,19 +366,6 @@ export function TrendingSection() {
           </Link>
         </div>
 
-        {/* Filter Chips */}
-        <div className="flex gap-2 xs:gap-2.5 sm:gap-3 mb-6 xs:mb-8 sm:mb-10 md:mb-12 overflow-x-auto pb-2 xs:pb-3 scrollbar-thin">
-          {filterOptions.map((filter) => (
-            <button
-              key={filter.key}
-              onClick={() => setSelectedFilter(filter.value)}
-              className={`${filterChipClass(selectedFilter === filter.value)} hover:cursor-pointer`}
-            >
-              {isArabic ? filter.labelAr : filter.labelEn}
-            </button>
-          ))}
-        </div>
-
         {/* Carousel */}
         <div className="relative group/trending">
           {/* Previous Arrow */}
@@ -476,7 +399,7 @@ export function TrendingSection() {
           {/* Embla Carousel Viewport */}
           <div className="overflow-hidden py-8 -my-8" ref={emblaRef}>
             <div className="flex -mx-1 xs:-mx-1.5 sm:-mx-2 md:-mx-2.5 lg:-mx-3">
-              {filteredDesigns.map((design) => {
+              {designs.map((design) => {
                 const { name, description, category } = getDesignDisplayFields(
                   design,
                   localParams as any,
@@ -494,18 +417,7 @@ export function TrendingSection() {
 
                 const hrefPath = `/designs/${design.slug}`;
 
-                // Find category color
-                const categoryColor = (() => {
-                  const catIndex = categories.findIndex(
-                    (c) =>
-                      c._id === design.category || c.name === design.category,
-                  );
-                  return catIndex >= 0
-                    ? CATEGORY_COLOR_PALETTE[
-                        catIndex % CATEGORY_COLOR_PALETTE.length
-                      ]
-                    : "#000000";
-                })();
+                const categoryColor = categoryBadgeColor(design.category);
 
                 return (
                   <div

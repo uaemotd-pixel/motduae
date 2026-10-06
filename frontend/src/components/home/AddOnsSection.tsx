@@ -50,6 +50,9 @@ const getTagStyles = (tagValue?: string) => {
   return TAG_COLORS[key] || { bg: "#1A1A1A", text: "#FFFFFF" };
 };
 
+/** Add-ons shown in the home carousel (~3–5 visible + a few to scroll). */
+const HOME_TRENDING_LIMIT = 8;
+
 export function AddOnsSection() {
   const params = useParams();
   const locale = params.locale === "ar" ? "ar" : "en";
@@ -68,6 +71,8 @@ export function AddOnsSection() {
   }, [toastMessage]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchProducts = async () => {
       try {
         setLoading(true);
@@ -75,7 +80,9 @@ export function AddOnsSection() {
         const data = await api.get<{
           success: boolean;
           items: AddOnListItem[];
-        }>("/api/addons");
+        }>(`/api/addons/trending?limit=${HOME_TRENDING_LIMIT}`);
+
+        if (cancelled) return;
 
         if (!data?.success) {
           throw new Error("Failed to load addons");
@@ -83,15 +90,22 @@ export function AddOnsSection() {
 
         setProducts(data.items || []);
       } catch (err: unknown) {
+        if (cancelled) return;
         const message =
           err instanceof Error ? err.message : "Something went wrong";
         setError(message);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchProducts();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const [emblaRef, emblaApi] = useEmblaCarousel(

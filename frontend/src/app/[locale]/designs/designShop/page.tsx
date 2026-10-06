@@ -46,41 +46,14 @@ interface DesignCatalogItem extends TailorDesignListItem {
 const PRICE_MIN = 0;
 const PRICE_MAX = 25000;
 const PRICE_STEP = 10;
+const DEFAULT_PAGE_SIZE = 12;
+const PAGE_SIZE_OPTIONS = [5, 10, 12, 25, 50, 100] as const;
 
 interface FilterOption {
   _id: string;
   name: string;
   nameAr?: string;
   isActive?: boolean;
-}
-
-function designMatchesCategory(
-  design: DesignCatalogItem,
-  category: FilterOption,
-): boolean {
-  return design.category === category._id || design.category === category.name;
-}
-
-function designMatchesCatalogOption(
-  design: DesignCatalogItem,
-  option: FilterOption,
-  field: "material" | "pattern" | "season" | "tag",
-): boolean {
-  const values: Record<typeof field, { value?: string; valueAr?: string }> = {
-    material: { value: design.material, valueAr: design.materialAr },
-    pattern: { value: design.pattern, valueAr: design.patternAr },
-    season: { value: design.season, valueAr: design.seasonAr },
-    tag: { value: design.tag, valueAr: design.tagAr },
-  };
-  const { value, valueAr } = values[field];
-
-  if (!value && !valueAr) return false;
-
-  return (
-    option._id === value ||
-    option.name === value ||
-    (!!valueAr && (option.nameAr === valueAr || option.name === valueAr))
-  );
 }
 
 const SearchOffIcon = () => (
@@ -303,7 +276,7 @@ const Pagination = ({
   if (totalPages <= 1) return null;
 
   return (
-    <div className="flex items-center justify-center gap-2 mt-12 pt-8 border-t border-[#E4E0D8]">
+    <div className="flex items-center justify-center gap-2">
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
@@ -421,6 +394,22 @@ export default function DesignShopCatalogPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [productsPerPage, setProductsPerPage] = useState(DEFAULT_PAGE_SIZE);
+  const [totalDesigns, setTotalDesigns] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [facets, setFacets] = useState<{
+    categories: Record<string, number>;
+    materials: Record<string, number>;
+    patterns: Record<string, number>;
+    seasons: Record<string, number>;
+    tags: Record<string, number>;
+  }>({
+    categories: {},
+    materials: {},
+    patterns: {},
+    seasons: {},
+    tags: {},
+  });
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
 
@@ -440,36 +429,95 @@ export default function DesignShopCatalogPage() {
     maxPrice: PRICE_MAX,
   });
 
-  const productsPerPage = 12;
-
   useEffect(() => setMounted(true), []);
 
-  // Fetch designs
+  // Fetch designs (server-side pagination + filters)
   useEffect(() => {
+    let cancelled = false;
+
     const fetchDesigns = async () => {
       try {
         setLoading(true);
         setFetchError(null);
 
+        const params = new URLSearchParams({
+          page: String(currentPage),
+          limit: String(productsPerPage),
+          sort: sortBy,
+        });
+
+        if (filters.categories.length > 0) {
+          params.set("categories", filters.categories.join(","));
+        }
+        if (filters.materials.length > 0) {
+          params.set("materials", filters.materials.join(","));
+        }
+        if (filters.patterns.length > 0) {
+          params.set("patterns", filters.patterns.join(","));
+        }
+        if (filters.seasons.length > 0) {
+          params.set("seasons", filters.seasons.join(","));
+        }
+        if (filters.tags.length > 0) {
+          params.set("tags", filters.tags.join(","));
+        }
+        if (filters.minPrice > PRICE_MIN) {
+          params.set("minPrice", String(filters.minPrice));
+        }
+        if (filters.maxPrice < PRICE_MAX) {
+          params.set("maxPrice", String(filters.maxPrice));
+        }
+
         const data = await api.get<{
           success: boolean;
           items: DesignCatalogItem[];
-        }>("/api/tailors/designs/all?limit=100");
+          total?: number;
+          totalPages?: number;
+          page?: number;
+          limit?: number;
+          facets?: {
+            categories?: Record<string, number>;
+            materials?: Record<string, number>;
+            patterns?: Record<string, number>;
+            seasons?: Record<string, number>;
+            tags?: Record<string, number>;
+          };
+        }>(`/api/tailors/designs/all?${params.toString()}`);
 
+        if (cancelled) return;
         if (!data?.success) throw new Error("Failed to load designs");
+
         setDesigns(data.items || []);
+        setTotalDesigns(Number(data.total) || 0);
+        setTotalPages(Number(data.totalPages) || 0);
+        setFacets({
+          categories: data.facets?.categories || {},
+          materials: data.facets?.materials || {},
+          patterns: data.facets?.patterns || {},
+          seasons: data.facets?.seasons || {},
+          tags: data.facets?.tags || {},
+        });
       } catch (err: unknown) {
+        if (cancelled) return;
         const message =
           (err as ApiError)?.message ||
           (err instanceof Error ? err.message : "Something went wrong");
         setFetchError(message);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchDesigns();
-  }, []);
+    // Debounce so price-slider drags don't spam the API
+    const timer = setTimeout(fetchDesigns, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [currentPage, productsPerPage, filters, sortBy]);
 
   // Fetch all filter data from /api/filters
   useEffect(() => {
@@ -524,56 +572,55 @@ export default function DesignShopCatalogPage() {
     fetchFilters();
   }, []);
 
-  const categoryOptions = useMemo(() => {
-    return categories.map((cat) => {
-      return {
+  const categoryOptions = useMemo(
+    () =>
+      categories.map((cat) => ({
         id: cat._id,
         label: getFilterOptionLabel(cat, isAr),
-        count: designs.filter((design) => designMatchesCategory(design, cat))
-          .length,
-      };
-    });
-  }, [categories, designs, isAr]);
+        count: facets.categories[cat._id] ?? 0,
+      })),
+    [categories, facets.categories, isAr],
+  );
 
-  const materialOptions = useMemo(() => {
-    return materials.map((mat) => ({
-      id: mat._id,
-      label: getFilterOptionLabel(mat, isAr),
-      count: designs.filter((design) =>
-        designMatchesCatalogOption(design, mat, "material"),
-      ).length,
-    }));
-  }, [materials, designs, isAr]);
+  const materialOptions = useMemo(
+    () =>
+      materials.map((mat) => ({
+        id: mat._id,
+        label: getFilterOptionLabel(mat, isAr),
+        count: facets.materials[mat._id] ?? 0,
+      })),
+    [materials, facets.materials, isAr],
+  );
 
-  const patternOptions = useMemo(() => {
-    return patterns.map((pat) => ({
-      id: pat._id,
-      label: getFilterOptionLabel(pat, isAr),
-      count: designs.filter((design) =>
-        designMatchesCatalogOption(design, pat, "pattern"),
-      ).length,
-    }));
-  }, [patterns, designs, isAr]);
+  const patternOptions = useMemo(
+    () =>
+      patterns.map((pat) => ({
+        id: pat._id,
+        label: getFilterOptionLabel(pat, isAr),
+        count: facets.patterns[pat._id] ?? 0,
+      })),
+    [patterns, facets.patterns, isAr],
+  );
 
-  const seasonOptions = useMemo(() => {
-    return seasons.map((sea) => ({
-      id: sea._id,
-      label: getFilterOptionLabel(sea, isAr),
-      count: designs.filter((design) =>
-        designMatchesCatalogOption(design, sea, "season"),
-      ).length,
-    }));
-  }, [seasons, designs, isAr]);
+  const seasonOptions = useMemo(
+    () =>
+      seasons.map((sea) => ({
+        id: sea._id,
+        label: getFilterOptionLabel(sea, isAr),
+        count: facets.seasons[sea._id] ?? 0,
+      })),
+    [seasons, facets.seasons, isAr],
+  );
 
-  const tagOptions = useMemo(() => {
-    return tags.map((tag) => ({
-      id: tag._id,
-      label: getFilterOptionLabel(tag, isAr),
-      count: designs.filter((design) =>
-        designMatchesCatalogOption(design, tag, "tag"),
-      ).length,
-    }));
-  }, [tags, designs, isAr]);
+  const tagOptions = useMemo(
+    () =>
+      tags.map((tag) => ({
+        id: tag._id,
+        label: getFilterOptionLabel(tag, isAr),
+        count: facets.tags[tag._id] ?? 0,
+      })),
+    [tags, facets.tags, isAr],
+  );
 
   const getOptionLabel = useCallback(
     (options: FilterOption[], id: string) => {
@@ -583,97 +630,9 @@ export default function DesignShopCatalogPage() {
     [isAr],
   );
 
-  const filteredDesigns = useMemo(() => {
-    let result = designs.filter((item) => {
-      if (filters.categories.length > 0) {
-        if (!item.category) return false;
-        const isMatch = filters.categories.some(
-          (catId) =>
-            catId === item.category ||
-            categories.some((c) => c._id === catId && c.name === item.category),
-        );
-        if (!isMatch) return false;
-      }
-
-      if (filters.materials.length > 0) {
-        const itemMat = isAr ? item.materialAr || item.material : item.material;
-        if (!itemMat) return false;
-        const isMatch = filters.materials.some(
-          (matId) =>
-            matId === itemMat ||
-            materials.some((m) => m._id === matId && m.name === itemMat),
-        );
-        if (!isMatch) return false;
-      }
-
-      if (filters.patterns.length > 0) {
-        const itemPat = isAr ? item.patternAr || item.pattern : item.pattern;
-        if (!itemPat) return false;
-        const isMatch = filters.patterns.some(
-          (patId) =>
-            patId === itemPat ||
-            patterns.some((p) => p._id === patId && p.name === itemPat),
-        );
-        if (!isMatch) return false;
-      }
-
-      if (filters.seasons.length > 0) {
-        const itemSeason = isAr ? item.seasonAr || item.season : item.season;
-        if (!itemSeason) return false;
-        const isMatch = filters.seasons.some(
-          (seaId) =>
-            seaId === itemSeason ||
-            seasons.some((s) => s._id === seaId && s.name === itemSeason),
-        );
-        if (!isMatch) return false;
-      }
-
-      if (filters.tags.length > 0) {
-        const itemTag = isAr ? item.tagAr || item.tag : item.tag;
-        if (!itemTag) return false;
-        const isMatch = filters.tags.some(
-          (tagId) =>
-            tagId === itemTag ||
-            tags.some((tag) => tag._id === tagId && tag.name === itemTag),
-        );
-        if (!isMatch) return false;
-      }
-
-      const price = item.basePrice ?? 0;
-      if (price < filters.minPrice || price > filters.maxPrice) return false;
-
-      return true;
-    });
-
-    if (sortBy === "price-low") {
-      result = [...result].sort(
-        (a, b) => (a.basePrice || 0) - (b.basePrice || 0),
-      );
-    } else if (sortBy === "price-high") {
-      result = [...result].sort(
-        (a, b) => (b.basePrice || 0) - (a.basePrice || 0),
-      );
-    }
-
-    return result;
-  }, [
-    designs,
-    filters,
-    categories,
-    materials,
-    patterns,
-    seasons,
-    tags,
-    isAr,
-    sortBy,
-  ]);
-
-  const totalPages = Math.ceil(filteredDesigns.length / productsPerPage);
-  const startIndex = (currentPage - 1) * productsPerPage;
-  const paginatedDesigns = filteredDesigns.slice(
-    startIndex,
-    startIndex + productsPerPage,
-  );
+  const startIndex =
+    totalDesigns === 0 ? 0 : (currentPage - 1) * productsPerPage;
+  const endIndex = Math.min(startIndex + designs.length, totalDesigns);
 
   const hasActiveFilters =
     filters.categories.length > 0 ||
@@ -773,6 +732,18 @@ export default function DesignShopCatalogPage() {
   const handlePageChange = (value: number) => {
     setCurrentPage(value);
   };
+
+  const handlePageSizeChange = (value: number) => {
+    setProductsPerPage(value);
+    setCurrentPage(1);
+  };
+
+  // Keep current page in range when filters shrink the result set
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   if (!mounted) return null;
 
@@ -1175,13 +1146,16 @@ export default function DesignShopCatalogPage() {
               <div className="flex items-center justify-between gap-2 sm:gap-6 w-full sm:w-auto min-w-0">
                 <span className="text-[9px] xs:text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.18em] uppercase text-[#7A7A72] font-mono truncate">
                   {isAr
-                    ? `عرض ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredDesigns.length)} من أصل ${filteredDesigns.length} تصميم`
-                    : `Showing ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredDesigns.length)} of ${filteredDesigns.length} designs`}
+                    ? `عرض ${totalDesigns === 0 ? 0 : startIndex + 1}-${endIndex} من أصل ${totalDesigns} تصميم`
+                    : `Showing ${totalDesigns === 0 ? 0 : startIndex + 1}-${endIndex} of ${totalDesigns} designs`}
                 </span>
 
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={(e) => {
+                    setSortBy(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="bg-transparent text-[9px] xs:text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.18em] uppercase font-mono focus:outline-none cursor-pointer shrink-0 max-w-[45%] sm:max-w-none"
                 >
                   <option value="newest">{isAr ? "الأحدث" : "Newest"}</option>
@@ -1273,8 +1247,8 @@ export default function DesignShopCatalogPage() {
                   className="flex-[1.4] rounded-full bg-black px-4 py-3 text-[10px] tracking-[0.18em] uppercase text-white transition-colors hover:bg-[#2A2A28] cursor-pointer"
                 >
                   {isAr
-                    ? `عرض ${filteredDesigns.length} تصميم`
-                    : `Show ${filteredDesigns.length} designs`}
+                    ? `عرض ${totalDesigns} تصميم`
+                    : `Show ${totalDesigns} designs`}
                 </button>
               </div>
             </div>
@@ -1296,7 +1270,7 @@ export default function DesignShopCatalogPage() {
                   {fetchError}
                 </p>
               </div>
-            ) : filteredDesigns.length === 0 ? (
+            ) : designs.length === 0 ? (
               <div className="flex flex-col items-center justify-center text-center py-28">
                 <SearchOffIcon />
                 <h3 className="text-[18px] md:text-[22px] uppercase tracking-widest text-black mb-3">
@@ -1317,7 +1291,7 @@ export default function DesignShopCatalogPage() {
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {paginatedDesigns.map((design) => {
+                  {designs.map((design) => {
                     const { name, description } = getDesignDisplayFields(
                       design,
                       locale as any,
@@ -1426,11 +1400,30 @@ export default function DesignShopCatalogPage() {
                   })}
                 </div>
 
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={handlePageChange}
-                />
+                <div className="mt-12 flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-[#E4E0D8]">
+                  <label className="flex items-center gap-2 text-[10px] sm:text-[11px] tracking-[0.14em] uppercase text-[#7A7A72] font-mono">
+                    <span>{isAr ? "لكل صفحة" : "Per page"}</span>
+                    <select
+                      value={productsPerPage}
+                      onChange={(e) =>
+                        handlePageSizeChange(Number(e.target.value))
+                      }
+                      className="bg-transparent border border-[#E4E0D8] rounded-lg px-2 py-1.5 text-black focus:outline-none cursor-pointer"
+                    >
+                      {PAGE_SIZE_OPTIONS.map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
               </>
             )}
           </div>

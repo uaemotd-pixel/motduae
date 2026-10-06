@@ -9,7 +9,11 @@ import toast from "react-hot-toast";
 import { Pencil, Trash2 } from "lucide-react";
 import { Tag } from "@/components/ui/Tag";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50, 100];
+const PAGINATION_VISIBLE_AFTER = 5;
 /* ─── Shared star helpers (display + half-star input) ─── */
 
 function StarRatingDisplay({
@@ -652,6 +656,10 @@ export default function CustomerReviewsView({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGE_SIZE);
+  const [totalReviews, setTotalReviews] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [eligibleProducts, setEligibleProducts] = useState<EligibleProduct[]>(
     [],
   );
@@ -697,7 +705,10 @@ export default function CustomerReviewsView({
     ((isRetailContext && !lockedProduct) ||
       (isCustomContext && customEligible.length === 0));
 
-  const fetchProfileAndReviews = async () => {
+  const fetchProfileAndReviews = async (
+    page = currentPage,
+    limit = itemsPerPage,
+  ) => {
     try {
       setLoading(true);
       let eligibleQuery = "";
@@ -709,8 +720,19 @@ export default function CustomerReviewsView({
         eligibleQuery = `?${params.toString()}`;
       }
 
-      const [profile, eligible] = await Promise.all([
-        api.get("/api/customer/profile"),
+      const reviewParams = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+      });
+
+      const [reviewsRes, eligible] = await Promise.all([
+        api.get<{
+          success: boolean;
+          reviews: Review[];
+          total?: number;
+          totalPages?: number;
+          page?: number;
+        }>(`/api/customer/reviews/mine?${reviewParams.toString()}`),
         api
           .get<{
             success: boolean;
@@ -722,12 +744,20 @@ export default function CustomerReviewsView({
           })),
       ]);
 
-      if (profile && profile.reviews) {
-        const sorted = [...profile.reviews].sort(
-          (a: Review, b: Review) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-        );
-        setReviews(sorted);
+      if (reviewsRes?.success) {
+        setReviews(Array.isArray(reviewsRes.reviews) ? reviewsRes.reviews : []);
+        const total = Number(reviewsRes.total) || 0;
+        const pages = Number(reviewsRes.totalPages) || 0;
+        setTotalReviews(total);
+        setTotalPages(pages);
+        if (pages > 0 && page > pages) {
+          setCurrentPage(pages);
+          return;
+        }
+      } else {
+        setReviews([]);
+        setTotalReviews(0);
+        setTotalPages(0);
       }
 
       const products = Array.isArray(eligible?.products)
@@ -761,10 +791,18 @@ export default function CustomerReviewsView({
       setLoading(false);
       return;
     }
-    fetchProfileAndReviews();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when notification context changes
-  }, [canReview, initialOrderId, initialOrderType]);
+    fetchProfileAndReviews(currentPage, itemsPerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when notification context / pagination changes
+  }, [canReview, initialOrderId, initialOrderType, currentPage, itemsPerPage]);
 
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (value: number) => {
+    setItemsPerPage(value);
+    setCurrentPage(1);
+  };
   const resetForm = () => {
     setQuote("");
     setTitle("");
@@ -900,7 +938,11 @@ export default function CustomerReviewsView({
       }
 
       resetForm();
-      fetchProfileAndReviews();
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      } else {
+        fetchProfileAndReviews(1, itemsPerPage);
+      }
     } catch (err: unknown) {
       const msg =
         err instanceof Error && err.message
@@ -1218,11 +1260,12 @@ export default function CustomerReviewsView({
           {t("pastTitle")}
         </h2>
 
-        {reviews.length === 0 ? (
+        {totalReviews === 0 ? (
           <p className="text-gray-500 text-xs sm:text-sm font-body">
             {t("pastEmpty")}
           </p>
         ) : (
+          <>
           <div className="space-y-4 sm:space-y-6 divide-y divide-gray-100">
             {reviews.map((rev, index) => {
               const displayQuote = isArabic
@@ -1293,6 +1336,20 @@ export default function CustomerReviewsView({
               );
             })}
           </div>
+          {totalReviews > PAGINATION_VISIBLE_AFTER ? (
+            <GlobalPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              showItemsPerPage
+              itemsPerPage={itemsPerPage}
+              onItemsPerPageChange={handlePageSizeChange}
+              itemsPerPageOptions={PAGE_SIZE_OPTIONS}
+              totalItems={totalReviews}
+              className="mt-6"
+            />
+          ) : null}
+          </>
         )}
       </div>
 

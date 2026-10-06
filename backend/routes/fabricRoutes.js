@@ -1,12 +1,112 @@
 import express from "express";
+import mongoose from "mongoose";
 import Fabric from "../models/Fabric.js";
 import FabricShop from "../models/FabricShop.js";
 import Material from "../models/Material.js";
+import Category from "../models/Category.js";
+import Pattern from "../models/Pattern.js";
+import Season from "../models/Season.js";
+import Tag from "../models/Tag.js";
 import { enrichFabricWithCuts } from "../utils/fabricCuts.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { withCustomerFabricPrices } from "../utils/motdCommission.js";
 
 const fabricRoutes = express.Router();
+
+/** Home carousel only needs a small page; keep DB/network payload bounded. */
+const TRENDING_DEFAULT_LIMIT = 8;
+const TRENDING_MAX_LIMIT = 20;
+const FABRICS_DEFAULT_LIMIT = 12;
+const FABRICS_MAX_LIMIT = 100;
+
+function parseQueryList(value) {
+  return String(value || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+async function resolveCatalogValues(Model, rawValues) {
+  const values = new Set(rawValues.map(String));
+  const objectIds = rawValues.filter((id) =>
+    mongoose.Types.ObjectId.isValid(String(id)),
+  );
+  if (objectIds.length > 0) {
+    const docs = await Model.find({ _id: { $in: objectIds } })
+      .select("name nameAr")
+      .lean();
+    for (const doc of docs) {
+      if (doc.name) values.add(doc.name);
+      if (doc.nameAr) values.add(doc.nameAr);
+    }
+  }
+  return [...values];
+}
+
+async function aggregateFabricFieldCounts(baseQuery, field) {
+  const rows = await Fabric.aggregate([
+    { $match: baseQuery },
+    { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+  ]);
+  const map = {};
+  for (const row of rows) {
+    if (row._id == null || row._id === "") continue;
+    map[String(row._id)] = row.count;
+  }
+  return map;
+}
+
+function mapCountsToOptionIds(valueCounts, options) {
+  const byNormalized = {};
+  for (const [key, count] of Object.entries(valueCounts || {})) {
+    const normalized = String(key || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, "");
+    if (!normalized) continue;
+    byNormalized[normalized] =
+      (byNormalized[normalized] || 0) + (Number(count) || 0);
+  }
+
+  const result = {};
+  for (const opt of options) {
+    const id = String(opt._id);
+    let count = Number(valueCounts?.[id]) || 0;
+    const nameKey = String(opt.name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, "");
+    const nameArKey = String(opt.nameAr || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, "");
+    if (nameKey) count += byNormalized[nameKey] || 0;
+    if (nameArKey && nameArKey !== nameKey) {
+      count += byNormalized[nameArKey] || 0;
+    }
+    result[id] = count;
+  }
+  return result;
+}
+
+async function aggregateFabricColorCounts(baseQuery) {
+  const rows = await Fabric.aggregate([
+    { $match: baseQuery },
+    { $unwind: { path: "$colors", preserveNullAndEmptyArrays: false } },
+    {
+      $group: {
+        _id: { $toLower: { $trim: { input: { $ifNull: ["$colors", ""] } } } },
+        count: { $sum: 1 },
+      },
+    },
+    { $match: { _id: { $ne: "" } } },
+  ]);
+  const map = {};
+  for (const row of rows) {
+    map[String(row._id)] = row.count;
+  }
+  return map;
+}
 
 async function activeFabricShopCatalogFilter() {
   const activeShopIds = await FabricShop.find({ isActive: true }).distinct(
@@ -103,10 +203,24 @@ fabricRoutes.get("/materials", async (req, res) => {
   }
 });
 
-// GET /api/fabrics — active fabrics for homepage carousel and fabric selection
+// GET /api/fabrics — paginated active fabrics (catalog + filters)
 fabricRoutes.get("/", async (req, res) => {
   try {
-    const { material, page = 1, limit = 20 } = req.query;
+    const {
+      material,
+      materials,
+      categories,
+      patterns,
+      seasons,
+      tags,
+      colors,
+      minPrice,
+      maxPrice,
+      sort = "newest",
+      page = 1,
+      limit = FABRICS_DEFAULT_LIMIT,
+    } = req.query;
+
     const filter = {
       isActive: true,
       "cuts.0": { $exists: true },
@@ -122,29 +236,214 @@ fabricRoutes.get("/", async (req, res) => {
       ],
     };
 
-    if (material) {
-      const normalizedMaterial = material.trim().toLowerCase();
-      filter.material = normalizedMaterial;
-    }
-
-    const pageNumber = Math.max(Number(page) || 1, 1);
-    const limitNumber = Math.min(Math.max(Number(limit) || 20, 1), 100);
-    const skip = (pageNumber - 1) * limitNumber;
-
-    const [fabrics, total] = await Promise.all([
-      Fabric.find(filter)
-        .populate("listedByStore", "_id name nameAr role slug")
-        .populate("fabricShopId", "_id name nameAr slug")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limitNumber)
-        .select("-__v"),
-      Fabric.countDocuments(filter),
-    ]);
-
     const settings = await PlatformSettings.getSettings();
     const fabricCommission =
       Number(settings.motdCommissionFromFabricStore) || 0;
+    const commissionFactor =
+      1 + Math.min(100, Math.max(0, fabricCommission)) / 100;
+
+    const parsedMin = Number(minPrice);
+    const parsedMax = Number(maxPrice);
+    if (Number.isFinite(parsedMin) || Number.isFinite(parsedMax)) {
+      const priceConds = [];
+      if (Number.isFinite(parsedMin) && parsedMin > 0) {
+        priceConds.push({
+          $gte: [
+            { $min: "$cuts.price" },
+            Number((parsedMin / commissionFactor).toFixed(2)),
+          ],
+        });
+      }
+      if (Number.isFinite(parsedMax)) {
+        priceConds.push({
+          $lte: [
+            { $min: "$cuts.price" },
+            Number((parsedMax / commissionFactor).toFixed(2)),
+          ],
+        });
+      }
+      if (priceConds.length === 1) {
+        filter.$expr = priceConds[0];
+      } else if (priceConds.length > 1) {
+        filter.$expr = { $and: priceConds };
+      }
+    }
+
+    // Facet counts use catalog visibility + price (not other filter chips).
+    // Shallow-clone so ObjectIds in $or/$in stay ObjectIds (JSON clone breaks facets).
+    const facetBaseQuery = { ...filter };
+    if (Array.isArray(filter.$and)) facetBaseQuery.$and = [...filter.$and];
+    if (Array.isArray(filter.$or)) facetBaseQuery.$or = [...filter.$or];
+
+    // Legacy single material + multi-select materials
+    const materialValues = [
+      ...parseQueryList(materials),
+      ...(material ? [String(material).trim()] : []),
+    ];
+    if (materialValues.length > 0) {
+      const resolved = await resolveCatalogValues(Material, materialValues);
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { material: { $in: resolved } },
+          { materialAr: { $in: resolved } },
+        ],
+      });
+    }
+
+    const categoryValues = parseQueryList(categories);
+    if (categoryValues.length > 0) {
+      const resolved = await resolveCatalogValues(Category, categoryValues);
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { category: { $in: resolved } },
+          { categoryAr: { $in: resolved } },
+        ],
+      });
+    }
+
+    const patternValues = parseQueryList(patterns);
+    if (patternValues.length > 0) {
+      const resolved = await resolveCatalogValues(Pattern, patternValues);
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { pattern: { $in: resolved } },
+          { patternAr: { $in: resolved } },
+        ],
+      });
+    }
+
+    const seasonValues = parseQueryList(seasons);
+    if (seasonValues.length > 0) {
+      const resolved = await resolveCatalogValues(Season, seasonValues);
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [
+          { season: { $in: resolved } },
+          { seasonAr: { $in: resolved } },
+        ],
+      });
+    }
+
+    const tagValues = parseQueryList(tags);
+    if (tagValues.length > 0) {
+      const resolved = await resolveCatalogValues(Tag, tagValues);
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: [{ tag: { $in: resolved } }, { tagAr: { $in: resolved } }],
+      });
+    }
+
+    const colorValues = parseQueryList(colors);
+    if (colorValues.length > 0) {
+      filter.$and = filter.$and || [];
+      filter.$and.push({
+        $or: colorValues.map((color) => ({
+          colors: { $elemMatch: { $regex: color, $options: "i" } },
+        })),
+      });
+    }
+
+    const limitNumber = Math.min(
+      Math.max(Number(limit) || FABRICS_DEFAULT_LIMIT, 1),
+      FABRICS_MAX_LIMIT,
+    );
+    const pageNumber = Math.max(Number(page) || 1, 1);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const sortKey = String(sort || "newest");
+    const needsPriceSort =
+      sortKey === "price-low" || sortKey === "price-high";
+
+    const catalogDomainFilter = {
+      isActive: true,
+      $or: [
+        { domain: "fabrics" },
+        { domain: "general" },
+        { domain: { $exists: false } },
+      ],
+    };
+
+    let fabrics;
+    let total;
+
+    if (needsPriceSort) {
+      const sortDir = sortKey === "price-low" ? 1 : -1;
+      const [aggItems, totalCount] = await Promise.all([
+        Fabric.aggregate([
+          { $match: filter },
+          { $addFields: { _sortPrice: { $min: "$cuts.price" } } },
+          { $sort: { _sortPrice: sortDir, createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limitNumber },
+        ]),
+        Fabric.countDocuments(filter),
+      ]);
+      total = totalCount;
+      fabrics = await Fabric.populate(aggItems, [
+        { path: "listedByStore", select: "_id name nameAr role slug" },
+        { path: "fabricShopId", select: "_id name nameAr slug" },
+      ]);
+    } else {
+      const [found, totalCount] = await Promise.all([
+        Fabric.find(filter)
+          .populate("listedByStore", "_id name nameAr role slug")
+          .populate("fabricShopId", "_id name nameAr slug")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limitNumber)
+          .select("-__v"),
+        Fabric.countDocuments(filter),
+      ]);
+      fabrics = found;
+      total = totalCount;
+    }
+
+    const [
+      categoryDocs,
+      materialDocs,
+      patternDocs,
+      seasonDocs,
+      tagDocs,
+      categoryValueCounts,
+      materialValueCounts,
+      patternValueCounts,
+      seasonValueCounts,
+      tagValueCounts,
+      colorValueCounts,
+    ] = await Promise.all([
+      Category.find({
+        isActive: true,
+        $or: [
+          { domain: "fabrics" },
+          { domain: "general" },
+          { domain: { $exists: false } },
+        ],
+      })
+        .select("name nameAr")
+        .lean(),
+      Material.find(catalogDomainFilter).select("name nameAr").lean(),
+      Pattern.find(catalogDomainFilter).select("name nameAr").lean(),
+      Season.find(catalogDomainFilter).select("name nameAr").lean(),
+      Tag.find(catalogDomainFilter).select("name nameAr").lean(),
+      aggregateFabricFieldCounts(facetBaseQuery, "category"),
+      aggregateFabricFieldCounts(facetBaseQuery, "material"),
+      aggregateFabricFieldCounts(facetBaseQuery, "pattern"),
+      aggregateFabricFieldCounts(facetBaseQuery, "season"),
+      aggregateFabricFieldCounts(facetBaseQuery, "tag"),
+      aggregateFabricColorCounts(facetBaseQuery),
+    ]);
+
+    const facets = {
+      categories: mapCountsToOptionIds(categoryValueCounts, categoryDocs),
+      materials: mapCountsToOptionIds(materialValueCounts, materialDocs),
+      patterns: mapCountsToOptionIds(patternValueCounts, patternDocs),
+      seasons: mapCountsToOptionIds(seasonValueCounts, seasonDocs),
+      tags: mapCountsToOptionIds(tagValueCounts, tagDocs),
+      colors: colorValueCounts,
+    };
 
     const enriched = await Promise.all(
       fabrics.map((fabric) => enrichFabricWithCuts(fabric)),
@@ -159,12 +458,73 @@ fabricRoutes.get("/", async (req, res) => {
       items: enriched.map((fabric) =>
         toListItem(withCustomerFabricPrices(fabric, fabricCommission)),
       ),
+      facets,
     });
   } catch (error) {
     console.error("GET /api/fabrics error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch fabrics",
+    });
+  }
+});
+
+// GET /api/fabrics/trending — lean home-carousel payload (small limit)
+fabricRoutes.get("/trending", async (req, res) => {
+  try {
+    const { material, limit = TRENDING_DEFAULT_LIMIT } = req.query;
+    const filter = {
+      isActive: true,
+      "cuts.0": { $exists: true },
+      "cuts.stock": { $gt: 0 },
+      $and: [
+        {
+          $or: [
+            { isVariantOf: null },
+            { isVariantOf: { $exists: false } },
+          ],
+        },
+        await activeFabricShopCatalogFilter(),
+      ],
+    };
+
+    if (material && material !== "all") {
+      filter.material = String(material).trim().toLowerCase();
+    }
+
+    const limitNumber = Math.min(
+      Math.max(Number(limit) || TRENDING_DEFAULT_LIMIT, 1),
+      TRENDING_MAX_LIMIT,
+    );
+
+    const fabrics = await Fabric.find(filter)
+      .populate("listedByStore", "_id name nameAr role slug")
+      .populate("fabricShopId", "_id name nameAr slug")
+      .sort({ createdAt: -1 })
+      .limit(limitNumber)
+      .select("-__v");
+
+    const settings = await PlatformSettings.getSettings();
+    const fabricCommission =
+      Number(settings.motdCommissionFromFabricStore) || 0;
+
+    const enriched = await Promise.all(
+      fabrics.map((fabric) => enrichFabricWithCuts(fabric)),
+    );
+
+    res.json({
+      success: true,
+      total: enriched.length,
+      limit: limitNumber,
+      items: enriched.map((fabric) =>
+        toListItem(withCustomerFabricPrices(fabric, fabricCommission)),
+      ),
+    });
+  } catch (error) {
+    console.error("GET /api/fabrics/trending error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch trending fabrics",
     });
   }
 });

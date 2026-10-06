@@ -1,14 +1,97 @@
 import express from "express";
+import mongoose from "mongoose";
 import TailorShop from "../models/TailorShop.js";
 import Design from "../models/Design.js";
 import User from "../models/User.js";
 import Category from "../models/Category.js";
+import Material from "../models/Material.js";
+import Pattern from "../models/Pattern.js";
+import Season from "../models/Season.js";
+import Tag from "../models/Tag.js";
 import PartnerApplication from "../models/PartnerApplication.js";
 import { normalizeSocialLinks } from "../services/partnerApplication/policy.js";
 import { publicShopSlugFilter } from "../utils/shopReady.js";
 import PlatformSettings from "../models/PlatformSettings.js";
 import { withCustomerDesignPrice } from "../utils/motdCommission.js";
 import { computePartnerExperience } from "../utils/partnerExperience.js";
+
+/** Home carousel only needs a small page; keep DB/network payload bounded. */
+const TRENDING_DEFAULT_LIMIT = 8;
+const TRENDING_MAX_LIMIT = 20;
+const DESIGNS_DEFAULT_LIMIT = 12;
+const DESIGNS_MAX_LIMIT = 100;
+
+function parseQueryList(value) {
+  return String(value || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+async function resolveCatalogValues(Model, rawValues) {
+  const values = new Set(rawValues.map(String));
+  const objectIds = rawValues.filter((id) =>
+    mongoose.Types.ObjectId.isValid(String(id)),
+  );
+  if (objectIds.length > 0) {
+    const docs = await Model.find({ _id: { $in: objectIds } })
+      .select("name nameAr")
+      .lean();
+    for (const doc of docs) {
+      if (doc.name) values.add(doc.name);
+      if (doc.nameAr) values.add(doc.nameAr);
+    }
+  }
+  return [...values];
+}
+
+/** Aggregate design counts keyed by raw field value (name or id string). */
+async function aggregateDesignFieldCounts(baseQuery, field) {
+  const rows = await Design.aggregate([
+    { $match: baseQuery },
+    { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+  ]);
+  const map = {};
+  for (const row of rows) {
+    if (row._id == null || row._id === "") continue;
+    map[String(row._id)] = row.count;
+  }
+  return map;
+}
+
+/** Map raw value counts onto catalog option ObjectIds (match id / name / nameAr). */
+function mapCountsToOptionIds(valueCounts, options) {
+  const byNormalized = {};
+  for (const [key, count] of Object.entries(valueCounts || {})) {
+    const normalized = String(key || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, "");
+    if (!normalized) continue;
+    byNormalized[normalized] =
+      (byNormalized[normalized] || 0) + (Number(count) || 0);
+  }
+
+  const result = {};
+  for (const opt of options) {
+    const id = String(opt._id);
+    let count = Number(valueCounts?.[id]) || 0;
+    const nameKey = String(opt.name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, "");
+    const nameArKey = String(opt.nameAr || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_-]+/g, "");
+    if (nameKey) count += byNormalized[nameKey] || 0;
+    if (nameArKey && nameArKey !== nameKey) {
+      count += byNormalized[nameArKey] || 0;
+    }
+    result[id] = count;
+  }
+  return result;
+}
 
 const tailorRoutes = express.Router();
 
@@ -177,10 +260,23 @@ tailorRoutes.get("/categories/designs", async (req, res) => {
   }
 });
 
-// GET /api/tailors/designs/all — fetch all active designs with tailor shop info
+// GET /api/tailors/designs/all — paginated active designs with tailor shop info
 tailorRoutes.get("/designs/all", async (req, res) => {
   try {
-    const { category, limit = 20 } = req.query;
+    const {
+      category,
+      categories,
+      materials,
+      patterns,
+      seasons,
+      tags,
+      minPrice,
+      maxPrice,
+      sort = "newest",
+      page = 1,
+      limit = DESIGNS_DEFAULT_LIMIT,
+    } = req.query;
+
     const approvedOwnerIds = await getApprovedTailorOwnerIds();
 
     const approvedShops = await TailorShop.find({
@@ -201,19 +297,164 @@ tailorRoutes.get("/designs/all", async (req, res) => {
       tailorShopId: { $in: shopIds },
     };
 
-    if (category && category !== "all") {
-      query.category = category;
-    }
-
-    const limitNumber = Math.min(Math.max(Number(limit) || 20, 1), 100);
-
-    const designs = await Design.find(query)
-      .sort({ createdAt: -1 })
-      .limit(limitNumber)
-      .select("-__v");
-
+    // Price is applied to both listing + facet base so counts stay consistent
     const settings = await PlatformSettings.getSettings();
     const tailorCommission = Number(settings.motdCommissionFromTailor) || 0;
+    const commissionFactor =
+      1 + Math.min(100, Math.max(0, tailorCommission)) / 100;
+
+    const parsedMin = Number(minPrice);
+    const parsedMax = Number(maxPrice);
+    if (Number.isFinite(parsedMin) || Number.isFinite(parsedMax)) {
+      query.basePrice = {};
+      if (Number.isFinite(parsedMin) && parsedMin > 0) {
+        query.basePrice.$gte = Number(
+          (parsedMin / commissionFactor).toFixed(2),
+        );
+      }
+      if (Number.isFinite(parsedMax)) {
+        query.basePrice.$lte = Number(
+          (parsedMax / commissionFactor).toFixed(2),
+        );
+      }
+      if (Object.keys(query.basePrice).length === 0) {
+        delete query.basePrice;
+      }
+    }
+
+    // Facet counts use catalog visibility + price (not other filter chips)
+    const facetBaseQuery = { ...query };
+
+    const categoryValues = [
+      ...parseQueryList(categories),
+      ...(category && category !== "all" ? [String(category)] : []),
+    ];
+    if (categoryValues.length > 0) {
+      const resolved = await resolveCatalogValues(Category, categoryValues);
+      query.category = resolved.length === 1 ? resolved[0] : { $in: resolved };
+    }
+
+    const materialValues = parseQueryList(materials);
+    if (materialValues.length > 0) {
+      const resolved = await resolveCatalogValues(Material, materialValues);
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { material: { $in: resolved } },
+          { materialAr: { $in: resolved } },
+        ],
+      });
+    }
+
+    const patternValues = parseQueryList(patterns);
+    if (patternValues.length > 0) {
+      const resolved = await resolveCatalogValues(Pattern, patternValues);
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { pattern: { $in: resolved } },
+          { patternAr: { $in: resolved } },
+        ],
+      });
+    }
+
+    const seasonValues = parseQueryList(seasons);
+    if (seasonValues.length > 0) {
+      const resolved = await resolveCatalogValues(Season, seasonValues);
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { season: { $in: resolved } },
+          { seasonAr: { $in: resolved } },
+        ],
+      });
+    }
+
+    const tagValues = parseQueryList(tags);
+    if (tagValues.length > 0) {
+      const resolved = await resolveCatalogValues(Tag, tagValues);
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [{ tag: { $in: resolved } }, { tagAr: { $in: resolved } }],
+      });
+    }
+
+    const limitNumber = Math.min(
+      Math.max(Number(limit) || DESIGNS_DEFAULT_LIMIT, 1),
+      DESIGNS_MAX_LIMIT,
+    );
+    const pageNumber = Math.max(Number(page) || 1, 1);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const sortKey = String(sort || "newest");
+    const sortSpec =
+      sortKey === "price-low"
+        ? { basePrice: 1, createdAt: -1 }
+        : sortKey === "price-high"
+          ? { basePrice: -1, createdAt: -1 }
+          : { createdAt: -1 };
+
+    const [
+      designs,
+      total,
+      categoryDocs,
+      materialDocs,
+      patternDocs,
+      seasonDocs,
+      tagDocs,
+      categoryValueCounts,
+      materialValueCounts,
+      patternValueCounts,
+      seasonValueCounts,
+      tagValueCounts,
+    ] = await Promise.all([
+      Design.find(query)
+        .sort(sortSpec)
+        .skip(skip)
+        .limit(limitNumber)
+        .select("-__v"),
+      Design.countDocuments(query),
+      Category.find({ domain: "designs", isActive: true })
+        .select("name nameAr")
+        .lean(),
+      Material.find({
+        isActive: true,
+        $or: [{ domain: "designs" }, { domain: "general" }, { domain: { $exists: false } }],
+      })
+        .select("name nameAr")
+        .lean(),
+      Pattern.find({
+        isActive: true,
+        $or: [{ domain: "designs" }, { domain: "general" }, { domain: { $exists: false } }],
+      })
+        .select("name nameAr")
+        .lean(),
+      Season.find({
+        isActive: true,
+        $or: [{ domain: "designs" }, { domain: "general" }, { domain: { $exists: false } }],
+      })
+        .select("name nameAr")
+        .lean(),
+      Tag.find({
+        isActive: true,
+        $or: [{ domain: "designs" }, { domain: "general" }, { domain: { $exists: false } }],
+      })
+        .select("name nameAr")
+        .lean(),
+      aggregateDesignFieldCounts(facetBaseQuery, "category"),
+      aggregateDesignFieldCounts(facetBaseQuery, "material"),
+      aggregateDesignFieldCounts(facetBaseQuery, "pattern"),
+      aggregateDesignFieldCounts(facetBaseQuery, "season"),
+      aggregateDesignFieldCounts(facetBaseQuery, "tag"),
+    ]);
+
+    const facets = {
+      categories: mapCountsToOptionIds(categoryValueCounts, categoryDocs),
+      materials: mapCountsToOptionIds(materialValueCounts, materialDocs),
+      patterns: mapCountsToOptionIds(patternValueCounts, patternDocs),
+      seasons: mapCountsToOptionIds(seasonValueCounts, seasonDocs),
+      tags: mapCountsToOptionIds(tagValueCounts, tagDocs),
+    };
 
     const items = designs.map((design) => {
       const shop = shopMap[design.tailorShopId.toString()];
@@ -228,14 +469,111 @@ tailorRoutes.get("/designs/all", async (req, res) => {
 
     res.json({
       success: true,
-      total: items.length,
+      page: pageNumber,
+      limit: limitNumber,
+      total,
+      totalPages: Math.ceil(total / limitNumber) || 0,
       items,
+      facets,
     });
   } catch (error) {
     console.error("GET /api/tailors/designs/all error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch all designs",
+    });
+  }
+});
+
+// GET /api/tailors/designs/trending — lean home-carousel payload (small limit)
+tailorRoutes.get("/designs/trending", async (req, res) => {
+  try {
+    const { category, limit = TRENDING_DEFAULT_LIMIT } = req.query;
+    const approvedOwnerIds = await getApprovedTailorOwnerIds();
+
+    const approvedShopIds = await TailorShop.find({
+      isActive: true,
+      ownerId: { $in: approvedOwnerIds },
+      ...publicShopSlugFilter(),
+    }).distinct("_id");
+
+    const query = {
+      isActive: true,
+      minCutId: { $exists: true, $ne: null },
+      tailorShopId: { $in: approvedShopIds },
+    };
+
+    if (category && category !== "all") {
+      // Designs may store category as ObjectId string or display name
+      const categoryValues = [String(category)];
+      if (mongoose.Types.ObjectId.isValid(String(category))) {
+        const catDoc = await Category.findById(category).select("name").lean();
+        if (catDoc?.name) categoryValues.push(catDoc.name);
+      }
+      query.category =
+        categoryValues.length > 1 ? { $in: categoryValues } : categoryValues[0];
+    }
+
+    const limitNumber = Math.min(
+      Math.max(Number(limit) || TRENDING_DEFAULT_LIMIT, 1),
+      TRENDING_MAX_LIMIT,
+    );
+
+    const designs = await Design.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limitNumber)
+      .select(
+        "slug name nameAr description descriptionAr images category basePrice priceType tailorShopId",
+      )
+      .lean();
+
+    const uniqueShopIds = [
+      ...new Set(designs.map((d) => String(d.tailorShopId))),
+    ];
+    const shops = await TailorShop.find({ _id: { $in: uniqueShopIds } })
+      .select("slug name nameAr")
+      .lean();
+    const shopMap = shops.reduce((acc, shop) => {
+      acc[shop._id.toString()] = shop;
+      return acc;
+    }, {});
+
+    const settings = await PlatformSettings.getSettings();
+    const tailorCommission = Number(settings.motdCommissionFromTailor) || 0;
+
+    const items = designs.map((design) => {
+      const shop = shopMap[String(design.tailorShopId)];
+      return withCustomerDesignPrice(
+        {
+          _id: design._id,
+          slug: design.slug,
+          name: design.name,
+          nameAr: design.nameAr,
+          description: design.description,
+          descriptionAr: design.descriptionAr,
+          images: design.images,
+          category: design.category,
+          basePrice: design.basePrice,
+          priceType: design.priceType,
+          tailorSlug: shop?.slug || "",
+          tailorName: shop?.name || "",
+          tailorNameAr: shop?.nameAr || "",
+        },
+        tailorCommission,
+      );
+    });
+
+    res.json({
+      success: true,
+      total: items.length,
+      limit: limitNumber,
+      items,
+    });
+  } catch (error) {
+    console.error("GET /api/tailors/designs/trending error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch trending designs",
     });
   }
 });

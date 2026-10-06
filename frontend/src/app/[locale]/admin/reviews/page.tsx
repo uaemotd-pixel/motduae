@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 
 type ReviewStatus = "pending" | "approved" | "rejected";
 
@@ -49,6 +50,9 @@ const TOAST = {
   },
 };
 
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100];
+
 export default function AdminReviewsPage() {
   const [status, setStatus] = useState<ReviewStatus | "all">("all");
   const [items, setItems] = useState<AdminReview[]>([]);
@@ -61,7 +65,9 @@ export default function AdminReviewsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(DEFAULT_PAGE_SIZE);
   const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminReview | null>(null);
   const [editTarget, setEditTarget] = useState<AdminReview | null>(null);
@@ -80,28 +86,40 @@ export default function AdminReviewsPage() {
       const params = new URLSearchParams();
       params.set("status", status);
       params.set("page", String(page));
-      params.set("limit", "20");
+      params.set("limit", String(limit));
       if (search.trim()) params.set("search", search.trim());
       const data = await api.get<{
         success: boolean;
         items: AdminReview[];
         counts: Counts;
+        total?: number;
         totalPages?: number;
+        page?: number;
+        limit?: number;
       }>(`/api/admin/reviews?${params.toString()}`);
       setItems(Array.isArray(data?.items) ? data.items : []);
       if (data?.counts) setCounts(data.counts);
       setTotalPages(Number(data?.totalPages) || 0);
+      setTotalItems(Number(data?.total) || 0);
+      if (
+        Number(data?.totalPages) > 0 &&
+        Number(data?.page) > Number(data?.totalPages)
+      ) {
+        setPage(Number(data.totalPages));
+      }
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Failed to load reviews"), TOAST);
       setItems([]);
+      setTotalItems(0);
+      setTotalPages(0);
     } finally {
       setLoading(false);
     }
-  }, [status, search, page]);
+  }, [status, search, page, limit]);
 
   useEffect(() => {
     setPage(1);
-  }, [status, search]);
+  }, [status, search, limit]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -110,6 +128,14 @@ export default function AdminReviewsPage() {
     return () => clearTimeout(timer);
   }, [load, search]);
 
+  const handlePageChange = (nextPage: number) => {
+    setPage(nextPage);
+  };
+
+  const handleLimitChange = (nextLimit: number) => {
+    setLimit(nextLimit);
+    setPage(1);
+  };
   const setReviewStatus = async (id: string, next: ReviewStatus) => {
     setBusyId(id);
     try {
@@ -361,28 +387,17 @@ export default function AdminReviewsPage() {
         )}
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-3">
-          <button
-            type="button"
-            disabled={page <= 1 || loading}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="px-3 py-1.5 text-xs uppercase tracking-wider border border-gray-200 disabled:opacity-40"
-          >
-            Previous
-          </button>
-          <span className="text-xs text-gray-500">
-            Page {page} of {totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={page >= totalPages || loading}
-            onClick={() => setPage((p) => p + 1)}
-            className="px-3 py-1.5 text-xs uppercase tracking-wider border border-gray-200 disabled:opacity-40"
-          >
-            Next
-          </button>
-        </div>
+      {totalItems > 0 && (
+        <GlobalPagination
+          currentPage={page}
+          totalPages={Math.max(totalPages, 1)}
+          onPageChange={handlePageChange}
+          showItemsPerPage
+          itemsPerPage={limit}
+          onItemsPerPageChange={handleLimitChange}
+          itemsPerPageOptions={PAGE_SIZE_OPTIONS}
+          totalItems={totalItems}
+        />
       )}
 
       {editTarget && (
