@@ -177,6 +177,9 @@ export const env = {
   get cronSecret() {
     return process.env.CRON_SECRET || '';
   },
+  get redisUrl() {
+    return String(process.env.REDIS_URL || '').trim();
+  },
   get purgeOldData() {
     const isProd = (process.env.NODE_ENV || 'development') === 'production';
     return {

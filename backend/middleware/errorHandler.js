@@ -36,6 +36,11 @@ const validationMessage = (err) => {
 export const errorHandler = (err, _req, res, _next) => {
   console.error(err.stack);
 
+  if (err?.name === 'RateLimitStoreError') {
+    res.status(503).send({ message: 'Please try again in a moment' });
+    return;
+  }
+
   if (isMongooseValidationError(err)) {
     res.status(400).send({
       message:
