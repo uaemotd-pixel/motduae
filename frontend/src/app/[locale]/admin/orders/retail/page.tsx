@@ -31,6 +31,7 @@ import type { OrderDeliveryAddress } from "@/lib/orderDelivery";
 
 type RetailOrder = {
   _id: string;
+  publicOrderId?: string | null;
   userId: {
     name: string;
     email: string;
