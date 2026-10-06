@@ -31,6 +31,7 @@ import type { OrderDeliveryAddress } from "@/lib/orderDelivery";
 
 type RetailOrder = {
   _id: string;
+  publicOrderId?: string | null;
   userId: {
     name: string;
     email: string;
@@ -626,7 +627,9 @@ export default function AdminRetailOrdersPage() {
                       {t.columns.orderId}
                     </p>
                     <p className="font-mono text-sm font-medium text-black">
-                      #{order._id.slice(-6).toUpperCase()}
+                      #
+                      {order.publicOrderId ||
+                        order._id.slice(-6).toUpperCase()}
                     </p>
                   </div>
 

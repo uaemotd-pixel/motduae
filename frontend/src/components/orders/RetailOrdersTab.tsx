@@ -8,7 +8,7 @@ import { formatCurrency } from "@/lib/format";
 import type { Locale } from "@/i18n/routing";
 import {
   formatOrderDate,
-  shortenOrderId,
+  displayOrderId,
   type RetailOrderListItem,
 } from "@/lib/customOrders";
 import { resolveReadyMadeImage } from "@/lib/readyMade";
@@ -139,7 +139,7 @@ export default function RetailOrdersTab({
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="[font-family:var(--font-ui)] text-[8px] sm:text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.24em] text-(--color-grey-muted) mb-1.5 sm:mb-2">
-                      {t("orderId", { id: shortenOrderId(order.id) })}
+                      {t("orderId", { id: displayOrderId(order) })}
                     </p>
                     {/* Summary: show first item name + count if multi */}
                     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">

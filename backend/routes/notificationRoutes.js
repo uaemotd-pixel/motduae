@@ -14,8 +14,18 @@ import {
   bulkMarkNotificationsRead,
   bulkSoftDeleteNotifications,
 } from "../services/notificationService.js";
+import { displayPublicOrderId } from "../services/publicOrderId.js";
 
 const notificationRouter = express.Router();
+
+function rewriteOrderIdInMessage(message, orderId, publicOrderId) {
+  const text = String(message || "");
+  const mongoId = String(orderId || "");
+  const pub = String(publicOrderId || "").trim();
+  if (!text || !mongoId || !pub) return text;
+  if (!text.includes(mongoId)) return text;
+  return text.split(mongoId).join(pub);
+}
 
 function buildReturnEnrichment(order) {
   if (!order) return {};
@@ -60,7 +70,7 @@ async function enrichAdminNotifications(notifications) {
   if (customOrderIds.length) {
       const orders = await CustomOrder.find({ _id: { $in: customOrderIds } })
         .select(
-          "_id status userId returnCondition returnReason returnComment returnPickupAddress pricing total statusHistory",
+          "_id publicOrderId status userId returnCondition returnReason returnComment returnPickupAddress pricing total statusHistory",
         )
         .populate("statusHistory.changedBy", "name email")
         .lean();
@@ -73,7 +83,7 @@ async function enrichAdminNotifications(notifications) {
   const retailOrderMap = {};
   if (retailOrderIds.length) {
     const orders = await RetailOrder.find({ _id: { $in: retailOrderIds } })
-      .select("_id status totalPrice userId orderItems shippingAddress")
+      .select("_id publicOrderId status totalPrice userId orderItems shippingAddress")
       .populate("userId", "name email phone")
       .lean();
 
@@ -89,7 +99,7 @@ async function enrichAdminNotifications(notifications) {
     };
 
     if (!notification.orderId) {
-      return { ...base, status: null };
+      return { ...base, status: null, publicOrderId: null };
     }
 
     const orderId = String(notification.orderId);
@@ -99,17 +109,31 @@ async function enrichAdminNotifications(notifications) {
 
     if (isRetail) {
       const retailOrder = retailOrderMap[orderId];
+      const publicOrderId = displayPublicOrderId(retailOrder);
       return {
         ...base,
         status: retailOrder?.status || null,
+        publicOrderId: publicOrderId || null,
+        message: rewriteOrderIdInMessage(
+          notification.message,
+          orderId,
+          publicOrderId,
+        ),
         retailOrder: retailOrder || null,
       };
     }
 
       const customOrder = customOrderMap[orderId];
+      const publicOrderId = displayPublicOrderId(customOrder);
       return {
         ...base,
         status: customOrder?.status || null,
+        publicOrderId: publicOrderId || null,
+        message: rewriteOrderIdInMessage(
+          notification.message,
+          orderId,
+          publicOrderId,
+        ),
         customerUserId: customOrder?.userId ? String(customOrder.userId) : null,
         statusHistory: customOrder?.statusHistory || [],
         ...buildReturnEnrichment(customOrder),

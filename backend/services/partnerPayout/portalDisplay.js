@@ -60,6 +60,7 @@ export function foldPayoutTotals(batches = [], lines = [], toAed) {
       orderCount: payoutLines.length,
       orders: payoutLines.map((line) => ({
         orderId: String(line.orderId),
+        publicOrderId: line.publicOrderId || null,
         orderType: line.orderType,
         amount: toAed(line.amountFils),
       })),

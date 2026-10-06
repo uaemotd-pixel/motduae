@@ -76,6 +76,7 @@ interface CustomOrderItem {
 
 interface Order {
   _id: string;
+  publicOrderId?: string | null;
   userId: OrderUser | string;
   contactEmail?: string;
   tailorShopId: TailorShopPopulated | string;
@@ -602,6 +603,12 @@ export default function AdminCustomOrdersPage() {
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-5">
                   <div>
                     <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">
+                      {locale === "ar" ? "رقم الطلب" : "Order ID"}
+                    </p>
+                    <p className="font-mono text-sm font-medium text-black">
+                      #{order.publicOrderId || order._id.slice(-6).toUpperCase()}
+                    </p>
+                    <p className="text-xs text-gray-400 uppercase tracking-wider mb-1 mt-3">
                       {t("columns.customer")}
                     </p>
                     <OrderRecipientDetails

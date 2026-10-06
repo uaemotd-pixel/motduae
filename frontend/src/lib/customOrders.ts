@@ -80,6 +80,7 @@ export interface CustomOrderLineItemSummary {
 
 export interface CustomOrderListItem {
   id: string;
+  publicOrderId?: string | null;
   date: string;
   status: CustomOrderStatus;
   fabricSource: "storefront" | "self";
@@ -181,6 +182,7 @@ export type PublicDeliveryAddress = {
 // lib/customOrders.ts
 export type RetailOrderListItem = {
   id: string;
+  publicOrderId?: string | null;
   date: Date;
   status: string;
   totalPrice: number;
@@ -467,8 +469,26 @@ export function getTailorDisplayName(
   return locale === "ar" ? tailor.nameAr || tailor.name : tailor.name;
 }
 
+/** Prefer human publicOrderId (RO-0001AFG); fall back to legacy ObjectId tail. */
+export function displayOrderId(order: {
+  publicOrderId?: string | null;
+  id?: string;
+  _id?: string;
+}): string {
+  const pub = String(order?.publicOrderId || "")
+    .trim()
+    .toUpperCase();
+  if (pub) return pub;
+  return shortenOrderId(String(order?.id || order?._id || ""));
+}
+
 export function shortenOrderId(id: string): string {
-  return id.slice(-8).toUpperCase();
+  const raw = String(id || "")
+    .trim()
+    .toUpperCase()
+    .replace(/^#/, "");
+  if (/^(RO|CO)-\d+[A-Z]{3}$/.test(raw)) return raw;
+  return raw.slice(-8);
 }
 
 export function getFabricDisplayName(

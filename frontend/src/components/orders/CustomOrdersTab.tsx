@@ -17,7 +17,7 @@ import {
   groupSelectedCutPieces,
   hasActiveCustomerShipments,
   resolveOrderLeftoverMeters,
-  shortenOrderId,
+  displayOrderId,
   type CustomOrderDetail,
   type CustomOrderLineItemSummary,
   type CustomOrderListItem,
@@ -733,7 +733,7 @@ export default function CustomOrdersTab({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-3 mb-4 gap-2">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-ui font-medium">
-                    {t("orderId", { id: shortenOrderId(order.id) })}
+                    {t("orderId", { id: displayOrderId(order) })}
                   </p>
                   <p className="text-[11px] text-gray-500 font-ui mt-0.5">
                     {formatOrderDate(order.date, locale)}
@@ -1609,7 +1609,7 @@ export default function CustomOrdersTab({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-3 mb-4 gap-2">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 mb-1.5 font-ui font-medium">
-                    {tRetail("orderId", { id: shortenOrderId(order.id) })}
+                    {tRetail("orderId", { id: displayOrderId(order) })}
                   </p>
                   <p className="text-[11px] text-gray-500 font-ui mt-0.5">
                     {formatOrderDate(order.date.toString(), locale)}

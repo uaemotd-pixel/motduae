@@ -4,6 +4,7 @@ import {
   payoutReleaseBadgeClass,
   payoutReleaseStatusLabel,
 } from "@/lib/partnerPayoutDisplay";
+import { displayOrderId } from "@/lib/customOrders";
 
 export type PortalPayoutReleaseItem = {
   _id: string;
@@ -11,6 +12,7 @@ export type PortalPayoutReleaseItem = {
   orderCount: number;
   orders?: Array<{
     orderId: string;
+    publicOrderId?: string | null;
     orderType: string;
     amount: number;
   }>;
@@ -40,7 +42,13 @@ export default function PayoutReleasesList({
       {(release.orders || []).length > 0 ? (
         <span className="mt-1 block text-[10px] break-words">
           {(release.orders || [])
-            .map((o) => `#${String(o.orderId).slice(-6)}`)
+            .map(
+              (o) =>
+                `#${displayOrderId({
+                  publicOrderId: o.publicOrderId,
+                  id: o.orderId,
+                })}`,
+            )
             .join(", ")}
         </span>
       ) : null}

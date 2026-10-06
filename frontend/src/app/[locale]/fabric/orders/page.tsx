@@ -96,6 +96,7 @@ interface Measurements {
 
 interface Order {
   _id: string;
+  publicOrderId?: string | null;
   userId: OrderUser | string;
   contactEmail?: string;
   designSnapshot?: {
@@ -426,13 +427,15 @@ export default function FabricOrdersPage() {
         const customerName = readPartnerName(user, "").toLowerCase();
         const customerEmail = (user?.email || "").toLowerCase();
         const customerPhone = (user?.phone || "").toLowerCase();
-        const orderId = order._id.toLowerCase();
+        const orderId = String(order._id || "").toLowerCase();
+        const publicId = String(order.publicOrderId || "").toLowerCase();
 
         if (
           !customerName.includes(term) &&
           !customerEmail.includes(term) &&
           !customerPhone.includes(term) &&
-          !orderId.includes(term)
+          !orderId.includes(term) &&
+          !publicId.includes(term)
         ) {
           return false;
         }
@@ -892,7 +895,9 @@ export default function FabricOrdersPage() {
                   <div className="p-4 border-t border-gray-100 bg-gray-50/70 text-xs text-gray-500">
                     {locale === "ar" ? "الرقم التعريفي للطلب:" : "Order ID:"}{" "}
                     <span className="font-mono text-black font-medium">
-                      #{retailOrder._id.slice(-8).toUpperCase()}
+                      #
+                      {retailOrder.publicOrderId ||
+                        retailOrder._id.slice(-8).toUpperCase()}
                     </span>
                   </div>
                 </div>
@@ -1485,7 +1490,8 @@ export default function FabricOrdersPage() {
                 <div className="p-4 border-t border-gray-100 bg-gray-50/70 text-xs text-gray-500">
                   {locale === "ar" ? "الرقم التعريفي للطلب:" : "Order ID:"}{" "}
                   <span className="font-mono text-black font-medium">
-                    #{order._id.slice(-8).toUpperCase()}
+                    #
+                    {order.publicOrderId || order._id.slice(-8).toUpperCase()}
                   </span>
                 </div>
               </div>

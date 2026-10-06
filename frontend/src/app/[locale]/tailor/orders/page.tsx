@@ -71,6 +71,7 @@ interface Measurements {
 
 interface Order {
   _id: string;
+  publicOrderId?: string | null;
   userId: OrderUser | string | null;
   contactEmail?: string;
   designId?: CatalogMedia | string | null;
@@ -373,8 +374,9 @@ export default function TailorOrdersPage() {
       // 1. Order ID filter
       if (filterCustomer.trim()) {
         const term = filterCustomer.toLowerCase();
-        const orderId = order._id.toLowerCase();
-        if (!orderId.includes(term)) {
+        const orderId = String(order._id || "").toLowerCase();
+        const publicId = String(order.publicOrderId || "").toLowerCase();
+        if (!orderId.includes(term) && !publicId.includes(term)) {
           return false;
         }
       }
@@ -931,7 +933,9 @@ export default function TailorOrdersPage() {
                   <div className="text-xs text-gray-500">
                     {locale === "ar" ? "الرقم التعريفي للطلب:" : "Order ID:"}{" "}
                     <span className="font-mono text-black font-medium">
-                      #{order._id.slice(-8).toUpperCase()}
+                      #
+                      {order.publicOrderId ||
+                        order._id.slice(-8).toUpperCase()}
                     </span>
                     {isOutForDeliveryStatus && (
                       <span className="ml-3 text-[10px] text-amber-600 font-medium">
