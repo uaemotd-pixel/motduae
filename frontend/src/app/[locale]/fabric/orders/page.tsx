@@ -96,6 +96,7 @@ interface Measurements {
 
 interface Order {
   _id: string;
+  publicOrderId?: string | null;
   userId: OrderUser | string;
   contactEmail?: string;
   designSnapshot?: {
