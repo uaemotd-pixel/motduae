@@ -1599,7 +1599,7 @@ function resolveAdminFabricStoreDisplay(fabric) {
 // Admin can view all fabrics in the catalog (including inactive)
 // Supports ?page=1&limit=10&search=...&status=available|sold|low|active|inactive&fabricShopId=...&listedByStore=...
 // available = active + remaining cut stock
-// sold = sold out (all cuts at 0) OR inactive listing
+// sold = sold out (every cut on the parent and its variants is at 0)
 adminRouter.get(
   "/fabrics",
   expressAsyncHandler(async (req, res) => {
