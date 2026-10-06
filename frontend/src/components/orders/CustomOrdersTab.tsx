@@ -24,6 +24,7 @@ import {
   type RetailOrderListItem,
 } from "@/lib/customOrders";
 import OrderProgressPanel from "@/components/orders/OrderProgressPanel";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 import {
   ChevronDown,
   ChevronUp,
@@ -56,6 +57,9 @@ import {
   normalizeEmirate,
 } from "@/lib/uaeAddress";
 
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50, 100];
+const PAGINATION_VISIBLE_AFTER = 5;
 type ReturnDraft = {
   condition: string;
   reason: string;
@@ -136,6 +140,10 @@ export default function CustomOrdersTab({
   const [retailOrders, setRetailOrders] = useState<RetailOrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGE_SIZE);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [retailExpandedId, setRetailExpandedId] = useState<string | null>(null);
   const [itemsOpenId, setItemsOpenId] = useState<string | null>(null);
@@ -206,42 +214,75 @@ export default function CustomOrdersTab({
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        const [customRes, retailRes, profileRes] = await Promise.all([
-          api
-            .get<{
-              success: boolean;
-              orders: CustomOrderListItem[];
-            }>("/api/orders/custom/mine")
-            .catch(() => ({ success: false, orders: [] })),
-          api
-            .get<{
-              success: boolean;
-              orders: RetailOrderListItem[];
-            }>("/api/orders/retail/mine")
-            .catch(() => ({ success: false, orders: [] })),
+        const params = new URLSearchParams({
+          page: String(currentPage),
+          limit: String(itemsPerPage),
+        });
+
+        const [ordersRes, profileRes] = await Promise.all([
+          api.get<{
+            success: boolean;
+            orders: Array<
+              | ({ type: "custom" } & CustomOrderListItem)
+              | ({ type: "retail" } & RetailOrderListItem)
+            >;
+            total?: number;
+            totalPages?: number;
+            page?: number;
+            limit?: number;
+          }>(`/api/orders/mine?${params.toString()}`),
           api.get<CustomerProfile>("/api/customer/profile").catch(() => null),
         ]);
 
-        setCustomOrders(customRes.orders || []);
-        setRetailOrders(retailRes.orders || []);
+        if (cancelled) return;
+
+        if (!ordersRes?.success) {
+          throw new Error("Failed to load orders");
+        }
+
+        const custom: CustomOrderListItem[] = [];
+        const retail: RetailOrderListItem[] = [];
+        for (const item of ordersRes.orders || []) {
+          if (item.type === "custom") {
+            const { type: _type, ...order } = item;
+            custom.push(order);
+          } else if (item.type === "retail") {
+            const { type: _type, ...order } = item;
+            retail.push(order);
+          }
+        }
+
+        setCustomOrders(custom);
+        setRetailOrders(retail);
+        setTotalOrders(Number(ordersRes.total) || 0);
+        setTotalPages(Number(ordersRes.totalPages) || 0);
         if (profileRes) setCustomerProfile(profileRes);
       } catch (err: unknown) {
+        if (cancelled) return;
         setError(
           (err as ApiError)?.message ||
             (err instanceof Error ? err.message : t("error")),
         );
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchData();
-  }, [t]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t, currentPage, itemsPerPage]);
 
   type UnifiedOrderListItem =
     | {
@@ -277,6 +318,24 @@ export default function CustomOrdersTab({
     );
   }, [customOrders, retailOrders]);
 
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    setExpandedId(null);
+    setRetailExpandedId(null);
+  };
+
+  const handlePageSizeChange = (value: number) => {
+    setItemsPerPage(value);
+    setCurrentPage(1);
+    setExpandedId(null);
+    setRetailExpandedId(null);
+  };
   const loadDetail = useCallback(
     async (orderId: string) => {
       if (detailById[orderId]) return;
@@ -619,7 +678,7 @@ export default function CustomOrdersTab({
     );
   }
 
-  if (unifiedOrders.length === 0) {
+  if (totalOrders === 0) {
     return (
       <div className="text-center py-16 sm:py-20 border border-gray-200 bg-white rounded-2xl px-6">
         <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -2019,6 +2078,18 @@ export default function CustomOrdersTab({
           );
         }
       })}
+      {totalOrders > PAGINATION_VISIBLE_AFTER ? (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          showItemsPerPage
+          itemsPerPage={itemsPerPage}
+          onItemsPerPageChange={handlePageSizeChange}
+          itemsPerPageOptions={PAGE_SIZE_OPTIONS}
+          totalItems={totalOrders}
+        />
+      ) : null}
       <ImageModal
         isOpen={imageModalOpen}
         imageUrl={selectedImage}

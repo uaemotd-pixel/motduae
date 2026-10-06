@@ -35,6 +35,9 @@ const getTagStyles = (tagValue?: string) => {
   return TAG_COLORS[key] || { bg: "#1A1A1A", text: "#FFFFFF" };
 };
 
+/** Products shown in the home carousel (~3–5 visible + a few to scroll). */
+const HOME_TRENDING_LIMIT = 8;
+
 export function ReadyToWearSection() {
   const params = useParams();
   const locale = params.locale === "ar" ? "ar" : "en";
@@ -54,6 +57,8 @@ export function ReadyToWearSection() {
   }, [toastMessage]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchProducts = async () => {
       try {
         setLoading(true);
@@ -62,7 +67,9 @@ export function ReadyToWearSection() {
         const data = await api.get<{
           success: boolean;
           items: ReadyMadeListItem[];
-        }>("/api/ready-made");
+        }>(`/api/ready-made/trending?limit=${HOME_TRENDING_LIMIT}`);
+
+        if (cancelled) return;
 
         if (!data?.success) {
           throw new Error("Failed to load products");
@@ -70,15 +77,22 @@ export function ReadyToWearSection() {
 
         setProducts(data.items || []);
       } catch (err: unknown) {
+        if (cancelled) return;
         const message =
           err instanceof Error ? err.message : "Something went wrong";
         setError(message);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchProducts();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const [emblaRef, emblaApi] = useEmblaCarousel(

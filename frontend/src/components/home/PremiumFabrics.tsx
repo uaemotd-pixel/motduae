@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
@@ -8,9 +8,7 @@ import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
 import { api, type ApiError } from "@/lib/api/client";
 import {
-  type FabricFilter,
   type FabricListItem,
-  filterFabricsByMaterial,
   formatFabricListingPrice,
   getFabricDefaultCut,
   getCutDisplayName,
@@ -36,30 +34,8 @@ function buildShareUrl(basePath: string, href: string) {
   return `${trimmedBase}/${trimmedHref}`;
 }
 
-function getLocaleBasePath(pathname: string, fallbackLocale: string) {
-  const parts = (pathname || "").split("/").filter(Boolean);
-  const maybeLocale = parts[0];
-  if (maybeLocale === "en" || maybeLocale === "ar") return `/${maybeLocale}`;
-  return `/${fallbackLocale || "en"}`;
-}
-
-// Interface for material options from the API
-interface MaterialOption {
-  _id: string;
-  name: string;
-  nameAr?: string;
-}
-
-// Helper to get localized material label
-const getMaterialLabel = (
-  materialName: string,
-  materials: MaterialOption[],
-  locale: string,
-): string => {
-  const found = materials.find((m) => m.name === materialName);
-  if (!found) return materialName;
-  return locale === "ar" ? found.nameAr || found.name : found.name;
-};
+/** Fabrics shown in the home carousel (~3–5 visible + a few to scroll). */
+const HOME_TRENDING_LIMIT = 8;
 
 export function PremiumFabrics() {
   const t = useTranslations("PremiumFabrics");
@@ -68,12 +44,12 @@ export function PremiumFabrics() {
 
   const locale = params.locale === "ar" ? "ar" : "en";
   const [fabrics, setFabrics] = useState<FabricListItem[]>([]);
-  const [materials, setMaterials] = useState<MaterialOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFilter, setSelectedFilter] = useState<FabricFilter>("all");
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchFabrics = async () => {
       try {
         setLoading(true);
@@ -82,7 +58,9 @@ export function PremiumFabrics() {
         const data = await api.get<{
           success: boolean;
           items: FabricListItem[];
-        }>("/api/fabrics?limit=100");
+        }>(`/api/fabrics/trending?limit=${HOME_TRENDING_LIMIT}`);
+
+        if (cancelled) return;
 
         if (!data?.success) {
           throw new Error("Failed to load fabrics");
@@ -90,42 +68,31 @@ export function PremiumFabrics() {
 
         setFabrics(filterPublicFabrics(data.items || []));
       } catch (err: unknown) {
+        if (cancelled) return;
         const message =
           (err as ApiError)?.message ||
           (err instanceof Error ? err.message : "Failed to load fabrics");
         setError(message);
       } finally {
-        setLoading(false);
-      }
-    };
-
-    const fetchMaterials = async () => {
-      try {
-        const data = await api.get<MaterialOption[]>("/api/filters/materials");
-        if (Array.isArray(data)) {
-          setMaterials(data);
+        if (!cancelled) {
+          setLoading(false);
         }
-      } catch {
-        // Materials fetch is non-critical; filters will gracefully fall back
-        console.warn("Failed to fetch materials for filters");
       }
     };
 
     fetchFabrics();
-    fetchMaterials();
-  }, []);
 
-  const filteredItems = useMemo(
-    () => filterFabricsByMaterial(fabrics, selectedFilter),
-    [fabrics, selectedFilter],
-  );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [emblaRef, emblaApi] = useEmblaCarousel(
     {
       align: "start",
       containScroll: "trimSnaps",
       dragFree: false,
-      loop: filteredItems.length > 1,
+      loop: fabrics.length > 1,
       slidesToScroll: 1,
       direction: locale === "ar" ? "rtl" : "ltr",
       breakpoints: {
@@ -257,7 +224,7 @@ export function PremiumFabrics() {
     if (emblaApi) {
       emblaApi.reInit({ direction: locale === "ar" ? "rtl" : "ltr" });
     }
-  }, [filteredItems, emblaApi, locale]);
+  }, [fabrics, emblaApi, locale]);
 
   if (loading) {
     return (
@@ -265,7 +232,7 @@ export function PremiumFabrics() {
         id="all-fabrics"
         className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16"
       >
-        <HomeSectionSkeleton showFilters cardCount={4} />
+        <HomeSectionSkeleton showFilters={false} cardCount={4} />
       </section>
     );
   }
@@ -318,41 +285,7 @@ export function PremiumFabrics() {
           </Link>
         </div>
 
-        <div className="flex gap-2 xs:gap-2.5 sm:gap-3 mb-6 xs:mb-8 sm:mb-10 md:mb-12 lg:mb-(--space-40) overflow-x-auto pb-2 xs:pb-3">
-          <button
-            onClick={() => setSelectedFilter("all")}
-            className={`px-3 xs:px-4 py-1.5 xs:py-2 border border-(--color-border) text-[9px] xs:text-[9px] sm:text-[10px] md:text-[9px] lg:text-[10px] xl:text-[11px] uppercase tracking-[0.24em] whitespace-nowrap [font-family:var(--font-ui)] transition-all duration-200 font-normal cursor-pointer hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 ${
-              selectedFilter === "all"
-                ? "bg-black text-white border-black"
-                : "text-black hover:bg-black hover:text-white hover:border-black"
-            }`}
-          >
-            {t("filters.all")}
-          </button>
-          {materials.map((mat) => {
-            const label = locale === "ar" ? mat.nameAr || mat.name : mat.name;
-            return (
-              <button
-                key={mat._id}
-                onClick={() => setSelectedFilter(mat.name)}
-                className={`px-3 xs:px-4 py-1.5 xs:py-2 border border-(--color-border) text-[9px] xs:text-[9px] sm:text-[10px] md:text-[9px] lg:text-[10px] xl:text-[11px] uppercase tracking-[0.24em] whitespace-nowrap [font-family:var(--font-ui)] transition-all duration-200 font-normal cursor-pointer hover:-translate-y-0.5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 ${
-                  selectedFilter === mat.name
-                    ? "bg-black text-white border-black"
-                    : "text-black hover:bg-black hover:text-white hover:border-black"
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
-        {filteredItems.length === 0 ? (
-          <div className="text-center [font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted) py-8">
-            {t("emptyFilter")}
-          </div>
-        ) : (
-          <div className="relative group/carousel">
+        <div className="relative group/carousel">
             <button
               onClick={scrollPrev}
               disabled={!prevBtnEnabled}
@@ -413,7 +346,7 @@ export function PremiumFabrics() {
 
             <div className="overflow-hidden py-8 -my-8" ref={emblaRef}>
               <div className="flex will-change-transform -mx-1 xs:-mx-1.5 sm:-mx-2 md:-mx-2.5 lg:-mx-3">
-                {filteredItems.map((item) => {
+                {fabrics.map((item) => {
                   const { title, description } = getFabricDisplayFields(
                     item,
                     locale,
@@ -430,11 +363,10 @@ export function PremiumFabrics() {
                       ? item.listedByStore
                       : "";
                   const imageUrl = resolveMediaUrl(item.images?.[0]);
-                  const materialLabel = getMaterialLabel(
-                    item.material,
-                    materials,
-                    locale,
-                  );
+                  const materialLabel =
+                    locale === "ar"
+                      ? item.materialAr || item.material
+                      : item.material;
                   const hrefPath = `/fabrics/${item.slug}`;
                   const listingCut = getFabricDefaultCut(item);
                   const cutLabel = listingCut
@@ -539,9 +471,8 @@ export function PremiumFabrics() {
               </div>
             </div>
           </div>
-        )}
 
-        {filteredItems.length > 0 && dotCount > 0 && (
+        {fabrics.length > 0 && dotCount > 0 && (
           <div className="mt-6 flex justify-center gap-1.5 xs:mt-8 sm:mt-10 md:mt-12 lg:mt-(--space-32)">
             {Array.from({ length: dotCount }, (_, index) => (
               <button

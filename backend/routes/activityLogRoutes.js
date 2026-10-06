@@ -166,7 +166,7 @@ activityLogRouter.get(
   "/",
   expressAsyncHandler(async (req, res) => {
     const page = Math.max(1, Number(req.query.page) || 1);
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 40));
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 10));
     const skip = (page - 1) * limit;
 
     const filter = buildActivityFilter(req.query);

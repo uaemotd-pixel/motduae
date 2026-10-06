@@ -37,7 +37,11 @@ import { resolveReadyMadeImage } from "@/lib/readyMade";
 import OrderTimeline from "@/components/orders/OrderTimeline";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { Skeleton } from "@/components/ui/Skeleton";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [5, 10, 25, 50, 100];
+const PAGINATION_VISIBLE_AFTER = 5;
 function getApiErrMessage(err: unknown, fallback: string) {
   const msg = (err as { message?: string })?.message;
   if (msg) return msg;
@@ -156,21 +160,23 @@ export default function CustomerNotificationPage() {
     items: sortedItems,
     unreadCount,
     loading,
-    loadingMore,
     error,
-    hasMore,
-    loadMore,
+    currentPage,
+    totalPages,
+    totalItems,
+    pageSize,
+    goToPage,
+    changeLimit,
     applyFilters,
     markAsRead,
     markAllAsRead,
     deleteNotification,
   } = useNotifications({
     audience: "customer",
-    initialFilters: { page: 1, limit: 20 },
+    initialFilters: { page: 1, limit: DEFAULT_PAGE_SIZE },
     refreshListOnPoll: true,
     pollIntervalMs: 30000,
   });
-
   const handleFilterChange = async (
     nextRead: "" | "true" | "false",
     nextSearch: string,
@@ -467,21 +473,22 @@ export default function CustomerNotificationPage() {
             );
           })}
 
-          {hasMore && (
-            <div className="flex justify-center pt-2">
-              <button
-                type="button"
-                disabled={loadingMore}
-                onClick={loadMore}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                {loadingMore ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : null}
-                {t("loadMore")}
-              </button>
-            </div>
-          )}
+          {totalItems > PAGINATION_VISIBLE_AFTER ? (
+            <GlobalPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={(page) => {
+                void goToPage(page);
+              }}
+              showItemsPerPage
+              itemsPerPage={pageSize}
+              onItemsPerPageChange={(limit) => {
+                void changeLimit(limit);
+              }}
+              itemsPerPageOptions={PAGE_SIZE_OPTIONS}
+              totalItems={totalItems}
+            />
+          ) : null}
         </div>
       )}
       <ImageModal

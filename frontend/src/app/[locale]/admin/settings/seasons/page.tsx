@@ -61,7 +61,7 @@ export default function AdminSettingsSeasonsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(5);
 
   const [createName, setCreateName] = useState("");
   const [createNameAr, setCreateNameAr] = useState("");

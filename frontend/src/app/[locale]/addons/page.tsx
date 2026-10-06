@@ -63,61 +63,8 @@ interface FilterState {
 const PRICE_MIN = 0;
 const PRICE_MAX = 25000;
 const PRICE_STEP = 10;
-
-function addonMatchesCatalogOption(
-  addon: AddOnListItem,
-  option: FilterOption,
-  field: "category" | "material" | "design" | "season" | "tag",
-): boolean {
-  const values: Record<typeof field, { value?: string; valueAr?: string }> = {
-    category: { value: addon.category, valueAr: addon.categoryAr },
-    material: { value: addon.material, valueAr: addon.materialAr },
-    design: { value: addon.design, valueAr: addon.designAr },
-    season: { value: addon.season, valueAr: addon.seasonAr },
-    tag: { value: addon.tag, valueAr: addon.tagAr },
-  };
-  const { value, valueAr } = values[field];
-
-  if (!value && !valueAr) return false;
-
-  return (
-    option._id === value ||
-    option.name === value ||
-    (!!valueAr && (option.nameAr === valueAr || option.name === valueAr))
-  );
-}
-
-function addonMatchesColorValue(
-  addonColors: string[] | undefined,
-  colorVal: string,
-): boolean {
-  if (!addonColors || addonColors.length === 0) return false;
-  return addonColors.some((col) => {
-    const normalized = col.toLowerCase();
-    return (
-      normalized.includes(colorVal.toLowerCase()) ||
-      colorVal.toLowerCase().includes(normalized)
-    );
-  });
-}
-
-function addonMatchesColorFilter(
-  addon: AddOnListItem,
-  selectedColors: string[],
-): boolean {
-  if (selectedColors.length === 0) return true;
-  return selectedColors.some((colorVal) => {
-    if (addonMatchesColorValue(addon.colors, colorVal)) return true;
-    const colorObj = colors.find((c) => c.value === colorVal);
-    if (!colorObj) return false;
-    const nameLower = addon.name.toLowerCase();
-    const nameArLower = addon.nameAr ? addon.nameAr.toLowerCase() : "";
-    return (
-      nameLower.includes(colorObj.en.toLowerCase()) ||
-      (colorObj.ar && nameArLower.includes(colorObj.ar))
-    );
-  });
-}
+const DEFAULT_PAGE_SIZE = 12;
+const PAGE_SIZE_OPTIONS = [5, 10, 12, 25, 50, 100] as const;
 
 const SearchOffIcon = () => (
   <svg
@@ -560,7 +507,24 @@ export default function AddOnsCatalogPage() {
 
   const [sortBy, setSortBy] = useState("newest"); // newest, price-low, price-high
   const [currentPage, setCurrentPage] = useState(1);
-  const productsPerPage = 12;
+  const [productsPerPage, setProductsPerPage] = useState(DEFAULT_PAGE_SIZE);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [facets, setFacets] = useState<{
+    categories: Record<string, number>;
+    materials: Record<string, number>;
+    designs: Record<string, number>;
+    seasons: Record<string, number>;
+    tags: Record<string, number>;
+    colors: Record<string, number>;
+  }>({
+    categories: {},
+    materials: {},
+    designs: {},
+    seasons: {},
+    tags: {},
+    colors: {},
+  });
 
   const handleShare = useCallback(
     async (hrefPath: string) => {
@@ -599,32 +563,100 @@ export default function AddOnsCatalogPage() {
     setMounted(true);
   }, []);
 
-  // Fetch all addons from API
+  // Fetch addons (server-side pagination + filters)
   useEffect(() => {
+    let cancelled = false;
+
     const fetchAddons = async () => {
       try {
         setLoading(true);
         setFetchError(null);
+
+        const params = new URLSearchParams({
+          page: String(currentPage),
+          limit: String(productsPerPage),
+          sort: sortBy,
+        });
+
+        if (filters.categories.length > 0) {
+          params.set("categories", filters.categories.join(","));
+        }
+        if (filters.materials.length > 0) {
+          params.set("materials", filters.materials.join(","));
+        }
+        if (filters.designs.length > 0) {
+          params.set("designs", filters.designs.join(","));
+        }
+        if (filters.seasons.length > 0) {
+          params.set("seasons", filters.seasons.join(","));
+        }
+        if (filters.tags.length > 0) {
+          params.set("tags", filters.tags.join(","));
+        }
+        if (filters.colors.length > 0) {
+          params.set("colors", filters.colors.join(","));
+        }
+        if (filters.minPrice > PRICE_MIN) {
+          params.set("minPrice", String(filters.minPrice));
+        }
+        if (filters.maxPrice < PRICE_MAX) {
+          params.set("maxPrice", String(filters.maxPrice));
+        }
+        if (filters.inStockOnly) {
+          params.set("inStockOnly", "true");
+        }
+
         const data = await api.get<{
           success: boolean;
           items: AddOnListItem[];
-        }>("/api/addons?limit=100");
+          total?: number;
+          totalPages?: number;
+          facets?: {
+            categories?: Record<string, number>;
+            materials?: Record<string, number>;
+            designs?: Record<string, number>;
+            seasons?: Record<string, number>;
+            tags?: Record<string, number>;
+            colors?: Record<string, number>;
+          };
+        }>(`/api/addons?${params.toString()}`);
 
+        if (cancelled) return;
         if (!data?.success) {
           throw new Error("Failed to load addons");
         }
+
         setAddons(data.items || []);
+        setTotalProducts(Number(data.total) || 0);
+        setTotalPages(Number(data.totalPages) || 0);
+        setFacets({
+          categories: data.facets?.categories || {},
+          materials: data.facets?.materials || {},
+          designs: data.facets?.designs || {},
+          seasons: data.facets?.seasons || {},
+          tags: data.facets?.tags || {},
+          colors: data.facets?.colors || {},
+        });
       } catch (err: unknown) {
+        if (cancelled) return;
         const message =
           (err as ApiError)?.message ||
           (err instanceof Error ? err.message : "Something went wrong");
         setFetchError(message);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
-    fetchAddons();
-  }, []);
+
+    const timer = setTimeout(fetchAddons, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [currentPage, productsPerPage, filters, sortBy]);
 
   useEffect(() => {
     const fetchFilters = async () => {
@@ -657,64 +689,62 @@ export default function AddOnsCatalogPage() {
     fetchFilters();
   }, []);
 
-  const categoryOptions = useMemo(() => {
-    return categories.map((cat) => ({
-      id: cat._id,
-      label: getFilterOptionLabel(cat, isAr),
-      count: addons.filter((addon) =>
-        addonMatchesCatalogOption(addon, cat, "category"),
-      ).length,
-    }));
-  }, [categories, addons, isAr]);
+  const categoryOptions = useMemo(
+    () =>
+      categories.map((cat) => ({
+        id: cat._id,
+        label: getFilterOptionLabel(cat, isAr),
+        count: facets.categories[cat._id] ?? 0,
+      })),
+    [categories, facets.categories, isAr],
+  );
 
-  const materialOptions = useMemo(() => {
-    return materials.map((mat) => ({
-      id: mat._id,
-      label: getFilterOptionLabel(mat, isAr),
-      count: addons.filter((addon) =>
-        addonMatchesCatalogOption(addon, mat, "material"),
-      ).length,
-    }));
-  }, [materials, addons, isAr]);
+  const materialOptions = useMemo(
+    () =>
+      materials.map((mat) => ({
+        id: mat._id,
+        label: getFilterOptionLabel(mat, isAr),
+        count: facets.materials[mat._id] ?? 0,
+      })),
+    [materials, facets.materials, isAr],
+  );
 
-  const designOptions = useMemo(() => {
-    return designs.map((design) => ({
-      id: design._id,
-      label: getFilterOptionLabel(design, isAr),
-      count: addons.filter((addon) =>
-        addonMatchesCatalogOption(addon, design, "design"),
-      ).length,
-    }));
-  }, [designs, addons, isAr]);
+  const designOptions = useMemo(
+    () =>
+      designs.map((design) => ({
+        id: design._id,
+        label: getFilterOptionLabel(design, isAr),
+        count: facets.designs[design._id] ?? 0,
+      })),
+    [designs, facets.designs, isAr],
+  );
 
-  const seasonOptions = useMemo(() => {
-    return seasons.map((sea) => ({
-      id: sea._id,
-      label: getFilterOptionLabel(sea, isAr),
-      count: addons.filter((addon) =>
-        addonMatchesCatalogOption(addon, sea, "season"),
-      ).length,
-    }));
-  }, [seasons, addons, isAr]);
+  const seasonOptions = useMemo(
+    () =>
+      seasons.map((sea) => ({
+        id: sea._id,
+        label: getFilterOptionLabel(sea, isAr),
+        count: facets.seasons[sea._id] ?? 0,
+      })),
+    [seasons, facets.seasons, isAr],
+  );
 
-  const tagOptions = useMemo(() => {
-    return tags.map((tag) => ({
-      id: tag._id,
-      label: getFilterOptionLabel(tag, isAr),
-      count: addons.filter((addon) =>
-        addonMatchesCatalogOption(addon, tag, "tag"),
-      ).length,
-    }));
-  }, [tags, addons, isAr]);
+  const tagOptions = useMemo(
+    () =>
+      tags.map((tag) => ({
+        id: tag._id,
+        label: getFilterOptionLabel(tag, isAr),
+        count: facets.tags[tag._id] ?? 0,
+      })),
+    [tags, facets.tags, isAr],
+  );
 
   const colorCounts = useMemo(() => {
     return colors.reduce<Record<string, number>>((acc, color) => {
-      acc[color.value] = addons.filter((addon) =>
-        addonMatchesColorFilter(addon, [color.value]),
-      ).length;
+      acc[color.value] = facets.colors[color.value.toLowerCase()] ?? 0;
       return acc;
     }, {});
-  }, [addons]);
+  }, [facets.colors]);
 
   const getOptionLabel = useCallback(
     (options: FilterOption[], id: string) => {
@@ -855,83 +885,9 @@ export default function AddOnsCatalogPage() {
     };
   }, [mobileFiltersOpen]);
 
-  // Client-side filtering & sorting
-  const filteredProducts = useMemo(() => {
-    let result = addons.filter((item) => {
-      if (!addonMatchesColorFilter(item, filters.colors)) return false;
-
-      if (filters.categories.length > 0) {
-        const isMatch = filters.categories.some((catId) => {
-          const cat = categories.find((c) => c._id === catId);
-          return cat ? addonMatchesCatalogOption(item, cat, "category") : false;
-        });
-        if (!isMatch) return false;
-      }
-
-      if (filters.materials.length > 0) {
-        const isMatch = filters.materials.some((matId) => {
-          const mat = materials.find((m) => m._id === matId);
-          return mat ? addonMatchesCatalogOption(item, mat, "material") : false;
-        });
-        if (!isMatch) return false;
-      }
-
-      if (filters.designs.length > 0) {
-        const isMatch = filters.designs.some((designId) => {
-          const design = designs.find((d) => d._id === designId);
-          return design
-            ? addonMatchesCatalogOption(item, design, "design")
-            : false;
-        });
-        if (!isMatch) return false;
-      }
-
-      if (filters.seasons.length > 0) {
-        const isMatch = filters.seasons.some((seasonId) => {
-          const season = seasons.find((s) => s._id === seasonId);
-          return season
-            ? addonMatchesCatalogOption(item, season, "season")
-            : false;
-        });
-        if (!isMatch) return false;
-      }
-
-      if (filters.tags.length > 0) {
-        const isMatch = filters.tags.some((tagId) => {
-          const tag = tags.find((t) => t._id === tagId);
-          return tag ? addonMatchesCatalogOption(item, tag, "tag") : false;
-        });
-        if (!isMatch) return false;
-      }
-
-      const price = item.price ?? 0;
-      if (price < filters.minPrice || price > filters.maxPrice) return false;
-
-      if (filters.inStockOnly && item.stock === 0) return false;
-
-      return true;
-    });
-
-    // Sorting
-    if (sortBy === "price-low") {
-      result.sort((a, b) => a.price - b.price);
-    } else if (sortBy === "price-high") {
-      result.sort((a, b) => b.price - a.price);
-    } else {
-      // Default: newest
-      result.sort((a, b) => b._id.localeCompare(a._id));
-    }
-
-    return result;
-  }, [addons, filters, sortBy, categories, materials, designs, seasons, tags]);
-
-  // Pagination calculation
-  const startIndex = (currentPage - 1) * productsPerPage;
-  const paginatedProducts = useMemo(() => {
-    return filteredProducts.slice(startIndex, startIndex + productsPerPage);
-  }, [filteredProducts, startIndex]);
-
-  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
+  const startIndex =
+    totalProducts === 0 ? 0 : (currentPage - 1) * productsPerPage;
+  const endIndex = Math.min(startIndex + addons.length, totalProducts);
 
   useCatalogScrollReset(
     mounted,
@@ -944,6 +900,17 @@ export default function AddOnsCatalogPage() {
   const handlePageChange = (value: number) => {
     setCurrentPage(value);
   };
+
+  const handlePageSizeChange = (value: number) => {
+    setProductsPerPage(value);
+    setCurrentPage(1);
+  };
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   if (!mounted) return null;
 
@@ -1442,8 +1409,8 @@ export default function AddOnsCatalogPage() {
                 <div className="flex items-center justify-between gap-2 sm:gap-6 w-full sm:w-auto min-w-0">
                   <span className="text-[9px] xs:text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.18em] uppercase text-[#7A7A72] font-mono truncate">
                     {isAr
-                      ? `عرض ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredProducts.length)} من ${filteredProducts.length} إضافات`
-                      : `Showing ${startIndex + 1}-${Math.min(startIndex + productsPerPage, filteredProducts.length)} of ${filteredProducts.length} products`}
+                      ? `عرض ${totalProducts === 0 ? 0 : startIndex + 1}-${endIndex} من ${totalProducts} إضافات`
+                      : `Showing ${totalProducts === 0 ? 0 : startIndex + 1}-${endIndex} of ${totalProducts} products`}
                   </span>
                   <select
                     value={sortBy}
@@ -1539,8 +1506,8 @@ export default function AddOnsCatalogPage() {
                     className="flex-[1.4] rounded-full bg-black px-3 sm:px-4 py-2.5 sm:py-3 text-[9px] xs:text-[10px] tracking-[0.14em] sm:tracking-[0.18em] uppercase text-white transition-colors hover:bg-[#2A2A28] cursor-pointer"
                   >
                     {isAr
-                      ? `عرض ${filteredProducts.length} منتج`
-                      : `Show ${filteredProducts.length} products`}
+                      ? `عرض ${totalProducts} منتج`
+                      : `Show ${totalProducts} products`}
                   </button>
                 </div>
               </div>
@@ -1570,7 +1537,7 @@ export default function AddOnsCatalogPage() {
                     {isAr ? "إعادة المحاولة" : "Try Again"}
                   </button>
                 </div>
-              ) : filteredProducts.length === 0 ? (
+              ) : addons.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-center py-28">
                   <SearchOffIcon />
                   <h3 className="text-[18px] md:text-[22px] uppercase tracking-widest text-black mb-3">
@@ -1591,7 +1558,7 @@ export default function AddOnsCatalogPage() {
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-2.5 xs:gap-3 sm:gap-5 lg:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {paginatedProducts.map((product) => {
+                    {addons.map((product) => {
                       const title = isAr
                         ? product.nameAr || product.name
                         : product.name;
@@ -1718,11 +1685,30 @@ export default function AddOnsCatalogPage() {
                     })}
                   </div>
 
-                  <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={handlePageChange}
-                  />
+                  <div className="mt-12 flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-[#E4E0D8]">
+                    <label className="flex items-center gap-2 text-[10px] sm:text-[11px] tracking-[0.14em] uppercase text-[#7A7A72] font-mono">
+                      <span>{isAr ? "لكل صفحة" : "Per page"}</span>
+                      <select
+                        value={productsPerPage}
+                        onChange={(e) =>
+                          handlePageSizeChange(Number(e.target.value))
+                        }
+                        className="bg-transparent border border-[#E4E0D8] rounded-lg px-2 py-1.5 text-black focus:outline-none cursor-pointer"
+                      >
+                        {PAGE_SIZE_OPTIONS.map((size) => (
+                          <option key={size} value={size}>
+                            {size}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      onPageChange={handlePageChange}
+                    />
+                  </div>
                 </>
               )}
             </div>

@@ -862,17 +862,32 @@ orderRoutes.post("/custom", isAuth, requireEmailVerified, async (req, res) => {
 
 orderRoutes.get("/custom/mine", isAuth, async (req, res) => {
   try {
-    const orders = await CustomOrder.find(mineOrderFilter(req.user))
-      .sort({ createdAt: -1 })
-      .populate("tailorShopId", "name nameAr slug")
-      .populate("items.tailorShopId", "name nameAr slug")
-      .populate("designId", "images")
-      .populate("fabricId", "images")
-      .populate("items.designId", "images")
-      .populate("items.fabricId", "images")
-      .select(
-        "_id createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters leftoverMeters selectedCuts pricing tailorShopId userId items addons",
-      );
+    const ORDERS_DEFAULT_LIMIT = 10;
+    const ORDERS_MAX_LIMIT = 100;
+    const pageNumber = Math.max(Number(req.query.page) || 1, 1);
+    const limitNumber = Math.min(
+      Math.max(Number(req.query.limit) || ORDERS_DEFAULT_LIMIT, 1),
+      ORDERS_MAX_LIMIT,
+    );
+    const skip = (pageNumber - 1) * limitNumber;
+    const filter = mineOrderFilter(req.user);
+
+    const [orders, total] = await Promise.all([
+      CustomOrder.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNumber)
+        .populate("tailorShopId", "name nameAr slug")
+        .populate("items.tailorShopId", "name nameAr slug")
+        .populate("designId", "images")
+        .populate("fabricId", "images")
+        .populate("items.designId", "images")
+        .populate("items.fabricId", "images")
+        .select(
+          "_id createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters leftoverMeters selectedCuts pricing tailorShopId userId items addons",
+        ),
+      CustomOrder.countDocuments(filter),
+    ]);
 
     const formatted = orders.map((order) => ({
       ...formatCustomOrderListItem(order),
@@ -881,6 +896,10 @@ orderRoutes.get("/custom/mine", isAuth, async (req, res) => {
 
     res.json({
       success: true,
+      page: pageNumber,
+      limit: limitNumber,
+      total,
+      totalPages: Math.ceil(total / limitNumber) || 0,
       orders: formatted,
     });
   } catch (error) {
@@ -888,6 +907,117 @@ orderRoutes.get("/custom/mine", isAuth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch custom orders",
+    });
+  }
+});
+
+/** Unified customer orders feed (custom + retail), date-sorted with pagination. */
+orderRoutes.get("/mine", isAuth, async (req, res) => {
+  try {
+    const ORDERS_DEFAULT_LIMIT = 10;
+    const ORDERS_MAX_LIMIT = 100;
+    const pageNumber = Math.max(Number(req.query.page) || 1, 1);
+    const limitNumber = Math.min(
+      Math.max(Number(req.query.limit) || ORDERS_DEFAULT_LIMIT, 1),
+      ORDERS_MAX_LIMIT,
+    );
+    const skip = (pageNumber - 1) * limitNumber;
+    const filter = mineOrderFilter(req.user);
+
+    const [customMeta, retailMeta] = await Promise.all([
+      CustomOrder.find(filter).select("_id createdAt").lean(),
+      RetailOrder.find(filter).select("_id createdAt").lean(),
+    ]);
+
+    const merged = [
+      ...customMeta.map((order) => ({
+        _id: order._id,
+        createdAt: order.createdAt,
+        type: "custom",
+      })),
+      ...retailMeta.map((order) => ({
+        _id: order._id,
+        createdAt: order.createdAt,
+        type: "retail",
+      })),
+    ].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+
+    const total = merged.length;
+    const pageSlice = merged.slice(skip, skip + limitNumber);
+    const customIds = pageSlice
+      .filter((item) => item.type === "custom")
+      .map((item) => item._id);
+    const retailIds = pageSlice
+      .filter((item) => item.type === "retail")
+      .map((item) => item._id);
+
+    const [customOrders, retailOrdersRaw] = await Promise.all([
+      customIds.length
+        ? CustomOrder.find({ _id: { $in: customIds } })
+            .populate("tailorShopId", "name nameAr slug")
+            .populate("items.tailorShopId", "name nameAr slug")
+            .populate("designId", "images")
+            .populate("fabricId", "images")
+            .populate("items.designId", "images")
+            .populate("items.fabricId", "images")
+            .select(
+              "_id createdAt status fabricSource designId fabricId designSnapshot fabricSnapshot fabricMeters leftoverMeters selectedCuts pricing tailorShopId userId items addons",
+            )
+        : Promise.resolve([]),
+      retailIds.length
+        ? RetailOrder.find({ _id: { $in: retailIds } }).select(
+            "_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments",
+          )
+        : Promise.resolve([]),
+    ]);
+
+    const hydratedRetail = retailOrdersRaw.length
+      ? await hydrateRetailOrders(retailOrdersRaw)
+      : [];
+
+    const customById = new Map(
+      customOrders.map((order) => [String(order._id), order]),
+    );
+    const retailById = new Map(
+      hydratedRetail.map((order) => [String(order._id), order]),
+    );
+
+    const orders = pageSlice
+      .map((item) => {
+        if (item.type === "custom") {
+          const order = customById.get(String(item._id));
+          if (!order) return null;
+          return {
+            type: "custom",
+            ...formatCustomOrderListItem(order),
+            userId: order.userId,
+          };
+        }
+        const order = retailById.get(String(item._id));
+        if (!order) return null;
+        return {
+          type: "retail",
+          ...formatRetailOrderListItem(order),
+        };
+      })
+      .filter(Boolean);
+
+    res.json({
+      success: true,
+      page: pageNumber,
+      limit: limitNumber,
+      total,
+      totalPages: Math.ceil(total / limitNumber) || 0,
+      orders,
+    });
+  } catch (error) {
+    console.error("GET /api/orders/mine error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch orders",
     });
   }
 });
@@ -1065,16 +1195,38 @@ orderRoutes.post("/retail", isAuth, requireEmailVerified, async (req, res) => {
 // This route is for getting only my orders means the logged-in user orders
 orderRoutes.get("/retail/mine", isAuth, async (req, res) => {
   try {
-    const orders = await RetailOrder.find(mineOrderFilter(req.user))
-      .sort({ createdAt: -1 })
-      .select(
-        "_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments",
-      );
+    const ORDERS_DEFAULT_LIMIT = 10;
+    const ORDERS_MAX_LIMIT = 100;
+    const pageNumber = Math.max(Number(req.query.page) || 1, 1);
+    const limitNumber = Math.min(
+      Math.max(Number(req.query.limit) || ORDERS_DEFAULT_LIMIT, 1),
+      ORDERS_MAX_LIMIT,
+    );
+    const skip = (pageNumber - 1) * limitNumber;
+    const filter = mineOrderFilter(req.user);
+
+    const [orders, total] = await Promise.all([
+      RetailOrder.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNumber)
+        .select(
+          "_id createdAt status totalPrice currency orderItems itemsPrice shippingPrice vatAmount vatRate statusHistory shipments",
+        ),
+      RetailOrder.countDocuments(filter),
+    ]);
 
     const hydrated = await hydrateRetailOrders(orders);
     const formatted = hydrated.map((order) => formatRetailOrderListItem(order));
 
-    res.json({ success: true, orders: formatted });
+    res.json({
+      success: true,
+      page: pageNumber,
+      limit: limitNumber,
+      total,
+      totalPages: Math.ceil(total / limitNumber) || 0,
+      orders: formatted,
+    });
   } catch (error) {
     console.error("GET /retail/mine error:", error);
     res
