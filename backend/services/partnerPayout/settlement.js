@@ -129,7 +129,7 @@ async function loadOrderProductLabels(earnings) {
           },
         })
           .select(
-            "designSnapshot.name fabricSnapshot.name items.designSnapshot.name items.fabricSnapshot.name",
+            "publicOrderId designSnapshot.name fabricSnapshot.name items.designSnapshot.name items.fabricSnapshot.name",
           )
           .lean()
       : Promise.resolve([]),
@@ -139,7 +139,7 @@ async function loadOrderProductLabels(earnings) {
             $in: uniqueRetail.filter((id) => mongoose.isValidObjectId(id)),
           },
         })
-          .select("items.name items.fabricShopId")
+          .select("publicOrderId items.name items.fabricShopId")
           .lean()
       : Promise.resolve([]),
   ]);
@@ -148,8 +148,27 @@ async function loadOrderProductLabels(earnings) {
     customs.map((order) => [String(order._id), customOrderLabels(order)]),
   );
   const retailById = new Map(retails.map((order) => [String(order._id), order]));
+  const publicOrderIdById = new Map([
+    ...customs.map((order) => [String(order._id), order.publicOrderId || null]),
+    ...retails.map((order) => [String(order._id), order.publicOrderId || null]),
+  ]);
 
-  return { customById, retailById };
+  return { customById, retailById, publicOrderIdById };
+}
+
+async function attachPublicOrderIds(lines = []) {
+  if (!lines.length) return lines;
+  const labels = await loadOrderProductLabels(
+    lines.map((line) => ({
+      orderId: line.orderId,
+      orderType: line.orderType,
+    })),
+  );
+  return lines.map((line) => ({
+    ...line,
+    publicOrderId:
+      labels.publicOrderIdById?.get(String(line.orderId)) || null,
+  }));
 }
 
 function resolveProductName(earning, orderLabels) {
@@ -176,6 +195,7 @@ function serializeEarningLine(earning, productName = "") {
   return {
     earningId: String(earning._id),
     orderId: String(earning.orderId),
+    publicOrderId: earning.publicOrderId || null,
     orderType: earning.orderType,
     productName: productName || "",
     remainingFils: remaining.fils,
@@ -367,7 +387,11 @@ export async function getPartnerSettlement(partnerId, partnerKind) {
   for (const earning of earnings) {
     if (excluded.has(String(earning.orderId))) continue;
     const line = serializeEarningLine(
-      earning,
+      {
+        ...earning,
+        publicOrderId:
+          orderLabels.publicOrderIdById?.get(String(earning.orderId)) || null,
+      },
       resolveProductName(earning, orderLabels),
     );
     if (earning.status === "available" && (earning.remainingFils || 0) > 0) {
@@ -440,7 +464,11 @@ export async function listAllPartnerSettlements() {
     row.partnerName = row.partnerName || earning.partnerName;
     row.payeeName = row.payeeName || earning.partnerName;
     const line = serializeEarningLine(
-      earning,
+      {
+        ...earning,
+        publicOrderId:
+          orderLabels.publicOrderIdById?.get(String(earning.orderId)) || null,
+      },
       resolveProductName(earning, orderLabels),
     );
     if (earning.status === "available" && (earning.remainingFils || 0) > 0) {
@@ -574,13 +602,15 @@ async function hydratePayoutBatches(items) {
   const lines = ids.length
     ? await PartnerPayoutLine.find({ payoutId: { $in: ids } }).lean()
     : [];
+  const enrichedLines = await attachPublicOrderIds(lines);
   const linesByPayout = new Map();
-  for (const line of lines) {
+  for (const line of enrichedLines) {
     const key = String(line.payoutId);
     if (!linesByPayout.has(key)) linesByPayout.set(key, []);
     linesByPayout.get(key).push({
       earningId: String(line.earningId),
       orderId: String(line.orderId),
+      publicOrderId: line.publicOrderId || null,
       orderType: line.orderType,
       amountFils: line.amountFils,
       amountAed: filsToAed(line.amountFils),
@@ -601,6 +631,7 @@ async function hydratePayoutBatches(items) {
       lines: payoutLines,
       orders: payoutLines.map((line) => ({
         orderId: line.orderId,
+        publicOrderId: line.publicOrderId || null,
         orderType: line.orderType,
         amount: line.amountAed,
         amountFils: line.amountFils,
@@ -694,7 +725,19 @@ export async function getCompletedPayoutTotals(partnerId, partnerKind) {
     ? await PartnerPayoutLine.find({ payoutId: { $in: ids } }).lean()
     : [];
 
-  return foldPayoutTotals(batches, lines, filsToAed);
+  const publicIds = await loadOrderProductLabels(
+    lines.map((line) => ({
+      orderId: line.orderId,
+      orderType: line.orderType,
+    })),
+  );
+  const enriched = lines.map((line) => ({
+    ...line,
+    publicOrderId:
+      publicIds.publicOrderIdById?.get(String(line.orderId)) || null,
+  }));
+
+  return foldPayoutTotals(batches, enriched, filsToAed);
 }
 
 export async function findPendingPayoutRequest(partnerId, partnerKind) {
@@ -716,9 +759,11 @@ export async function getPayoutById(payoutId) {
     .lean();
   if (!found) return null;
   const lines = await PartnerPayoutLine.find({ payoutId: found._id }).lean();
-  const payoutLines = lines.map((line) => ({
+  const enriched = await attachPublicOrderIds(lines);
+  const payoutLines = enriched.map((line) => ({
     earningId: String(line.earningId),
     orderId: String(line.orderId),
+    publicOrderId: line.publicOrderId || null,
     orderType: line.orderType,
     amountFils: line.amountFils,
     amountAed: filsToAed(line.amountFils),
@@ -735,6 +780,7 @@ export async function getPayoutById(payoutId) {
     lines: payoutLines,
     orders: payoutLines.map((line) => ({
       orderId: line.orderId,
+      publicOrderId: line.publicOrderId || null,
       orderType: line.orderType,
       amount: line.amountAed,
       amountFils: line.amountFils,

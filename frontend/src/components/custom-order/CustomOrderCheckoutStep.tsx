@@ -602,6 +602,7 @@ export default function CustomOrderCheckoutStep() {
       let response: {
         success: boolean;
         orderId: string;
+        publicOrderId?: string | null;
         trackingUrl?: string;
         message?: string;
       };
@@ -630,7 +631,11 @@ export default function CustomOrderCheckoutStep() {
         throw new Error(response.message || t("submitError"));
       }
 
-      setOrderId(response.orderId);
+      setOrderId(
+        typeof response.publicOrderId === "string" && response.publicOrderId
+          ? response.publicOrderId
+          : String(response.orderId || ""),
+      );
       setTrackingUrl(
         typeof response.trackingUrl === "string" ? response.trackingUrl : null,
       );

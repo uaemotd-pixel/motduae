@@ -2883,11 +2883,17 @@ adminRouter.get(
 
     const filter = {};
 
-    if (orderId && mongoose.Types.ObjectId.isValid(String(orderId))) {
-      filter._id = String(orderId);
+    if (orderId) {
+      const raw = String(orderId).trim();
+      const normalized = raw.toUpperCase().replace(/^#/, "");
+      if (/^RO-\d+[A-Z]{3}$/.test(normalized)) {
+        filter.publicOrderId = normalized;
+      } else if (mongoose.Types.ObjectId.isValid(raw)) {
+        filter._id = raw;
+      }
     }
 
-    if (!filter._id && (from || to)) {
+    if (!filter._id && !filter.publicOrderId && (from || to)) {
       const parsed = applyCreatedAtFilter(from, to);
       if (parsed.error) {
         res.status(400).send({ message: parsed.error });
@@ -2898,7 +2904,7 @@ adminRouter.get(
       }
     }
 
-    if (!filter._id && customer) {
+    if (!filter._id && !filter.publicOrderId && customer) {
       const customerQuery = String(customer).trim();
 
       if (mongoose.Types.ObjectId.isValid(customerQuery)) {
@@ -2928,7 +2934,7 @@ adminRouter.get(
     // add-ons, and fabric-by-meter. Do not scope to MOTD Admin–owned IDs only —
     // that hid fabric-shop ready-made / add-on checkouts.
     const listFilter = { ...filter };
-    if (!listFilter._id && status) {
+    if (!listFilter._id && !listFilter.publicOrderId && status) {
       if (!RETAIL_ORDER_STATUSES.includes(status)) {
         res.status(400).send({
           message: `Invalid status. Allowed values: ${RETAIL_ORDER_STATUSES.join(", ")}`,
@@ -3041,11 +3047,17 @@ adminRouter.get(
 
     const filter = {};
 
-    if (orderId && mongoose.Types.ObjectId.isValid(String(orderId))) {
-      filter._id = String(orderId);
+    if (orderId) {
+      const raw = String(orderId).trim();
+      const normalized = raw.toUpperCase().replace(/^#/, "");
+      if (/^CO-\d+[A-Z]{3}$/.test(normalized)) {
+        filter.publicOrderId = normalized;
+      } else if (mongoose.Types.ObjectId.isValid(raw)) {
+        filter._id = raw;
+      }
     }
 
-    if (!filter._id && (from || to)) {
+    if (!filter._id && !filter.publicOrderId && (from || to)) {
       const parsed = applyCreatedAtFilter(from, to);
       if (parsed.error) {
         res.status(400).send({ message: parsed.error });
@@ -3056,7 +3068,7 @@ adminRouter.get(
       }
     }
 
-    if (!filter._id && customer) {
+    if (!filter._id && !filter.publicOrderId && customer) {
       const customerQuery = String(customer).trim();
 
       if (mongoose.Types.ObjectId.isValid(customerQuery)) {
@@ -3083,7 +3095,7 @@ adminRouter.get(
     }
 
     const listFilter = { ...filter };
-    if (!listFilter._id && status) {
+    if (!listFilter._id && !listFilter.publicOrderId && status) {
       if (!CUSTOM_STATUSES.includes(status)) {
         res.status(400).send({
           message: `Invalid status. Allowed values: ${CUSTOM_STATUSES.join(", ")}`,
