@@ -73,7 +73,10 @@ const FormField = ({
   error?: string;
   children: React.ReactNode;
 }) => (
-  <div className="space-y-1.5">
+  <div
+    className="space-y-1.5"
+    data-field={name || undefined}
+  >
     <label
       htmlFor={name}
       className="block font-ui text-[10px] sm:text-xs uppercase tracking-widest text-gray-500"
@@ -83,7 +86,9 @@ const FormField = ({
     </label>
     {children}
     {error && (
-      <p className="text-red-500 text-[10px] sm:text-xs mt-1">{error}</p>
+      <p role="alert" className="text-red-500 text-[10px] sm:text-xs mt-1">
+        {error}
+      </p>
     )}
   </div>
 );
@@ -357,7 +362,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     }));
   };
 
-  const validate = (): { isValid: boolean; firstError?: string } => {
+  const validate = (): { isValid: boolean; firstError?: string; firstKey?: string } => {
     const errors: Record<string, string> = {};
 
     if (!form.name.trim()) errors.name = "Full name required";
@@ -381,15 +386,44 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     }
 
     setFieldErrors(errors);
-    const firstError = Object.values(errors).find(Boolean);
-    return { isValid: Object.keys(errors).length === 0, firstError };
+    const firstKey = Object.keys(errors).find((key) => Boolean(errors[key]));
+    const firstError = firstKey ? errors[firstKey] : undefined;
+    return {
+      isValid: Object.keys(errors).length === 0,
+      firstError,
+      firstKey,
+    };
+  };
+
+  const scrollToField = (fieldKey?: string) => {
+    if (!fieldKey || typeof document === "undefined") return;
+    requestAnimationFrame(() => {
+      const byData = document.querySelector(
+        `[data-field="${CSS.escape(fieldKey)}"]`,
+      ) as HTMLElement | null;
+      const byName = document.querySelector(
+        `[name="${CSS.escape(fieldKey)}"]`,
+      ) as HTMLElement | null;
+      const target = byData || byName;
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      const focusable = (byName ||
+        target.querySelector("input, button, select, textarea")) as
+        | HTMLElement
+        | null;
+      focusable?.focus?.({ preventScroll: true });
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { isValid, firstError } = validate();
+    const { isValid, firstError, firstKey } = validate();
     if (!isValid) {
-      toast.error(firstError || "Fill all required fields.", ERROR_TOAST);
+      toast.error(
+        firstError || "Please fill all required fields before saving.",
+        ERROR_TOAST,
+      );
+      scrollToField(firstKey);
       return;
     }
     setSubmitting(true);
@@ -440,7 +474,15 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
+        <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8" noValidate>
+          {Object.values(fieldErrors).some(Boolean) ? (
+            <div
+              role="alert"
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-[12px] sm:text-[13px] text-red-700 [font-family:var(--font-body)]"
+            >
+              Please fix the highlighted required fields before saving.
+            </div>
+          ) : null}
           <div className="space-y-3 sm:space-y-4">
             <h3 className="font-ui text-sm sm:text-base font-medium flex items-center gap-2">
               <User className="w-4 h-4 sm:w-5 sm:h-5" /> Personal Information
@@ -788,7 +830,12 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                       />
                     </FormField>
 
-                    <FormField label="Street" name={`address.${index}.street`}>
+                    <FormField
+                      label="Street"
+                      name={`address.${index}.street`}
+                      required
+                      error={fieldErrors[`address.${index}.street`]}
+                    >
                       <input
                         type="text"
                         name={`address.${index}.street`}
@@ -802,6 +849,8 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                     <FormField
                       label="Building"
                       name={`address.${index}.building`}
+                      required
+                      error={fieldErrors[`address.${index}.building`]}
                     >
                       <input
                         type="text"
@@ -848,7 +897,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
               size="md"
               fullWidth
               className="sm:w-auto"
-              disabled={submitting || !form.dob}
+              disabled={submitting}
             >
               {submitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

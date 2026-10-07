@@ -489,7 +489,7 @@ export default function TailorShopForm() {
 
   if (loading) {
     return (
-      <div className="w-full max-w-5xl border border-(--color-border) bg-white p-8">
+      <div className="w-full border border-(--color-border) bg-white p-8">
         <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
           {t("loading")}
         </p>
@@ -499,7 +499,7 @@ export default function TailorShopForm() {
 
   if (loadError) {
     return (
-      <div className="w-full max-w-5xl border border-red-200 bg-red-50 p-8">
+      <div className="w-full border border-red-200 bg-red-50 p-8">
         <p className="[font-family:var(--font-body)] text-[14px] text-red-700">
           {loadError}
         </p>
@@ -508,7 +508,7 @@ export default function TailorShopForm() {
   }
 
   return (
-    <div className="w-full max-w-5xl">
+    <div className="w-full">
       <div className="mb-8">
         <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-3">
           {t("eyebrow")}

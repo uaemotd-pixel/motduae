@@ -54,21 +54,57 @@ const findOwnDesign = async (shopId, designId, res) => {
   return design;
 };
 
-// GET /api/tailor/designs — list own shop designs
+// GET /api/tailor/designs — list own shop designs (supports page/limit)
 tailorDesignRouter.get(
   "/",
   expressAsyncHandler(async (req, res) => {
     const shop = await resolveOwnShop(req, res);
     if (!shop) return;
 
-    const designs = await Design.find({ tailorShopId: shop._id }).sort({
-      createdAt: -1,
-    });
+    const paginate =
+      req.query.page != null && String(req.query.page) !== "";
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit, 10) || 10, 1),
+      100,
+    );
+    const skip = (page - 1) * limit;
+    const filter = { tailorShopId: shop._id };
+
+    let designsQuery = Design.find(filter).sort({ createdAt: -1 });
+    if (paginate) {
+      designsQuery = designsQuery.skip(skip).limit(limit);
+    }
+
+    const [designs, total] = await Promise.all([
+      designsQuery,
+      Design.countDocuments(filter),
+    ]);
 
     res.json({
       success: true,
       items: designs.map(formatDesign),
-      total: designs.length,
+      total,
+      page: paginate ? page : 1,
+      limit: paginate ? limit : total,
+      totalPages: paginate ? Math.ceil(total / limit) || 0 : total > 0 ? 1 : 0,
+    });
+  }),
+);
+
+// GET /api/tailor/designs/:id — single own design
+tailorDesignRouter.get(
+  "/:id",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await resolveOwnShop(req, res);
+    if (!shop) return;
+
+    const design = await findOwnDesign(shop._id, req.params.id, res);
+    if (!design) return;
+
+    res.json({
+      success: true,
+      item: formatDesign(design),
     });
   }),
 );

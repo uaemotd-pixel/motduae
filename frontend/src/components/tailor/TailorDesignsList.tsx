@@ -10,7 +10,7 @@ import { resolveMediaUrl } from "@/lib/media";
 import { ERROR_TOAST, SUCCESS_TOAST } from "@/lib/tailorPortalToast";
 import {
   deleteTailorDesign,
-  fetchTailorDesigns,
+  fetchTailorDesignsPage,
   formatEstimatedLeadTime,
   isShopMissingError,
   type TailorDesignProfile,
@@ -23,7 +23,10 @@ import {
 import { useParams } from "next/navigation";
 import { ImageModal } from "../shared/ImageModal";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Tag } from "@/components/ui/Tag";
+
+const DEFAULT_PAGE_SIZE = 10;
 
 export default function TailorDesignsList() {
   const t = useTranslations("TailorPortal.designs");
@@ -42,31 +45,48 @@ export default function TailorDesignsList() {
     url: string;
     name: string;
   } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
-  const loadDesigns = useCallback(async () => {
-    setLoading(true);
-    setShopMissing(false);
+  const loadDesigns = useCallback(
+    async (page = 1, limitOverride?: number) => {
+      setLoading(true);
+      setShopMissing(false);
+      const limit = limitOverride ?? pageSize;
 
-    try {
-      const items = await fetchTailorDesigns();
-      setDesigns(items);
-    } catch (err: unknown) {
-      if (isShopMissingError(err)) {
-        setShopMissing(true);
-      } else {
-        toast.error(
-          getApiErrorMessage(err, t("errors.loadFailed")),
-          ERROR_TOAST,
-        );
+      try {
+        const data = await fetchTailorDesignsPage({ page, limit });
+        setDesigns(data.items);
+        setTotalItems(data.total);
+        setTotalPages(data.totalPages);
+        setCurrentPage(data.page || page);
+        if (limitOverride != null) setPageSize(limit);
+      } catch (err: unknown) {
+        if (isShopMissingError(err)) {
+          setShopMissing(true);
+        } else {
+          toast.error(
+            getApiErrorMessage(err, t("errors.loadFailed")),
+            ERROR_TOAST,
+          );
+        }
+        setDesigns([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+    },
+    [pageSize, t],
+  );
 
   useEffect(() => {
-    loadDesigns();
-  }, [loadDesigns]);
+    void loadDesigns(1);
+    // Initial load only; later page/size changes call loadDesigns explicitly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openDeleteModal = (design: TailorDesignProfile) => {
     setItemToDelete(design);
@@ -83,9 +103,13 @@ export default function TailorDesignsList() {
     setDeletingId(design._id);
     try {
       await deleteTailorDesign(design._id);
-      setDesigns((prev) => prev.filter((item) => item._id !== design._id));
       toast.success(t("deleted"), SUCCESS_TOAST);
       setItemToDelete(null);
+      const nextPage =
+        designs.length === 1 && currentPage > 1
+          ? currentPage - 1
+          : currentPage;
+      await loadDesigns(nextPage);
     } catch (err: unknown) {
       toast.error(
         getApiErrorMessage(err, t("errors.deleteFailed")),
@@ -102,9 +126,9 @@ export default function TailorDesignsList() {
       : itemToDelete.name
     : "";
 
-  if (loading) {
+  if (loading && designs.length === 0) {
     return (
-      <div className="max-w-5xl border border-(--color-border) bg-white p-8">
+      <div className="w-full border border-(--color-border) bg-white p-8">
         <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
           {t("loading")}
         </p>
@@ -114,7 +138,7 @@ export default function TailorDesignsList() {
 
   if (shopMissing) {
     return (
-      <div className="max-w-2xl border border-(--color-border) bg-white p-8">
+      <div className="w-full max-w-2xl border border-(--color-border) bg-white p-8">
         <h1 className="[font-family:var(--font-display)] text-[28px] text-black mb-3">
           {t("shopRequiredTitle")}
         </h1>
@@ -132,7 +156,7 @@ export default function TailorDesignsList() {
   }
 
   return (
-    <div className="max-w-5xl">
+    <div className="w-full">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 sm:gap-4 mb-6 sm:mb-8">
         <div>
           <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-3">
@@ -157,7 +181,7 @@ export default function TailorDesignsList() {
         </Link>
       </div>
 
-      {designs.length === 0 ? (
+      {totalItems === 0 && !loading ? (
         <div className="border border-(--color-border) bg-white p-10 text-center">
           <p className="[font-family:var(--font-body)] text-[14px] text-(--color-grey-muted) mb-6">
             {t("empty")}
@@ -170,112 +194,130 @@ export default function TailorDesignsList() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-4">
-          {designs.map((design) => {
-            const name =
-              locale === "ar" ? design.nameAr || design.name : design.name;
-            const imageSrc =
-              resolveMediaUrl(design.images?.[0]) || "/images/dress-1.png";
-            const category = formatDesignCategory(design.category, locale);
+        <>
+          <div className="space-y-4">
+            {designs.map((design) => {
+              const name =
+                locale === "ar" ? design.nameAr || design.name : design.name;
+              const imageSrc =
+                resolveMediaUrl(design.images?.[0]) || "/images/dress-1.png";
+              const category = formatDesignCategory(design.category, locale);
 
-            return (
-              <div
-                key={design._id}
-                className="border border-(--color-border) bg-white p-3 sm:p-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-5"
-              >
-                <div className="flex gap-3 min-w-0 flex-1">
-                  <div className="w-20 h-20 sm:w-28 sm:h-28 shrink-0 bg-[#F0EBE3] overflow-hidden">
+              return (
+                <div
+                  key={design._id}
+                  className="border border-(--color-border) bg-white p-3 sm:p-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-5"
+                >
+                  <div className="flex gap-3 min-w-0 flex-1">
+                    <div className="w-20 h-20 sm:w-28 sm:h-28 shrink-0 bg-[#F0EBE3] overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setModalImage({ url: design.images[0], name })
+                        }
+                        className="block w-full h-full cursor-pointer"
+                      >
+                        <img
+                          src={imageSrc}
+                          alt={name}
+                          loading="lazy"
+                          className="w-full h-full object-cover object-top"
+                        />
+                      </button>
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start gap-2 mb-1.5">
+                        <h2 className="[font-family:var(--font-display)] text-[16px] sm:text-[20px] leading-snug text-black min-w-0">
+                          {name}
+                        </h2>
+                        <Tag
+                          size="sm"
+                          variant={design.isActive ? "solid" : "muted"}
+                          className="shrink-0 mt-0.5"
+                        >
+                          {design.isActive
+                            ? t("statusActive")
+                            : t("statusInactive")}
+                        </Tag>
+                      </div>
+                      <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.14em] text-(--color-grey-muted)">
+                        {category} · {locale === "ar" ? "من" : "From"}{" "}
+                        {formatDesignBasePrice(
+                          design.basePrice,
+                          locale,
+                          design.priceType,
+                        )}
+                        {commissionPercent > 0 ? (
+                          <>
+                            {" "}
+                            · {locale === "ar" ? "النهائي" : "Final"}{" "}
+                            {formatDesignBasePrice(
+                              applyMotdCommission(
+                                design.basePrice,
+                                commissionPercent,
+                              ),
+                              locale,
+                              design.priceType,
+                            )}
+                          </>
+                        ) : null}{" "}
+                        ·{" "}
+                        {formatEstimatedLeadTime(
+                          design.estimatedDaysMin ?? design.estimatedDays,
+                          design.estimatedDays,
+                          design.estimatedTimeUnit,
+                          {
+                            days: t("unitDays"),
+                            weeks: t("unitWeeks"),
+                          },
+                        )}
+                      </p>
+                      <p className="hidden sm:block [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) line-clamp-2 mt-1.5">
+                        {locale === "ar"
+                          ? design.descriptionAr || design.description
+                          : design.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 sm:flex-col sm:shrink-0 sm:w-28">
+                    <Link
+                      href={`/tailor/designs/${design._id}/edit`}
+                      className="flex-1 sm:flex-none text-center px-3 py-2 border border-black text-black text-[10px] tracking-[0.16em] uppercase hover:bg-black hover:text-white transition [font-family:var(--font-ui)]"
+                    >
+                      {t("edit")}
+                    </Link>
                     <button
                       type="button"
-                      onClick={() =>
-                        setModalImage({ url: design.images[0], name })
-                      }
-                      className="block w-full h-full cursor-pointer"
+                      onClick={() => openDeleteModal(design)}
+                      disabled={deletingId === design._id}
+                      className="flex-1 sm:flex-none px-3 py-2 border border-red-300 text-red-700 text-[10px] tracking-[0.16em] uppercase hover:bg-red-50 transition disabled:opacity-50 [font-family:var(--font-ui)]"
                     >
-                      <img
-                        src={imageSrc}
-                        alt={name}
-                        loading="lazy"
-                        className="w-full h-full object-cover object-top"
-                      />
+                      {deletingId === design._id ? t("deleting") : t("delete")}
                     </button>
                   </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start gap-2 mb-1.5">
-                      <h2 className="[font-family:var(--font-display)] text-[16px] sm:text-[20px] leading-snug text-black min-w-0">
-                        {name}
-                      </h2>
-                      <Tag
-                        size="sm"
-                        variant={design.isActive ? "solid" : "muted"}
-                        className="shrink-0 mt-0.5"
-                      >
-                        {design.isActive
-                          ? t("statusActive")
-                          : t("statusInactive")}
-                      </Tag>
-                    </div>
-                    <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.14em] text-(--color-grey-muted)">
-                      {category} · {locale === "ar" ? "من" : "From"}{" "}
-                      {formatDesignBasePrice(
-                        design.basePrice,
-                        locale,
-                        design.priceType,
-                      )}
-                      {commissionPercent > 0 ? (
-                        <>
-                          {" "}
-                          · {locale === "ar" ? "النهائي" : "Final"}{" "}
-                          {formatDesignBasePrice(
-                            applyMotdCommission(
-                              design.basePrice,
-                              commissionPercent,
-                            ),
-                            locale,
-                            design.priceType,
-                          )}
-                        </>
-                      ) : null}{" "}
-                      ·{" "}
-                      {formatEstimatedLeadTime(
-                        design.estimatedDaysMin ?? design.estimatedDays,
-                        design.estimatedDays,
-                        design.estimatedTimeUnit,
-                        {
-                          days: t("unitDays"),
-                          weeks: t("unitWeeks"),
-                        },
-                      )}
-                    </p>
-                    <p className="hidden sm:block [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) line-clamp-2 mt-1.5">
-                      {locale === "ar"
-                        ? design.descriptionAr || design.description
-                        : design.description}
-                    </p>
-                  </div>
                 </div>
+              );
+            })}
+          </div>
 
-                <div className="flex gap-2 sm:flex-col sm:shrink-0 sm:w-28">
-                  <Link
-                    href={`/tailor/designs/${design._id}/edit`}
-                    className="flex-1 sm:flex-none text-center px-3 py-2 border border-black text-black text-[10px] tracking-[0.16em] uppercase hover:bg-black hover:text-white transition [font-family:var(--font-ui)]"
-                  >
-                    {t("edit")}
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => openDeleteModal(design)}
-                    disabled={deletingId === design._id}
-                    className="flex-1 sm:flex-none px-3 py-2 border border-red-300 text-red-700 text-[10px] tracking-[0.16em] uppercase hover:bg-red-50 transition disabled:opacity-50 [font-family:var(--font-ui)]"
-                  >
-                    {deletingId === design._id ? t("deleting") : t("delete")}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+          {totalItems > 0 && (
+            <GlobalPagination
+              currentPage={currentPage}
+              totalPages={Math.max(1, totalPages)}
+              onPageChange={(page) => void loadDesigns(page)}
+              showItemsPerPage
+              itemsPerPage={pageSize}
+              onItemsPerPageChange={(next) => {
+                void loadDesigns(1, next);
+              }}
+              itemsPerPageOptions={[5, 10, 20, 50]}
+              totalItems={totalItems}
+              className="mt-6"
+            />
+          )}
+        </>
       )}
       {/* Image Modal */}
       <ImageModal
