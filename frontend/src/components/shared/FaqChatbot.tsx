@@ -32,10 +32,12 @@ import {
 import {
   FAQ_ITEMS,
   CHATBOT_FAQ_SECTIONS,
+  CHATBOT_TRACK_TOPIC_ID,
   type FAQItem,
 } from "@/data/motdFaqs";
 import { useAuth } from "@/context/AuthContext";
 import { api, getApiErrorMessage } from "@/lib/api/client";
+import { displayOrderId } from "@/lib/customOrders";
 
 export const FAQ_CHAT_OPEN_EVENT = "motd-faq-chat-open";
 
@@ -85,6 +87,7 @@ function storeVisitor(name: string, email?: string) {
 }
 
 const TOPIC_ICONS = {
+  "chat-track": MapPin,
   "chat-about": Sparkles,
   "chat-browse": Globe2,
   "chat-account": UserRound,
@@ -102,6 +105,163 @@ const TOPIC_ICONS = {
   "chat-returns": Undo2,
   "chat-support": ShieldCheck,
 } as const;
+
+const CUSTOM_STATUS_LABELS: Record<string, { en: string; ar: string }> = {
+  pending: { en: "Order Placed", ar: "تم تقديم الطلب" },
+  confirmed: { en: "Order Confirmed", ar: "تم تأكيد الطلب" },
+  fabric_delivered: { en: "Fabric Delivered", ar: "تم تسليم القماش" },
+  at_tailor: { en: "Tailor Received Fabric", ar: "استلم الخياط القماش" },
+  in_production: { en: "Stitching in Progress", ar: "الخياطة قيد التنفيذ" },
+  ready: { en: "Ready", ar: "جاهز" },
+  out_for_delivery: { en: "Out for Delivery", ar: "في التوصيل" },
+  delivered: { en: "Delivered", ar: "تم التسليم" },
+  return_requested: { en: "Return Requested", ar: "تم طلب الإرجاع" },
+  return_approved: { en: "Return Approved", ar: "تمت الموافقة على الإرجاع" },
+  return_rejected: { en: "Return Rejected", ar: "تم رفض الإرجاع" },
+  refund_processed: { en: "Refund Processed", ar: "تمت معالجة الاسترداد" },
+};
+
+const RETAIL_STATUS_LABELS: Record<string, { en: string; ar: string }> = {
+  pending: { en: "Pending", ar: "قيد الانتظار" },
+  confirmed: { en: "Confirmed", ar: "مؤكد" },
+  shipped: { en: "Shipped", ar: "تم الشحن" },
+  delivered: { en: "Delivered", ar: "تم التسليم" },
+  cancelled: { en: "Cancelled", ar: "ملغى" },
+};
+
+type TrackOrderResponse =
+  | {
+      success: true;
+      orderType: "custom" | "retail";
+      order: {
+        id?: string;
+        publicOrderId?: string | null;
+        status: string;
+        statusHistory?: Array<{ status: string; changedAt?: string }>;
+        date?: string;
+        design?: { name?: string; nameAr?: string } | null;
+        items?: Array<{ name?: string; nameAr?: string }>;
+      };
+    }
+  | { success: false; message?: string };
+
+function statusLabel(
+  status: string,
+  orderType: "custom" | "retail",
+  isAr: boolean,
+) {
+  const map = orderType === "custom" ? CUSTOM_STATUS_LABELS : RETAIL_STATUS_LABELS;
+  const entry = map[status];
+  if (entry) return isAr ? entry.ar : entry.en;
+  return status.replace(/_/g, " ");
+}
+
+function formatTrackOrderReply(
+  data: Extract<TrackOrderResponse, { success: true }>,
+  isAr: boolean,
+): string {
+  const orderId = displayOrderId(data.order);
+  const typeLabel = isAr
+    ? data.orderType === "custom"
+      ? "خياطة مخصصة"
+      : "جاهز / تجزئة"
+    : data.orderType === "custom"
+      ? "Custom Mukhawar"
+      : "Ready-made / Retail";
+  const current = statusLabel(data.order.status, data.orderType, isAr);
+
+  let itemHint = "";
+  if (data.orderType === "custom") {
+    const design = data.order.design;
+    const name = isAr
+      ? design?.nameAr?.trim() || design?.name?.trim()
+      : design?.name?.trim() || design?.nameAr?.trim();
+    if (name) itemHint = name;
+  } else if (data.order.items?.[0]) {
+    const item = data.order.items[0];
+    itemHint = isAr
+      ? item.nameAr?.trim() || item.name?.trim() || ""
+      : item.name?.trim() || item.nameAr?.trim() || "";
+  }
+
+  const history = Array.isArray(data.order.statusHistory)
+    ? data.order.statusHistory
+    : [];
+  // statusHistory can repeat the same status (e.g. "confirmed" again when Shipa
+  // parcels are created). Timeline UIs keep one entry per status; match that here.
+  const seenStatuses = new Set<string>();
+  const uniqueHistory = history.filter((entry) => {
+    const key = String(entry?.status || "");
+    if (!key || seenStatuses.has(key)) return false;
+    seenStatuses.add(key);
+    return true;
+  });
+  const progressLines = uniqueHistory
+    .slice(-6)
+    .map((entry) => {
+      const label = statusLabel(entry.status, data.orderType, isAr);
+      const when = entry.changedAt
+        ? new Date(entry.changedAt).toLocaleDateString(isAr ? "ar-AE" : "en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })
+        : "";
+      return when ? `• ${label} — ${when}` : `• ${label}`;
+    });
+
+  if (isAr) {
+    const parts = [
+      `وجدتُ طلبك ${orderId}.`,
+      `النوع: ${typeLabel}`,
+      itemHint ? `التفاصيل: ${itemHint}` : "",
+      `الحالة الحالية: ${current}`,
+    ].filter(Boolean);
+    if (progressLines.length > 0) {
+      parts.push("", "التقدّم:", ...progressLines);
+    }
+    return parts.join("\n");
+  }
+
+  const parts = [
+    `I found your order ${orderId}.`,
+    `Type: ${typeLabel}`,
+    itemHint ? `Details: ${itemHint}` : "",
+    `Current status: ${current}`,
+  ].filter(Boolean);
+  if (progressLines.length > 0) {
+    parts.push("", "Progress:", ...progressLines);
+  }
+  return parts.join("\n");
+}
+
+/** Normalize typed Order ID for prefix checks (CO-/RO- only). */
+function normalizeTrackOrderIdInput(raw: string) {
+  return String(raw || "")
+    .trim()
+    .replace(/^#/, "")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+}
+
+/**
+ * Real-time prefix check: must be building toward CO… or RO….
+ * Empty / single C or R = ok while typing; anything else = error.
+ */
+function getTrackOrderIdPrefixError(raw: string, badPrefixMessage: string) {
+  const normalized = normalizeTrackOrderIdInput(raw);
+  if (!normalized) return "";
+  if (normalized.startsWith("CO") || normalized.startsWith("RO")) return "";
+  if (normalized.length === 1 && (normalized === "C" || normalized === "R")) {
+    return "";
+  }
+  return badPrefixMessage;
+}
+
+function isTrackOrderIdPrefixValid(raw: string) {
+  const normalized = normalizeTrackOrderIdInput(raw);
+  return normalized.startsWith("CO") || normalized.startsWith("RO");
+}
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -225,6 +385,11 @@ export default function FaqChatbot() {
   const [supportError, setSupportError] = useState("");
   /** Meaningful user exchanges (topic/question/typed). Support CTA unlocks after 2. */
   const [userTurns, setUserTurns] = useState(0);
+  const [trackView, setTrackView] = useState(false);
+  const [trackOrderId, setTrackOrderId] = useState("");
+  const [trackSubmitting, setTrackSubmitting] = useState(false);
+  const [trackError, setTrackError] = useState("");
+  const trackInputRef = useRef<HTMLInputElement>(null);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
@@ -316,6 +481,17 @@ export default function FaqChatbot() {
         supportConcern: "الاستفسار",
         supportConcernPlaceholder: "اكتبي ما تحتاجين المساعدة بشأنه",
         supportInvalidConcern: "يرجى وصف استفسارك (10 أحرف على الأقل).",
+        trackTitle: "تتبع طلبك",
+        trackHint:
+          "أدخلي رقم الطلب (مثل RO-0001ABC أو CO-0001ABC) لعرض الحالة الحالية والتقدّم.",
+        trackLabel: "رقم الطلب",
+        trackPlaceholder: "مثل RO-0001ABC",
+        trackSubmit: "تتبع الطلب",
+        trackSubmitting: "جاري البحث…",
+        trackInvalid: "يرجى إدخال رقم طلب صالح.",
+        trackBadPrefix: "رقم الطلب يجب أن يبدأ بـ CO أو RO.",
+        trackNotFound: "لم نعثر على طلب بهذا الرقم. تحققي من الرقم وحاولي مرة أخرى.",
+        trackAnother: "تتبع طلب آخر",
       }
     : {
         title: "MOTD Care",
@@ -385,6 +561,18 @@ export default function FaqChatbot() {
         supportConcern: "Your concern",
         supportConcernPlaceholder: "Tell us what you need help with",
         supportInvalidConcern: "Please describe your concern (at least 10 characters).",
+        trackTitle: "Track Your Order",
+        trackHint:
+          "Enter your Order ID (e.g. RO-0001ABC or CO-0001ABC) to see the current status and progress.",
+        trackLabel: "Order ID",
+        trackPlaceholder: "e.g. RO-0001ABC",
+        trackSubmit: "Track order",
+        trackSubmitting: "Looking up…",
+        trackInvalid: "Please enter a valid Order ID.",
+        trackBadPrefix: "Order ID must start with CO or RO.",
+        trackNotFound:
+          "We couldn't find an order with that ID. Double-check and try again.",
+        trackAnother: "Track another order",
       };
 
   useEffect(() => {
@@ -513,8 +701,29 @@ export default function FaqChatbot() {
     setSupportError("");
   }, []);
 
+  const resetTrackState = useCallback(() => {
+    setTrackView(false);
+    setTrackOrderId("");
+    setTrackSubmitting(false);
+    setTrackError("");
+  }, []);
+
+  const openTrackForm = useCallback(() => {
+    if (busy || awaitingNameRef.current || trackSubmitting || supportSubmitting) {
+      return;
+    }
+    resetSupportState();
+    setTrackError("");
+    setTrackOrderId("");
+    setTrackView(true);
+    setQuickReplies(null);
+    setTopicsExpanded(false);
+    window.setTimeout(() => trackInputRef.current?.focus(), 280);
+  }, [busy, resetSupportState, supportSubmitting, trackSubmitting]);
+
   const openSupportForm = () => {
-    if (busy || awaitingNameRef.current || supportSubmitting) return;
+    if (busy || awaitingNameRef.current || supportSubmitting || trackSubmitting) return;
+    resetTrackState();
     pushUser(copy.notFoundLabel);
     setQuickReplies(null);
     setSupportError("");
@@ -606,6 +815,70 @@ export default function FaqChatbot() {
     setQuickReplies({ kind: "sections" });
   };
 
+  const backFromTrack = () => {
+    resetTrackState();
+    setQuickReplies({ kind: "sections" });
+  };
+
+  const submitTrackOrder = async () => {
+    if (trackSubmitting) return;
+
+    const orderId = normalizeTrackOrderIdInput(trackOrderId);
+    if (!orderId) {
+      setTrackError(copy.trackInvalid);
+      return;
+    }
+    if (!isTrackOrderIdPrefixValid(orderId)) {
+      setTrackError(copy.trackBadPrefix);
+      return;
+    }
+    if (orderId.length < 4) {
+      setTrackError(copy.trackInvalid);
+      return;
+    }
+
+    setTrackError("");
+    setTrackSubmitting(true);
+    bumpUserTurn();
+    pushUser(orderId);
+
+    try {
+      const data = await api.get<TrackOrderResponse>(
+        `/api/orders/track/by-id/${encodeURIComponent(orderId)}`,
+      );
+
+      if (!data?.success || !data.order) {
+        setTrackError(copy.trackNotFound);
+        setMessages((prev) => [
+          ...prev,
+          { id: nextId("b"), role: "bot", text: copy.trackNotFound },
+        ]);
+        return;
+      }
+
+      resetTrackState();
+      botReply(formatTrackOrderReply(data, isAr), { kind: "sections" }, 700);
+    } catch (err) {
+      const status = (err as { status?: number })?.status;
+      const message =
+        status === 404
+          ? copy.trackNotFound
+          : getApiErrorMessage(
+              err,
+              isAr
+                ? "تعذر تحميل تفاصيل الطلب. حاولي مرة أخرى."
+                : "Could not load order details. Please try again.",
+            );
+      setTrackError(message);
+      setMessages((prev) => [
+        ...prev,
+        { id: nextId("b"), role: "bot", text: message },
+      ]);
+    } finally {
+      setTrackSubmitting(false);
+    }
+  };
+
   const beginGreeting = useCallback(() => {
     if (greetingStartedRef.current) return;
     greetingStartedRef.current = true;
@@ -619,6 +892,7 @@ export default function FaqChatbot() {
     setDraft("");
     setUserTurns(0);
     resetSupportState();
+    resetTrackState();
 
     const member = getMemberProfile();
     const intro = isAr
@@ -667,7 +941,7 @@ export default function FaqChatbot() {
       ]);
       window.setTimeout(() => inputRef.current?.focus(), 80);
     }, 450);
-  }, [getMemberProfile, isAr, resetSupportState]);
+  }, [getMemberProfile, isAr, resetSupportState, resetTrackState]);
 
   // Start greeting when chat opens (wait briefly for auth, but never hang)
   useEffect(() => {
@@ -701,6 +975,7 @@ export default function FaqChatbot() {
     setBusy(false);
     setUserTurns(0);
     resetSupportState();
+    resetTrackState();
     setOpen(true);
   };
 
@@ -709,6 +984,7 @@ export default function FaqChatbot() {
     greetingStartedRef.current = false;
     setUserTurns(0);
     resetSupportState();
+    resetTrackState();
     if (typingTimer.current) clearTimeout(typingTimer.current);
   };
 
@@ -743,6 +1019,27 @@ export default function FaqChatbot() {
     const title = isAr ? section.titleAr : section.titleEn;
     bumpUserTurn();
     pushUser(title);
+
+    if (topicId === CHATBOT_TRACK_TOPIC_ID) {
+      setQuickReplies(null);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextId("b"),
+          role: "bot",
+          text: isAr
+            ? displayName
+              ? `${displayName}، أدخلي رقم الطلب أدناه لتتبع حالته.`
+              : "أدخلي رقم الطلب أدناه لتتبع حالته."
+            : displayName
+              ? `${displayName}, enter your Order ID below to track its status.`
+              : "Enter your Order ID below to track its status.",
+        },
+      ]);
+      openTrackForm();
+      return;
+    }
+
     botReply(
       copy.sectionReply(title, displayName || undefined),
       { kind: "questions", topicId }
@@ -817,6 +1114,16 @@ export default function FaqChatbot() {
 
   const sectionQuestions = (topicId: string) =>
     FAQ_ITEMS.filter((item) => item.chatTopicId === topicId);
+
+  const trackPrefixError = getTrackOrderIdPrefixError(
+    trackOrderId,
+    copy.trackBadPrefix,
+  );
+  const displayTrackError = trackPrefixError || trackError;
+  const canSubmitTrack =
+    isTrackOrderIdPrefixValid(trackOrderId) &&
+    normalizeTrackOrderIdInput(trackOrderId).length >= 4 &&
+    !trackSubmitting;
 
   return (
     <>
@@ -1009,7 +1316,7 @@ export default function FaqChatbot() {
 
               {/* FAQ support request */}
               <AnimatePresence mode="wait">
-                {supportView && !typing && !awaitingName && (
+                {supportView && !typing && !awaitingName && !trackView && (
                   <motion.div
                     key={supportView === "form" ? "support-form" : "support-success"}
                     initial={{ opacity: 0, y: 16 }}
@@ -1178,9 +1485,98 @@ export default function FaqChatbot() {
                 )}
               </AnimatePresence>
 
+              {/* Order ID tracking */}
+              <AnimatePresence mode="wait">
+                {trackView && !typing && !awaitingName && !supportView && (
+                  <motion.div
+                    key="track-form"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    transition={{ duration: 0.28, ease: EASE }}
+                    className="shrink-0 max-h-[min(58dvh,28rem)] min-h-0 overflow-x-hidden overflow-y-auto border-t border-[#E8E8E4] bg-white/95 px-2.5 py-3 sm:px-3 sm:py-3.5 backdrop-blur-md"
+                    data-lenis-prevent
+                    data-lenis-prevent-wheel
+                    data-chat-scroll
+                  >
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <p className="[font-family:var(--font-display)] text-[14px] text-black">
+                          {copy.trackTitle}
+                        </p>
+                        <p className="mt-1 [font-family:var(--font-body)] text-[12px] leading-relaxed text-[#5A5A56]">
+                          {copy.trackHint}
+                        </p>
+                      </div>
+
+                      <label className="flex flex-col gap-1">
+                        <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.14em] text-[#8A8A80]">
+                          {copy.trackLabel}
+                        </span>
+                        <input
+                          ref={trackInputRef}
+                          type="text"
+                          value={trackOrderId}
+                          onChange={(e) => {
+                            setTrackOrderId(e.target.value);
+                            setTrackError("");
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (canSubmitTrack) void submitTrackOrder();
+                            }
+                          }}
+                          disabled={trackSubmitting}
+                          autoComplete="off"
+                          autoCapitalize="characters"
+                          spellCheck={false}
+                          aria-invalid={Boolean(displayTrackError)}
+                          placeholder={copy.trackPlaceholder}
+                          className={`rounded-xl border bg-white px-3 py-2.5 [font-family:var(--font-body)] text-[16px] sm:text-[13px] uppercase tracking-wide text-black outline-none placeholder:normal-case placeholder:tracking-normal placeholder:text-[#8A8A80] disabled:opacity-60 ${
+                            displayTrackError
+                              ? "border-red-500 focus:border-red-600"
+                              : "border-[#E8E8E4] focus:border-black"
+                          }`}
+                        />
+                      </label>
+
+                      {displayTrackError ? (
+                        <p
+                          role="alert"
+                          className="[font-family:var(--font-body)] text-[11px] text-red-700"
+                        >
+                          {displayTrackError}
+                        </p>
+                      ) : null}
+
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <motion.button
+                          type="button"
+                          disabled={!canSubmitTrack}
+                          onClick={() => void submitTrackOrder()}
+                          whileTap={{ scale: 0.98 }}
+                          className="inline-flex flex-1 items-center justify-center rounded-full border border-black bg-black px-4 py-2.5 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
+                        >
+                          {trackSubmitting ? copy.trackSubmitting : copy.trackSubmit}
+                        </motion.button>
+                        <button
+                          type="button"
+                          disabled={trackSubmitting}
+                          onClick={backFromTrack}
+                          className="inline-flex flex-1 items-center justify-center rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-4 py-2.5 [font-family:var(--font-body)] text-[12px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer"
+                        >
+                          {copy.backToTopics}
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Quick replies */}
               <AnimatePresence mode="wait">
-                {quickReplies && !typing && !awaitingName && !supportView && (
+                {quickReplies && !typing && !awaitingName && !supportView && !trackView && (
                   <motion.div
                     key={
                       quickReplies.kind +
@@ -1449,7 +1845,7 @@ export default function FaqChatbot() {
               </AnimatePresence>
 
               {/* Free-text input */}
-              {!supportView ? (
+              {!supportView && !trackView ? (
               <form
                 onSubmit={handleSend}
                 className="shrink-0 overflow-x-hidden border-t border-[#E8E8E4] bg-white px-2.5 py-2 sm:px-3 sm:py-2.5 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] sm:pb-2.5"
