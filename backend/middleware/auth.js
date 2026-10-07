@@ -225,13 +225,18 @@ export function resolveAdminApiPerm(path = "") {
   p = `/${segments.join("/")}`;
   if (p === "//") p = "/";
 
-  // Root / empty path under /api/admin mount — open to staff (dashboard-equivalent).
+  // Root / empty path under /api/admin mount — open to staff.
   if (p === "/" || p === "") {
     return null;
   }
 
-  if (p === "/health" || p === "/dashboard" || p.startsWith("/dashboard/")) {
+  // Health stays open; dashboard requires the dashboard permission.
+  if (p === "/health") {
     return null;
+  }
+
+  if (p === "/dashboard" || p.startsWith("/dashboard/")) {
+    return "dashboard";
   }
 
   const matchPrefix = (prefix) => p === prefix || p.startsWith(`${prefix}/`);
@@ -294,6 +299,12 @@ export const enforceStaffPerm = (req, res, next) => {
   }
 
   if (req.user?.perms?.[perm] === true) {
+    next();
+    return;
+  }
+
+  // Payments UI reuses /api/admin/dashboard KPI payload.
+  if (perm === "dashboard" && req.user?.perms?.payments === true) {
     next();
     return;
   }

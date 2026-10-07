@@ -24,6 +24,7 @@ import {
 
 import {
   ADMIN_PERM_LABELS,
+  emptyAdminPerms,
   type AdminPermKey,
 } from "@/lib/auth/adminAccess";
 
@@ -56,21 +57,7 @@ const defaultForm: SubAdminForm = {
   street: "",
   building: "",
   postalCode: "",
-  perms: {
-    customers: false,
-    fabrics: false,
-    designs: false,
-    readyMade: false,
-    tailors: false,
-    orders: false,
-    partners: false,
-    settings: false,
-    payments: false,
-    addons: false,
-    notifications: false,
-    reviews: false,
-    queries: false,
-  },
+  perms: emptyAdminPerms(),
 };
 
 const permLabels: Record<PermKey, string> = ADMIN_PERM_LABELS;
