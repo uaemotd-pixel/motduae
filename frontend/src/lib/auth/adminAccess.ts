@@ -1,6 +1,7 @@
 import type { User } from "@/context/AuthContext";
 
 export type AdminPermKey =
+  | "dashboard"
   | "customers"
   | "readyMade"
   | "fabrics"
@@ -16,6 +17,7 @@ export type AdminPermKey =
   | "queries";
 
 export const ADMIN_PERM_KEYS: AdminPermKey[] = [
+  "dashboard",
   "customers",
   "readyMade",
   "fabrics",
@@ -32,6 +34,7 @@ export const ADMIN_PERM_KEYS: AdminPermKey[] = [
 ];
 
 export const ADMIN_PERM_LABELS: Record<AdminPermKey, string> = {
+  dashboard: "Dashboard",
   customers: "Customers",
   readyMade: "Ready-Made",
   fabrics: "Fabrics",
@@ -46,6 +49,24 @@ export const ADMIN_PERM_LABELS: Record<AdminPermKey, string> = {
   reviews: "Reviews",
   queries: "Queries",
 };
+
+/** Preferred landing route per permission (first match wins for sub-admins). */
+export const ADMIN_PERM_HOME_ROUTES: { perm: AdminPermKey; href: string }[] = [
+  { perm: "dashboard", href: "/admin" },
+  { perm: "payments", href: "/admin/payments" },
+  { perm: "customers", href: "/admin/customers" },
+  { perm: "readyMade", href: "/admin/ready-made" },
+  { perm: "fabrics", href: "/admin/fabrics" },
+  { perm: "designs", href: "/admin/designs" },
+  { perm: "tailors", href: "/admin/tailors" },
+  { perm: "addons", href: "/admin/addons" },
+  { perm: "orders", href: "/admin/orders" },
+  { perm: "partners", href: "/admin/partners" },
+  { perm: "queries", href: "/admin/queries" },
+  { perm: "reviews", href: "/admin/reviews" },
+  { perm: "notifications", href: "/admin/notifications" },
+  { perm: "settings", href: "/admin/settings" },
+];
 
 export const emptyAdminPerms = (): Record<AdminPermKey, boolean> =>
   Object.fromEntries(ADMIN_PERM_KEYS.map((k) => [k, false])) as Record<
@@ -72,6 +93,20 @@ export function hasAdminPerm(
   return user.perms?.[perm] === true;
 }
 
+/** First admin path the user may open (full admin → dashboard). */
+export function getFirstAdminPathForUser(
+  user: User | null | undefined,
+): string {
+  if (!user) return "/admin";
+  if (user.role === "admin") return "/admin";
+  if (user.role !== "sub-admin") return "/";
+
+  for (const route of ADMIN_PERM_HOME_ROUTES) {
+    if (hasAdminPerm(user, route.perm)) return route.href;
+  }
+  return "/admin";
+}
+
 /** Map an /admin frontend path (no locale) to a permission key. */
 export function resolveAdminPagePerm(
   pathWithoutLocale: string,
@@ -84,7 +119,7 @@ export function resolveAdminPagePerm(
     path === "/admin/Dashboard" ||
     path.startsWith("/admin/Dashboard/")
   ) {
-    return null;
+    return "dashboard";
   }
 
   if (path.startsWith("/admin/payments")) return "payments";

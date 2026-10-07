@@ -25,6 +25,7 @@ const SubAdminSchema = new mongoose.Schema({
     postalCode: String,
   },
   perms: {
+    dashboard: { type: Boolean, default: false },
     customers: { type: Boolean, default: false },
     readyMade: { type: Boolean, default: false },
     fabrics: { type: Boolean, default: false },
