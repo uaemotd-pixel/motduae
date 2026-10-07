@@ -15,7 +15,7 @@ import {
   Clock,
   ShoppingBag,
   Scissors,
-  Activity,
+  Hourglass,
   Store,
   RefreshCw,
   Trash2,
@@ -621,7 +621,10 @@ export default function TailorDashboardPage() {
           label={t("kpiPaid")}
           value={formatKpiCurrency(payoutPaid)}
           subValue={
-            totalEarnings > 0 && payoutPending <= 0 && payoutProcessing <= 0
+            totalEarnings > 0 &&
+            payoutPending <= 0 &&
+            payoutProcessing <= 0 &&
+            processingAmount <= 0
               ? t("kpiPaidInFull")
               : t("kpiPaidSub")
           }
@@ -657,9 +660,14 @@ export default function TailorDashboardPage() {
           accent="sky"
         />
         <StatCard
-          icon={Activity}
+          icon={Hourglass}
           label={t("kpiInProgress")}
-          value={String(kpis.inProgress)}
+          value={formatKpiCurrency(processingAmount)}
+          subValue={
+            processingAmount > 0
+              ? t("kpiInProgressSub")
+              : t("kpiInProgressNone")
+          }
           compact
           delay={0.25}
           accent="rose"
