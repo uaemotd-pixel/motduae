@@ -15,6 +15,7 @@ import {
   Clock,
   ShoppingBag,
   AlertTriangle,
+  Hourglass,
   Store,
   RefreshCw,
   Ruler,
@@ -619,7 +620,10 @@ export default function FabricDashboardPage() {
           label={t("kpiPaid")}
           value={formatKpiCurrency(payoutPaid)}
           subValue={
-            totalEarnings > 0 && payoutPending <= 0 && payoutProcessing <= 0
+            totalEarnings > 0 &&
+            payoutPending <= 0 &&
+            payoutProcessing <= 0 &&
+            processingAmount <= 0
               ? t("kpiPaidInFull")
               : t("kpiPaidSub")
           }
@@ -659,20 +663,19 @@ export default function FabricDashboardPage() {
           delay={0.2}
           accent="sky"
         />
-        <Link href={lowStockHref} className="block h-full cursor-pointer">
-          <StatCard
-            icon={AlertTriangle}
-            label={t("kpiLowStock")}
-            value={String(kpis.lowStock)}
-            subValue={t("kpiLowStockSub", {
-              fabrics: kpis.lowFabrics ?? 0,
-              ready: kpis.lowReadyMade ?? 0,
-            })}
-            compact
-            delay={0.25}
-            accent="rose"
-          />
-        </Link>
+        <StatCard
+          icon={Hourglass}
+          label={t("kpiInProgress")}
+          value={formatKpiCurrency(processingAmount)}
+          subValue={
+            processingAmount > 0
+              ? t("kpiInProgressSub")
+              : t("kpiInProgressNone")
+          }
+          compact
+          delay={0.25}
+          accent="rose"
+        />
       </div>
 
       {lowStockTotal > 0 && (
