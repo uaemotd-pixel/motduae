@@ -13,7 +13,6 @@ import GlobalPagination from "@/components/shared/GlobalPagination";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [5, 10, 25, 50, 100];
-const PAGINATION_VISIBLE_AFTER = 5;
 /* ─── Shared star helpers (display + half-star input) ─── */
 
 function StarRatingDisplay({
@@ -1336,10 +1335,10 @@ export default function CustomerReviewsView({
               );
             })}
           </div>
-          {totalReviews > PAGINATION_VISIBLE_AFTER ? (
+          {totalReviews > 0 ? (
             <GlobalPagination
               currentPage={currentPage}
-              totalPages={totalPages}
+              totalPages={Math.max(1, totalPages)}
               onPageChange={handlePageChange}
               showItemsPerPage
               itemsPerPage={itemsPerPage}

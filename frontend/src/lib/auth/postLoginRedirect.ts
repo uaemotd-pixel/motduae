@@ -1,4 +1,5 @@
 import type { User } from "@/context/AuthContext";
+import { getFirstAdminPathForUser } from "@/lib/auth/adminAccess";
 
 function stripLocalePrefix(path: string): string {
   return path.replace(/^\/(en|ar)(?=\/|$)/, "") || "/";
@@ -58,7 +59,8 @@ export function getPostLoginPath(
     return normalizedRedirect;
   }
 
-  if (role === "admin" || role === "sub-admin") return "/admin";
+  if (role === "admin") return "/admin";
+  if (role === "sub-admin") return getFirstAdminPathForUser(user);
   if (role === "tailor") {
     if (user.approvalStatus === "approved") return "/tailor";
     return user.applicationSubmittedAt ? "/tailor" : "/tailor/apply";

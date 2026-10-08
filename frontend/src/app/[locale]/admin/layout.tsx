@@ -12,6 +12,7 @@ import { DashboardPanelSkeleton } from "@/components/ui/Skeleton";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
 import { api } from "@/lib/api/client";
 import {
+  getFirstAdminPathForUser,
   hasAdminPerm,
   isFullAdmin,
   isStaffUser,
@@ -166,9 +167,24 @@ export default function AdminLayout({
   const pathWithoutLocale = pathname.replace(new RegExp(`^/${locale}`), "") || "/admin";
   const requiredPagePerm = resolveAdminPagePerm(pathWithoutLocale);
 
+  // Sub-admins without dashboard land on their first allowed section instead of /admin.
+  useEffect(() => {
+    if (isLoading || !user || user.role !== "sub-admin") return;
+    if (requiredPagePerm !== "dashboard") return;
+    if (hasAdminPerm(user, "dashboard")) return;
+    const fallback = getFirstAdminPathForUser(user);
+    if (fallback === "/admin") return;
+    safeClientNavigate(fallback, { locale, replace: true });
+  }, [user, isLoading, locale, requiredPagePerm]);
+
   const navItems = useMemo(() => {
     const all: NavItem[] = [
-      { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+      {
+        label: "Dashboard",
+        href: "/admin",
+        icon: LayoutDashboard,
+        perm: "dashboard",
+      },
       {
         label: "Payments",
         href: "/admin/payments",

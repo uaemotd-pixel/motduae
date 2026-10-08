@@ -20,7 +20,9 @@ import {
 } from "../utils/shopPickupAddress.js";
 import { toUaePhoneDigits } from "../utils/uaePhone.js";
 import { markCustomTailorReady, presentCustomOrderForTailor } from "../services/shipmentService.js";
-import { getTimeframeWindow } from "../utils/dateRange.js";
+import { applyCreatedAtFilter, getTimeframeWindow } from "../utils/dateRange.js";
+import { normalizePublicOrderId } from "../services/publicOrderId.js";
+import mongoose from "mongoose";
 import { splitMotdCommission } from "../services/pricingService.js";
 import { ensureUniqueSlug } from "../utils/uniqueSlug.js";
 import PartnerPayoutRequest from "../models/PartnerPayoutRequest.js";
@@ -536,30 +538,110 @@ tailorPortalRouter.put(
   }),
 );
 
-// GET /api/tailor/orders — get all custom orders for this tailor's shop
+// GET /api/tailor/orders — custom orders for this tailor's shop (paginated)
 tailorPortalRouter.get(
   "/orders",
   expressAsyncHandler(async (req, res) => {
     const shop = await TailorShop.findOne({ ownerId: req.user._id });
     if (!shop) {
-      res.json({ success: true, items: [] });
+      res.json({
+        success: true,
+        items: [],
+        total: 0,
+        page: 1,
+        limit: 10,
+        totalPages: 0,
+      });
       return;
     }
 
-    const orders = await CustomOrder.find({
-      $or: [{ tailorShopId: shop._id }, { "items.tailorShopId": shop._id }],
-    })
-      .populate("userId", "name email phone")
-      .populate("designId", "name nameAr images")
-      .populate("fabricId", "name nameAr images")
-      .populate("items.designId", "name nameAr images")
-      .populate("items.fabricId", "name nameAr images")
-      .sort({ createdAt: -1 });
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit, 10) || 10, 1),
+      100,
+    );
+    const skip = (page - 1) * limit;
+    const search = String(req.query.search || "").trim();
+    const status = String(req.query.status || "").trim();
+    const from = String(req.query.from || "").trim();
+    const to = String(req.query.to || "").trim();
+
+    const filter = {
+      $and: [
+        {
+          $or: [
+            { tailorShopId: shop._id },
+            { "items.tailorShopId": shop._id },
+          ],
+        },
+      ],
+    };
+
+    if (search) {
+      const normalized = normalizePublicOrderId(search);
+      const searchOr = [];
+      if (normalized) {
+        searchOr.push({
+          publicOrderId: {
+            $regex: `^${normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+            $options: "i",
+          },
+        });
+      }
+      if (
+        mongoose.Types.ObjectId.isValid(search) &&
+        String(search).length === 24
+      ) {
+        searchOr.push({ _id: search });
+      }
+      if (searchOr.length) {
+        filter.$and.push({ $or: searchOr });
+      }
+    }
+
+    if (status) {
+      if (!CUSTOM_STATUSES.includes(status)) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid status. Allowed values: ${CUSTOM_STATUSES.join(", ")}`,
+        });
+        return;
+      }
+      filter.$and.push({ status });
+    }
+
+    if (from || to) {
+      const parsed = applyCreatedAtFilter(from || null, to || null);
+      if (parsed.error) {
+        res.status(400).json({ success: false, message: parsed.error });
+        return;
+      }
+      if (parsed.createdAt) {
+        filter.$and.push({ createdAt: parsed.createdAt });
+      }
+    }
+
+    const [orders, total] = await Promise.all([
+      CustomOrder.find(filter)
+        .populate("userId", "name email phone")
+        .populate("designId", "name nameAr images")
+        .populate("fabricId", "name nameAr images")
+        .populate("items.designId", "name nameAr images")
+        .populate("items.fabricId", "name nameAr images")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      CustomOrder.countDocuments(filter),
+    ]);
 
     res.json({
       success: true,
       items: orders.map((order) => presentCustomOrderForTailor(order, shop._id)),
       tailorShopId: shop._id,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 0,
     });
   }),
 );

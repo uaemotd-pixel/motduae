@@ -251,23 +251,64 @@ export function toTailorDesignPayload(
   };
 }
 
-export async function fetchTailorDesigns(): Promise<TailorDesignProfile[]> {
+export type TailorDesignsListResponse = {
+  success: boolean;
+  items: TailorDesignProfile[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+export async function fetchTailorDesigns(options?: {
+  page?: number;
+  limit?: number;
+}): Promise<TailorDesignProfile[]> {
+  const query = new URLSearchParams();
+  if (options?.page != null) query.set("page", String(options.page));
+  if (options?.limit != null) query.set("limit", String(options.limit));
+  const qs = query.toString();
   const response = await api.get<{
     success: boolean;
     items: TailorDesignProfile[];
-  }>("/api/tailor/designs");
+  }>(`/api/tailor/designs${qs ? `?${qs}` : ""}`);
   return response.items ?? [];
+}
+
+export async function fetchTailorDesignsPage(options: {
+  page?: number;
+  limit?: number;
+} = {}): Promise<TailorDesignsListResponse> {
+  const page = Math.max(1, options.page || 1);
+  const limit = Math.min(Math.max(options.limit || 10, 1), 100);
+  const query = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+  const response = await api.get<TailorDesignsListResponse>(
+    `/api/tailor/designs?${query.toString()}`,
+  );
+  return {
+    success: Boolean(response?.success),
+    items: response?.items ?? [],
+    total: response?.total ?? 0,
+    page: response?.page ?? page,
+    limit: response?.limit ?? limit,
+    totalPages: response?.totalPages ?? 0,
+  };
 }
 
 export async function fetchTailorDesign(
   id: string,
 ): Promise<TailorDesignProfile> {
-  const designs = await fetchTailorDesigns();
-  const design = designs.find((item) => item._id === id);
-  if (!design) {
+  const response = await api.get<{
+    success: boolean;
+    item: TailorDesignProfile;
+  }>(`/api/tailor/designs/${encodeURIComponent(id)}`);
+  if (!response?.item) {
     throw { status: 404, message: "Design not found" } as ApiError;
   }
-  return design;
+  return response.item;
 }
 
 export async function createTailorDesign(
