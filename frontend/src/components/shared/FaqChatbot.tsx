@@ -288,24 +288,52 @@ function notifyChatOpen(open: boolean) {
   );
 }
 
-function findBestFaq(query: string, isAr: boolean): FAQItem | null {
+/** True when the text contains Arabic letters (used to pick reply language). */
+function containsArabic(text: string): boolean {
+  return /[\u0600-\u06FF]/.test(text);
+}
+
+function scoreFaqAgainstQuery(
+  query: string,
+  tokens: string[],
+  question: string,
+  answer: string,
+): number {
+  let score = 0;
+  if (question.includes(query) || query.includes(question)) score += 12;
+  for (const token of tokens) {
+    if (question.includes(token)) score += 3;
+    if (answer.includes(token)) score += 1;
+  }
+  return score;
+}
+
+/** Match FAQs in both EN and AR so Arabic free-text works on the English site. */
+function findBestFaq(query: string): FAQItem | null {
   const q = query.trim().toLowerCase();
   if (q.length < 2) return null;
 
-  const tokens = q.split(/\s+/).filter((t) => t.length > 2);
+  // Arabic tokens are often short; keep Latin tokens at length > 2.
+  const tokens = q
+    .split(/\s+/)
+    .filter((t) => t.length > 2 || containsArabic(t));
   let best: FAQItem | null = null;
   let bestScore = 0;
 
   for (const item of FAQ_ITEMS) {
-    const question = (isAr ? item.questionAr : item.questionEn).toLowerCase();
-    const answer = (isAr ? item.answerAr : item.answerEn).toLowerCase();
-    let score = 0;
-
-    if (question.includes(q) || q.includes(question)) score += 12;
-    for (const token of tokens) {
-      if (question.includes(token)) score += 3;
-      if (answer.includes(token)) score += 1;
-    }
+    const scoreEn = scoreFaqAgainstQuery(
+      q,
+      tokens,
+      item.questionEn.toLowerCase(),
+      item.answerEn.toLowerCase(),
+    );
+    const scoreAr = scoreFaqAgainstQuery(
+      q,
+      tokens,
+      item.questionAr.toLowerCase(),
+      item.answerAr.toLowerCase(),
+    );
+    const score = Math.max(scoreEn, scoreAr);
 
     if (score > bestScore) {
       bestScore = score;
@@ -1102,10 +1130,23 @@ export default function FaqChatbot() {
     bumpUserTurn();
     pushUser(text);
 
-    const match = findBestFaq(text, isAr);
+    // Reply language follows the question script, not only the page locale.
+    const replyIsAr = containsArabic(text) || isAr;
+    const match = findBestFaq(text);
     if (match) {
-      const answer = isAr ? match.answerAr : match.answerEn;
+      const answer = replyIsAr ? match.answerAr : match.answerEn;
       botReply(answer, { kind: "afterAnswer", topicId: match.chatTopicId }, 780);
+      return;
+    }
+
+    if (replyIsAr && !isAr) {
+      botReply(
+        displayName
+          ? `${displayName}، لم أجد إجابة دقيقة على ذلك. يمكنك اختيار موضوع أدناه، أو مراسلتنا على care@motd.ae.`
+          : "لم أجد إجابة دقيقة على ذلك. يمكنك اختيار موضوع أدناه، أو مراسلتنا على care@motd.ae.",
+        { kind: "sections" },
+        700,
+      );
       return;
     }
 

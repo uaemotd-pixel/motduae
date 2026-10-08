@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api, getApiErrorMessage } from "@/lib/api/client";
@@ -22,6 +22,7 @@ import {
 import StatusBadge from "@/components/admin/StatusBadge";
 import CustomOrderMeasurementsPanel from "@/components/custom-order/CustomOrderMeasurementsPanel";
 import ShipmentList from "@/components/orders/ShipmentList";
+import GlobalPagination from "@/components/shared/GlobalPagination";
 import {
   formatOrderDate,
   getNextCustomOrderStatus,
@@ -35,8 +36,10 @@ import {
 } from "@/lib/customOrders";
 import type { Locale } from "@/i18n/routing";
 import { isGuestOrderUser, resolveOrderDisplayEmail } from "@/lib/auth/guestAccount";
-import { isWithinLocalDateRange } from "@/lib/dateRange";
+import { localDayEndISO, localDayStartISO } from "@/lib/dateRange";
 import { resolveMediaUrl } from "@/lib/media";
+
+const DEFAULT_PAGE_SIZE = 10;
 
 type CatalogMedia = {
   _id?: string;
@@ -232,6 +235,12 @@ export default function TailorOrdersPage() {
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterFrom, setFilterFrom] = useState<string>("");
   const [filterTo, setFilterTo] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitialLoad = useRef(true);
 
   const statusLabel = (status: string) => {
     if (isCustomOrderStatus(status)) {
@@ -268,32 +277,76 @@ export default function TailorOrdersPage() {
     return true;
   };
 
-  const fetchOrders = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.get<{ success: boolean; items: Order[] }>(
-        "/api/tailor/orders",
-      );
-      const ordersData = res.items || [];
-      setOrders(ordersData);
+  const fetchOrders = useCallback(
+    async (
+      page = 1,
+      limitOverride?: number,
+      showLoading = true,
+    ) => {
+      if (showLoading) setLoading(true);
+      setError(null);
+      const limit = limitOverride ?? pageSize;
+      try {
+        const query = new URLSearchParams();
+        query.set("page", String(page));
+        query.set("limit", String(limit));
+        if (filterCustomer.trim()) {
+          query.set("search", filterCustomer.trim());
+        }
+        if (filterStatus) query.set("status", filterStatus);
+        if (filterFrom) query.set("from", localDayStartISO(filterFrom));
+        if (filterTo) query.set("to", localDayEndISO(filterTo));
 
-      const initialNote: Record<string, string> = {};
-      ordersData.forEach((order) => {
-        initialNote[order._id] = "";
-      });
-      setNote(initialNote);
-    } catch (err) {
-      setError(getApiErrorMessage(err, t("loadError")));
-      toast.error(t("loadError"), ERROR_TOAST);
-    } finally {
-      setLoading(false);
-    }
-  };
+        const res = await api.get<{
+          success: boolean;
+          items: Order[];
+          total?: number;
+          page?: number;
+          totalPages?: number;
+        }>(`/api/tailor/orders?${query.toString()}`);
+
+        const ordersData = res.items || [];
+        setOrders(ordersData);
+        setTotalItems(res.total ?? ordersData.length);
+        setTotalPages(res.totalPages ?? 0);
+        setCurrentPage(res.page ?? page);
+        if (limitOverride != null) setPageSize(limit);
+
+        setNote((prev) => {
+          const next = { ...prev };
+          ordersData.forEach((order) => {
+            if (next[order._id] == null) next[order._id] = "";
+          });
+          return next;
+        });
+      } catch (err) {
+        setError(getApiErrorMessage(err, t("loadError")));
+        toast.error(t("loadError"), ERROR_TOAST);
+        setOrders([]);
+        setTotalItems(0);
+        setTotalPages(0);
+      } finally {
+        if (showLoading) setLoading(false);
+      }
+    },
+    [pageSize, filterCustomer, filterStatus, filterFrom, filterTo, t],
+  );
 
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    if (isInitialLoad.current) {
+      void fetchOrders(1).finally(() => {
+        isInitialLoad.current = false;
+      });
+      return;
+    }
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      void fetchOrders(1, undefined, false);
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [fetchOrders]);
 
   const handleStatusChange = async (
     order: Order,
@@ -333,7 +386,7 @@ export default function TailorOrdersPage() {
 
       toast.success(t("updateSuccess"), SUCCESS_TOAST);
       setNote((prev) => ({ ...prev, [order._id]: "" }));
-      await fetchOrders();
+      await fetchOrders(currentPage);
     } catch (err) {
       toast.error(getApiErrorMessage(err, t("updateFailed")), ERROR_TOAST);
     } finally {
@@ -368,33 +421,6 @@ export default function TailorOrdersPage() {
       currency,
     }).format(amount);
 
-  // Client-side filtering logic
-  const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      // 1. Order ID filter
-      if (filterCustomer.trim()) {
-        const term = filterCustomer.toLowerCase();
-        const orderId = String(order._id || "").toLowerCase();
-        const publicId = String(order.publicOrderId || "").toLowerCase();
-        if (!orderId.includes(term) && !publicId.includes(term)) {
-          return false;
-        }
-      }
-
-      // 2. Status filter
-      if (filterStatus) {
-        const displayStatus = order.tailorStatus || order.status;
-        if (displayStatus !== filterStatus) return false;
-      }
-
-      if (!isWithinLocalDateRange(order.createdAt, filterFrom, filterTo)) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [orders, filterCustomer, filterStatus, filterFrom, filterTo]);
-
   if (loading && orders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -411,7 +437,7 @@ export default function TailorOrdersPage() {
       <div className="p-6 text-center">
         <p className="text-red-500 mb-4">{error}</p>
         <button
-          onClick={fetchOrders}
+          onClick={() => void fetchOrders(1)}
           className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 transition"
         >
           <RefreshCw className="w-4 h-4" />
@@ -432,7 +458,7 @@ export default function TailorOrdersPage() {
         </div>
 
         <button
-          onClick={fetchOrders}
+          onClick={() => void fetchOrders(currentPage)}
           className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 bg-white rounded-lg text-sm hover:bg-gray-50 hover:cursor-pointer transition shadow-sm"
         >
           <RefreshCw className="w-4 h-4" />
@@ -508,7 +534,7 @@ export default function TailorOrdersPage() {
       </div>
 
       {/* Orders List Section */}
-      {filteredOrders.length === 0 ? (
+      {totalItems === 0 ? (
         <div className="flex flex-col items-center justify-center text-center bg-white rounded-2xl border border-gray-100 py-20 shadow-sm">
           <PackageSearch
             className="w-16 h-16 text-gray-300 mb-4"
@@ -518,7 +544,7 @@ export default function TailorOrdersPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredOrders.map((order) => {
+          {orders.map((order) => {
             const isUpdating = updatingOrderId === order._id;
             const displayStatus = order.tailorStatus || order.status;
             const awaitingOtherTailors = Boolean(order.awaitingOtherTailors);
@@ -1025,6 +1051,21 @@ export default function TailorOrdersPage() {
             );
           })}
         </div>
+      )}
+
+      {totalItems > 0 && (
+        <GlobalPagination
+          currentPage={currentPage}
+          totalPages={Math.max(1, totalPages)}
+          onPageChange={(page) => void fetchOrders(page)}
+          showItemsPerPage
+          itemsPerPage={pageSize}
+          onItemsPerPageChange={(next) => {
+            void fetchOrders(1, next);
+          }}
+          itemsPerPageOptions={[5, 10, 20, 50]}
+          totalItems={totalItems}
+        />
       )}
     </div>
   );

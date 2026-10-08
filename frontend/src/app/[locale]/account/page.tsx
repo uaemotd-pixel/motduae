@@ -18,7 +18,6 @@ import {
   Users,
   Star,
   Heart,
-  PanelLeft,
 } from "lucide-react";
 import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
@@ -57,8 +56,6 @@ type AccountSidebarProps = {
   activeTab: AccountTab;
   onTabChange: (tab: AccountTab) => void;
   onLogout: () => void;
-  collapsed: boolean;
-  onToggle: () => void;
   unreadNotificationCount?: number;
   isGuest?: boolean;
 };
@@ -67,37 +64,19 @@ function AccountSidebar({
   activeTab,
   onTabChange,
   onLogout,
-  collapsed,
-  onToggle,
   unreadNotificationCount = 0,
   isGuest = false,
 }: AccountSidebarProps) {
   return (
     <>
-      <button
-        onClick={onToggle}
-        className={`absolute right-0 top-5 w-8 h-8 rounded-full bg-black border-0 text-white/70 hover:text-white transition flex items-center justify-center z-30 hover:cursor-pointer ${
-          collapsed ? "rotate-180" : ""
-        } hidden lg:flex`}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        <PanelLeft className="w-5 h-5" />
-      </button>
-
       <Link
         href="/"
-        className={`flex items-center gap-3 mb-8 lg:mb-10 hover:opacity-80 transition ${
-          collapsed ? "justify-center" : ""
-        }`}
+        className="flex items-center gap-3 mb-8 lg:mb-10 hover:opacity-80 transition"
       >
         <img
           src={white_logo.src}
           alt="MOTD Logo"
-          className={`w-auto object-contain ${
-            collapsed
-              ? "h-8 xs:h-8 sm:h-8 md:h-8 lg:h-8 xl:h-8"
-              : "h-5 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6"
-          }`}
+          className="w-auto object-contain h-5 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6"
         />
       </Link>
 
@@ -112,23 +91,19 @@ function AccountSidebar({
               type="button"
               onClick={() => onTabChange(item.id)}
               className={`relative w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui transition-colors cursor-pointer
-                ${collapsed ? "justify-center px-2" : ""}
                 ${
                   isActive
                     ? "bg-white text-black shadow-md"
                     : "text-white/70 hover:bg-white/10 hover:text-white"
                 }`}
-              title={collapsed ? item.label : undefined}
             >
-              <Icon
-                className={`${collapsed ? "w-5 h-5" : "w-4 h-4"} shrink-0`}
-              />
-              {!collapsed && <span className="truncate">{item.label}</span>}
+              <Icon className="w-4 h-4 shrink-0" />
+              <span className="truncate">{item.label}</span>
               {item.id === "notifications" && unreadNotificationCount > 0 && (
                 <span
-                  className={`min-w-5 h-5 px-1 rounded-full text-[11px] font-semibold flex items-center justify-center ${
+                  className={`min-w-5 h-5 px-1 rounded-full text-[11px] font-semibold flex items-center justify-center ml-auto ${
                     isActive ? "bg-black text-white" : "bg-white text-black"
-                  } ${collapsed ? "absolute -top-1 -right-1" : "ml-auto"}`}
+                  }`}
                 >
                   {unreadNotificationCount > 99
                     ? "99+"
@@ -140,19 +115,14 @@ function AccountSidebar({
         })}
       </nav>
 
-      <div
-        className={`pt-6 mt-6 border-t border-white/10 ${collapsed ? "flex justify-center" : ""}`}
-      >
+      <div className="pt-6 mt-6 border-t border-white/10">
         <button
           type="button"
           onClick={onLogout}
-          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui text-red-400 hover:bg-red-500/10 hover:text-red-300 transition hover:cursor-pointer ${
-            collapsed ? "justify-center px-2 w-auto" : ""
-          }`}
-          title={collapsed ? "LogOut" : undefined}
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui text-red-400 hover:bg-red-500/10 hover:text-red-300 transition hover:cursor-pointer"
         >
-          <LogOut className={`${collapsed ? "w-5 h-5" : "w-4 h-4"} shrink-0`} />
-          {!collapsed && <span>LogOut</span>}
+          <LogOut className="w-4 h-4 shrink-0" />
+          <span>LogOut</span>
         </button>
       </div>
     </>
@@ -196,23 +166,11 @@ function AccountPageContent() {
     isAccountTab(tabFromUrl) ? tabFromUrl : "profile",
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState<"profile" | "edit">("profile");
   const { count: unreadNotificationCount } = useNotificationUnreadCount(
     "customer",
     Boolean(user),
   );
-
-  useEffect(() => {
-    const saved = localStorage.getItem("sidebarCollapsed");
-    if (saved !== null) {
-      setSidebarCollapsed(JSON.parse(saved));
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("sidebarCollapsed", JSON.stringify(sidebarCollapsed));
-  }, [sidebarCollapsed]);
 
   const handleEditClick = useCallback(() => setViewMode("edit"), []);
   const handleCancelEdit = useCallback(() => setViewMode("profile"), []);
@@ -277,10 +235,6 @@ function AccountPageContent() {
     void logout();
   }, [logout]);
 
-  const toggleSidebar = useCallback(() => {
-    setSidebarCollapsed((prev) => !prev);
-  }, []);
-
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
@@ -296,17 +250,11 @@ function AccountPageContent() {
 
   return (
     <div className="relative min-h-screen bg-black text-white">
-      <aside
-        className={`fixed left-0 top-0 h-full border-r border-white/10 p-6 bg-black z-20 overflow-y-auto hidden lg:flex flex-col transition-all duration-300 ${
-          sidebarCollapsed ? "w-20" : "w-72"
-        }`}
-      >
+      <aside className="fixed left-0 top-0 h-full w-72 border-r border-white/10 p-6 bg-black z-20 overflow-y-auto hidden lg:flex flex-col">
         <AccountSidebar
           activeTab={activeTab}
           onTabChange={handleTabChange}
           onLogout={handleLogout}
-          collapsed={sidebarCollapsed}
-          onToggle={toggleSidebar}
           unreadNotificationCount={unreadNotificationCount}
           isGuest={user?.isGuest}
         />
@@ -342,8 +290,6 @@ function AccountPageContent() {
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
                 onLogout={handleLogout}
-                collapsed={false}
-                onToggle={() => {}}
                 unreadNotificationCount={unreadNotificationCount}
                 isGuest={user?.isGuest}
               />
@@ -352,11 +298,7 @@ function AccountPageContent() {
         )}
       </AnimatePresence>
 
-      <main
-        className={`min-h-screen bg-white text-black transition-all duration-300 ${
-          sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"
-        }`}
-      >
+      <main className="min-h-screen bg-white text-black lg:ml-72">
         <div className="p-4 xs:p-6 sm:p-8 md:p-10 lg:p-14">
           <DashboardMobileMenuBar onOpen={() => setSidebarOpen(true)} />
           <div className="mb-8 sm:mb-10">

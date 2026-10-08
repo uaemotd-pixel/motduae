@@ -20,7 +20,11 @@ import {
   getEmirateEn,
   getEmirateAr,
 } from "@/lib/uaeAddress";
-import { ADMIN_PERM_LABELS } from "@/lib/auth/adminAccess";
+import {
+  ADMIN_PERM_LABELS,
+  emptyAdminPerms,
+  type AdminPermKey,
+} from "@/lib/auth/adminAccess";
 
 interface SubAdminForm {
   name: string;
@@ -34,21 +38,7 @@ interface SubAdminForm {
   street: string;
   building: string;
   postalCode: string;
-  perms: {
-    customers: boolean;
-    readyMade: boolean;
-    fabrics: boolean;
-    designs: boolean;
-    tailors: boolean;
-    orders: boolean;
-    partners: boolean;
-    settings: boolean;
-    payments: boolean;
-    addons: boolean;
-    notifications: boolean;
-    reviews: boolean;
-    queries: boolean;
-  };
+  perms: Record<AdminPermKey, boolean>;
 }
 
 export default function CreateSubAdminPage() {
@@ -73,21 +63,7 @@ export default function CreateSubAdminPage() {
     street: "",
     building: "",
     postalCode: "",
-    perms: {
-      customers: false,
-      readyMade: false,
-      fabrics: false,
-      designs: false,
-      tailors: false,
-      orders: false,
-      partners: false,
-      settings: false,
-      payments: false,
-      addons: false,
-      notifications: false,
-      reviews: false,
-      queries: false,
-    },
+    perms: emptyAdminPerms(),
   });
 
   useEffect(() => {
@@ -439,8 +415,7 @@ export default function CreateSubAdminPage() {
                     className="accent-black w-4 h-4"
                   />
                   <span className="text-sm">
-                    {ADMIN_PERM_LABELS[key as keyof typeof ADMIN_PERM_LABELS] ||
-                      key}
+                    {ADMIN_PERM_LABELS[key as AdminPermKey] || key}
                   </span>
                 </label>
               ))}
