@@ -10,6 +10,7 @@ import GlobalPagination from "@/components/shared/GlobalPagination";
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
 type QueryStatus = "new" | "contacted" | "closed";
+type QueryListFilter = QueryStatus | "all";
 
 type SupportQuery = {
   id: string;
@@ -26,6 +27,7 @@ type Counts = {
   new: number;
   contacted: number;
   closed: number;
+  all: number;
 };
 
 const TOAST = {
@@ -48,23 +50,24 @@ async function copyEmail(email: string) {
   await navigator.clipboard.writeText(email);
 }
 
-function readStatus(value: string | null): QueryStatus {
-  if (value === "contacted" || value === "closed") return value;
+function readListFilter(value: string | null): QueryListFilter {
+  if (value === "contacted" || value === "closed" || value === "all") return value;
   return "new";
 }
 
 export default function AdminQueriesPage() {
   const searchParams = useSearchParams();
-  const urlStatus = readStatus(searchParams.get("status"));
+  const urlStatus = readListFilter(searchParams.get("status"));
   const urlSearch = searchParams.get("search") || "";
 
-  const [status, setStatus] = useState<QueryStatus>(urlStatus);
+  const [status, setStatus] = useState<QueryListFilter>(urlStatus);
   const [search, setSearch] = useState(urlSearch);
   const [items, setItems] = useState<SupportQuery[]>([]);
   const [counts, setCounts] = useState<Counts>({
     new: 0,
     contacted: 0,
     closed: 0,
+    all: 0,
   });
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -139,10 +142,11 @@ export default function AdminQueriesPage() {
     }
   };
 
-  const tabs: { key: QueryStatus; label: string }[] = [
+  const tabs: { key: QueryListFilter; label: string }[] = [
     { key: "new", label: `New (${counts.new})` },
     { key: "contacted", label: `Contacted (${counts.contacted})` },
     { key: "closed", label: `Closed (${counts.closed})` },
+    { key: "all", label: `All (${counts.all})` },
   ];
 
   const statusBadge = (value: QueryStatus) => {
@@ -225,7 +229,13 @@ export default function AdminQueriesPage() {
         {loading ? (
           <p className="p-6 text-sm text-gray-500">Loading queries…</p>
         ) : items.length === 0 ? (
-          <p className="p-6 text-sm text-gray-500">No queries in this filter.</p>
+          <p className="p-6 text-sm text-gray-500">
+            {search.trim()
+              ? "No matching queries."
+              : status === "all"
+                ? "No queries yet."
+                : "No queries in this filter."}
+          </p>
         ) : (
           <ul className="divide-y divide-gray-100">
             {items.map((item) => {
