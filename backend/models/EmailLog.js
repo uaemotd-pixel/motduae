@@ -50,7 +50,11 @@ emailLogSchema.index({ status: 1, createdAt: -1 });
 emailLogSchema.index({ to: 1, createdAt: -1 });
 emailLogSchema.index({ orderId: 1, event: 1 });
 emailLogSchema.index({ userId: 1, createdAt: -1 });
-emailLogSchema.index({ dedupeKey: 1 }, { unique: true, sparse: true });
+// sparse still indexes explicit nulls, so only unique-check real keys.
+emailLogSchema.index(
+  { dedupeKey: 1 },
+  { unique: true, partialFilterExpression: { dedupeKey: { $type: "string" } } },
+);
 
 const EmailLog = mongoose.model("EmailLog", emailLogSchema);
 
