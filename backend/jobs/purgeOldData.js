@@ -489,7 +489,8 @@ export async function runCronJob(jobId, { dryRun = false, now = new Date() } = {
  */
 export function startOldDataPurgeScheduler() {
   if (process.env.VERCEL) return;
-  if (cluster.isWorker) {
+  // PM2 cluster runs every instance as a worker; let instance 0 own the timers.
+  if (cluster.isWorker && process.env.NODE_APP_INSTANCE !== "0") {
     console.log("[purge-old-data] cluster worker skip in-process scheduler");
     return;
   }
