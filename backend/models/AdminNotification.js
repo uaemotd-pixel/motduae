@@ -40,7 +40,11 @@ adminNotificationSchema.index({ read: 1, createdAt: -1 });
 adminNotificationSchema.index({ audience: 1, createdAt: -1 });
 adminNotificationSchema.index({ audience: 1, recipientUserId: 1, createdAt: -1 });
 adminNotificationSchema.index({ audience: 1, read: 1, deletedAt: 1, createdAt: -1 });
-adminNotificationSchema.index({ dedupeKey: 1 }, { unique: true, sparse: true });
+// sparse still indexes explicit nulls, so only unique-check real keys.
+adminNotificationSchema.index(
+  { dedupeKey: 1 },
+  { unique: true, partialFilterExpression: { dedupeKey: { $type: "string" } } },
+);
 adminNotificationSchema.index({ deletedAt: 1, createdAt: -1 });
 
 const AdminNotification = mongoose.model(
