@@ -5,6 +5,15 @@ import { ensureDesignsHaveMinCut } from "./utils/designMinCutMigration.js";
 import { startOldDataPurgeScheduler } from "./jobs/purgeOldData.js";
 import { connectRateLimitRedis } from "./services/rateLimitRedis.js";
 
+process.on("unhandledRejection", (reason) => {
+  console.error(`[${new Date().toISOString()}] Unhandled rejection:`, reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error(`[${new Date().toISOString()}] Uncaught exception:`, error);
+  process.exit(1);
+});
+
 connectDB()
   .then(async () => {
     await ensureDesignsHaveMinCut();
@@ -24,6 +33,7 @@ connectDB()
       startOldDataPurgeScheduler();
     });
   })
-  .catch(() => {
+  .catch((error) => {
+    console.error(`[${new Date().toISOString()}] Startup failed:`, error);
     process.exit(1);
   });
