@@ -177,6 +177,15 @@ export const STATIC_SEO_PAGES: StaticSeoPage[] = [
     descriptionAr: "تصفّحي علامات الأقمشة والخياطين المعتمدين من MOTD في الإمارات.",
   },
   {
+    path: "/about",
+    titleEn: "About Us",
+    titleAr: "من نحن",
+    descriptionEn:
+      "Learn about MOTD — Mukhawar of the Day. Curated designs, premium fabrics, and trusted UAE tailors in one seamless experience.",
+    descriptionAr:
+      "تعرّفي على MOTD — مخوار اليوم. تصاميم مختارة وأقمشة فاخرة وخياطون موثوقون في الإمارات في تجربة سلسة واحدة"
+  },
+  {
     path: "/contact-us",
     titleEn: "Contact Us",
     titleAr: "تواصلي معنا",
