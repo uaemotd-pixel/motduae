@@ -28,11 +28,13 @@ import {
   MapPin,
   Undo2,
   ShieldCheck,
+  AlertTriangle,
 } from "lucide-react";
 import {
   FAQ_ITEMS,
   CHATBOT_FAQ_SECTIONS,
   CHATBOT_TRACK_TOPIC_ID,
+  CHATBOT_DAMAGE_TOPIC_ID,
   type FAQItem,
 } from "@/data/motdFaqs";
 import { useAuth } from "@/context/AuthContext";
@@ -88,6 +90,7 @@ function storeVisitor(name: string, email?: string) {
 
 const TOPIC_ICONS = {
   "chat-track": MapPin,
+  "chat-damage": AlertTriangle,
   "chat-about": Sparkles,
   "chat-browse": Globe2,
   "chat-account": UserRound,
@@ -265,6 +268,27 @@ function isTrackOrderIdPrefixValid(raw: string) {
 
 const TRACK_EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+type DamageKind =
+  | ""
+  | "torn"
+  | "stained"
+  | "missing_parts"
+  | "wrong_item"
+  | "packaging_damaged"
+  | "other";
+
+type ClaimOrderType = "" | "custom" | "retail";
+
+const DAMAGE_KIND_OPTIONS: { value: Exclude<DamageKind, "">; en: string; ar: string }[] =
+  [
+    { value: "torn", en: "Torn / ripped", ar: "ممزّق / مقطوع" },
+    { value: "stained", en: "Stained / dirty", ar: "ملطّخ / متّسخ" },
+    { value: "missing_parts", en: "Missing parts / incomplete", ar: "أجزاء ناقصة / غير مكتمل" },
+    { value: "wrong_item", en: "Wrong item received", ar: "تم استلام قطعة خاطئة" },
+    { value: "packaging_damaged", en: "Damaged packaging", ar: "تغليف تالف" },
+    { value: "other", en: "Something else", ar: "شيء آخر" },
+  ];
+
 /** Pull a customer Order ID (RO-0001ABC / CO-0001ABC) out of a typed question. */
 function extractTrackOrderIdFromText(raw: string): string | null {
   const match = String(raw || "")
@@ -415,12 +439,28 @@ export default function FaqChatbot() {
   const [visitorName, setVisitorName] = useState("");
   const [awaitingName, setAwaitingName] = useState(false);
   const [supportView, setSupportView] = useState<null | "form" | "success">(null);
+  const [supportCategory, setSupportCategory] = useState<"general" | "damage_claim">(
+    "general",
+  );
   const [supportRef, setSupportRef] = useState("");
   const [formName, setFormName] = useState("");
   const [formEmail, setFormEmail] = useState("");
+  const [formOrderId, setFormOrderId] = useState("");
+  const [formOrderIdInvalid, setFormOrderIdInvalid] = useState(false);
+  const [formDamageKind, setFormDamageKind] = useState<DamageKind>("");
+  const [formClaimOrderType, setFormClaimOrderType] = useState<ClaimOrderType>("");
   const [formConcern, setFormConcern] = useState("");
   const [supportSubmitting, setSupportSubmitting] = useState(false);
   const [supportError, setSupportError] = useState("");
+  const isDamageClaim = supportCategory === "damage_claim";
+
+  const DAMAGE_POST_DELIVERY = new Set([
+    "delivered",
+    "return_requested",
+    "return_approved",
+    "return_rejected",
+    "refund_processed",
+  ]);
   /** Meaningful user exchanges (topic/question/typed). Support CTA unlocks after 2. */
   const [userTurns, setUserTurns] = useState(0);
   const [trackView, setTrackView] = useState(false);
@@ -521,6 +561,33 @@ export default function FaqChatbot() {
         supportConcern: "الاستفسار",
         supportConcernPlaceholder: "اكتبي ما تحتاجين المساعدة بشأنه",
         supportInvalidConcern: "يرجى وصف استفسارك (10 أحرف على الأقل).",
+        damageTitle: "الإبلاغ عن تلف",
+        damageHint:
+          "لا حاجة لحساب. أدخلي رقم الطلب والبريد من رسالة التأكيد ووصف التلف. يتولى فريق رعاية MOTD الطلب فقط — لا تتواصلي مع الخياط أو محل القماش أو شركة الشحن.",
+        damageMemberHint:
+          "أدخلي رقم الطلب ووصف التلف. يتولى فريق رعاية MOTD الطلب فقط — لا تتواصلي مع الشركاء.",
+        damageGuestSessionHint:
+          "أنتِ تتسوقين كزائرة بدون حساب. أدخلي رقم الطلب والبريد المستخدم عند الدفع ووصف التلف. يتولى فريق رعاية MOTD الطلب فقط.",
+        damageOrderLabel: "رقم الطلب",
+        damageOrderPlaceholder: "مثل RO-0001ABC",
+        damageConcern: "وصف التلف",
+        damageConcernPlaceholder: "صفي التلف ومتى استلمتِ الطلب",
+        damageInvalidConcern: "يرجى وصف التلف (10 أحرف على الأقل).",
+        damageInvalidOrder: "يرجى إدخال رقم طلب صالح.",
+        damageOrderNotYours:
+          "رقم الطلب هذا ليس من طلباتك. تحققي من الرقم وحاولي مرة أخرى.",
+        damageOrderNotDelivered:
+          "يمكن الإبلاغ عن التلف فقط بعد تسليم الطلب. هذا الطلب لم يُعلَّم كمُسلَّم بعد.",
+        damageKindLabel: "نوع التلف",
+        damageKindPlaceholder: "اختاري نوع التلف",
+        damageKindRequired: "يرجى اختيار نوع التلف.",
+        damageOrderTypeLabel: "نوع الطلب",
+        damageOrderTypePlaceholder: "اختاري نوع الطلب",
+        damageOrderTypeCustom: "مخوار مخصص",
+        damageOrderTypeRetail: "جاهز / تجزئة",
+        damageOrderTypeRequired: "يرجى اختيار نوع الطلب.",
+        damageSuccessBody:
+          "استلم فريق رعاية MOTD بلاغ التلف. سيتواصلون معكِ عبر البريد الإلكتروني — لا حاجة للتواصل مع الشركاء.",
         trackTitle: "تتبع طلبك",
         trackHint:
           "أدخلي رقم الطلب (مثل RO-0001ABC أو CO-0001ABC) لعرض الحالة الحالية والتقدّم.",
@@ -610,6 +677,33 @@ export default function FaqChatbot() {
         supportConcern: "Your concern",
         supportConcernPlaceholder: "Tell us what you need help with",
         supportInvalidConcern: "Please describe your concern (at least 10 characters).",
+        damageTitle: "Claim a Damage",
+        damageHint:
+          "No account needed. Enter your Order ID, the email from your confirmation, and describe the damage. MOTD Care handles it only — do not contact the tailor, fabric shop, or courier.",
+        damageMemberHint:
+          "Enter your Order ID and describe the damage. MOTD Care handles it only — do not contact partners.",
+        damageGuestSessionHint:
+          "You're shopping as a guest (no account). Enter your Order ID, the email used at checkout, and describe the damage. MOTD Care handles it only.",
+        damageOrderLabel: "Order ID",
+        damageOrderPlaceholder: "e.g. RO-0001ABC",
+        damageConcern: "Damage description",
+        damageConcernPlaceholder: "Describe the damage and when you received the order",
+        damageInvalidConcern: "Please describe the damage (at least 10 characters).",
+        damageInvalidOrder: "Please enter a valid Order ID.",
+        damageOrderNotYours:
+          "That Order ID isn't one of your orders. Check the ID and try again.",
+        damageOrderNotDelivered:
+          "A damage claim can only be submitted after the order is marked delivered.",
+        damageKindLabel: "Kind of damage",
+        damageKindPlaceholder: "Select kind of damage",
+        damageKindRequired: "Please select the kind of damage.",
+        damageOrderTypeLabel: "Order type",
+        damageOrderTypePlaceholder: "Select order type",
+        damageOrderTypeCustom: "Custom Mukhawar",
+        damageOrderTypeRetail: "Ready-made",
+        damageOrderTypeRequired: "Please select the order type.",
+        damageSuccessBody:
+          "MOTD Care has received your damage claim. They will contact you by email — no need to contact partners.",
         trackTitle: "Track Your Order",
         trackHint:
           "Enter your Order ID (e.g. RO-0001ABC or CO-0001ABC) to see the current status and progress.",
@@ -740,6 +834,8 @@ export default function FaqChatbot() {
   const isRegisteredMember = Boolean(
     isAuthenticated && user && !user.isGuest && user.email?.trim()
   );
+  /** Guest checkout session (shared guest account) — still needs Order ID + contact email. */
+  const isGuestShopper = Boolean(isAuthenticated && user?.isGuest);
   /** Hide on first screen; unlock after ~2 exchanges, or once they've seen an FAQ answer. */
   const showNotFoundCta =
     userTurns >= 2 || quickReplies?.kind === "afterAnswer";
@@ -750,9 +846,14 @@ export default function FaqChatbot() {
 
   const resetSupportState = useCallback(() => {
     setSupportView(null);
+    setSupportCategory("general");
     setSupportRef("");
     setFormName("");
     setFormEmail("");
+    setFormOrderId("");
+    setFormOrderIdInvalid(false);
+    setFormDamageKind("");
+    setFormClaimOrderType("");
     setFormConcern("");
     setSupportSubmitting(false);
     setSupportError("");
@@ -795,14 +896,21 @@ export default function FaqChatbot() {
     ],
   );
 
-  const openSupportForm = () => {
+  const openSupportForm = (category: "general" | "damage_claim" = "general") => {
     if (busy || awaitingNameRef.current || supportSubmitting || trackSubmitting) return;
     resetTrackState();
-    pushUser(copy.notFoundLabel);
+    if (category === "general") {
+      pushUser(copy.notFoundLabel);
+    }
     setQuickReplies(null);
+    setSupportCategory(category);
     setSupportError("");
     setSupportRef("");
     setFormConcern("");
+    setFormOrderId("");
+    setFormOrderIdInvalid(false);
+    setFormDamageKind("");
+    setFormClaimOrderType("");
     setSupportView("form");
 
     const member = getMemberProfile();
@@ -812,22 +920,40 @@ export default function FaqChatbot() {
       return;
     }
 
-    // Guests: empty fields with placeholders only — never pre-fill
+    if (category === "damage_claim") {
+      // Only prefill checkout email when the shopper is in an active guest session.
+      // Anonymous visitors must type the confirmation email themselves (no stored autofill).
+      if (user?.isGuest && user.guestContactEmail?.trim()) {
+        setFormName(visitorName.trim() || "");
+        setFormEmail(user.guestContactEmail.trim());
+        return;
+      }
+      setFormName(visitorName.trim() || "");
+      setFormEmail("");
+      return;
+    }
+
+    // General support for guests: empty fields with placeholders only
     setFormName("");
     setFormEmail("");
+  };
+
+  const openDamageClaimForm = () => {
+    openSupportForm("damage_claim");
   };
 
   const finishSupportSuccess = (referenceNumber: string) => {
     setSupportRef(referenceNumber);
     setSupportView("success");
+    const successBody = isDamageClaim
+      ? copy.damageSuccessBody
+      : copy.supportSuccessBody;
     setMessages((prev) => [
       ...prev,
       {
         id: nextId("b"),
         role: "bot",
-        text: isAr
-          ? `${copy.supportSuccessBody}\n\n${copy.supportRefLabel}: ${referenceNumber}`
-          : `${copy.supportSuccessBody}\n\n${copy.supportRefLabel}: ${referenceNumber}`,
+        text: `${successBody}\n\n${copy.supportRefLabel}: ${referenceNumber}`,
       },
     ]);
   };
@@ -844,8 +970,7 @@ export default function FaqChatbot() {
         setSupportError(copy.supportInvalidName);
         return;
       }
-      const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRx.test(email)) {
+      if (!TRACK_EMAIL_RX.test(email)) {
         setSupportError(copy.supportInvalidEmail);
         return;
       }
@@ -857,27 +982,181 @@ export default function FaqChatbot() {
       email = member.email;
     }
 
+    const orderId = normalizeTrackOrderIdInput(formOrderId);
+    if (isDamageClaim) {
+      if (!formClaimOrderType) {
+        setSupportError(copy.damageOrderTypeRequired);
+        return;
+      }
+      if (!formDamageKind) {
+        setSupportError(copy.damageKindRequired);
+        return;
+      }
+      if (!orderId || orderId.length < 4) {
+        setFormOrderIdInvalid(true);
+        setSupportError(copy.damageInvalidOrder);
+        return;
+      }
+      if (!isTrackOrderIdPrefixValid(orderId)) {
+        setFormOrderIdInvalid(true);
+        setSupportError(copy.trackBadPrefix);
+        return;
+      }
+      // Soft hint from Order ID prefix (CO = custom, RO = retail)
+      if (orderId.startsWith("CO") && formClaimOrderType !== "custom") {
+        setSupportError(
+          isAr
+            ? "رقم الطلب هذا لمخوار مخصص. يرجى اختيار «مخوار مخصص»."
+            : "This Order ID is for a custom order. Please select Custom Mukhawar.",
+        );
+        return;
+      }
+      if (orderId.startsWith("RO") && formClaimOrderType !== "retail") {
+        setSupportError(
+          isAr
+            ? "رقم الطلب هذا لطلب جاهز. يرجى اختيار «جاهز / تجزئة»."
+            : "This Order ID is for a ready-made order. Please select Ready-made.",
+        );
+        return;
+      }
+    }
+
     const concern = formConcern.trim();
     if (concern.length < 10 || concern.length > 2000) {
-      setSupportError(copy.supportInvalidConcern);
+      setSupportError(
+        isDamageClaim ? copy.damageInvalidConcern : copy.supportInvalidConcern,
+      );
       return;
     }
 
     setSupportSubmitting(true);
     try {
+      // Logged-in: verify Order ID belongs to this account before creating the claim
+      if (isDamageClaim && isRegisteredMember) {
+        try {
+          const check = await api.get<TrackOrderResponse>(
+            `/api/orders/track/by-id/${encodeURIComponent(orderId)}`,
+          );
+          if (!check?.success || !check.order) {
+            setFormOrderIdInvalid(true);
+            setSupportError(copy.damageOrderNotYours);
+            return;
+          }
+          if (!DAMAGE_POST_DELIVERY.has(String(check.order.status || ""))) {
+            setFormOrderIdInvalid(true);
+            setSupportError(copy.damageOrderNotDelivered);
+            return;
+          }
+        } catch (verifyErr) {
+          const status = (verifyErr as { status?: number })?.status;
+          setFormOrderIdInvalid(true);
+          setSupportError(
+            status === 404
+              ? copy.damageOrderNotYours
+              : getApiErrorMessage(
+                  verifyErr,
+                  isAr
+                    ? "تعذر التحقق من رقم الطلب. حاولي مرة أخرى."
+                    : "Could not verify the Order ID. Please try again.",
+                ),
+          );
+          return;
+        }
+      }
+
+      // Guest / anonymous: verify Order ID + confirmation email before creating the claim
+      if (isDamageClaim && !isRegisteredMember) {
+        try {
+          const check = await api.post<TrackOrderResponse>(
+            "/api/orders/track/by-id",
+            { publicOrderId: orderId, email },
+          );
+          if (!check?.success || !check.order) {
+            setFormOrderIdInvalid(true);
+            setSupportError(copy.trackNotFoundGuest);
+            return;
+          }
+          if (!DAMAGE_POST_DELIVERY.has(String(check.order.status || ""))) {
+            setFormOrderIdInvalid(true);
+            setSupportError(copy.damageOrderNotDelivered);
+            return;
+          }
+        } catch (verifyErr) {
+          const status = (verifyErr as { status?: number })?.status;
+          setFormOrderIdInvalid(true);
+          setSupportError(
+            status === 404
+              ? copy.trackNotFoundGuest
+              : getApiErrorMessage(
+                  verifyErr,
+                  isAr
+                    ? "تعذر التحقق من رقم الطلب. حاولي مرة أخرى."
+                    : "Could not verify the Order ID. Please try again.",
+                ),
+          );
+          return;
+        }
+      }
+
+      const damageKindLabel = DAMAGE_KIND_OPTIONS.find(
+        (o) => o.value === formDamageKind,
+      );
+      const kindText = damageKindLabel
+        ? isAr
+          ? damageKindLabel.ar
+          : damageKindLabel.en
+        : formDamageKind;
+      const concernWithKind =
+        isDamageClaim && kindText
+          ? `[${kindText}]\n${concern}`
+          : concern;
+
       const data = await api.post<{ success: boolean; referenceNumber: string }>(
         "/api/faq-support/requests",
-        { name, email, concern, locale }
+        {
+          name,
+          email,
+          concern: concernWithKind,
+          locale,
+          category: supportCategory,
+          ...(isDamageClaim
+            ? {
+                publicOrderId: orderId,
+                orderType: formClaimOrderType,
+                damageKind: formDamageKind,
+              }
+            : {}),
+        },
       );
       finishSupportSuccess(data.referenceNumber);
     } catch (err) {
+      const status = (err as { status?: number; data?: { code?: string } })?.status;
+      const code = (err as { data?: { code?: string } })?.data?.code;
+      if (isDamageClaim && (status === 404 || code === "ORDER_NOT_ON_ACCOUNT")) {
+        setFormOrderIdInvalid(true);
+        setSupportError(
+          isRegisteredMember ? copy.damageOrderNotYours : copy.trackNotFoundGuest,
+        );
+        return;
+      }
+      if (isDamageClaim && code === "ORDER_NOT_DELIVERED") {
+        setFormOrderIdInvalid(true);
+        setSupportError(copy.damageOrderNotDelivered);
+        return;
+      }
+      if (isDamageClaim && code === "ORDER_TYPE_MISMATCH") {
+        setSupportError(
+          getApiErrorMessage(err, copy.damageOrderTypeRequired),
+        );
+        return;
+      }
       setSupportError(
         getApiErrorMessage(
           err,
           isAr
             ? "تعذر إرسال الطلب. حاولي مرة أخرى أو راسلينا على care@motd.ae."
-            : "Could not send your request. Please try again or email care@motd.ae."
-        )
+            : "Could not send your request. Please try again or email care@motd.ae.",
+        ),
       );
     } finally {
       setSupportSubmitting(false);
@@ -1163,6 +1442,34 @@ export default function FaqChatbot() {
         },
       ]);
       openTrackForm();
+      return;
+    }
+
+    if (topicId === CHATBOT_DAMAGE_TOPIC_ID) {
+      setQuickReplies(null);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextId("b"),
+          role: "bot",
+          text: isRegisteredMember
+            ? isAr
+              ? displayName
+                ? `${displayName}، يمكنكِ الإبلاغ عن التلف أدناه. يتولى فريق رعاية MOTD الطلب فقط.`
+                : "يمكنكِ الإبلاغ عن التلف أدناه. يتولى فريق رعاية MOTD الطلب فقط."
+              : displayName
+                ? `${displayName}, you can file a damage claim below. MOTD Care handles it only.`
+                : "You can file a damage claim below. MOTD Care handles it only."
+            : isAr
+              ? displayName
+                ? `${displayName}، لا حاجة لحساب — أدخلي رقم الطلب والبريد من رسالة التأكيد أدناه.`
+                : "لا حاجة لحساب — أدخلي رقم الطلب والبريد من رسالة التأكيد أدناه."
+              : displayName
+                ? `${displayName}, no account needed — enter your Order ID and confirmation email below.`
+                : "No account needed — enter your Order ID and confirmation email below.",
+        },
+      ]);
+      openDamageClaimForm();
       return;
     }
 
@@ -1494,33 +1801,47 @@ export default function FaqChatbot() {
                     {supportView === "form" ? (
                       <div className="flex flex-col gap-3">
                         <div>
-                          <p className="[font-family:var(--font-display)] text-[14px] text-black">
-                            {copy.supportFormTitle}
+                          <p
+                            className={`[font-family:var(--font-display)] text-[14px] ${
+                              isDamageClaim ? "text-red-800" : "text-black"
+                            }`}
+                          >
+                            {isDamageClaim
+                              ? copy.damageTitle
+                              : copy.supportFormTitle}
                           </p>
                           <p className="mt-1 [font-family:var(--font-body)] text-[12px] leading-relaxed text-[#5A5A56]">
-                            {isRegisteredMember
-                              ? copy.supportMemberHint
-                              : copy.supportGuestHint}
+                            {isDamageClaim
+                              ? isRegisteredMember
+                                ? copy.damageMemberHint
+                                : isGuestShopper
+                                  ? copy.damageGuestSessionHint
+                                  : copy.damageHint
+                              : isRegisteredMember
+                                ? copy.supportMemberHint
+                                : copy.supportGuestHint}
                           </p>
                         </div>
 
-                        <motion.p
-                          role="status"
-                          initial={{ backgroundColor: "#000000", color: "#FFFFFF" }}
-                          animate={{
-                            backgroundColor: ["#000000", "#FFFFFF", "#000000"],
-                            color: ["#FFFFFF", "#000000", "#FFFFFF"],
-                            borderColor: ["#000000", "#000000", "#000000"],
-                          }}
-                          transition={{
-                            duration: 1.4,
-                            repeat: Infinity,
-                            ease: "easeInOut",
-                          }}
-                          className="rounded-xl border px-3 py-2.5 [font-family:var(--font-body)] text-[12.5px] font-medium leading-snug"
-                        >
-                          {copy.supportOrderHint}
-                        </motion.p>
+                        {!isDamageClaim ? (
+                          <motion.p
+                            role="status"
+                            initial={{ backgroundColor: "#000000", color: "#FFFFFF" }}
+                            animate={{
+                              backgroundColor: ["#000000", "#FFFFFF", "#000000"],
+                              color: ["#FFFFFF", "#000000", "#FFFFFF"],
+                              borderColor: ["#000000", "#000000", "#000000"],
+                            }}
+                            transition={{
+                              duration: 1.4,
+                              repeat: Infinity,
+                              ease: "easeInOut",
+                            }}
+                            className="rounded-xl border px-3 py-2.5 [font-family:var(--font-body)] text-[12.5px] font-medium leading-snug"
+                          >
+                            {copy.supportOrderHint}
+                          </motion.p>
+                        ) : null}
 
                         {isRegisteredMember ? (
                           <dl className="space-y-2 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3 py-3">
@@ -1567,16 +1888,103 @@ export default function FaqChatbot() {
                                 onChange={(e) => setFormEmail(e.target.value)}
                                 disabled={supportSubmitting}
                                 autoComplete="email"
-                                placeholder={copy.supportEmailPlaceholder}
+                                placeholder={
+                                  isDamageClaim
+                                    ? copy.trackEmailPlaceholder
+                                    : copy.supportEmailPlaceholder
+                                }
                                 className="rounded-xl border border-[#E8E8E4] bg-white px-3 py-2.5 [font-family:var(--font-body)] text-[16px] sm:text-[13px] text-black outline-none placeholder:text-[#8A8A80] focus:border-black disabled:opacity-60"
                               />
                             </label>
                           </div>
                         )}
 
+                        {isDamageClaim ? (
+                          <>
+                            <label className="flex flex-col gap-1">
+                              <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.14em] text-[#8A8A80]">
+                                {copy.damageOrderTypeLabel}
+                              </span>
+                              <select
+                                value={formClaimOrderType}
+                                onChange={(e) => {
+                                  setFormClaimOrderType(
+                                    e.target.value as ClaimOrderType,
+                                  );
+                                  setSupportError("");
+                                }}
+                                disabled={supportSubmitting}
+                                className="rounded-xl border border-red-200 bg-red-50/40 px-3 py-2.5 [font-family:var(--font-body)] text-[16px] sm:text-[13px] text-black outline-none focus:border-red-400 disabled:opacity-60"
+                              >
+                                <option value="">
+                                  {copy.damageOrderTypePlaceholder}
+                                </option>
+                                <option value="custom">
+                                  {copy.damageOrderTypeCustom}
+                                </option>
+                                <option value="retail">
+                                  {copy.damageOrderTypeRetail}
+                                </option>
+                              </select>
+                            </label>
+
+                            <label className="flex flex-col gap-1">
+                              <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.14em] text-[#8A8A80]">
+                                {copy.damageKindLabel}
+                              </span>
+                              <select
+                                value={formDamageKind}
+                                onChange={(e) => {
+                                  setFormDamageKind(e.target.value as DamageKind);
+                                  setSupportError("");
+                                }}
+                                disabled={supportSubmitting}
+                                className="rounded-xl border border-red-200 bg-red-50/40 px-3 py-2.5 [font-family:var(--font-body)] text-[16px] sm:text-[13px] text-black outline-none focus:border-red-400 disabled:opacity-60"
+                              >
+                                <option value="">
+                                  {copy.damageKindPlaceholder}
+                                </option>
+                                {DAMAGE_KIND_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {isAr ? opt.ar : opt.en}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <label className="flex flex-col gap-1">
+                              <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.14em] text-[#8A8A80]">
+                                {copy.damageOrderLabel}
+                              </span>
+                              <input
+                                type="text"
+                                value={formOrderId}
+                                onChange={(e) => {
+                                  setFormOrderId(e.target.value);
+                                  setFormOrderIdInvalid(false);
+                                  setSupportError("");
+                                }}
+                                disabled={supportSubmitting}
+                                autoComplete="off"
+                                autoCapitalize="characters"
+                                spellCheck={false}
+                                aria-invalid={formOrderIdInvalid}
+                                placeholder={copy.damageOrderPlaceholder}
+                                className={`rounded-xl border bg-red-50/40 px-3 py-2.5 [font-family:var(--font-body)] text-[16px] sm:text-[13px] uppercase tracking-wide text-black outline-none placeholder:normal-case placeholder:tracking-normal placeholder:text-[#8A8A80] disabled:opacity-60 ${
+                                  formOrderIdInvalid
+                                    ? "border-red-500 focus:border-red-600 ring-1 ring-red-500/30"
+                                    : "border-red-200 focus:border-red-400"
+                                }`}
+                              />
+                            </label>
+                          </>
+                        ) : null}
+
                         <label className="flex flex-col gap-1">
                           <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.14em] text-[#8A8A80]">
-                            {copy.supportConcern}
+                            {isDamageClaim
+                              ? copy.damageConcern
+                              : copy.supportConcern}
                           </span>
                           <textarea
                             value={formConcern}
@@ -1584,8 +1992,16 @@ export default function FaqChatbot() {
                             disabled={supportSubmitting}
                             rows={4}
                             maxLength={2000}
-                            placeholder={copy.supportConcernPlaceholder}
-                            className="resize-y rounded-xl border border-[#E8E8E4] bg-white px-3 py-2.5 [font-family:var(--font-body)] text-[16px] sm:text-[13px] leading-relaxed text-black outline-none placeholder:text-[#8A8A80] focus:border-black disabled:opacity-60"
+                            placeholder={
+                              isDamageClaim
+                                ? copy.damageConcernPlaceholder
+                                : copy.supportConcernPlaceholder
+                            }
+                            className={`resize-y rounded-xl border bg-white px-3 py-2.5 [font-family:var(--font-body)] text-[16px] sm:text-[13px] leading-relaxed text-black outline-none placeholder:text-[#8A8A80] disabled:opacity-60 ${
+                              isDamageClaim
+                                ? "border-red-200 focus:border-red-400"
+                                : "border-[#E8E8E4] focus:border-black"
+                            }`}
                           />
                         </label>
 
@@ -1601,7 +2017,11 @@ export default function FaqChatbot() {
                             disabled={supportSubmitting}
                             onClick={() => void submitSupportRequest()}
                             whileTap={{ scale: 0.98 }}
-                            className="inline-flex flex-1 items-center justify-center rounded-full border border-black bg-black px-4 py-2.5 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
+                            className={
+                              isDamageClaim
+                                ? "inline-flex flex-1 items-center justify-center rounded-full border border-red-300 bg-red-600 px-4 py-2.5 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-red-700 disabled:opacity-50 hover:cursor-pointer"
+                                : "inline-flex flex-1 items-center justify-center rounded-full border border-black bg-black px-4 py-2.5 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
+                            }
                           >
                             {supportSubmitting ? copy.supportSubmitting : copy.supportSubmit}
                           </motion.button>
@@ -1622,7 +2042,9 @@ export default function FaqChatbot() {
                             {copy.supportSuccessTitle}
                           </p>
                           <p className="mt-1 [font-family:var(--font-body)] text-[12px] leading-relaxed text-[#5A5A56]">
-                            {copy.supportSuccessBody}
+                            {isDamageClaim
+                              ? copy.damageSuccessBody
+                              : copy.supportSuccessBody}
                           </p>
                         </div>
                         {supportRef ? (
@@ -1842,6 +2264,8 @@ export default function FaqChatbot() {
                                     TOPIC_ICONS[
                                       section.id as keyof typeof TOPIC_ICONS
                                     ] ?? Sparkles;
+                                  const isDamageTopic =
+                                    section.id === CHATBOT_DAMAGE_TOPIC_ID;
                                   return (
                                     <motion.button
                                       key={section.id}
@@ -1854,9 +2278,19 @@ export default function FaqChatbot() {
                                       onClick={() => selectSection(section.id)}
                                       whileHover={{ scale: 1.01 }}
                                       whileTap={{ scale: 0.98 }}
-                                      className="group flex w-full min-w-0 items-center gap-3 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3 py-3 sm:py-2.5 text-start transition-colors hover:border-black hover:bg-black hover:text-white disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                      className={
+                                        isDamageTopic
+                                          ? "group flex w-full min-w-0 items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-3 py-3 sm:py-2.5 text-start text-red-900 transition-colors hover:border-red-300 hover:bg-red-100 disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                          : "group flex w-full min-w-0 items-center gap-3 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3 py-3 sm:py-2.5 text-start transition-colors hover:border-black hover:bg-black hover:text-white disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                      }
                                     >
-                                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-white transition-colors group-hover:bg-white group-hover:text-black">
+                                      <span
+                                        className={
+                                          isDamageTopic
+                                            ? "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-200 text-red-800"
+                                            : "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-white transition-colors group-hover:bg-white group-hover:text-black"
+                                        }
+                                      >
                                         <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
                                       </span>
                                       <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12.5px] leading-snug">
@@ -1873,7 +2307,7 @@ export default function FaqChatbot() {
                         {showNotFoundCta ? (
                           <SupportNotFoundButton
                             label={copy.notFoundLabel}
-                            onClick={openSupportForm}
+                            onClick={() => openSupportForm("general")}
                             disabled={busy}
                             className="mt-1"
                           />
@@ -1962,7 +2396,7 @@ export default function FaqChatbot() {
                           {showNotFoundCta ? (
                             <SupportNotFoundButton
                               label={copy.notFoundLabel}
-                              onClick={openSupportForm}
+                              onClick={() => openSupportForm("general")}
                               disabled={busy}
                               className="mt-1"
                             />
@@ -2005,7 +2439,7 @@ export default function FaqChatbot() {
                                     key: "notfound",
                                     label: copy.notFoundLabel,
                                     icon: HelpCircle,
-                                    onClick: openSupportForm,
+                                    onClick: () => openSupportForm("general"),
                                     primary: true,
                                   },
                                 ]
