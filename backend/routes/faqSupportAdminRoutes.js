@@ -6,18 +6,35 @@ import FaqSupportRequest from "../models/FaqSupportRequest.js";
 const faqSupportAdminRouter = express.Router();
 
 const STATUSES = ["new", "contacted", "closed"];
+const CATEGORIES = ["general", "damage_claim", "tailor_issue"];
 
 function escapeRegex(value) {
   return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function serializeQuery(doc) {
+  let category = "general";
+  if (doc.category === "damage_claim") category = "damage_claim";
+  else if (doc.category === "tailor_issue") category = "tailor_issue";
+
   return {
     id: String(doc._id),
     referenceNumber: doc.referenceNumber || "",
     name: doc.name || "",
     email: doc.email || "",
     concern: doc.concern || "",
+    category,
+    publicOrderId: doc.publicOrderId || "",
+    orderType:
+      doc.orderType === "retail"
+        ? "retail"
+        : doc.orderType === "custom"
+          ? "custom"
+          : "",
+    damageKind: doc.damageKind || "",
+    partnerIssueKind: doc.partnerIssueKind || "",
+    source: doc.source || "faq_chatbot",
+    tailorShopId: doc.tailorShopId ? String(doc.tailorShopId) : "",
     locale: doc.locale === "ar" ? "ar" : "en",
     status: STATUSES.includes(doc.status) ? doc.status : "new",
     createdAt: doc.createdAt,
@@ -29,6 +46,8 @@ faqSupportAdminRouter.get(
   expressAsyncHandler(async (req, res) => {
     const statusRaw = String(req.query.status || "all").toLowerCase();
     const status = STATUSES.includes(statusRaw) ? statusRaw : "all";
+    const categoryRaw = String(req.query.category || "all").toLowerCase();
+    const category = CATEGORIES.includes(categoryRaw) ? categoryRaw : "all";
     const search =
       typeof req.query.search === "string" ? req.query.search.trim() : "";
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -37,19 +56,35 @@ faqSupportAdminRouter.get(
 
     const searchFilter = search
       ? {
-          $or: ["name", "email", "referenceNumber"].map((field) => ({
+          $or: [
+            "name",
+            "email",
+            "referenceNumber",
+            "publicOrderId",
+            "concern",
+            "partnerIssueKind",
+            "damageKind",
+          ].map((field) => ({
             [field]: new RegExp(escapeRegex(search), "i"),
           })),
         }
       : {};
 
-    const listFilter =
-      status === "all" ? searchFilter : { ...searchFilter, status };
+    const categoryFilter =
+      category === "all" ? {} : { category };
 
-    const [grouped, total, docs] = await Promise.all([
+    const baseFilter = { ...searchFilter, ...categoryFilter };
+    const listFilter =
+      status === "all" ? baseFilter : { ...baseFilter, status };
+
+    const [statusGrouped, categoryGrouped, total, docs] = await Promise.all([
+      FaqSupportRequest.aggregate([
+        { $match: baseFilter },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
       FaqSupportRequest.aggregate([
         { $match: searchFilter },
-        { $group: { _id: "$status", count: { $sum: 1 } } },
+        { $group: { _id: "$category", count: { $sum: 1 } } },
       ]),
       FaqSupportRequest.countDocuments(listFilter),
       FaqSupportRequest.find(listFilter)
@@ -60,9 +95,21 @@ faqSupportAdminRouter.get(
     ]);
 
     const counts = { new: 0, contacted: 0, closed: 0, all: 0 };
-    for (const row of grouped) {
+    for (const row of statusGrouped) {
       if (row._id in counts) counts[row._id] = row.count;
       counts.all += row.count;
+    }
+
+    const categoryCounts = {
+      all: 0,
+      general: 0,
+      damage_claim: 0,
+      tailor_issue: 0,
+    };
+    for (const row of categoryGrouped) {
+      const key = CATEGORIES.includes(row._id) ? row._id : "general";
+      categoryCounts[key] += row.count;
+      categoryCounts.all += row.count;
     }
 
     res.json({
@@ -73,6 +120,7 @@ faqSupportAdminRouter.get(
       total,
       totalPages: Math.ceil(total / limit) || 0,
       counts,
+      categoryCounts,
     });
   }),
 );

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { useAuth, needsEmailVerification } from "@/context/AuthContext";
-import { LayoutDashboard, LogOut, Scissors, Store, X, ShoppingBag, Bell, Edit, Settings } from "lucide-react";
+import { LayoutDashboard, LogOut, Scissors, Store, X, ShoppingBag, Bell, Edit, Settings, AlertTriangle } from "lucide-react";
 import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
 import white_logo from "../../../public/PNG/White/MOTD_Wordmark_White.png";
 import {
@@ -59,6 +59,11 @@ export default function TailorPortalShell({ children }: TailorPortalShellProps) 
         { label: t("nav.shop"), href: "/tailor/shop", icon: Store },
         { label: t("nav.designs"), href: "/tailor/designs", icon: Scissors },
         { label: t("nav.orders"), href: "/tailor/orders", icon: ShoppingBag },
+        {
+            label: t("nav.issues") || "Report issue",
+            href: "/tailor/issues",
+            icon: AlertTriangle,
+        },
         {
             label: t("nav.notifications") || "Notifications",
             href: "/tailor/notification",

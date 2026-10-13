@@ -141,3 +141,37 @@ export async function getPublicOrderByPublicIdAndEmail(input, email) {
 
   return loadOrderByPublicId(normalized, { contactEmail });
 }
+
+/**
+ * Damage-claim ownership: registered account, guest checkout session, or email proof.
+ */
+export async function getPublicOrderForDamageClaim(input, {
+  userId = null,
+  isGuest = false,
+  guestSessionId = "",
+  email = "",
+} = {}) {
+  const normalized = normalizePublicOrderId(input);
+  if (!normalized) return null;
+
+  if (userId && !isGuest) {
+    const owned = await loadOrderByPublicId(normalized, { userId });
+    if (owned) return owned;
+  }
+
+  const sessionId = String(guestSessionId || "").trim();
+  if (userId && isGuest && sessionId) {
+    const owned = await loadOrderByPublicId(normalized, {
+      userId,
+      guestSessionId: sessionId,
+    });
+    if (owned) return owned;
+  }
+
+  const contactEmail = normalizeEmail(email);
+  if (contactEmail) {
+    return loadOrderByPublicId(normalized, { contactEmail });
+  }
+
+  return null;
+}
