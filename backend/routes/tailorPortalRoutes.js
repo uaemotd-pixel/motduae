@@ -41,8 +41,52 @@ import PartnerApplication from "../models/PartnerApplication.js";
 import { normalizeSocialLinks } from "../services/partnerApplication/policy.js";
 import { shopFieldsFromApplication } from "../services/partnerApplication/seedShopFromApplication.js";
 import { computePartnerExperience } from "../utils/partnerExperience.js";
+import FaqSupportRequest from "../models/FaqSupportRequest.js";
+import { generatePartnerIssueReference } from "../services/faqSupport/referenceNumber.js";
+import { displayPublicOrderId } from "../services/publicOrderId.js";
 
 const tailorPortalRouter = express.Router();
+
+const PARTNER_ISSUE_KINDS = new Set([
+  "fabric_insufficient",
+  "fabric_damaged",
+  "other",
+]);
+const CONCERN_MIN = 10;
+const CONCERN_MAX = 2000;
+
+async function createPartnerIssueDoc(payload) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const referenceNumber = generatePartnerIssueReference();
+    try {
+      return await FaqSupportRequest.create({
+        ...payload,
+        referenceNumber,
+      });
+    } catch (err) {
+      if (
+        err?.code === 11000 &&
+        String(err?.message || "").includes("referenceNumber")
+      ) {
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Failed to mint partner issue reference");
+}
+
+function serializePartnerIssue(doc) {
+  return {
+    id: String(doc._id),
+    referenceNumber: doc.referenceNumber || "",
+    publicOrderId: doc.publicOrderId || "",
+    partnerIssueKind: doc.partnerIssueKind || "",
+    concern: doc.concern || "",
+    status: doc.status || "new",
+    createdAt: doc.createdAt,
+  };
+}
 
 const DEFAULT_TAILOR_COMMISSION_PERCENT = 12;
 
@@ -1135,6 +1179,153 @@ tailorPortalRouter.delete(
       }
       throw err;
     }
+  }),
+);
+
+/**
+ * POST /api/tailor/issues
+ * Report fabric / order problems to MOTD Care (Admin Queries). No direct customer contact.
+ */
+tailorPortalRouter.post(
+  "/issues",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).send({ message: "Shop not found" });
+      return;
+    }
+
+    const partnerIssueKind = String(req.body?.partnerIssueKind || "")
+      .trim()
+      .toLowerCase();
+    if (!PARTNER_ISSUE_KINDS.has(partnerIssueKind)) {
+      res.status(400).send({
+        message:
+          "Please select an issue type (fabric insufficient, fabric damaged, or other)",
+      });
+      return;
+    }
+
+    const concern = String(req.body?.concern || "").trim();
+    if (concern.length < CONCERN_MIN || concern.length > CONCERN_MAX) {
+      res.status(400).send({
+        message: "Please describe the issue (10 to 2000 characters)",
+      });
+      return;
+    }
+
+    const orderIdRaw = String(req.body?.orderId || "").trim();
+    if (!mongoose.Types.ObjectId.isValid(orderIdRaw)) {
+      res.status(400).send({ message: "A valid order is required" });
+      return;
+    }
+
+    const order = await CustomOrder.findById(orderIdRaw).select(
+      "publicOrderId tailorShopId items status",
+    );
+    if (!order) {
+      res.status(404).send({ message: "Order not found" });
+      return;
+    }
+
+    const shopId = String(shop._id);
+    const assigned =
+      String(order.tailorShopId || "") === shopId ||
+      (Array.isArray(order.items) &&
+        order.items.some(
+          (item) => String(item.tailorShopId || "") === shopId,
+        ));
+    if (!assigned) {
+      res.status(403).send({
+        message: "You can only report issues on orders assigned to your shop",
+      });
+      return;
+    }
+
+    const publicOrderId =
+      normalizePublicOrderId(displayPublicOrderId(order) || order.publicOrderId) ||
+      "";
+
+    const doc = await createPartnerIssueDoc({
+      name: String(shop.name || req.user.name || "Tailor").trim(),
+      email: String(req.user.email || "").toLowerCase().trim(),
+      concern,
+      category: "tailor_issue",
+      partnerIssueKind,
+      publicOrderId,
+      orderType: "custom",
+      orderId: order._id,
+      tailorShopId: shop._id,
+      userId: req.user._id,
+      locale: String(req.body?.locale || "en").toLowerCase() === "ar" ? "ar" : "en",
+      source: "tailor_portal",
+      status: "new",
+    });
+
+    try {
+      const kindLabel =
+        partnerIssueKind === "fabric_insufficient"
+          ? "Fabric insufficient"
+          : partnerIssueKind === "fabric_damaged"
+            ? "Fabric damaged"
+            : "Other";
+      await createNotification({
+        type: "faq_support_received",
+        title: "New tailor issue",
+        message: `${shop.name || "Tailor"} · ${doc.referenceNumber}${
+          publicOrderId ? ` · ${publicOrderId}` : ""
+        } — ${kindLabel}`,
+        audience: "admin",
+        dedupeKey: `tailor_issue:${doc._id}`,
+      });
+    } catch (err) {
+      console.error("Failed to notify admin of tailor issue:", err);
+    }
+
+    res.status(201).json({
+      success: true,
+      referenceNumber: doc.referenceNumber,
+      item: serializePartnerIssue(doc),
+    });
+  }),
+);
+
+/** GET /api/tailor/issues — own submitted issues */
+tailorPortalRouter.get(
+  "/issues",
+  expressAsyncHandler(async (req, res) => {
+    const shop = await findOwnShop(req.user._id);
+    if (!shop) {
+      res.status(404).send({ message: "Shop not found" });
+      return;
+    }
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const skip = (page - 1) * limit;
+    const filter = {
+      category: "tailor_issue",
+      tailorShopId: shop._id,
+      source: "tailor_portal",
+    };
+
+    const [total, docs] = await Promise.all([
+      FaqSupportRequest.countDocuments(filter),
+      FaqSupportRequest.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    res.json({
+      success: true,
+      items: docs.map(serializePartnerIssue),
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 0,
+    });
   }),
 );
 

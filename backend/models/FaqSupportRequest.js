@@ -23,6 +23,55 @@ const FaqSupportRequestSchema = new mongoose.Schema(
       trim: true,
       maxlength: 2000,
     },
+    category: {
+      type: String,
+      enum: ["general", "damage_claim", "tailor_issue"],
+      default: "general",
+      index: true,
+    },
+    publicOrderId: {
+      type: String,
+      default: "",
+      trim: true,
+      uppercase: true,
+      index: true,
+    },
+    orderType: {
+      type: String,
+      enum: ["custom", "retail"],
+      required: false,
+    },
+    damageKind: {
+      type: String,
+      enum: [
+        "torn",
+        "stained",
+        "missing_parts",
+        "wrong_item",
+        "packaging_damaged",
+        "other",
+      ],
+      required: false,
+    },
+    /** Tailor/partner issue type (fabric problems reported to MOTD Care). */
+    partnerIssueKind: {
+      type: String,
+      enum: ["fabric_insufficient", "fabric_damaged", "other"],
+      required: false,
+      index: true,
+    },
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "CustomOrder",
+      default: null,
+      index: true,
+    },
+    tailorShopId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TailorShop",
+      default: null,
+      index: true,
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -30,7 +79,12 @@ const FaqSupportRequestSchema = new mongoose.Schema(
       index: true,
     },
     locale: { type: String, enum: ["en", "ar"], default: "en" },
-    source: { type: String, default: "faq_chatbot", trim: true },
+    source: {
+      type: String,
+      default: "faq_chatbot",
+      trim: true,
+      index: true,
+    },
     status: {
       type: String,
       enum: ["new", "contacted", "closed"],

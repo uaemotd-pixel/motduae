@@ -2344,6 +2344,7 @@ export const FAQ_SECTIONS = [
 /** Chatbot-only topic list (Guide keeps FAQ_SECTIONS / section-1..6). */
 export const CHATBOT_FAQ_SECTIONS = [
   { id: "chat-track", titleEn: "Track Your Order", titleAr: "تتبع طلبك" },
+  { id: "chat-damage", titleEn: "Claim a Damage", titleAr: "الإبلاغ عن تلف" },
   { id: "chat-about", titleEn: "About MOTD & Mukhawar", titleAr: "عن MOTD والمخوار" },
   { id: "chat-browse", titleEn: "Language, Currency & Browsing", titleAr: "اللغة والعملة والتصفح" },
   { id: "chat-account", titleEn: "Account & Sign-In", titleAr: "الحساب وتسجيل الدخول" },
@@ -2364,4 +2365,7 @@ export const CHATBOT_FAQ_SECTIONS = [
 
 /** Special chatbot topic: opens Order ID lookup (not FAQ questions). */
 export const CHATBOT_TRACK_TOPIC_ID = "chat-track";
+
+/** Special chatbot topic: opens damage claim form → Admin Queries. */
+export const CHATBOT_DAMAGE_TOPIC_ID = "chat-damage";
 
