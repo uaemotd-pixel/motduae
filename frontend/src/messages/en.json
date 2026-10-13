@@ -2187,6 +2187,62 @@
       "trackCta": "Track your order"
     }
   },
+  "AboutPage": {
+    "eyebrow": "Our Story",
+    "title": "About MOTD",
+    "headlineLine1": "Rooted in Tradition.",
+    "headlineLine2": "Worn Today.",
+    "intro": "MOTD (Mukhawar of the Day) is a refined destination connecting discerning clients with exceptional fabrics, master tailoring houses, and elevated craftsmanship inspired by contemporary Gulf elegance.",
+    "whoTitle": "Who we are",
+    "whoBody": "MOTD is an online platform dedicated to the timeless elegance of the Emirati Mukhawar. We bring together carefully selected designs, premium fabrics, and skilled tailors in one seamless experience — so you can create a Mukhawar that is uniquely yours.",
+    "whoBody2": "Whether you are ordering for everyday wear, special occasions, or gifting, every piece is made with care, craftsmanship, and attention to detail.",
+    "notTailorTitle": "We are a platform — not a tailor",
+    "notTailorBody": "MOTD connects customers with carefully selected tailors and fabric suppliers while overseeing the experience from order placement to delivery. Every partner is chosen for craftsmanship, quality, and reliability.",
+    "mukhawarTitle": "What is a Mukhawar?",
+    "mukhawarBody": "A Mukhawar is a traditional Emirati dress worn by women for generations. Known for its elegant silhouette and distinctive embroidery, it reflects the rich cultural heritage of the UAE while leaving room for personal style — for everyday elegance, gatherings, celebrations, and special occasions.",
+    "howTitle": "How MOTD works",
+    "howIntro": "Ordering your Mukhawar is simple and considered.",
+    "steps": {
+      "1": {
+        "title": "Choose a design",
+        "body": "Browse curated Mukhawar designs from trusted tailoring partners."
+      },
+      "2": {
+        "title": "Select your fabric",
+        "body": "Choose a premium fabric from our partners — or provide your own."
+      },
+      "3": {
+        "title": "Add your measurements",
+        "body": "Enter new measurements or use a saved measurement profile."
+      },
+      "4": {
+        "title": "We coordinate the rest",
+        "body": "From fabric to tailoring and quality review, then delivery to your door."
+      }
+    },
+    "whyTitle": "Why order through MOTD",
+    "whyIntro": "We simplify what is often a time-consuming process — bringing the entire experience together in one place.",
+    "whyItems": {
+      "1": "Browse curated Mukhawar designs",
+      "2": "Discover premium fabrics",
+      "3": "Choose from trusted tailoring partners",
+      "4": "Save measurement profiles for future orders",
+      "5": "Track your order from production to delivery",
+      "6": "Enjoy a carefully managed customer experience"
+    },
+    "whereTitle": "Where we are",
+    "whereBody": "MOTD is proudly based in the United Arab Emirates, celebrating Emirati heritage through thoughtfully designed Mukhawars and exceptional craftsmanship.",
+    "whereOffice": "Head office: Dubai Design District (D3), Dubai, UAE.",
+    "whereDelivery": "We currently deliver across the United Arab Emirates.",
+    "whereOnline": "MOTD is an online experience designed for convenience from anywhere. If we host pop-ups, exhibitions, or fitting appointments, we will announce them on our website and social channels.",
+    "partnersTitle": "For partners",
+    "partnersBody": "We work with trusted tailors and textile houses who share our commitment to quality and authenticity. Join a curated network where craftsmanship meets modern presentation.",
+    "ctaBrowseDesigns": "Browse Designs",
+    "ctaBrowseFabrics": "Explore Fabrics",
+    "ctaGuide": "The MOTD Guide",
+    "ctaPartners": "Join Our Community",
+    "ctaContact": "Contact Us"
+  },
   "Footer": {
     "logoAlt": "MOTD — Mukhawar of the Day",
     "tagline": "Bespoke Eastern luxury tailored for the modern world.",
