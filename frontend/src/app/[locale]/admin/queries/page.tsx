@@ -11,6 +11,7 @@ const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
 type QueryStatus = "new" | "contacted" | "closed";
 type QueryListFilter = QueryStatus | "all";
+type CategoryFilter = "all" | "general" | "damage_claim" | "tailor_issue";
 
 type SupportQuery = {
   id: string;
@@ -18,9 +19,30 @@ type SupportQuery = {
   name: string;
   email: string;
   concern: string;
+  category?: "general" | "damage_claim" | "tailor_issue";
+  publicOrderId?: string;
+  orderType?: "custom" | "retail" | "";
+  damageKind?: string;
+  partnerIssueKind?: string;
+  source?: string;
   locale?: string;
   status: QueryStatus;
   createdAt: string;
+};
+
+const DAMAGE_KIND_LABELS: Record<string, string> = {
+  torn: "Torn / ripped",
+  stained: "Stained / dirty",
+  missing_parts: "Missing parts / incomplete",
+  wrong_item: "Wrong item received",
+  packaging_damaged: "Damaged packaging",
+  other: "Something else",
+};
+
+const PARTNER_ISSUE_LABELS: Record<string, string> = {
+  fabric_insufficient: "Fabric not enough",
+  fabric_damaged: "Fabric damaged / unsuitable",
+  other: "Something else",
 };
 
 type Counts = {
@@ -28,6 +50,13 @@ type Counts = {
   contacted: number;
   closed: number;
   all: number;
+};
+
+type CategoryCounts = {
+  all: number;
+  general: number;
+  damage_claim: number;
+  tailor_issue: number;
 };
 
 const TOAST = {
@@ -39,11 +68,58 @@ const TOAST = {
   },
 };
 
-function mailtoHref(email: string, reference: string) {
+function mailtoHref(
+  email: string,
+  reference: string,
+  category?: string,
+  publicOrderId?: string,
+) {
+  const kind =
+    category === "damage_claim"
+      ? "damage claim"
+      : category === "tailor_issue"
+        ? "tailor issue"
+        : "support";
+  const orderBit = publicOrderId ? ` ${publicOrderId}` : "";
   const subject = encodeURIComponent(
-    reference ? `MOTD support ${reference}` : "MOTD support",
+    reference
+      ? `MOTD ${kind} ${reference}${orderBit}`
+      : `MOTD ${kind}${orderBit}`,
   );
   return `mailto:${email}?subject=${subject}`;
+}
+
+function readCategoryFilter(value: string | null): CategoryFilter {
+  if (
+    value === "general" ||
+    value === "damage_claim" ||
+    value === "tailor_issue"
+  ) {
+    return value;
+  }
+  return "all";
+}
+
+function categoryBadge(category?: string) {
+  if (category === "damage_claim") {
+    return (
+      <span className="inline-flex px-2 py-0.5 text-[10px] uppercase tracking-wider border border-red-200 bg-red-50 text-red-800">
+        Damage claim
+      </span>
+    );
+  }
+  if (category === "tailor_issue") {
+    return (
+      <span className="inline-flex px-2 py-0.5 text-[10px] uppercase tracking-wider border border-orange-200 bg-orange-50 text-orange-900">
+        Tailor issue
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex px-2 py-0.5 text-[10px] uppercase tracking-wider border border-gray-200 bg-gray-50 text-gray-600">
+      General
+    </span>
+  );
 }
 
 async function copyEmail(email: string) {
@@ -58,9 +134,11 @@ function readListFilter(value: string | null): QueryListFilter {
 export default function AdminQueriesPage() {
   const searchParams = useSearchParams();
   const urlStatus = readListFilter(searchParams.get("status"));
+  const urlCategory = readCategoryFilter(searchParams.get("category"));
   const urlSearch = searchParams.get("search") || "";
 
   const [status, setStatus] = useState<QueryListFilter>(urlStatus);
+  const [category, setCategory] = useState<CategoryFilter>(urlCategory);
   const [search, setSearch] = useState(urlSearch);
   const [items, setItems] = useState<SupportQuery[]>([]);
   const [counts, setCounts] = useState<Counts>({
@@ -68,6 +146,12 @@ export default function AdminQueriesPage() {
     contacted: 0,
     closed: 0,
     all: 0,
+  });
+  const [categoryCounts, setCategoryCounts] = useState<CategoryCounts>({
+    all: 0,
+    general: 0,
+    damage_claim: 0,
+    tailor_issue: 0,
   });
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -79,15 +163,17 @@ export default function AdminQueriesPage() {
 
   useEffect(() => {
     setStatus(urlStatus);
+    setCategory(urlCategory);
     setSearch(urlSearch);
     setPage(1);
-  }, [urlStatus, urlSearch]);
+  }, [urlStatus, urlCategory, urlSearch]);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       params.set("status", status);
+      params.set("category", category);
       params.set("page", String(page));
       params.set("limit", String(limit));
       if (search.trim()) params.set("search", search.trim());
@@ -95,11 +181,13 @@ export default function AdminQueriesPage() {
         success: boolean;
         items: SupportQuery[];
         counts: Counts;
+        categoryCounts?: CategoryCounts;
         total?: number;
         totalPages?: number;
       }>(`/api/admin/queries?${params.toString()}`);
       setItems(Array.isArray(data?.items) ? data.items : []);
       if (data?.counts) setCounts(data.counts);
+      if (data?.categoryCounts) setCategoryCounts(data.categoryCounts);
       setTotal(Number(data?.total) || 0);
       setTotalPages(Number(data?.totalPages) || 0);
       window.dispatchEvent(new Event("motd-queries-count-refresh"));
@@ -109,11 +197,11 @@ export default function AdminQueriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [status, search, page, limit]);
+  }, [status, category, search, page, limit]);
 
   useEffect(() => {
     setPage(1);
-  }, [status, search]);
+  }, [status, category, search]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -142,13 +230,6 @@ export default function AdminQueriesPage() {
     }
   };
 
-  const tabs: { key: QueryListFilter; label: string }[] = [
-    { key: "new", label: `New (${counts.new})` },
-    { key: "contacted", label: `Contacted (${counts.contacted})` },
-    { key: "closed", label: `Closed (${counts.closed})` },
-    { key: "all", label: `All (${counts.all})` },
-  ];
-
   const statusBadge = (value: QueryStatus) => {
     const styles =
       value === "closed"
@@ -175,53 +256,93 @@ export default function AdminQueriesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <h1 className="[font-family:var(--font-display)] text-2xl sm:text-3xl text-black">
-            Queries
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 [font-family:var(--font-body)]">
-            Support requests sent from MOTD Care when a visitor could not find an answer.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 text-sm hover:bg-gray-50"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+      <div>
+        <h1 className="[font-family:var(--font-display)] text-2xl sm:text-3xl text-black">
+          Queries
+        </h1>
+        <p className="mt-1 text-sm text-gray-500 [font-family:var(--font-body)]">
+          Support requests, damage claims, and tailor fabric issues.
+        </p>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setStatus(tab.key);
-              }}
-              className={`px-3 py-1.5 text-xs uppercase tracking-wider border transition ${
-                status === tab.key
-                  ? "bg-black text-white border-black"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-black"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+      <div className="bg-white border border-gray-200 p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <label
+            htmlFor="queries-type"
+            className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1.5"
+          >
+            Type
+          </label>
+          <select
+            id="queries-type"
+            value={category}
+            onChange={(e) => {
+              setPage(1);
+              setCategory(e.target.value as CategoryFilter);
+            }}
+            className="w-full border border-gray-200 px-3 py-2 text-sm bg-white text-black focus:outline-none focus:border-black"
+          >
+            <option value="all">All types ({categoryCounts.all})</option>
+            <option value="general">General ({categoryCounts.general})</option>
+            <option value="damage_claim">
+              Damage claims ({categoryCounts.damage_claim})
+            </option>
+            <option value="tailor_issue">
+              Tailor issues ({categoryCounts.tailor_issue})
+            </option>
+          </select>
         </div>
-        <div className="relative w-full lg:w-72">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, email, or reference"
-            className="w-full border border-gray-200 pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-black"
-          />
+
+        <div>
+          <label
+            htmlFor="queries-status"
+            className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1.5"
+          >
+            Status
+          </label>
+          <select
+            id="queries-status"
+            value={status}
+            onChange={(e) => {
+              setPage(1);
+              setStatus(e.target.value as QueryListFilter);
+            }}
+            className="w-full border border-gray-200 px-3 py-2 text-sm bg-white text-black focus:outline-none focus:border-black"
+          >
+            <option value="new">New ({counts.new})</option>
+            <option value="contacted">Contacted ({counts.contacted})</option>
+            <option value="closed">Closed ({counts.closed})</option>
+            <option value="all">All statuses ({counts.all})</option>
+          </select>
+        </div>
+
+        <div className="sm:col-span-2">
+          <label
+            htmlFor="queries-search"
+            className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1.5"
+          >
+            Search
+          </label>
+          <div className="flex gap-2 items-stretch">
+            <div className="relative flex-1 min-w-0">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                id="queries-search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Name, email, reference, or Order ID"
+                className="w-full border border-gray-200 pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-black"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="inline-flex items-center gap-2 px-3 py-2 border border-gray-200 text-sm text-gray-600 hover:text-black hover:border-black shrink-0"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
 
@@ -232,7 +353,7 @@ export default function AdminQueriesPage() {
           <p className="p-6 text-sm text-gray-500">
             {search.trim()
               ? "No matching queries."
-              : status === "all"
+              : status === "all" && category === "all"
                 ? "No queries yet."
                 : "No queries in this filter."}
           </p>
@@ -248,13 +369,19 @@ export default function AdminQueriesPage() {
                     <div className="min-w-0 flex-1 space-y-3">
                       <div className="flex flex-wrap items-center gap-2">
                         {statusBadge(item.status)}
+                        {categoryBadge(item.category)}
+                        {item.source === "tailor_portal" ? (
+                          <span className="inline-flex px-2 py-0.5 text-[10px] uppercase tracking-wider border border-gray-200 text-gray-500">
+                            Tailor portal
+                          </span>
+                        ) : null}
                         <span className="text-xs text-gray-400">
                           {item.createdAt
                             ? new Date(item.createdAt).toLocaleString()
                             : ""}
                         </span>
                       </div>
-                      <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
                         <div>
                           <dt className="text-[10px] uppercase tracking-wider text-gray-400">
                             Reference
@@ -263,6 +390,40 @@ export default function AdminQueriesPage() {
                             {item.referenceNumber || "—"}
                           </dd>
                         </div>
+                        <div>
+                          <dt className="text-[10px] uppercase tracking-wider text-gray-400">
+                            Order ID
+                          </dt>
+                          <dd className="mt-0.5 text-sm text-black break-all">
+                            {item.publicOrderId || "—"}
+                            {item.orderType ? (
+                              <span className="ml-1 text-[10px] uppercase tracking-wider text-gray-400">
+                                ({item.orderType === "custom" ? "custom" : "ready-made"})
+                              </span>
+                            ) : null}
+                          </dd>
+                        </div>
+                        {item.category === "tailor_issue" ||
+                        item.category === "damage_claim" ? (
+                          <div>
+                            <dt className="text-[10px] uppercase tracking-wider text-gray-400">
+                              {item.category === "tailor_issue"
+                                ? "Issue type"
+                                : "Damage kind"}
+                            </dt>
+                            <dd className="mt-0.5 text-sm text-black break-words">
+                              {item.category === "tailor_issue"
+                                ? item.partnerIssueKind
+                                  ? PARTNER_ISSUE_LABELS[item.partnerIssueKind] ||
+                                    item.partnerIssueKind
+                                  : "—"
+                                : item.damageKind
+                                  ? DAMAGE_KIND_LABELS[item.damageKind] ||
+                                    item.damageKind
+                                  : "—"}
+                            </dd>
+                          </div>
+                        ) : null}
                         <div>
                           <dt className="text-[10px] uppercase tracking-wider text-gray-400">
                             Name
@@ -282,6 +443,8 @@ export default function AdminQueriesPage() {
                                   href={mailtoHref(
                                     item.email,
                                     item.referenceNumber,
+                                    item.category,
+                                    item.publicOrderId,
                                   )}
                                   className="inline-flex min-w-0 items-center gap-1.5 break-all underline underline-offset-2 hover:text-black"
                                 >
@@ -317,7 +480,7 @@ export default function AdminQueriesPage() {
                       </dl>
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-gray-400">
-                          Concern
+                          {item.category === "tailor_issue" ? "Details" : "Concern"}
                         </p>
                         <p
                           className={`mt-0.5 text-sm text-gray-800 whitespace-pre-wrap break-words ${
