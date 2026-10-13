@@ -15,6 +15,7 @@ import {
 } from "./publicOrderId.js";
 import { isPublicTrackingToken } from "./publicTrackingToken.js";
 import { hydrateRetailOrders } from "./retailOrderHydrate.js";
+import { normalizeEmail } from "./emailVerification/emailOccupancy.js";
 
 const CUSTOM_POPULATE = [
   { path: "tailorShopId", select: "name nameAr slug" },
@@ -94,28 +95,49 @@ export async function getPublicOrderByTrackingToken(token) {
   return loadRetailByQuery({ publicTrackingToken: token });
 }
 
-/**
- * Public chatbot / guest lookup by customer-facing Order ID (RO-/CO-) or legacy ObjectId.
- */
-export async function getPublicOrderByPublicId(input) {
-  const normalized = normalizePublicOrderId(input);
-  if (!normalized) return null;
-
+async function loadOrderByPublicId(normalized, extraQuery = {}) {
   const parsed = parsePublicOrderId(normalized);
   if (parsed?.orderType === "retail") {
-    return loadRetailByQuery({ publicOrderId: normalized });
+    return loadRetailByQuery({ publicOrderId: normalized, ...extraQuery });
   }
   if (parsed?.orderType === "custom") {
-    return loadCustomByQuery({ publicOrderId: normalized });
+    return loadCustomByQuery({ publicOrderId: normalized, ...extraQuery });
   }
 
   if (OBJECT_ID_RE.test(normalized) && mongoose.Types.ObjectId.isValid(normalized)) {
     const [custom, retail] = await Promise.all([
-      loadCustomByQuery({ _id: normalized }),
-      loadRetailByQuery({ _id: normalized }),
+      loadCustomByQuery({ _id: normalized, ...extraQuery }),
+      loadRetailByQuery({ _id: normalized, ...extraQuery }),
     ]);
     return custom || retail || null;
   }
 
   return null;
+}
+
+/**
+ * Chatbot lookup by customer-facing Order ID (RO-/CO-) or legacy ObjectId.
+ * Only returns an order owned by userId, so one customer cannot read another's.
+ */
+export async function getPublicOrderByPublicId(input, userId) {
+  if (!userId) return null;
+
+  const normalized = normalizePublicOrderId(input);
+  if (!normalized) return null;
+
+  return loadOrderByPublicId(normalized, { userId });
+}
+
+/**
+ * Guest / anonymous chatbot lookup: Order ID + checkout contact email.
+ * Same generic miss for wrong ID or wrong email (no enumeration).
+ */
+export async function getPublicOrderByPublicIdAndEmail(input, email) {
+  const contactEmail = normalizeEmail(email);
+  if (!contactEmail) return null;
+
+  const normalized = normalizePublicOrderId(input);
+  if (!normalized) return null;
+
+  return loadOrderByPublicId(normalized, { contactEmail });
 }

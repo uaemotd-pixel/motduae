@@ -263,6 +263,16 @@ function isTrackOrderIdPrefixValid(raw: string) {
   return normalized.startsWith("CO") || normalized.startsWith("RO");
 }
 
+const TRACK_EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Pull a customer Order ID (RO-0001ABC / CO-0001ABC) out of a typed question. */
+function extractTrackOrderIdFromText(raw: string): string | null {
+  const match = String(raw || "")
+    .toUpperCase()
+    .match(/\b((?:RO|CO)-\d+[A-Z]{3})\b/);
+  return match?.[1] ?? null;
+}
+
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 const chipVariants = {
@@ -415,9 +425,11 @@ export default function FaqChatbot() {
   const [userTurns, setUserTurns] = useState(0);
   const [trackView, setTrackView] = useState(false);
   const [trackOrderId, setTrackOrderId] = useState("");
+  const [trackEmail, setTrackEmail] = useState("");
   const [trackSubmitting, setTrackSubmitting] = useState(false);
   const [trackError, setTrackError] = useState("");
   const trackInputRef = useRef<HTMLInputElement>(null);
+  const trackEmailInputRef = useRef<HTMLInputElement>(null);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
@@ -512,14 +524,23 @@ export default function FaqChatbot() {
         trackTitle: "تتبع طلبك",
         trackHint:
           "أدخلي رقم الطلب (مثل RO-0001ABC أو CO-0001ABC) لعرض الحالة الحالية والتقدّم.",
+        trackHintGuest:
+          "أدخلي رقم الطلب والبريد الإلكتروني المستخدم عند الدفع (من رسالة التأكيد).",
         trackLabel: "رقم الطلب",
         trackPlaceholder: "مثل RO-0001ABC",
+        trackEmailLabel: "البريد الإلكتروني",
+        trackEmailPlaceholder: "البريد من تأكيد طلبك",
         trackSubmit: "تتبع الطلب",
         trackSubmitting: "جاري البحث…",
         trackInvalid: "يرجى إدخال رقم طلب صالح.",
         trackBadPrefix: "رقم الطلب يجب أن يبدأ بـ CO أو RO.",
-        trackNotFound: "لم نعثر على طلب بهذا الرقم. تحققي من الرقم وحاولي مرة أخرى.",
+        trackInvalidEmail: "يرجى إدخال بريد إلكتروني صالح.",
+        trackNotFound:
+          "يمكنكِ تتبع الطلبات المقدَّمة من هذا الحساب فقط. هذا الرقم ليس من طلباتك. تحققي من الرقم وحاولي مرة أخرى.",
+        trackNotFoundGuest:
+          "لم نتمكن من مطابقة رقم الطلب مع البريد الذي أدخلته. استخدمي الرقم والبريد من رسالة التأكيد وحاولي مرة أخرى.",
         trackAnother: "تتبع طلب آخر",
+        notLoggedIn: "لم تقومي بتسجيل الدخول بعد.",
       }
     : {
         title: "MOTD Care",
@@ -592,15 +613,23 @@ export default function FaqChatbot() {
         trackTitle: "Track Your Order",
         trackHint:
           "Enter your Order ID (e.g. RO-0001ABC or CO-0001ABC) to see the current status and progress.",
+        trackHintGuest:
+          "Enter your Order ID and the email you used at checkout (from your confirmation email).",
         trackLabel: "Order ID",
         trackPlaceholder: "e.g. RO-0001ABC",
+        trackEmailLabel: "Email",
+        trackEmailPlaceholder: "Email from your order confirmation",
         trackSubmit: "Track order",
         trackSubmitting: "Looking up…",
         trackInvalid: "Please enter a valid Order ID.",
         trackBadPrefix: "Order ID must start with CO or RO.",
+        trackInvalidEmail: "Please enter a valid email address.",
         trackNotFound:
-          "We couldn't find an order with that ID. Double-check and try again.",
+          "You can only track orders placed on this account. That Order ID isn't one of yours. Check the ID and try again.",
+        trackNotFoundGuest:
+          "We couldn't match that Order ID with the email you entered. Use the Order ID and email from your confirmation and try again.",
         trackAnother: "Track another order",
+        notLoggedIn: "You are not logged in yet.",
       };
 
   useEffect(() => {
@@ -732,22 +761,39 @@ export default function FaqChatbot() {
   const resetTrackState = useCallback(() => {
     setTrackView(false);
     setTrackOrderId("");
+    setTrackEmail("");
     setTrackSubmitting(false);
     setTrackError("");
   }, []);
 
-  const openTrackForm = useCallback(() => {
-    if (busy || awaitingNameRef.current || trackSubmitting || supportSubmitting) {
-      return;
-    }
-    resetSupportState();
-    setTrackError("");
-    setTrackOrderId("");
-    setTrackView(true);
-    setQuickReplies(null);
-    setTopicsExpanded(false);
-    window.setTimeout(() => trackInputRef.current?.focus(), 280);
-  }, [busy, resetSupportState, supportSubmitting, trackSubmitting]);
+  const openTrackForm = useCallback(
+    (prefillOrderId = "") => {
+      if (busy || awaitingNameRef.current || trackSubmitting || supportSubmitting) {
+        return;
+      }
+      resetSupportState();
+      setTrackError("");
+      setTrackOrderId(prefillOrderId);
+      setTrackEmail("");
+      setTrackView(true);
+      setQuickReplies(null);
+      setTopicsExpanded(false);
+      window.setTimeout(() => {
+        if (prefillOrderId && !isRegisteredMember) {
+          trackEmailInputRef.current?.focus();
+        } else {
+          trackInputRef.current?.focus();
+        }
+      }, 280);
+    },
+    [
+      busy,
+      isRegisteredMember,
+      resetSupportState,
+      supportSubmitting,
+      trackSubmitting,
+    ],
+  );
 
   const openSupportForm = () => {
     if (busy || awaitingNameRef.current || supportSubmitting || trackSubmitting) return;
@@ -848,6 +894,76 @@ export default function FaqChatbot() {
     setQuickReplies({ kind: "sections" });
   };
 
+  const lookupTrackOrder = async (orderId: string, email?: string) => {
+    setTrackError("");
+    setTrackSubmitting(true);
+
+    const notFoundMessage = isRegisteredMember
+      ? copy.trackNotFound
+      : copy.trackNotFoundGuest;
+
+    try {
+      const data = isRegisteredMember
+        ? await api.get<TrackOrderResponse>(
+            `/api/orders/track/by-id/${encodeURIComponent(orderId)}`,
+          )
+        : await api.post<TrackOrderResponse>("/api/orders/track/by-id", {
+            publicOrderId: orderId,
+            email: String(email || "").trim(),
+          });
+
+      if (!data?.success || !data.order) {
+        setTrackError(notFoundMessage);
+        setMessages((prev) => [
+          ...prev,
+          { id: nextId("b"), role: "bot", text: notFoundMessage },
+        ]);
+        return;
+      }
+
+      resetTrackState();
+      botReply(formatTrackOrderReply(data, isAr), { kind: "sections" }, 700);
+    } catch (err) {
+      const status = (err as { status?: number; data?: { code?: string } })?.status;
+      const code = (err as { data?: { code?: string } })?.data?.code;
+      if (status === 401 || code === "NOT_LOGGED_IN") {
+        resetTrackState();
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextId("b"),
+            role: "bot",
+            text: isAr
+              ? displayName
+                ? `${displayName}، أدخلي رقم الطلب والبريد من رسالة التأكيد أدناه.`
+                : "أدخلي رقم الطلب والبريد من رسالة التأكيد أدناه."
+              : displayName
+                ? `${displayName}, enter your Order ID and confirmation email below.`
+                : "Enter your Order ID and confirmation email below.",
+          },
+        ]);
+        openTrackForm(orderId);
+        return;
+      }
+      const message =
+        status === 404
+          ? notFoundMessage
+          : getApiErrorMessage(
+              err,
+              isAr
+                ? "تعذر تحميل تفاصيل الطلب. حاولي مرة أخرى."
+                : "Could not load order details. Please try again.",
+            );
+      setTrackError(message);
+      setMessages((prev) => [
+        ...prev,
+        { id: nextId("b"), role: "bot", text: message },
+      ]);
+    } finally {
+      setTrackSubmitting(false);
+    }
+  };
+
   const submitTrackOrder = async () => {
     if (trackSubmitting) return;
 
@@ -865,46 +981,20 @@ export default function FaqChatbot() {
       return;
     }
 
-    setTrackError("");
-    setTrackSubmitting(true);
-    bumpUserTurn();
-    pushUser(orderId);
-
-    try {
-      const data = await api.get<TrackOrderResponse>(
-        `/api/orders/track/by-id/${encodeURIComponent(orderId)}`,
-      );
-
-      if (!data?.success || !data.order) {
-        setTrackError(copy.trackNotFound);
-        setMessages((prev) => [
-          ...prev,
-          { id: nextId("b"), role: "bot", text: copy.trackNotFound },
-        ]);
+    const email = trackEmail.trim();
+    if (!isRegisteredMember) {
+      if (!TRACK_EMAIL_RX.test(email)) {
+        setTrackError(copy.trackInvalidEmail);
         return;
       }
-
-      resetTrackState();
-      botReply(formatTrackOrderReply(data, isAr), { kind: "sections" }, 700);
-    } catch (err) {
-      const status = (err as { status?: number })?.status;
-      const message =
-        status === 404
-          ? copy.trackNotFound
-          : getApiErrorMessage(
-              err,
-              isAr
-                ? "تعذر تحميل تفاصيل الطلب. حاولي مرة أخرى."
-                : "Could not load order details. Please try again.",
-            );
-      setTrackError(message);
-      setMessages((prev) => [
-        ...prev,
-        { id: nextId("b"), role: "bot", text: message },
-      ]);
-    } finally {
-      setTrackSubmitting(false);
     }
+
+    bumpUserTurn();
+    pushUser(
+      isRegisteredMember ? orderId : `${orderId} · ${email.toLowerCase()}`,
+    );
+
+    await lookupTrackOrder(orderId, isRegisteredMember ? undefined : email);
   };
 
   const beginGreeting = useCallback(() => {
@@ -1055,13 +1145,21 @@ export default function FaqChatbot() {
         {
           id: nextId("b"),
           role: "bot",
-          text: isAr
-            ? displayName
-              ? `${displayName}، أدخلي رقم الطلب أدناه لتتبع حالته.`
-              : "أدخلي رقم الطلب أدناه لتتبع حالته."
-            : displayName
-              ? `${displayName}, enter your Order ID below to track its status.`
-              : "Enter your Order ID below to track its status.",
+          text: isRegisteredMember
+            ? isAr
+              ? displayName
+                ? `${displayName}، أدخلي رقم الطلب أدناه لتتبع حالته.`
+                : "أدخلي رقم الطلب أدناه لتتبع حالته."
+              : displayName
+                ? `${displayName}, enter your Order ID below to track its status.`
+                : "Enter your Order ID below to track its status."
+            : isAr
+              ? displayName
+                ? `${displayName}، أدخلي رقم الطلب والبريد من رسالة التأكيد أدناه.`
+                : "أدخلي رقم الطلب والبريد من رسالة التأكيد أدناه."
+              : displayName
+                ? `${displayName}, enter your Order ID and the email from your confirmation below.`
+                : "Enter your Order ID and the email from your confirmation below.",
         },
       ]);
       openTrackForm();
@@ -1130,6 +1228,27 @@ export default function FaqChatbot() {
     bumpUserTurn();
     pushUser(text);
 
+    const typedOrderId = extractTrackOrderIdFromText(text);
+    if (typedOrderId) {
+      if (isRegisteredMember) {
+        void lookupTrackOrder(typedOrderId);
+        return;
+      }
+      botReply(
+        isAr
+          ? displayName
+            ? `${displayName}، أدخلي أيضاً البريد الإلكتروني من رسالة التأكيد لإكمال التتبع.`
+            : "أدخلي أيضاً البريد الإلكتروني من رسالة التأكيد لإكمال التتبع."
+          : displayName
+            ? `${displayName}, enter the email from your confirmation to finish tracking.`
+            : "Enter the email from your confirmation to finish tracking.",
+        null,
+        500,
+      );
+      openTrackForm(typedOrderId);
+      return;
+    }
+
     // Reply language follows the question script, not only the page locale.
     const replyIsAr = containsArabic(text) || isAr;
     const match = findBestFaq(text);
@@ -1161,9 +1280,12 @@ export default function FaqChatbot() {
     copy.trackBadPrefix,
   );
   const displayTrackError = trackPrefixError || trackError;
+  const trackEmailOk =
+    isRegisteredMember || TRACK_EMAIL_RX.test(trackEmail.trim());
   const canSubmitTrack =
     isTrackOrderIdPrefixValid(trackOrderId) &&
     normalizeTrackOrderIdInput(trackOrderId).length >= 4 &&
+    trackEmailOk &&
     !trackSubmitting;
 
   return (
@@ -1546,7 +1668,9 @@ export default function FaqChatbot() {
                           {copy.trackTitle}
                         </p>
                         <p className="mt-1 [font-family:var(--font-body)] text-[12px] leading-relaxed text-[#5A5A56]">
-                          {copy.trackHint}
+                          {isRegisteredMember
+                            ? copy.trackHint
+                            : copy.trackHintGuest}
                         </p>
                       </div>
 
@@ -1565,7 +1689,11 @@ export default function FaqChatbot() {
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault();
-                              if (canSubmitTrack) void submitTrackOrder();
+                              if (isRegisteredMember) {
+                                if (canSubmitTrack) void submitTrackOrder();
+                              } else {
+                                trackEmailInputRef.current?.focus();
+                              }
                             }
                           }}
                           disabled={trackSubmitting}
@@ -1581,6 +1709,39 @@ export default function FaqChatbot() {
                           }`}
                         />
                       </label>
+
+                      {!isRegisteredMember ? (
+                        <label className="flex flex-col gap-1">
+                          <span className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.14em] text-[#8A8A80]">
+                            {copy.trackEmailLabel}
+                          </span>
+                          <input
+                            ref={trackEmailInputRef}
+                            type="email"
+                            value={trackEmail}
+                            onChange={(e) => {
+                              setTrackEmail(e.target.value);
+                              setTrackError("");
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (canSubmitTrack) void submitTrackOrder();
+                              }
+                            }}
+                            disabled={trackSubmitting}
+                            autoComplete="email"
+                            inputMode="email"
+                            aria-invalid={Boolean(displayTrackError)}
+                            placeholder={copy.trackEmailPlaceholder}
+                            className={`rounded-xl border bg-white px-3 py-2.5 [font-family:var(--font-body)] text-[16px] sm:text-[13px] text-black outline-none placeholder:text-[#8A8A80] disabled:opacity-60 ${
+                              displayTrackError
+                                ? "border-red-500 focus:border-red-600"
+                                : "border-[#E8E8E4] focus:border-black"
+                            }`}
+                          />
+                        </label>
+                      ) : null}
 
                       {displayTrackError ? (
                         <p

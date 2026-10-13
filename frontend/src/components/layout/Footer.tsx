@@ -8,7 +8,7 @@ const QUICK_LINKS = [
   { key: "exploreFabrics", href: "/fabrics/fabricStore" },
   { key: "tailors", href: "/tailors" },
   { key: "customDesign", href: "/custom-order/fabric" },
-  { key: "aboutUs", href: "/#about" },
+  { key: "aboutUs", href: "/about" },
   { key: "joinOurCommunity", href: "/partners" },
   { key: "motdGuide", href: "/motd-guide" },
   { key: "contactUs", href: "/contact-us" },
