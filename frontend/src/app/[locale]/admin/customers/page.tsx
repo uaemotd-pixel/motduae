@@ -20,6 +20,9 @@ import {
   Maximize2,
   MoreVertical,
   X,
+  Users,
+  MapPin,
+  Ruler,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ImageModal } from "@/components/shared/ImageModal";
@@ -62,6 +65,28 @@ type ApiResponse = {
 
 type ModalAction = "delete" | "toggle";
 
+type FamilyMember = {
+  _id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  gender?: string;
+  relationship?: string;
+  dob?: string | null;
+  age?: number | null;
+  address?: {
+    fullName?: string;
+    phone?: string;
+    emirate?: string;
+    city?: string;
+    street?: string;
+    building?: string;
+    postalCode?: string;
+  } | null;
+  hasMeasurements?: boolean;
+  createdAt?: string | null;
+};
+
 // ============================================
 // Main Component
 // ============================================
@@ -90,6 +115,9 @@ export default function AdminCustomersPage() {
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>("");
   const [detailsCustomer, setDetailsCustomer] = useState<Customer | null>(null);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [familyLoading, setFamilyLoading] = useState(false);
+  const [familyError, setFamilyError] = useState<string | null>(null);
   const isInitialLoad = useRef(true);
   const [limit, setLimit] = useState(10);
 
@@ -105,6 +133,43 @@ export default function AdminCustomersPage() {
     action: ModalAction;
     customer: Customer | null;
   }>({ action: "delete", customer: null });
+
+  useEffect(() => {
+    if (!detailsCustomer?._id) {
+      setFamilyMembers([]);
+      setFamilyError(null);
+      setFamilyLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setFamilyLoading(true);
+    setFamilyError(null);
+    setFamilyMembers([]);
+
+    void (async () => {
+      try {
+        const res = await api.get<{
+          success: boolean;
+          items: FamilyMember[];
+        }>(`/api/admin/customers/${detailsCustomer._id}/family-members`);
+        if (cancelled) return;
+        setFamilyMembers(Array.isArray(res?.items) ? res.items : []);
+      } catch (err) {
+        if (cancelled) return;
+        setFamilyMembers([]);
+        setFamilyError(
+          getApiErrorMessage(err, "Failed to load family members"),
+        );
+      } finally {
+        if (!cancelled) setFamilyLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detailsCustomer?._id]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -735,14 +800,14 @@ export default function AdminCustomersPage() {
       {/* Customer Details Modal */}
       {detailsCustomer && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={(e) =>
             e.target === e.currentTarget && setDetailsCustomer(null)
           }
         >
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 border border-gray-100 overflow-hidden flex flex-col">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full border border-gray-100 overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
               <h3 className="text-base font-medium text-black">
                 Customer Profile Details
               </h3>
@@ -836,10 +901,99 @@ export default function AdminCustomersPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Family members */}
+              <div className="border-t border-gray-100 pt-5 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-gray-400" />
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                      Family members
+                    </p>
+                  </div>
+                  {!familyLoading && !familyError ? (
+                    <span className="text-[10px] uppercase tracking-wider text-gray-400">
+                      {familyMembers.length}
+                    </span>
+                  ) : null}
+                </div>
+
+                {familyLoading ? (
+                  <p className="text-sm text-gray-500">Loading family members…</p>
+                ) : familyError ? (
+                  <p className="text-sm text-red-600">{familyError}</p>
+                ) : familyMembers.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    No family members added yet.
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                    {familyMembers.map((member) => {
+                      const addressParts = [
+                        member.address?.emirate,
+                        member.address?.city,
+                        member.address?.street,
+                        member.address?.building,
+                      ].filter(Boolean);
+                      return (
+                        <li
+                          key={member._id}
+                          className="rounded-xl border border-gray-100 bg-gray-50/80 p-3.5 space-y-2"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-black truncate">
+                                {member.name}
+                              </p>
+                              <p className="text-[10px] uppercase tracking-wider text-gray-400 mt-0.5">
+                                {member.relationship || "other"}
+                              </p>
+                            </div>
+                            {member.hasMeasurements ? (
+                              <span className="inline-flex items-center gap-1 shrink-0 text-[10px] uppercase tracking-wider text-gray-600 border border-gray-200 bg-white px-2 py-0.5">
+                                <Ruler className="w-3 h-3" />
+                                Measurements
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="space-y-1.5 text-xs text-gray-600">
+                            {member.phone ? (
+                              <p className="flex items-center gap-1.5 font-mono">
+                                <Phone className="w-3 h-3 shrink-0 text-gray-400" />
+                                {formatPhoneDisplay(member.phone) || member.phone}
+                              </p>
+                            ) : null}
+                            {member.email ? (
+                              <p className="flex items-center gap-1.5 break-all">
+                                <Mail className="w-3 h-3 shrink-0 text-gray-400" />
+                                {member.email}
+                              </p>
+                            ) : null}
+                            {member.gender ? (
+                              <p className="capitalize text-gray-500">
+                                {member.gender}
+                                {member.age != null ? ` · Age ${member.age}` : ""}
+                              </p>
+                            ) : member.age != null ? (
+                              <p className="text-gray-500">Age {member.age}</p>
+                            ) : null}
+                            {addressParts.length > 0 ? (
+                              <p className="flex items-start gap-1.5">
+                                <MapPin className="w-3 h-3 shrink-0 text-gray-400 mt-0.5" />
+                                <span>{addressParts.join(", ")}</span>
+                              </p>
+                            ) : null}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end shrink-0">
               <button
                 onClick={() => setDetailsCustomer(null)}
                 className="px-5 py-2 text-xs font-medium text-white bg-black hover:bg-gray-800 rounded-lg transition cursor-pointer border-0"

@@ -525,14 +525,20 @@ tailorPortalRouter.put(
       });
     }
 
-    const identityOnlyKeys = new Set(["name", "nameAr"]);
+    // Name/media-only updates (settings rename, logo/cover auto-save) must not
+    // re-require a complete pickup address.
+    const pickupExemptKeys = new Set([
+      "name",
+      "nameAr",
+      "logo",
+      "coverImage",
+    ]);
     const updateKeys = Object.keys(data);
-    const isIdentityOnly =
+    const isPickupExempt =
       updateKeys.length > 0 &&
-      updateKeys.every((key) => identityOnlyKeys.has(key));
+      updateKeys.every((key) => pickupExemptKeys.has(key));
 
-    // Allow name-only edits from Settings without requiring pickup address again.
-    if (!isIdentityOnly) {
+    if (!isPickupExempt) {
       const nextPickupAddress =
         data.pickupAddress !== undefined
           ? data.pickupAddress

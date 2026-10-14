@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import toast from "react-hot-toast";
 import {
@@ -12,6 +13,9 @@ import {
   Check,
   Paintbrush,
   RefreshCw,
+  MoreVertical,
+  Power,
+  Lock,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
@@ -23,6 +27,8 @@ interface Material {
   name: string;
   nameAr?: string;
   isActive: boolean;
+  usageCount?: number;
+  isInUse?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -58,6 +64,14 @@ export default function AdminSettingsMaterialsPage() {
   const [materialToDelete, setMaterialToDelete] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  const [menuItem, setMenuItem] = useState<Material | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
@@ -73,6 +87,68 @@ export default function AdminSettingsMaterialsPage() {
 
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoad = useRef(true);
+
+  const closeMenu = () => {
+    setMenuPosition(null);
+    setMenuItem(null);
+    setMenuAnchor(null);
+  };
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        closeMenu();
+      }
+    }
+    if (menuPosition) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuPosition]);
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") closeMenu();
+    }
+    if (menuPosition) {
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [menuPosition]);
+
+  useEffect(() => {
+    function updateMenuPosition() {
+      if (menuAnchor && menuPosition) {
+        const rect = menuAnchor.getBoundingClientRect();
+        setMenuPosition({
+          top: rect.bottom + 8,
+          right: window.innerWidth - rect.right,
+        });
+      }
+    }
+    if (menuPosition) {
+      window.addEventListener("scroll", updateMenuPosition, true);
+      window.addEventListener("resize", updateMenuPosition);
+      return () => {
+        window.removeEventListener("scroll", updateMenuPosition, true);
+        window.removeEventListener("resize", updateMenuPosition);
+      };
+    }
+  }, [menuPosition, menuAnchor]);
+
+  const handleMenuOpen = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    item: Material,
+  ) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuAnchor(e.currentTarget);
+    setMenuItem(item);
+    setMenuPosition({
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right,
+    });
+  };
 
   const fetchMaterials = useCallback(
     async (page = 1, limitOverride?: number, searchOverride?: string) => {
@@ -146,6 +222,11 @@ export default function AdminSettingsMaterialsPage() {
   };
 
   const openEditModal = (item: Material) => {
+    if (item.isInUse) {
+      toast.error("This material is in use and cannot be edited.");
+      return;
+    }
+    closeMenu();
     setEditingMaterial(item);
     setEditName(item.name);
     setEditNameAr(item.nameAr || "");
@@ -209,8 +290,13 @@ export default function AdminSettingsMaterialsPage() {
     }
   };
 
-  const promptDelete = (id: string) => {
-    setMaterialToDelete(id);
+  const promptDelete = (item: Material) => {
+    if (item.isInUse) {
+      toast.error("This material is in use and cannot be deleted.");
+      return;
+    }
+    closeMenu();
+    setMaterialToDelete(item._id);
     setShowDeleteConfirm(true);
   };
 
@@ -236,6 +322,7 @@ export default function AdminSettingsMaterialsPage() {
   };
 
   const toggleActive = async (item: Material) => {
+    closeMenu();
     const newIsActive = !item.isActive;
     setMaterials((prev) =>
       prev.map((x) =>
@@ -275,6 +362,69 @@ export default function AdminSettingsMaterialsPage() {
 
   return (
     <div className="space-y-8">
+      {menuPosition &&
+        menuItem &&
+        createPortal(
+          <AnimatePresence>
+            <motion.div
+              ref={menuRef}
+              style={{
+                position: "fixed",
+                top: menuPosition.top,
+                right: menuPosition.right,
+                zIndex: 50,
+              }}
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="w-fit min-w-30 sm:min-w-35 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"
+            >
+              <button
+                type="button"
+                onClick={() => openEditModal(menuItem)}
+                disabled={!!menuItem.isInUse}
+                className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left hover:cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span>Edit</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void toggleActive(menuItem)}
+                disabled={togglingId === menuItem._id}
+                className={`w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm transition-colors text-left hover:cursor-pointer whitespace-nowrap disabled:opacity-50 ${
+                  menuItem.isActive
+                    ? "text-red-600 hover:bg-red-50"
+                    : "text-emerald-700 hover:bg-emerald-50"
+                }`}
+              >
+                {togglingId === menuItem._id ? (
+                  <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 animate-spin" />
+                ) : (
+                  <Power className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                )}
+                <span>{menuItem.isActive ? "Inactive" : "Activate"}</span>
+              </button>
+              <div className="border-t border-gray-100 my-1" />
+              <button
+                type="button"
+                onClick={() => promptDelete(menuItem)}
+                disabled={!!menuItem.isInUse || deletingId === menuItem._id}
+                className="w-full flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-red-600 hover:bg-red-50 transition-colors text-left hover:cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingId === menuItem._id ? (
+                  <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                )}
+                <span>Delete</span>
+              </button>
+            </motion.div>
+          </AnimatePresence>,
+          document.body,
+        )}
+
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <div className="flex items-start gap-3">
@@ -434,28 +584,29 @@ export default function AdminSettingsMaterialsPage() {
                           {item.nameAr}
                         </span>
                       )}
-                      <motion.button
-                        type="button"
-                        onClick={() => toggleActive(item)}
-                        disabled={togglingId === item._id}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        title={`Click to ${item.isActive ? "deactivate" : "activate"}`}
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-all ${
+                      {item.isInUse && (
+                        <span
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 ring-1 ring-amber-200"
+                          title={`Used in ${item.usageCount ?? 0} product(s)`}
+                        >
+                          <Lock className="w-3 h-3" />
+                          In use
+                        </span>
+                      )}
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           item.isActive
-                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 hover:bg-red-50 hover:text-red-600 hover:ring-red-300"
-                            : "bg-gray-50 text-gray-400 ring-1 ring-gray-300/20 hover:bg-gray-100 hover:text-gray-500"
+                            ? "bg-gray-100 text-gray-700 ring-1 ring-gray-200"
+                            : "bg-gray-50 text-gray-400 ring-1 ring-gray-300/20"
                         }`}
                       >
-                        {togglingId === item._id ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : item.isActive ? (
+                        {item.isActive ? (
                           <Check className="w-3 h-3" />
                         ) : (
                           <X className="w-3 h-3" />
                         )}
                         {item.isActive ? "Active" : "Inactive"}
-                      </motion.button>
+                      </span>
                     </div>
                     <div className="flex items-center gap-3 mt-2">
                       {item.createdAt && (
@@ -465,32 +616,16 @@ export default function AdminSettingsMaterialsPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <motion.button
+                  <div className="shrink-0">
+                    <button
                       type="button"
-                      onClick={() => openEditModal(item)}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-400 hover:text-gray-700 transition-all hover:cursor-pointer"
-                      aria-label="Edit material"
+                      onClick={(e) => handleMenuOpen(e, item)}
+                      className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
+                      title="Actions"
+                      aria-label="Open actions menu"
                     >
-                      <Pencil className="w-4 h-4" />
-                    </motion.button>
-                    <motion.button
-                      type="button"
-                      disabled={deletingId === item._id}
-                      onClick={() => promptDelete(item._id)}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="p-2 rounded-xl border border-gray-200 hover:bg-red-50 text-gray-400 hover:text-red-600 transition-all hover:cursor-pointer disabled:opacity-50"
-                      aria-label="Delete material"
-                    >
-                      {deletingId === item._id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                    </motion.button>
+                      <MoreVertical className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
               </motion.div>

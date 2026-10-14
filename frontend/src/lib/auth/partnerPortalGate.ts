@@ -65,16 +65,18 @@ export function resolvePartnerPortalGate({
     return { screen: "wait" };
   }
 
-  if (portal === "fabric" && (user.isActive === false || isDeactivated)) {
-    return { screen: "wait" };
-  }
-
+  // Rejected must win over deactivated "wait" — otherwise a rejected store
+  // with isActive=false looks like it is still awaiting acceptance.
   if (user.approvalStatus === "rejected" && isApplyPath) {
     return { screen: "apply" };
   }
 
   if (user.approvalStatus === "rejected") {
     return { screen: "rejected" };
+  }
+
+  if (portal === "fabric" && (user.isActive === false || isDeactivated)) {
+    return { screen: "wait" };
   }
 
   return { screen: "dashboard" };

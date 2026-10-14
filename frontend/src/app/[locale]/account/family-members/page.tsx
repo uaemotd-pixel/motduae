@@ -309,9 +309,6 @@ export default function FamilyMembersPage() {
                     <th className="px-6 py-3 text-left font-ui text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                       Phone
                     </th>
-                    <th className="px-6 py-3 text-left font-ui text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
-                      Email
-                    </th>
                     <th className="px-6 py-3 text-left font-ui text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
                       Added
                     </th>
@@ -349,9 +346,6 @@ export default function FamilyMembersPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden md:table-cell">
                         {formatPhoneDisplay(member.phone)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden lg:table-cell">
-                        {member.email || "—"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden xl:table-cell">
                         {formatDate(member.createdAt)}
