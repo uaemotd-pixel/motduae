@@ -30,12 +30,16 @@ export default function TailorLayout({ children }: { children: React.ReactNode }
 
         if (!user) {
             const redirect = encodeURIComponent(`/${locale}/tailor`);
-            safeClientNavigate(`/auth/login?redirect=${redirect}`, { locale });
+            // Replace so Back does not return to /tailor and bounce to login again.
+            safeClientNavigate(`/auth/login?redirect=${redirect}`, {
+                locale,
+                replace: true,
+            });
             return;
         }
 
         if (user.role !== "tailor") {
-            safeClientNavigate("/", { locale });
+            safeClientNavigate("/", { locale, replace: true });
             return;
         }
 

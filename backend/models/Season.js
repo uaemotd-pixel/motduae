@@ -46,8 +46,8 @@ const seasonSchema = new mongoose.Schema(
   },
 );
 
-// Compound index for efficient queries by domain
-seasonSchema.index({ domain: 1, name: 1 });
+// Unique English name per domain (case handled in admin create/update)
+seasonSchema.index({ domain: 1, name: 1 }, { unique: true });
 seasonSchema.index({ domain: 1, isActive: 1 });
 
 const Season = mongoose.model("Season", seasonSchema);

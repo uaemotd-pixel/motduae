@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { Heart, MapPin, Star, Trash2 } from "lucide-react";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { buttonVariants } from "@/components/ui/Button";
 import { ProductGridSkeleton } from "@/components/ui/Skeleton";
 import {
@@ -37,6 +37,8 @@ const TOAST = {
   },
 };
 
+type FavouritesCategory = "tailors" | "stores";
+
 function FavouriteCard({
   shop,
   type,
@@ -46,6 +48,7 @@ function FavouriteCard({
   viewLabel,
   removeLabel,
   reviewsLabel,
+  typeLabel,
 }: {
   shop: FavouriteShopCard;
   type: FavouriteShopType;
@@ -55,6 +58,7 @@ function FavouriteCard({
   viewLabel: string;
   removeLabel: string;
   reviewsLabel: string;
+  typeLabel: string;
 }) {
   const fields =
     type === "tailor"
@@ -82,6 +86,9 @@ function FavouriteCard({
             className="h-full w-full object-cover object-top transition duration-700 group-hover:scale-105"
           />
         </Link>
+        <span className="absolute top-3 inset-s-3 border border-black/10 bg-white/95 px-2.5 py-1 text-[8px] uppercase tracking-[0.18em] text-black [font-family:var(--font-ui)] backdrop-blur-sm">
+          {typeLabel}
+        </span>
         <button
           type="button"
           onClick={onRemove}
@@ -129,24 +136,63 @@ function FavouriteCard({
   );
 }
 
+function normalizeCategory(raw: string | null): FavouritesCategory | null {
+  const value = String(raw || "")
+    .trim()
+    .toLowerCase();
+  if (value === "tailors" || value === "tailor") return "tailors";
+  if (
+    value === "stores" ||
+    value === "store" ||
+    value === "fabric" ||
+    value === "fabrics" ||
+    value === "brands"
+  ) {
+    return "stores";
+  }
+  return null;
+}
+
 export default function CustomerFavouritesView() {
   const t = useTranslations("Account.Favourites");
   const params = useParams();
   const locale = params.locale === "ar" ? "ar" : "en";
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const [tailors, setTailors] = useState<FavouriteShopCard[]>([]);
   const [stores, setStores] = useState<FavouriteShopCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [category, setCategory] = useState<FavouritesCategory>(() => {
+    return normalizeCategory(searchParams.get("fav")) || "tailors";
+  });
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const data = await fetchFavourites();
-      setTailors(data.favouriteTailors || []);
-      setStores(data.favouriteFabricShops || []);
+      const nextTailors = (
+        Array.isArray(data.favouriteTailors) ? data.favouriteTailors : []
+      ).filter((shop) => !shop.type || shop.type === "tailor");
+      const nextStores = (
+        Array.isArray(data.favouriteFabricShops)
+          ? data.favouriteFabricShops
+          : []
+      ).filter((shop) => !shop.type || shop.type === "fabricShop");
+      setTailors(nextTailors);
+      setStores(nextStores);
+
+      setCategory((prev) => {
+        const fromUrl = normalizeCategory(searchParams.get("fav"));
+        if (fromUrl) return fromUrl;
+        if (nextTailors.length === 0 && nextStores.length > 0) return "stores";
+        if (nextStores.length === 0 && nextTailors.length > 0) return "tailors";
+        return prev;
+      });
     } catch (err) {
       setError(favouriteApiErrorMessage(err, t("loadError")));
       setTailors([]);
@@ -154,11 +200,26 @@ export default function CustomerFavouritesView() {
     } finally {
       setLoading(false);
     }
+    // searchParams read once per load for default tab; tab switches update URL separately
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid refetch on fav= query change
   }, [t]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const fromUrl = normalizeCategory(searchParams.get("fav"));
+    if (fromUrl) setCategory(fromUrl);
+  }, [searchParams]);
+
+  const selectCategory = (next: FavouritesCategory) => {
+    setCategory(next);
+    const paramsNext = new URLSearchParams(searchParams.toString());
+    paramsNext.set("tab", "favourites");
+    paramsNext.set("fav", next);
+    router.replace(`${pathname}?${paramsNext.toString()}`, { scroll: false });
+  };
 
   const handleRemove = async (type: FavouriteShopType, id: string) => {
     try {
@@ -178,6 +239,16 @@ export default function CustomerFavouritesView() {
   };
 
   const isEmpty = !loading && !error && tailors.length === 0 && stores.length === 0;
+  const activeItems = category === "tailors" ? tailors : stores;
+  const activeType: FavouriteShopType =
+    category === "tailors" ? "tailor" : "fabricShop";
+  const activeEmptyLabel =
+    category === "tailors" ? t("noTailors") : t("noStores");
+  const activeBrowseHref = category === "tailors" ? "/tailors" : "/brands";
+  const activeBrowseLabel =
+    category === "tailors" ? t("browseTailors") : t("browseStores");
+  const activeTypeLabel =
+    category === "tailors" ? t("typeTailor") : t("typeStore");
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 md:p-8 shadow-sm">
@@ -234,55 +305,80 @@ export default function CustomerFavouritesView() {
           </div>
         </div>
       ) : (
-        <div className="space-y-10">
-          <section>
-            <h3 className="mb-4 [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.22em] text-black">
-              {t("tailorsSection")} ({tailors.length})
-            </h3>
-            {tailors.length === 0 ? (
-              <p className="[font-family:var(--font-body)] text-[13px] text-[#7A7A72]">
-                {t("noTailors")}
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {tailors.map((shop) => (
-                  <FavouriteCard
-                    key={shop._id}
-                    shop={shop}
-                    type="tailor"
-                    locale={locale}
-                    removing={removingId === shop._id}
-                    onRemove={() => void handleRemove("tailor", shop._id)}
-                    viewLabel={t("viewShop")}
-                    removeLabel={t("remove")}
-                    reviewsLabel={t("reviews")}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
+        <div className="space-y-6">
+          <div
+            role="tablist"
+            aria-label={t("title")}
+            className="flex flex-wrap gap-2 border-b border-[#E4E0D8] pb-4"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={category === "tailors"}
+              onClick={() => selectCategory("tailors")}
+              className={[
+                "px-4 py-2.5 text-[10px] uppercase tracking-[0.2em] transition [font-family:var(--font-ui)]",
+                category === "tailors"
+                  ? "bg-black text-white"
+                  : "border border-[#E4E0D8] bg-white text-[#7A7A72] hover:border-black hover:text-black",
+              ].join(" ")}
+            >
+              {t("tabTailors")} ({tailors.length})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={category === "stores"}
+              onClick={() => selectCategory("stores")}
+              className={[
+                "px-4 py-2.5 text-[10px] uppercase tracking-[0.2em] transition [font-family:var(--font-ui)]",
+                category === "stores"
+                  ? "bg-black text-white"
+                  : "border border-[#E4E0D8] bg-white text-[#7A7A72] hover:border-black hover:text-black",
+              ].join(" ")}
+            >
+              {t("tabStores")} ({stores.length})
+            </button>
+          </div>
 
-          <section>
-            <h3 className="mb-4 [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.22em] text-black">
-              {t("storesSection")} ({stores.length})
+          <section
+            role="tabpanel"
+            aria-label={
+              category === "tailors" ? t("tailorsSection") : t("storesSection")
+            }
+          >
+            <h3 className="mb-4 [font-family:var(--font-display)] text-[20px] tracking-[-0.01em] text-black sm:text-[22px]">
+              {category === "tailors"
+                ? t("tailorsSection")
+                : t("storesSection")}
             </h3>
-            {stores.length === 0 ? (
-              <p className="[font-family:var(--font-body)] text-[13px] text-[#7A7A72]">
-                {t("noStores")}
-              </p>
+
+            {activeItems.length === 0 ? (
+              <div className="border border-[#E4E0D8] bg-[#FAFAF7] px-5 py-10 text-center">
+                <p className="mb-4 [font-family:var(--font-body)] text-[13px] text-[#7A7A72]">
+                  {activeEmptyLabel}
+                </p>
+                <Link
+                  href={activeBrowseHref}
+                  className={buttonVariants({ variant: "secondary", size: "sm" })}
+                >
+                  {activeBrowseLabel}
+                </Link>
+              </div>
             ) : (
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {stores.map((shop) => (
+                {activeItems.map((shop) => (
                   <FavouriteCard
-                    key={shop._id}
+                    key={`${activeType}-${shop._id}`}
                     shop={shop}
-                    type="fabricShop"
+                    type={activeType}
                     locale={locale}
                     removing={removingId === shop._id}
-                    onRemove={() => void handleRemove("fabricShop", shop._id)}
+                    onRemove={() => void handleRemove(activeType, shop._id)}
                     viewLabel={t("viewShop")}
                     removeLabel={t("remove")}
                     reviewsLabel={t("reviews")}
+                    typeLabel={activeTypeLabel}
                   />
                 ))}
               </div>

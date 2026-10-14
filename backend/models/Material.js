@@ -46,8 +46,8 @@ const materialSchema = new mongoose.Schema(
   },
 );
 
-// Compound index for efficient queries by domain
-materialSchema.index({ domain: 1, name: 1 });
+// Unique English name per domain (case handled in admin create/update)
+materialSchema.index({ domain: 1, name: 1 }, { unique: true });
 materialSchema.index({ domain: 1, isActive: 1 });
 
 const Material = mongoose.model("Material", materialSchema);

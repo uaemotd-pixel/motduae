@@ -916,7 +916,8 @@ export default function TailorDesignForm({
                   <NumericInput
                     id="basePrice"
                     min={0}
-                    step={1}
+                    step={0.1}
+                    allowDecimal
                     value={formData.basePrice}
                     onChange={(value) => {
                       handleChange("basePrice", value);

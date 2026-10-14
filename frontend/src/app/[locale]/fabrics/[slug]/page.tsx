@@ -301,7 +301,7 @@ export default function FabricDetailPage() {
               key={index}
               className="w-6 h-6 rounded-full border border-[#E4E0D8] shrink-0"
               style={{
-                backgroundColor: colorObj?.hex || "#CCCCCC",
+                background: colorObj?.hex || "#CCCCCC",
               }}
               title={color}
             />
@@ -378,8 +378,6 @@ export default function FabricDetailPage() {
             selectCut: t("selectCut"),
             selectForCustomOrder: t("selectForCustomOrder"),
             storeTitle: t("storeTitle"),
-            pickupLabel: t("pickupLabel"),
-            partnerNote: t("partnerNote"),
           }}
         />
       </FadeInSection>

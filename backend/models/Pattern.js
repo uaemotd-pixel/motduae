@@ -46,8 +46,8 @@ const patternSchema = new mongoose.Schema(
   },
 );
 
-// Compound index for efficient queries by domain
-patternSchema.index({ domain: 1, name: 1 });
+// Unique English name per domain (case handled in admin create/update)
+patternSchema.index({ domain: 1, name: 1 }, { unique: true });
 patternSchema.index({ domain: 1, isActive: 1 });
 
 const Pattern = mongoose.model("Pattern", patternSchema);

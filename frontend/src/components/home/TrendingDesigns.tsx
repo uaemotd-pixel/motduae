@@ -336,9 +336,23 @@ export function TrendingSection() {
 
   if (designs.length === 0) {
     return (
-      <section className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 border-(--color-border) mb-12 xs:mb-16 sm:mb-20 md:mb-24">
-        <div className="text-center [font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
-          {isArabic ? "لا توجد تصاميم متاحة" : "No designs available"}
+      <section
+        id="designs"
+        className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16 scroll-mt-20"
+      >
+        <div className="w-full px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) mx-auto">
+          <div className="mb-8 xs:mb-10 sm:mb-12">
+            <span className={eyebrowClass}>
+              <span className="block w-4 xs:w-5 h-px bg-(--color-grey-muted)" />
+              <span>{t.trendingDesigns.eyebrow}</span>
+            </span>
+            <h2 className="[font-family:var(--font-display)] text-[32px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[44px] xl:text-[48px] 2xl:text-[56px] font-normal leading-[1.1] tracking-[-0.01em] text-black">
+              {t.trendingDesigns.title}
+            </h2>
+          </div>
+          <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
+            {t.trendingDesigns.empty}
+          </p>
         </div>
       </section>
     );

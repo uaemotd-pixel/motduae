@@ -45,7 +45,8 @@
     "ariaLabel": "Trending Mukhawar Designs",
     "eyebrow": "Most Popular",
     "title": "Trending Designs",
-    "exploreLink": "Browse Designs →"
+    "exploreLink": "Browse Designs →",
+    "empty": "No designs available"
   },
   "FabricDetail": {
     "loading": "Loading fabric...",
@@ -632,7 +633,9 @@
     "verifiedPurchase": "Verified purchase",
     "empty": "No client reviews yet",
     "loadMore": "Load more",
-    "loadingMore": "Loading…"
+    "loadingMore": "Loading…",
+    "readMore": "Read more",
+    "showLess": "Show less"
   },
   "TailorRegister": {
     "eyebrow": "Partner with MOTD",
@@ -1917,6 +1920,10 @@
       "browseStores": "Browse stores",
       "tailorsSection": "Favourite tailors",
       "storesSection": "Favourite fabric stores",
+      "tabTailors": "Tailors",
+      "tabStores": "Fabric stores",
+      "typeTailor": "Tailor",
+      "typeStore": "Fabric store",
       "noTailors": "No favourite tailors saved.",
       "noStores": "No favourite fabric stores saved.",
       "viewShop": "View",
@@ -2233,11 +2240,16 @@
     },
     "whereTitle": "Where we are",
     "whereBody": "MOTD is proudly based in the United Arab Emirates, celebrating Emirati heritage through thoughtfully designed Mukhawars and exceptional craftsmanship.",
-    "whereOffice": "Head office: Dubai Design District (D3), Dubai, UAE.",
+    "whereOfficeLabel": "Head office",
+    "whereDeliveryLabel": "UAE delivery",
+    "whereOnlineLabel": "Online",
+    "whereOffice": "Dubai Design District (D3), Dubai, UAE.",
     "whereDelivery": "We currently deliver across the United Arab Emirates.",
     "whereOnline": "MOTD is an online experience designed for convenience from anywhere. If we host pop-ups, exhibitions, or fitting appointments, we will announce them on our website and social channels.",
     "partnersTitle": "For partners",
     "partnersBody": "We work with trusted tailors and textile houses who share our commitment to quality and authenticity. Join a curated network where craftsmanship meets modern presentation.",
+    "partnersTailorLabel": "Tailors",
+    "partnersFabricLabel": "Textile houses",
     "ctaBrowseDesigns": "Browse Designs",
     "ctaBrowseFabrics": "Explore Fabrics",
     "ctaGuide": "The MOTD Guide",
