@@ -597,7 +597,7 @@ function ReadyMadeDetailContent({
                           <span
                             key={`${c}-${idx}`}
                             className="w-6 h-6 rounded-full border border-black/85 shadow-sm"
-                            style={{ backgroundColor: getColorHex(c) }}
+                            style={{ background: getColorHex(c) }}
                             aria-label={`Color ${c}`}
                           />
                         ))}

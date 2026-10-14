@@ -19,8 +19,10 @@ import {
   type PartnerApplication,
 } from "@/lib/partnerApplication";
 import { formatPartnerExperience } from "@/lib/partnerExperience";
+import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 
 type PartnerKind = "tailor" | "fabric_store";
+type DecisionAction = "approve" | "reject";
 
 type ShopSnapshot = {
   name: string;
@@ -379,7 +381,10 @@ export default function PartnerApplicationReview({
   const [error, setError] = useState<string | null>(null);
   const [approvalNote, setApprovalNote] = useState("");
   const [rejectNote, setRejectNote] = useState("");
-  const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
+  const [busy, setBusy] = useState<DecisionAction | null>(null);
+  const [confirmAction, setConfirmAction] = useState<DecisionAction | null>(
+    null,
+  );
   const [contactBusy, setContactBusy] = useState(false);
   const [reviewTab, setReviewTab] = useState<"shop" | "application">(
     "application",
@@ -394,10 +399,16 @@ export default function PartnerApplicationReview({
         if (!cancelled) {
           setData(res);
           setApprovalNote(res.user.approvalNote || "");
-          setRejectNote(res.user.rejectionNote || "");
-          setReviewTab(
-            res.user.approvalStatus === "approved" ? "shop" : "application",
+          // Only keep the rejection note editable when reject is still an option.
+          // Pre-filling it on a rejected application disabled Re-approve with no
+          // visible field to clear.
+          const status = res.user.approvalStatus;
+          setRejectNote(
+            status === "pending" || status === "approved"
+              ? res.user.rejectionNote || ""
+              : "",
           );
+          setReviewTab(status === "approved" ? "shop" : "application");
         }
       })
       .catch((err) => {
@@ -439,23 +450,46 @@ export default function PartnerApplicationReview({
     };
   }, [id, data?.application?.licenceFileUrl]);
 
-  const decide = async (action: "approve" | "reject") => {
+  const requestDecide = (action: DecisionAction) => {
+    if (action === "reject" && !rejectNote.trim()) {
+      toast.error("A rejection note is required before rejecting");
+      return;
+    }
+    // Only block approve when the reject field is visible (pending) and filled —
+    // otherwise Re-approve on a rejected app stays stuck behind a hidden note.
+    if (
+      action === "approve" &&
+      data?.user.approvalStatus === "pending" &&
+      rejectNote.trim()
+    ) {
+      toast.error(
+        "Clear the rejection note before approving, or use Reject instead",
+      );
+      return;
+    }
+    setConfirmAction(action);
+  };
+
+  const decide = async (action: DecisionAction) => {
     if (action === "reject" && !rejectNote.trim()) {
       toast.error("A rejection note is required");
+      setConfirmAction(null);
       return;
     }
     setBusy(action);
     try {
       if (action === "approve") {
-        await api.patch(`${apiBase}/approve`, { approvalNote });
+        await api.patch(`${apiBase}/approve`, {
+          approvalNote: approvalNote.trim(),
+        });
         toast.success("Approved");
       } else {
         await api.patch(`${apiBase}/reject`, {
-          note: rejectNote.trim(),
           rejectionNote: rejectNote.trim(),
         });
         toast.success("Rejected");
       }
+      setConfirmAction(null);
       router.push(backHref);
     } catch (err) {
       toast.error(getApiErrorMessage(err, "Could not save decision"));
@@ -526,14 +560,18 @@ export default function PartnerApplicationReview({
 
   const app = data.application;
   const status = data.user.approvalStatus;
-  const canDecide = status === "pending" || status === "rejected";
+  const canApprove = status === "pending" || status === "rejected";
+  const canReject = status === "pending" || status === "approved";
+  const canDecide = canApprove || canReject;
   const requestNumber =
     app?.requestNumber || data.user.requestNumber || "";
   const resubmitted = (app?.resubmitCount || 0) > 0;
   const previousDecision =
-    status === "pending" && data.user.rejectionNote
+    (status === "pending" || status === "rejected") && data.user.rejectionNote
       ? data.user.rejectionNote
       : "";
+  const approveBlockedByRejectNote =
+    status === "pending" && Boolean(rejectNote.trim());
   const logoSrc = app?.logoUrl ? resolveMediaUrl(app.logoUrl) : "";
   const shop = data.shop;
   const licenceIsPdf = (app?.licenceFileUrl || "").toLowerCase().includes(".pdf");
@@ -597,7 +635,7 @@ export default function PartnerApplicationReview({
       {previousDecision ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-2">
           <p className="font-ui text-xs uppercase tracking-wider text-gray-400">
-            Previous decision
+            {status === "rejected" ? "Rejection note" : "Previous decision"}
           </p>
           <p className="text-sm text-black whitespace-pre-wrap">
             {previousDecision}
@@ -824,51 +862,118 @@ export default function PartnerApplicationReview({
 
       {canDecide ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
-          <h2 className="text-lg font-medium">Decision</h2>
           <div>
-            <label className="block font-ui text-xs uppercase tracking-wider text-gray-400 mb-2">
-              Approval note (optional, admin only)
-            </label>
-            <textarea
-              value={approvalNote}
-              onChange={(e) => setApprovalNote(e.target.value)}
-              rows={3}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            />
+            <h2 className="text-lg font-medium">Decision</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {status === "approved"
+                ? "This shop is currently accepted. Rejecting will revoke access and hide the shop."
+                : status === "rejected"
+                  ? "This application was rejected. Approving will accept the shop."
+                  : "Approve to accept this shop, or reject with a required note."}
+            </p>
           </div>
-          <div>
-            <label className="block font-ui text-xs uppercase tracking-wider text-gray-400 mb-2">
-              Rejection note (required to reject)
-            </label>
-            <textarea
-              value={rejectNote}
-              onChange={(e) => setRejectNote(e.target.value)}
-              rows={3}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              disabled={busy !== null}
-              onClick={() => void decide("approve")}
-              className="px-4 py-2 bg-black text-white text-sm rounded-lg disabled:opacity-50"
-            >
-              {busy === "approve" ? "Approving…" : "Approve"}
-            </button>
-            {status === "pending" ? (
+
+          {canApprove ? (
+            <div>
+              <label className="block font-ui text-xs uppercase tracking-wider text-gray-400 mb-2">
+                Approval note (optional, admin only)
+              </label>
+              <textarea
+                value={approvalNote}
+                onChange={(e) => setApprovalNote(e.target.value)}
+                rows={3}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+          ) : null}
+
+          {canReject ? (
+            <div>
+              <label className="block font-ui text-xs uppercase tracking-wider text-gray-400 mb-2">
+                Rejection note (required to reject)
+              </label>
+              <textarea
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                rows={3}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                placeholder="Explain what the partner must fix before resubmitting"
+              />
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap gap-3">
+            {canReject ? (
               <button
                 type="button"
-                disabled={busy !== null}
-                onClick={() => void decide("reject")}
-                className="px-4 py-2 border border-red-600 text-red-600 text-sm rounded-lg disabled:opacity-50"
+                disabled={busy !== null || !rejectNote.trim()}
+                onClick={() => requestDecide("reject")}
+                className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg disabled:opacity-50 hover:bg-red-700"
               >
-                {busy === "reject" ? "Rejecting…" : "Reject"}
+                {busy === "reject"
+                  ? "Rejecting…"
+                  : status === "approved"
+                    ? "Reject / revoke shop"
+                    : "Reject"}
+              </button>
+            ) : null}
+            {canApprove ? (
+              <button
+                type="button"
+                disabled={busy !== null || approveBlockedByRejectNote}
+                onClick={() => requestDecide("approve")}
+                className="px-4 py-2 border border-black bg-white text-black text-sm rounded-lg disabled:opacity-50 hover:bg-gray-50"
+                title={
+                  approveBlockedByRejectNote
+                    ? "Clear the rejection note before approving"
+                    : undefined
+                }
+              >
+                {busy === "approve"
+                  ? "Approving…"
+                  : status === "rejected"
+                    ? "Re-approve"
+                    : "Approve"}
               </button>
             ) : null}
           </div>
         </div>
       ) : null}
+
+      <ConfirmationModal
+        isOpen={confirmAction === "reject"}
+        title={status === "approved" ? "Reject and revoke shop?" : "Reject application?"}
+        message={
+          status === "approved"
+            ? "This shop is currently accepted. Rejecting will set status to rejected, hide the shop, and email the partner with your note."
+            : "This will mark the application as rejected and email the partner with your note. They can edit and resubmit."
+        }
+        confirmLabel={busy === "reject" ? "Rejecting…" : "Confirm reject"}
+        cancelLabel="Cancel"
+        isDanger
+        isLoading={busy === "reject"}
+        onConfirm={() => void decide("reject")}
+        onCancel={() => {
+          if (busy !== "reject") setConfirmAction(null);
+        }}
+      />
+
+      <ConfirmationModal
+        isOpen={confirmAction === "approve"}
+        title={status === "rejected" ? "Re-approve application?" : "Approve application?"}
+        message={
+          status === "rejected"
+            ? "This will accept a previously rejected application and create or restore shop access."
+            : "This will accept the partner, create their shop profile from the application, and email them."
+        }
+        confirmLabel={busy === "approve" ? "Approving…" : "Confirm approve"}
+        cancelLabel="Cancel"
+        isLoading={busy === "approve"}
+        onConfirm={() => void decide("approve")}
+        onCancel={() => {
+          if (busy !== "approve") setConfirmAction(null);
+        }}
+      />
     </div>
   );
 }

@@ -246,7 +246,7 @@ export default function AdminLayout({
         perm: "subAdmins",
       },
       {
-        label: "Activity",
+        label: "Activity Logs",
         href: "/admin/activity",
         icon: Activity,
         perm: "subAdmins",

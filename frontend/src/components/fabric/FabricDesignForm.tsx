@@ -1164,7 +1164,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                             >
                               <span
                                 className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border border-gray-200 shrink-0"
-                                style={{ backgroundColor: c.hex }}
+                                style={{ background: c.hex }}
                               />
                             </span>
                           ))}
@@ -1202,7 +1202,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                                 <span className="inline-flex items-center gap-1 sm:gap-1.5 min-w-0">
                                   <span
                                     className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full border border-gray-200 shrink-0"
-                                    style={{ backgroundColor: opt.hex }}
+                                    style={{ background: opt.hex }}
                                   />
                                   <span className="inline-flex items-center gap-1 text-[8px] sm:text-[10px] lg:text-xs min-w-0 hover:cursor-pointer">
                                     <span className="truncate">{opt.en}</span>
@@ -1671,7 +1671,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                                       >
                                         <span
                                           className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full border border-gray-200 shrink-0"
-                                          style={{ backgroundColor: c.hex }}
+                                          style={{ background: c.hex }}
                                         />
                                       </span>
                                     ))}
@@ -1738,7 +1738,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                                             <span
                                               className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full border border-gray-200 shrink-0"
                                               style={{
-                                                backgroundColor: opt.hex,
+                                                background: opt.hex,
                                               }}
                                             />
                                             <span className="text-[8px] sm:text-[10px] lg:text-xs truncate hover:cursor-pointer">

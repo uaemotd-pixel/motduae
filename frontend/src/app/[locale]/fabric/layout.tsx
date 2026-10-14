@@ -37,12 +37,16 @@ export default function FabricLayout({
 
     if (!user) {
       const redirect = encodeURIComponent(`/${locale}/fabric`);
-      safeClientNavigate(`/auth/login?redirect=${redirect}`, { locale });
+      // Replace so Back does not return to /fabric and bounce to login again.
+      safeClientNavigate(`/auth/login?redirect=${redirect}`, {
+        locale,
+        replace: true,
+      });
       return;
     }
 
     if (user.role !== "fabric_store") {
-      safeClientNavigate("/", { locale });
+      safeClientNavigate("/", { locale, replace: true });
       return;
     }
 

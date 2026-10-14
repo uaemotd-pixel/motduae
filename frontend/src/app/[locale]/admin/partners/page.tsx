@@ -45,6 +45,14 @@ interface FabricRow {
   phone?: string;
   logo?: string;
   requestNumber?: string;
+  shopId?: string | null;
+  hasShop?: boolean;
+}
+
+function shopLabel(row: Pick<FabricRow, "shopName" | "type" | "hasShop">) {
+  if (row.shopName) return row.shopName;
+  if (row.type === "approved" || row.hasShop === false) return "No shop profile";
+  return "—";
 }
 
 interface ApprovedShop {
@@ -975,18 +983,13 @@ function AdminPartnersContent() {
                           </div>
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          <div>{row.email}</div>
-                          {row.requestNumber ? (
-                            <div className="text-xs text-gray-400 mt-0.5">
-                              {row.requestNumber}
-                            </div>
-                          ) : null}
+                          {row.email}
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm capitalize text-gray-600">
                           {row.type}
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
-                          {row.shopName || "—"}
+                          {shopLabel(row)}
                         </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
                           {formatDate(row.createdAt)}
@@ -1055,7 +1058,7 @@ function AdminPartnersContent() {
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2 text-gray-600 min-w-0">
                     <Store className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                    <span className="truncate">{row.shopName || "—"}</span>
+                    <span className="truncate">{shopLabel(row)}</span>
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
                     <Calendar className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
@@ -1129,7 +1132,7 @@ function AdminPartnersContent() {
                   </div>
                 )}
                 <h4 className="text-lg font-medium text-black">
-                  {detailsItem.shopName || "Unnamed Store"}
+                  {detailsItem.shopName || detailsItem.name || "Unnamed partner"}
                 </h4>
                 
                 <div className="flex items-center gap-2">
@@ -1166,7 +1169,7 @@ function AdminPartnersContent() {
                       Store Name
                     </p>
                     <p className="text-sm font-medium text-black">
-                      {detailsItem.shopName || "—"}
+                      {shopLabel(detailsItem)}
                     </p>
                   </div>
                 </div>

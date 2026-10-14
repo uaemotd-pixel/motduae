@@ -245,7 +245,7 @@ const ColorDropdown = ({
             >
               <span
                 className="w-4 h-4 rounded-full shrink-0 border border-[#C8C4BC]"
-                style={{ backgroundColor: c.hex }}
+                style={{ background: c.hex }}
               />
               <span className="flex-1">{isAr ? c.ar : c.en}</span>
               {counts ? (
@@ -1366,7 +1366,7 @@ export default function ReadyMadeCatalogPage() {
                             <span
                               className="w-3 h-3 rounded-full border border-white/30"
                               style={{
-                                backgroundColor: colorObj?.hex || "#000",
+                                background: colorObj?.hex || "#000",
                               }}
                             />
                             {isAr
@@ -1872,8 +1872,7 @@ export default function ReadyMadeCatalogPage() {
                                         key={index}
                                         className="size-3 xs:size-3.5 sm:size-4 md:size-5 rounded-full border border-[#E4E0D8]"
                                         style={{
-                                          backgroundColor:
-                                            colorObj?.hex || "#CCCCCC",
+                                          background: colorObj?.hex || "#CCCCCC",
                                         }}
                                         title={color}
                                       />

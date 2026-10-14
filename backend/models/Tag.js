@@ -46,6 +46,8 @@ const tagSchema = new mongoose.Schema(
   },
 );
 
+// Unique English name per domain (case handled in admin create/update)
+tagSchema.index({ domain: 1, name: 1 }, { unique: true });
 tagSchema.index({ domain: 1, isActive: 1 });
 
 const Tag = mongoose.model("Tag", tagSchema);

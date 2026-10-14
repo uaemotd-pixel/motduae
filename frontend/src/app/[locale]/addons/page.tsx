@@ -251,7 +251,7 @@ const ColorDropdown = ({
             >
               <span
                 className="w-4 h-4 rounded-full shrink-0 border border-[#C8C4BC]"
-                style={{ backgroundColor: c.hex }}
+                style={{ background: c.hex }}
               />
               <span className="flex-1">{isAr ? c.ar : c.en}</span>
               <span className="text-[10px] text-[#8A8A80] font-mono">
@@ -1236,7 +1236,7 @@ export default function AddOnsCatalogPage() {
                             <span
                               className="w-3 h-3 rounded-full border border-white/30"
                               style={{
-                                backgroundColor: colorObj?.hex || "#000",
+                                background: colorObj?.hex || "#000",
                               }}
                             />
                             {isAr

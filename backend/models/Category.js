@@ -46,8 +46,8 @@ const categorySchema = new mongoose.Schema(
   },
 );
 
-// Compound index for efficient queries by domain
-categorySchema.index({ domain: 1, sortOrder: 1 });
+// Unique English name per domain (case handled in admin create/update)
+categorySchema.index({ domain: 1, name: 1 }, { unique: true });
 categorySchema.index({ domain: 1, isActive: 1 });
 
 const Category = mongoose.model("Category", categorySchema);

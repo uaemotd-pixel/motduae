@@ -4,6 +4,7 @@ export type FavouriteShopType = "tailor" | "fabricShop";
 
 export type FavouriteShopCard = {
   _id: string;
+  type?: FavouriteShopType;
   slug: string;
   name: string;
   nameAr?: string;

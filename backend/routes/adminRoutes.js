@@ -100,6 +100,7 @@ import {
   escapeRegex,
   partnerUserSearchOr,
 } from "../services/partnerApplication/requestNumber.js";
+import PartnerApplication from "../models/PartnerApplication.js";
 import {
   normalizeEmirate,
   UAE_EMIRATES,
@@ -403,6 +404,134 @@ function optionalObjectId(value) {
   if (value === undefined) return undefined;
   const str = String(value || "").trim();
   return mongoose.Types.ObjectId.isValid(str) && str.length === 24 ? str : null;
+}
+
+/** Case-insensitive duplicate check for taxonomy names within a domain. */
+async function findDuplicateTaxonomyName(
+  Model,
+  { name, domain, excludeId = null },
+) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed || !domain) return null;
+  const filter = {
+    domain,
+    name: { $regex: `^${escapeRegex(trimmed)}$`, $options: "i" },
+  };
+  if (excludeId) {
+    filter._id = { $ne: excludeId };
+  }
+  return Model.findOne(filter).select("_id name").lean();
+}
+
+function isDuplicateKeyError(err) {
+  return Boolean(err && (err.code === 11000 || err.code === 11001));
+}
+
+const TAXONOMY_PRODUCT_MODELS = [
+  Fabric,
+  Design,
+  ReadyMadeProduct,
+  AddOn,
+];
+
+function taxonomyNameKey(name) {
+  return String(name || "")
+    .trim()
+    .toLowerCase();
+}
+
+function enrichTaxonomyDoc(doc, usageCount = 0) {
+  const plain = doc.toObject ? doc.toObject() : doc;
+  return {
+    ...plain,
+    usageCount,
+    isInUse: usageCount > 0,
+  };
+}
+
+function addTaxonomyUsageCounts(map, rows) {
+  for (const row of rows) {
+    const key = taxonomyNameKey(row?._id);
+    if (!key) continue;
+    map[key] = (map[key] || 0) + (row.count || 0);
+  }
+}
+
+async function getTaxonomyUsageMap(field) {
+  const map = Object.create(null);
+  if (!field) return map;
+
+  const aggregateByField = (Model, productField) =>
+    Model.aggregate([
+      {
+        $match: {
+          [productField]: { $exists: true, $type: "string", $ne: "" },
+        },
+      },
+      {
+        $group: {
+          _id: { $toLower: { $trim: { input: `$${productField}` } } },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+  const jobs = TAXONOMY_PRODUCT_MODELS.flatMap((Model) => {
+    if (field === "pattern" && Model === AddOn) {
+      // Add-ons store pattern in both `pattern` and legacy `design`.
+      return [
+        aggregateByField(Model, "pattern").then((rows) =>
+          addTaxonomyUsageCounts(map, rows),
+        ),
+        aggregateByField(Model, "design").then((rows) =>
+          addTaxonomyUsageCounts(map, rows),
+        ),
+      ];
+    }
+    return [
+      aggregateByField(Model, field).then((rows) =>
+        addTaxonomyUsageCounts(map, rows),
+      ),
+    ];
+  });
+
+  await Promise.all(jobs);
+  return map;
+}
+
+async function getTaxonomyUsageCount(field, name) {
+  const key = taxonomyNameKey(name);
+  if (!key) return 0;
+  const map = await getTaxonomyUsageMap(field);
+  return map[key] || 0;
+}
+
+async function isTaxonomyInUse(field, name) {
+  return (await getTaxonomyUsageCount(field, name)) > 0;
+}
+
+function taxonomyInUseEditMessage(label) {
+  return `This ${label} is in use by products and cannot be edited. Deactivate it instead or create a new ${label}.`;
+}
+
+function taxonomyInUseDeleteMessage(label) {
+  return `This ${label} is in use by products and cannot be deleted. Deactivate it instead.`;
+}
+
+function taxonomyRequestTouchesIdentity(body = {}) {
+  return (
+    body.name !== undefined ||
+    body.nameAr !== undefined ||
+    body.domain !== undefined ||
+    body.description !== undefined ||
+    body.descriptionAr !== undefined
+  );
+}
+
+function mapTaxonomyItemsWithUsage(items, usageMap) {
+  return items.map((item) =>
+    enrichTaxonomyDoc(item, usageMap[taxonomyNameKey(item.name)] || 0),
+  );
 }
 
 /**
@@ -1202,44 +1331,62 @@ adminRouter.post(
 // PATCH  /api/admin/partners/fabric-stores/:id/toggle-active
 // ==========================================
 
-// GET /api/admin/partners/fabric-stores
-// Active partners for fabric form picker; pass ?includeInactive=1 for admin list
+// GET /api/admin/partners
+// Fabric-store partner directory (users + FabricShop snapshot), same shape as tailors.
 adminRouter.get(
   "/partners",
   expressAsyncHandler(async (req, res) => {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
     const skip = (page - 1) * limit;
-    const search = req.query.search || "";
-    const type = req.query.type || "all";
-    const status = req.query.status || "all";
+    const search = String(req.query.search || "").trim();
+    const type = String(req.query.type || "all");
+    const status = String(req.query.status || "all");
 
-    // Build filter for users with fabric_store role
-    const filter = { role: "fabric_store" };
+    let filter = { role: "fabric_store" };
     const and = [];
 
-    // Type filter
     if (type === "approved") {
       filter.approvalStatus = "approved";
-      if (status === "active") {
-        filter.isActive = true;
-      } else if (status === "inactive") {
-        filter.isActive = false;
-      }
     } else if (type === "pending") {
-      filter.approvalStatus = "pending";
-      filter.applicationSubmittedAt = { $exists: true, $ne: null };
+      filter = submittedPendingFilter("fabric_store");
     } else if (type === "rejected") {
       filter.approvalStatus = "rejected";
     } else {
       and.push(hideUnsubmittedPendingClause());
     }
 
-    // Search filter
+    // Active / inactive are shop visibility filters (not User.isActive alone).
+    if (type === "approved" && (status === "active" || status === "inactive")) {
+      const activeShops = await FabricShop.find({ isActive: true })
+        .select("ownerId")
+        .lean();
+      const activeOwnerIds = activeShops
+        .map((shop) => shop.ownerId)
+        .filter(Boolean);
+      filter._id =
+        status === "active" ? { $in: activeOwnerIds } : { $nin: activeOwnerIds };
+    }
+
     if (search) {
-      const searchOr = partnerUserSearchOr(search);
-      if (searchOr) {
-        and.push(searchOr);
+      const clauses = [];
+      const userSearch = partnerUserSearchOr(search);
+      if (userSearch?.$or) clauses.push(...userSearch.$or);
+
+      const matchingShops = await FabricShop.find({
+        name: { $regex: escapeRegex(search), $options: "i" },
+      })
+        .select("ownerId")
+        .lean();
+      const shopOwnerIds = matchingShops
+        .map((shop) => shop.ownerId)
+        .filter(Boolean);
+      if (shopOwnerIds.length) {
+        clauses.push({ _id: { $in: shopOwnerIds } });
+      }
+
+      if (clauses.length) {
+        and.push({ $or: clauses });
       }
     }
 
@@ -1247,29 +1394,52 @@ adminRouter.get(
       filter.$and = and;
     }
 
-    // Get total count for pagination
-    const total = await User.countDocuments(filter);
+    const [users, total] = await Promise.all([
+      User.find(filter)
+        .select("-password")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      User.countDocuments(filter),
+    ]);
 
-    // Get paginated users
-    const users = await User.find(filter)
-      .select("-password")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    const ownerIds = users.map((user) => user._id);
+    const [shops, applications] = await Promise.all([
+      FabricShop.find({ ownerId: { $in: ownerIds } })
+        .select("name logo isActive ownerId")
+        .lean(),
+      PartnerApplication.find({ ownerId: { $in: ownerIds } })
+        .select("businessName ownerId")
+        .lean(),
+    ]);
 
-    // Map users to response format
-    const items = users.map((user) => ({
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      createdAt: user.createdAt,
-      type: user.approvalStatus || "pending",
-      shopName: user.shopName || null,
-      isActive: user.isActive || false,
-      phone: user.phone || "",
-      logo: user.profilePic || null,
-      requestNumber: user.requestNumber || "",
-    }));
+    const shopByOwner = new Map(
+      shops.map((shop) => [String(shop.ownerId), shop]),
+    );
+    const appByOwner = new Map(
+      applications.map((app) => [String(app.ownerId), app]),
+    );
+
+    const items = users.map((user) => {
+      const shop = shopByOwner.get(String(user._id));
+      const application = appByOwner.get(String(user._id));
+      return {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt,
+        type: user.approvalStatus || "pending",
+        // Prefer real FabricShop name; fall back to application business name.
+        shopName:
+          shop?.name || application?.businessName || null,
+        isActive: shop ? Boolean(shop.isActive) : false,
+        phone: user.phone || "",
+        logo: shop?.logo || null,
+        requestNumber: user.requestNumber || "",
+        shopId: shop?._id || null,
+        hasShop: Boolean(shop),
+      };
+    });
 
     res.send({
       items,
@@ -2212,8 +2382,9 @@ adminRouter.patch(
 
     if (tailor && tailor.role === "tailor") {
       try {
-        assertPartnerDecisionAllowed(tailor);
-        const rawNote = req.body?.approvalNote ?? req.body?.note;
+        assertPartnerDecisionAllowed(tailor, "approve");
+        // Only approvalNote — never treat body.note (reject payload) as approval.
+        const rawNote = req.body?.approvalNote;
         const approvalNote = typeof rawNote === "string" ? rawNote.trim() : "";
         await seedShopFromApplication(tailor);
         tailor.approvalStatus = "approved";
@@ -2251,7 +2422,7 @@ adminRouter.patch(
 );
 
 // PATCH /api/admin/tailors/:id/reject
-// Set approvalStatus: rejected — pending or rejected only (never after approve)
+// Set approvalStatus: rejected — pending or approved (revoke) only
 adminRouter.patch(
   "/tailors/:id/reject",
   expressAsyncHandler(async (req, res) => {
@@ -2259,8 +2430,8 @@ adminRouter.patch(
 
     if (tailor && tailor.role === "tailor") {
       try {
-        assertPartnerDecisionAllowed(tailor);
-        const rawNote = req.body?.note ?? req.body?.rejectionNote;
+        assertPartnerDecisionAllowed(tailor, "reject");
+        const rawNote = req.body?.rejectionNote ?? req.body?.note;
         const rejectionNote = typeof rawNote === "string" ? rawNote.trim() : "";
         if (!rejectionNote) {
           res.status(400).send({
@@ -2274,6 +2445,13 @@ adminRouter.patch(
         tailor.rejectionNote = rejectionNote;
         tailor.approvalNote = "";
         const updatedTailor = await tailor.save();
+        // Revoking an approved shop must hide it (and its catalog) from the marketplace.
+        const tailorShop = await TailorShop.findOne({ ownerId: tailor._id });
+        if (tailorShop) {
+          tailorShop.isActive = false;
+          await tailorShop.save();
+          await syncTailorShopCatalogActive(tailorShop._id, false);
+        }
         await mailAfterPartnerDecision(updatedTailor, "rejected", {
           rejectionNote,
           rejectedAtMs: Date.now(),
@@ -2307,7 +2485,7 @@ adminRouter.patch(
 );
 
 // GET /api/admin/tailors/rejected-tailors
-// Returns all users with role="tailor" and approvalStatus="approved"
+// Returns all users with role="tailor" and approvalStatus="rejected"
 adminRouter.get(
   "/tailors/rejected-tailors",
   expressAsyncHandler(async (req, res) => {
@@ -2436,8 +2614,9 @@ adminRouter.patch(
 
     if (store && store.role === "fabric_store") {
       try {
-        assertPartnerDecisionAllowed(store);
-        const rawNote = req.body?.approvalNote ?? req.body?.note;
+        assertPartnerDecisionAllowed(store, "approve");
+        // Only approvalNote — never treat body.note (reject payload) as approval.
+        const rawNote = req.body?.approvalNote;
         const approvalNote = typeof rawNote === "string" ? rawNote.trim() : "";
         await seedShopFromApplication(store);
         store.approvalStatus = "approved";
@@ -2481,8 +2660,8 @@ adminRouter.patch(
 
     if (store && store.role === "fabric_store") {
       try {
-        assertPartnerDecisionAllowed(store);
-        const rawNote = req.body?.note ?? req.body?.rejectionNote;
+        assertPartnerDecisionAllowed(store, "reject");
+        const rawNote = req.body?.rejectionNote ?? req.body?.note;
         const rejectionNote = typeof rawNote === "string" ? rawNote.trim() : "";
         if (!rejectionNote) {
           res.status(400).send({
@@ -2496,6 +2675,13 @@ adminRouter.patch(
         store.rejectionNote = rejectionNote;
         store.approvalNote = "";
         const updatedStore = await store.save();
+        // Revoking an approved shop must hide it (and its catalog) from the marketplace.
+        const fabricShop = await FabricShop.findOne({ ownerId: store._id });
+        if (fabricShop) {
+          fabricShop.isActive = false;
+          await fabricShop.save();
+          await syncFabricShopCatalogActive(fabricShop._id, false);
+        }
         await mailAfterPartnerDecision(updatedStore, "rejected", {
           rejectionNote,
           rejectedAtMs: Date.now(),
@@ -4318,6 +4504,89 @@ adminRouter.get(
   }),
 );
 
+// GET /api/admin/customers/:id/family-members
+// Read-only: family member profiles saved under the customer's account
+adminRouter.get(
+  "/customers/:id/family-members",
+  expressAsyncHandler(async (req, res) => {
+    const id = String(req.params.id || "").trim();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).send({ message: "Invalid customer id" });
+      return;
+    }
+
+    let user = await User.findById(id).select("_id role name email");
+    let customer = await Customer.findOne({ userId: id })
+      .select("savedUsers name userId")
+      .lean();
+
+    if (!user) {
+      customer = await Customer.findById(id)
+        .select("savedUsers name userId")
+        .lean();
+      if (customer) {
+        user = await User.findById(customer.userId).select(
+          "_id role name email",
+        );
+      }
+    }
+
+    if (!user) {
+      res.status(404).send({ message: "Customer not found" });
+      return;
+    }
+    if (user.role !== "customer") {
+      res.status(400).send({ message: "User is not a customer" });
+      return;
+    }
+
+    if (!customer) {
+      customer = await Customer.findOne({ userId: user._id })
+        .select("savedUsers name userId")
+        .lean();
+    }
+
+    const members = Array.isArray(customer?.savedUsers)
+      ? customer.savedUsers
+      : [];
+
+    res.send({
+      success: true,
+      customerId: String(user._id),
+      customerName: user.name || customer?.name || "",
+      total: members.length,
+      items: members.map((m) => ({
+        _id: String(m._id),
+        name: m.name || "",
+        phone: m.phone || "",
+        email: m.email || "",
+        gender: m.gender || "",
+        relationship: m.relationship || "other",
+        dob: m.dob || null,
+        age: m.age ?? null,
+        address: m.address
+          ? {
+              fullName: m.address.fullName || "",
+              phone: m.address.phone || "",
+              emirate: m.address.emirate || "",
+              city: m.address.city || "",
+              street: m.address.street || "",
+              building: m.address.building || "",
+              postalCode: m.address.postalCode || "",
+            }
+          : null,
+        hasMeasurements: Boolean(
+          m.measurements &&
+            Object.values(m.measurements).some(
+              (v) => v != null && v !== "",
+            ),
+        ),
+        createdAt: m.createdAt || null,
+      })),
+    });
+  }),
+);
+
 // DELETE /api/admin/customers/:id
 adminRouter.delete(
   "/customers/:id",
@@ -4775,9 +5044,10 @@ adminRouter.get(
       Category.find(filter).sort({ name: 1 }).skip(skip).limit(limitNumber),
       Category.countDocuments(filter),
     ]);
+    const usageMap = await getTaxonomyUsageMap("category");
 
     res.send({
-      items: categories,
+      items: mapTaxonomyItemsWithUsage(categories, usageMap),
       total,
       page: pageNumber,
       totalPages: Math.ceil(total / limitNumber) || 0,
@@ -4795,7 +5065,8 @@ adminRouter.get(
       res.status(404).send({ message: "Category not found" });
       return;
     }
-    res.send(category);
+    const usageCount = await getTaxonomyUsageCount("category", category.name);
+    res.send(enrichTaxonomyDoc(category, usageCount));
   }),
 );
 
@@ -4826,6 +5097,17 @@ adminRouter.post(
       return;
     }
 
+    const duplicate = await findDuplicateTaxonomyName(Category, {
+      name,
+      domain,
+    });
+    if (duplicate) {
+      res.status(409).send({
+        message: `A category named "${name.trim()}" already exists in this domain`,
+      });
+      return;
+    }
+
     const category = new Category({
       name: name.trim(),
       nameAr: nameAr?.trim() || "",
@@ -4835,8 +5117,18 @@ adminRouter.post(
       isActive: isActive !== undefined ? isActive : true,
     });
 
-    const saved = await category.save();
-    res.status(201).send(saved);
+    try {
+      const saved = await category.save();
+      res.status(201).send(saved);
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        res.status(409).send({
+          message: `A category named "${name.trim()}" already exists in this domain`,
+        });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 
@@ -4853,6 +5145,16 @@ adminRouter.put(
 
     const { name, nameAr, domain, description, descriptionAr, isActive } =
       req.body;
+
+    if (
+      taxonomyRequestTouchesIdentity(req.body) &&
+      (await isTaxonomyInUse("category", category.name))
+    ) {
+      res.status(409).send({
+        message: taxonomyInUseEditMessage("category"),
+      });
+      return;
+    }
 
     if (name !== undefined) category.name = name.trim();
     if (nameAr !== undefined) category.nameAr = nameAr.trim();
@@ -4877,8 +5179,31 @@ adminRouter.put(
       category.descriptionAr = descriptionAr.trim();
     if (isActive !== undefined) category.isActive = isActive;
 
-    const updated = await category.save();
-    res.send(updated);
+    const duplicate = await findDuplicateTaxonomyName(Category, {
+      name: category.name,
+      domain: category.domain,
+      excludeId: category._id,
+    });
+    if (duplicate) {
+      res.status(409).send({
+        message: `A category named "${category.name}" already exists in this domain`,
+      });
+      return;
+    }
+
+    try {
+      const updated = await category.save();
+      const usageCount = await getTaxonomyUsageCount("category", updated.name);
+      res.send(enrichTaxonomyDoc(updated, usageCount));
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        res.status(409).send({
+          message: `A category named "${category.name}" already exists in this domain`,
+        });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 
@@ -4890,6 +5215,12 @@ adminRouter.delete(
     const category = await Category.findById(req.params.id);
     if (!category) {
       res.status(404).send({ message: "Category not found" });
+      return;
+    }
+    if (await isTaxonomyInUse("category", category.name)) {
+      res.status(409).send({
+        message: taxonomyInUseDeleteMessage("category"),
+      });
       return;
     }
     await category.deleteOne();
@@ -4924,9 +5255,11 @@ adminRouter.get(
     const wantsPagination =
       req.query.page !== undefined || req.query.limit !== undefined;
 
+    const usageMap = await getTaxonomyUsageMap("material");
+
     if (!wantsPagination) {
       const materials = await Material.find(filter).sort({ name: 1 });
-      res.send(materials);
+      res.send(mapTaxonomyItemsWithUsage(materials, usageMap));
       return;
     }
 
@@ -4943,7 +5276,7 @@ adminRouter.get(
     ]);
 
     res.send({
-      items,
+      items: mapTaxonomyItemsWithUsage(items, usageMap),
       total,
       page: pageNumber,
       totalPages: Math.ceil(total / limitNumber) || 0,
@@ -4961,7 +5294,8 @@ adminRouter.get(
       res.status(404).send({ message: "Material not found" });
       return;
     }
-    res.send(material);
+    const usageCount = await getTaxonomyUsageCount("material", material.name);
+    res.send(enrichTaxonomyDoc(material, usageCount));
   }),
 );
 
@@ -4992,6 +5326,17 @@ adminRouter.post(
       return;
     }
 
+    const duplicate = await findDuplicateTaxonomyName(Material, {
+      name,
+      domain,
+    });
+    if (duplicate) {
+      res.status(409).send({
+        message: `A material named "${name.trim()}" already exists in this domain`,
+      });
+      return;
+    }
+
     const material = new Material({
       name: name.trim(),
       nameAr: nameAr?.trim() || "",
@@ -5001,8 +5346,18 @@ adminRouter.post(
       isActive: isActive !== undefined ? isActive : true,
     });
 
-    const saved = await material.save();
-    res.status(201).send(saved);
+    try {
+      const saved = await material.save();
+      res.status(201).send(saved);
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        res.status(409).send({
+          message: `A material named "${name.trim()}" already exists in this domain`,
+        });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 
@@ -5019,6 +5374,16 @@ adminRouter.put(
 
     const { name, nameAr, domain, description, descriptionAr, isActive } =
       req.body;
+
+    if (
+      taxonomyRequestTouchesIdentity(req.body) &&
+      (await isTaxonomyInUse("material", material.name))
+    ) {
+      res.status(409).send({
+        message: taxonomyInUseEditMessage("material"),
+      });
+      return;
+    }
 
     if (name !== undefined) material.name = name.trim();
     if (nameAr !== undefined) material.nameAr = nameAr.trim();
@@ -5043,8 +5408,31 @@ adminRouter.put(
       material.descriptionAr = descriptionAr.trim();
     if (isActive !== undefined) material.isActive = isActive;
 
-    const updated = await material.save();
-    res.send(updated);
+    const duplicate = await findDuplicateTaxonomyName(Material, {
+      name: material.name,
+      domain: material.domain,
+      excludeId: material._id,
+    });
+    if (duplicate) {
+      res.status(409).send({
+        message: `A material named "${material.name}" already exists in this domain`,
+      });
+      return;
+    }
+
+    try {
+      const updated = await material.save();
+      const usageCount = await getTaxonomyUsageCount("material", updated.name);
+      res.send(enrichTaxonomyDoc(updated, usageCount));
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        res.status(409).send({
+          message: `A material named "${material.name}" already exists in this domain`,
+        });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 
@@ -5056,6 +5444,12 @@ adminRouter.delete(
     const material = await Material.findById(req.params.id);
     if (!material) {
       res.status(404).send({ message: "Material not found" });
+      return;
+    }
+    if (await isTaxonomyInUse("material", material.name)) {
+      res.status(409).send({
+        message: taxonomyInUseDeleteMessage("material"),
+      });
       return;
     }
     await material.deleteOne();
@@ -5090,9 +5484,11 @@ adminRouter.get(
     const wantsPagination =
       req.query.page !== undefined || req.query.limit !== undefined;
 
+    const usageMap = await getTaxonomyUsageMap("pattern");
+
     if (!wantsPagination) {
       const patterns = await Pattern.find(filter).sort({ name: 1 });
-      res.send(patterns);
+      res.send(mapTaxonomyItemsWithUsage(patterns, usageMap));
       return;
     }
 
@@ -5109,7 +5505,7 @@ adminRouter.get(
     ]);
 
     res.send({
-      items,
+      items: mapTaxonomyItemsWithUsage(items, usageMap),
       total,
       page: pageNumber,
       totalPages: Math.ceil(total / limitNumber) || 0,
@@ -5127,7 +5523,8 @@ adminRouter.get(
       res.status(404).send({ message: "Pattern not found" });
       return;
     }
-    res.send(pattern);
+    const usageCount = await getTaxonomyUsageCount("pattern", pattern.name);
+    res.send(enrichTaxonomyDoc(pattern, usageCount));
   }),
 );
 
@@ -5158,6 +5555,17 @@ adminRouter.post(
       return;
     }
 
+    const duplicate = await findDuplicateTaxonomyName(Pattern, {
+      name,
+      domain,
+    });
+    if (duplicate) {
+      res.status(409).send({
+        message: `A pattern named "${name.trim()}" already exists in this domain`,
+      });
+      return;
+    }
+
     const pattern = new Pattern({
       name: name.trim(),
       nameAr: nameAr?.trim() || "",
@@ -5167,8 +5575,18 @@ adminRouter.post(
       isActive: isActive !== undefined ? isActive : true,
     });
 
-    const saved = await pattern.save();
-    res.status(201).send(saved);
+    try {
+      const saved = await pattern.save();
+      res.status(201).send(saved);
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        res.status(409).send({
+          message: `A pattern named "${name.trim()}" already exists in this domain`,
+        });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 
@@ -5185,6 +5603,16 @@ adminRouter.put(
 
     const { name, nameAr, domain, description, descriptionAr, isActive } =
       req.body;
+
+    if (
+      taxonomyRequestTouchesIdentity(req.body) &&
+      (await isTaxonomyInUse("pattern", pattern.name))
+    ) {
+      res.status(409).send({
+        message: taxonomyInUseEditMessage("pattern"),
+      });
+      return;
+    }
 
     if (name !== undefined) pattern.name = name.trim();
     if (nameAr !== undefined) pattern.nameAr = nameAr.trim();
@@ -5209,8 +5637,31 @@ adminRouter.put(
       pattern.descriptionAr = descriptionAr.trim();
     if (isActive !== undefined) pattern.isActive = isActive;
 
-    const updated = await pattern.save();
-    res.send(updated);
+    const duplicate = await findDuplicateTaxonomyName(Pattern, {
+      name: pattern.name,
+      domain: pattern.domain,
+      excludeId: pattern._id,
+    });
+    if (duplicate) {
+      res.status(409).send({
+        message: `A pattern named "${pattern.name}" already exists in this domain`,
+      });
+      return;
+    }
+
+    try {
+      const updated = await pattern.save();
+      const usageCount = await getTaxonomyUsageCount("pattern", updated.name);
+      res.send(enrichTaxonomyDoc(updated, usageCount));
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        res.status(409).send({
+          message: `A pattern named "${pattern.name}" already exists in this domain`,
+        });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 
@@ -5222,6 +5673,12 @@ adminRouter.delete(
     const pattern = await Pattern.findById(req.params.id);
     if (!pattern) {
       res.status(404).send({ message: "Pattern not found" });
+      return;
+    }
+    if (await isTaxonomyInUse("pattern", pattern.name)) {
+      res.status(409).send({
+        message: taxonomyInUseDeleteMessage("pattern"),
+      });
       return;
     }
     await pattern.deleteOne();
@@ -5256,9 +5713,11 @@ adminRouter.get(
     const wantsPagination =
       req.query.page !== undefined || req.query.limit !== undefined;
 
+    const usageMap = await getTaxonomyUsageMap("season");
+
     if (!wantsPagination) {
       const seasons = await Season.find(filter).sort({ name: 1 });
-      res.send(seasons);
+      res.send(mapTaxonomyItemsWithUsage(seasons, usageMap));
       return;
     }
 
@@ -5275,7 +5734,7 @@ adminRouter.get(
     ]);
 
     res.send({
-      items,
+      items: mapTaxonomyItemsWithUsage(items, usageMap),
       total,
       page: pageNumber,
       totalPages: Math.ceil(total / limitNumber) || 0,
@@ -5293,7 +5752,8 @@ adminRouter.get(
       res.status(404).send({ message: "Season not found" });
       return;
     }
-    res.send(season);
+    const usageCount = await getTaxonomyUsageCount("season", season.name);
+    res.send(enrichTaxonomyDoc(season, usageCount));
   }),
 );
 
@@ -5324,6 +5784,17 @@ adminRouter.post(
       return;
     }
 
+    const duplicate = await findDuplicateTaxonomyName(Season, {
+      name,
+      domain,
+    });
+    if (duplicate) {
+      res.status(409).send({
+        message: `A season named "${name.trim()}" already exists in this domain`,
+      });
+      return;
+    }
+
     const season = new Season({
       name: name.trim(),
       nameAr: nameAr?.trim() || "",
@@ -5333,8 +5804,18 @@ adminRouter.post(
       isActive: isActive !== undefined ? isActive : true,
     });
 
-    const saved = await season.save();
-    res.status(201).send(saved);
+    try {
+      const saved = await season.save();
+      res.status(201).send(saved);
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        res.status(409).send({
+          message: `A season named "${name.trim()}" already exists in this domain`,
+        });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 
@@ -5351,6 +5832,16 @@ adminRouter.put(
 
     const { name, nameAr, domain, description, descriptionAr, isActive } =
       req.body;
+
+    if (
+      taxonomyRequestTouchesIdentity(req.body) &&
+      (await isTaxonomyInUse("season", season.name))
+    ) {
+      res.status(409).send({
+        message: taxonomyInUseEditMessage("season"),
+      });
+      return;
+    }
 
     if (name !== undefined) season.name = name.trim();
     if (nameAr !== undefined) season.nameAr = nameAr.trim();
@@ -5375,8 +5866,31 @@ adminRouter.put(
       season.descriptionAr = descriptionAr.trim();
     if (isActive !== undefined) season.isActive = isActive;
 
-    const updated = await season.save();
-    res.send(updated);
+    const duplicate = await findDuplicateTaxonomyName(Season, {
+      name: season.name,
+      domain: season.domain,
+      excludeId: season._id,
+    });
+    if (duplicate) {
+      res.status(409).send({
+        message: `A season named "${season.name}" already exists in this domain`,
+      });
+      return;
+    }
+
+    try {
+      const updated = await season.save();
+      const usageCount = await getTaxonomyUsageCount("season", updated.name);
+      res.send(enrichTaxonomyDoc(updated, usageCount));
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        res.status(409).send({
+          message: `A season named "${season.name}" already exists in this domain`,
+        });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 
@@ -5388,6 +5902,12 @@ adminRouter.delete(
     const season = await Season.findById(req.params.id);
     if (!season) {
       res.status(404).send({ message: "Season not found" });
+      return;
+    }
+    if (await isTaxonomyInUse("season", season.name)) {
+      res.status(409).send({
+        message: taxonomyInUseDeleteMessage("season"),
+      });
       return;
     }
     await season.deleteOne();
@@ -5422,9 +5942,11 @@ adminRouter.get(
     const wantsPagination =
       req.query.page !== undefined || req.query.limit !== undefined;
 
+    const usageMap = await getTaxonomyUsageMap("tag");
+
     if (!wantsPagination) {
       const tags = await Tag.find(filter).sort({ name: 1 });
-      res.send(tags);
+      res.send(mapTaxonomyItemsWithUsage(tags, usageMap));
       return;
     }
 
@@ -5441,7 +5963,7 @@ adminRouter.get(
     ]);
 
     res.send({
-      items,
+      items: mapTaxonomyItemsWithUsage(items, usageMap),
       total,
       page: pageNumber,
       totalPages: Math.ceil(total / limitNumber) || 0,
@@ -5459,7 +5981,8 @@ adminRouter.get(
       res.status(404).send({ message: "Tag not found" });
       return;
     }
-    res.send(tag);
+    const usageCount = await getTaxonomyUsageCount("tag", tag.name);
+    res.send(enrichTaxonomyDoc(tag, usageCount));
   }),
 );
 
@@ -5490,6 +6013,17 @@ adminRouter.post(
       return;
     }
 
+    const duplicate = await findDuplicateTaxonomyName(Tag, {
+      name,
+      domain,
+    });
+    if (duplicate) {
+      res.status(409).send({
+        message: `A tag named "${name.trim()}" already exists in this domain`,
+      });
+      return;
+    }
+
     const tag = new Tag({
       name: name.trim(),
       nameAr: nameAr?.trim() || "",
@@ -5499,8 +6033,18 @@ adminRouter.post(
       isActive: isActive !== undefined ? isActive : true,
     });
 
-    const saved = await tag.save();
-    res.status(201).send(saved);
+    try {
+      const saved = await tag.save();
+      res.status(201).send(saved);
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        res.status(409).send({
+          message: `A tag named "${name.trim()}" already exists in this domain`,
+        });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 
@@ -5517,6 +6061,16 @@ adminRouter.put(
 
     const { name, nameAr, domain, description, descriptionAr, isActive } =
       req.body;
+
+    if (
+      taxonomyRequestTouchesIdentity(req.body) &&
+      (await isTaxonomyInUse("tag", tag.name))
+    ) {
+      res.status(409).send({
+        message: taxonomyInUseEditMessage("tag"),
+      });
+      return;
+    }
 
     if (name !== undefined) tag.name = name.trim();
     if (nameAr !== undefined) tag.nameAr = nameAr.trim();
@@ -5540,8 +6094,31 @@ adminRouter.put(
     if (descriptionAr !== undefined) tag.descriptionAr = descriptionAr.trim();
     if (isActive !== undefined) tag.isActive = isActive;
 
-    const updated = await tag.save();
-    res.send(updated);
+    const duplicate = await findDuplicateTaxonomyName(Tag, {
+      name: tag.name,
+      domain: tag.domain,
+      excludeId: tag._id,
+    });
+    if (duplicate) {
+      res.status(409).send({
+        message: `A tag named "${tag.name}" already exists in this domain`,
+      });
+      return;
+    }
+
+    try {
+      const updated = await tag.save();
+      const usageCount = await getTaxonomyUsageCount("tag", updated.name);
+      res.send(enrichTaxonomyDoc(updated, usageCount));
+    } catch (err) {
+      if (isDuplicateKeyError(err)) {
+        res.status(409).send({
+          message: `A tag named "${tag.name}" already exists in this domain`,
+        });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 
@@ -5553,6 +6130,12 @@ adminRouter.delete(
     const tag = await Tag.findById(req.params.id);
     if (!tag) {
       res.status(404).send({ message: "Tag not found" });
+      return;
+    }
+    if (await isTaxonomyInUse("tag", tag.name)) {
+      res.status(409).send({
+        message: taxonomyInUseDeleteMessage("tag"),
+      });
       return;
     }
     await tag.deleteOne();

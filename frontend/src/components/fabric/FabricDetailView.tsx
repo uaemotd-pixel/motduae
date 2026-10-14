@@ -51,8 +51,6 @@ type FabricDetailViewProps = {
     selectCut: string;
     selectForCustomOrder: string;
     storeTitle: string;
-    pickupLabel: string;
-    partnerNote: string;
   };
 };
 
@@ -612,7 +610,7 @@ export default function FabricDetailView({
                               }}
                               className="w-7 h-7 rounded-full border border-[#E4E0D8] shrink-0 shadow-sm"
                               style={{
-                                backgroundColor: colorObj?.hex || "#CCCCCC",
+                                background: colorObj?.hex || "#CCCCCC",
                               }}
                               title={color}
                             />
@@ -689,12 +687,8 @@ export default function FabricDetailView({
               >
                 <StoreAttribution
                   store={fabric.listedByStore}
-                  pickupAddress={fabric.storePickupAddress}
-                  locale={locale}
                   labels={{
                     title: labels.storeTitle,
-                    pickupLabel: labels.pickupLabel,
-                    partnerNote: labels.partnerNote,
                   }}
                 />
               </motion.div>
