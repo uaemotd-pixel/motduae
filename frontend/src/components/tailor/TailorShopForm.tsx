@@ -10,7 +10,7 @@ import FormField from "@/components/admin/FormField";
 import ImageUpload from "@/components/admin/ImageUpload";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 import SocialPlatformIcon from "@/components/shared/SocialPlatformIcon";
-import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
+import { api, getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import {
   createTailorShop,
   emptyTailorShopForm,
@@ -415,29 +415,26 @@ export default function TailorShopForm() {
     field: "logo" | "coverImage",
     url: string,
   ) => {
-    const nextForm = { ...formData, [field]: url };
-    setFormData(nextForm);
+    setFormData((prev) => ({ ...prev, [field]: url }));
     if (fieldErrors[field]) {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
     }
 
+    // Create mode: keep image in form until the shop is created.
     if (!shop) return;
 
     setSubmitting(true);
-
     try {
-      const formForSave = {
-        ...nextForm,
-        payoutBank:
-          payoutBankTouched(nextForm.payoutBank) &&
-          !isPayoutBankComplete(nextForm.payoutBank)
-            ? shop.payoutBank || nextForm.payoutBank
-            : nextForm.payoutBank,
-      };
-      const savedShop = await updateTailorShop(formForSave);
-      setShop(savedShop);
-      const form = tailorShopToForm(savedShop);
-      setFormData({ ...form, payoutBank: nextForm.payoutBank });
+      // Image-only PUT — do not resubmit the full profile (pickup/bank validation).
+      const response = await api.put<{
+        success: boolean;
+        item: TailorShopProfile;
+      }>("/api/tailor/shop", { [field]: url });
+      setShop(response.item);
+      setFormData((prev) => ({
+        ...prev,
+        [field]: response.item[field] || url,
+      }));
       toast.success(
         url.trim() ? t("imageSaved") : t("imageRemoved"),
         SUCCESS_TOAST,

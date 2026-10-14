@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api/client";
@@ -89,11 +89,19 @@ function TestimonialCard({
   testimonial,
   language,
   verifiedLabel,
+  readMoreLabel,
+  showLessLabel,
 }: {
   testimonial: Testimonial;
   language: "en" | "ar";
   verifiedLabel: string;
+  readMoreLabel: string;
+  showLessLabel: string;
 }) {
+  const quoteRef = useRef<HTMLParagraphElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
   const displayName =
     language === "ar"
       ? testimonial.nameAr || testimonial.nameEn
@@ -107,24 +115,69 @@ function TestimonialCard({
       ? testimonial.quoteAr || testimonial.quoteEn
       : testimonial.quoteEn || testimonial.quoteAr;
 
+  useEffect(() => {
+    setExpanded(false);
+  }, [displayQuote]);
+
+  useEffect(() => {
+    const el = quoteRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      if (expanded) {
+        setOverflows(true);
+        return;
+      }
+      setOverflows(el.scrollHeight > el.clientHeight + 1);
+    };
+
+    measure();
+    const ro =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measure)
+        : null;
+    ro?.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [displayQuote, expanded]);
+
   return (
-    <div className="p-5 xs:p-6 sm:p-7 md:p-8 lg:p-10 border border-(--color-border) bg-white/60 backdrop-blur-sm flex flex-col justify-between h-full transition-all duration-300 hover:shadow-lg">
-      <div className="mb-6 xs:mb-7 sm:mb-8 md:mb-9 lg:mb-10">
+    <div className="flex h-full min-h-[260px] flex-col border border-(--color-border) bg-white/60 p-5 backdrop-blur-sm transition-all duration-300 hover:shadow-lg xs:p-6 sm:min-h-[280px] sm:p-7 md:p-8 lg:p-10">
+      <div className="mb-5 flex min-h-0 flex-1 flex-col xs:mb-6 sm:mb-7">
         <StarRating rating={testimonial.rating} />
         {testimonial.verified ? (
-          <p className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.2em] text-(--color-grey-muted) mt-2">
+          <p className="mt-2 [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.2em] text-(--color-grey-muted)">
             {verifiedLabel}
           </p>
         ) : null}
-        <p className="[font-family:var(--font-body)] text-[14px] xs:text-[12px] sm:text-[13px] md:text-[12px] lg:text-[13px] xl:text-[14px] leading-[1.6] xs:leading-[1.7] sm:leading-[1.8] md:leading-[1.9] italic text-(--color-grey-muted) font-normal mt-4 xs:mt-5 sm:mt-6">
+        <p
+          ref={quoteRef}
+          className={[
+            "mt-4 [font-family:var(--font-body)] text-[13px] leading-[1.7] font-normal italic text-(--color-grey-muted) xs:mt-5 xs:text-[12px] sm:mt-6 sm:text-[13px] sm:leading-[1.8] md:text-[12px] lg:text-[13px] xl:text-[14px]",
+            // Fixed 4-line box so short and long reviews keep even card heights
+            expanded ? "" : "line-clamp-4 min-h-[calc(1.7em*4)] sm:min-h-[calc(1.8em*4)]",
+          ].join(" ")}
+        >
           &quot;{displayQuote}&quot;
         </p>
+        {overflows ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((prev) => !prev)}
+            className="mt-2 self-start [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.18em] text-black underline underline-offset-4 transition hover:opacity-60"
+          >
+            {expanded ? showLessLabel : readMoreLabel}
+          </button>
+        ) : null}
       </div>
-      <div>
-        <p className="[font-family:var(--font-display)] text-[15px] xs:text-[16px] sm:text-[17px] md:text-[16px] lg:text-[17px] xl:text-[18px] 2xl:text-[20px] font-normal tracking-[-0.01em] text-black leading-[1.2] uppercase">
+      <div className="mt-auto shrink-0 border-t border-(--color-border)/70 pt-4">
+        <p className="[font-family:var(--font-display)] text-[15px] font-normal uppercase leading-[1.2] tracking-[-0.01em] text-black xs:text-[16px] sm:text-[17px] md:text-[16px] lg:text-[17px] xl:text-[18px] 2xl:text-[20px]">
           {displayName}
         </p>
-        <p className="[font-family:var(--font-ui)] text-[10px] xs:text-[8px] sm:text-[9px] md:text-[8px] lg:text-[9px] xl:text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mt-1.5 xs:mt-2 font-normal">
+        <p className="mt-1.5 [font-family:var(--font-ui)] text-[10px] font-normal uppercase tracking-[0.28em] text-(--color-grey-muted) xs:mt-2 xs:text-[8px] sm:text-[9px] md:text-[8px] lg:text-[9px] xl:text-[10px]">
           {displayTitle}
         </p>
       </div>
@@ -381,12 +434,14 @@ export function Testimonials() {
                 {allTestimonials.map((testimonial) => (
                   <div
                     key={testimonial.id}
-                    className="flex-[0_0_100%] sm:flex-[0_0_50%] lg:flex-[0_0_33.333%] xl:flex-[0_0_25%] px-2.5 md:px-4 lg:px-5 py-4"
+                    className="flex min-h-0 flex-[0_0_100%] px-2.5 py-4 sm:flex-[0_0_50%] md:px-4 lg:flex-[0_0_33.333%] lg:px-5 xl:flex-[0_0_25%]"
                   >
                     <TestimonialCard
                       testimonial={testimonial}
                       language={currentLanguage}
                       verifiedLabel={t("verifiedPurchase")}
+                      readMoreLabel={t("readMore")}
+                      showLessLabel={t("showLess")}
                     />
                   </div>
                 ))}

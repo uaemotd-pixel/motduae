@@ -263,9 +263,24 @@ export function TailorsSection() {
 
   if (tailors.length === 0) {
     return (
-      <section className={SECTION_CLASS} aria-label={t("ariaLabel")}>
-        <div className="text-center [font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em]">
-          {t("empty")}
+      <section
+        className="relative overflow-hidden my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16"
+        aria-label={t("ariaLabel")}
+      >
+        <div className="absolute inset-0 bg-white" />
+        <div className="relative px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80)">
+          <div className="mb-8 xs:mb-10 sm:mb-12">
+            <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[9px] sm:text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-3 flex items-center gap-3">
+              <span className="block w-8 h-px bg-[#d4af37]/60" />
+              <span>{t("eyebrow")}</span>
+            </span>
+            <h2 className="[font-family:var(--font-display)] text-[36px] xs:text-[40px] sm:text-[44px] md:text-[48px] lg:text-[52px] xl:text-[56px] font-normal leading-[1.05] tracking-[-0.02em] text-black">
+              {t("title")}
+            </h2>
+          </div>
+          <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
+            {t("empty")}
+          </p>
         </div>
       </section>
     );

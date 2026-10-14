@@ -252,10 +252,21 @@ export function PremiumFabrics() {
     return (
       <section
         id="all-fabrics"
-        className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) mb-12 xs:mb-16 sm:mb-20 md:mb-24 lg:mb-(--space-80)"
+        className="bg-(--bg-page) py-12 xs:py-16 sm:py-20 md:py-24 lg:py-(--space-80) border-(--color-border) my-6 xs:my-8 sm:my-10 md:my-12 lg:my-16"
       >
-        <div className="text-center [font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em]">
-          {t("empty")}
+        <div className="px-4 xs:px-6 sm:px-8 md:px-12 lg:px-(--space-40) w-full mx-auto">
+          <div className="mb-8 xs:mb-10 sm:mb-12">
+            <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[8px] sm:text-[9px] md:text-[8px] lg:text-[9px] xl:text-[10px] uppercase tracking-[0.28em] text-(--color-grey-muted) mb-2 xs:mb-3 flex items-center gap-2 xs:gap-3">
+              <span className="block w-3 xs:w-4 sm:w-5 h-px bg-(--color-grey-muted)" />
+              <span>{t("eyebrow")}</span>
+            </span>
+            <h2 className="[font-family:var(--font-display)] text-[32px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[44px] xl:text-[48px] 2xl:text-[56px] font-normal leading-[1.1] tracking-[-0.01em] text-black">
+              {t("title")}
+            </h2>
+          </div>
+          <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
+            {t("empty")}
+          </p>
         </div>
       </section>
     );

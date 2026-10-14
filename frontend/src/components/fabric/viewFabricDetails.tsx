@@ -230,7 +230,7 @@ const ViewFabricDetails = ({ product }: FabricDetailsProps) => {
                           ? "border-black scale-110 shadow-md"
                           : "border-[#E8E8E4] hover:border-black/30"
                       }`}
-                      style={{ backgroundColor: hex }}
+                      style={{ background: hex }}
                       aria-label={colorName}
                     />
                   ))}
@@ -491,7 +491,7 @@ const ViewFabricDetails = ({ product }: FabricDetailsProps) => {
                       ? "border-black scale-110"
                       : "border-[#E8E8E4]"
                   }`}
-                  style={{ backgroundColor: hex }}
+                  style={{ background: hex }}
                 />
               ))}
             </div>

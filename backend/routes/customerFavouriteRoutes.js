@@ -55,11 +55,12 @@ function modelForType(type) {
   return type === "tailor" ? TailorShop : FabricShop;
 }
 
-function toFavouriteCard(shop) {
+function toFavouriteCard(shop, type) {
   if (!shop) return null;
   const obj = typeof shop.toObject === "function" ? shop.toObject() : shop;
   return {
     _id: String(obj._id),
+    type: type === "tailor" ? "tailor" : "fabricShop",
     slug: obj.slug || "",
     name: obj.name || "",
     nameAr: obj.nameAr || "",
@@ -107,10 +108,10 @@ export function registerCustomerFavouriteRoutes(customerRouter) {
       res.json({
         success: true,
         favouriteTailors: (customer.favouriteTailors || [])
-          .map(toFavouriteCard)
+          .map((shop) => toFavouriteCard(shop, "tailor"))
           .filter(Boolean),
         favouriteFabricShops: (customer.favouriteFabricShops || [])
-          .map(toFavouriteCard)
+          .map((shop) => toFavouriteCard(shop, "fabricShop"))
           .filter(Boolean),
       });
     } catch (error) {

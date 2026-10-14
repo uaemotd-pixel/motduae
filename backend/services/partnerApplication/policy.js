@@ -23,12 +23,34 @@ export class PartnerApplicationError extends Error {
   }
 }
 
-export function assertPartnerDecisionAllowed(user) {
+export function assertPartnerDecisionAllowed(user, action = "decide") {
   const status = user?.approvalStatus;
-  if (status === "pending" || status === "rejected") return;
+  if (action === "reject") {
+    // Pending applications and already-approved shops can be rejected/revoked.
+    if (status === "pending" || status === "approved") return;
+    if (status === "rejected") {
+      throw new PartnerApplicationError(
+        "ALREADY_REJECTED",
+        "This application is already rejected",
+        409,
+      );
+    }
+  } else if (action === "approve") {
+    // Pending or previously rejected applications can be approved.
+    if (status === "pending" || status === "rejected") return;
+    if (status === "approved") {
+      throw new PartnerApplicationError(
+        "ALREADY_APPROVED",
+        "This application is already approved",
+        409,
+      );
+    }
+  } else if (status === "pending" || status === "rejected") {
+    return;
+  }
   throw new PartnerApplicationError(
     "DECISION_NOT_ALLOWED",
-    "Only pending or rejected applications can be approved or rejected",
+    "This application cannot be decided in its current state",
     409,
   );
 }
