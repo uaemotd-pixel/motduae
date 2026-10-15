@@ -269,9 +269,6 @@ export default function NewReadyMadePage() {
     const errors: Record<string, string> = {};
 
     if (!formData.name.trim()) errors.name = "Name required";
-    if (formData.fabricShopId && !formData.fabricId) {
-      errors.fabricId = "Fabric required when a store is selected";
-    }
 
     const hasImage = formData.images.some((img) => img.trim() !== "");
     if (!hasImage) errors.images = "At least one image is required";
