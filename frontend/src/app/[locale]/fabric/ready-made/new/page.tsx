@@ -222,12 +222,10 @@ export default function NewReadyMadePage() {
 
     if (!formData.name.trim()) errors.name = "Name required";
     if (!formData.fabricShopId) errors.fabricShopId = "Fabric store required";
-    if (!formData.fabricId) errors.fabricId = "Fabric required";
-
     const hasImage = formData.images.some((img) => img.trim() !== "");
     if (!hasImage) errors.images = "At least one image is required";
 
-    if (formData.metersPerFabric <= 0)
+    if (formData.fabricId && formData.metersPerFabric <= 0)
       errors.metersPerFabric = "Meters must be greater than 0";
     if (formData.fabricPriceAED < 0)
       errors.fabricPriceAED = "Price cannot be negative";
@@ -488,7 +486,6 @@ export default function NewReadyMadePage() {
             label="Fabric"
             name="fabricId"
             error={fieldErrors.fabricId}
-            required
           >
             <AnimatedDropdown
               isOpen={fabricOpen}
