@@ -1519,7 +1519,7 @@ fabricPortalRouter.post(
       thumbnailImage,
       images: Array.isArray(images) ? images : [],
       fabricShopId: shop._id,
-      fabricId,
+      fabricId: fabricId || null,
       tailorShopId: tailorShopId || undefined,
       designId: designId || undefined,
       fabricType: fabricType || "",
@@ -1603,7 +1603,9 @@ fabricPortalRouter.put(
 
     product.thumbnailImage = req.body.thumbnailImage ?? product.thumbnailImage;
     product.images = req.body.images ?? product.images;
-    product.fabricId = req.body.fabricId ?? product.fabricId;
+    if (req.body.fabricId !== undefined) {
+      product.fabricId = req.body.fabricId || null;
+    }
     product.tailorShopId =
       req.body.tailorShopId !== undefined
         ? req.body.tailorShopId
