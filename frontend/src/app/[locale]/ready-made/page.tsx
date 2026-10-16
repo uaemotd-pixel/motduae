@@ -678,12 +678,14 @@ export default function ReadyMadeCatalogPage() {
         if (filters.maxPrice < PRICE_MAX) {
           params.set("maxPrice", String(filters.maxPrice));
         }
+        /* Temporarily hidden age filter
         if (filters.minAge > AGE_MIN) {
           params.set("minAge", String(filters.minAge));
         }
         if (filters.maxAge < AGE_MAX) {
           params.set("maxAge", String(filters.maxAge));
         }
+        */
         if (filters.inStockOnly) {
           params.set("inStockOnly", "true");
         }
@@ -869,8 +871,8 @@ export default function ReadyMadeCatalogPage() {
     filters.tags.length > 0 ||
     filters.minPrice > 0 ||
     filters.maxPrice < PRICE_MAX ||
-    filters.minAge > AGE_MIN ||
-    filters.maxAge < AGE_MAX ||
+    // filters.minAge > AGE_MIN ||
+    // filters.maxAge < AGE_MAX ||
     filters.inStockOnly;
 
   const activeFilterCount =
@@ -881,7 +883,7 @@ export default function ReadyMadeCatalogPage() {
     filters.seasons.length +
     filters.tags.length +
     (filters.minPrice > 0 || filters.maxPrice < PRICE_MAX ? 1 : 0) +
-    (filters.minAge > AGE_MIN || filters.maxAge < AGE_MAX ? 1 : 0) +
+    // (filters.minAge > AGE_MIN || filters.maxAge < AGE_MAX ? 1 : 0) +
     (filters.inStockOnly ? 1 : 0);
 
   useEffect(() => {
@@ -1212,6 +1214,7 @@ export default function ReadyMadeCatalogPage() {
         />
       </div>
 
+      {/* Age range filter temporarily hidden
       <div className="border-b border-[#E4E0D8] pb-4">
         <FilterLabel>{isAr ? "الفئة العمرية" : "Age Range"}</FilterLabel>
         <AgeRangeSlider
@@ -1222,6 +1225,7 @@ export default function ReadyMadeCatalogPage() {
           isAr={isAr}
         />
       </div>
+      */}
 
       {/* Availability - 8th (last) */}
       <div className="border-b border-[#E4E0D8] pb-4">
@@ -1510,6 +1514,7 @@ export default function ReadyMadeCatalogPage() {
                           </button>
                         </span>
                       ))}
+                      {/* Age filter chip temporarily hidden
                       {(filters.minAge > AGE_MIN || filters.maxAge < AGE_MAX) && (
                         <span className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-[0.1em] sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full">
                           {isAr
@@ -1539,6 +1544,7 @@ export default function ReadyMadeCatalogPage() {
                           </button>
                         </span>
                       )}
+                      */}
                       {(filters.minPrice > 0 ||
                         filters.maxPrice < PRICE_MAX) && (
                         <span className="text-[8px] xs:text-[9px] sm:text-[10px] tracking-widest sm:tracking-[0.14em] uppercase bg-black text-white px-2 py-1 sm:px-3 sm:py-1.5 flex items-center gap-1.5 sm:gap-2 rounded-full">
