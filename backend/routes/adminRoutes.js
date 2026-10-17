@@ -712,7 +712,11 @@ adminRouter.get(
 adminRouter.get(
   "/ready-made/:id",
   expressAsyncHandler(async (req, res) => {
-    const product = await ReadyMadeProduct.findById(req.params.id);
+    const product = await ReadyMadeProduct.findById(req.params.id)
+      .populate("fabricShopId", "name nameAr slug logo")
+      .populate("fabricId", "name nameAr image images priceAED")
+      .populate("tailorShopId", "name nameAr slug logo")
+      .populate("designId", "name nameAr images priceAED");
     if (product) {
       res.send(product);
     } else {

@@ -230,10 +230,11 @@ export default function DesignDetailView({
     design.estimatedTimeUnit,
     { days: labels.days, weeks: labels.weeks },
   );
-  const ageValue =
-    design.minAge != null || design.maxAge != null
-      ? `${Number(design.minAge) || 0}–${Number(design.maxAge) || 0} ${labels.years}`
-      : "";
+  // Age range hidden for now
+  // const ageValue =
+  //   design.minAge != null || design.maxAge != null
+  //     ? `${Number(design.minAge) || 0}–${Number(design.maxAge) || 0} ${labels.years}`
+  //     : "";
 
   const handleShare = useCallback(async () => {
     const shareUrl = typeof window !== "undefined" ? window.location.href : "";
@@ -558,7 +559,7 @@ export default function DesignDetailView({
                 </div>
               )}
 
-              {(daysValue || ageValue) && (
+              {daysValue && (
                 <div className="grid grid-cols-2 gap-x-6 my-2">
                   {daysValue && (
                     <div>
@@ -570,6 +571,7 @@ export default function DesignDetailView({
                       </p>
                     </div>
                   )}
+                  {/* Age range display hidden for now
                   {ageValue && (
                     <div>
                       <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
@@ -579,7 +581,7 @@ export default function DesignDetailView({
                         {ageValue}
                       </p>
                     </div>
-                  )}
+                  )} */}
                 </div>
               )}
 
