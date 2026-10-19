@@ -64,6 +64,7 @@ import {
 
 import {
   assertActiveCutsExist,
+  assertFabricCodeAvailable,
   enrichFabricWithCuts,
   normalizeFabricCutsPayload,
   countLowStockFabricCutRows,
@@ -1934,6 +1935,7 @@ adminRouter.post(
     const {
       name,
       nameAr,
+      code,
       slug,
       description,
       descriptionAr,
@@ -1966,6 +1968,11 @@ adminRouter.post(
       return;
     }
 
+    const codeCheck = await assertFabricCodeAvailable(code);
+    if (!codeCheck.ok) {
+      return res.status(400).send({ message: codeCheck.message });
+    }
+
     // validate Emirate
     if (storePickupAddress?.emirate) {
       const normalizedEmirate = normalizeEmirate(storePickupAddress.emirate);
@@ -1986,6 +1993,7 @@ adminRouter.post(
     const newFabric = new Fabric({
       name,
       nameAr,
+      code: codeCheck.code,
       slug: uniqueSlug,
       description,
       descriptionAr,
@@ -2102,6 +2110,15 @@ adminRouter.put(
     // Update all fields
     fabric.name = req.body.name ?? fabric.name;
     fabric.nameAr = req.body.nameAr ?? fabric.nameAr;
+    if (req.body.code !== undefined) {
+      const codeCheck = await assertFabricCodeAvailable(req.body.code, {
+        excludeId: fabric._id,
+      });
+      if (!codeCheck.ok) {
+        return res.status(400).send({ message: codeCheck.message });
+      }
+      fabric.code = codeCheck.code;
+    }
     if (req.body.slug && req.body.slug !== fabric.slug) {
       fabric.slug = await ensureUniqueSlug(Fabric, req.body.slug, {
         excludeId: fabric._id,

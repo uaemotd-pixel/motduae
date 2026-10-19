@@ -36,6 +36,16 @@ type FamilyMember = {
   phone: string;
   email?: string;
   profilePic?: string;
+  dob?: string | Date;
+  address?: {
+    fullName?: string;
+    phone?: string;
+    emirate?: string;
+    city?: string;
+    street?: string;
+    building?: string;
+    postalCode?: string;
+  };
   createdAt: string;
 };
 

@@ -69,7 +69,12 @@ export function hasUsableCheckoutAddress(
 ) {
   if (!address || typeof address !== "object") return false;
   return Boolean(
-    String(address.emirate || "").trim() && String(address.city || "").trim(),
+    String(address.fullName || "").trim() &&
+      String(address.phone || "").trim() &&
+      String(address.emirate || "").trim() &&
+      String(address.city || "").trim() &&
+      String(address.street || "").trim() &&
+      String(address.building || "").trim(),
   );
 }
 

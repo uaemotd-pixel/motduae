@@ -34,6 +34,8 @@ export interface FabricFormData {
   _id?: string;
   name: string;
   nameAr: string;
+  /** Optional product code — unique when provided */
+  code: string;
   slug: string;
   description: string;
   descriptionAr: string;
@@ -63,6 +65,7 @@ export function defaultFabricForm(): FabricFormData {
   return {
     name: "",
     nameAr: "",
+    code: "",
     slug: "",
     description: "",
     descriptionAr: "",
@@ -227,6 +230,7 @@ export function fromApiFabric(
 
   const name = typeof product.name === "string" ? product.name : "";
   const nameAr = typeof product.nameAr === "string" ? product.nameAr : "";
+  const code = typeof product.code === "string" ? product.code : "";
   const slug = typeof product.slug === "string" ? product.slug : "";
   const description =
     typeof product.description === "string" ? product.description : "";
@@ -298,6 +302,7 @@ export function fromApiFabric(
     _id: typeof product._id === "string" ? product._id : undefined,
     name,
     nameAr,
+    code,
     slug,
     description,
     descriptionAr,
@@ -340,6 +345,7 @@ export function toFabricApiPayload(
   const payload: Record<string, unknown> = {
     name,
     nameAr: form.nameAr.trim() || name,
+    code: form.code.trim(),
     slug: resolveSlug(form),
     description: form.description.trim(),
     descriptionAr: form.descriptionAr.trim() || form.description.trim(),
@@ -368,6 +374,7 @@ export function toFabricApiPayload(
       _id: v._id,
       name: v.name.trim(),
       nameAr: v.nameAr.trim(),
+      code: v.code?.trim() || "",
       slug: resolveSlug(v),
       description: v.description.trim(),
       descriptionAr: v.descriptionAr.trim() || v.description.trim(),
@@ -611,6 +618,10 @@ export function mapFabricApiErrorToFieldErrors(
   message: string,
 ): Record<string, string> {
   const trimmedMessage = message.trim();
+
+  if (/fabric code already exists/i.test(trimmedMessage)) {
+    return { code: trimmedMessage };
+  }
 
   if (trimmedMessage.includes("cut")) {
     return { cuts: trimmedMessage };

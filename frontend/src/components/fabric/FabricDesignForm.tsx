@@ -681,6 +681,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         {
           name: "",
           nameAr: "",
+          code: "",
           slug: "",
           description: "",
           descriptionAr: "",
@@ -1077,64 +1078,22 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 }}
                 dropdownRef={patternDropdownRef}
               />
+            </div>
 
-              <BilingualUnderlineDropdown
-                label="SEASON (EN / AR)"
-                name="season"
-                error={fieldErrors.season || fieldErrors.seasonAr}
-                value={formData.season}
-                options={allSeasons}
-                loading={seasonsLoading}
-                placeholder="Select season (optional)"
-                clearLabel="Select season (optional)"
-                isOpen={isSeasonDropdownOpen}
-                onToggle={() => {
-                  setIsSeasonDropdownOpen((prev) => !prev);
-                  setIsMaterialDropdownOpen(false);
-                  setIsCategoryDropdownOpen(false);
-                  setIsPatternDropdownOpen(false);
-                  setIsTagDropdownOpen(false);
-                }}
-                onClose={() => setIsSeasonDropdownOpen(false)}
-                onSelect={(en, ar) => {
-                  handleChange("season", en);
-                  handleChange("seasonAr", ar);
-                }}
-                onClear={() => {
-                  handleChange("season", "");
-                  handleChange("seasonAr", "");
-                }}
-                dropdownRef={seasonDropdownRef}
-              />
-
-              <BilingualUnderlineDropdown
-                label="TAG (EN / AR)"
-                name="tag"
-                error={fieldErrors.tag}
-                value={formData.tag}
-                options={allTags}
-                loading={tagsLoading}
-                placeholder="Select tag (optional)"
-                clearLabel="Select tag (optional)"
-                isOpen={isTagDropdownOpen}
-                onToggle={() => {
-                  setIsTagDropdownOpen((prev) => !prev);
-                  setIsMaterialDropdownOpen(false);
-                  setIsCategoryDropdownOpen(false);
-                  setIsPatternDropdownOpen(false);
-                  setIsSeasonDropdownOpen(false);
-                }}
-                onClose={() => setIsTagDropdownOpen(false)}
-                onSelect={(en, ar) => {
-                  handleChange("tag", en);
-                  handleChange("tagAr", ar);
-                }}
-                onClear={() => {
-                  handleChange("tag", "");
-                  handleChange("tagAr", "");
-                }}
-                dropdownRef={tagDropdownRef}
-              />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-4 sm:gap-5 items-start mt-4 sm:mt-5">
+              <FormField
+                label="CODE (OPTIONAL)"
+                name="code"
+                error={fieldErrors.code}
+              >
+                <input
+                  type="text"
+                  value={formData.code}
+                  onChange={(e) => handleChange("code", e.target.value)}
+                  className={`${INPUT_CLASS} hover:cursor-text`}
+                  placeholder="0000"
+                />
+              </FormField>
 
               <FormField
                 label="COLORS"
@@ -1221,6 +1180,64 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                   </AnimatePresence>
                 </div>
               </FormField>
+
+              <BilingualUnderlineDropdown
+                label="TAG (EN / AR)"
+                name="tag"
+                error={fieldErrors.tag}
+                value={formData.tag}
+                options={allTags}
+                loading={tagsLoading}
+                placeholder="Select tag (optional)"
+                clearLabel="Select tag (optional)"
+                isOpen={isTagDropdownOpen}
+                onToggle={() => {
+                  setIsTagDropdownOpen((prev) => !prev);
+                  setIsMaterialDropdownOpen(false);
+                  setIsCategoryDropdownOpen(false);
+                  setIsPatternDropdownOpen(false);
+                  setIsSeasonDropdownOpen(false);
+                }}
+                onClose={() => setIsTagDropdownOpen(false)}
+                onSelect={(en, ar) => {
+                  handleChange("tag", en);
+                  handleChange("tagAr", ar);
+                }}
+                onClear={() => {
+                  handleChange("tag", "");
+                  handleChange("tagAr", "");
+                }}
+                dropdownRef={tagDropdownRef}
+              />
+
+              <BilingualUnderlineDropdown
+                label="SEASON (EN / AR)"
+                name="season"
+                error={fieldErrors.season || fieldErrors.seasonAr}
+                value={formData.season}
+                options={allSeasons}
+                loading={seasonsLoading}
+                placeholder="Select season (optional)"
+                clearLabel="Select season (optional)"
+                isOpen={isSeasonDropdownOpen}
+                onToggle={() => {
+                  setIsSeasonDropdownOpen((prev) => !prev);
+                  setIsMaterialDropdownOpen(false);
+                  setIsCategoryDropdownOpen(false);
+                  setIsPatternDropdownOpen(false);
+                  setIsTagDropdownOpen(false);
+                }}
+                onClose={() => setIsSeasonDropdownOpen(false)}
+                onSelect={(en, ar) => {
+                  handleChange("season", en);
+                  handleChange("seasonAr", ar);
+                }}
+                onClear={() => {
+                  handleChange("season", "");
+                  handleChange("seasonAr", "");
+                }}
+                dropdownRef={seasonDropdownRef}
+              />
             </div>
           </FormSection>
 

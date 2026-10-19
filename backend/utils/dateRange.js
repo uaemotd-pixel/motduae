@@ -64,7 +64,7 @@ export function applyCreatedAtFilter(from, to) {
 }
 
 /**
- * Inclusive UTC window for dashboard timeframe pills (week / month / year).
+ * Inclusive UTC window for timeframe pills (today / week / month / year).
  * Start is always 00:00:00.000 on the first day so that day is not dropped.
  */
 export function getTimeframeWindow(timeframe, { includePrevious = false } = {}) {
@@ -82,11 +82,14 @@ export function getTimeframeWindow(timeframe, { includePrevious = false } = {}) 
   );
 
   const start = new Date(end);
-  if (timeframe === "week") {
+  if (timeframe === "today") {
+    // start stays on the same calendar day
+  } else if (timeframe === "week") {
     start.setUTCDate(start.getUTCDate() - 6);
   } else if (timeframe === "year") {
     start.setUTCMonth(start.getUTCMonth() - 11);
   } else {
+    // month (default)
     start.setUTCDate(start.getUTCDate() - 29);
   }
   start.setUTCHours(0, 0, 0, 0);
@@ -97,7 +100,9 @@ export function getTimeframeWindow(timeframe, { includePrevious = false } = {}) 
 
   const prevEnd = new Date(start.getTime() - 1);
   const prevStart = new Date(prevEnd);
-  if (timeframe === "week") {
+  if (timeframe === "today") {
+    // previous single day already ends at prevEnd
+  } else if (timeframe === "week") {
     prevStart.setUTCDate(prevStart.getUTCDate() - 6);
   } else if (timeframe === "year") {
     prevStart.setUTCMonth(prevStart.getUTCMonth() - 11);

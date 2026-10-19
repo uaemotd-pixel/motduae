@@ -24,6 +24,7 @@ export interface FabricProfile {
   slug: string;
   name: string;
   nameAr: string;
+  code?: string;
   description: string;
   descriptionAr: string;
   images: string[];
@@ -56,6 +57,8 @@ export interface FabricFormData {
   _id?: string;
   name: string;
   nameAr: string;
+  /** Optional product code — unique when provided */
+  code: string;
   slug: string;
   description: string;
   descriptionAr: string;
@@ -83,6 +86,7 @@ export function emptyFabricForm(): FabricFormData {
   return {
     name: "",
     nameAr: "",
+    code: "",
     slug: "",
     description: "",
     descriptionAr: "",
@@ -126,6 +130,7 @@ export function fabricToForm(fabric: FabricProfile): FabricFormData {
     _id: fabric._id,
     name: fabric.name ?? "",
     nameAr: fabric.nameAr ?? "",
+    code: fabric.code ?? "",
     slug: fabric.slug ?? "",
     description: fabric.description ?? "",
     descriptionAr: fabric.descriptionAr ?? "",
@@ -161,6 +166,7 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
   return {
     name: form.name.trim(),
     nameAr: form.nameAr.trim(),
+    code: form.code.trim(),
     slug: slugifyFabricName(form.name),
     description: form.description.trim(),
     descriptionAr: form.descriptionAr.trim(),
@@ -189,6 +195,7 @@ export function toFabricPayload(form: FabricFormData): Record<string, unknown> {
       _id: v._id,
       name: v.name.trim(),
       nameAr: v.nameAr.trim(),
+      code: v.code?.trim() || "",
       slug: slugifyFabricName(v.name),
       description: v.description.trim(),
       descriptionAr: v.descriptionAr.trim(),
@@ -279,6 +286,10 @@ export function mapFabricApiErrorToFieldErrors(
   message: string,
 ): Record<string, string> {
   const trimmedMessage = message.trim();
+
+  if (/fabric code already exists/i.test(trimmedMessage)) {
+    return { code: trimmedMessage };
+  }
 
   if (trimmedMessage.includes("At least one cut")) {
     return { cuts: trimmedMessage };

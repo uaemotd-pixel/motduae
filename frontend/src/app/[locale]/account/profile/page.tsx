@@ -289,7 +289,7 @@ export default function ProfileTab({ onEditClick }: ProfileTabProps) {
   );
 
   const genderDisplay = (g?: string) => {
-    if (!g || g === "prefer-not") return "Prefer not to say";
+    if (!g || g === "prefer-not") return "—";
     return g.charAt(0).toUpperCase() + g.slice(1);
   };
 

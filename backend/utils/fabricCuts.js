@@ -6,6 +6,38 @@ import { cutValueToMeters } from "./fabricUnits.js";
 /** Default threshold: cut rows with this many pieces or fewer count as low stock. */
 export const LOW_FABRIC_CUT_STOCK_THRESHOLD = 5;
 
+/** Optional fabric product code — empty string when omitted. */
+export function normalizeOptionalFabricCode(value) {
+  return String(value ?? "").trim();
+}
+
+/**
+ * Ensure a non-empty fabric code is not already used.
+ * Empty codes are always allowed (many fabrics may omit code).
+ */
+export async function assertFabricCodeAvailable(code, { excludeId } = {}) {
+  const normalized = normalizeOptionalFabricCode(code);
+  if (!normalized) {
+    return { ok: true, code: "" };
+  }
+
+  const filter = { code: normalized };
+  if (excludeId && mongoose.Types.ObjectId.isValid(String(excludeId))) {
+    filter._id = { $ne: excludeId };
+  }
+
+  const existing = await Fabric.findOne(filter).select("_id").lean();
+  if (existing) {
+    return {
+      ok: false,
+      message: "Fabric code already exists",
+      code: normalized,
+    };
+  }
+
+  return { ok: true, code: normalized };
+}
+
 export function normalizeFabricCutsPayload(cutsInput) {
   if (!Array.isArray(cutsInput)) {
     return { ok: false, message: "cuts must be an array" };

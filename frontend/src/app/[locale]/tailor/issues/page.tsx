@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Search, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import GlobalPagination from "@/components/shared/GlobalPagination";
+
+type IssueTimeframe = "" | "today" | "week" | "month" | "year";
 
 type PartnerIssueKind = "fabric_insufficient" | "fabric_damaged" | "other" | "";
 
@@ -24,6 +26,13 @@ type IssueItem = {
   concern: string;
   status: string;
   createdAt?: string;
+};
+
+type StatusCounts = {
+  new: number;
+  contacted: number;
+  closed: number;
+  all: number;
 };
 
 const ISSUE_KIND_LABELS: Record<string, { en: string; ar: string }> = {
@@ -71,9 +80,30 @@ export default function TailorIssuesPage() {
   const [partnerIssueKind, setPartnerIssueKind] = useState<PartnerIssueKind>("");
   const [concern, setConcern] = useState("");
 
+  const [filterSearch, setFilterSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterKind, setFilterKind] = useState("");
+  const [filterTimeframe, setFilterTimeframe] = useState<IssueTimeframe>("");
+  const [counts, setCounts] = useState<StatusCounts>({
+    new: 0,
+    contacted: 0,
+    closed: 0,
+    all: 0,
+  });
+
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitialLoad = useRef(true);
+
+  const hasActiveFilters = useMemo(
+    () =>
+      Boolean(
+        filterSearch.trim() || filterStatus || filterKind || filterTimeframe,
+      ),
+    [filterSearch, filterStatus, filterKind, filterTimeframe],
+  );
 
   const loadOrders = useCallback(async () => {
     setLoadingOrders(true);
@@ -96,40 +126,82 @@ export default function TailorIssuesPage() {
     }
   }, [isAr]);
 
-  const loadIssues = useCallback(async () => {
-    setLoadingIssues(true);
-    try {
-      const res = await api.get<{
-        success: boolean;
-        items: IssueItem[];
-        total?: number;
-        totalPages?: number;
-        page?: number;
-      }>(`/api/tailor/issues?page=${page}&limit=20`);
-      setIssues(Array.isArray(res?.items) ? res.items : []);
-      setTotal(Number(res?.total) || 0);
-      setTotalPages(Number(res?.totalPages) || 0);
-    } catch (err) {
-      toast.error(
-        getApiErrorMessage(
-          err,
-          isAr ? "تعذر تحميل البلاغات" : "Failed to load issues",
-        ),
-        TOAST,
-      );
-      setIssues([]);
-    } finally {
-      setLoadingIssues(false);
-    }
-  }, [isAr, page]);
+  const loadIssues = useCallback(
+    async (opts?: { page?: number; showLoading?: boolean }) => {
+      const nextPage = Math.max(1, opts?.page ?? 1);
+      const showLoading = opts?.showLoading !== false;
+      if (showLoading) setLoadingIssues(true);
+      try {
+        const query = new URLSearchParams();
+        query.set("page", String(nextPage));
+        query.set("limit", "20");
+        if (filterSearch.trim()) query.set("search", filterSearch.trim());
+        if (filterStatus) query.set("status", filterStatus);
+        if (filterKind) query.set("kind", filterKind);
+        if (filterTimeframe) query.set("timeframe", filterTimeframe);
+
+        const res = await api.get<{
+          success: boolean;
+          items: IssueItem[];
+          total?: number;
+          totalPages?: number;
+          page?: number;
+          counts?: StatusCounts;
+        }>(`/api/tailor/issues?${query.toString()}`);
+
+        setPage(nextPage);
+        setIssues(Array.isArray(res?.items) ? res.items : []);
+        setTotal(Number(res?.total) || 0);
+        setTotalPages(Number(res?.totalPages) || 0);
+        if (res?.counts) {
+          setCounts({
+            new: Number(res.counts.new) || 0,
+            contacted: Number(res.counts.contacted) || 0,
+            closed: Number(res.counts.closed) || 0,
+            all: Number(res.counts.all) || 0,
+          });
+        }
+      } catch (err) {
+        toast.error(
+          getApiErrorMessage(
+            err,
+            isAr ? "تعذر تحميل البلاغات" : "Failed to load issues",
+          ),
+          TOAST,
+        );
+        setIssues([]);
+      } finally {
+        if (showLoading) setLoadingIssues(false);
+      }
+    },
+    [isAr, filterSearch, filterStatus, filterKind, filterTimeframe],
+  );
 
   useEffect(() => {
     void loadOrders();
   }, [loadOrders]);
 
   useEffect(() => {
-    void loadIssues();
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      void loadIssues({ page: 1, showLoading: true });
+      return;
+    }
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      void loadIssues({ page: 1, showLoading: false });
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
   }, [loadIssues]);
+
+  const clearFilters = () => {
+    setFilterSearch("");
+    setFilterStatus("");
+    setFilterKind("");
+    setFilterTimeframe("");
+  };
 
   const submitIssue = async () => {
     setError("");
@@ -171,8 +243,7 @@ export default function TailorIssuesPage() {
       setOrderId("");
       setPartnerIssueKind("");
       setConcern("");
-      setPage(1);
-      await loadIssues();
+      await loadIssues({ page: 1, showLoading: true });
     } catch (err) {
       setError(
         getApiErrorMessage(
@@ -191,13 +262,20 @@ export default function TailorIssuesPage() {
     return `${id}${status}`;
   };
 
+  const statusBadgeClass = (status: string) => {
+    if (status === "closed") return "border-gray-200 bg-gray-50 text-gray-600";
+    if (status === "contacted")
+      return "border-emerald-200 bg-emerald-50 text-emerald-800";
+    return "border-amber-200 bg-amber-50 text-amber-900";
+  };
+
   return (
     <div className="space-y-8 w-full">
       <div>
         <h1 className="[font-family:var(--font-display)] text-2xl sm:text-3xl text-black">
           {isAr ? "الإبلاغ عن مشكلة" : "Report an issue"}
         </h1>
-        <p className="mt-2 text-sm text-gray-500 [font-family:var(--font-body)] leading-relaxed">
+        <p className="mt-2 text-sm text-gray-500 text-justify [font-family:var(--font-body)] leading-relaxed">
           {isAr
             ? "إذا استلمتِ قماش العميل وكان غير كافٍ أو تالفاً، أبلغي MOTD هنا. فريق الرعاية يتواصل مع العميل — لا تتواصلي مع العميل مباشرة."
             : "If customer fabric arrives short or damaged, report it here. MOTD Care contacts the customer — do not contact the customer directly."}
@@ -305,12 +383,19 @@ export default function TailorIssuesPage() {
 
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="[font-family:var(--font-display)] text-xl text-black">
-            {isAr ? "بلاغاتك" : "Your reports"}
-          </h2>
+          <div>
+            <h2 className="[font-family:var(--font-display)] text-xl text-black">
+              {isAr ? "بلاغاتك" : "Your reports"}
+            </h2>
+            <p className="mt-1 text-xs text-gray-400">
+              {isAr
+                ? `${total} نتيجة`
+                : `${total} result${total === 1 ? "" : "s"}`}
+            </p>
+          </div>
           <button
             type="button"
-            onClick={() => void loadIssues()}
+            onClick={() => void loadIssues({ page, showLoading: true })}
             className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-200 text-xs hover:bg-gray-50"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -318,28 +403,169 @@ export default function TailorIssuesPage() {
           </button>
         </div>
 
-        <div className="border border-gray-200 bg-white">
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">
+                {isAr ? "البحث" : "Search"}
+              </label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={filterSearch}
+                  onChange={(e) => setFilterSearch(e.target.value)}
+                  placeholder={
+                    isAr
+                      ? "المرجع، الطلب، أو التفاصيل…"
+                      : "Ref, order, or details…"
+                  }
+                  className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">
+                {isAr ? "الحالة" : "Status"}
+              </label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition hover:cursor-pointer"
+              >
+                <option value="">
+                  {isAr
+                    ? `كل الحالات (${counts.all})`
+                    : `All statuses (${counts.all})`}
+                </option>
+                <option value="new">
+                  {isAr
+                    ? `${STATUS_LABELS.new.ar} (${counts.new})`
+                    : `${STATUS_LABELS.new.en} (${counts.new})`}
+                </option>
+                <option value="contacted">
+                  {isAr
+                    ? `${STATUS_LABELS.contacted.ar} (${counts.contacted})`
+                    : `${STATUS_LABELS.contacted.en} (${counts.contacted})`}
+                </option>
+                <option value="closed">
+                  {isAr
+                    ? `${STATUS_LABELS.closed.ar} (${counts.closed})`
+                    : `${STATUS_LABELS.closed.en} (${counts.closed})`}
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">
+                {isAr ? "نوع المشكلة" : "Issue type"}
+              </label>
+              <select
+                value={filterKind}
+                onChange={(e) => setFilterKind(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition hover:cursor-pointer"
+              >
+                <option value="">
+                  {isAr ? "كل الأنواع" : "All types"}
+                </option>
+                {(
+                  Object.keys(ISSUE_KIND_LABELS) as Array<
+                    keyof typeof ISSUE_KIND_LABELS
+                  >
+                ).map((key) => (
+                  <option key={key} value={key}>
+                    {isAr
+                      ? ISSUE_KIND_LABELS[key].ar
+                      : ISSUE_KIND_LABELS[key].en}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">
+                {isAr ? "الفترة" : "Period"}
+              </label>
+              <select
+                value={filterTimeframe}
+                onChange={(e) =>
+                  setFilterTimeframe(e.target.value as IssueTimeframe)
+                }
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-black text-black bg-white transition hover:cursor-pointer"
+              >
+                <option value="">
+                  {isAr ? "كل الفترات" : "All time"}
+                </option>
+                <option value="today">{isAr ? "اليوم" : "Today"}</option>
+                <option value="week">{isAr ? "هذا الأسبوع" : "This week"}</option>
+                <option value="month">{isAr ? "هذا الشهر" : "This month"}</option>
+                <option value="year">{isAr ? "هذه السنة" : "This year"}</option>
+              </select>
+            </div>
+          </div>
+
+          {hasActiveFilters ? (
+            <div className="flex items-center justify-between gap-3 pt-1 border-t border-gray-100">
+              <p className="text-xs text-gray-500">
+                {isAr ? "عوامل التصفية نشطة" : "Filters applied"}
+              </p>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-black transition"
+              >
+                <X className="w-3.5 h-3.5" />
+                {isAr ? "مسح الكل" : "Clear all"}
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="border border-gray-200 bg-white rounded-2xl overflow-hidden">
           {loadingIssues ? (
             <p className="p-5 text-sm text-gray-500">
               {isAr ? "جاري التحميل…" : "Loading…"}
             </p>
           ) : issues.length === 0 ? (
-            <p className="p-5 text-sm text-gray-500">
-              {isAr ? "لا توجد بلاغات بعد." : "No reports yet."}
-            </p>
+            <div className="p-8 sm:p-12 text-center">
+              <p className="text-sm text-gray-500">
+                {hasActiveFilters
+                  ? isAr
+                    ? "لا توجد بلاغات مطابقة لعوامل التصفية."
+                    : "No reports match your filters."
+                  : isAr
+                    ? "لا توجد بلاغات بعد."
+                    : "No reports yet."}
+              </p>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="mt-3 inline-flex items-center gap-1.5 text-xs uppercase tracking-wider text-black hover:underline"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  {isAr ? "مسح عوامل التصفية" : "Clear filters"}
+                </button>
+              ) : null}
+            </div>
           ) : (
             <ul className="divide-y divide-gray-100">
               {issues.map((item) => {
                 const kind =
                   ISSUE_KIND_LABELS[item.partnerIssueKind] ||
                   ISSUE_KIND_LABELS.other;
-                const st =
-                  STATUS_LABELS[item.status] || STATUS_LABELS.new;
+                const st = STATUS_LABELS[item.status] || STATUS_LABELS.new;
                 return (
                   <li key={item.id} className="p-4 sm:p-5 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[10px] uppercase tracking-wider border border-gray-200 px-2 py-0.5 text-gray-600">
+                      <span
+                        className={`text-[10px] uppercase tracking-wider border px-2 py-0.5 ${statusBadgeClass(item.status)}`}
+                      >
                         {isAr ? st.ar : st.en}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wider border border-gray-200 px-2 py-0.5 text-gray-600">
+                        {isAr ? kind.ar : kind.en}
                       </span>
                       <span className="text-xs text-gray-400">
                         {item.createdAt
@@ -360,9 +586,6 @@ export default function TailorIssuesPage() {
                         {isAr ? "الطلب" : "Order"}
                       </span>
                       {item.publicOrderId || "—"}
-                      <span className="ms-2 text-xs text-gray-500">
-                        ({isAr ? kind.ar : kind.en})
-                      </span>
                     </p>
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">
                       {item.concern}
@@ -378,7 +601,9 @@ export default function TailorIssuesPage() {
           <GlobalPagination
             currentPage={Math.max(page, 1)}
             totalPages={Math.max(totalPages, 1)}
-            onPageChange={setPage}
+            onPageChange={(next) => {
+              void loadIssues({ page: next, showLoading: true });
+            }}
             totalItems={total}
           />
         ) : null}
