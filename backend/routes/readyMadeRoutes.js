@@ -229,6 +229,7 @@ readyMadeRoutes.get("/", async (req, res) => {
       }
     }
 
+    /* Min/Max age filtering temporarily hidden
     const parsedMinAge = Number(minAge);
     const parsedMaxAge = Number(maxAge);
     if (
@@ -243,6 +244,7 @@ readyMadeRoutes.get("/", async (req, res) => {
         filter.$and.push({ maxAge: { $gte: parsedMinAge } });
       }
     }
+    */
 
     if (String(inStockOnly) === "true" || inStockOnly === true) {
       filter.availableFabricStock = { $gt: 0 };

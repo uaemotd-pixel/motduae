@@ -452,6 +452,7 @@ export default function EditReadyMadePage() {
               />
             </FormField>
 
+            {/* Min Age and Max Age temporarily hidden
             <FormField label="Min Age">
               <input
                 type="number"
@@ -477,6 +478,7 @@ export default function EditReadyMadePage() {
                 className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-xs sm:text-sm hover:cursor-text"
               />
             </FormField>
+            */}
           </div>
 
           {/* FABRIC */}

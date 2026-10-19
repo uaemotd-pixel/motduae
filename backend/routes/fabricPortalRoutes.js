@@ -1425,7 +1425,11 @@ fabricPortalRouter.get(
     const product = await ReadyMadeProduct.findOne({
       _id: req.params.id,
       fabricShopId: shop._id,
-    });
+    })
+      .populate("fabricShopId", "name nameAr slug logo")
+      .populate("fabricId", "name nameAr image images priceAED")
+      .populate("tailorShopId", "name nameAr slug logo")
+      .populate("designId", "name nameAr images priceAED");
     if (!product) {
       res
         .status(404)

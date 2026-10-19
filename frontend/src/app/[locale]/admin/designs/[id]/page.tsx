@@ -199,10 +199,12 @@ export default function AdminDesignDetailsPage() {
               ) || "—"
             }
           />
+          {/* Age range temporarily hidden
           <DetailRow
             label={t.view.age_range}
             value={`${design.minAge ?? 0} – ${design.maxAge ?? 0}`}
           />
+          */}
 
           {description ? (
             <div>
