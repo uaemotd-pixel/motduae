@@ -7,6 +7,7 @@ const colors = [
   { value: "gold", en: "Gold", ar: "ذهبي", hex: "#FFD700" },
   { value: "red", en: "Red", ar: "أحمر", hex: "#FF0000" },
   { value: "pink", en: "Pink", ar: "وردي", hex: "#FFC0CB" },
+  { value: "peach", en: "Peach", ar: "خوخي", hex: "#FFCBA4" },
   { value: "orange", en: "Orange", ar: "برتقالي", hex: "#FFA500" },
   { value: "yellow", en: "Yellow", ar: "أصفر", hex: "#FFFF00" },
   { value: "green", en: "Green", ar: "أخضر", hex: "#008000" },
