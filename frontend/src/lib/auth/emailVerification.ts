@@ -73,6 +73,65 @@ export function isValidContactEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(email));
 }
 
+/** Survives full-page guest OTP redirect back to retail checkout. */
+export const GUEST_CHECKOUT_FORM_STORAGE_KEY = "motdGuestCheckoutForm";
+
+export type GuestCheckoutFormDraft = {
+  fullName: string;
+  email: string;
+  phone: string;
+  emirate: string;
+  city: string;
+  street: string;
+  building: string;
+  postalCode: string;
+  deliveryNotes: string;
+};
+
+export function saveGuestCheckoutFormDraft(draft: GuestCheckoutFormDraft) {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    sessionStorage.setItem(
+      GUEST_CHECKOUT_FORM_STORAGE_KEY,
+      JSON.stringify(draft),
+    );
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+export function readGuestCheckoutFormDraft(): GuestCheckoutFormDraft | null {
+  try {
+    if (typeof sessionStorage === "undefined") return null;
+    const raw = sessionStorage.getItem(GUEST_CHECKOUT_FORM_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return {
+      fullName: String(parsed.fullName || ""),
+      email: String(parsed.email || ""),
+      phone: String(parsed.phone || ""),
+      emirate: String(parsed.emirate || ""),
+      city: String(parsed.city || ""),
+      street: String(parsed.street || ""),
+      building: String(parsed.building || ""),
+      postalCode: String(parsed.postalCode || ""),
+      deliveryNotes: String(parsed.deliveryNotes || ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function clearGuestCheckoutFormDraft() {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    sessionStorage.removeItem(GUEST_CHECKOUT_FORM_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export type GuestContactFieldError =
   | "required"
   | "invalid"

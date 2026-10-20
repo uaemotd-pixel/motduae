@@ -69,8 +69,6 @@ export interface DesignDetailItem {
   estimatedDaysMin?: number;
   estimatedDays: number;
   estimatedTimeUnit?: "days" | "weeks";
-  minAge?: number;
-  maxAge?: number;
   tailorShop: TailorShopInfo;
 }
 
@@ -84,8 +82,6 @@ type DesignDetailViewProps = {
     estimatedDays: string;
     days: string;
     weeks: string;
-    ageRange: string;
-    years: string;
     city: string;
     startingPrice: string;
     selectForCustomOrder: string;
@@ -230,11 +226,6 @@ export default function DesignDetailView({
     design.estimatedTimeUnit,
     { days: labels.days, weeks: labels.weeks },
   );
-  // Age range hidden for now
-  // const ageValue =
-  //   design.minAge != null || design.maxAge != null
-  //     ? `${Number(design.minAge) || 0}–${Number(design.maxAge) || 0} ${labels.years}`
-  //     : "";
 
   const handleShare = useCallback(async () => {
     const shareUrl = typeof window !== "undefined" ? window.location.href : "";
@@ -560,28 +551,13 @@ export default function DesignDetailView({
               )}
 
               {daysValue && (
-                <div className="grid grid-cols-2 gap-x-6 my-2">
-                  {daysValue && (
-                    <div>
-                      <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
-                        {labels.estimatedDays}
-                      </span>
-                      <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
-                        {daysValue}
-                      </p>
-                    </div>
-                  )}
-                  {/* Age range display hidden for now
-                  {ageValue && (
-                    <div>
-                      <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
-                        {labels.ageRange}
-                      </span>
-                      <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
-                        {ageValue}
-                      </p>
-                    </div>
-                  )} */}
+                <div className="my-2">
+                  <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-1">
+                    {labels.estimatedDays}
+                  </span>
+                  <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
+                    {daysValue}
+                  </p>
                 </div>
               )}
 

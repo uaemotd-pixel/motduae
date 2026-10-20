@@ -67,6 +67,7 @@ import { parsePayoutBankInput } from "../utils/partnerPayoutBank.js";
 import {
   enrichFabricWithCuts,
   prepareFabricCutsInput,
+  assertFabricCodeAvailable,
   countLowStockCutRowsFromFabrics,
   findLowStockFabricParentIds,
   LOW_FABRIC_CUT_STOCK_THRESHOLD,
@@ -646,6 +647,7 @@ fabricPortalRouter.post(
     const {
       name,
       nameAr,
+      code,
       slug,
       description,
       descriptionAr,
@@ -691,6 +693,12 @@ fabricPortalRouter.post(
       return;
     }
 
+    const codeCheck = await assertFabricCodeAvailable(code);
+    if (!codeCheck.ok) {
+      res.status(400).json({ success: false, message: codeCheck.message });
+      return;
+    }
+
     const uniqueSlug = await ensureUniqueSlug(Fabric, slug || name, {
       fallback: "fabric",
     });
@@ -699,6 +707,7 @@ fabricPortalRouter.post(
     const fabric = await Fabric.create({
       name,
       nameAr,
+      code: codeCheck.code,
       slug: uniqueSlug,
       description: description || "",
       descriptionAr: descriptionAr || "",
@@ -819,6 +828,7 @@ fabricPortalRouter.put(
     const {
       name,
       nameAr,
+      code,
       slug,
       description,
       descriptionAr,
@@ -848,6 +858,16 @@ fabricPortalRouter.put(
 
     if (name) fabric.name = name;
     if (nameAr) fabric.nameAr = nameAr;
+    if (code !== undefined) {
+      const codeCheck = await assertFabricCodeAvailable(code, {
+        excludeId: fabric._id,
+      });
+      if (!codeCheck.ok) {
+        res.status(400).json({ success: false, message: codeCheck.message });
+        return;
+      }
+      fabric.code = codeCheck.code;
+    }
     if (description !== undefined) fabric.description = description;
     if (descriptionAr !== undefined) fabric.descriptionAr = descriptionAr;
     if (images) fabric.images = images;

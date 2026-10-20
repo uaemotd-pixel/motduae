@@ -319,15 +319,13 @@ export default function CustomOrderCheckoutStep() {
     async function fetchCustomerOrMemberAddress() {
       if (!isAuthenticated) return;
       if (user?.isGuest) {
-        updateDeliveryAddress({
-          fullName: "",
-          phone: "",
-          emirate: "",
-          city: "",
-          line1: "",
-          line2: "",
-          postalCode: "",
-        });
+        // Keep draft delivery address (already persisted in CustomOrderContext).
+        // Clearing here wiped guest details after email OTP redirect.
+        const known =
+          user.guestContactEmail || user.guestPendingEmail || "";
+        if (known) {
+          setContactEmail((prev) => prev || known);
+        }
         setProfileLoading(false);
         return;
       }

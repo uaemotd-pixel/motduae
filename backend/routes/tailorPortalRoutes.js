@@ -1296,6 +1296,12 @@ tailorPortalRouter.post(
   }),
 );
 
+const ISSUE_STATUSES = ["new", "contacted", "closed"];
+
+function escapeIssueRegex(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /** GET /api/tailor/issues — own submitted issues */
 tailorPortalRouter.get(
   "/issues",
@@ -1309,20 +1315,99 @@ tailorPortalRouter.get(
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const skip = (page - 1) * limit;
-    const filter = {
+    const search = String(req.query.search || "").trim();
+    const statusRaw = String(req.query.status || "").trim().toLowerCase();
+    const kindRaw = String(req.query.kind || "").trim().toLowerCase();
+    const timeframeRaw = String(req.query.timeframe || "")
+      .trim()
+      .toLowerCase();
+    const timeframe =
+      timeframeRaw === "today" ||
+      timeframeRaw === "week" ||
+      timeframeRaw === "month" ||
+      timeframeRaw === "year"
+        ? timeframeRaw
+        : "";
+
+    const baseFilter = {
       category: "tailor_issue",
       tailorShopId: shop._id,
       source: "tailor_portal",
     };
 
-    const [total, docs] = await Promise.all([
-      FaqSupportRequest.countDocuments(filter),
-      FaqSupportRequest.find(filter)
+    const andClauses = [];
+
+    if (search) {
+      const rx = new RegExp(escapeIssueRegex(search), "i");
+      andClauses.push({
+        $or: [
+          { referenceNumber: rx },
+          { publicOrderId: rx },
+          { concern: rx },
+          { partnerIssueKind: rx },
+        ],
+      });
+    }
+
+    if (statusRaw && statusRaw !== "all") {
+      if (!ISSUE_STATUSES.includes(statusRaw)) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid status. Allowed: ${ISSUE_STATUSES.join(", ")}`,
+        });
+        return;
+      }
+      andClauses.push({ status: statusRaw });
+    }
+
+    if (kindRaw && kindRaw !== "all") {
+      if (!PARTNER_ISSUE_KINDS.has(kindRaw)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid issue type",
+        });
+        return;
+      }
+      andClauses.push({ partnerIssueKind: kindRaw });
+    }
+
+    if (timeframe) {
+      const { start, end } = getTimeframeWindow(timeframe);
+      andClauses.push({ createdAt: { $gte: start, $lte: end } });
+    }
+
+    const listFilter =
+      andClauses.length > 0
+        ? { ...baseFilter, $and: andClauses }
+        : baseFilter;
+
+    // Counts ignore status so the status dropdown stays useful while filtering.
+    const countFilterClauses = andClauses.filter(
+      (clause) => !Object.prototype.hasOwnProperty.call(clause, "status"),
+    );
+    const countBaseFilter =
+      countFilterClauses.length > 0
+        ? { ...baseFilter, $and: countFilterClauses }
+        : baseFilter;
+
+    const [total, docs, statusGrouped] = await Promise.all([
+      FaqSupportRequest.countDocuments(listFilter),
+      FaqSupportRequest.find(listFilter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
+      FaqSupportRequest.aggregate([
+        { $match: countBaseFilter },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
     ]);
+
+    const counts = { new: 0, contacted: 0, closed: 0, all: 0 };
+    for (const row of statusGrouped) {
+      if (row._id in counts) counts[row._id] = row.count;
+      counts.all += row.count;
+    }
 
     res.json({
       success: true,
@@ -1331,6 +1416,7 @@ tailorPortalRouter.get(
       limit,
       total,
       totalPages: Math.ceil(total / limit) || 0,
+      counts,
     });
   }),
 );

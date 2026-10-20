@@ -25,6 +25,7 @@ import CardPaymentForm from "@/components/payments/CardPaymentForm";
 import EmailVerifyRequiredNotice from "@/components/auth/EmailVerifyRequiredNotice";
 import {
   buildVerifyEmailHref,
+  clearGuestCheckoutFormDraft,
   guestContactClientError,
   guestContactErrorFromApi,
   guestContactErrorMessage,
@@ -32,6 +33,8 @@ import {
   isValidContactEmail,
   needsGuestContactOtp,
   normalizeEmail,
+  readGuestCheckoutFormDraft,
+  saveGuestCheckoutFormDraft,
   scrollToCheckoutEmailNotice,
   startGuestContactRequest,
 } from "@/lib/auth/emailVerification";
@@ -293,6 +296,26 @@ function CheckoutPageContent() {
     }
   };
 
+  const persistGuestCheckoutFormForReturn = () => {
+    if (!user?.isGuest) return;
+    saveGuestCheckoutFormDraft({
+      fullName: formData.fullName,
+      email: formData.email,
+      phone: formData.phone,
+      emirate: formData.emirate,
+      city: formData.city,
+      street: formData.street,
+      building: formData.building,
+      postalCode: formData.postalCode,
+      deliveryNotes: formData.deliveryNotes,
+    });
+  };
+
+  const persistCheckoutStateForReturn = () => {
+    persistBuyNowItemsForReturn();
+    persistGuestCheckoutFormForReturn();
+  };
+
   const setGuestEmailError = (message: string) => {
     setEmailTouched(true);
     setErrors((prev) => ({ ...prev, email: message }));
@@ -360,7 +383,7 @@ function CheckoutPageContent() {
   };
 
   const startGuestCheckoutOtp = async () => {
-    persistBuyNowItemsForReturn();
+    persistCheckoutStateForReturn();
     const ok = await checkGuestContactEmail(formData.email);
     if (!ok) {
       window.setTimeout(() => {
@@ -370,6 +393,7 @@ function CheckoutPageContent() {
       }, 50);
       return;
     }
+    persistCheckoutStateForReturn();
     window.location.assign(verifyEmailHref);
   };
 
@@ -882,18 +906,29 @@ function CheckoutPageContent() {
     async function fetchCustomerProfile() {
       if (!isAuthenticated) return;
       if (user?.isGuest) {
-        setFormData((prev) => ({
-          ...prev,
-          fullName: "",
-          email: user.guestContactEmail || user.guestPendingEmail || prev.email,
-          phone: "",
-          emirate: "",
-          city: "",
-          street: "",
-          building: "",
-          postalCode: "",
-        }));
-        initialFillDone.current = true;
+        const verifiedEmail =
+          user.guestContactEmail || user.guestPendingEmail || "";
+        if (!initialFillDone.current) {
+          const draft = readGuestCheckoutFormDraft();
+          setFormData((prev) => ({
+            ...prev,
+            fullName: draft?.fullName || prev.fullName,
+            email: draft?.email || verifiedEmail || prev.email || "",
+            phone: draft?.phone || prev.phone,
+            emirate: draft?.emirate || prev.emirate,
+            city: draft?.city || prev.city,
+            street: draft?.street || prev.street,
+            building: draft?.building || prev.building,
+            postalCode: draft?.postalCode || prev.postalCode,
+            deliveryNotes: draft?.deliveryNotes || prev.deliveryNotes,
+          }));
+          initialFillDone.current = true;
+        } else if (verifiedEmail) {
+          setFormData((prev) => ({
+            ...prev,
+            email: prev.email || verifiedEmail,
+          }));
+        }
         setProfileLoading(false);
         return;
       }
@@ -1139,6 +1174,7 @@ function CheckoutPageContent() {
   };
 
   const clearCompletedCheckoutItems = () => {
+    clearGuestCheckoutFormDraft();
     if (!isBuyNow) {
       const purchasedIds = new Set(displayItems.map((item) => item.id));
       const hasRemaining = items.some((item) => !purchasedIds.has(item.id));
@@ -1465,7 +1501,7 @@ function CheckoutPageContent() {
                     ctaLabel={tVerify.verifyNow}
                     href={verifyEmailHref}
                     emphasize={emailVerifyEmphasize}
-                    onBeforeNavigate={persistBuyNowItemsForReturn}
+                    onBeforeNavigate={persistCheckoutStateForReturn}
                   />
                 ) : null}
 
@@ -1606,7 +1642,7 @@ function CheckoutPageContent() {
                           ctaLabel={tVerify.verifyNow}
                           href={verifyEmailHref}
                           emphasize={emailVerifyEmphasize}
-                          onBeforeNavigate={persistBuyNowItemsForReturn}
+                          onBeforeNavigate={persistCheckoutStateForReturn}
                           onCta={startGuestCheckoutOtp}
                         />
                       </div>
