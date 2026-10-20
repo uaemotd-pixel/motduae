@@ -14,10 +14,9 @@ import {
 } from "@/lib/uaePhone";
 import {
   UAE_EMIRATES,
-  isValidEmirate,
-  normalizeEmirate,
   getEmirateEn,
   getEmirateAr,
+  validateAddress,
 } from "@/lib/uaeAddress";
 
 type Relationship =
@@ -27,7 +26,8 @@ type Relationship =
   | "sister"
   | "daughter"
   | "friend"
-  | "other";
+  | "other"
+  | "";
 
 type FormData = {
   name: string;
@@ -52,7 +52,7 @@ type FamilyMemberFormProps = {
   initialData?: {
     _id?: string;
     name: string;
-    relationship: Relationship;
+    relationship: Relationship | string;
     phone: string;
     dob?: string | Date;
     profilePic?: string;
@@ -62,7 +62,7 @@ type FamilyMemberFormProps = {
 
 const DEFAULT_FORM: FormData = {
   name: "",
-  relationship: "other",
+  relationship: "",
   customRelationship: "",
   phone: "",
   dob: "",
@@ -87,6 +87,8 @@ const RELATIONSHIP_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+const KNOWN_RELATIONSHIPS = RELATIONSHIP_OPTIONS.map((o) => o.value);
+
 export default function FamilyMembersForm({
   onCancel,
   onSuccess,
@@ -95,12 +97,20 @@ export default function FamilyMembersForm({
   const isEdit = !!initialData?._id;
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState<FormData>(DEFAULT_FORM);
-  const [phoneError, setPhoneError] = useState<string>("");
-  const [addrPhoneError, setAddrPhoneError] = useState<string>("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [emirateOpen, setEmirateOpen] = useState(false);
   const emirateRef = useRef<HTMLDivElement>(null);
   const [relationshipOpen, setRelationshipOpen] = useState(false);
   const relationshipRef = useRef<HTMLDivElement>(null);
+
+  const clearFieldError = (key: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -123,16 +133,9 @@ export default function FamilyMembersForm({
 
   useEffect(() => {
     if (initialData) {
-      const knownRelationships = [
-        "wife",
-        "mother",
-        "aunt",
-        "sister",
-        "daughter",
-        "friend",
-        "other",
-      ];
-      const isKnown = knownRelationships.includes(initialData.relationship);
+      const isKnown = KNOWN_RELATIONSHIPS.includes(
+        initialData.relationship as (typeof KNOWN_RELATIONSHIPS)[number],
+      );
       const normalizedPhone = normalizeUaePhone(initialData.phone || "");
       const normalizedAddrPhone = normalizeUaePhone(
         initialData.address?.phone || "",
@@ -140,7 +143,9 @@ export default function FamilyMembersForm({
 
       setForm({
         name: initialData.name || "",
-        relationship: isKnown ? initialData.relationship : "other",
+        relationship: isKnown
+          ? (initialData.relationship as Relationship)
+          : "other",
         customRelationship: isKnown ? "" : initialData.relationship || "",
         phone: normalizedPhone,
         address: {
@@ -171,7 +176,7 @@ export default function FamilyMembersForm({
       if (digits.length <= 9) {
         const normalized = normalizeUaePhone(digits);
         setForm((prev) => ({ ...prev, phone: normalized }));
-        if (phoneError) setPhoneError("");
+        clearFieldError("phone");
       }
       return;
     }
@@ -184,7 +189,7 @@ export default function FamilyMembersForm({
           ...prev,
           address: { ...prev.address, phone: normalized },
         }));
-        if (addrPhoneError) setAddrPhoneError("");
+        clearFieldError("address.phone");
       }
       return;
     }
@@ -195,14 +200,15 @@ export default function FamilyMembersForm({
         ...prev,
         address: { ...prev.address, [field]: value },
       }));
+      clearFieldError(name);
     } else {
       setForm((prev) => ({ ...prev, [name]: value }));
+      clearFieldError(name);
     }
   };
 
   const handlePhoneBlur = (field: "phone" | "address.phone") => {
     const phoneValue = field === "phone" ? form.phone : form.address.phone;
-    const setError = field === "phone" ? setPhoneError : setAddrPhoneError;
     const updateForm =
       field === "phone"
         ? (val: string) => setForm((prev) => ({ ...prev, phone: val }))
@@ -212,19 +218,96 @@ export default function FamilyMembersForm({
               address: { ...prev.address, phone: val },
             }));
 
-    if (!phoneValue) {
-      setError("Phone number is required");
+    if (!phoneValue || phoneValue === "+971") {
+      setFieldErrors((prev) => ({
+        ...prev,
+        [field]: "Phone number is required",
+      }));
       return;
     }
 
-    const isValid = isValidUaePhone(phoneValue);
-    if (!isValid) {
-      setError("Invalid phone. Must be 9 digits after +971");
+    if (!isValidUaePhone(phoneValue)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        [field]: "Invalid phone. Must be 9 digits after +971",
+      }));
     } else {
-      setError("");
-      const normalized = normalizeUaePhone(phoneValue);
-      updateForm(normalized);
+      clearFieldError(field);
+      updateForm(normalizeUaePhone(phoneValue));
     }
+  };
+
+  const validate = (): {
+    isValid: boolean;
+    firstError?: string;
+    firstKey?: string;
+  } => {
+    const errors: Record<string, string> = {};
+
+    if (!form.name.trim()) {
+      errors.name = "Full name is required";
+    }
+
+    if (!form.phone || form.phone === "+971") {
+      errors.phone = "Phone number is required";
+    } else if (!isValidUaePhone(form.phone)) {
+      errors.phone = "Invalid phone. Must be 9 digits after +971";
+    }
+
+    if (!form.relationship) {
+      errors.relationship = "Relationship is required";
+    } else if (
+      form.relationship === "other" &&
+      !form.customRelationship.trim()
+    ) {
+      errors.customRelationship = "Please specify the relationship";
+    }
+
+    if (!form.dob) {
+      errors.dob = "Date of birth is required";
+    } else {
+      const selected = new Date(form.dob + "T00:00:00");
+      const now = new Date();
+      if (
+        selected.getTime() >
+        new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+      ) {
+        errors.dob = "D.O.B cannot be in the future";
+      }
+    }
+
+    const addressValidation = validateAddress(form.address);
+    Object.entries(addressValidation.errors).forEach(([key, message]) => {
+      if (message) errors[`address.${key}`] = message;
+    });
+
+    setFieldErrors(errors);
+    const firstKey = Object.keys(errors).find((key) => Boolean(errors[key]));
+    return {
+      isValid: Object.keys(errors).length === 0,
+      firstError: firstKey ? errors[firstKey] : undefined,
+      firstKey,
+    };
+  };
+
+  const scrollToField = (fieldKey?: string) => {
+    if (!fieldKey || typeof document === "undefined") return;
+    requestAnimationFrame(() => {
+      const byData = document.querySelector(
+        `[data-field="${CSS.escape(fieldKey)}"]`,
+      ) as HTMLElement | null;
+      const byName = document.querySelector(
+        `[name="${CSS.escape(fieldKey)}"]`,
+      ) as HTMLElement | null;
+      const target = byData || byName;
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      const focusable = (byName ||
+        target.querySelector("input, button, select, textarea")) as
+        | HTMLElement
+        | null;
+      focusable?.focus?.({ preventScroll: true });
+    });
   };
 
   const getPhoneDisplayValue = (phone: string): string => {
@@ -239,91 +322,41 @@ export default function FamilyMembersForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (form.dob) {
-      const selected = new Date(form.dob + "T00:00:00");
-      const now = new Date();
-      if (
-        selected.getTime() >
-        new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-      ) {
-        toast.error("D.O.B cannot be in the future");
-        return;
-      }
-    }
-
-    if (!form.name.trim()) {
-      toast.error("Full name is required", ERROR_TOAST);
-      return;
-    }
-
-    const phoneValidation = isValidUaePhone(form.phone);
-    if (!form.phone) {
-      toast.error("Phone number is required", ERROR_TOAST);
-      return;
-    }
-    if (!phoneValidation) {
+    const { isValid, firstError, firstKey } = validate();
+    if (!isValid) {
       toast.error(
-        "Invalid phone. Must be 9 digits after +971",
+        firstError || "Please fill all required fields before saving.",
         ERROR_TOAST,
       );
-      return;
-    }
-
-    if (form.address.phone) {
-      const addrPhoneValid = isValidUaePhone(form.address.phone);
-      if (!addrPhoneValid) {
-        toast.error(
-          "Invalid phone for address. Must be 9 digits after +971",
-          ERROR_TOAST,
-        );
-        return;
-      }
-    }
-
-    if (form.address.emirate && !isValidEmirate(form.address.emirate)) {
-      toast.error("Valid UAE emirate required", ERROR_TOAST);
+      scrollToField(firstKey);
       return;
     }
 
     setSubmitting(true);
     try {
       const normalizedPhone = normalizeUaePhone(form.phone);
-      const normalizedAddrPhone = form.address.phone
-        ? normalizeUaePhone(form.address.phone)
-        : "";
+      const normalizedAddrPhone = normalizeUaePhone(form.address.phone);
 
       const relationshipValue =
-        form.relationship === "other" && form.customRelationship.trim()
+        form.relationship === "other"
           ? form.customRelationship.trim()
           : form.relationship;
 
-      const addressHasData =
-        form.address.fullName.trim() ||
-        (form.address.phone.trim() && form.address.phone.trim() !== "+971") ||
-        form.address.emirate.trim() ||
-        form.address.city.trim() ||
-        form.address.street.trim() ||
-        form.address.building.trim() ||
-        form.address.postalCode.trim();
-
-      const payload: any = {
+      const payload = {
         name: form.name.trim(),
         phone: normalizedPhone,
         relationship: relationshipValue,
-        dob: form.dob || undefined,
-      };
-
-      if (addressHasData) {
-        payload.address = {
-          fullName: form.address.fullName.trim() || form.name.trim(),
-          phone: normalizedAddrPhone || normalizedPhone,
+        dob: form.dob,
+        address: {
+          fullName: form.address.fullName.trim(),
+          phone: normalizedAddrPhone,
           emirate: form.address.emirate.trim(),
           city: form.address.city.trim(),
           street: form.address.street.trim(),
           building: form.address.building.trim(),
           postalCode: form.address.postalCode.trim(),
-        };
-      }
+        },
+      };
 
       if (isEdit) {
         await api.put(
@@ -350,7 +383,7 @@ export default function FamilyMembersForm({
     placeholder: string,
     name: string,
   ) => (
-    <div className="relative">
+    <div className="relative" data-field={name}>
       <div className="flex items-center border-b border-black/15 focus-within:border-black transition-all">
         <span className="text-black/40 font-mono text-[15px] md:text-[16px] pr-2">
           +971
@@ -388,25 +421,36 @@ export default function FamilyMembersForm({
       <form
         onSubmit={handleSubmit}
         className="pt-4 sm:pt-6 space-y-5 sm:space-y-8"
+        noValidate
       >
         <section>
           <h2 className="text-sm sm:text-base font-medium text-black mb-4 sm:mb-6">
             Personal Information
           </h2>
           <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
-            <FormField label="Full Name" name="name" required>
+            <FormField
+              label="Full Name"
+              name="name"
+              required
+              error={fieldErrors.name}
+            >
               <input
                 type="text"
                 name="name"
                 value={form.name}
                 onChange={handleChange}
-                required
+                data-field="name"
                 className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                 placeholder="Fatima Ahmed"
               />
             </FormField>
 
-            <FormField label="Phone" name="phone" required error={phoneError}>
+            <FormField
+              label="Phone"
+              name="phone"
+              required
+              error={fieldErrors.phone}
+            >
               {renderPhoneInput(
                 form.phone,
                 handleChange,
@@ -416,8 +460,19 @@ export default function FamilyMembersForm({
               )}
             </FormField>
 
-            <FormField label="Relationship" name="relationship">
-              <div className="relative" ref={relationshipRef}>
+            <FormField
+              label="Relationship"
+              name="relationship"
+              required
+              error={
+                fieldErrors.relationship || fieldErrors.customRelationship
+              }
+            >
+              <div
+                className="relative"
+                ref={relationshipRef}
+                data-field="relationship"
+              >
                 <button
                   type="button"
                   onClick={() => setRelationshipOpen(!relationshipOpen)}
@@ -466,7 +521,13 @@ export default function FamilyMembersForm({
                               setForm((prev) => ({
                                 ...prev,
                                 relationship: option.value as Relationship,
+                                customRelationship:
+                                  option.value === "other"
+                                    ? prev.customRelationship
+                                    : "",
                               }));
+                              clearFieldError("relationship");
+                              clearFieldError("customRelationship");
                               setRelationshipOpen(false);
                             }}
                             className={`w-full text-left px-4 py-2.5 text-[15px] md:text-[16px] hover:bg-gray-50 transition hover:cursor-pointer ${
@@ -490,6 +551,7 @@ export default function FamilyMembersForm({
                     name="customRelationship"
                     value={form.customRelationship}
                     onChange={handleChange}
+                    data-field="customRelationship"
                     placeholder="Please specify relationship..."
                     className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
                   />
@@ -497,13 +559,19 @@ export default function FamilyMembersForm({
               )}
             </FormField>
 
-            <FormField label="D.O.B" name="dob">
+            <FormField
+              label="D.O.B"
+              name="dob"
+              required
+              error={fieldErrors.dob}
+            >
               <input
                 type="date"
                 name="dob"
                 value={form.dob}
                 onChange={handleChange}
                 max={new Date().toISOString().slice(0, 10)}
+                data-field="dob"
                 className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
             </FormField>
@@ -512,15 +580,24 @@ export default function FamilyMembersForm({
 
         <section>
           <h2 className="text-sm sm:text-base font-medium text-black mb-4 sm:mb-6">
-            Delivery Address (Optional)
+            Delivery Address
           </h2>
+          <p className="text-xs text-gray-500 mb-4 sm:mb-6 -mt-2 sm:-mt-3">
+            All fields are required except postal code.
+          </p>
           <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-4">
-            <FormField label="Full Name" name="address.fullName">
+            <FormField
+              label="Full Name"
+              name="address.fullName"
+              required
+              error={fieldErrors["address.fullName"]}
+            >
               <input
                 type="text"
                 name="address.fullName"
                 value={form.address.fullName}
                 onChange={handleChange}
+                data-field="address.fullName"
                 placeholder="Full name"
                 className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
@@ -529,7 +606,8 @@ export default function FamilyMembersForm({
             <FormField
               label="Phone"
               name="address.phone"
-              error={addrPhoneError}
+              required
+              error={fieldErrors["address.phone"]}
             >
               {renderPhoneInput(
                 form.address.phone,
@@ -540,8 +618,17 @@ export default function FamilyMembersForm({
               )}
             </FormField>
 
-            <FormField label="Emirate" name="address.emirate">
-              <div className="relative" ref={emirateRef}>
+            <FormField
+              label="Emirate"
+              name="address.emirate"
+              required
+              error={fieldErrors["address.emirate"]}
+            >
+              <div
+                className="relative"
+                ref={emirateRef}
+                data-field="address.emirate"
+              >
                 <button
                   type="button"
                   onClick={() => setEmirateOpen(!emirateOpen)}
@@ -592,6 +679,7 @@ export default function FamilyMembersForm({
                                   emirate: emirate.value,
                                 },
                               }));
+                              clearFieldError("address.emirate");
                               setEmirateOpen(false);
                             }}
                             className={`w-full text-left px-4 py-2.5 text-[15px] md:text-[16px] hover:bg-gray-50 transition hover:cursor-pointer ${
@@ -610,34 +698,52 @@ export default function FamilyMembersForm({
               </div>
             </FormField>
 
-            <FormField label="City" name="address.city">
+            <FormField
+              label="City"
+              name="address.city"
+              required
+              error={fieldErrors["address.city"]}
+            >
               <input
                 type="text"
                 name="address.city"
                 value={form.address.city}
                 onChange={handleChange}
+                data-field="address.city"
                 placeholder="Dubai"
                 className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
             </FormField>
 
-            <FormField label="Street" name="address.street">
+            <FormField
+              label="Street"
+              name="address.street"
+              required
+              error={fieldErrors["address.street"]}
+            >
               <input
                 type="text"
                 name="address.street"
                 value={form.address.street}
                 onChange={handleChange}
+                data-field="address.street"
                 placeholder="Sheikh Zayed Road"
                 className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />
             </FormField>
 
-            <FormField label="Building" name="address.building">
+            <FormField
+              label="Building"
+              name="address.building"
+              required
+              error={fieldErrors["address.building"]}
+            >
               <input
                 type="text"
                 name="address.building"
                 value={form.address.building}
                 onChange={handleChange}
+                data-field="address.building"
                 placeholder="Burj Khalifa"
                 className="w-full h-11 md:h-12 bg-transparent border-b border-black/15 text-[15px] md:text-[16px] font-body rounded-none px-0 transition-all focus:border-black focus:outline-none placeholder:text-black/40 text-black"
               />

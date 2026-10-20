@@ -955,7 +955,21 @@ export default function FabricAdminFormFields({
         </FormField>
       </div>
 
-      <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+      <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <FormField
+          label="Code (OPTIONAL)"
+          name="code"
+          error={fieldErrors.code}
+        >
+          <input
+            type="text"
+            value={formData.code}
+            onChange={(e) => onFieldChange("code", e.target.value)}
+            className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
+            placeholder="0000"
+          />
+        </FormField>
+
         <FormField
           label="Colors"
           name="colors"
@@ -1384,6 +1398,7 @@ export default function FabricAdminFormFields({
                 {
                   name: "",
                   nameAr: "",
+                  code: "",
                   slug: "",
                   description: formData.description || "",
                   descriptionAr: formData.descriptionAr || "",

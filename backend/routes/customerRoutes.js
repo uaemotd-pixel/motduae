@@ -12,7 +12,6 @@ import {
 import expressAsyncHandler from "express-async-handler";
 import CustomerSettings from "../models/CustomerSettings.js";
 import {
-  isValidEmirate,
   normalizeEmirate,
   validateAddress,
   normalizeAddress,
@@ -34,10 +33,49 @@ const calculateAge = (dob) => {
   return years < 0 ? 0 : years;
 };
 
-const hasAddressData = (address) => {
-  if (!address || typeof address !== "object") return false;
-  const normalized = normalizeAddress(address);
-  return !!(normalized.phone || normalized.emirate || normalized.city);
+const validateFamilyMemberPayload = ({ name, phone, relationship, dob, address }) => {
+  const fieldErrors = {};
+
+  if (!name?.trim()) fieldErrors.name = "Full name is required";
+  if (!phone?.trim()) fieldErrors.phone = "Phone number is required";
+  if (!relationship?.trim()) {
+    fieldErrors.relationship = "Relationship is required";
+  }
+
+  if (!dob) {
+    fieldErrors.dob = "Date of birth is required";
+  } else {
+    const dobDate = new Date(dob);
+    if (Number.isNaN(dobDate.getTime())) {
+      fieldErrors.dob = "Valid date of birth is required";
+    } else {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (dobDate > today) {
+        fieldErrors.dob = "D.O.B cannot be in the future";
+      }
+    }
+  }
+
+  if (!address || typeof address !== "object") {
+    fieldErrors.address = "Delivery address is required";
+  } else {
+    const normalizedAddress = normalizeAddress(address);
+    normalizedAddress.phone = toUaePhoneDigits(
+      normalizedAddress.phone || phone || "",
+    );
+    const addressValidation = validateAddress(normalizedAddress);
+    Object.entries(addressValidation.errors).forEach(([key, message]) => {
+      if (message) fieldErrors[`address.${key}`] = message;
+    });
+  }
+
+  const firstError = Object.values(fieldErrors)[0];
+  return {
+    valid: Object.keys(fieldErrors).length === 0,
+    fieldErrors,
+    error: firstError || null,
+  };
 };
 
 const customerRouter = express.Router();
@@ -58,6 +96,8 @@ customerRouter.post(
   }),
 );
 
+const ALLOWED_GENDERS = ["male", "female", "other"];
+
 // POST /profile route
 customerRouter.post("/profile", isAuth, async (req, res) => {
   const userId = req.user?._id;
@@ -74,6 +114,13 @@ customerRouter.post("/profile", isAuth, async (req, res) => {
 
   if (!name?.trim()) {
     return res.status(400).json({ error: "Name required" });
+  }
+
+  if (!gender || !ALLOWED_GENDERS.includes(gender)) {
+    return res.status(400).json({
+      error: "Gender is required",
+      fieldErrors: { gender: "Gender is required" },
+    });
   }
 
   try {
@@ -103,7 +150,7 @@ customerRouter.post("/profile", isAuth, async (req, res) => {
       userId: new mongoose.Types.ObjectId(userId),
       name: name.trim(),
       phone: cleanPhone,
-      gender: gender || "prefer-not",
+      gender,
       dob: dob ? new Date(dob) : undefined,
       profilePic: profilePic?.trim() || undefined,
       addresses: addrArray.map((a) => ({
@@ -206,6 +253,13 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
       });
     }
 
+    if (!gender || !ALLOWED_GENDERS.includes(gender)) {
+      return res.status(400).json({
+        error: "Gender is required",
+        fieldErrors: { gender: "Gender is required" },
+      });
+    }
+
     let customer = await Customer.findOne({ userId });
 
     const cleanPhone =
@@ -237,7 +291,7 @@ customerRouter.put("/profile", isAuth, async (req, res) => {
         userId: new mongoose.Types.ObjectId(userId),
         name: name?.trim() || req.user.name,
         phone: cleanPhone,
-        gender: gender || "prefer-not",
+        gender,
         dob: dob ? new Date(dob) : undefined,
         profilePic: profilePic?.trim() || undefined,
         addresses: addrArray.map((a) => ({
@@ -354,8 +408,18 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
   const userId = req.user._id;
   const { name, phone, email, relationship, dob, address } = req.body;
 
-  if (!name?.trim() || !phone?.trim()) {
-    return res.status(400).json({ error: "Name and phone are required" });
+  const validation = validateFamilyMemberPayload({
+    name,
+    phone,
+    relationship,
+    dob,
+    address,
+  });
+  if (!validation.valid) {
+    return res.status(400).json({
+      error: validation.error,
+      fieldErrors: validation.fieldErrors,
+    });
   }
 
   try {
@@ -364,33 +428,22 @@ customerRouter.post("/family-members", isAuth, async (req, res) => {
       return res.status(404).json({ error: "Customer profile not found" });
     }
 
-    const addressIsProvided = hasAddressData(address);
-    const normalizedAddress = addressIsProvided
-      ? normalizeAddress(address)
-      : undefined;
-
-    if (addressIsProvided && !normalizedAddress?.emirate) {
-      return res.status(400).json({
-        error: "Emirate is required when address details are provided",
-      });
-    }
-
-    if (normalizedAddress?.phone) {
-      normalizedAddress.phone = toUaePhoneDigits(normalizedAddress.phone);
-    }
+    const normalizedAddress = normalizeAddress(address);
+    normalizedAddress.phone = toUaePhoneDigits(
+      normalizedAddress.phone || phone,
+    );
 
     const newMember = {
       name: name.trim(),
       phone: toUaePhoneDigits(phone),
       email: email?.trim() || undefined,
-      relationship: relationship || "other",
-      dob: dob ? new Date(dob) : undefined,
-      age: dob ? calculateAge(new Date(dob)) : null,
-      address: addressIsProvided ? normalizedAddress : undefined,
+      relationship: relationship.trim(),
+      dob: new Date(dob),
+      age: calculateAge(new Date(dob)),
+      address: normalizedAddress,
     };
 
     customer.savedUsers.push(newMember);
-    // cleanupSavedUserAddresses(customer.savedUsers);
     await customer.save();
 
     const created = customer.savedUsers[customer.savedUsers.length - 1];
@@ -407,8 +460,18 @@ customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
   const memberId = req.params.id;
   const { name, phone, email, relationship, dob, address } = req.body;
 
-  if (!name?.trim() || !phone?.trim()) {
-    return res.status(400).json({ error: "Name and phone are required" });
+  const validation = validateFamilyMemberPayload({
+    name,
+    phone,
+    relationship,
+    dob,
+    address,
+  });
+  if (!validation.valid) {
+    return res.status(400).json({
+      error: validation.error,
+      fieldErrors: validation.fieldErrors,
+    });
   }
 
   try {
@@ -422,36 +485,19 @@ customerRouter.put("/family-members/:id", isAuth, async (req, res) => {
       return res.status(404).json({ error: "Family member not found" });
     }
 
-    // Update fields
+    const normalizedAddress = normalizeAddress(address);
+    normalizedAddress.phone = toUaePhoneDigits(
+      normalizedAddress.phone || phone,
+    );
+
     member.name = name.trim();
     member.phone = toUaePhoneDigits(phone);
     member.email = email?.trim() || undefined;
-    member.relationship = relationship || "other";
-    if (dob !== undefined) {
-      member.dob = dob ? new Date(dob) : undefined;
-      member.age = dob ? calculateAge(new Date(dob)) : null;
-    }
+    member.relationship = relationship.trim();
+    member.dob = new Date(dob);
+    member.age = calculateAge(new Date(dob));
+    member.address = normalizedAddress;
 
-    if (address) {
-      const addressIsProvided = hasAddressData(address);
-      const normalizedAddress = addressIsProvided
-        ? normalizeAddress(address)
-        : undefined;
-
-      if (addressIsProvided && !isValidEmirate(normalizedAddress.emirate)) {
-        return res.status(400).json({
-          error: "Emirate is required when address details are provided",
-        });
-      }
-
-      if (normalizedAddress?.phone) {
-        normalizedAddress.phone = toUaePhoneDigits(normalizedAddress.phone);
-      }
-
-      member.address = addressIsProvided ? normalizedAddress : undefined;
-    }
-
-    // cleanupSavedUserAddresses(customer.savedUsers);
     await customer.save();
     const idTail = String(memberId).slice(-6);
     req.activityLogOverride = {

@@ -65,6 +65,12 @@ const fabricSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     nameAr: { type: String, required: true, trim: true },
+    // Optional product code — unique when provided (empty allowed for many docs)
+    code: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     slug: {
       type: String,
       unique: true,
@@ -136,6 +142,13 @@ fabricSchema.index({ isActive: 1, material: 1 });
 fabricSchema.index({ listedByStore: 1 });
 fabricSchema.index({ isVariantOf: 1 });
 fabricSchema.index({ "cuts.cutId": 1 });
+fabricSchema.index(
+  { code: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { code: { $type: "string", $gt: "" } },
+  },
+);
 
 fabricSchema.pre("save", async function populateFabricShopId(next) {
   if (this.listedByStore) {

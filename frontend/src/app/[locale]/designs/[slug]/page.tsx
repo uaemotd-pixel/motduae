@@ -329,8 +329,6 @@ export default function DesignDetailPage() {
             estimatedDays: t("estimatedDays"),
             days: t("days"),
             weeks: t("weeks"),
-            ageRange: t("ageRange"),
-            years: t("years"),
             city: t("city"),
             startingPrice: t("startingPrice"),
             selectForCustomOrder: t("selectForCustomOrder"),

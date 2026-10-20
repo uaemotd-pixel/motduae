@@ -101,7 +101,6 @@ const validatePhone = (phone: string): string | null => {
 };
 
 const GENDER_OPTIONS = [
-  { value: "prefer-not", label: "Prefer not to say" },
   { value: "male", label: "Male" },
   { value: "female", label: "Female" },
   { value: "other", label: "Other" },
@@ -122,7 +121,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
   const [form, setForm] = useState<FormData>({
     name: "",
     phone: "",
-    gender: "prefer-not",
+    gender: "",
     dob: "",
     profilePic: "",
     addresses: [],
@@ -200,7 +199,8 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
         setForm({
           name: data.name || "",
           phone: normalizeUaePhone(data.phone || ""),
-          gender: data.gender || "prefer-not",
+          gender:
+            data.gender && data.gender !== "prefer-not" ? data.gender : "",
           dob: data.dob ? data.dob.split("T")[0] : "",
           profilePic: data.profilePic || "",
           addresses: addresses,
@@ -210,7 +210,7 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
           setForm({
             name: authUser.name || "",
             phone: "",
-            gender: "prefer-not",
+            gender: "",
             dob: "",
             profilePic: "",
             addresses: [
@@ -368,6 +368,11 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
     if (!form.name.trim()) errors.name = "Full name required";
     const phoneError = validatePhone(form.phone);
     if (phoneError) errors.phone = phoneError;
+
+    const validGenders = GENDER_OPTIONS.map((option) => option.value);
+    if (!form.gender || !validGenders.includes(form.gender)) {
+      errors.gender = "Gender is required";
+    }
 
     form.addresses.forEach((address, index) => {
       const addressValidation = validateAddress(address);
@@ -529,8 +534,17 @@ export default function EditProfileForm({ onCancel }: EditProfileFormProps) {
                 </p>
               </FormField>
 
-              <FormField label="Gender" name="gender" required>
-                <div className="relative" ref={genderRef}>
+              <FormField
+                label="Gender"
+                name="gender"
+                required
+                error={fieldErrors.gender}
+              >
+                <div
+                  className="relative"
+                  ref={genderRef}
+                  data-field="gender"
+                >
                   <button
                     type="button"
                     onClick={() => setGenderOpen(!genderOpen)}
