@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "clean": "node -e \"try{require('fs').rmSync('.next',{recursive:true,force:true})}catch(e){}\"",
-    "dev": "node api.js && npm run clean && npx next dev",
-    "build": "npx next build && node scripts/vercel-postbuild.mjs",
-    "start": "node api.js && npx next start",
+    "dev": "node init && npm run clean && npx next dev",
+    "build": "node init && npx next build && node scripts/vercel-postbuild.mjs",
+    "start": "node init && npx next start",
     "lint": "npx next lint"
   },
   "dependencies": {
