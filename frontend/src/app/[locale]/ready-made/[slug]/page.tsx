@@ -420,6 +420,16 @@ function ReadyMadeDetailContent({
   const fabricType = product.fabricType;
   const productColors = product.colors || [];
   const size = product.metersPerFabric;
+  const fabricWidth =
+    product.fabricWidth === "double" ? "double" : "single";
+  const fabricWidthLabel =
+    fabricWidth === "double"
+      ? locale === "ar"
+        ? "عرض مزدوج"
+        : "Double width"
+      : locale === "ar"
+        ? "عرض مفرد"
+        : "Single width";
   const tagStyles = getTagStyles(tag);
 
   return (
@@ -563,9 +573,9 @@ function ReadyMadeDetailContent({
                   />
                 </div>
 
-                <div className="flex flex-row gap-x-6 my-2">
+                <div className="flex flex-row flex-wrap gap-x-6 gap-y-3 my-2">
                   {fabricType && (
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-[7rem]">
                       <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
                         Fabric Type
                       </span>
@@ -575,7 +585,7 @@ function ReadyMadeDetailContent({
                     </div>
                   )}
                   {size && (
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-[7rem]">
                       <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
                         Size
                       </span>
@@ -584,6 +594,14 @@ function ReadyMadeDetailContent({
                       </p>
                     </div>
                   )}
+                  <div className="flex-1 min-w-[7rem]">
+                    <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block">
+                      {locale === "ar" ? "عرض القماش" : "Fabric Width"}
+                    </span>
+                    <p className="[font-family:var(--font-body)] text-[14px] xs:text-[15px] sm:text-[16px] text-black">
+                      {fabricWidthLabel}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-x-6 my-2">
