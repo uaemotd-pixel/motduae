@@ -184,6 +184,14 @@ const readyMadeProductSchema = new mongoose.Schema(
       min: 0,
     },
 
+    // Single width or double width fabric
+    fabricWidth: {
+      type: String,
+      enum: ["single", "double"],
+      default: "single",
+      required: true,
+    },
+
     fabricPriceAED: {
       type: Number,
       min: 0,

@@ -43,7 +43,6 @@ export default function EditReadyMadePage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState<ReadyMadeFormData | null>(null);
-  const [fabricWidth, setFabricWidth] = useState<"single" | "double">("single");
 
   // Dropdown states
   const [fabricShopOpen, setFabricShopOpen] = useState(false);
@@ -204,10 +203,6 @@ export default function EditReadyMadePage() {
 
         const data = fromApiProduct(found);
         setFormData(data);
-
-        if (found.fabricWidth) {
-          setFabricWidth(found.fabricWidth as "single" | "double");
-        }
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : "Failed to load product";
@@ -391,7 +386,6 @@ export default function EditReadyMadePage() {
       ...formData,
       thumbnailImage: firstImage,
     });
-    (payload as any).fabricWidth = fabricWidth;
 
     try {
       await api.put(`/api/admin/ready-made/${id}`, payload);
@@ -522,8 +516,8 @@ export default function EditReadyMadePage() {
             />
           </FormField>
 
-          {/* CODE, STOCK, MIN AGE, MAX AGE - in one row */}
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          {/* CODE, STOCK, FABRIC WIDTH - in one row */}
+          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <FormField label="Code (OPTIONAL)" name="code">
               <input
                 value={formData.code}
@@ -551,33 +545,41 @@ export default function EditReadyMadePage() {
               />
             </FormField>
 
-            {/* Min Age and Max Age temporarily hidden
-            <FormField label="Min Age">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                placeholder="0"
-                value={getNumberDisplay(formData.minAge)}
-                onChange={(e) => handleNumberChange("minAge", e.target.value)}
-                className="w-full py-1 border-b border-gray-300 focus:border-black outline-none hover:cursor-text text-xs sm:text-sm"
-              />
+            <FormField
+              label="Fabric width"
+              name="fabricWidth"
+              error={fieldErrors.fabricWidth}
+              required
+            >
+              <div
+                className="flex items-center gap-4 sm:gap-5 py-1 min-h-7"
+                role="radiogroup"
+                aria-label="Fabric width"
+              >
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs sm:text-sm">
+                  <input
+                    type="radio"
+                    name="fabricWidth"
+                    value="single"
+                    checked={formData.fabricWidth === "single"}
+                    onChange={() => handleChange("fabricWidth", "single")}
+                    className="w-3.5 h-3.5 accent-black hover:cursor-pointer"
+                  />
+                  <span>Single width</span>
+                </label>
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs sm:text-sm">
+                  <input
+                    type="radio"
+                    name="fabricWidth"
+                    value="double"
+                    checked={formData.fabricWidth === "double"}
+                    onChange={() => handleChange("fabricWidth", "double")}
+                    className="w-3.5 h-3.5 accent-black hover:cursor-pointer"
+                  />
+                  <span>Double width</span>
+                </label>
+              </div>
             </FormField>
-
-            <FormField label="Max Age">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                placeholder="0"
-                value={getNumberDisplay(formData.maxAge)}
-                onChange={(e) => handleNumberChange("maxAge", e.target.value)}
-                className="w-full py-1 border-b border-gray-300 focus:border-black outline-none hover:cursor-text text-xs sm:text-sm"
-              />
-            </FormField>
-            */}
           </div>
 
           {/* FABRIC STORE + FABRIC */}

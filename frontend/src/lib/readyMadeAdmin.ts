@@ -3,6 +3,8 @@ import {
   type ShopPickupAddress,
 } from "@/lib/fabricShop";
 
+export type FabricWidth = "single" | "double";
+
 export interface ReadyMadeFormData {
   name: string;
   nameAr: string;
@@ -42,6 +44,7 @@ export interface ReadyMadeFormData {
   pickupAddress: ShopPickupAddress;
 
   metersPerFabric: number;
+  fabricWidth: FabricWidth;
 
   fabricPriceAED: number;
   mukhawarPriceAED: number;
@@ -180,6 +183,7 @@ export function defaultReadyMadeForm(): ReadyMadeFormData {
     pickupAddress: emptyShopPickupAddress(),
 
     metersPerFabric: 0,
+    fabricWidth: "single",
 
     fabricPriceAED: 0,
     mukhawarPriceAED: 0,
@@ -285,6 +289,10 @@ export function fromApiProduct(
 
     metersPerFabric:
       typeof product.metersPerFabric === "number" ? product.metersPerFabric : 0,
+    fabricWidth:
+      product.fabricWidth === "double" || product.fabricWidth === "single"
+        ? product.fabricWidth
+        : "single",
 
     fabricPriceAED:
       typeof product.fabricPriceAED === "number" ? product.fabricPriceAED : 0,
@@ -352,6 +360,7 @@ export function toApiPayload(form: ReadyMadeFormData): Record<string, unknown> {
     pickupAddress: form.pickupAddress,
 
     metersPerFabric: form.metersPerFabric,
+    fabricWidth: form.fabricWidth === "double" ? "double" : "single",
 
     fabricPriceAED: form.fabricPriceAED,
     mukhawarPriceAED: form.mukhawarPriceAED,

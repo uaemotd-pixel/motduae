@@ -8,7 +8,6 @@ import {
   Share2,
   ChevronDown,
   ChevronUp,
-  X,
   SlidersHorizontal,
 } from "lucide-react";
 import MainLayout from "../../main/layout";
@@ -1171,92 +1170,44 @@ export default function DesignShopCatalogPage() {
           </div>
         </div>
 
-        {/* Mobile filters sheet */}
-        <div
-          className={`lg:hidden fixed inset-0 z-50 ${
-            mobileFiltersOpen ? "pointer-events-auto" : "pointer-events-none"
-          }`}
-          aria-hidden={!mobileFiltersOpen}
-        >
-          <button
-            type="button"
-            aria-label={isAr ? "إغلاق" : "Close"}
-            className={`absolute inset-0 bg-black/45 backdrop-blur-[2px] transition-opacity duration-300 cursor-pointer ${
-              mobileFiltersOpen ? "opacity-100" : "opacity-0"
-            }`}
-            onClick={() => setMobileFiltersOpen(false)}
-          />
-
-          <div
-            id="design-shop-mobile-filters"
-            role="dialog"
-            aria-modal="true"
-            aria-label={isAr ? "الفلاتر" : "Filters"}
-            className={`absolute inset-x-0 bottom-0 flex max-h-[min(92dvh,920px)] flex-col rounded-t-2xl border border-[#E4E0D8] border-b-0 bg-white shadow-[0_-12px_40px_rgba(0,0,0,0.18)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-              mobileFiltersOpen ? "translate-y-0" : "translate-y-full"
-            }`}
-          >
-            <div className="mx-auto mt-3 h-1 w-10 shrink-0 rounded-full bg-[#D8D4CC]" />
-
-            <div className="flex items-center justify-between gap-3 border-b border-[#E4E0D8] px-5 pb-4 pt-3">
-              <div className="min-w-0">
-                <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.22em] text-[#7A7A72]">
-                  {isAr ? "تصفية النتائج" : "Refine results"}
-                </p>
-                <h2 className="[font-family:var(--font-display)] text-[22px] leading-tight text-black">
-                  {isAr ? "الفلاتر" : "Filters"}
-                  {activeFilterCount > 0 ? (
-                    <span className="ms-2 [font-family:var(--font-ui)] text-[11px] tracking-[0.14em] text-[#7A7A72]">
-                      ({activeFilterCount})
-                    </span>
-                  ) : null}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setMobileFiltersOpen(false)}
-                className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-[#E4E0D8] text-black transition-colors hover:border-black hover:bg-black hover:text-white cursor-pointer"
-                aria-label={isAr ? "إغلاق الفلاتر" : "Close filters"}
-              >
-                <X className="size-4" strokeWidth={1.75} />
-              </button>
-            </div>
-
-            <div
-              data-lenis-prevent
-              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5"
-            >
-              {sidebarContent}
-            </div>
-
-            <div className="shrink-0 border-t border-[#E4E0D8] bg-white px-5 pt-3 pb-[max(0.75rem,var(--safe-bottom))]">
-              <div className="flex items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    clearAllFilters();
-                  }}
-                  disabled={!hasActiveFilters}
-                  className="flex-1 rounded-full border border-black px-4 py-3 text-[10px] tracking-[0.18em] uppercase text-black transition-colors hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
-                >
-                  {isAr ? "مسح الكل" : "Clear all"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMobileFiltersOpen(false)}
-                  className="flex-[1.4] rounded-full bg-black px-4 py-3 text-[10px] tracking-[0.18em] uppercase text-white transition-colors hover:bg-[#2A2A28] cursor-pointer"
-                >
-                  {isAr
-                    ? `عرض ${totalDesigns} تصميم`
-                    : `Show ${totalDesigns} designs`}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div className="flex flex-col lg:flex-row min-h-screen relative">
-          <CatalogFilterSidebar>{sidebarContent}</CatalogFilterSidebar>
+          <CatalogFilterSidebar
+            mobile={{
+              open: mobileFiltersOpen,
+              onClose: () => setMobileFiltersOpen(false),
+              id: "design-shop-mobile-filters",
+              ariaLabel: isAr ? "الفلاتر" : "Filters",
+              refineLabel: isAr ? "تصفية النتائج" : "Refine results",
+              title: isAr ? "الفلاتر" : "Filters",
+              closeLabel: isAr ? "إغلاق الفلاتر" : "Close filters",
+              activeCount: activeFilterCount,
+              footer: (
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearAllFilters();
+                    }}
+                    disabled={!hasActiveFilters}
+                    className="flex-1 rounded-full border border-black px-4 py-3 text-[10px] tracking-[0.18em] uppercase text-black transition-colors hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
+                  >
+                    {isAr ? "مسح الكل" : "Clear all"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileFiltersOpen(false)}
+                    className="flex-[1.4] rounded-full bg-black px-4 py-3 text-[10px] tracking-[0.18em] uppercase text-white transition-colors hover:bg-[#2A2A28] cursor-pointer"
+                  >
+                    {isAr
+                      ? `عرض ${totalDesigns} تصميم`
+                      : `Show ${totalDesigns} designs`}
+                  </button>
+                </div>
+              ),
+            }}
+          >
+            {sidebarContent}
+          </CatalogFilterSidebar>
 
           <div className="flex-1 min-w-0 p-3 xs:p-4 sm:p-6 lg:p-8">
             {loading ? (
