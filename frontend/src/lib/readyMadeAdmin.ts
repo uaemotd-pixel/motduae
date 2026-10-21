@@ -3,6 +3,8 @@ import {
   type ShopPickupAddress,
 } from "@/lib/fabricShop";
 
+export type FabricWidth = "single" | "double";
+
 export interface ReadyMadeFormData {
   name: string;
   nameAr: string;
@@ -42,6 +44,7 @@ export interface ReadyMadeFormData {
   pickupAddress: ShopPickupAddress;
 
   metersPerFabric: number;
+  fabricWidth: FabricWidth;
 
   fabricPriceAED: number;
   mukhawarPriceAED: number;
@@ -180,6 +183,7 @@ export function defaultReadyMadeForm(): ReadyMadeFormData {
     pickupAddress: emptyShopPickupAddress(),
 
     metersPerFabric: 0,
+    fabricWidth: "single",
 
     fabricPriceAED: 0,
     mukhawarPriceAED: 0,
@@ -194,12 +198,41 @@ export function defaultReadyMadeForm(): ReadyMadeFormData {
   };
 }
 
+/** images[0] = main/thumbnail; images[1..] = gallery (max 4). */
+export function splitReadyMadeImages(images: string[] | undefined) {
+  const list = Array.isArray(images) ? images : [];
+  const thumbnail = list[0] || "";
+  const gallery = list.slice(1).filter((url) => Boolean(url?.trim()));
+  return { thumbnail, gallery };
+}
+
+export function mergeReadyMadeImages(thumbnail: string, gallery: string[]) {
+  return [
+    thumbnail || "",
+    ...gallery.filter((url) => Boolean(url?.trim())),
+  ].slice(0, 5);
+}
+
 export function fromApiProduct(
   product: Record<string, unknown>,
 ): ReadyMadeFormData {
-  let images: string[] = [];
-  if (Array.isArray(product.images) && product.images.length) {
-    images = product.images as string[];
+  const thumbnailImage =
+    typeof product.thumbnailImage === "string" ? product.thumbnailImage : "";
+  const rawImages = Array.isArray(product.images)
+    ? (product.images as unknown[]).filter(
+        (img): img is string => typeof img === "string" && Boolean(img.trim()),
+      )
+    : [];
+
+  // Keep thumbnail first so the form matches fabric create/edit UX
+  let images: string[];
+  if (thumbnailImage) {
+    images = [
+      thumbnailImage,
+      ...rawImages.filter((img) => img !== thumbnailImage),
+    ].slice(0, 5);
+  } else if (rawImages.length > 0) {
+    images = rawImages.slice(0, 5);
   } else {
     images = [""];
   }
@@ -231,8 +264,7 @@ export function fromApiProduct(
 
     colors: Array.isArray(product.colors) ? (product.colors as string[]) : [],
 
-    thumbnailImage:
-      typeof product.thumbnailImage === "string" ? product.thumbnailImage : "",
+    thumbnailImage: images[0] || thumbnailImage,
     images,
 
     fabricType:
@@ -285,6 +317,10 @@ export function fromApiProduct(
 
     metersPerFabric:
       typeof product.metersPerFabric === "number" ? product.metersPerFabric : 0,
+    fabricWidth:
+      product.fabricWidth === "double" || product.fabricWidth === "single"
+        ? product.fabricWidth
+        : "single",
 
     fabricPriceAED:
       typeof product.fabricPriceAED === "number" ? product.fabricPriceAED : 0,
@@ -310,6 +346,12 @@ export function fromApiProduct(
 }
 
 export function toApiPayload(form: ReadyMadeFormData): Record<string, unknown> {
+  const images = form.images
+    .map((img) => img.trim())
+    .filter((img) => img !== "" && !isDataUrl(img));
+  const thumbnailImage =
+    (form.thumbnailImage || "").trim() || images[0] || "";
+
   return {
     name: form.name.trim(),
     nameAr: form.nameAr.trim(),
@@ -334,9 +376,9 @@ export function toApiPayload(form: ReadyMadeFormData): Record<string, unknown> {
 
     colors: form.colors,
 
-    thumbnailImage: form.thumbnailImage,
+    thumbnailImage,
 
-    images: form.images.filter((img) => img.trim() !== ""),
+    images,
 
     fabricType: form.fabricType,
     fabricTypeAr: form.fabricTypeAr,
@@ -352,6 +394,7 @@ export function toApiPayload(form: ReadyMadeFormData): Record<string, unknown> {
     pickupAddress: form.pickupAddress,
 
     metersPerFabric: form.metersPerFabric,
+    fabricWidth: form.fabricWidth === "double" ? "double" : "single",
 
     fabricPriceAED: form.fabricPriceAED,
     mukhawarPriceAED: form.mukhawarPriceAED,

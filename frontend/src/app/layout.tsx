@@ -10,6 +10,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // Shrink the layout viewport when the mobile soft keyboard opens so
+  // fixed UI (e.g. FAQ chatbot) can stay above the keypad.
+  interactiveWidget: "resizes-content",
 };
 
 // Next.js 16 requires <html> and <body> on the root layout.

@@ -8,6 +8,7 @@ import { getTranslation } from "@/lib/getTranslation";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
 import { ChevronLeft, Edit } from "lucide-react";
 import { ImageModal } from "@/components/shared/ImageModal";
+import FormattedDescription from "@/components/shared/FormattedDescription";
 import { resolveMediaUrl } from "@/lib/media";
 import { Tag } from "@/components/ui/Tag";
 import {
@@ -202,7 +203,7 @@ export default function AdminDesignDetailsPage() {
           {description ? (
             <div>
               <p className="text-gray-500 mb-1">{t.view.description}</p>
-              <p className="text-black whitespace-pre-wrap">{description}</p>
+              <FormattedDescription text={description} className="text-black" />
             </div>
           ) : null}
         </div>

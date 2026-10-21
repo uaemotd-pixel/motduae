@@ -4,11 +4,13 @@ import { useState, useEffect, FormEvent, useRef, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
-import ImageUpload from "@/components/admin/ImageUpload";
+import FabricImageUpload from "@/components/admin/FabricImageUpload";
 import { getTranslation } from "@/lib/getTranslation";
 import {
   fromApiProduct,
+  mergeReadyMadeImages,
   pickupAddressErrors,
+  splitReadyMadeImages,
   toApiPayload,
   type ReadyMadeFormData,
 } from "@/lib/readyMadeAdmin";
@@ -16,6 +18,7 @@ import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddr
 import toast from "react-hot-toast";
 import colors from "@/components/shared/colors";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
+import RichTextEditor from "@/components/shared/RichTextEditor";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
 import CommissionFinalPriceField, {
   useFabricStoreCommission,
@@ -43,7 +46,6 @@ export default function EditReadyMadePage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState<ReadyMadeFormData | null>(null);
-  const [fabricWidth, setFabricWidth] = useState<"single" | "double">("single");
 
   // Dropdown states
   const [fabricShopOpen, setFabricShopOpen] = useState(false);
@@ -204,10 +206,6 @@ export default function EditReadyMadePage() {
 
         const data = fromApiProduct(found);
         setFormData(data);
-
-        if (found.fabricWidth) {
-          setFabricWidth(found.fabricWidth as "single" | "double");
-        }
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : "Failed to load product";
@@ -295,26 +293,6 @@ export default function EditReadyMadePage() {
     return value === 0 ? "" : String(value);
   };
 
-  const addImage = () => {
-    if (!formData) return;
-    if (formData.images.length < 5) {
-      handleChange("images", [...formData.images, ""]);
-    }
-  };
-
-  const removeImage = (index: number) => {
-    if (!formData) return;
-    const newImages = formData.images.filter((_, i) => i !== index);
-    handleChange("images", newImages);
-  };
-
-  const handleImageChange = (index: number, url: string) => {
-    if (!formData) return;
-    const newImages = [...formData.images];
-    newImages[index] = url;
-    handleChange("images", newImages);
-  };
-
   const toggleColor = (colorValue: string) => {
     if (!formData) return;
     const current = formData.colors;
@@ -332,8 +310,10 @@ export default function EditReadyMadePage() {
 
     if (!formData.name.trim()) errors.name = "Name required";
 
-    const hasImage = formData.images.some((img) => img.trim() !== "");
-    if (!hasImage) errors.images = "At least one image is required";
+    const thumbnail = (formData.images[0] || "").trim();
+    if (!thumbnail) {
+      errors.images = "Main / thumbnail image is required";
+    }
 
     if (formData.fabricId && formData.metersPerFabric <= 0)
       errors.metersPerFabric = "Meters must be greater than 0";
@@ -386,12 +366,11 @@ export default function EditReadyMadePage() {
 
     setSubmitting(true);
 
-    const firstImage = formData.images.find((img) => img.trim() !== "") || "";
+    const { thumbnail } = splitReadyMadeImages(formData.images);
     const payload = toApiPayload({
       ...formData,
-      thumbnailImage: firstImage,
+      thumbnailImage: thumbnail,
     });
-    (payload as any).fabricWidth = fabricWidth;
 
     try {
       await api.put(`/api/admin/ready-made/${id}`, payload);
@@ -490,40 +469,26 @@ export default function EditReadyMadePage() {
             />
           </FormField>
 
-          {/* DESCRIPTION (EN) */}
-          <FormField label="Description">
-            <textarea
-              rows={1}
+          <FormField label="Description (EN)">
+            <RichTextEditor
               value={formData.description}
-              onChange={(e) => handleChange("description", e.target.value)}
-              placeholder="Buy our Premium Mukhawar ...."
-              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-start bg-transparent resize-none overflow-hidden leading-[1.6] hover:cursor-text text-xs sm:text-sm min-h-10"
-              onInput={(e) => {
-                const target = e.target as HTMLTextAreaElement;
-                target.style.height = "auto";
-                target.style.height = target.scrollHeight + "px";
-              }}
+              onChange={(html) => handleChange("description", html)}
+              placeholder="Write description (EN)…"
+              dir="ltr"
             />
           </FormField>
 
-          {/* DESCRIPTION (AR) */}
           <FormField label="Description (AR)">
-            <textarea
-              rows={1}
+            <RichTextEditor
               value={formData.descriptionAr}
-              onChange={(e) => handleChange("descriptionAr", e.target.value)}
-              placeholder="... اشترِ مخورنا الفاخر"
-              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-end bg-transparent resize-none overflow-hidden leading-[1.6] hover:cursor-text text-xs sm:text-sm min-h-10"
-              onInput={(e) => {
-                const target = e.target as HTMLTextAreaElement;
-                target.style.height = "auto";
-                target.style.height = target.scrollHeight + "px";
-              }}
+              onChange={(html) => handleChange("descriptionAr", html)}
+              placeholder="اكتب الوصف…"
+              dir="rtl"
             />
           </FormField>
 
-          {/* CODE, STOCK, MIN AGE, MAX AGE - in one row */}
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          {/* CODE, STOCK, FABRIC WIDTH - in one row */}
+          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
             <FormField label="Code (OPTIONAL)" name="code">
               <input
                 value={formData.code}
@@ -551,33 +516,41 @@ export default function EditReadyMadePage() {
               />
             </FormField>
 
-            {/* Min Age and Max Age temporarily hidden
-            <FormField label="Min Age">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                placeholder="0"
-                value={getNumberDisplay(formData.minAge)}
-                onChange={(e) => handleNumberChange("minAge", e.target.value)}
-                className="w-full py-1 border-b border-gray-300 focus:border-black outline-none hover:cursor-text text-xs sm:text-sm"
-              />
+            <FormField
+              label="Fabric width"
+              name="fabricWidth"
+              error={fieldErrors.fabricWidth}
+              required
+            >
+              <div
+                className="flex items-center gap-4 sm:gap-5 py-1 min-h-7"
+                role="radiogroup"
+                aria-label="Fabric width"
+              >
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs sm:text-sm">
+                  <input
+                    type="radio"
+                    name="fabricWidth"
+                    value="single"
+                    checked={formData.fabricWidth === "single"}
+                    onChange={() => handleChange("fabricWidth", "single")}
+                    className="w-3.5 h-3.5 accent-black hover:cursor-pointer"
+                  />
+                  <span>Single width</span>
+                </label>
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs sm:text-sm">
+                  <input
+                    type="radio"
+                    name="fabricWidth"
+                    value="double"
+                    checked={formData.fabricWidth === "double"}
+                    onChange={() => handleChange("fabricWidth", "double")}
+                    className="w-3.5 h-3.5 accent-black hover:cursor-pointer"
+                  />
+                  <span>Double width</span>
+                </label>
+              </div>
             </FormField>
-
-            <FormField label="Max Age">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                placeholder="0"
-                value={getNumberDisplay(formData.maxAge)}
-                onChange={(e) => handleNumberChange("maxAge", e.target.value)}
-                className="w-full py-1 border-b border-gray-300 focus:border-black outline-none hover:cursor-text text-xs sm:text-sm"
-              />
-            </FormField>
-            */}
           </div>
 
           {/* FABRIC STORE + FABRIC */}
@@ -1260,48 +1233,58 @@ export default function EditReadyMadePage() {
             </FormField>
           </div>
 
-          {/* IMAGES */}
-          <div className="md:col-span-2">
-            <div className="mb-2 text-[10px] sm:text-xs uppercase tracking-widest text-gray-500">
-              Images (max 5) *
-            </div>
-            {fieldErrors.images && (
-              <p className="text-red-500 text-xs sm:text-sm mb-2">
-                {fieldErrors.images}
-              </p>
-            )}
-
-            {formData.images.map((img, idx) => (
-              <div key={idx} className="mb-3">
-                <ImageUpload
-                  value={img}
-                  onChange={(val) => handleImageChange(idx, val)}
-                  chooseFileLabel={`Upload Image ${idx + 1}`}
-                  uploadingLabel="Uploading..."
-                  uploadFailedLabel="Failed"
-                  removeLabel="Remove"
-                />
-                {formData.images.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeImage(idx)}
-                    className="text-[10px] sm:text-xs text-red-500 mt-1 hover:cursor-pointer"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            ))}
-
-            {formData.images.length < 5 && (
-              <button
-                type="button"
-                onClick={addImage}
-                className="text-[10px] sm:text-xs underline hover:cursor-pointer"
-              >
-                + Add Image
-              </button>
-            )}
+          <div className="md:col-span-2 space-y-6">
+            {(() => {
+              const { thumbnail, gallery } = splitReadyMadeImages(
+                formData.images,
+              );
+              const READY_MADE_UPLOAD = "/api/admin/uploads/ready-made";
+              return (
+                <>
+                  <div>
+                    <span className="mb-2 block text-[10px] sm:text-xs uppercase tracking-widest text-gray-500">
+                      Main / Thumbnail Image *
+                    </span>
+                    <FabricImageUpload
+                      value={thumbnail}
+                      uploadEndpoint={READY_MADE_UPLOAD}
+                      onChange={(val) =>
+                        handleChange(
+                          "images",
+                          mergeReadyMadeImages(val, gallery),
+                        )
+                      }
+                      chooseFileLabel="Upload Thumbnail"
+                      uploadingLabel="Uploading..."
+                      uploadFailedLabel="Upload failed"
+                      removeLabel="Remove"
+                      error={fieldErrors.images}
+                    />
+                  </div>
+                  <div>
+                    <span className="mb-2 block text-[10px] sm:text-xs uppercase tracking-widest text-gray-500">
+                      Gallery Images (max 4)
+                    </span>
+                    <FabricImageUpload
+                      multiple
+                      values={gallery}
+                      maxFiles={4}
+                      uploadEndpoint={READY_MADE_UPLOAD}
+                      onValuesChange={(nextGallery) =>
+                        handleChange(
+                          "images",
+                          mergeReadyMadeImages(thumbnail, nextGallery),
+                        )
+                      }
+                      chooseFileLabel="Upload Gallery Images"
+                      uploadingLabel="Uploading..."
+                      uploadFailedLabel="Upload failed"
+                      removeLabel="Remove"
+                    />
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
           {/* IS ACTIVE */}

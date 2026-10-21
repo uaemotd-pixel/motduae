@@ -76,6 +76,7 @@ interface ReadyMadeProductDetails {
     emirate?: string;
   };
   metersPerFabric?: number;
+  fabricWidth?: "single" | "double";
   fabricPriceAED?: number;
   mukhawarPriceAED?: number;
   finalSellingPriceAED?: number;
@@ -393,7 +394,7 @@ export default function FabricReadyMadeDetailsPage() {
                   </span>
                 </div>
                 {product.metersPerFabric && product.metersPerFabric > 0 ? (
-                  <div className="flex justify-between items-center text-sm py-1">
+                  <div className="flex justify-between items-center text-sm py-1 border-b border-gray-50">
                     <span className="text-gray-500 text-xs">
                       {isAr ? "استهلاك القماش" : "Fabric Required"}:
                     </span>
@@ -402,6 +403,20 @@ export default function FabricReadyMadeDetailsPage() {
                     </span>
                   </div>
                 ) : null}
+                <div className="flex justify-between items-center text-sm py-1">
+                  <span className="text-gray-500 text-xs">
+                    {isAr ? "عرض القماش" : "Fabric Width"}:
+                  </span>
+                  <span className="font-mono font-medium text-black">
+                    {product.fabricWidth === "double"
+                      ? isAr
+                        ? "عرض مزدوج"
+                        : "Double width"
+                      : isAr
+                        ? "عرض مفرد"
+                        : "Single width"}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

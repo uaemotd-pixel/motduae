@@ -1494,6 +1494,7 @@ fabricPortalRouter.post(
       tailorName,
       tailorNameAr,
       metersPerFabric,
+      fabricWidth,
       fabricPriceAED,
       mukhawarPriceAED,
       finalSellingPriceAED,
@@ -1521,6 +1522,11 @@ fabricPortalRouter.post(
       });
       return;
     }
+
+    const normalizedFabricWidth =
+      fabricWidth === "double" || fabricWidth === "single"
+        ? fabricWidth
+        : "single";
 
     const newProduct = new ReadyMadeProduct({
       name,
@@ -1551,6 +1557,7 @@ fabricPortalRouter.post(
       tailorName: tailorName || "",
       tailorNameAr: tailorNameAr || "",
       metersPerFabric,
+      fabricWidth: normalizedFabricWidth,
       fabricPriceAED,
       mukhawarPriceAED,
       finalSellingPriceAED,
@@ -1657,6 +1664,19 @@ fabricPortalRouter.put(
 
     product.metersPerFabric =
       req.body.metersPerFabric ?? product.metersPerFabric;
+    if (req.body.fabricWidth !== undefined) {
+      if (
+        req.body.fabricWidth !== "single" &&
+        req.body.fabricWidth !== "double"
+      ) {
+        res.status(400).json({
+          success: false,
+          message: 'Fabric width must be "single" or "double"',
+        });
+        return;
+      }
+      product.fabricWidth = req.body.fabricWidth;
+    }
     product.fabricPriceAED = req.body.fabricPriceAED ?? product.fabricPriceAED;
     product.mukhawarPriceAED =
       req.body.mukhawarPriceAED ?? product.mukhawarPriceAED;

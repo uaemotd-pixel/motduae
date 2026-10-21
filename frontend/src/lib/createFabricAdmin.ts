@@ -375,17 +375,17 @@ export function toFabricApiPayload(
       name: v.name.trim(),
       nameAr: v.nameAr.trim(),
       code: v.code?.trim() || "",
-      slug: resolveSlug(v),
+      // Slug is auto-derived from name — not edited on the variant form
+      slug: resolveSlug({ name: v.name, slug: "" }),
       description: v.description.trim(),
       descriptionAr: v.descriptionAr.trim() || v.description.trim(),
       images: v.images.filter((url) => url.trim() !== "" && !isDataUrl(url)),
-      category: v.category.trim(),
-      categoryAr: v.categoryAr.trim(),
-      pattern: v.pattern.trim(),
-      patternAr: v.patternAr.trim(),
-      season: v.season.trim(),
-      seasonAr: v.seasonAr.trim(),
-      colors: v.colors,
+      // Category / pattern / season inherit from parent on the API
+      // Colors default to the main product's selection when variant has none
+      colors:
+        Array.isArray(v.colors) && v.colors.length > 0
+          ? v.colors
+          : form.colors,
       tag: v.tag,
       tagAr: v.tagAr.trim(),
       cuts: serializeFabricCuts(v.cuts || []),
@@ -556,13 +556,17 @@ export function validateFabricForm(
     }
   }
 
-  const hasImage = form.images.some((img) => img.trim() !== "");
-  if (!hasImage) {
+  const thumbnail = (form.images[0] || "").trim();
+  if (!thumbnail || isDataUrl(thumbnail)) {
     errors.images =
-      validation.images_required || "At least one image is required";
+      validation.images_required || "Main / thumbnail image is required";
+  } else if (form.images.some((img) => isDataUrl(img.trim()))) {
+    errors.images =
+      validation.image_upload_pending || "Wait for image upload to finish";
   }
 
   if (Array.isArray(form.variants) && form.variants.length > 0) {
+    const seenVariantCodes = new Set<string>();
     form.variants.forEach((v, i) => {
       const prefix = `variants.${i}`;
       if (!v.name?.trim()) {
@@ -571,18 +575,33 @@ export function validateFabricForm(
       if (!v.nameAr?.trim()) {
         errors[`${prefix}.nameAr`] = "Name (AR) is required for variant";
       }
-      if (!v.slug?.trim()) {
-        errors[`${prefix}.slug`] = "Slug is required for variant";
-      } else if (
-        !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v.slug.trim().toLowerCase())
-      ) {
-        errors[`${prefix}.slug`] = "Slug is invalid for variant";
+
+      const variantCode = (v.code || "").trim().toLowerCase();
+      if (variantCode) {
+        if (seenVariantCodes.has(variantCode)) {
+          errors[`${prefix}.code`] = "Fabric code already exists";
+        } else {
+          seenVariantCodes.add(variantCode);
+        }
+        if (form.code.trim().toLowerCase() === variantCode) {
+          errors[`${prefix}.code`] = "Fabric code already exists";
+        }
       }
+
+      if (
+        (!v.colors || v.colors.length === 0) &&
+        (!form.colors || form.colors.length === 0)
+      ) {
+        errors[`${prefix}.colors`] =
+          "At least one color is required for variant";
+      }
+
       validateFabricCuts(v.cuts || [], errors, `${prefix}.cuts`);
 
-      if (!v.images?.some((img) => img.trim())) {
+      const variantThumbnail = (v.images?.[0] || "").trim();
+      if (!variantThumbnail || isDataUrl(variantThumbnail)) {
         errors[`${prefix}.images`] =
-          "At least one image is required for variant";
+          "Main / thumbnail image is required for variant";
       }
 
       if (v.pickupAddress?.emirate) {
@@ -616,10 +635,21 @@ export function validateFabricForm(
 
 export function mapFabricApiErrorToFieldErrors(
   message: string,
+  form?: FabricFormData,
 ): Record<string, string> {
   const trimmedMessage = message.trim();
 
   if (/fabric code already exists/i.test(trimmedMessage)) {
+    const variantNameMatch = trimmedMessage.match(/Variant\s+"([^"]+)"/i);
+    if (variantNameMatch && form?.variants?.length) {
+      const variantName = variantNameMatch[1];
+      const idx = form.variants.findIndex(
+        (v) => (v.name || "").trim() === variantName,
+      );
+      if (idx >= 0) {
+        return { [`variants.${idx}.code`]: "Fabric code already exists" };
+      }
+    }
     return { code: trimmedMessage };
   }
 

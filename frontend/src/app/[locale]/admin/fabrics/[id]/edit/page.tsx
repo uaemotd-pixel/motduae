@@ -112,27 +112,6 @@ export default function EditFabricPage() {
     if (fieldErrors[key]) setFieldErrors((prev) => ({ ...prev, [key]: "" }));
   };
 
-  const handleImageChange = (index: number, url: string) => {
-    if (!formData) return;
-    const newImages = [...formData.images];
-    newImages[index] = url;
-    handleChange("images", newImages);
-  };
-
-  const addImageField = () => {
-    if (formData && formData.images.length < 5) {
-      handleChange("images", [...formData.images, ""]);
-    }
-  };
-
-  const removeImageField = (index: number) => {
-    if (!formData) return;
-    handleChange(
-      "images",
-      formData.images.filter((_, i) => i !== index),
-    );
-  };
-
   const validate = (): boolean => {
     if (!formData) return false;
     const errors = validateFabricForm(formData, t.adminFabrics.validation);
@@ -155,7 +134,7 @@ export default function EditFabricPage() {
         err,
         t.adminFabrics.errors.update_failed,
       );
-      const nextFieldErrors = mapFabricApiErrorToFieldErrors(message);
+      const nextFieldErrors = mapFabricApiErrorToFieldErrors(message, formData);
       if (Object.keys(nextFieldErrors).length > 0) {
         setFieldErrors((prev) => ({ ...prev, ...nextFieldErrors }));
       }
@@ -212,9 +191,6 @@ export default function EditFabricPage() {
           fieldErrors={fieldErrors}
           onFieldChange={handleChange}
           onPickupChange={handlePickupAddressChange}
-          onImageChange={handleImageChange}
-          onAddImage={addImageField}
-          onRemoveImage={removeImageField}
         />
 
         <div className="flex flex-col-reverse sm:flex-row-reverse gap-2 sm:gap-3 pt-6 mt-4 border-t border-gray-100">

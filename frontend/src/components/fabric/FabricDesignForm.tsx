@@ -17,6 +17,11 @@ import { Link, useRouter } from "@/i18n/navigation";
 import FormField from "@/components/admin/FormField";
 import FabricImageUpload from "@/components/admin/FabricImageUpload";
 import { FabricCutsEditor } from "@/components/admin/FabricAdminFormFields";
+import RichTextEditor from "@/components/shared/RichTextEditor";
+import {
+  mergeReadyMadeImages,
+  splitReadyMadeImages,
+} from "@/lib/readyMadeAdmin";
 import { getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import {
   fetchOwnFabricShop,
@@ -694,7 +699,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
           patternAr: prev.patternAr,
           season: prev.season,
           seasonAr: prev.seasonAr,
-          colors: [],
+          colors: [...(prev.colors || [])],
           tag: "",
           tagAr: "",
           cuts: [createEmptyFabricCutRow()],
@@ -737,23 +742,6 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     }
   };
 
-  const handleImageChange = (index: number, url: string) => {
-    const images = [...formData.images];
-    images[index] = url;
-    handleChange("images", images);
-  };
-
-  const addImageField = () => {
-    if (formData.images.length < 5) {
-      handleChange("images", [...formData.images, ""]);
-    }
-  };
-
-  const removeImageField = (index: number) => {
-    const images = formData.images.filter((_, i) => i !== index);
-    handleChange("images", images.length ? images : [""]);
-  };
-
   const toggleColor = (colorValue: string) => {
     const current = formData.colors || [];
     const newSelected = current.includes(colorValue)
@@ -767,7 +755,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
 
     if (!formData.name.trim()) errors.name = t("validation.nameRequired");
     if (!formData.nameAr.trim()) errors.nameAr = t("validation.nameArRequired");
-    if (!formData.images.some((image) => image.trim())) {
+    if (!(formData.images[0] || "").trim()) {
       errors.images = t("validation.imagesRequired");
     }
     if (!formData.material?.trim()) {
@@ -805,7 +793,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
           errors[`${prefix}.name`] = t("validation.nameRequired");
         if (!v.nameAr.trim())
           errors[`${prefix}.nameAr`] = t("validation.nameArRequired");
-        if (!v.images.some((img) => img.trim())) {
+        if (!(v.images?.[0] || "").trim()) {
           errors[`${prefix}.images`] = t("validation.imagesRequired");
         }
         validateFabricCuts(v.cuts || [], errors, `${prefix}.cuts`);
@@ -961,12 +949,11 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 name="description"
                 error={fieldErrors.description}
               >
-                <input
-                  type="text"
+                <RichTextEditor
                   value={formData.description}
-                  onChange={(e) => handleChange("description", e.target.value)}
-                  className={`${INPUT_CLASS} hover:cursor-text`}
-                  placeholder="Enter description (EN)"
+                  onChange={(html) => handleChange("description", html)}
+                  placeholder="Write description (EN)…"
+                  dir="ltr"
                 />
               </FormField>
 
@@ -975,14 +962,10 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                 name="descriptionAr"
                 error={fieldErrors.descriptionAr}
               >
-                <input
-                  type="text"
+                <RichTextEditor
                   value={formData.descriptionAr}
-                  onChange={(e) =>
-                    handleChange("descriptionAr", e.target.value)
-                  }
-                  className={`${INPUT_CLASS} text-right hover:cursor-text`}
-                  placeholder="...وصف القماش"
+                  onChange={(html) => handleChange("descriptionAr", html)}
+                  placeholder="اكتب الوصف…"
                   dir="rtl"
                 />
               </FormField>
@@ -1402,50 +1385,60 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
           </FormSection>
 
           <FormSection title={t("sections.images")}>
-            <div className="mb-2 flex justify-between items-center">
-              <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
-                IMAGES (MAX 5) <span className="text-red-500 ml-1">*</span>
-              </span>
-              {formData.images.length < 5 && (
-                <button
-                  type="button"
-                  onClick={addImageField}
-                  className="text-[10px] sm:text-xs text-black underline hover:text-neutral-700 transition font-medium hover:cursor-pointer"
-                >
-                  + Add Image
-                </button>
-              )}
+            <div className="space-y-6 mb-6">
+              {(() => {
+                const { thumbnail, gallery } = splitReadyMadeImages(
+                  formData.images,
+                );
+                const uploadEndpoint = "/api/fabric/uploads/fabric-image";
+                return (
+                  <>
+                    <div>
+                      <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em] block mb-2">
+                        Main / Thumbnail Image{" "}
+                        <span className="text-red-500">*</span>
+                      </span>
+                      <FabricImageUpload
+                        value={thumbnail}
+                        uploadEndpoint={uploadEndpoint}
+                        onChange={(val) =>
+                          handleChange(
+                            "images",
+                            mergeReadyMadeImages(val, gallery),
+                          )
+                        }
+                        chooseFileLabel="Upload Thumbnail"
+                        uploadingLabel="Uploading..."
+                        uploadFailedLabel="Upload failed"
+                        removeLabel="Remove"
+                        error={fieldErrors.images}
+                      />
+                    </div>
+                    <div>
+                      <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em] block mb-2">
+                        Gallery Images (max 4)
+                      </span>
+                      <FabricImageUpload
+                        multiple
+                        values={gallery}
+                        maxFiles={4}
+                        uploadEndpoint={uploadEndpoint}
+                        onValuesChange={(nextGallery) =>
+                          handleChange(
+                            "images",
+                            mergeReadyMadeImages(thumbnail, nextGallery),
+                          )
+                        }
+                        chooseFileLabel="Upload Gallery Images"
+                        uploadingLabel="Uploading..."
+                        uploadFailedLabel="Upload failed"
+                        removeLabel="Remove"
+                      />
+                    </div>
+                  </>
+                );
+              })()}
             </div>
-            {fieldErrors.images && (
-              <p className="text-[10px] sm:text-xs text-red-500 mb-2">
-                {fieldErrors.images}
-              </p>
-            )}
-            {formData.images.map((url, idx) => (
-              <div
-                key={idx}
-                className="mb-4 last:mb-0"
-              >
-                <FabricImageUpload
-                  value={url}
-                  onChange={(val) => handleImageChange(idx, val)}
-                  chooseFileLabel="Upload Image"
-                  uploadingLabel="Uploading..."
-                  uploadFailedLabel="Upload failed"
-                  removeLabel="Remove"
-                  uploadEndpoint="/api/fabric/uploads/fabric-image"
-                />
-                {formData.images.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeImageField(idx)}
-                    className="text-[10px] sm:text-xs text-red-500 mt-2 hover:underline block hover:cursor-pointer"
-                  >
-                    Remove from list
-                  </button>
-                )}
-              </div>
-            ))}
 
             <FormField label="ACTIVE STATUS" name="isActive">
               <div className="flex items-center gap-2">
@@ -1821,76 +1814,68 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                         </div>
                       </FormField>
 
-                      {/* VARIANT IMAGES */}
-                      <div className="md:col-span-2 space-y-2">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
-                          <span className="font-ui text-[10px] text-black/60 uppercase tracking-widest font-semibold">
-                            Images (Max 5)
-                          </span>
-                          {variant.images.length < 5 && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const nextImages = [...variant.images, ""];
-                                handleVariantChange(
-                                  index,
-                                  "images",
-                                  nextImages,
-                                );
-                              }}
-                              className="text-[10px] sm:text-xs text-black underline hover:text-neutral-700 font-medium hover:cursor-pointer"
-                            >
-                              + Add Image
-                            </button>
-                          )}
-                        </div>
+                      <div className="md:col-span-2 space-y-4">
                         {fieldErrors[`${prefix}.images`] && (
-                          <p className="text-[10px] sm:text-xs text-red-500 mb-2">
+                          <p className="text-[10px] sm:text-xs text-red-500">
                             {fieldErrors[`${prefix}.images`]}
                           </p>
                         )}
-                        {variant.images.map((imgUrl, imgIdx) => (
-                          <div
-                            key={imgIdx}
-                            className="p-3 sm:p-4 border border-gray-100 bg-white rounded-none space-y-2"
-                          >
-                            <FabricImageUpload
-                              value={imgUrl}
-                              onChange={(val) => {
-                                const nextImages = [...variant.images];
-                                nextImages[imgIdx] = val;
-                                handleVariantChange(
-                                  index,
-                                  "images",
-                                  nextImages,
-                                );
-                              }}
-                              chooseFileLabel="Upload Image"
-                              uploadingLabel="Uploading..."
-                              uploadFailedLabel="Upload failed"
-                              removeLabel="Remove"
-                              uploadEndpoint="/api/fabric/uploads/fabric-image"
-                            />
-                            {variant.images.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const nextImages = variant.images.filter(
-                                    (_, i) => i !== imgIdx,
-                                  );
-                                  handleVariantChange(
-                                    index,
-                                    "images",
-                                    nextImages,
-                                  );
-                                }}
-                                className="text-[10px] sm:text-xs text-red-500 hover:underline hover:cursor-pointer"
-                              >
-                                Remove image from list
-                              </button>
-                            )}
-                          </div>
-                        ))}
+                        {(() => {
+                          const { thumbnail, gallery } = splitReadyMadeImages(
+                            variant.images,
+                          );
+                          const uploadEndpoint =
+                            "/api/fabric/uploads/fabric-image";
+                          return (
+                            <>
+                              <div>
+                                <span className="font-ui text-[10px] text-black/60 uppercase tracking-widest font-semibold block mb-2">
+                                  Main / Thumbnail Image *
+                                </span>
+                                <FabricImageUpload
+                                  value={thumbnail}
+                                  uploadEndpoint={uploadEndpoint}
+                                  onChange={(val) =>
+                                    handleVariantChange(
+                                      index,
+                                      "images",
+                                      mergeReadyMadeImages(val, gallery),
+                                    )
+                                  }
+                                  chooseFileLabel="Upload Thumbnail"
+                                  uploadingLabel="Uploading..."
+                                  uploadFailedLabel="Upload failed"
+                                  removeLabel="Remove"
+                                />
+                              </div>
+                              <div>
+                                <span className="font-ui text-[10px] text-black/60 uppercase tracking-widest font-semibold block mb-2">
+                                  Gallery Images (max 4)
+                                </span>
+                                <FabricImageUpload
+                                  multiple
+                                  values={gallery}
+                                  maxFiles={4}
+                                  uploadEndpoint={uploadEndpoint}
+                                  onValuesChange={(nextGallery) =>
+                                    handleVariantChange(
+                                      index,
+                                      "images",
+                                      mergeReadyMadeImages(
+                                        thumbnail,
+                                        nextGallery,
+                                      ),
+                                    )
+                                  }
+                                  chooseFileLabel="Upload Gallery Images"
+                                  uploadingLabel="Uploading..."
+                                  uploadFailedLabel="Upload failed"
+                                  removeLabel="Remove"
+                                />
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>

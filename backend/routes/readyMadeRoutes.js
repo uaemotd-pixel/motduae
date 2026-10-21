@@ -160,6 +160,7 @@ function toReadyMadeListItem(p, fabricCommission) {
       fabricTypeAr: p.fabricTypeAr || "",
       availableFabricStock: p.availableFabricStock,
       metersPerFabric: p.metersPerFabric,
+      fabricWidth: p.fabricWidth === "double" ? "double" : "single",
       minAge: Number.isFinite(Number(p.minAge)) ? Number(p.minAge) : 0,
       maxAge: Number.isFinite(Number(p.maxAge)) ? Number(p.maxAge) : 0,
       fabricShopId: shop?._id

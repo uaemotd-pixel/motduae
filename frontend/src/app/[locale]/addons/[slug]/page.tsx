@@ -20,6 +20,7 @@ import { Tag } from "@/components/ui/Tag";
 import WishlistButton from "@/components/shared/wishlistButton";
 import AddToCartButton from "@/components/shared/addToCartButton";
 import RelatedProductsCarousel from "@/components/shared/RelatedProductsCarousel";
+import FormattedDescription from "@/components/shared/FormattedDescription";
 import {
   ProductReviewsSection,
   ProductReviewCount,
@@ -726,9 +727,10 @@ function AddonDetailContent({
                     <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-2">
                       {isAr ? "الوصف" : "Description"}
                     </span>
-                    <p className="[font-family:var(--font-body)] text-[14px] text-justify xs:text-[15px] sm:text-[16px] leading-relaxed text-(--color-grey-muted)">
-                      {desc}
-                    </p>
+                    <FormattedDescription
+                      text={desc}
+                      className="text-[14px] xs:text-[15px] sm:text-[16px] text-(--color-grey-muted)"
+                    />
                   </div>
                 )}
 

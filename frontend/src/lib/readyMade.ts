@@ -28,6 +28,7 @@ export interface ReadyMadeListItem {
   tailorName?: string;
   tailorNameAr?: string;
   metersPerFabric?: number;
+  fabricWidth?: "single" | "double";
   fabricPriceAED?: number;
   mukhawarPriceAED?: number;
   availableFabricStock?: number;

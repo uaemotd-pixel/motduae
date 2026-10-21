@@ -124,6 +124,21 @@ export async function fetchDefaultTailoringFee(): Promise<number> {
   return settings.defaultTailoringFee;
 }
 
+/** images[0] = main/thumbnail; images[1..] = gallery (max 4). */
+export function splitDesignImages(images: string[] | undefined) {
+  const list = Array.isArray(images) ? images : [];
+  const thumbnail = list[0] || "";
+  const gallery = list.slice(1).filter((url) => Boolean(url?.trim()));
+  return { thumbnail, gallery };
+}
+
+export function mergeDesignImages(thumbnail: string, gallery: string[]) {
+  return [
+    thumbnail || "",
+    ...gallery.filter((url) => Boolean(url?.trim())),
+  ].slice(0, 5);
+}
+
 export function emptyTailorDesignForm(
   defaultTailoringFee: number = DEFAULT_TAILORING_FEE,
 ): TailorDesignFormData {
@@ -184,7 +199,9 @@ export function designToForm(
     slug: design.slug ?? "",
     description: design.description ?? "",
     descriptionAr: design.descriptionAr ?? "",
-    images: design.images?.length ? [...design.images] : [""],
+    images: design.images?.length
+      ? [...design.images].filter(Boolean).slice(0, 5)
+      : [""],
     category: design.category ?? "",
     categoryAr: design.categoryAr ?? "",
     material: design.material ?? "",

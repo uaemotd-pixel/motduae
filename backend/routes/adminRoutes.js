@@ -1080,6 +1080,7 @@ adminRouter.post(
       tailorName,
       tailorNameAr,
       metersPerFabric,
+      fabricWidth,
       fabricPriceAED,
       mukhawarPriceAED,
       finalSellingPriceAED,
@@ -1109,6 +1110,11 @@ adminRouter.post(
       });
       return;
     }
+
+    const normalizedFabricWidth =
+      fabricWidth === "double" || fabricWidth === "single"
+        ? fabricWidth
+        : "single";
 
     const pickupAddress = parseReadyMadePickup(req.body.pickupAddress);
     if (!pickupAddress) {
@@ -1148,6 +1154,7 @@ adminRouter.post(
       tailorName: tailorName || "",
       tailorNameAr: tailorNameAr || "",
       metersPerFabric,
+      fabricWidth: normalizedFabricWidth,
       fabricPriceAED,
       mukhawarPriceAED,
       finalSellingPriceAED,
@@ -1249,6 +1256,18 @@ adminRouter.put(
     // --- Measurements & Pricing ---
     product.metersPerFabric =
       req.body.metersPerFabric ?? product.metersPerFabric;
+    if (req.body.fabricWidth !== undefined) {
+      if (
+        req.body.fabricWidth !== "single" &&
+        req.body.fabricWidth !== "double"
+      ) {
+        res.status(400).send({
+          message: 'Fabric width must be "single" or "double"',
+        });
+        return;
+      }
+      product.fabricWidth = req.body.fabricWidth;
+    }
     product.fabricPriceAED = req.body.fabricPriceAED ?? product.fabricPriceAED;
     product.mukhawarPriceAED =
       req.body.mukhawarPriceAED ?? product.mukhawarPriceAED;
@@ -2018,6 +2037,10 @@ adminRouter.post(
     const createdFabric = await newFabric.save();
 
     if (Array.isArray(req.body.variants)) {
+      const usedCodes = new Set(
+        codeCheck.code ? [codeCheck.code.toLowerCase()] : [],
+      );
+
       for (const variant of req.body.variants) {
         if (!variant.name || !variant.nameAr || !createdFabric.material)
           continue;
@@ -2029,28 +2052,46 @@ adminRouter.post(
           });
         }
 
-        const vSlug = await ensureUniqueSlug(
-          Fabric,
-          variant.slug || variant.name,
-          { fallback: "fabric" },
-        );
+        const variantCodeCheck = await assertFabricCodeAvailable(variant.code);
+        if (!variantCodeCheck.ok) {
+          return res.status(400).send({
+            message: `Variant "${variant.name}": ${variantCodeCheck.message}`,
+          });
+        }
+        if (variantCodeCheck.code) {
+          const key = variantCodeCheck.code.toLowerCase();
+          if (usedCodes.has(key)) {
+            return res.status(400).send({
+              message: `Variant "${variant.name}": Fabric code already exists`,
+            });
+          }
+          usedCodes.add(key);
+        }
+
+        const vSlug = await ensureUniqueSlug(Fabric, variant.name, {
+          fallback: "fabric",
+        });
 
         await Fabric.create({
           name: variant.name,
           nameAr: variant.nameAr,
+          code: variantCodeCheck.code,
           slug: vSlug,
           description: variant.description || createdFabric.description,
           descriptionAr: variant.descriptionAr || createdFabric.descriptionAr,
           images: variant.images,
           material: createdFabric.material,
           materialAr: createdFabric.materialAr || "",
-          category: variant.category || createdFabric.category || "",
-          categoryAr: variant.categoryAr || createdFabric.categoryAr || "",
-          pattern: variant.pattern || createdFabric.pattern || "",
-          patternAr: variant.patternAr || createdFabric.patternAr || "",
-          season: variant.season || createdFabric.season || "",
-          seasonAr: variant.seasonAr || createdFabric.seasonAr || "",
-          colors: variant.colors || [],
+          category: createdFabric.category || "",
+          categoryAr: createdFabric.categoryAr || "",
+          pattern: createdFabric.pattern || "",
+          patternAr: createdFabric.patternAr || "",
+          season: createdFabric.season || "",
+          seasonAr: createdFabric.seasonAr || "",
+          colors:
+            Array.isArray(variant.colors) && variant.colors.length > 0
+              ? variant.colors
+              : createdFabric.colors || [],
           tag: variant.tag || "",
           tagAr: variant.tagAr || "",
           cuts: variantCutsResult.cuts,
@@ -2182,6 +2223,9 @@ adminRouter.put(
 
     if (Array.isArray(req.body.variants)) {
       const incomingIds = [];
+      const parentCode = String(updatedFabric.code || "").trim().toLowerCase();
+      const usedCodes = new Set(parentCode ? [parentCode] : []);
+
       for (const variant of req.body.variants) {
         if (variant._id) {
           incomingIds.push(variant._id.toString());
@@ -2190,6 +2234,7 @@ adminRouter.put(
             isVariantOf: updatedFabric._id,
           });
           if (existing) {
+            const previousName = existing.name;
             if (variant.name) existing.name = variant.name;
             if (variant.nameAr) existing.nameAr = variant.nameAr;
             if (variant.description !== undefined)
@@ -2199,19 +2244,18 @@ adminRouter.put(
             if (variant.images) existing.images = variant.images;
             existing.material = updatedFabric.material;
             existing.materialAr = updatedFabric.materialAr || "";
-            if (variant.category !== undefined)
-              existing.category = variant.category || "";
-            if (variant.categoryAr !== undefined)
-              existing.categoryAr = variant.categoryAr || "";
-            if (variant.pattern !== undefined)
-              existing.pattern = variant.pattern || "";
-            if (variant.patternAr !== undefined)
-              existing.patternAr = variant.patternAr || "";
-            if (variant.season !== undefined)
-              existing.season = variant.season || "";
-            if (variant.seasonAr !== undefined)
-              existing.seasonAr = variant.seasonAr || "";
-            if (variant.colors) existing.colors = variant.colors;
+            // Inherit catalog attrs from parent — not edited per variant
+            existing.category = updatedFabric.category || "";
+            existing.categoryAr = updatedFabric.categoryAr || "";
+            existing.pattern = updatedFabric.pattern || "";
+            existing.patternAr = updatedFabric.patternAr || "";
+            existing.season = updatedFabric.season || "";
+            existing.seasonAr = updatedFabric.seasonAr || "";
+            if (Array.isArray(variant.colors) && variant.colors.length > 0) {
+              existing.colors = variant.colors;
+            } else {
+              existing.colors = updatedFabric.colors || [];
+            }
             if (variant.tag !== undefined) existing.tag = variant.tag;
             if (variant.tagAr !== undefined) existing.tagAr = variant.tagAr;
             if (variant.cuts !== undefined) {
@@ -2228,10 +2272,34 @@ adminRouter.put(
             if (variant.isActive !== undefined)
               existing.isActive = variant.isActive;
 
+            if (variant.code !== undefined) {
+              const variantCodeCheck = await assertFabricCodeAvailable(
+                variant.code,
+                { excludeId: existing._id },
+              );
+              if (!variantCodeCheck.ok) {
+                return res.status(400).send({
+                  message: `Variant "${variant.name || existing.name}": ${variantCodeCheck.message}`,
+                });
+              }
+              if (variantCodeCheck.code) {
+                const key = variantCodeCheck.code.toLowerCase();
+                if (usedCodes.has(key)) {
+                  return res.status(400).send({
+                    message: `Variant "${variant.name || existing.name}": Fabric code already exists`,
+                  });
+                }
+                usedCodes.add(key);
+              }
+              existing.code = variantCodeCheck.code;
+            } else if (existing.code) {
+              usedCodes.add(String(existing.code).trim().toLowerCase());
+            }
+
             existing.listedByStore = updatedFabric.listedByStore;
             existing.storePickupAddress = updatedFabric.storePickupAddress;
-            if (variant.slug && variant.slug !== existing.slug) {
-              existing.slug = await ensureUniqueSlug(Fabric, variant.slug, {
+            if (variant.name && variant.name !== previousName) {
+              existing.slug = await ensureUniqueSlug(Fabric, variant.name, {
                 excludeId: existing._id,
                 fallback: "fabric",
               });
@@ -2250,28 +2318,46 @@ adminRouter.put(
             });
           }
 
-          const vSlug = await ensureUniqueSlug(
-            Fabric,
-            variant.slug || variant.name,
-            { fallback: "fabric" },
-          );
+          const variantCodeCheck = await assertFabricCodeAvailable(variant.code);
+          if (!variantCodeCheck.ok) {
+            return res.status(400).send({
+              message: `Variant "${variant.name}": ${variantCodeCheck.message}`,
+            });
+          }
+          if (variantCodeCheck.code) {
+            const key = variantCodeCheck.code.toLowerCase();
+            if (usedCodes.has(key)) {
+              return res.status(400).send({
+                message: `Variant "${variant.name}": Fabric code already exists`,
+              });
+            }
+            usedCodes.add(key);
+          }
+
+          const vSlug = await ensureUniqueSlug(Fabric, variant.name, {
+            fallback: "fabric",
+          });
 
           const newV = await Fabric.create({
             name: variant.name,
             nameAr: variant.nameAr,
+            code: variantCodeCheck.code,
             slug: vSlug,
             description: variant.description || updatedFabric.description,
             descriptionAr: variant.descriptionAr || updatedFabric.descriptionAr,
             images: variant.images,
             material: updatedFabric.material,
             materialAr: updatedFabric.materialAr || "",
-            category: variant.category || updatedFabric.category || "",
-            categoryAr: variant.categoryAr || updatedFabric.categoryAr || "",
-            pattern: variant.pattern || updatedFabric.pattern || "",
-            patternAr: variant.patternAr || updatedFabric.patternAr || "",
-            season: variant.season || updatedFabric.season || "",
-            seasonAr: variant.seasonAr || updatedFabric.seasonAr || "",
-            colors: variant.colors || [],
+            category: updatedFabric.category || "",
+            categoryAr: updatedFabric.categoryAr || "",
+            pattern: updatedFabric.pattern || "",
+            patternAr: updatedFabric.patternAr || "",
+            season: updatedFabric.season || "",
+            seasonAr: updatedFabric.seasonAr || "",
+            colors:
+              Array.isArray(variant.colors) && variant.colors.length > 0
+                ? variant.colors
+                : updatedFabric.colors || [],
             tag: variant.tag || "",
             tagAr: variant.tagAr || "",
             cuts: variantCutsResult.cuts,
