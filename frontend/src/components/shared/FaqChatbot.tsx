@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 import { useParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -477,6 +484,11 @@ export default function FaqChatbot() {
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const awaitingNameRef = useRef(false);
   const greetingStartedRef = useRef(false);
+  /** Mobile soft-keyboard: keep the fixed panel inside the visual viewport. */
+  const [mobileViewportStyle, setMobileViewportStyle] = useState<
+    CSSProperties | undefined
+  >(undefined);
+  const syncMobileViewportRef = useRef<(() => void) | null>(null);
 
   const displayName = (() => {
     if (isAuthenticated && user && !user.isGuest && user.name?.trim()) {
@@ -793,6 +805,70 @@ export default function FaqChatbot() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  // When the mobile keypad opens, `100dvh` / fixed `bottom` still refer to the
+  // layout viewport, so the panel sits under the keyboard and feels stuck.
+  // Pin height + bottom to `visualViewport` on small screens only.
+  useEffect(() => {
+    if (!open) {
+      setMobileViewportStyle(undefined);
+      syncMobileViewportRef.current = null;
+      return;
+    }
+
+    const mobileQuery = window.matchMedia("(max-width: 639px)");
+    let raf = 0;
+
+    const syncViewport = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (!mobileQuery.matches) {
+          setMobileViewportStyle(undefined);
+          return;
+        }
+
+        const vv = window.visualViewport;
+        const viewportHeight = vv?.height ?? window.innerHeight;
+        const offsetTop = vv?.offsetTop ?? 0;
+        const keyboardOverlap = Math.max(
+          0,
+          window.innerHeight - viewportHeight - offsetTop,
+        );
+        const margin = 12;
+        const available = Math.max(220, Math.floor(viewportHeight - margin * 2));
+
+        setMobileViewportStyle({
+          height: `${available}px`,
+          maxHeight: `${available}px`,
+          bottom: `${keyboardOverlap + margin}px`,
+          top: "auto",
+        });
+      });
+    };
+
+    syncMobileViewportRef.current = syncViewport;
+    syncViewport();
+
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", syncViewport);
+    vv?.addEventListener("scroll", syncViewport);
+    window.addEventListener("resize", syncViewport);
+    mobileQuery.addEventListener("change", syncViewport);
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      cancelAnimationFrame(raf);
+      syncMobileViewportRef.current = null;
+      vv?.removeEventListener("resize", syncViewport);
+      vv?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      mobileQuery.removeEventListener("change", syncViewport);
+      document.body.style.overflow = previousOverflow;
+      setMobileViewportStyle(undefined);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -1647,6 +1723,7 @@ export default function FaqChatbot() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 18, scale: 0.97 }}
               transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              style={mobileViewportStyle}
               className="fixed z-50 flex min-h-0 max-w-[100vw] flex-col overflow-hidden overflow-x-hidden rounded-2xl border border-white/10 bg-[#FFFDF9] shadow-[0_24px_80px_rgba(0,0,0,0.28)] outline-none bottom-[max(0.75rem,var(--safe-bottom))] start-[max(0.75rem,var(--safe-left))] end-[max(0.75rem,var(--safe-right))] w-auto h-[min(88dvh,42rem)] max-h-[calc(100dvh-1.5rem-var(--safe-top)-var(--safe-bottom))] sm:start-auto sm:bottom-[max(1.25rem,var(--safe-bottom))] sm:end-[max(1.25rem,var(--safe-right))] sm:w-[min(100vw-2.5rem,26rem)] sm:max-w-[26rem] sm:h-[min(84dvh,44rem)] md:bottom-[max(1.5rem,var(--safe-bottom))] md:end-[max(1.5rem,var(--safe-right))] md:w-[28rem] md:max-w-[28rem] md:h-[min(82dvh,46rem)]"
             >
               {/* Header with in-panel close */}
@@ -2502,6 +2579,17 @@ export default function FaqChatbot() {
                     aria-label={awaitingName ? copy.namePlaceholder : copy.placeholder}
                     enterKeyHint="send"
                     autoComplete={awaitingName ? "given-name" : "off"}
+                    onFocus={() => {
+                      // iOS often finishes keyboard animation after focus; re-sync
+                      // and keep the composer visible above the keypad.
+                      window.setTimeout(() => {
+                        syncMobileViewportRef.current?.();
+                        threadRef.current?.scrollTo({
+                          top: threadRef.current.scrollHeight,
+                          behavior: "smooth",
+                        });
+                      }, 350);
+                    }}
                     className="min-w-0 w-full flex-1 bg-transparent py-2 sm:py-1.5 [font-family:var(--font-body)] text-[16px] sm:text-[13px] text-black outline-none placeholder:text-[#8A8A80] disabled:opacity-60"
                   />
                   <motion.button

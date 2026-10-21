@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { LowStockBadge } from "@/components/shared/LowStockBadge";
+import FormattedDescription from "@/components/shared/FormattedDescription";
 import { resolveMediaUrl } from "@/lib/media";
 import { formatPhoneDisplay } from "@/lib/uaePhone";
 import { isLowStockQty } from "@/lib/lowStock";
@@ -83,6 +84,7 @@ interface ReadyMadeProductDetails {
     emirate?: string;
   };
   metersPerFabric?: number;
+  fabricWidth?: "single" | "double";
   fabricPriceAED?: number;
   mukhawarPriceAED?: number;
   finalSellingPriceAED?: number;
@@ -434,7 +436,7 @@ export default function AdminReadyMadeDetailsPage() {
                   </span>
                 </div>
                 {product.metersPerFabric && product.metersPerFabric > 0 ? (
-                  <div className="flex justify-between items-center text-sm py-1">
+                  <div className="flex justify-between items-center text-sm py-1 border-b border-gray-50">
                     <span className="text-gray-500 text-xs">
                       {isAr ? "استهلاك القماش" : "Fabric Required"}:
                     </span>
@@ -443,6 +445,20 @@ export default function AdminReadyMadeDetailsPage() {
                     </span>
                   </div>
                 ) : null}
+                <div className="flex justify-between items-center text-sm py-1">
+                  <span className="text-gray-500 text-xs">
+                    {isAr ? "عرض القماش" : "Fabric Width"}:
+                  </span>
+                  <span className="font-mono font-medium text-black">
+                    {product.fabricWidth === "double"
+                      ? isAr
+                        ? "عرض مزدوج"
+                        : "Double width"
+                      : isAr
+                        ? "عرض مفرد"
+                        : "Single width"}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -592,9 +608,12 @@ export default function AdminReadyMadeDetailsPage() {
                     <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400">
                       Description (EN)
                     </p>
-                    <p className="text-sm text-gray-700 mt-1 leading-relaxed whitespace-pre-line">
-                      {product.description}
-                    </p>
+                    <div className="mt-1">
+                      <FormattedDescription
+                        text={product.description}
+                        className="text-sm text-gray-700"
+                      />
+                    </div>
                   </div>
                 )}
                 {product.descriptionAr && (
@@ -602,9 +621,12 @@ export default function AdminReadyMadeDetailsPage() {
                     <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400 text-left">
                       الوصف (العربية)
                     </p>
-                    <p className="text-sm text-gray-700 mt-1 leading-relaxed whitespace-pre-line dir-rtl">
-                      {product.descriptionAr}
-                    </p>
+                    <div className="mt-1" dir="rtl">
+                      <FormattedDescription
+                        text={product.descriptionAr}
+                        className="text-sm text-gray-700"
+                      />
+                    </div>
                   </div>
                 )}
               </div>

@@ -5,10 +5,14 @@ import { useParams } from "next/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
-import ImageUpload from "@/components/admin/ImageUpload";
+import FabricImageUpload from "@/components/admin/FabricImageUpload";
 import toast from "react-hot-toast";
 import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddressFields";
-import { pickupAddressErrors } from "@/lib/readyMadeAdmin";
+import {
+  mergeReadyMadeImages,
+  pickupAddressErrors,
+  splitReadyMadeImages,
+} from "@/lib/readyMadeAdmin";
 import {
   emptyShopPickupAddress,
   normalizeShopPickupAddress,
@@ -18,11 +22,13 @@ import {
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
 import colors from "@/components/shared/colors";
+import RichTextEditor from "@/components/shared/RichTextEditor";
 import CommissionFinalPriceField, {
   useFabricStoreCommission,
 } from "@/components/partner/CommissionFinalPriceField";
 
 const COLOR_OPTIONS = colors;
+const ADDON_UPLOAD = "/api/admin/uploads/addons";
 
 interface AddOnFormData {
   name: string;
@@ -218,12 +224,22 @@ export default function AdminEditAddOnPage() {
           `/api/admin/addons/${id}`,
         );
         if (data) {
-          const gallery =
-            Array.isArray(data.images) && data.images.length > 0
-              ? [...(data.images as string[])]
-              : typeof data.thumbnailImage === "string" && data.thumbnailImage
-                ? [data.thumbnailImage]
-                : [""];
+          const thumbnailImage =
+            typeof data.thumbnailImage === "string" ? data.thumbnailImage : "";
+          const rawImages = Array.isArray(data.images)
+            ? (data.images as unknown[]).filter(
+                (img): img is string =>
+                  typeof img === "string" && Boolean(img.trim()),
+              )
+            : [];
+          const gallery = thumbnailImage
+            ? [
+                thumbnailImage,
+                ...rawImages.filter((img) => img !== thumbnailImage),
+              ].slice(0, 5)
+            : rawImages.length > 0
+              ? rawImages.slice(0, 5)
+              : [""];
 
           setFormData({
             name: (data.name as string) || "",
@@ -326,25 +342,6 @@ export default function AdminEditAddOnPage() {
     }
   };
 
-  const handleImageChange = (index: number, url: string) => {
-    const newImages = [...formData.images];
-    newImages[index] = url;
-    handleChange("images", newImages);
-  };
-
-  const addImageField = () => {
-    if (formData.images.length < 5) {
-      handleChange("images", [...formData.images, ""]);
-    }
-  };
-
-  const removeImageField = (index: number) => {
-    handleChange(
-      "images",
-      formData.images.filter((_, i) => i !== index),
-    );
-  };
-
   const toggleColor = (colorValue: string) => {
     const current = formData.colors;
     const updated = current.includes(colorValue)
@@ -361,12 +358,13 @@ export default function AdminEditAddOnPage() {
       return;
     }
 
+    const { thumbnail } = splitReadyMadeImages(formData.images);
     const cleanImages = formData.images.filter((img) => img.trim() !== "");
-    if (cleanImages.length === 0) {
-      toast.error("At least one image is required");
+    if (!thumbnail.trim()) {
+      toast.error("Main / thumbnail image is required");
       setFieldErrors((prev) => ({
         ...prev,
-        images: "At least one image is required",
+        images: "Main / thumbnail image is required",
       }));
       return;
     }
@@ -425,6 +423,7 @@ export default function AdminEditAddOnPage() {
         ...formData,
         price: Number(formData.price),
         stock: Number(formData.stock),
+        thumbnailImage: thumbnail,
         images: cleanImages,
         fabricShopId: formData.fabricShopId || null,
       };
@@ -554,12 +553,11 @@ export default function AdminEditAddOnPage() {
             name="description"
             error={fieldErrors.description}
           >
-            <input
-              type="text"
+            <RichTextEditor
               value={formData.description}
-              onChange={(e) => handleChange("description", e.target.value)}
-              className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
-              placeholder="Describe the addon material, styling, etc..."
+              onChange={(html) => handleChange("description", html)}
+              placeholder="Write description (EN)…"
+              dir="ltr"
             />
           </FormField>
 
@@ -568,12 +566,11 @@ export default function AdminEditAddOnPage() {
             name="descriptionAr"
             error={fieldErrors.descriptionAr}
           >
-            <input
-              type="text"
+            <RichTextEditor
               value={formData.descriptionAr}
-              onChange={(e) => handleChange("descriptionAr", e.target.value)}
-              className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none text-right hover:cursor-text text-xs sm:text-sm"
-              placeholder="اكتب وصفاً للمنتج..."
+              onChange={(html) => handleChange("descriptionAr", html)}
+              placeholder="اكتب الوصف…"
+              dir="rtl"
             />
           </FormField>
 
@@ -1109,48 +1106,57 @@ export default function AdminEditAddOnPage() {
             />
           </div>
 
-          <div className="md:col-span-2">
-            <div className="mb-2 flex justify-between items-center">
-              <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
-                Images (max 5) *
-              </span>
-              {formData.images.length < 5 && (
-                <button
-                  type="button"
-                  onClick={addImageField}
-                  className="text-[10px] sm:text-xs text-black underline hover:cursor-pointer"
-                >
-                  + Add Image
-                </button>
-              )}
-            </div>
-            {fieldErrors.images && (
-              <p className="text-red-500 text-xs sm:text-sm mb-2">
-                {fieldErrors.images}
-              </p>
-            )}
-            {formData.images.map((url, idx) => (
-              <div key={idx} className="mb-4">
-                <ImageUpload
-                  value={url}
-                  onChange={(val) => handleImageChange(idx, val)}
-                  chooseFileLabel="Upload Image"
-                  uploadingLabel="Uploading..."
-                  uploadFailedLabel="Upload failed"
-                  removeLabel="Remove"
-                  uploadEndpoint="/api/admin/uploads/addons"
-                />
-                {formData.images.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeImageField(idx)}
-                    className="text-[10px] sm:text-xs text-red-500 mt-1 hover:cursor-pointer"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            ))}
+          <div className="md:col-span-2 space-y-6">
+            {(() => {
+              const { thumbnail, gallery } = splitReadyMadeImages(
+                formData.images,
+              );
+              return (
+                <>
+                  <div>
+                    <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em] block mb-2">
+                      Main / Thumbnail Image *
+                    </span>
+                    <FabricImageUpload
+                      value={thumbnail}
+                      uploadEndpoint={ADDON_UPLOAD}
+                      onChange={(val) =>
+                        handleChange(
+                          "images",
+                          mergeReadyMadeImages(val, gallery),
+                        )
+                      }
+                      chooseFileLabel="Upload Thumbnail"
+                      uploadingLabel="Uploading..."
+                      uploadFailedLabel="Upload failed"
+                      removeLabel="Remove"
+                      error={fieldErrors.images}
+                    />
+                  </div>
+                  <div>
+                    <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em] block mb-2">
+                      Gallery Images (max 4)
+                    </span>
+                    <FabricImageUpload
+                      multiple
+                      values={gallery}
+                      maxFiles={4}
+                      uploadEndpoint={ADDON_UPLOAD}
+                      onValuesChange={(nextGallery) =>
+                        handleChange(
+                          "images",
+                          mergeReadyMadeImages(thumbnail, nextGallery),
+                        )
+                      }
+                      chooseFileLabel="Upload Gallery Images"
+                      uploadingLabel="Uploading..."
+                      uploadFailedLabel="Upload failed"
+                      removeLabel="Remove"
+                    />
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 

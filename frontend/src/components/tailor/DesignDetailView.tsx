@@ -11,6 +11,7 @@ import {
 } from "@/lib/tailors";
 import { ImageModal } from "@/components/shared/ImageModal";
 import ZoomImageEffect from "@/components/shared/ZoomImageEffect";
+import FormattedDescription from "@/components/shared/FormattedDescription";
 import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import { useWishlist } from "@/context/WishlistContext";
 import { useCustomOrder } from "@/context/CustomOrderContext";
@@ -566,9 +567,10 @@ export default function DesignDetailView({
                   <span className="[font-family:var(--font-ui)] text-[10px] xs:text-[11px] uppercase tracking-[0.24em] text-(--color-grey-muted) block mb-2">
                     {isAr ? "الوصف" : "Description"}
                   </span>
-                  <p className="[font-family:var(--font-body)] text-[14px] text-justify xs:text-[15px] sm:text-[16px] leading-relaxed text-(--color-grey-muted)">
-                    {description}
-                  </p>
+                  <FormattedDescription
+                    text={description}
+                    className="text-[14px] xs:text-[15px] sm:text-[16px] text-(--color-grey-muted)"
+                  />
                 </div>
               )}
 
