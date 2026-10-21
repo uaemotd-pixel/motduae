@@ -20,6 +20,7 @@ import { Share2, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react"
 import FadeInSection from "@/components/shared/fadeInSection";
 import CatalogFilterSidebar from "@/components/shared/CatalogFilterSidebar";
 import WishlistButton from "@/components/shared/wishlistButton";
+import { stripDescriptionText } from "@/components/shared/FormattedDescription";
 import colors from "../shared/colors";
 import { ProductGridSkeleton } from "@/components/ui/Skeleton";
 import { Tag } from "@/components/ui/Tag";
@@ -1658,7 +1659,12 @@ export default function FabricsCatalogPage() {
                           </p>
 
                           <p className="hidden sm:block [font-family:var(--font-body)] text-[11px] md:text-[12px] lg:text-[13px] leading-relaxed text-[#8A8A80] line-clamp-2 font-normal grow text-justify">
-                            {description.slice(0,80)}...
+                            {(() => {
+                              const plain = stripDescriptionText(description);
+                              return plain.length > 80
+                                ? `${plain.slice(0, 80)}...`
+                                : plain;
+                            })()}
                           </p>
                         </div>
                       </div>

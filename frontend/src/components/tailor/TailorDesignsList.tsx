@@ -23,6 +23,7 @@ import {
 import { useParams } from "next/navigation";
 import { ImageModal } from "../shared/ImageModal";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
+import { stripDescriptionText } from "@/components/shared/FormattedDescription";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Tag } from "@/components/ui/Tag";
 
@@ -274,9 +275,11 @@ export default function TailorDesignsList() {
                         )}
                       </p>
                       <p className="hidden sm:block [font-family:var(--font-body)] text-[13px] text-(--color-grey-muted) line-clamp-2 mt-1.5">
-                        {locale === "ar"
-                          ? design.descriptionAr || design.description
-                          : design.description}
+                        {stripDescriptionText(
+                          locale === "ar"
+                            ? design.descriptionAr || design.description
+                            : design.description,
+                        )}
                       </p>
                     </div>
                   </div>

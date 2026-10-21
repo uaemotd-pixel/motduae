@@ -4,11 +4,13 @@ import { useEffect, useRef, useState, FormEvent, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
-import ImageUpload from "@/components/admin/ImageUpload";
+import FabricImageUpload from "@/components/admin/FabricImageUpload";
 import { getTranslation } from "@/lib/getTranslation";
 import {
   defaultReadyMadeForm,
+  mergeReadyMadeImages,
   pickupAddressErrors,
+  splitReadyMadeImages,
   toApiPayload,
   type ReadyMadeFormData,
 } from "@/lib/readyMadeAdmin";
@@ -16,6 +18,7 @@ import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddr
 import toast from "react-hot-toast";
 import colors from "@/components/shared/colors";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
+import RichTextEditor from "@/components/shared/RichTextEditor";
 import CommissionFinalPriceField, {
   useFabricStoreCommission,
 } from "@/components/partner/CommissionFinalPriceField";
@@ -237,23 +240,6 @@ export default function NewReadyMadePage() {
     return value === 0 ? "" : String(value);
   };
 
-  const addImage = () => {
-    if (formData.images.length < 5) {
-      handleChange("images", [...formData.images, ""]);
-    }
-  };
-
-  const removeImage = (index: number) => {
-    const newImages = formData.images.filter((_, i) => i !== index);
-    handleChange("images", newImages);
-  };
-
-  const handleImageChange = (index: number, url: string) => {
-    const newImages = [...formData.images];
-    newImages[index] = url;
-    handleChange("images", newImages);
-  };
-
   const toggleColor = (colorValue: string) => {
     const current = formData.colors;
     const index = current.indexOf(colorValue);
@@ -269,8 +255,10 @@ export default function NewReadyMadePage() {
 
     if (!formData.name.trim()) errors.name = "Name required";
 
-    const hasImage = formData.images.some((img) => img.trim() !== "");
-    if (!hasImage) errors.images = "At least one image is required";
+    const thumbnail = (formData.images[0] || "").trim();
+    if (!thumbnail) {
+      errors.images = "Main / thumbnail image is required";
+    }
 
     if (formData.fabricId && formData.metersPerFabric <= 0)
       errors.metersPerFabric = "Meters must be greater than 0";
@@ -322,10 +310,10 @@ export default function NewReadyMadePage() {
 
     setLoading(true);
 
-    const firstImage = formData.images.find((img) => img.trim() !== "") || "";
+    const { thumbnail } = splitReadyMadeImages(formData.images);
     const payload = toApiPayload({
       ...formData,
-      thumbnailImage: firstImage,
+      thumbnailImage: thumbnail,
     });
 
     try {
@@ -411,35 +399,21 @@ export default function NewReadyMadePage() {
             />
           </FormField>
 
-          {/* DESCRIPTION (EN) */}
-          <FormField label="Description">
-            <textarea
-              rows={1}
+          <FormField label="Description (EN)">
+            <RichTextEditor
               value={formData.description}
-              onChange={(e) => handleChange("description", e.target.value)}
-              placeholder="Buy our Premium Mukhawar ...."
-              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-start bg-transparent resize-none overflow-hidden leading-[1.6] hover:cursor-text text-xs sm:text-sm min-h-10"
-              onInput={(e) => {
-                const target = e.target as HTMLTextAreaElement;
-                target.style.height = "auto";
-                target.style.height = target.scrollHeight + "px";
-              }}
+              onChange={(html) => handleChange("description", html)}
+              placeholder="Write description (EN)…"
+              dir="ltr"
             />
           </FormField>
 
-          {/* DESCRIPTION (AR) */}
           <FormField label="Description (AR)">
-            <textarea
-              rows={1}
+            <RichTextEditor
               value={formData.descriptionAr}
-              onChange={(e) => handleChange("descriptionAr", e.target.value)}
-              placeholder="... اشترِ مخورنا الفاخر"
-              className="w-full py-1 border-b border-gray-300 focus:border-black outline-none text-end bg-transparent resize-none overflow-hidden leading-[1.6] hover:cursor-text text-xs sm:text-sm min-h-10"
-              onInput={(e) => {
-                const target = e.target as HTMLTextAreaElement;
-                target.style.height = "auto";
-                target.style.height = target.scrollHeight + "px";
-              }}
+              onChange={(html) => handleChange("descriptionAr", html)}
+              placeholder="اكتب الوصف…"
+              dir="rtl"
             />
           </FormField>
 
@@ -1189,48 +1163,58 @@ export default function NewReadyMadePage() {
             </FormField>
           </div>
 
-          {/* IMAGES */}
-          <div className="md:col-span-2">
-            <div className="mb-2 text-[10px] sm:text-xs uppercase tracking-widest text-gray-500">
-              Images (max 5) *
-            </div>
-            {fieldErrors.images && (
-              <p className="text-red-500 text-xs sm:text-sm mb-2">
-                {fieldErrors.images}
-              </p>
-            )}
-
-            {formData.images.map((img, idx) => (
-              <div key={idx} className="mb-3">
-                <ImageUpload
-                  value={img || ""}
-                  onChange={(val) => handleImageChange(idx, val)}
-                  chooseFileLabel={`Upload Image ${idx + 1}`}
-                  uploadingLabel="Uploading..."
-                  uploadFailedLabel="Failed"
-                  removeLabel="Remove"
-                />
-                {formData.images.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeImage(idx)}
-                    className="text-[10px] sm:text-xs text-red-500 mt-1 hover:cursor-pointer"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            ))}
-
-            {formData.images.length < 5 && (
-              <button
-                type="button"
-                onClick={addImage}
-                className="text-[10px] sm:text-xs underline hover:cursor-pointer"
-              >
-                + Add Image
-              </button>
-            )}
+          <div className="md:col-span-2 space-y-6">
+            {(() => {
+              const { thumbnail, gallery } = splitReadyMadeImages(
+                formData.images,
+              );
+              const READY_MADE_UPLOAD = "/api/admin/uploads/ready-made";
+              return (
+                <>
+                  <div>
+                    <span className="mb-2 block text-[10px] sm:text-xs uppercase tracking-widest text-gray-500">
+                      Main / Thumbnail Image *
+                    </span>
+                    <FabricImageUpload
+                      value={thumbnail}
+                      uploadEndpoint={READY_MADE_UPLOAD}
+                      onChange={(val) =>
+                        handleChange(
+                          "images",
+                          mergeReadyMadeImages(val, gallery),
+                        )
+                      }
+                      chooseFileLabel="Upload Thumbnail"
+                      uploadingLabel="Uploading..."
+                      uploadFailedLabel="Upload failed"
+                      removeLabel="Remove"
+                      error={fieldErrors.images}
+                    />
+                  </div>
+                  <div>
+                    <span className="mb-2 block text-[10px] sm:text-xs uppercase tracking-widest text-gray-500">
+                      Gallery Images (max 4)
+                    </span>
+                    <FabricImageUpload
+                      multiple
+                      values={gallery}
+                      maxFiles={4}
+                      uploadEndpoint={READY_MADE_UPLOAD}
+                      onValuesChange={(nextGallery) =>
+                        handleChange(
+                          "images",
+                          mergeReadyMadeImages(thumbnail, nextGallery),
+                        )
+                      }
+                      chooseFileLabel="Upload Gallery Images"
+                      uploadingLabel="Uploading..."
+                      uploadFailedLabel="Upload failed"
+                      removeLabel="Remove"
+                    />
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 

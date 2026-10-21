@@ -28,6 +28,7 @@ import { ProductReviewCount } from "@/components/reviews/CustomerReviewsView";
 import StoreAttribution from "@/components/fabric/StoreAttribution";
 import { resolveMediaUrl } from "@/lib/media";
 import ZoomImageEffect from "../shared/ZoomImageEffect";
+import FormattedDescription from "@/components/shared/FormattedDescription";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { useCustomOrder } from "@/context/CustomOrderContext";
@@ -536,14 +537,13 @@ export default function FabricDetailView({
               </motion.div>
 
               {description && (
-                <motion.p
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.5, delay: 0.2 }}
-                  className="[font-family:var(--font-body)] text-sm sm:text-base text-[#7A7A72] leading-relaxed text-justify [text-justify:inter-word]"
                 >
-                  {description}
-                </motion.p>
+                  <FormattedDescription text={description} />
+                </motion.div>
               )}
 
               <motion.div

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { ImageModal } from "@/components/shared/ImageModal";
 import { LowStockBadge } from "@/components/shared/LowStockBadge";
+import FormattedDescription from "@/components/shared/FormattedDescription";
 import { resolveMediaUrl } from "@/lib/media";
 import { formatPhoneDisplay } from "@/lib/uaePhone";
 import { isLowStockQty } from "@/lib/lowStock";
@@ -607,9 +608,12 @@ export default function AdminReadyMadeDetailsPage() {
                     <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400">
                       Description (EN)
                     </p>
-                    <p className="text-sm text-gray-700 mt-1 leading-relaxed whitespace-pre-line">
-                      {product.description}
-                    </p>
+                    <div className="mt-1">
+                      <FormattedDescription
+                        text={product.description}
+                        className="text-sm text-gray-700"
+                      />
+                    </div>
                   </div>
                 )}
                 {product.descriptionAr && (
@@ -617,9 +621,12 @@ export default function AdminReadyMadeDetailsPage() {
                     <p className="text-[11px] font-mono uppercase tracking-wider text-gray-400 text-left">
                       الوصف (العربية)
                     </p>
-                    <p className="text-sm text-gray-700 mt-1 leading-relaxed whitespace-pre-line dir-rtl">
-                      {product.descriptionAr}
-                    </p>
+                    <div className="mt-1" dir="rtl">
+                      <FormattedDescription
+                        text={product.descriptionAr}
+                        className="text-sm text-gray-700"
+                      />
+                    </div>
                   </div>
                 )}
               </div>

@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import { Link, useRouter } from "@/i18n/navigation";
 import { buttonVariants } from "@/components/ui/Button";
 import FormField from "@/components/admin/FormField";
-import ImageUpload from "@/components/admin/ImageUpload";
+import FabricImageUpload from "@/components/admin/FabricImageUpload";
 import NumericInput from "@/components/tailor/NumericInput";
 import { api, getApiErrorMessage, type ApiError } from "@/lib/api/client";
 import { ERROR_TOAST, SUCCESS_TOAST } from "@/lib/tailorPortalToast";
@@ -22,12 +22,15 @@ import {
   fetchPlatformOrderSettings,
   fetchTailorDesign,
   isShopMissingError,
+  mergeDesignImages,
   slugifyDesignName,
+  splitDesignImages,
   updateTailorDesign,
   type DesignCategoryOption,
   type DesignFilterOption,
   type TailorDesignFormData,
 } from "@/lib/tailorDesigns";
+import RichTextEditor from "@/components/shared/RichTextEditor";
 import {
   createAdminDesign,
   fetchAdminDesign,
@@ -498,28 +501,6 @@ export default function TailorDesignForm({
   const filterLoadingText = t("filters.loading");
   const filterEmptyText = t("filters.empty");
 
-  const handleImageChange = (index: number, url: string) => {
-    if (!url.trim() && formData.images.length > 1) {
-      removeImageField(index);
-      return;
-    }
-
-    const images = [...formData.images];
-    images[index] = url;
-    handleChange("images", images);
-  };
-
-  const addImageField = () => {
-    if (formData.images.length < 5) {
-      handleChange("images", [...formData.images, ""]);
-    }
-  };
-
-  const removeImageField = (index: number) => {
-    const images = formData.images.filter((_, i) => i !== index);
-    handleChange("images", images.length ? images : [""]);
-  };
-
   const validate = (): boolean => {
     const errors: Record<string, string> = {};
 
@@ -529,7 +510,8 @@ export default function TailorDesignForm({
 
     if (!formData.name.trim()) errors.name = t("validation.nameRequired");
     if (!formData.nameAr.trim()) errors.nameAr = t("validation.nameArRequired");
-    if (!formData.images.some((image) => image.trim())) {
+    const thumbnail = (formData.images[0] || "").trim();
+    if (!thumbnail) {
       errors.images = t("validation.imagesRequired");
     }
 
@@ -776,12 +758,11 @@ export default function TailorDesignForm({
             name="description"
             error={fieldErrors.description}
           >
-            <input
-              id="description"
-              type="text"
+            <RichTextEditor
               value={formData.description}
-              onChange={(e) => handleChange("description", e.target.value)}
-              className={INPUT_CLASS}
+              onChange={(html) => handleChange("description", html)}
+              placeholder="Write description (EN)…"
+              dir="ltr"
             />
           </FormField>
 
@@ -790,13 +771,11 @@ export default function TailorDesignForm({
             name="descriptionAr"
             error={fieldErrors.descriptionAr}
           >
-            <input
-              id="descriptionAr"
-              type="text"
+            <RichTextEditor
               value={formData.descriptionAr}
-              onChange={(e) => handleChange("descriptionAr", e.target.value)}
+              onChange={(html) => handleChange("descriptionAr", html)}
+              placeholder="اكتب الوصف…"
               dir="rtl"
-              className={`${INPUT_CLASS} text-right`}
             />
           </FormField>
 
@@ -1096,48 +1075,55 @@ export default function TailorDesignForm({
             </FormField>
           </div>
 
-          <div className="md:col-span-2">
-            <div className="mb-2 flex justify-between items-center">
-              <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em]">
-                {t("sections.images")} (max 5) *
-              </span>
-              {formData.images.length < 5 && (
-                <button
-                  type="button"
-                  onClick={addImageField}
-                  className="text-[10px] sm:text-xs text-black underline hover:cursor-pointer"
-                >
-                  {t("addImage")}
-                </button>
-              )}
-            </div>
-            {fieldErrors.images && (
-              <p className="text-red-500 text-xs sm:text-sm mb-2">
-                {fieldErrors.images}
-              </p>
-            )}
-            {formData.images.map((image, index) => (
-              <div key={index} className="mb-4">
-                <ImageUpload
-                  value={image}
-                  onChange={(url) => handleImageChange(index, url)}
-                  uploadEndpoint={uploadEndpoint}
-                  chooseFileLabel={t("upload.chooseFile")}
-                  uploadingLabel={t("upload.uploading")}
-                  uploadFailedLabel={t("upload.failed")}
-                  removeLabel={t("upload.remove")}
-                />
-                {formData.images.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeImageField(index)}
-                    className="text-[10px] sm:text-xs text-red-500 mt-1 hover:cursor-pointer"
-                  >
-                    {t("removeImage")}
-                  </button>
-                )}
-              </div>
-            ))}
+          <div className="md:col-span-2 space-y-6">
+            {(() => {
+              const { thumbnail, gallery } = splitDesignImages(formData.images);
+              return (
+                <>
+                  <div>
+                    <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em] block mb-2">
+                      Main / Thumbnail Image *
+                    </span>
+                    <FabricImageUpload
+                      value={thumbnail}
+                      uploadEndpoint={uploadEndpoint}
+                      onChange={(url) =>
+                        handleChange(
+                          "images",
+                          mergeDesignImages(url, gallery),
+                        )
+                      }
+                      chooseFileLabel={t("upload.chooseFile")}
+                      uploadingLabel={t("upload.uploading")}
+                      uploadFailedLabel={t("upload.failed")}
+                      removeLabel={t("upload.remove")}
+                      error={fieldErrors.images}
+                    />
+                  </div>
+                  <div>
+                    <span className="font-ui text-[10px] sm:text-[11px] text-black/60 uppercase tracking-[0.2em] block mb-2">
+                      Gallery Images (max 4)
+                    </span>
+                    <FabricImageUpload
+                      multiple
+                      values={gallery}
+                      maxFiles={4}
+                      uploadEndpoint={uploadEndpoint}
+                      onValuesChange={(nextGallery) =>
+                        handleChange(
+                          "images",
+                          mergeDesignImages(thumbnail, nextGallery),
+                        )
+                      }
+                      chooseFileLabel="Upload Gallery Images"
+                      uploadingLabel={t("upload.uploading")}
+                      uploadFailedLabel={t("upload.failed")}
+                      removeLabel={t("upload.remove")}
+                    />
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 

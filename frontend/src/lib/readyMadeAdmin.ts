@@ -198,12 +198,41 @@ export function defaultReadyMadeForm(): ReadyMadeFormData {
   };
 }
 
+/** images[0] = main/thumbnail; images[1..] = gallery (max 4). */
+export function splitReadyMadeImages(images: string[] | undefined) {
+  const list = Array.isArray(images) ? images : [];
+  const thumbnail = list[0] || "";
+  const gallery = list.slice(1).filter((url) => Boolean(url?.trim()));
+  return { thumbnail, gallery };
+}
+
+export function mergeReadyMadeImages(thumbnail: string, gallery: string[]) {
+  return [
+    thumbnail || "",
+    ...gallery.filter((url) => Boolean(url?.trim())),
+  ].slice(0, 5);
+}
+
 export function fromApiProduct(
   product: Record<string, unknown>,
 ): ReadyMadeFormData {
-  let images: string[] = [];
-  if (Array.isArray(product.images) && product.images.length) {
-    images = product.images as string[];
+  const thumbnailImage =
+    typeof product.thumbnailImage === "string" ? product.thumbnailImage : "";
+  const rawImages = Array.isArray(product.images)
+    ? (product.images as unknown[]).filter(
+        (img): img is string => typeof img === "string" && Boolean(img.trim()),
+      )
+    : [];
+
+  // Keep thumbnail first so the form matches fabric create/edit UX
+  let images: string[];
+  if (thumbnailImage) {
+    images = [
+      thumbnailImage,
+      ...rawImages.filter((img) => img !== thumbnailImage),
+    ].slice(0, 5);
+  } else if (rawImages.length > 0) {
+    images = rawImages.slice(0, 5);
   } else {
     images = [""];
   }
@@ -235,8 +264,7 @@ export function fromApiProduct(
 
     colors: Array.isArray(product.colors) ? (product.colors as string[]) : [],
 
-    thumbnailImage:
-      typeof product.thumbnailImage === "string" ? product.thumbnailImage : "",
+    thumbnailImage: images[0] || thumbnailImage,
     images,
 
     fabricType:
@@ -318,6 +346,12 @@ export function fromApiProduct(
 }
 
 export function toApiPayload(form: ReadyMadeFormData): Record<string, unknown> {
+  const images = form.images
+    .map((img) => img.trim())
+    .filter((img) => img !== "" && !isDataUrl(img));
+  const thumbnailImage =
+    (form.thumbnailImage || "").trim() || images[0] || "";
+
   return {
     name: form.name.trim(),
     nameAr: form.nameAr.trim(),
@@ -342,9 +376,9 @@ export function toApiPayload(form: ReadyMadeFormData): Record<string, unknown> {
 
     colors: form.colors,
 
-    thumbnailImage: form.thumbnailImage,
+    thumbnailImage,
 
-    images: form.images.filter((img) => img.trim() !== ""),
+    images,
 
     fabricType: form.fabricType,
     fabricTypeAr: form.fabricTypeAr,
