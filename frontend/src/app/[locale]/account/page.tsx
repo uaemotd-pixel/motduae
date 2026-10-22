@@ -420,7 +420,7 @@ function AccountPageContent() {
                   animate="animate"
                   exit="exit"
                   transition={{ duration: 0.25 }}
-                  className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 md:p-8 shadow-sm"
+                  className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-3 xs:p-4 sm:p-5 md:p-6 lg:p-8 shadow-sm min-w-0 overflow-hidden"
                 >
                   <CustomerNotificationPage />
                 </motion.div>
@@ -434,7 +434,7 @@ function AccountPageContent() {
                   animate="animate"
                   exit="exit"
                   transition={{ duration: 0.25 }}
-                  className="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 md:p-8 shadow-sm"
+                  className="bg-white border border-gray-200 rounded-xl sm:rounded-2xl p-3 xs:p-4 sm:p-5 md:p-6 lg:p-8 shadow-sm min-w-0"
                 >
                   <MeasurementsForm />
                 </motion.div>

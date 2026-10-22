@@ -505,6 +505,9 @@ export function validateFabricForm(
   if (!form.materialAr.trim()) {
     errors.materialAr = "Material (AR) is required";
   }
+  if (!form.tag?.trim()) {
+    errors.tag = validation.tag_required || "Tag is required";
+  }
   if (!form.colors || form.colors.length === 0) {
     errors.color =
       validation.color_required || "At least one color is required";

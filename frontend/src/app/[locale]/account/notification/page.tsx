@@ -90,8 +90,8 @@ function NotificationOrderSummary({
     : null;
 
   return (
-    <div className="flex gap-3 sm:gap-4 p-3 rounded-xl bg-gray-50 border border-gray-100">
-      <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-lg overflow-hidden bg-gray-200 flex items-center justify-center relative group">
+    <div className="flex gap-2.5 sm:gap-4 p-2.5 sm:p-3 rounded-xl bg-gray-50 border border-gray-100 min-w-0">
+      <div className="w-14 h-14 sm:w-20 sm:h-20 shrink-0 rounded-lg overflow-hidden bg-gray-200 flex items-center justify-center relative group">
         {imageSrc ? (
           <>
             <Image
@@ -110,31 +110,31 @@ function NotificationOrderSummary({
               }}
               className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:cursor-pointer"
             >
-              <Maximize2 className="w-5 h-5 text-white" />
+              <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </button>
           </>
         ) : (
-          <Package className="w-6 h-6 text-gray-400" />
+          <Package className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
         )}
       </div>
-      <div className="min-w-0 flex-1 space-y-1">
+      <div className="min-w-0 flex-1 space-y-0.5 sm:space-y-1">
         {designName && (
-          <p className="text-sm font-medium text-black truncate">
+          <p className="text-xs sm:text-sm font-medium text-black break-words line-clamp-2">
             {designName}
           </p>
         )}
         {typeof summary.total === "number" && (
-          <p className="text-sm text-gray-600">
+          <p className="text-xs sm:text-sm text-gray-600 break-words">
             {t("orderTotal")}: {formatCurrency(summary.total, locale)}
           </p>
         )}
         {typeof summary.refundAmount === "number" && (
-          <p className="text-sm font-medium text-green-700">
+          <p className="text-xs sm:text-sm font-medium text-green-700 break-words">
             {t("refundAmount")}: {formatCurrency(summary.refundAmount, locale)}
           </p>
         )}
         {summary.status && (
-          <p className="font-ui text-xs uppercase tracking-wide text-gray-400">
+          <p className="font-ui text-[10px] sm:text-xs uppercase tracking-wide text-gray-400 break-words">
             {t("orderStatus")}: {summary.status.replace(/_/g, " ")}
           </p>
         )}
@@ -200,22 +200,58 @@ export default function CustomerNotificationPage() {
     getNotificationTypeLabel(type, (key) => t(`types.${key}`));
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-light text-black tracking-tight">
-            {t("title")}
-          </h1>
-          <p className="text-gray-500 text-sm mt-0.5">{t("subtitle")}</p>
+    <div className="w-full min-w-0 space-y-4 sm:space-y-5">
+      <div className="flex flex-col gap-3 sm:gap-4">
+        <div className="flex flex-col gap-3 xs:flex-row xs:items-start xs:justify-between">
+          <div className="min-w-0">
+            <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-light text-black tracking-tight">
+              {t("title")}
+            </h1>
+            <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
+              {t("subtitle")}
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between xs:justify-end gap-2 sm:gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
+              <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm tabular-nums">
+                {unreadCount}
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={markAllLoading || unreadCount === 0}
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md bg-gray-900 text-white text-[10px] sm:text-xs font-medium hover:bg-gray-800 transition disabled:opacity-50 hover:cursor-pointer whitespace-nowrap"
+              onClick={async () => {
+                setMarkAllLoading(true);
+                try {
+                  await markAllAsRead();
+                  toast.success(t("markedAllAsRead"));
+                } catch (err: unknown) {
+                  toast.error(getApiErrMessage(err, t("markAllFailed")));
+                } finally {
+                  setMarkAllLoading(false);
+                }
+              }}
+            >
+              {markAllLoading ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Check className="w-3 h-3" />
+              )}
+              {t("markAllRead")}
+            </button>
+          </div>
         </div>
 
-        <div className="flex gap-2 items-center w-full sm:w-auto">
+        <div className="flex flex-col min-[480px]:flex-row gap-2 w-full min-w-0">
           <input
             type="search"
             value={searchQuery}
             onChange={(e) => handleFilterChange(readFilter, e.target.value)}
             placeholder={t("searchPlaceholder")}
-            className="px-3 py-2 rounded-lg border border-gray-200 text-sm flex-1 min-w-0 sm:w-48"
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm w-full min-w-0 flex-1"
           />
           <select
             value={readFilter}
@@ -225,42 +261,12 @@ export default function CustomerNotificationPage() {
                 searchQuery,
               )
             }
-            className="px-3 py-2 rounded-lg border border-gray-200 text-sm shrink-0"
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm w-full min-[480px]:w-auto shrink-0"
           >
             <option value="">{t("filterAll")}</option>
             <option value="false">{t("filterUnread")}</option>
             <option value="true">{t("filterRead")}</option>
           </select>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-gray-500 shrink-0">
-            <Bell className="w-4 h-4" />
-            <span className="text-sm">{unreadCount}</span>
-          </div>
-          <button
-            type="button"
-            disabled={markAllLoading || unreadCount === 0}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-900 text-white text-[10px] sm:text-xs font-medium hover:bg-gray-800 transition disabled:opacity-50 hover:cursor-pointer shrink-0"
-            onClick={async () => {
-              setMarkAllLoading(true);
-              try {
-                await markAllAsRead();
-                toast.success(t("markedAllAsRead"));
-              } catch (err: unknown) {
-                toast.error(getApiErrMessage(err, t("markAllFailed")));
-              } finally {
-                setMarkAllLoading(false);
-              }
-            }}
-          >
-            {markAllLoading ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Check className="w-3 h-3" />
-            )}
-            {t("markAllRead")}
-          </button>
         </div>
       </div>
 
@@ -293,7 +299,7 @@ export default function CustomerNotificationPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2.5 sm:space-y-3 min-w-0">
           {sortedItems.map((n) => {
             const isProcessingMark = markingRead[n.id] || false;
             const orderHref = getOrderDetailHref({
@@ -310,28 +316,28 @@ export default function CustomerNotificationPage() {
               <div
                 key={n.id}
                 className={
-                  "w-full bg-white border border-gray-100 rounded-2xl p-4 shadow-sm transition-all hover:shadow-md " +
+                  "w-full min-w-0 overflow-hidden bg-white border border-gray-100 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm transition-all hover:shadow-md " +
                   (n.read ? "opacity-70" : "")
                 }
               >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="font-ui text-xs uppercase tracking-wider text-gray-400">
+                <div className="flex items-start justify-between gap-2 sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-ui text-[10px] sm:text-xs uppercase tracking-wider text-gray-400">
                       {typeLabel(n.type)}
                     </div>
-                    <div className="text-base font-medium text-black truncate">
+                    <div className="text-sm sm:text-base font-medium text-black break-words line-clamp-2">
                       {n.title}
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
                       {formatDate(n.createdAt)}
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     <button
                       type="button"
                       aria-label="Delete notification"
-                      className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-black transition"
+                      className="p-1.5 sm:p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-black transition hover:cursor-pointer"
                       onClick={async (e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -344,13 +350,13 @@ export default function CustomerNotificationPage() {
                         }
                       }}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
 
                     <button
                       type="button"
                       aria-label="Toggle notification details"
-                      className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-black transition"
+                      className="p-1.5 sm:p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 hover:text-black transition hover:cursor-pointer"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -359,7 +365,7 @@ export default function CustomerNotificationPage() {
                     >
                       <ChevronDown
                         className={
-                          "w-4 h-4 transition-transform " +
+                          "w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform " +
                           (expandedId === n.id ? "rotate-180" : "rotate-0")
                         }
                       />
@@ -374,9 +380,13 @@ export default function CustomerNotificationPage() {
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.3 }}
-                      className="mt-3 text-sm text-gray-700 space-y-3"
+                      className="mt-3 text-xs sm:text-sm text-gray-700 space-y-3 min-w-0 overflow-hidden"
                     >
-                      {n.message ? <p>{n.message}</p> : null}
+                      {n.message ? (
+                        <p className="break-words whitespace-pre-wrap">
+                          {n.message}
+                        </p>
+                      ) : null}
 
                       <NotificationOrderSummary
                         notification={n}
@@ -385,8 +395,8 @@ export default function CustomerNotificationPage() {
                       />
 
                       {showTimeline && n.status && (
-                        <div className="border-t border-gray-100 pt-3">
-                          <p className="font-ui text-xs uppercase tracking-wide text-gray-400 mb-3">
+                        <div className="border-t border-gray-100 pt-3 min-w-0 overflow-x-auto">
+                          <p className="font-ui text-[10px] sm:text-xs uppercase tracking-wide text-gray-400 mb-3">
                             {t("timelineTitle")}
                           </p>
                           <OrderTimeline
@@ -411,7 +421,7 @@ export default function CustomerNotificationPage() {
                           <button
                             type="button"
                             disabled={isProcessingMark}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 transition disabled:opacity-50"
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-[11px] sm:text-xs font-medium hover:bg-gray-800 transition disabled:opacity-50 hover:cursor-pointer"
                             onClick={async (e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -444,7 +454,7 @@ export default function CustomerNotificationPage() {
                         </div>
                       )}
 
-                      <div className="flex flex-wrap items-center gap-3 pt-1">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
                         {(n.orderId || n.order_id) && orderHref && (
                           <Link
                             href={orderHref}
@@ -458,7 +468,7 @@ export default function CustomerNotificationPage() {
                             href={getReviewHref(n)}
                             className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 hover:text-amber-800"
                           >
-                            <Star className="w-3.5 h-3.5" />
+                            <Star className="w-3.5 h-3.5 shrink-0" />
                             {n.type.toLowerCase() === "review_approved" ||
                             n.type.toLowerCase() === "review_rejected"
                               ? t("viewReview")

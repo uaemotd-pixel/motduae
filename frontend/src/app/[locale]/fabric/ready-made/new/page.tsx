@@ -207,6 +207,7 @@ export default function NewReadyMadePage() {
     const errors: Record<string, string> = {};
 
     if (!formData.name.trim()) errors.name = "Name required";
+    if (!formData.tag?.trim()) errors.tag = "Tag is required";
     if (!formData.fabricShopId) errors.fabricShopId = "Fabric store required";
     const thumbnail = (formData.images[0] || "").trim();
     if (!thumbnail) {
@@ -877,7 +878,7 @@ export default function NewReadyMadePage() {
               </AnimatedDropdown>
             </FormField>
 
-            <FormField label="Tag (ENG / AR)" name="tag">
+            <FormField label="Tag (ENG / AR)" name="tag" required error={fieldErrors.tag}>
               <AnimatedDropdown
                 isOpen={tagOpen}
                 onClose={() => setTagOpen(false)}

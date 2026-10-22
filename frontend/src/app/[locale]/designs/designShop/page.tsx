@@ -9,6 +9,8 @@ import {
   ChevronDown,
   ChevronUp,
   SlidersHorizontal,
+  Search,
+  X,
 } from "lucide-react";
 import MainLayout from "../../main/layout";
 import FadeInSection from "@/components/shared/fadeInSection";
@@ -411,6 +413,7 @@ export default function DesignShopCatalogPage() {
   });
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [sortBy, setSortBy] = useState("newest");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [categories, setCategories] = useState<FilterOption[]>([]);
   const [materials, setMaterials] = useState<FilterOption[]>([]);
@@ -466,6 +469,9 @@ export default function DesignShopCatalogPage() {
         if (filters.maxPrice < PRICE_MAX) {
           params.set("maxPrice", String(filters.maxPrice));
         }
+        if (searchQuery.trim()) {
+          params.set("search", searchQuery.trim());
+        }
 
         const data = await api.get<{
           success: boolean;
@@ -516,7 +522,7 @@ export default function DesignShopCatalogPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [currentPage, productsPerPage, filters, sortBy]);
+  }, [currentPage, productsPerPage, filters, sortBy, searchQuery]);
 
   // Fetch all filter data from /api/filters
   useEffect(() => {
@@ -952,14 +958,14 @@ export default function DesignShopCatalogPage() {
           className="sticky sticky-below-nav z-30 bg-white border-b border-[#E4E0D8] px-4 sm:px-8 lg:px-12"
         >
           <div className="py-4">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between flex-wrap gap-3 sm:gap-4">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5 sm:gap-3">
                 <button
                   type="button"
                   onClick={() => setMobileFiltersOpen(true)}
                   aria-expanded={mobileFiltersOpen}
                   aria-controls="design-shop-mobile-filters"
-                  className="lg:hidden group inline-flex items-center gap-2 rounded-full border border-[#E4E0D8] bg-white px-3.5 py-2 text-[10px] xs:text-[11px] tracking-[0.16em] uppercase text-black shadow-sm transition-all hover:border-black hover:bg-black hover:text-white cursor-pointer"
+                  className="lg:hidden group inline-flex shrink-0 items-center gap-2 rounded-full border border-[#E4E0D8] bg-white px-3.5 py-2 text-[10px] xs:text-[11px] tracking-[0.16em] uppercase text-black shadow-sm transition-all hover:border-black hover:bg-black hover:text-white cursor-pointer"
                 >
                   <SlidersHorizontal
                     className="size-3.5 shrink-0"
@@ -973,8 +979,49 @@ export default function DesignShopCatalogPage() {
                   )}
                 </button>
 
-                {hasActiveFilters && (
-                  <div className="flex items-center gap-2 flex-wrap">
+                <label className="group relative min-w-0 flex-1 basis-[12rem] max-w-md lg:max-w-lg">
+                  <span className="sr-only">
+                    {isAr ? "ابحث عن التصاميم" : "Search designs"}
+                  </span>
+                  <span className="pointer-events-none absolute start-3.5 top-1/2 z-[1] -translate-y-1/2 text-[#9A968C] transition-colors duration-200 group-hover:text-[#7A7A72] group-focus-within:text-black">
+                    <Search
+                      className="size-3.5"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
+                  </span>
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    placeholder={
+                      isAr
+                        ? "ابحث بالاسم، التصنيف، المادة، الموسم..."
+                        : "Search name, category, material, season..."
+                    }
+                    className="w-full rounded-full border border-[#E4E0D8] bg-[#FDFAF5] py-2.5 pe-10 ps-10 text-[12px] leading-none text-black shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] outline-none transition-all duration-200 placeholder:text-[#A8A59C] hover:border-[#C8C4BC] hover:bg-white focus:border-black focus:bg-white focus:shadow-[0_0_0_3px_rgba(0,0,0,0.05)] [font-family:var(--font-body)] [&::-webkit-search-cancel-button]:appearance-none"
+                  />
+                  {searchQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery("");
+                        setCurrentPage(1);
+                      }}
+                      aria-label={isAr ? "مسح البحث" : "Clear search"}
+                      className="absolute end-1.5 top-1/2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-[#7A7A72] transition-all duration-200 hover:cursor-pointer hover:bg-[#EDE8E0] hover:text-black"
+                    >
+                      <X className="size-3.5" strokeWidth={2} aria-hidden />
+                    </button>
+                  ) : null}
+                </label>
+              </div>
+
+              {hasActiveFilters && (
+                <div className="order-last flex w-full basis-full items-center gap-2 flex-wrap">
                     {filters.categories.map((catId) => (
                       <span
                         key={catId}
@@ -1138,12 +1185,11 @@ export default function DesignShopCatalogPage() {
                         </button>
                       </span>
                     )}
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
 
-              <div className="flex items-center justify-between gap-2 sm:gap-6 w-full sm:w-auto min-w-0">
-                <span className="text-[9px] xs:text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.18em] uppercase text-[#7A7A72] font-mono truncate">
+              <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 sm:gap-4">
+                <span className="truncate text-[9px] tracking-[0.12em] uppercase text-[#7A7A72] font-mono xs:text-[10px] sm:text-[11px] sm:tracking-[0.18em]">
                   {isAr
                     ? `عرض ${totalDesigns === 0 ? 0 : startIndex + 1}-${endIndex} من أصل ${totalDesigns} تصميم`
                     : `Showing ${totalDesigns === 0 ? 0 : startIndex + 1}-${endIndex} of ${totalDesigns} designs`}
@@ -1155,14 +1201,20 @@ export default function DesignShopCatalogPage() {
                     setSortBy(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="bg-transparent text-[9px] xs:text-[10px] sm:text-[11px] tracking-[0.12em] sm:tracking-[0.18em] uppercase font-mono focus:outline-none cursor-pointer shrink-0 max-w-[45%] sm:max-w-none"
+                  className="max-w-[45%] shrink-0 cursor-pointer bg-transparent text-[9px] tracking-[0.12em] uppercase font-mono focus:outline-none xs:text-[10px] sm:max-w-none sm:text-[11px] sm:tracking-[0.18em]"
                 >
-                  <option value="newest">{isAr ? "الأحدث" : "Newest"}</option>
+                  <option value="newest">
+                    {isAr ? "الأحدث" : "Newest"}
+                  </option>
                   <option value="price-low">
-                    {isAr ? "السعر: من الأقل إلى الأعلى" : "Price: Low to High"}
+                    {isAr
+                      ? "السعر: من الأقل إلى الأعلى"
+                      : "Price: Low to High"}
                   </option>
                   <option value="price-high">
-                    {isAr ? "السعر: من الأعلى إلى الأقل" : "Price: High to Low"}
+                    {isAr
+                      ? "السعر: من الأعلى إلى الأقل"
+                      : "Price: High to Low"}
                   </option>
                 </select>
               </div>

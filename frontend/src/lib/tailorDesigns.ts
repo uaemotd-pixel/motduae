@@ -21,6 +21,7 @@ export interface TailorDesignProfile {
   slug: string;
   name: string;
   nameAr: string;
+  code?: string;
   description: string;
   descriptionAr: string;
   images: string[];
@@ -62,6 +63,7 @@ export interface TailorDesignProfile {
 export interface TailorDesignFormData {
   name: string;
   nameAr: string;
+  code: string;
   slug: string;
   description: string;
   descriptionAr: string;
@@ -145,6 +147,7 @@ export function emptyTailorDesignForm(
   return {
     name: "",
     nameAr: "",
+    code: "",
     slug: "",
     description: "",
     descriptionAr: "",
@@ -196,6 +199,7 @@ export function designToForm(
   return {
     name: design.name ?? "",
     nameAr: design.nameAr ?? "",
+    code: design.code ?? "",
     slug: design.slug ?? "",
     description: design.description ?? "",
     descriptionAr: design.descriptionAr ?? "",
@@ -239,6 +243,7 @@ export function toTailorDesignPayload(
   return {
     name,
     nameAr: form.nameAr.trim(),
+    code: form.code?.trim() || "",
     slug: slugifyDesignName(name),
     description: form.description.trim(),
     descriptionAr: form.descriptionAr.trim(),

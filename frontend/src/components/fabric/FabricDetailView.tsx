@@ -23,7 +23,13 @@ import {
   parseFabricCutCartId,
 } from "@/lib/fabrics";
 import { saveMultiBuyNowCheckout, saveSingleBuyNowCheckout } from "@/lib/buyNowCheckout";
-import { Share2, ArrowUpRight, Heart } from "lucide-react";
+import {
+  Share2,
+  ArrowUpRight,
+  Heart,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { ProductReviewCount } from "@/components/reviews/CustomerReviewsView";
 import StoreAttribution from "@/components/fabric/StoreAttribution";
 import { resolveMediaUrl } from "@/lib/media";
@@ -411,6 +417,44 @@ export default function FabricDetailView({
                   lensSize={185}
                   zoomLevel={4.5}
                 />
+                {images.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label={
+                        locale === "ar" ? "الصورة السابقة" : "Previous image"
+                      }
+                      onClick={() =>
+                        setActiveImage(
+                          (i) => (i - 1 + images.length) % images.length,
+                        )
+                      }
+                      className="absolute start-2.5 top-1/2 z-20 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-[#E5E5E0] bg-white/95 text-black shadow-md backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:border-black hover:bg-black hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20 cursor-pointer sm:start-3 sm:size-10"
+                    >
+                      {locale === "ar" ? (
+                        <ChevronRight className="size-4" strokeWidth={1.75} />
+                      ) : (
+                        <ChevronLeft className="size-4" strokeWidth={1.75} />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={
+                        locale === "ar" ? "الصورة التالية" : "Next image"
+                      }
+                      onClick={() =>
+                        setActiveImage((i) => (i + 1) % images.length)
+                      }
+                      className="absolute end-2.5 top-1/2 z-20 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-[#E5E5E0] bg-white/95 text-black shadow-md backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:border-black hover:bg-black hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20 cursor-pointer sm:end-3 sm:size-10"
+                    >
+                      {locale === "ar" ? (
+                        <ChevronLeft className="size-4" strokeWidth={1.75} />
+                      ) : (
+                        <ChevronRight className="size-4" strokeWidth={1.75} />
+                      )}
+                    </button>
+                  </>
+                )}
               </motion.div>
 
               {images.length > 1 && (

@@ -7,6 +7,7 @@ import { respondIfShopNotReady } from "../utils/shopReady.js";
 import {
   applyCreateDefaults,
   applyMinCutToDesignData,
+  assertDesignCodeAvailable,
   assignUniqueDesignSlug,
   cleanupAllDesignImages,
   cleanupRemovedDesignImages,
@@ -138,6 +139,16 @@ tailorDesignRouter.post(
       return;
     }
 
+    const codeCheck = await assertDesignCodeAvailable(data.code);
+    if (!codeCheck.ok) {
+      res.status(400).json({
+        success: false,
+        message: codeCheck.message,
+      });
+      return;
+    }
+    data.code = codeCheck.code;
+
     await assignUniqueDesignSlug(data, shop._id);
 
     const design = await Design.create({
@@ -201,6 +212,20 @@ tailorDesignRouter.put(
         });
         return;
       }
+    }
+
+    if (data.code !== undefined) {
+      const codeCheck = await assertDesignCodeAvailable(data.code, {
+        excludeId: design._id,
+      });
+      if (!codeCheck.ok) {
+        res.status(400).json({
+          success: false,
+          message: codeCheck.message,
+        });
+        return;
+      }
+      data.code = codeCheck.code;
     }
 
     if (data.slug && data.slug !== design.slug) {

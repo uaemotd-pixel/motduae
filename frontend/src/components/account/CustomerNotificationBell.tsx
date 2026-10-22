@@ -54,7 +54,7 @@ export default function CustomerNotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 transition items-center justify-center relative"
+        className="hidden lg:flex p-1.5 lg:p-2 hover:opacity-50 hover:cursor-pointer transition items-center justify-center relative"
         aria-label={t("bellLabel")}
       >
         <div className="relative">

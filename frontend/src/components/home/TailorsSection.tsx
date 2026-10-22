@@ -310,9 +310,6 @@ export function TailorsSection() {
           </div>
 
           <div className="flex items-center gap-4 lg:gap-6 shrink-0">
-            <span className="hidden sm:block [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted)">
-              {String(tailors.length).padStart(2, "0")} {t("ateliers")}
-            </span>
             <Link
               href="/tailors"
               className="[font-family:var(--font-ui)] text-[10px] sm:text-[11px] uppercase tracking-[0.28em] text-black border border-black px-5 py-2.5 hover:bg-black hover:text-white transition-all duration-300 inline-flex items-center gap-2 font-normal"

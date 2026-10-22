@@ -374,10 +374,9 @@ export function PremiumFabrics() {
                       ? item.listedByStore
                       : "";
                   const imageUrl = resolveMediaUrl(item.images?.[0]);
-                  const materialLabel =
-                    locale === "ar"
-                      ? item.materialAr || item.material
-                      : item.material;
+                  const displayTag = (
+                    locale === "ar" ? item.tagAr || item.tag : item.tag
+                  )?.trim();
                   const hrefPath = `/fabrics/${item.slug}`;
                   const listingCut = getFabricDefaultCut(item);
                   const cutLabel = listingCut
@@ -447,11 +446,13 @@ export function PremiumFabrics() {
 
                           <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
-                          <div className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-3.75rem)]">
-                            <Tag elevated truncate>
-                              {materialLabel}
-                            </Tag>
-                          </div>
+                          {displayTag ? (
+                            <div className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-3.75rem)]">
+                              <Tag elevated truncate>
+                                {displayTag}
+                              </Tag>
+                            </div>
+                          ) : null}
                         </div>
 
                         <div className="p-2.5 xs:p-3 sm:p-4 md:p-4 lg:p-5 flex flex-col grow">

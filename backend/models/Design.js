@@ -9,6 +9,12 @@ const designSchema = new mongoose.Schema(
     },
     name: { type: String, required: true, trim: true },
     nameAr: { type: String, required: true, trim: true },
+    /** Optional product code — unique when provided (empty allowed for many docs) */
+    code: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     slug: { type: String, required: true, trim: true, lowercase: true },
     description: { type: String, default: "", trim: true },
     descriptionAr: { type: String, default: "", trim: true },
@@ -86,6 +92,13 @@ designSchema.index({ tailorShopId: 1 });
 designSchema.index({ tailorShopId: 1, slug: 1 }, { unique: true });
 designSchema.index({ tailorShopId: 1, isActive: 1 });
 designSchema.index({ minCutId: 1 });
+designSchema.index(
+  { code: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { code: { $type: "string", $gt: "" } },
+  },
+);
 
 const Design = mongoose.model("Design", designSchema);
 
