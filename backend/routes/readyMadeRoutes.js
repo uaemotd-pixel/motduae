@@ -25,6 +25,10 @@ function parseQueryList(value) {
     .filter(Boolean);
 }
 
+function escapeRegex(term) {
+  return String(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 async function resolveCatalogValues(Model, rawValues) {
   const values = new Set(rawValues.map(String));
   const objectIds = rawValues.filter((id) =>
@@ -186,6 +190,7 @@ readyMadeRoutes.get("/", async (req, res) => {
       seasons,
       tags,
       colors,
+      search,
       minPrice,
       maxPrice,
       minAge,
@@ -256,6 +261,36 @@ readyMadeRoutes.get("/", async (req, res) => {
     const facetBaseQuery = { ...filter };
     if (Array.isArray(filter.$and)) facetBaseQuery.$and = [...filter.$and];
     if (Array.isArray(filter.$or)) facetBaseQuery.$or = [...filter.$or];
+
+    const searchTerm = String(search || "").trim();
+    if (searchTerm) {
+      const rx = { $regex: escapeRegex(searchTerm), $options: "i" };
+      const searchOr = [
+        { name: rx },
+        { nameAr: rx },
+        { code: rx },
+        { category: rx },
+        { categoryAr: rx },
+        { material: rx },
+        { materialAr: rx },
+        { season: rx },
+        { seasonAr: rx },
+        { pattern: rx },
+        { patternAr: rx },
+        { tag: rx },
+        { tagAr: rx },
+      ];
+      const asNumber = Number(String(searchTerm).replace(/,/g, ""));
+      if (Number.isFinite(asNumber)) {
+        searchOr.push({ finalSellingPriceAED: asNumber });
+        const storePrice = Number((asNumber / commissionFactor).toFixed(2));
+        if (Number.isFinite(storePrice) && storePrice !== asNumber) {
+          searchOr.push({ finalSellingPriceAED: storePrice });
+        }
+      }
+      filter.$and = filter.$and || [];
+      filter.$and.push({ $or: searchOr });
+    }
 
     const pushBilingual = async (Model, raw, enField, arField) => {
       const values = parseQueryList(raw);

@@ -30,6 +30,7 @@ const ADDON_UPLOAD = "/api/admin/uploads/addons";
 interface AddOnFormData {
   name: string;
   nameAr: string;
+  code: string;
   price: number | "";
   stock: number | "";
   description: string;
@@ -93,6 +94,7 @@ export default function AdminNewAddOnPage() {
   const [formData, setFormData] = useState<AddOnFormData>({
     name: "",
     nameAr: "",
+    code: "",
     price: "",
     stock: "",
     description: "",
@@ -273,6 +275,15 @@ export default function AdminNewAddOnPage() {
       return;
     }
 
+    if (!formData.tag?.trim()) {
+      toast.error("Tag is required");
+      setFieldErrors((prev) => ({
+        ...prev,
+        tag: "Tag is required",
+      }));
+      return;
+    }
+
     const { thumbnail } = splitReadyMadeImages(formData.images);
     const cleanImages = formData.images.filter((img) => img.trim() !== "");
     if (!thumbnail.trim()) {
@@ -347,8 +358,15 @@ export default function AdminNewAddOnPage() {
       toast.success("Add-on created successfully");
       router.push("/admin/addons");
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, "Failed to create addon"));
-      toast.error(getApiErrorMessage(err, "Failed to create addon"));
+      const message = getApiErrorMessage(err, "Failed to create addon");
+      if (/add-?on code already exists/i.test(message)) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          code: "This add-on code is already in use",
+        }));
+      }
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -488,71 +506,18 @@ export default function AdminNewAddOnPage() {
           <div className="md:col-span-2 space-y-3 sm:space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             <FormField
-              label="Material (ENG / AR)"
-              name="material"
-              error={fieldErrors.material}
+              label="Code (OPTIONAL)"
+              name="code"
+              error={fieldErrors.code}
+              hint="Optional. Must be unique if provided."
             >
-              <AnimatedDropdown
-                isOpen={openMaterial}
-                onClose={() => setOpenMaterial(false)}
-                trigger={
-                  <SelectTrigger
-                    value={formData.material}
-                    placeholder={
-                      materialsLoading ? "Loading..." : "Select material"
-                    }
-                    displayValue={(() => {
-                      const opt = materialOptions.find(
-                        (o) => o.value === formData.material,
-                      );
-                      if (!opt) return "";
-                      return `${opt.en} / ${opt.ar}`;
-                    })()}
-                    onClick={() => setOpenMaterial(!openMaterial)}
-                  />
-                }
-                dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
-                position="bottom-left"
-              >
-                {materialsLoading ? (
-                  <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-                    Loading materials...
-                  </div>
-                ) : materialOptions.length === 0 ? (
-                  <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
-                    No materials found
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleChange("material", "");
-                        handleChange("materialAr", "");
-                        setOpenMaterial(false);
-                      }}
-                      className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
-                    >
-                      Select material
-                    </button>
-                    {materialOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => {
-                          handleChange("material", opt.en);
-                          handleChange("materialAr", opt.ar);
-                          setOpenMaterial(false);
-                        }}
-                        className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
-                      >
-                        <span>{opt.en} / </span>
-                        <span>{opt.ar}</span>
-                      </button>
-                    ))}
-                  </>
-                )}
-              </AnimatedDropdown>
+              <input
+                type="text"
+                value={formData.code}
+                onChange={(e) => handleChange("code", e.target.value)}
+                className="w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm"
+                placeholder="e.g. AO-001"
+              />
             </FormField>
 
             <FormField
@@ -623,6 +588,76 @@ export default function AdminNewAddOnPage() {
               </AnimatedDropdown>
             </FormField>
 
+            <FormField
+              label="Material (ENG / AR)"
+              name="material"
+              error={fieldErrors.material}
+            >
+              <AnimatedDropdown
+                isOpen={openMaterial}
+                onClose={() => setOpenMaterial(false)}
+                trigger={
+                  <SelectTrigger
+                    value={formData.material}
+                    placeholder={
+                      materialsLoading ? "Loading..." : "Select material"
+                    }
+                    displayValue={(() => {
+                      const opt = materialOptions.find(
+                        (o) => o.value === formData.material,
+                      );
+                      if (!opt) return "";
+                      return `${opt.en} / ${opt.ar}`;
+                    })()}
+                    onClick={() => setOpenMaterial(!openMaterial)}
+                  />
+                }
+                dropdownClassName="w-full bg-white rounded-xl shadow-lg border border-gray-200 max-h-60 overflow-y-auto py-1"
+                position="bottom-left"
+              >
+                {materialsLoading ? (
+                  <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                    Loading materials...
+                  </div>
+                ) : materialOptions.length === 0 ? (
+                  <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm text-gray-500">
+                    No materials found
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleChange("material", "");
+                        handleChange("materialAr", "");
+                        setOpenMaterial(false);
+                      }}
+                      className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                    >
+                      Select material
+                    </button>
+                    {materialOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          handleChange("material", opt.en);
+                          handleChange("materialAr", opt.ar);
+                          setOpenMaterial(false);
+                        }}
+                        className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
+                      >
+                        <span>{opt.en} / </span>
+                        <span>{opt.ar}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </AnimatedDropdown>
+            </FormField>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             <FormField
               label="Pattern (ENG / AR)"
               name="design"
@@ -695,9 +730,7 @@ export default function AdminNewAddOnPage() {
                 )}
               </AnimatedDropdown>
             </FormField>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <FormField
               label="Season (ENG / AR)"
               name="season"
@@ -766,7 +799,7 @@ export default function AdminNewAddOnPage() {
               </AnimatedDropdown>
             </FormField>
 
-            <FormField label="Tag (ENG / AR)" name="tag" error={fieldErrors.tag}>
+            <FormField label="Tag (ENG / AR)" name="tag" required error={fieldErrors.tag}>
               <AnimatedDropdown
                 isOpen={openTag}
                 onClose={() => setOpenTag(false)}
@@ -774,7 +807,7 @@ export default function AdminNewAddOnPage() {
                   <SelectTrigger
                     value={formData.tag}
                     placeholder={
-                      tagsLoading ? "Loading..." : "Select tag (optional)"
+                      tagsLoading ? "Loading..." : "Select tag"
                     }
                     displayValue={(() => {
                       const opt = tagOptions.find(
@@ -808,7 +841,7 @@ export default function AdminNewAddOnPage() {
                       }}
                       className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
                     >
-                      Select tag (optional)
+                      Select tag
                     </button>
                     {tagOptions.map((opt) => (
                       <button

@@ -148,7 +148,6 @@ export default function FamilyMembersPage() {
     return (
       m.name.toLowerCase().includes(term) ||
       m.phone.includes(term) ||
-      (m.email && m.email.toLowerCase().includes(term)) ||
       getRelationshipLabel(m.relationship).toLowerCase().includes(term)
     );
   });
@@ -193,7 +192,7 @@ export default function FamilyMembersPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by name, phone, or email..."
+            placeholder="Search by name or phone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
@@ -287,12 +286,6 @@ export default function FamilyMembersPage() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-gray-400">Email</p>
-                      <p className="text-gray-700 font-medium truncate">
-                        {member.email || "—"}
-                      </p>
-                    </div>
-                    <div className="col-span-2">
                       <p className="text-gray-400">Added</p>
                       <p className="text-gray-700 font-medium">
                         {formatDate(member.createdAt)}

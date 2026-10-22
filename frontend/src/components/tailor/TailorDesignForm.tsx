@@ -521,6 +521,9 @@ export default function TailorDesignForm({
     if (!formData.minCutId || !formData.minCutId.trim()) {
       errors.minCutId = t("validation.minCutRequired");
     }
+    if (!formData.tag?.trim()) {
+      errors.tag = t("validation.tagRequired");
+    }
     if (
       !Number.isFinite(formData.estimatedDaysMin) ||
       formData.estimatedDaysMin < 1 ||
@@ -565,14 +568,27 @@ export default function TailorDesignForm({
       }
 
       const status = (err as ApiError).status;
-      const message =
-        status === 409
-          ? getApiErrorMessage(err, t("errors.conflict"))
-          : getApiErrorMessage(
-              err,
-              isEditMode ? t("errors.updateFailed") : t("errors.createFailed"),
-            );
-      toast.error(message, ERROR_TOAST);
+      const apiMessage = getApiErrorMessage(
+        err,
+        isEditMode ? t("errors.updateFailed") : t("errors.createFailed"),
+      );
+      const isCodeConflict =
+        /design code already exists/i.test(apiMessage) ||
+        /code already exists/i.test(apiMessage);
+
+      if (isCodeConflict) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          code: t("validation.codeDuplicate"),
+        }));
+        toast.error(t("errors.codeConflict"), ERROR_TOAST);
+      } else {
+        const message =
+          status === 409
+            ? getApiErrorMessage(err, t("errors.conflict"))
+            : apiMessage;
+        toast.error(message, ERROR_TOAST);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -651,8 +667,12 @@ export default function TailorDesignForm({
         className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6"
       >
         <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-6">
-          {isAdminMode && (
-            <div className="col-span-2">
+          <div
+            className={`col-span-2 grid gap-x-3 gap-y-4 sm:gap-6 ${
+              isAdminMode ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"
+            }`}
+          >
+            {isAdminMode && (
               <FormField
                 label={adminT.form.tailor_label}
                 name="tailorShopId"
@@ -719,8 +739,24 @@ export default function TailorDesignForm({
                   )}
                 </AnimatedDropdown>
               </FormField>
-            </div>
-          )}
+            )}
+
+            <FormField
+              label={t("fields.code")}
+              name="code"
+              error={fieldErrors.code}
+              hint={t("hints.code")}
+            >
+              <input
+                id="code"
+                type="text"
+                value={formData.code}
+                onChange={(e) => handleChange("code", e.target.value)}
+                placeholder={t("placeholders.code")}
+                className={INPUT_CLASS}
+              />
+            </FormField>
+          </div>
 
           <FormField
             label={t("fields.name")}
@@ -864,6 +900,7 @@ export default function TailorDesignForm({
               <BilingualFilterDropdown
                 label={t("fields.tag")}
                 name="tag"
+                required
                 error={fieldErrors.tag}
                 value={formData.tag}
                 options={tagDropdownOptions}

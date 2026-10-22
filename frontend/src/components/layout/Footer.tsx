@@ -100,7 +100,7 @@ export function Footer() {
 
             {/* Instagram */}
             <a
-              href="https://www.instagram.com/"
+              href="https://www.instagram.com/motd.ae?igsh=MWFudWVneWh0eHJtOA=="
               target="_blank"
               rel="noopener noreferrer"
               className={`${socialBtnClass} hover:text-white hover:border-white/40`}

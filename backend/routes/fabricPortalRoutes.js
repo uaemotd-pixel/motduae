@@ -5,7 +5,7 @@ import FabricShop from "../models/FabricShop.js";
 import Fabric from "../models/Fabric.js";
 import CustomOrder from "../models/CustomOrder.js";
 import ReadyMadeProduct from "../models/ReadyMadeProduct.js";
-import AddOn from "../models/AddOn.js";
+import AddOn, { assertAddOnCodeAvailable } from "../models/AddOn.js";
 import RetailOrder from "../models/RetailOrder.js";
 import Material from "../models/Material.js";
 import {
@@ -682,6 +682,14 @@ fabricPortalRouter.post(
       res.status(400).json({
         success: false,
         message: "name, nameAr, and material are required",
+      });
+      return;
+    }
+
+    if (!String(tag || "").trim()) {
+      res.status(400).json({
+        success: false,
+        message: "tag is required",
       });
       return;
     }
@@ -1508,6 +1516,14 @@ fabricPortalRouter.post(
       { fallback: "ready-made" },
     );
 
+    if (!String(tag || "").trim()) {
+      res.status(400).json({
+        success: false,
+        message: "tag is required",
+      });
+      return;
+    }
+
     if (
       availableFabricStock === undefined ||
       availableFabricStock === null ||
@@ -1836,6 +1852,7 @@ fabricPortalRouter.post(
     const {
       name,
       nameAr,
+      code,
       description,
       descriptionAr,
       price,
@@ -1868,6 +1885,23 @@ fabricPortalRouter.post(
       return;
     }
 
+    if (!String(tag || "").trim()) {
+      res.status(400).json({
+        success: false,
+        message: "tag is required",
+      });
+      return;
+    }
+
+    const codeCheck = await assertAddOnCodeAvailable(code);
+    if (!codeCheck.ok) {
+      res.status(400).json({
+        success: false,
+        message: codeCheck.message,
+      });
+      return;
+    }
+
     const slug = await ensureUniqueSlug(AddOn, name || nameAr, {
       fallback: "addon",
     });
@@ -1894,6 +1928,7 @@ fabricPortalRouter.post(
     const addon = new AddOn({
       name,
       nameAr,
+      code: codeCheck.code,
       slug,
       description,
       descriptionAr,
@@ -1960,6 +1995,7 @@ fabricPortalRouter.put(
     const {
       name,
       nameAr,
+      code,
       description,
       descriptionAr,
       price,
@@ -1980,6 +2016,20 @@ fabricPortalRouter.put(
       colors,
       isActive,
     } = req.body;
+
+    if (code !== undefined) {
+      const codeCheck = await assertAddOnCodeAvailable(code, {
+        excludeId: addon._id,
+      });
+      if (!codeCheck.ok) {
+        res.status(400).json({
+          success: false,
+          message: codeCheck.message,
+        });
+        return;
+      }
+      addon.code = codeCheck.code;
+    }
 
     addon.name = name ?? addon.name;
     addon.nameAr = nameAr ?? addon.nameAr;

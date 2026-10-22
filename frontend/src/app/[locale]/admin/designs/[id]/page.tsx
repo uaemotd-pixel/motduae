@@ -173,6 +173,10 @@ export default function AdminDesignDetailsPage() {
             value={getDesignTailorShopName(design, locale)}
           />
           <DetailRow label={t.view.category} value={category || "—"} />
+          <DetailRow
+            label={t.view.code}
+            value={design.code?.trim() ? design.code : "—"}
+          />
           <DetailRow label={t.view.material} value={material || "—"} />
           <DetailRow label={t.view.pattern} value={pattern || "—"} />
           <DetailRow label={t.view.season} value={season || "—"} />

@@ -9,6 +9,7 @@ import { cutValueToMeters } from "./fabricUnits.js";
 export const DESIGN_FIELDS = [
   "name",
   "nameAr",
+  "code",
   "slug",
   "description",
   "descriptionAr",
@@ -36,12 +37,45 @@ export const DESIGN_FIELDS = [
   "isActive",
 ];
 
+/** Optional design product code — empty string when omitted. */
+export function normalizeOptionalDesignCode(value) {
+  return String(value ?? "").trim();
+}
+
+/**
+ * Ensure a non-empty design code is not already used.
+ * Empty codes are always allowed (many designs may omit code).
+ */
+export async function assertDesignCodeAvailable(code, { excludeId } = {}) {
+  const normalized = normalizeOptionalDesignCode(code);
+  if (!normalized) {
+    return { ok: true, code: "" };
+  }
+
+  const filter = { code: normalized };
+  if (excludeId && mongoose.Types.ObjectId.isValid(String(excludeId))) {
+    filter._id = { $ne: excludeId };
+  }
+
+  const existing = await Design.findOne(filter).select("_id").lean();
+  if (existing) {
+    return {
+      ok: false,
+      message: "Design code already exists",
+      code: normalized,
+    };
+  }
+
+  return { ok: true, code: normalized };
+}
+
 export const formatDesign = (design) => ({
   _id: design._id,
   tailorShopId: design.tailorShopId,
   slug: design.slug,
   name: design.name,
   nameAr: design.nameAr,
+  code: design.code || "",
   description: design.description,
   descriptionAr: design.descriptionAr,
   images: design.images,
@@ -113,6 +147,11 @@ export const pickDesignFields = (body) => {
       continue;
     }
 
+    if (field === "code") {
+      data.code = normalizeOptionalDesignCode(body.code);
+      continue;
+    }
+
     if (
       [
         "material",
@@ -175,6 +214,7 @@ export const validateDesignPayload = (data, { requireCore = false } = {}) => {
       "nameAr",
       "slug",
       "category",
+      "tag",
       "basePrice",
       "tailoringFee",
       "minCutId",
@@ -193,6 +233,10 @@ export const validateDesignPayload = (data, { requireCore = false } = {}) => {
     if (!Array.isArray(data.images) || data.images.length === 0) {
       return "At least one image is required";
     }
+  }
+
+  if (data.tag !== undefined && !String(data.tag || "").trim()) {
+    return "tag is required";
   }
 
   if (data.minCutId !== undefined) {

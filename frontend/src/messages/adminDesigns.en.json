@@ -51,6 +51,7 @@
     "pattern": "Pattern",
     "season": "Season",
     "tag": "Tag",
+    "code": "Code",
     "base_price": "Base price",
     "tailoring_fee": "Tailoring fee",
     "min_cut": "Minimum cut",

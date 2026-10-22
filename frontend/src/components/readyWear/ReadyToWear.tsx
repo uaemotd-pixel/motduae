@@ -19,22 +19,6 @@ import { useMeasurementUnit } from "@/hooks/useMeasurementUnit";
 import { HomeSectionSkeleton } from "@/components/ui/Skeleton";
 import { Tag } from "@/components/ui/Tag";
 
-const TAG_COLORS: Record<string, { bg: string; text: string }> = {
-  new: { bg: "#2D5A3D", text: "#FFFFFF" },
-  bestseller: { bg: "#8B7355", text: "#FFFFFF" },
-  premium: { bg: "#4A4A4A", text: "#FFFFFF" },
-  limited: { bg: "#8B3A3A", text: "#FFFFFF" },
-  exclusive: { bg: "#C4A47A", text: "#000000" },
-  trending: { bg: "#3A5A78", text: "#FFFFFF" },
-  handmade: { bg: "#6B4F3C", text: "#FFFFFF" },
-};
-
-const getTagStyles = (tagValue?: string) => {
-  if (!tagValue) return { bg: "#1A1A1A", text: "#FFFFFF" };
-  const key = tagValue.toLowerCase().trim();
-  return TAG_COLORS[key] || { bg: "#1A1A1A", text: "#FFFFFF" };
-};
-
 /** Products shown in the home carousel (~3–5 visible + a few to scroll). */
 const HOME_TRENDING_LIMIT = 8;
 
@@ -398,9 +382,10 @@ export function ReadyToWearSection() {
                   locale,
                 );
                 const image = resolveReadyMadeImage(item.images?.[0]);
-                const tag = locale === "ar" ? item.tagAr || item.tag : item.tag;
+                const tag = (
+                  locale === "ar" ? item.tagAr || item.tag : item.tag
+                )?.trim();
                 const price = item.finalSellingPriceAED ?? 0;
-                const { bg, text } = getTagStyles(item.tag);
                 const hrefPath = `/ready-made/${item.slug}`;
 
                 return (
@@ -473,16 +458,15 @@ export function ReadyToWearSection() {
                           />
                         </div>
 
-                        {tag && (
+                        {tag ? (
                           <Tag
                             elevated
                             truncate
                             className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-8.5rem)]"
-                            style={{ backgroundColor: bg, color: text }}
                           >
                             {tag}
                           </Tag>
-                        )}
+                        ) : null}
                       </div>
 
                       <div className="p-2.5 xs:p-3 sm:p-4 md:p-4 lg:p-5 flex flex-col grow">

@@ -25,6 +25,7 @@ import {
 import {
   applyCreateDefaults,
   applyMinCutToDesignData,
+  assertDesignCodeAvailable,
   assignUniqueDesignSlug,
   cleanupAllDesignImages,
   cleanupRemovedDesignImages,
@@ -43,7 +44,7 @@ import {
 } from "../services/adminNotificationService.js";
 import { findEmailOccupant } from "../services/emailVerification/emailOccupancy.js";
 import { validatePassword } from "../utils/passwordValidation.js";
-import AddOn from "../models/AddOn.js";
+import AddOn, { assertAddOnCodeAvailable } from "../models/AddOn.js";
 import Category from "../models/Category.js";
 import Material from "../models/Material.js";
 import Pattern from "../models/Pattern.js";
@@ -899,6 +900,16 @@ adminRouter.post(
       return;
     }
 
+    const codeCheck = await assertDesignCodeAvailable(data.code);
+    if (!codeCheck.ok) {
+      res.status(400).send({
+        success: false,
+        message: codeCheck.message,
+      });
+      return;
+    }
+    data.code = codeCheck.code;
+
     await assignUniqueDesignSlug(data, shop._id);
 
     const design = await Design.create({
@@ -994,6 +1005,20 @@ adminRouter.put(
         });
         return;
       }
+    }
+
+    if (data.code !== undefined) {
+      const codeCheck = await assertDesignCodeAvailable(data.code, {
+        excludeId: design._id,
+      });
+      if (!codeCheck.ok) {
+        res.status(400).send({
+          success: false,
+          message: codeCheck.message,
+        });
+        return;
+      }
+      data.code = codeCheck.code;
     }
 
     if (data.slug && data.slug !== design.slug) {
@@ -1108,6 +1133,11 @@ adminRouter.post(
         message:
           "Stock quantity is required and must be a whole number 0 or greater",
       });
+      return;
+    }
+
+    if (!String(tag || "").trim()) {
+      res.status(400).send({ message: "tag is required" });
       return;
     }
 
@@ -1979,6 +2009,10 @@ adminRouter.post(
     const cutsResult = await prepareFabricCutsInput(cuts);
     if (!cutsResult.ok) {
       return res.status(400).send({ message: cutsResult.message });
+    }
+
+    if (!String(tag || "").trim()) {
+      return res.status(400).send({ message: "tag is required" });
     }
 
     const partnerCheck = await assertFabricStorePartner(listedByStore);
@@ -4858,6 +4892,7 @@ adminRouter.post(
     const {
       name,
       nameAr,
+      code,
       description,
       descriptionAr,
       price,
@@ -4884,6 +4919,17 @@ adminRouter.post(
 
     if (!thumbnailImage) {
       res.status(400).send({ message: "At least one image is required" });
+      return;
+    }
+
+    if (!String(tag || "").trim()) {
+      res.status(400).send({ message: "tag is required" });
+      return;
+    }
+
+    const codeCheck = await assertAddOnCodeAvailable(code);
+    if (!codeCheck.ok) {
+      res.status(400).send({ message: codeCheck.message });
       return;
     }
 
@@ -4921,6 +4967,7 @@ adminRouter.post(
     const addon = new AddOn({
       name,
       nameAr,
+      code: codeCheck.code,
       slug: generatedSlug,
       description,
       descriptionAr,
@@ -4965,6 +5012,7 @@ adminRouter.put(
     const {
       name,
       nameAr,
+      code,
       description,
       descriptionAr,
       price,
@@ -4985,6 +5033,17 @@ adminRouter.put(
       colors,
       isActive,
     } = req.body;
+
+    if (code !== undefined) {
+      const codeCheck = await assertAddOnCodeAvailable(code, {
+        excludeId: addon._id,
+      });
+      if (!codeCheck.ok) {
+        res.status(400).send({ message: codeCheck.message });
+        return;
+      }
+      addon.code = codeCheck.code;
+    }
 
     addon.name = name ?? addon.name;
     addon.nameAr = nameAr ?? addon.nameAr;

@@ -28,6 +28,8 @@ interface TailorDesignExtended {
   descriptionAr?: string;
   images?: string[];
   category: string;
+  tag?: string;
+  tagAr?: string;
   basePrice: number;
   priceType?: "fixed" | "per_meter";
   tailorSlug: string;
@@ -35,30 +37,8 @@ interface TailorDesignExtended {
   tailorNameAr?: string;
 }
 
-const CATEGORY_COLOR_PALETTE = [
-  "#8B6B4D",
-  "#1A2A3A",
-  "#5A6B5A",
-  "#B8860B",
-  "#4A3A2A",
-  "#6B2A5A",
-  "#2A5A6B",
-  "#6B4A2A",
-  "#4A6B2A",
-  "#6B2A2A",
-];
-
 /** Designs shown in the home carousel (~3–5 visible + a few to scroll). */
 const HOME_TRENDING_LIMIT = 8;
-
-function categoryBadgeColor(categoryKey: string): string {
-  const key = categoryKey || "";
-  let index = 0;
-  for (let i = 0; i < key.length; i++) {
-    index = (index + key.charCodeAt(i) * (i + 1)) % CATEGORY_COLOR_PALETTE.length;
-  }
-  return CATEGORY_COLOR_PALETTE[index] ?? "#000000";
-}
 
 async function copyToClipboard(text: string) {
   if (typeof navigator === "undefined") return;
@@ -414,7 +394,7 @@ export function TrendingSection() {
           <div className="overflow-hidden py-8 -my-8" ref={emblaRef}>
             <div className="flex -mx-1 xs:-mx-1.5 sm:-mx-2 md:-mx-2.5 lg:-mx-3">
               {designs.map((design) => {
-                const { name, description, category } = getDesignDisplayFields(
+                const { name, description } = getDesignDisplayFields(
                   design,
                   localParams as any,
                 );
@@ -428,10 +408,11 @@ export function TrendingSection() {
                   design.priceType,
                   unit,
                 );
+                const displayTag = (
+                  isArabic ? design.tagAr || design.tag : design.tag
+                )?.trim();
 
                 const hrefPath = `/designs/${design.slug}`;
-
-                const categoryColor = categoryBadgeColor(design.category);
 
                 return (
                   <div
@@ -484,15 +465,13 @@ export function TrendingSection() {
                           />
                         </div>
 
-                        <div className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-3.75rem)]">
-                          <Tag
-                            elevated
-                            truncate
-                            style={{ backgroundColor: categoryColor }}
-                          >
-                            {category}
-                          </Tag>
-                        </div>
+                        {displayTag ? (
+                          <div className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-3.75rem)]">
+                            <Tag elevated truncate>
+                              {displayTag}
+                            </Tag>
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="p-2.5 xs:p-3 sm:p-4 md:p-4 lg:p-5 flex flex-col grow">
