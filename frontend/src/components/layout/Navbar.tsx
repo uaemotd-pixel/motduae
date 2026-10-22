@@ -407,7 +407,7 @@ export function Navbar() {
                 {accountMenuOpen && accountHref && (
                   <div
                     role="menu"
-                    className="absolute top-full inset-e-0 mt-2 w-40 bg-white border border-(--color-border) rounded-lg shadow-lg py-1.5 z-50 flex flex-col overflow-hidden"
+                    className="absolute top-full inset-e-0 mt-2 w-40 bg-white border border-(--color-border) rounded-lg shadow-lg z-50 flex flex-col overflow-hidden"
                   >
                     <Link
                       href={accountHref}

@@ -68,6 +68,7 @@ export interface FabricListItem {
   color?: string[];
   city?: string;
   tag?: string;
+  tagAr?: string;
   tagColor?: string;
   cuts?: FabricCutEntry[];
   /** Computed legacy listing metric when cuts are present */

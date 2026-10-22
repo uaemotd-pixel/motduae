@@ -34,22 +34,6 @@ interface AddOnListItem {
   } | null;
 }
 
-const TAG_COLORS: Record<string, { bg: string; text: string }> = {
-  new: { bg: "#2D5A3D", text: "#FFFFFF" },
-  bestseller: { bg: "#8B7355", text: "#FFFFFF" },
-  premium: { bg: "#4A4A4A", text: "#FFFFFF" },
-  limited: { bg: "#8B3A3A", text: "#FFFFFF" },
-  exclusive: { bg: "#C4A47A", text: "#000000" },
-  trending: { bg: "#3A5A78", text: "#FFFFFF" },
-  handmade: { bg: "#6B4F3C", text: "#FFFFFF" },
-};
-
-const getTagStyles = (tagValue?: string) => {
-  if (!tagValue) return { bg: "#1A1A1A", text: "#FFFFFF" };
-  const key = tagValue.toLowerCase().trim();
-  return TAG_COLORS[key] || { bg: "#1A1A1A", text: "#FFFFFF" };
-};
-
 /** Add-ons shown in the home carousel (~3–5 visible + a few to scroll). */
 const HOME_TRENDING_LIMIT = 8;
 
@@ -360,12 +344,13 @@ export function AddOnsSection() {
           <div className="overflow-hidden py-8 -my-8" ref={emblaRef}>
             <div className="flex will-change-transform -mx-1 xs:-mx-1.5 sm:-mx-2 md:-mx-2.5 lg:-mx-3">
               {products.map((item) => {
-                const displayTag = isAr ? item.tagAr || item.tag : item.tag;
+                const displayTag = (
+                  isAr ? item.tagAr || item.tag : item.tag
+                )?.trim();
                 const displayName = isAr ? item.nameAr || item.name : item.name;
                 const displayDesc = isAr
                   ? item.descriptionAr || item.description
                   : item.description;
-                const tagStyles = getTagStyles(item.tag);
                 const storeName = (() => {
                   const fromShop = String(
                     isAr
@@ -453,20 +438,13 @@ export function AddOnsSection() {
 
                         <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
-                        {displayTag && (
+                        {displayTag ? (
                           <div className="absolute top-1.5 left-1.5 z-10 max-w-[calc(100%-8.5rem)]">
-                            <Tag
-                              elevated
-                              truncate
-                              style={{
-                                backgroundColor: tagStyles.bg,
-                                color: tagStyles.text,
-                              }}
-                            >
+                            <Tag elevated truncate>
                               {displayTag}
                             </Tag>
                           </div>
-                        )}
+                        ) : null}
                       </div>
 
                       <div className="p-2.5 xs:p-3 sm:p-4 md:p-4 lg:p-5 flex flex-col grow">

@@ -28,6 +28,10 @@ function parseQueryList(value) {
     .filter(Boolean);
 }
 
+function escapeRegex(term) {
+  return String(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 async function resolveCatalogValues(Model, rawValues) {
   const values = new Set(rawValues.map(String));
   const objectIds = rawValues.filter((id) =>
@@ -270,6 +274,7 @@ tailorRoutes.get("/designs/all", async (req, res) => {
       patterns,
       seasons,
       tags,
+      search,
       minPrice,
       maxPrice,
       sort = "newest",
@@ -324,6 +329,36 @@ tailorRoutes.get("/designs/all", async (req, res) => {
 
     // Facet counts use catalog visibility + price (not other filter chips)
     const facetBaseQuery = { ...query };
+
+    const searchTerm = String(search || "").trim();
+    if (searchTerm) {
+      const rx = { $regex: escapeRegex(searchTerm), $options: "i" };
+      const searchOr = [
+        { name: rx },
+        { nameAr: rx },
+        { code: rx },
+        { category: rx },
+        { categoryAr: rx },
+        { material: rx },
+        { materialAr: rx },
+        { season: rx },
+        { seasonAr: rx },
+        { pattern: rx },
+        { patternAr: rx },
+        { tag: rx },
+        { tagAr: rx },
+      ];
+      const asNumber = Number(String(searchTerm).replace(/,/g, ""));
+      if (Number.isFinite(asNumber)) {
+        searchOr.push({ basePrice: asNumber });
+        const storePrice = Number((asNumber / commissionFactor).toFixed(2));
+        if (Number.isFinite(storePrice) && storePrice !== asNumber) {
+          searchOr.push({ basePrice: storePrice });
+        }
+      }
+      query.$and = query.$and || [];
+      query.$and.push({ $or: searchOr });
+    }
 
     const categoryValues = [
       ...parseQueryList(categories),
@@ -523,7 +558,7 @@ tailorRoutes.get("/designs/trending", async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(limitNumber)
       .select(
-        "slug name nameAr description descriptionAr images category basePrice priceType tailorShopId",
+        "slug name nameAr description descriptionAr images category tag tagAr basePrice priceType tailorShopId",
       )
       .lean();
 
@@ -553,6 +588,8 @@ tailorRoutes.get("/designs/trending", async (req, res) => {
           descriptionAr: design.descriptionAr,
           images: design.images,
           category: design.category,
+          tag: design.tag,
+          tagAr: design.tagAr,
           basePrice: design.basePrice,
           priceType: design.priceType,
           tailorSlug: shop?.slug || "",

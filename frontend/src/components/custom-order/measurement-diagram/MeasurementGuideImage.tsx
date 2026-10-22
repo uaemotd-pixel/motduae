@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { X, ZoomIn } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -27,9 +28,14 @@ export default function MeasurementGuideImage({
 }: MeasurementGuideImageProps) {
   const t = useTranslations("CustomOrderMeasurements");
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const closeLightbox = useCallback(() => {
     setLightboxOpen(false);
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
   }, []);
 
   useEffect(() => {
@@ -50,6 +56,59 @@ export default function MeasurementGuideImage({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [closeLightbox, lightboxOpen]);
+
+  const lightbox =
+    lightboxOpen && mounted
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-8"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("diagramGuide")}
+          >
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/80"
+              onClick={closeLightbox}
+              aria-label={t("closeZoom")}
+            />
+
+            <div className="relative z-10 flex w-full max-w-6xl max-h-[92vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="flex shrink-0 items-start justify-between gap-4 border-b border-(--color-border) px-4 py-3 sm:px-6">
+                <div>
+                  <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted)">
+                    {t("diagramGuide")}
+                  </p>
+                  <p className="[font-family:var(--font-body)] mt-1 text-[13px] text-(--color-grey-muted)">
+                    {t("zoomHint")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeLightbox}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-(--color-border) text-black transition hover:bg-black hover:text-white hover:cursor-pointer"
+                  aria-label={t("closeZoom")}
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-auto overscroll-contain p-4 sm:p-6">
+                <div className="mx-auto max-w-4xl">
+                  <Image
+                    src={customOrderMeasurementGuide}
+                    alt={alt}
+                    className="h-auto w-full object-contain"
+                    sizes="(max-width: 1200px) 90vw, 1200px"
+                    priority
+                  />
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <>
@@ -88,54 +147,7 @@ export default function MeasurementGuideImage({
         </div>
       </button>
 
-      {lightboxOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
-          role="dialog"
-          aria-modal="true"
-          aria-label={t("diagramGuide")}
-        >
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/80"
-            onClick={closeLightbox}
-            aria-label={t("closeZoom")}
-          />
-
-          <div className="relative z-10 flex w-full max-w-6xl max-h-[92vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-(--color-border) px-4 py-3 sm:px-6">
-              <div>
-                <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.24em] text-(--color-grey-muted)">
-                  {t("diagramGuide")}
-                </p>
-                <p className="[font-family:var(--font-body)] mt-1 text-[13px] text-(--color-grey-muted)">
-                  {t("zoomHint")}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeLightbox}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-(--color-border) text-black transition hover:bg-black hover:text-white"
-                aria-label={t("closeZoom")}
-              >
-                <X className="h-4 w-4" aria-hidden />
-              </button>
-            </div>
-
-            <div className="overflow-auto p-4 sm:p-6">
-              <div className="mx-auto max-w-4xl flex items-center justify-center">
-                <Image
-                  src={customOrderMeasurementGuide}
-                  alt={alt}
-                  className="w-full h-auto max-h-[70vh] object-contain"
-                  sizes="(max-width: 1200px) 90vw, 1200px"
-                  priority
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {lightbox}
     </>
   );
 }

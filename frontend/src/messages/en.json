@@ -155,7 +155,7 @@
     "eyebrow": "Master Artisans of the UAE",
     "title": "Meet the Tailors",
     "description": "Discover the Emirates' most celebrated master tailors, preserving centuries-old heritage through exceptional craftsmanship",
-    "viewAll": "View All Master Tailors of the UAE",
+    "viewAll": "View All",
     "bookConsultation": "Check Tailor Designs",
     "explore": "Explore Atelier",
     "ateliers": "Ateliers",
@@ -1181,6 +1181,8 @@
         "imagesRequired": "At least one image is required.",
         "pricePerMeterInvalid": "Please enter a valid price.",
         "stockInMetersInvalid": "Please enter a valid stock amount.",
+        "materialRequired": "Material is required.",
+        "tagRequired": "Tag is required.",
         "colorRequired": "At least one color option is required.",
         "stockInMetersRequired": "Stock quantity is required."
       },
@@ -1638,6 +1640,7 @@
       "fields": {
         "name": "Design name (English)",
         "nameAr": "Design name (Arabic)",
+        "code": "Code (optional)",
         "slug": "URL slug",
         "category": "Category",
         "material": "Material (ENG / AR)",
@@ -1668,8 +1671,12 @@
         "isActive": "Visible to customers",
         "image": "Image {number}"
       },
+      "placeholders": {
+        "code": "e.g. DS-001"
+      },
       "hints": {
-        "slug": "Lowercase letters, numbers, and hyphens only."
+        "slug": "Lowercase letters, numbers, and hyphens only.",
+        "code": "Optional. Must be unique if provided."
       },
       "filters": {
         "loading": "Loading...",
@@ -1677,7 +1684,7 @@
         "selectMaterial": "Select material",
         "selectSeason": "Select season",
         "selectPattern": "Select pattern",
-        "selectTag": "Select tag (optional)",
+        "selectTag": "Select tag",
         "selectMinCut": "Select minimum cut",
         "selectCategory": "Select Category"
       },
@@ -1705,6 +1712,8 @@
         "priceInvalid": "Price of design must be zero or greater.",
         "tailoringFeeInvalid": "Tailoring fee must be zero or greater.",
         "minCutRequired": "Minimum cut is required.",
+        "tagRequired": "Tag is required.",
+        "codeDuplicate": "This design code is already in use.",
         "estimatedMetersInvalid": "Estimated meters must be greater than zero.",
         "estimatedDaysInvalid": "Estimated days must be at least 1.",
         "estimatedTimeInvalid": "Estimated time must be at least 1.",
@@ -1720,7 +1729,8 @@
         "createFailed": "Could not create design.",
         "updateFailed": "Could not update design.",
         "deleteFailed": "Could not delete design.",
-        "conflict": "This design slug already exists for your shop."
+        "conflict": "This design slug already exists for your shop.",
+        "codeConflict": "This design code already exists."
       }
     }
   },

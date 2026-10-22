@@ -74,17 +74,17 @@ function MeasurementInput({
   const letter = getMeasurementLetter(field);
 
   return (
-    <div className="space-y-1.5 w-full">
+    <div className="min-w-0 w-full space-y-1.5">
       <label
         htmlFor={`measurement-${field}`}
-        className="flex flex-wrap items-center gap-x-2 gap-y-1 font-ui text-[10px] uppercase tracking-[0.24em] text-black"
+        className="flex flex-wrap items-center gap-x-2 gap-y-1 font-ui text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.24em] text-black"
       >
         <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-black text-[9px] shrink-0">
           {letter}
         </span>
-        <span className="min-w-0 wrap-break-word">{t(`fields.${field}`)}</span>
+        <span className="min-w-0 break-words">{t(`fields.${field}`)}</span>
       </label>
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="relative flex items-center min-w-0">
         <input
           id={`measurement-${field}`}
           type={disabled ? "text" : "number"}
@@ -94,21 +94,23 @@ function MeasurementInput({
           value={formatMeasurementValue(value)}
           onChange={(e) => onChange(field, e.target.value)}
           disabled={disabled}
-          className={`flex-1 min-w-0 border ${
+          className={`w-full min-w-0 border ${
             error ? "border-red-500" : "border-gray-200"
           } ${
             disabled ? "bg-gray-50 text-gray-700" : "bg-white text-black"
-          } px-2.5 sm:px-4 py-2 sm:py-3 font-body text-[15px] sm:text-[16px] focus:outline-none focus:border-black transition rounded-lg w-full`}
+          } pl-3 pr-12 sm:pl-4 sm:pr-14 py-2.5 sm:py-3 font-body text-[15px] sm:text-[16px] focus:outline-none focus:border-black transition rounded-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
         />
-        <span className="font-ui text-[10px] sm:text-[11px] uppercase tracking-[0.2em] text-gray-400 shrink-0">
+        <span className="pointer-events-none absolute inset-e-3 sm:inset-e-4 font-ui text-[10px] sm:text-[11px] uppercase tracking-[0.16em] sm:tracking-[0.2em] text-gray-400">
           {t("unit")}
         </span>
       </div>
       {error && (
-        <p className="text-red-500 text-[11px] sm:text-[12px] mt-1">{error}</p>
+        <p className="text-red-500 text-[11px] sm:text-[12px] mt-1 break-words">
+          {error}
+        </p>
       )}
       {!disabled && (
-        <p className="hidden sm:block font-body text-[11px] sm:text-[12px] text-gray-400 mt-1">
+        <p className="hidden sm:block font-body text-[11px] sm:text-[12px] text-gray-400 mt-1 break-words">
           {t(`fields.${field}Hint`)}
         </p>
       )}
@@ -400,17 +402,17 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
   };
 
   return (
-    <div className="w-full space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="w-full sm:w-auto min-w-0">
-          <h1 className="font-display text-xl sm:text-3xl md:text-4xl font-light text-black tracking-tight">
+    <div className="w-full min-w-0 space-y-4 sm:space-y-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display text-xl sm:text-2xl md:text-3xl lg:text-4xl font-light text-black tracking-tight break-words">
             {selectedMemberId && selectedMember
               ? `${selectedMember.name}'s Measurements`
               : isViewMode
                 ? "My Measurements"
                 : "Measurements"}
           </h1>
-          <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1">
+          <p className="text-gray-500 text-xs sm:text-sm mt-0.5 sm:mt-1 break-words">
             {selectedMemberId
               ? `Manage measurements for ${selectedMember?.relationship || "family member"}`
               : isViewMode
@@ -418,25 +420,27 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
                 : t("optionalNote")}
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <div className="relative w-full sm:w-auto min-w-50" ref={memberRef}>
+        <div className="flex flex-col min-[480px]:flex-row gap-2 w-full lg:w-auto lg:max-w-md shrink-0">
+          <div className="relative w-full min-w-0 min-[480px]:flex-1 lg:min-w-48" ref={memberRef}>
             <button
               type="button"
               onClick={() => setMemberDropdownOpen(!memberDropdownOpen)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-black transition bg-white flex items-center justify-between hover:cursor-pointer"
+              className="w-full min-w-0 px-3 sm:px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-black transition bg-white flex items-center justify-between gap-2 hover:cursor-pointer"
               disabled={isLoadingMembers || !Array.isArray(members)}
             >
               <span
-                className={selectedMemberId ? "text-black" : "text-gray-400"}
+                className={`min-w-0 truncate text-start ${
+                  selectedMemberId ? "text-black" : "text-gray-400"
+                }`}
               >
                 {selectedMemberId && selectedMember
                   ? getMemberDisplayName(selectedMember)
                   : "My Measurements"}
               </span>
               {memberDropdownOpen ? (
-                <ChevronUp className="w-4 h-4 text-gray-400" />
+                <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-gray-400" />
+                <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
               )}
             </button>
 
@@ -498,7 +502,7 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
             <button
               type="button"
               onClick={handleEdit}
-              className="w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 bg-black text-white text-[10px] sm:text-[11px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition font-ui rounded-lg hover:cursor-pointer whitespace-nowrap"
+              className="w-full min-[480px]:w-auto px-5 sm:px-6 py-2.5 sm:py-3 bg-black text-white text-[10px] sm:text-[11px] tracking-[0.22em] uppercase hover:bg-[#2A2A28] transition font-ui rounded-lg hover:cursor-pointer whitespace-nowrap shrink-0"
             >
               Edit Measurements
             </button>
@@ -506,10 +510,10 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
         </div>
       </div>
 
-      <div>
+      <div className="min-w-0">
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)] gap-5 lg:gap-8 xl:gap-12 mb-6 sm:mb-8">
-          <div className="space-y-6 sm:space-y-8">
-            <section>
+          <div className="space-y-6 sm:space-y-8 min-w-0">
+            <section className="min-w-0">
               <h2 className="font-display text-[18px] sm:text-[20px] md:text-[22px] font-normal mb-1.5 sm:mb-2">
                 {t("bodySection")}
               </h2>
@@ -518,12 +522,12 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
                   {t("bodySectionHint")}
                 </p>
               )}
-              <div className="xl:hidden mb-4 flex justify-center overflow-hidden">
-                <div className="w-full max-w-44 sm:max-w-70 md:max-w-80 mx-auto">
+              <div className="xl:hidden mb-4 sm:mb-6 flex justify-center overflow-x-auto">
+                <div className="w-full max-w-56 sm:max-w-70 md:max-w-80 mx-auto">
                   <MeasurementBodyDiagram />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5 md:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
                 {BODY_MEASUREMENT_FIELDS.map((field) => (
                   <MeasurementInput
                     key={field}
@@ -538,7 +542,7 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
               </div>
             </section>
 
-            <section className="pt-5 sm:pt-6 border-t border-gray-200">
+            <section className="pt-5 sm:pt-6 border-t border-gray-200 min-w-0">
               <h2 className="font-display text-[18px] sm:text-[20px] md:text-[22px] font-normal mb-1.5 sm:mb-2">
                 {t("neckSection")}
               </h2>
@@ -547,13 +551,13 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
                   {t("neckSectionHint")}
                 </p>
               )}
-              <div className="flex flex-row gap-3 sm:gap-8 items-start">
-                <div className="shrink-0 flex justify-center w-28 sm:w-auto">
-                  <div className="w-full sm:max-w-55 md:max-w-60 lg:max-w-65">
+              <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 md:gap-8 items-center sm:items-start">
+                <div className="shrink-0 flex justify-center w-full sm:w-auto">
+                  <div className="w-full max-w-48 sm:max-w-55 md:max-w-60 lg:max-w-65">
                     <MeasurementNeckDiagram />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5 md:gap-6 flex-1 min-w-0 w-full sm:max-w-none">
+                <div className="grid grid-cols-1 gap-4 sm:gap-5 md:gap-6 flex-1 min-w-0 w-full sm:max-w-sm">
                   {NECK_MEASUREMENT_FIELDS.map((field) => (
                     <MeasurementInput
                       key={field}
@@ -569,7 +573,7 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
               </div>
             </section>
 
-            <section className="pt-5 sm:pt-6 border-t border-gray-200">
+            <section className="pt-5 sm:pt-6 border-t border-gray-200 min-w-0">
               <h2 className="font-display text-[18px] sm:text-[20px] md:text-[22px] font-normal mb-1.5 sm:mb-2">
                 {t("fields.arabicSleeveSection")}
               </h2>
@@ -578,13 +582,13 @@ function AccountMeasurementsPageInner({ memberIdParam }: PageInnerProps) {
                   {t("fields.arabicSleeveSectionHint")}
                 </p>
               )}
-              <div className="flex flex-row gap-3 sm:gap-8 items-start">
-                <div className="shrink-0 flex justify-center w-28 sm:w-auto">
-                  <div className="w-full sm:max-w-55 md:max-w-60 lg:max-w-65">
+              <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 md:gap-8 items-center sm:items-start">
+                <div className="shrink-0 flex justify-center w-full sm:w-auto">
+                  <div className="w-full max-w-48 sm:max-w-55 md:max-w-60 lg:max-w-65">
                     <MeasurementSleeveDiagram />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-5 md:gap-6 flex-1 min-w-0 w-full sm:max-w-none">
+                <div className="grid grid-cols-1 gap-4 sm:gap-5 md:gap-6 flex-1 min-w-0 w-full sm:max-w-sm">
                   {SLEEVE_MEASUREMENT_FIELDS.map((field) => (
                     <MeasurementInput
                       key={field}
