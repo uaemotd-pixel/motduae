@@ -1050,7 +1050,7 @@ export default function FabricAdminFormFields({
           </AnimatedDropdown>
         </FormField>
 
-        <FormField label="Tag (ENG / AR)" name="tag" error={fieldErrors.tag}>
+        <FormField label="Tag (ENG / AR)" name="tag" required error={fieldErrors.tag}>
           <AnimatedDropdown
             isOpen={openTag}
             onClose={() => setOpenTag(false)}
@@ -1058,7 +1058,7 @@ export default function FabricAdminFormFields({
               <SelectTrigger
                 value={formData.tag}
                 placeholder={
-                  tagsLoading ? "Loading..." : "Select tag (optional)"
+                  tagsLoading ? "Loading..." : "Select tag"
                 }
                 displayValue={(() => {
                   const opt = tagOptions.find((o) => o.value === formData.tag);
@@ -1090,7 +1090,7 @@ export default function FabricAdminFormFields({
                   }}
                   className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-left text-xs sm:text-sm hover:bg-gray-100 hover:cursor-pointer"
                 >
-                  Select tag (optional)
+                  Select tag
                 </button>
                 {tagOptions.map((opt) => (
                   <button

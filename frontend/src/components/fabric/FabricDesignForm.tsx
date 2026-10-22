@@ -761,6 +761,9 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
     if (!formData.material?.trim()) {
       errors.material = t("validation.materialRequired");
     }
+    if (!formData.tag?.trim()) {
+      errors.tag = t("validation.tagRequired");
+    }
 
     validateFabricCuts(formData.cuts || [], errors, "cuts");
     if (!formData.colors || formData.colors.length === 0) {
@@ -1167,12 +1170,13 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
               <BilingualUnderlineDropdown
                 label="TAG (EN / AR)"
                 name="tag"
+                required
                 error={fieldErrors.tag}
                 value={formData.tag}
                 options={allTags}
                 loading={tagsLoading}
-                placeholder="Select tag (optional)"
-                clearLabel="Select tag (optional)"
+                placeholder="Select tag"
+                clearLabel="Select tag"
                 isOpen={isTagDropdownOpen}
                 onToggle={() => {
                   setIsTagDropdownOpen((prev) => !prev);

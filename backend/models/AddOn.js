@@ -12,6 +12,12 @@ const addOnSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    /** Optional product code — unique when provided (empty allowed for many docs) */
+    code: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     slug: {
       type: String,
       unique: true,
@@ -150,7 +156,46 @@ const addOnSchema = new mongoose.Schema(
 );
 
 addOnSchema.index({ isActive: 1 });
+addOnSchema.index(
+  { code: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { code: { $type: "string", $gt: "" } },
+  },
+);
 
 const AddOn = mongoose.model("AddOn", addOnSchema);
+
+/** Optional add-on product code — empty string when omitted. */
+export function normalizeOptionalAddOnCode(value) {
+  return String(value ?? "").trim();
+}
+
+/**
+ * Ensure a non-empty add-on code is not already used.
+ * Empty codes are always allowed (many add-ons may omit code).
+ */
+export async function assertAddOnCodeAvailable(code, { excludeId } = {}) {
+  const normalized = normalizeOptionalAddOnCode(code);
+  if (!normalized) {
+    return { ok: true, code: "" };
+  }
+
+  const filter = { code: normalized };
+  if (excludeId && mongoose.Types.ObjectId.isValid(String(excludeId))) {
+    filter._id = { $ne: excludeId };
+  }
+
+  const existing = await AddOn.findOne(filter).select("_id").lean();
+  if (existing) {
+    return {
+      ok: false,
+      message: "Add-on code already exists",
+      code: normalized,
+    };
+  }
+
+  return { ok: true, code: normalized };
+}
 
 export default AddOn;

@@ -27,7 +27,7 @@ import WishlistButton from "@/components/shared/wishlistButton";
 import AddToCartButton from "@/components/shared/addToCartButton";
 import RelatedProductsCarousel from "@/components/shared/RelatedProductsCarousel";
 import FormattedDescription from "@/components/shared/FormattedDescription";
-import { Share2 } from "lucide-react";
+import { Share2, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   ProductReviewsSection,
   ProductReviewCount,
@@ -415,6 +415,20 @@ function ReadyMadeDetailContent({
   const title = product.name;
   const desc = product.description;
   const images = product.images?.length ? product.images : ["/placeholder.png"];
+  const resolvedImages = images.map(
+    (img: string) => resolveMediaUrl(img) || img,
+  );
+  const activeImageIndex = Math.max(
+    0,
+    resolvedImages.findIndex((url: string) => url === selectedImage),
+  );
+  const isAr = locale === "ar";
+  const goToImage = (index: number) => {
+    const next =
+      ((index % resolvedImages.length) + resolvedImages.length) %
+      resolvedImages.length;
+    onSelectImage(resolvedImages[next]);
+  };
   const price = product.finalSellingPriceAED || 0;
   const stock = product.availableFabricStock || 0;
   const tag = product.tag;
@@ -497,6 +511,34 @@ function ReadyMadeDetailContent({
                         backgroundColor: tagStyles.bg,
                         color: tagStyles.text,
                       }}>{tag}</Tag>
+                  )}
+                  {resolvedImages.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        aria-label={isAr ? "الصورة السابقة" : "Previous image"}
+                        onClick={() => goToImage(activeImageIndex - 1)}
+                        className="absolute start-2.5 top-1/2 z-20 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-[#E5E5E0] bg-white/95 text-black shadow-md backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:border-black hover:bg-black hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20 cursor-pointer sm:start-3 sm:size-10"
+                      >
+                        {isAr ? (
+                          <ChevronRight className="size-4" strokeWidth={1.75} />
+                        ) : (
+                          <ChevronLeft className="size-4" strokeWidth={1.75} />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={isAr ? "الصورة التالية" : "Next image"}
+                        onClick={() => goToImage(activeImageIndex + 1)}
+                        className="absolute end-2.5 top-1/2 z-20 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-[#E5E5E0] bg-white/95 text-black shadow-md backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:border-black hover:bg-black hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-black/20 cursor-pointer sm:end-3 sm:size-10"
+                      >
+                        {isAr ? (
+                          <ChevronLeft className="size-4" strokeWidth={1.75} />
+                        ) : (
+                          <ChevronRight className="size-4" strokeWidth={1.75} />
+                        )}
+                      </button>
+                    </>
                   )}
                 </motion.div>
                 {images.length > 1 && (
@@ -675,17 +717,26 @@ function ReadyMadeDetailContent({
                           <span className="text-lg">+</span>
                         </button>
                       </div>
-                      <button
-                        onClick={onBuyNow}
-                        disabled={stock < 1}
-                        className={`w-full py-3 px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
-                          stock < 1
-                            ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
-                            : "hover:bg-black hover:text-white"
-                        }`}
-                      >
-                        Buy Now
-                      </button>
+                      <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+                        <span className="shrink-0 [font-family:var(--font-ui)] text-[11px] xs:text-[12px] tracking-[0.14em] text-black tabular-nums">
+                          {isAr ? "د.إ" : "AED"}{" "}
+                          {(Number(price) * quantity).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </span>
+                        <button
+                          onClick={onBuyNow}
+                          disabled={stock < 1}
+                          className={`min-w-0 flex-1 py-3 px-4 sm:px-6 border border-black bg-transparent text-[12px] md:text-[13px] tracking-[0.24em] uppercase [font-family:var(--font-ui)] transition-all duration-300 hover:cursor-pointer ${
+                            stock < 1
+                              ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 border-gray-300"
+                              : "hover:bg-black hover:text-white"
+                          }`}
+                        >
+                          Buy Now
+                        </button>
+                      </div>
                     </div>
 
                     <button
