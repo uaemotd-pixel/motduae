@@ -432,7 +432,9 @@ function AddonDetailContent({
   const desc = isAr
     ? addon.descriptionAr || addon.description
     : addon.description;
-  const images = addon.images?.length ? addon.images : [addon.thumbnailImage];
+  const images: string[] = addon.images?.length
+    ? (addon.images as string[])
+    : [String(addon.thumbnailImage || "")];
   const resolvedImages = images
     .map((img) => resolveMediaUrl(img || "") || img || "")
     .filter(Boolean);
