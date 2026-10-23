@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { getApiErrorMessage } from "@/lib/api/client";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { getTranslation } from "@/lib/getTranslation";
 import {
   Plus,
@@ -19,13 +19,13 @@ import {
   MoreVertical,
   Maximize2,
   Users,
+  EyeOff,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
-import { Tag } from "@/components/ui/Tag";
 import { resolveMediaUrl } from "@/lib/media";
 import {
   deleteAdminDesign,
@@ -37,20 +37,73 @@ import {
 } from "@/lib/adminDesigns";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 
+const DEFAULT_LIMIT = 10;
+
+function buildDesignListQuery(opts: {
+  page: number;
+  limit: number;
+  search: string;
+  tailorShopId: string;
+}) {
+  const params = new URLSearchParams();
+  if (opts.page > 1) params.set("page", String(opts.page));
+  if (opts.limit !== DEFAULT_LIMIT) params.set("limit", String(opts.limit));
+  const search = opts.search.trim();
+  if (search) params.set("search", search);
+  if (opts.tailorShopId) params.set("tailorShopId", opts.tailorShopId);
+  return params.toString();
+}
+
+function buildDesignListPath(opts: {
+  page: number;
+  limit: number;
+  search: string;
+  tailorShopId: string;
+}) {
+  const qs = buildDesignListQuery(opts);
+  return qs ? `/admin/designs?${qs}` : "/admin/designs";
+}
+
+function InactiveNameBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-stone-100 text-stone-600 border border-stone-200/80 whitespace-nowrap">
+      <EyeOff className="w-2.5 h-2.5" />
+      {label}
+    </span>
+  );
+}
+
+function getItemCode(item: AdminDesignProfile) {
+  const code = typeof item.code === "string" ? item.code.trim() : "";
+  return code || "N/A";
+}
+
 export default function AdminDesignsPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const locale = (params.locale as string) || "en";
   const t = getTranslation(locale).adminDesigns;
 
   const [items, setItems] = useState<AdminDesignProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") || "",
+  );
+  const [currentPage, setCurrentPage] = useState(() => {
+    const page = Number(searchParams.get("page"));
+    return Number.isFinite(page) && page > 0 ? page : 1;
+  });
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
-  const [limit, setLimit] = useState(10);
-  const [tailorShopId, setTailorShopId] = useState("");
+  const [limit, setLimit] = useState(() => {
+    const value = Number(searchParams.get("limit"));
+    return Number.isFinite(value) && value > 0 ? value : DEFAULT_LIMIT;
+  });
+  const [tailorShopId, setTailorShopId] = useState(
+    () => searchParams.get("tailorShopId") || "",
+  );
   const [tailorShops, setTailorShops] = useState<AdminTailorShopOption[]>([]);
   const [openTailorFilter, setOpenTailorFilter] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -62,6 +115,58 @@ export default function AdminDesignsPage() {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
+  const skipSearchEffect = useRef(true);
+  const prevSearchTerm = useRef(searchTerm);
+
+  const syncListUrl = useCallback(
+    (opts: {
+      page: number;
+      limit: number;
+      search: string;
+      tailorShopId: string;
+    }) => {
+      if (typeof window !== "undefined") {
+        const path = buildDesignListPath(opts);
+        const localePrefix = window.location.pathname.match(/^\/(en|ar)(?=\/)/);
+        const fullPath = localePrefix ? `${localePrefix[0]}${path}` : path;
+        window.history.replaceState(
+          window.history.state,
+          "",
+          `${fullPath}${window.location.hash}`,
+        );
+        return;
+      }
+      router.replace(buildDesignListPath(opts), { scroll: false });
+    },
+    [router],
+  );
+
+  const listStateQuery = useMemo(
+    () =>
+      buildDesignListQuery({
+        page: currentPage,
+        limit,
+        search: searchTerm,
+        tailorShopId,
+      }),
+    [currentPage, limit, searchTerm, tailorShopId],
+  );
+
+  const editHref = useCallback(
+    (id: string) =>
+      listStateQuery
+        ? `/admin/designs/${id}/edit?${listStateQuery}`
+        : `/admin/designs/${id}/edit`,
+    [listStateQuery],
+  );
+
+  const detailsHref = useCallback(
+    (id: string) =>
+      listStateQuery
+        ? `/admin/designs/${id}?${listStateQuery}`
+        : `/admin/designs/${id}`,
+    [listStateQuery],
+  );
 
   const [modalOpen, setModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<AdminDesignProfile | null>(
@@ -158,6 +263,12 @@ export default function AdminDesignsPage() {
         isInitialLoad.current = false;
 
         if (res.page > res.totalPages && res.totalPages > 0) {
+          syncListUrl({
+            page: res.totalPages,
+            limit: requestLimit,
+            search: requestSearch,
+            tailorShopId: requestTailorShopId,
+          });
           await fetchItems(
             res.totalPages,
             false,
@@ -172,31 +283,92 @@ export default function AdminDesignsPage() {
         setLoading(false);
       }
     },
-    [limit, searchTerm, tailorShopId, t.list.load_error_title],
+    [limit, searchTerm, tailorShopId, t.list.load_error_title, syncListUrl],
   );
 
+  // Keep list state aligned with URL (e.g. return from edit with ?page=3)
+  const urlSyncKey = searchParams.toString();
+  const lastUrlSyncKey = useRef<string | null>(null);
   useEffect(() => {
-    void fetchItems(1, true);
-  }, [fetchItems]);
+    if (lastUrlSyncKey.current === urlSyncKey) return;
+    lastUrlSyncKey.current = urlSyncKey;
 
+    const pageFromUrl = Number(searchParams.get("page"));
+    const nextPage =
+      Number.isFinite(pageFromUrl) && pageFromUrl > 0 ? pageFromUrl : 1;
+    const limitFromUrl = Number(searchParams.get("limit"));
+    const nextLimit =
+      Number.isFinite(limitFromUrl) && limitFromUrl > 0
+        ? limitFromUrl
+        : DEFAULT_LIMIT;
+    const nextSearch = searchParams.get("search") || "";
+    const nextTailorShopId = searchParams.get("tailorShopId") || "";
+
+    setCurrentPage(nextPage);
+    setLimit(nextLimit);
+    setSearchTerm(nextSearch);
+    setTailorShopId(nextTailorShopId);
+    prevSearchTerm.current = nextSearch;
+    void fetchItems(nextPage, true, nextLimit, nextSearch, nextTailorShopId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- driven by URL only
+  }, [urlSyncKey]);
+
+  // Debounced search resets to page 1. Ignore non-changes (Strict Mode / URL sync).
   useEffect(() => {
+    if (skipSearchEffect.current) {
+      skipSearchEffect.current = false;
+      prevSearchTerm.current = searchTerm;
+      return;
+    }
+    if (prevSearchTerm.current === searchTerm) return;
+    prevSearchTerm.current = searchTerm;
     const timer = setTimeout(() => {
-      if (!isInitialLoad.current) {
-        setCurrentPage(1);
-        void fetchItems(1, true, limit, searchTerm, tailorShopId);
-      }
+      setCurrentPage(1);
+      syncListUrl({
+        page: 1,
+        limit,
+        search: searchTerm,
+        tailorShopId,
+      });
+      void fetchItems(1, true, limit, searchTerm, tailorShopId);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchTerm, limit, tailorShopId, fetchItems]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
+
+  const handleTailorFilterChange = (nextTailorShopId: string) => {
+    setTailorShopId(nextTailorShopId);
+    setCurrentPage(1);
+    setOpenTailorFilter(false);
+    syncListUrl({
+      page: 1,
+      limit,
+      search: searchTerm,
+      tailorShopId: nextTailorShopId,
+    });
+    void fetchItems(1, false, limit, searchTerm, nextTailorShopId);
+  };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+    syncListUrl({
+      page,
+      limit,
+      search: searchTerm,
+      tailorShopId,
+    });
     void fetchItems(page, false, limit, searchTerm, tailorShopId);
   };
 
   const handleLimitChange = (newLimit: number) => {
     setLimit(newLimit);
     setCurrentPage(1);
+    syncListUrl({
+      page: 1,
+      limit: newLimit,
+      search: searchTerm,
+      tailorShopId,
+    });
     void fetchItems(1, true, newLimit, searchTerm, tailorShopId);
   };
 
@@ -212,12 +384,6 @@ export default function AdminDesignsPage() {
     });
     setMenuItem(item);
   };
-
-  const StatusBadge = ({ isActive }: { isActive: boolean }) => (
-    <Tag size="md" variant={isActive ? "outline" : "muted"}>
-      {isActive ? t.list.status_active : t.list.status_inactive}
-    </Tag>
-  );
 
   const getItemImage = (item: AdminDesignProfile) => {
     const src = item.images?.[0] ? resolveMediaUrl(item.images[0]) : "";
@@ -365,10 +531,7 @@ export default function AdminDesignsPage() {
             <button
               type="button"
               className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 hover:cursor-pointer"
-              onClick={() => {
-                setTailorShopId("");
-                setOpenTailorFilter(false);
-              }}
+              onClick={() => handleTailorFilterChange("")}
             >
               {t.list.filter_tailor_all}
             </button>
@@ -377,10 +540,7 @@ export default function AdminDesignsPage() {
                 key={shop._id}
                 type="button"
                 className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 hover:cursor-pointer truncate"
-                onClick={() => {
-                  setTailorShopId(shop._id);
-                  setOpenTailorFilter(false);
-                }}
+                onClick={() => handleTailorFilterChange(shop._id)}
               >
                 {shop.name}
               </button>
@@ -423,87 +583,126 @@ export default function AdminDesignsPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                 <tr>
+                  <th className="px-4 py-3">{t.list.col_code}</th>
                   <th className="px-4 py-3">{t.list.col_name}</th>
                   <th className="px-4 py-3">{t.list.col_tailor}</th>
                   <th className="px-4 py-3">{t.list.col_category}</th>
                   <th className="px-4 py-3">{t.list.col_price}</th>
-                  <th className="px-4 py-3">{t.list.col_status}</th>
                   <th className="px-4 py-3 text-right">{t.list.col_actions}</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => (
-                  <tr
-                    key={item._id}
-                    className="border-t border-gray-100 hover:bg-gray-50/50"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {getItemImage(item)}
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">{item.name}</p>
-                          <p className="text-xs text-gray-400 truncate">
-                            {item.slug}
-                          </p>
+                {items.map((item) => {
+                  const itemInactive = item.isActive === false;
+                  return (
+                    <tr
+                      key={item._id}
+                      className={`border-t border-gray-100 transition-all duration-200 ${
+                        itemInactive
+                          ? "bg-stone-50/90 hover:bg-stone-100/80"
+                          : "hover:bg-gray-50/50"
+                      }`}
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap font-mono text-gray-600">
+                        {getItemCode(item)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {getItemImage(item)}
+                          <div className="min-w-0">
+                            <p
+                              className={`font-medium truncate ${
+                                itemInactive ? "text-stone-600" : ""
+                              }`}
+                            >
+                              {item.name}
+                            </p>
+                            {itemInactive && (
+                              <div className="mt-1">
+                                <InactiveNameBadge
+                                  label={t.list.status_inactive}
+                                />
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 truncate max-w-40">
-                      {getDesignTailorShopName(item, locale)}
-                    </td>
-                    <td className="px-4 py-3">{item.category || "—"}</td>
-                    <td className="px-4 py-3">
-                      {Number(item.basePrice || 0).toFixed(2)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge isActive={item.isActive} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={(e) => handleMenuOpen(e, item)}
-                        className="p-1.5 rounded-lg hover:bg-gray-100 hover:cursor-pointer"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-3 truncate max-w-40">
+                        {getDesignTailorShopName(item, locale)}
+                      </td>
+                      <td className="px-4 py-3">{item.category || "—"}</td>
+                      <td className="px-4 py-3">
+                        {Number(item.basePrice || 0).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => handleMenuOpen(e, item)}
+                          className="p-1.5 rounded-lg hover:bg-gray-100 hover:cursor-pointer"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           <div className="md:hidden space-y-3">
-            {items.map((item) => (
-              <div
-                key={item._id}
-                className="bg-white rounded-2xl border border-gray-100 p-4"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    {getItemImage(item)}
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">{item.name}</p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {getDesignTailorShopName(item, locale)}
-                      </p>
+            {items.map((item) => {
+              const itemInactive = item.isActive === false;
+              return (
+                <div
+                  key={item._id}
+                  className={`rounded-2xl border p-4 ${
+                    itemInactive
+                      ? "bg-stone-50 border-stone-200"
+                      : "bg-white border-gray-100"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {getItemImage(item)}
+                      <div className="min-w-0">
+                        <p
+                          className={`font-medium truncate ${
+                            itemInactive ? "text-stone-600" : ""
+                          }`}
+                        >
+                          {item.name}
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className="font-mono text-[10px] text-gray-500">
+                            {getItemCode(item)}
+                          </span>
+                          {itemInactive && (
+                            <InactiveNameBadge
+                              label={t.list.status_inactive}
+                            />
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 truncate mt-1">
+                          {getDesignTailorShopName(item, locale)}
+                        </p>
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={(e) => handleMenuOpen(e, item)}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 hover:cursor-pointer shrink-0"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={(e) => handleMenuOpen(e, item)}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 hover:cursor-pointer shrink-0"
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
+                  <div className="mt-3 flex items-center justify-between gap-2 text-xs text-gray-600">
+                    <span>{item.category || "—"}</span>
+                    <span>{Number(item.basePrice || 0).toFixed(2)} AED</span>
+                  </div>
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-2 text-xs text-gray-600">
-                  <span>{item.category || "—"}</span>
-                  <span>{Number(item.basePrice || 0).toFixed(2)} AED</span>
-                  <StatusBadge isActive={item.isActive} />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <GlobalPagination
@@ -535,7 +734,7 @@ export default function AdminDesignsPage() {
               className="z-50 w-40 bg-white rounded-xl shadow-lg border border-gray-200 py-1 overflow-hidden"
             >
               <Link
-                href={`/admin/designs/${menuItem._id}`}
+                href={detailsHref(menuItem._id)}
                 className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 hover:cursor-pointer"
                 onClick={() => {
                   setMenuPosition(null);
@@ -546,7 +745,7 @@ export default function AdminDesignsPage() {
                 View
               </Link>
               <Link
-                href={`/admin/designs/${menuItem._id}/edit`}
+                href={editHref(menuItem._id)}
                 className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 hover:cursor-pointer"
                 onClick={() => {
                   setMenuPosition(null);

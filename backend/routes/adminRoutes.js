@@ -623,10 +623,11 @@ adminRouter.get(
 
     const searchFilter = {};
 
-    // Search by name, fabricType, or tailorName
+    // Search by code, name, fabricType, or tailorName
     if (search && typeof search === "string") {
       const regex = new RegExp(escapeRegex(search.trim()), "i");
       searchFilter.$or = [
+        { code: regex },
         { name: regex },
         { nameAr: regex },
         { fabricType: regex },
@@ -762,6 +763,7 @@ adminRouter.get(
     if (search) {
       const safeSearch = escapeRegex(search);
       filter.$or = [
+        { code: { $regex: safeSearch, $options: "i" } },
         { name: { $regex: safeSearch, $options: "i" } },
         { nameAr: { $regex: safeSearch, $options: "i" } },
         { category: { $regex: safeSearch, $options: "i" } },
@@ -1725,6 +1727,7 @@ async function adminFabricSearchClause(search) {
 
   const rx = { $regex: escapeRegex(term), $options: "i" };
   const or = [
+    { code: rx },
     { name: rx },
     { nameAr: rx },
     { material: rx },
@@ -2408,6 +2411,14 @@ adminRouter.put(
         isVariantOf: updatedFabric._id,
         _id: { $nin: incomingIds },
       });
+    }
+
+    // Parent inactive ⇒ all variants inactive (variants cannot stay catalog-visible alone)
+    if (updatedFabric.isActive === false) {
+      await Fabric.updateMany(
+        { isVariantOf: updatedFabric._id },
+        { $set: { isActive: false } },
+      );
     }
 
     res.send(await enrichFabricWithCuts(updatedFabric));
@@ -4813,7 +4824,7 @@ adminRouter.get(
     if (search) {
       const term = String(search).trim();
       const regex = { $regex: escapeRegex(term), $options: "i" };
-      const or = [{ name: regex }, { nameAr: regex }];
+      const or = [{ code: regex }, { name: regex }, { nameAr: regex }];
 
       const matchingShops = await FabricShop.find({
         $or: [{ name: regex }, { nameAr: regex }],

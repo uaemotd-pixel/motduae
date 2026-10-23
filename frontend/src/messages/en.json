@@ -237,6 +237,8 @@
     "addonsTitle": "Add-Ons",
     "addonsCount": "{count} add-ons",
     "addonsEmpty": "No add-ons available from this brand yet.",
+    "showMore": "Show more (+{count})",
+    "showLess": "Show less",
     "notFound": "Brand not found",
     "notFoundTitle": "Brand Not Found",
     "browseAll": "Browse All Brands",
