@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, FormEvent, useRef, useMemo } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useState, useEffect, FormEvent, useRef, useMemo, useCallback } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
 import FabricImageUpload from "@/components/admin/FabricImageUpload";
@@ -33,13 +34,35 @@ const COLOR_OPTIONS = colors;
 const sanitizeName = (value: string) =>
   value.replace(/[^a-zA-Z0-9\u0600-\u06FF\s\-']/g, "");
 
+function buildListReturnHref(searchParams: URLSearchParams | { get: (key: string) => string | null }) {
+  const params = new URLSearchParams();
+  const page = searchParams.get("page");
+  const limit = searchParams.get("limit");
+  const status = searchParams.get("status");
+  const search = searchParams.get("search");
+  if (page && Number(page) > 1) params.set("page", page);
+  if (limit && Number(limit) > 0 && Number(limit) !== 10) params.set("limit", limit);
+  if (status && status !== "all") params.set("status", status);
+  if (search?.trim()) params.set("search", search.trim());
+  const qs = params.toString();
+  return qs ? `/admin/ready-made?${qs}` : "/admin/ready-made";
+}
+
 export default function EditReadyMadePage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const localeParam = params.locale as string;
   const id = params.id as string;
   const t = getTranslation(localeParam);
   const fabricCommission = useFabricStoreCommission();
+  const listReturnHref = useMemo(
+    () => buildListReturnHref(searchParams),
+    [searchParams],
+  );
+  const goToList = useCallback(() => {
+    router.push(listReturnHref);
+  }, [router, listReturnHref]);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -377,7 +400,7 @@ export default function EditReadyMadePage() {
       await api.put(`/api/admin/ready-made/${id}`, payload);
       toast.success("Product updated successfully!");
       setTimeout(() => {
-        router.push("/admin/ready-made");
+        goToList();
       }, 2000);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to update product"));
@@ -1321,7 +1344,7 @@ export default function EditReadyMadePage() {
           </button>
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={goToList}
             className="w-full sm:w-auto px-4 sm:px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer text-sm"
           >
             Cancel
