@@ -283,6 +283,8 @@
     "addonsTitle": "الإكسسوارات",
     "addonsCount": "{count} إكسسوارات",
     "addonsEmpty": "لا توجد إكسسوارات متاحة من هذه العلامة حالياً.",
+    "showMore": "عرض المزيد (+{count})",
+    "showLess": "عرض أقل",
     "notFound": "العلامة غير موجودة",
     "notFoundTitle": "العلامة غير موجودة",
     "browseAll": "تصفح جميع العلامات",
