@@ -19,6 +19,7 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 .idea/
+.vscode/
 
 # Archive (reference only)
 archive/
