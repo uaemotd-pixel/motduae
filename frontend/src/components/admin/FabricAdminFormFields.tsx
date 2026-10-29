@@ -1440,7 +1440,7 @@ export default function FabricAdminFormFields({
                     building: "",
                     phone: "",
                   },
-                  isActive: true,
+                  isActive: formData.isActive !== false,
                 } satisfies FabricVariantFormData,
               ]);
             }}
@@ -1751,28 +1751,33 @@ export default function FabricAdminFormFields({
                       label="Active Status"
                       name={`${prefix}.isActive`}
                     >
-                      <div className="flex items-center gap-2 mt-2">
-                        <input
-                          type="checkbox"
-                          id={`${prefix}.isActive`}
-                          checked={variant.isActive}
-                          onChange={(e) => {
-                            const nextVariants = [...(formData.variants || [])];
-                            nextVariants[index] = {
-                              ...nextVariants[index],
-                              isActive: e.target.checked,
-                            };
-                            onFieldChange("variants", nextVariants);
-                          }}
-                          className="w-3.5 h-3.5 sm:w-4 sm:h-4 hover:cursor-pointer"
-                        />
-                        <label
-                          htmlFor={`${prefix}.isActive`}
-                          className="text-[10px] sm:text-xs text-gray-700 hover:cursor-pointer"
-                        >
-                          Active (visible to customers)
-                        </label>
-                      </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <input
+                            type="checkbox"
+                            id={`${prefix}.isActive`}
+                            checked={
+                              formData.isActive !== false && variant.isActive
+                            }
+                            disabled={formData.isActive === false}
+                            onChange={(e) => {
+                              const nextVariants = [...(formData.variants || [])];
+                              nextVariants[index] = {
+                                ...nextVariants[index],
+                                isActive: e.target.checked,
+                              };
+                              onFieldChange("variants", nextVariants);
+                            }}
+                            className="w-3.5 h-3.5 sm:w-4 sm:h-4 hover:cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          />
+                          <label
+                            htmlFor={`${prefix}.isActive`}
+                            className="text-[10px] sm:text-xs text-gray-700 hover:cursor-pointer"
+                          >
+                            {formData.isActive === false
+                              ? "Inactive (parent fabric is inactive)"
+                              : "Active (visible to customers)"}
+                          </label>
+                        </div>
                     </FormField>
 
                     <div className="md:col-span-2 space-y-4">

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { api, getApiErrorMessage } from "@/lib/api/client";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import {
   Plus,
   Edit,
@@ -34,6 +35,7 @@ import { PartnerListingPrice, useFabricStoreCommission } from "@/components/part
 interface ReadyMadeItem {
   _id: string;
   name: string;
+  code?: string;
   fabricType: string;
   tailorName: string;
   finalSellingPriceAED: number;
@@ -71,15 +73,66 @@ type ApiResponse = {
   total: number;
 };
 
+const READY_MADE_TABS: ReadyMadeTab[] = [
+  "all",
+  "available",
+  "sold",
+  "low",
+  "active",
+  "inactive",
+];
+const DEFAULT_LIMIT = 10;
+
+function parseReadyMadeTab(value: string | null): ReadyMadeTab {
+  if (value && READY_MADE_TABS.includes(value as ReadyMadeTab)) {
+    return value as ReadyMadeTab;
+  }
+  return "all";
+}
+
+function buildReadyMadeListQuery(opts: {
+  page: number;
+  limit: number;
+  status: ReadyMadeTab;
+  search: string;
+}) {
+  const params = new URLSearchParams();
+  if (opts.page > 1) params.set("page", String(opts.page));
+  if (opts.limit !== DEFAULT_LIMIT) params.set("limit", String(opts.limit));
+  if (opts.status !== "all") params.set("status", opts.status);
+  const search = opts.search.trim();
+  if (search) params.set("search", search);
+  return params.toString();
+}
+
+function buildReadyMadeListPath(opts: {
+  page: number;
+  limit: number;
+  status: ReadyMadeTab;
+  search: string;
+}) {
+  const qs = buildReadyMadeListQuery(opts);
+  return qs ? `/admin/ready-made?${qs}` : "/admin/ready-made";
+}
+
 export default function AdminReadyMadePage() {
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const commissionPercent = useFabricStoreCommission();
   const [items, setItems] = useState<ReadyMadeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<ReadyMadeTab>("all");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") || "",
+  );
+  const [activeTab, setActiveTab] = useState<ReadyMadeTab>(() =>
+    parseReadyMadeTab(searchParams.get("status")),
+  );
+  const [currentPage, setCurrentPage] = useState(() => {
+    const page = Number(searchParams.get("page"));
+    return Number.isFinite(page) && page > 0 ? page : 1;
+  });
   const [totalPages, setTotalPages] = useState(0);
   const [stats, setStats] = useState<Stats | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -91,7 +144,51 @@ export default function AdminReadyMadePage() {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
-  const [limit, setLimit] = useState(10);
+  const skipSearchEffect = useRef(true);
+  const [limit, setLimit] = useState(() => {
+    const value = Number(searchParams.get("limit"));
+    return Number.isFinite(value) && value > 0 ? value : DEFAULT_LIMIT;
+  });
+
+  const syncListUrl = useCallback(
+    (opts: {
+      page: number;
+      limit: number;
+      status: ReadyMadeTab;
+      search: string;
+    }) => {
+      router.replace(buildReadyMadeListPath(opts), { scroll: false });
+    },
+    [router],
+  );
+
+  // Pass list filters as flat query params (avoids nested ?return= encoding bugs).
+  const listStateQuery = useMemo(
+    () =>
+      buildReadyMadeListQuery({
+        page: currentPage,
+        limit,
+        status: activeTab,
+        search: searchTerm,
+      }),
+    [currentPage, limit, activeTab, searchTerm],
+  );
+
+  const editHref = useCallback(
+    (id: string) =>
+      listStateQuery
+        ? `/admin/ready-made/${id}/edit?${listStateQuery}`
+        : `/admin/ready-made/${id}/edit`,
+    [listStateQuery],
+  );
+
+  const detailsHref = useCallback(
+    (id: string) =>
+      listStateQuery
+        ? `/admin/ready-made/${id}?${listStateQuery}`
+        : `/admin/ready-made/${id}`,
+    [listStateQuery],
+  );
 
   const [modalOpen, setModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<ReadyMadeItem | null>(null);
@@ -182,6 +279,12 @@ export default function AdminReadyMadePage() {
         isInitialLoad.current = false;
 
         if (res.page > res.totalPages && res.totalPages > 0) {
+          syncListUrl({
+            page: res.totalPages,
+            limit: requestLimit,
+            status: requestStatus,
+            search: requestSearch,
+          });
           await fetchItems(
             res.totalPages,
             false,
@@ -197,45 +300,83 @@ export default function AdminReadyMadePage() {
         setLoading(false);
       }
     },
-    [activeTab, searchTerm, limit],
+    [activeTab, searchTerm, limit, syncListUrl],
   );
 
-  // Initial load - only once
+  // Keep list state aligned with URL (e.g. return from edit with ?page=3)
+  const urlSyncKey = searchParams.toString();
+  const lastUrlSyncKey = useRef<string | null>(null);
+  const prevSearchTerm = useRef(searchTerm);
   useEffect(() => {
-    void fetchItems(1, true);
-  }, [fetchItems]);
+    if (lastUrlSyncKey.current === urlSyncKey) return;
+    lastUrlSyncKey.current = urlSyncKey;
 
-  // Debounced search - show loading
+    const pageFromUrl = Number(searchParams.get("page"));
+    const nextPage =
+      Number.isFinite(pageFromUrl) && pageFromUrl > 0 ? pageFromUrl : 1;
+    const limitFromUrl = Number(searchParams.get("limit"));
+    const nextLimit =
+      Number.isFinite(limitFromUrl) && limitFromUrl > 0
+        ? limitFromUrl
+        : DEFAULT_LIMIT;
+    const nextTab = parseReadyMadeTab(searchParams.get("status"));
+    const nextSearch = searchParams.get("search") || "";
+
+    setCurrentPage(nextPage);
+    setLimit(nextLimit);
+    setActiveTab(nextTab);
+    setSearchTerm(nextSearch);
+    prevSearchTerm.current = nextSearch;
+    void fetchItems(nextPage, true, nextLimit, nextSearch, nextTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- driven by URL only
+  }, [urlSyncKey]);
+
+  // Debounced search resets to page 1. Ignore non-changes (Strict Mode / URL sync).
   useEffect(() => {
+    if (skipSearchEffect.current) {
+      skipSearchEffect.current = false;
+      prevSearchTerm.current = searchTerm;
+      return;
+    }
+    if (prevSearchTerm.current === searchTerm) return;
+    prevSearchTerm.current = searchTerm;
     const timer = setTimeout(() => {
-      if (!isInitialLoad.current) {
-        setCurrentPage(1);
-        void fetchItems(1, true, limit, searchTerm, activeTab);
-      }
+      setCurrentPage(1);
+      syncListUrl({
+        page: 1,
+        limit,
+        status: activeTab,
+        search: searchTerm,
+      });
+      void fetchItems(1, true, limit, searchTerm, activeTab);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchTerm, limit, activeTab, fetchItems]);
-
-  // Tab change - no loading flash
-  useEffect(() => {
-    if (!isInitialLoad.current) {
-      setCurrentPage(1);
-      void fetchItems(1, false, limit, searchTerm, activeTab);
-    }
-  }, [activeTab, limit, searchTerm, fetchItems]);
+    // Only react to search typing — tab/limit handlers sync themselves
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
 
   const handleTabChange = (tab: ReadyMadeTab) => {
     setActiveTab(tab);
+    setCurrentPage(1);
+    syncListUrl({ page: 1, limit, status: tab, search: searchTerm });
+    void fetchItems(1, false, limit, searchTerm, tab);
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+    syncListUrl({ page, limit, status: activeTab, search: searchTerm });
     void fetchItems(page, false, limit, searchTerm, activeTab);
   };
 
   const handleLimitChange = (newLimit: number) => {
     setLimit(newLimit);
     setCurrentPage(1);
+    syncListUrl({
+      page: 1,
+      limit: newLimit,
+      status: activeTab,
+      search: searchTerm,
+    });
     void fetchItems(1, true, newLimit, searchTerm, activeTab);
   };
 
@@ -252,20 +393,9 @@ export default function AdminReadyMadePage() {
     setMenuItem(item);
   };
 
-  const StatusBadge = ({ status }: { status: string }) => {
-    const normalized = status?.toLowerCase().trim();
-    const isAvailable = normalized === "available";
-    return (
-      <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
-          isAvailable
-            ? "bg-white text-black border border-black/30"
-            : "bg-gray-100 text-gray-500 border border-gray-200"
-        }`}
-      >
-        {isAvailable ? "Available" : "Sold"}
-      </span>
-    );
+  const getItemCode = (item: ReadyMadeItem) => {
+    const code = typeof item.code === "string" ? item.code.trim() : "";
+    return code || "N/A";
   };
 
   const getItemImage = (item: ReadyMadeItem) => {
@@ -398,7 +528,7 @@ export default function AdminReadyMadePage() {
               className="w-fit min-w-30 sm:min-w-35 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"
             >
               <Link
-                href={`/admin/ready-made/${menuItem._id}/edit`}
+                href={editHref(menuItem._id)}
                 onClick={() => {
                   setMenuPosition(null);
                   setMenuItem(null);
@@ -410,7 +540,7 @@ export default function AdminReadyMadePage() {
                 <span>Edit</span>
               </Link>
               <Link
-                href={`/admin/ready-made/${menuItem._id}`}
+                href={detailsHref(menuItem._id)}
                 onClick={() => {
                   setMenuPosition(null);
                   setMenuItem(null);
@@ -517,7 +647,7 @@ export default function AdminReadyMadePage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by name, fabric, or tailor..."
+              placeholder="Search by code, name, fabric, or tailor..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full sm:w-64 pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
@@ -560,6 +690,9 @@ export default function AdminReadyMadePage() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Code
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Product Name
                     </th>
                     <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -574,9 +707,6 @@ export default function AdminReadyMadePage() {
                     <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Stock
                     </th>
-                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
                     <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
@@ -584,8 +714,6 @@ export default function AdminReadyMadePage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {items.map((item) => {
-                    const status =
-                      item.availableFabricStock > 0 ? "available" : "sold";
                     const itemLow = isLowStockQty(item.availableFabricStock);
                     return (
                       <tr
@@ -596,6 +724,9 @@ export default function AdminReadyMadePage() {
                             : "hover:bg-gray-50"
                         }`}
                       >
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-mono text-gray-600">
+                          {getItemCode(item)}
+                        </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             {getItemImage(item)}
@@ -645,9 +776,6 @@ export default function AdminReadyMadePage() {
                             ) : null}
                           </span>
                         </td>
-                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                          <StatusBadge status={status} />
-                        </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right">
                           <button
                             onClick={(e) => handleMenuOpen(e, item)}
@@ -668,8 +796,6 @@ export default function AdminReadyMadePage() {
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3 sm:space-y-4">
             {items.map((item) => {
-              const status =
-                item.availableFabricStock > 0 ? "available" : "sold";
               const itemLow = isLowStockQty(item.availableFabricStock);
               return (
                 <div
@@ -688,7 +814,9 @@ export default function AdminReadyMadePage() {
                           {item.name || "—"}
                         </h3>
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          <StatusBadge status={status} />
+                          <span className="font-mono text-[10px] sm:text-xs text-gray-500">
+                            {getItemCode(item)}
+                          </span>
                           {itemLow && <LowStockBadge label="Low stock" />}
                         </div>
                       </div>

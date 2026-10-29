@@ -642,6 +642,19 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
         next.slug = slugifyFabricName(value);
       }
 
+      // Parent inactive ⇒ deactivate all variants in the form payload
+      if (
+        field === "isActive" &&
+        value === false &&
+        Array.isArray(prev.variants) &&
+        prev.variants.length > 0
+      ) {
+        next.variants = prev.variants.map((v) => ({
+          ...v,
+          isActive: false,
+        }));
+      }
+
       if (fieldErrors[field]) {
         setFieldErrors((prevErrors) => ({ ...prevErrors, [field]: undefined }));
       }
@@ -704,7 +717,7 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
           tagAr: "",
           cuts: [createEmptyFabricCutRow()],
           storePickupAddress: prev.storePickupAddress,
-          isActive: true,
+          isActive: prev.isActive !== false,
         } satisfies FabricVariantFormData,
       ],
     }));
@@ -1799,7 +1812,10 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                           <input
                             type="checkbox"
                             id={`${prefix}.isActive`}
-                            checked={variant.isActive}
+                            checked={
+                              formData.isActive !== false && variant.isActive
+                            }
+                            disabled={formData.isActive === false}
                             onChange={(e) => {
                               handleVariantChange(
                                 index,
@@ -1807,13 +1823,15 @@ export default function FabricDesignForm({ fabricId }: FabricDesignFormProps) {
                                 e.target.checked,
                               );
                             }}
-                            className="w-3.5 h-3.5 sm:w-4 sm:h-4 hover:cursor-pointer"
+                            className="w-3.5 h-3.5 sm:w-4 sm:h-4 hover:cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                           <label
                             htmlFor={`${prefix}.isActive`}
                             className="text-[10px] sm:text-xs text-gray-700 hover:cursor-pointer"
                           >
-                            Active (visible to customers)
+                            {formData.isActive === false
+                              ? "Inactive (parent fabric is inactive)"
+                              : "Active (visible to customers)"}
                           </label>
                         </div>
                       </FormField>

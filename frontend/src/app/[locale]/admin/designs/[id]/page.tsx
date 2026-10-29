@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { getApiErrorMessage } from "@/lib/api/client";
 import { getTranslation } from "@/lib/getTranslation";
@@ -18,12 +18,52 @@ import {
 } from "@/lib/adminDesigns";
 import { formatEstimatedLeadTime } from "@/lib/tailorDesigns";
 
+function buildListReturnHref(searchParams: {
+  get: (key: string) => string | null;
+}) {
+  const params = new URLSearchParams();
+  const page = searchParams.get("page");
+  const limit = searchParams.get("limit");
+  const search = searchParams.get("search");
+  const tailorShopId = searchParams.get("tailorShopId");
+  if (page && Number(page) > 1) params.set("page", page);
+  if (limit && Number(limit) > 0 && Number(limit) !== 10) {
+    params.set("limit", limit);
+  }
+  if (search?.trim()) params.set("search", search.trim());
+  if (tailorShopId) params.set("tailorShopId", tailorShopId);
+  const qs = params.toString();
+  return qs ? `/admin/designs?${qs}` : "/admin/designs";
+}
+
+function buildForwardQuery(searchParams: {
+  get: (key: string) => string | null;
+}) {
+  const params = new URLSearchParams();
+  for (const key of ["page", "limit", "search", "tailorShopId"] as const) {
+    const value = searchParams.get(key);
+    if (value) params.set(key, value);
+  }
+  return params.toString();
+}
+
 export default function AdminDesignDetailsPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const locale = (params.locale as string) || "en";
   const id = params.id as string;
   const t = getTranslation(locale).adminDesigns;
   const isAr = locale === "ar";
+  const listReturnHref = useMemo(
+    () => buildListReturnHref(searchParams),
+    [searchParams],
+  );
+  const editHref = useMemo(() => {
+    const qs = buildForwardQuery(searchParams);
+    return qs
+      ? `/admin/designs/${id}/edit?${qs}`
+      : `/admin/designs/${id}/edit`;
+  }, [id, searchParams]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +98,7 @@ export default function AdminDesignDetailsPage() {
           {error || t.edit.not_found}
         </div>
         <Link
-          href="/admin/designs"
+          href={listReturnHref}
           className="inline-flex items-center gap-1 mt-4 text-sm underline hover:cursor-pointer"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -91,7 +131,7 @@ export default function AdminDesignDetailsPage() {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <Link
-            href="/admin/designs"
+            href={listReturnHref}
             className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-black mb-2 hover:cursor-pointer"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
@@ -103,7 +143,7 @@ export default function AdminDesignDetailsPage() {
           <p className="text-gray-500 text-xs sm:text-sm mt-1">{design.slug}</p>
         </div>
         <Link
-          href={`/admin/designs/${design._id}/edit`}
+          href={editHref}
           className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition text-sm hover:cursor-pointer"
         >
           <Edit className="w-4 h-4" />

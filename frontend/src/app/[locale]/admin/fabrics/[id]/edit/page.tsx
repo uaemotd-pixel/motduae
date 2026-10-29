@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useState, useEffect, FormEvent, useMemo, useCallback } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import toast from "react-hot-toast";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FabricAdminFormFields from "@/components/admin/FabricAdminFormFields";
@@ -16,12 +17,40 @@ import {
 } from "@/lib/createFabricAdmin";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
 
+function buildListReturnHref(searchParams: {
+  get: (key: string) => string | null;
+}) {
+  const params = new URLSearchParams();
+  const page = searchParams.get("page");
+  const limit = searchParams.get("limit");
+  const status = searchParams.get("status");
+  const stock = searchParams.get("stock");
+  const search = searchParams.get("search");
+  if (page && Number(page) > 1) params.set("page", page);
+  if (limit && Number(limit) > 0 && Number(limit) !== 10) {
+    params.set("limit", limit);
+  }
+  if (status && status !== "all") params.set("status", status);
+  else if (stock === "low") params.set("status", "low");
+  if (search?.trim()) params.set("search", search.trim());
+  const qs = params.toString();
+  return qs ? `/admin/fabrics?${qs}` : "/admin/fabrics";
+}
+
 export default function EditFabricPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const localeParam = params.locale as string;
   const id = params.id as string;
   const t = getTranslation(localeParam);
+  const listReturnHref = useMemo(
+    () => buildListReturnHref(searchParams),
+    [searchParams],
+  );
+  const goToList = useCallback(() => {
+    router.push(listReturnHref);
+  }, [router, listReturnHref]);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -81,6 +110,19 @@ export default function EditFabricPage() {
 
       const nextFormData = { ...prev, [field]: value };
 
+      // Parent inactive ⇒ deactivate all variants in the form payload
+      if (
+        field === "isActive" &&
+        value === false &&
+        Array.isArray(prev.variants) &&
+        prev.variants.length > 0
+      ) {
+        nextFormData.variants = prev.variants.map((v) => ({
+          ...v,
+          isActive: false,
+        }));
+      }
+
       if (field === "pickupAddress") {
         setFieldErrors((prevErrors) => {
           const nextErrors = { ...prevErrors };
@@ -128,7 +170,7 @@ export default function EditFabricPage() {
       const payload = toFabricApiPayload(formData, { includeIsActive: true });
       await api.put(`/api/admin/fabrics/${id}`, payload);
       toast.success("Fabric updated successfully");
-      router.push("/admin/fabrics");
+      goToList();
     } catch (err: unknown) {
       const message = getApiErrorMessage(
         err,
@@ -154,7 +196,7 @@ export default function EditFabricPage() {
       <div className="text-center text-red-600 bg-red-50 p-6 rounded-lg max-w-md mx-auto">
         <p>{error}</p>
         <button
-          onClick={() => router.push("/admin/fabrics")}
+          onClick={goToList}
           className="mt-4 px-4 py-2 bg-black text-white rounded-lg"
         >
           {t.adminFabrics.edit.back_to_list}
@@ -205,7 +247,7 @@ export default function EditFabricPage() {
           </button>
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={goToList}
             className="w-full sm:w-auto px-4 sm:px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer text-sm"
           >
             {t.adminFabrics.form.cancel_button}

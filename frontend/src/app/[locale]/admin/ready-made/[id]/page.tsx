@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { Link } from "@/i18n/navigation";
+import { useState, useEffect, useMemo } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
 import {
@@ -97,12 +97,53 @@ interface ReadyMadeProductDetails {
   updatedAt?: string;
 }
 
+function buildListReturnHref(searchParams: {
+  get: (key: string) => string | null;
+}) {
+  const params = new URLSearchParams();
+  const page = searchParams.get("page");
+  const limit = searchParams.get("limit");
+  const status = searchParams.get("status");
+  const search = searchParams.get("search");
+  if (page && Number(page) > 1) params.set("page", page);
+  if (limit && Number(limit) > 0 && Number(limit) !== 10) {
+    params.set("limit", limit);
+  }
+  if (status && status !== "all") params.set("status", status);
+  if (search?.trim()) params.set("search", search.trim());
+  const qs = params.toString();
+  return qs ? `/admin/ready-made?${qs}` : "/admin/ready-made";
+}
+
+function buildForwardQuery(searchParams: {
+  get: (key: string) => string | null;
+  toString?: () => string;
+}) {
+  const params = new URLSearchParams();
+  for (const key of ["page", "limit", "status", "search"] as const) {
+    const value = searchParams.get(key);
+    if (value) params.set(key, value);
+  }
+  return params.toString();
+}
+
 export default function AdminReadyMadeDetailsPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const localeParam = (params.locale as string) || "en";
   const id = params.id as string;
   const isAr = localeParam === "ar";
+  const listReturnHref = useMemo(
+    () => buildListReturnHref(searchParams),
+    [searchParams],
+  );
+  const editHref = useMemo(() => {
+    const qs = buildForwardQuery(searchParams);
+    return qs
+      ? `/admin/ready-made/${id}/edit?${qs}`
+      : `/admin/ready-made/${id}/edit`;
+  }, [id, searchParams]);
 
   const commissionPercent = useFabricStoreCommission();
 
@@ -178,7 +219,7 @@ export default function AdminReadyMadeDetailsPage() {
       <div className="text-center text-red-600 bg-red-50 p-6 rounded-2xl max-w-md mx-auto my-12 border border-red-200">
         <p className="font-medium">{error || (isAr ? "المنتج غير موجود" : "Product not found")}</p>
         <button
-          onClick={() => router.push("/admin/ready-made")}
+          onClick={() => router.push(listReturnHref)}
           className="mt-4 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition text-sm cursor-pointer"
         >
           {isAr ? "العودة إلى القائمة" : "Back to list"}
@@ -248,7 +289,7 @@ export default function AdminReadyMadeDetailsPage() {
         <div className="text-left">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-gray-500 mb-1">
             <Link
-              href="/admin/ready-made"
+              href={listReturnHref}
               className="hover:text-black transition"
             >
               {isAr ? "الملابس الجاهزة" : "Ready-Made"}
@@ -272,14 +313,14 @@ export default function AdminReadyMadeDetailsPage() {
 
         <div className="flex items-center gap-3 shrink-0">
           <Link
-            href="/admin/ready-made"
+            href={listReturnHref}
             className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition cursor-pointer bg-white"
           >
             <ChevronLeft className={`w-4 h-4 ${isAr ? "rotate-180" : ""}`} />
             <span>{isAr ? "رجوع" : "Back"}</span>
           </Link>
           <Link
-            href={`/admin/ready-made/${id}/edit`}
+            href={editHref}
             className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 transition cursor-pointer"
           >
             <Edit className="w-4 h-4" />

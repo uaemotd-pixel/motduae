@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSearchParams } from "next/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import {
   Plus,
   Edit,
@@ -17,6 +18,7 @@ import {
   Image as ImageIcon,
   Package,
   Store,
+  EyeOff,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
@@ -31,6 +33,7 @@ interface AddOnItem {
   _id: string;
   name: string;
   nameAr: string;
+  code?: string;
   price: number;
   stock: number;
   isActive: boolean;
@@ -56,13 +59,61 @@ const getStoreDisplay = (shop: AddOnItem["fabricShopId"]) => {
   return "MOTD";
 };
 
+function InactiveNameBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-stone-100 text-stone-600 border border-stone-200/80 whitespace-nowrap">
+      <EyeOff className="w-2.5 h-2.5" />
+      {label}
+    </span>
+  );
+}
+
+function getItemCode(item: AddOnItem) {
+  const code = typeof item.code === "string" ? item.code.trim() : "";
+  return code || "N/A";
+}
+
+function addonRowToneClass(opts: { lowStock: boolean; inactive: boolean }) {
+  if (opts.lowStock) return "bg-rose-50/80 hover:bg-rose-50";
+  if (opts.inactive) return "bg-stone-50/90 hover:bg-stone-100/80";
+  return "hover:bg-gray-50/50";
+}
+
+const DEFAULT_LIMIT = 10;
+
+function buildAddonListQuery(opts: {
+  page: number;
+  limit: number;
+  search: string;
+}) {
+  const params = new URLSearchParams();
+  if (opts.page > 1) params.set("page", String(opts.page));
+  if (opts.limit !== DEFAULT_LIMIT) params.set("limit", String(opts.limit));
+  const search = opts.search.trim();
+  if (search) params.set("search", search);
+  return params.toString();
+}
+
+function buildAddonListPath(opts: {
+  page: number;
+  limit: number;
+  search: string;
+}) {
+  const qs = buildAddonListQuery(opts);
+  return qs ? `/admin/addons?${qs}` : "/admin/addons";
+}
+
 export default function AdminAddOnsPage() {
   const commissionPercent = useFabricStoreCommission();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<AddOnItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") || "",
+  );
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [menuItem, setMenuItem] = useState<AddOnItem | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
@@ -72,11 +123,17 @@ export default function AdminAddOnsPage() {
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
+  // Pagination state (seeded from URL so edit → save returns to same page)
+  const [currentPage, setCurrentPage] = useState(() => {
+    const page = Number(searchParams.get("page"));
+    return Number.isFinite(page) && page > 0 ? page : 1;
+  });
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(() => {
+    const value = Number(searchParams.get("limit"));
+    return Number.isFinite(value) && value > 0 ? value : DEFAULT_LIMIT;
+  });
   const [stats, setStats] = useState({ active: 0, inactive: 0 });
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -87,7 +144,44 @@ export default function AdminAddOnsPage() {
   const fetchGenerationRef = useRef(0);
   const skipSearchDebounceRef = useRef(true);
   const hasLoadedRef = useRef(false);
+  const prevSearchTerm = useRef(searchTerm);
   searchTermRef.current = searchTerm;
+
+  const syncListUrl = useCallback(
+    (opts: { page: number; limit: number; search: string }) => {
+      if (typeof window !== "undefined") {
+        const path = buildAddonListPath(opts);
+        const localePrefix = window.location.pathname.match(/^\/(en|ar)(?=\/)/);
+        const fullPath = localePrefix ? `${localePrefix[0]}${path}` : path;
+        window.history.replaceState(
+          window.history.state,
+          "",
+          `${fullPath}${window.location.hash}`,
+        );
+        return;
+      }
+      router.replace(buildAddonListPath(opts), { scroll: false });
+    },
+    [router],
+  );
+
+  const listStateQuery = useMemo(
+    () =>
+      buildAddonListQuery({
+        page: currentPage,
+        limit,
+        search: searchTerm,
+      }),
+    [currentPage, limit, searchTerm],
+  );
+
+  const editHref = useCallback(
+    (id: string) =>
+      listStateQuery
+        ? `/admin/addons/${id}/edit?${listStateQuery}`
+        : `/admin/addons/${id}/edit`,
+    [listStateQuery],
+  );
 
   // pop up image function
   const handleImageClick = (imageUrl: string) => {
@@ -198,20 +292,49 @@ export default function AdminAddOnsPage() {
     [limit],
   );
 
-  // Initial load
+  // Keep list state aligned with URL (e.g. return from edit with ?page=3)
+  const urlSyncKey = searchParams.toString();
+  const lastUrlSyncKey = useRef<string | null>(null);
   useEffect(() => {
-    void fetchItems(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (lastUrlSyncKey.current === urlSyncKey) return;
+    lastUrlSyncKey.current = urlSyncKey;
 
-  // Search only after the user stops typing.
+    const pageFromUrl = Number(searchParams.get("page"));
+    const nextPage =
+      Number.isFinite(pageFromUrl) && pageFromUrl > 0 ? pageFromUrl : 1;
+    const limitFromUrl = Number(searchParams.get("limit"));
+    const nextLimit =
+      Number.isFinite(limitFromUrl) && limitFromUrl > 0
+        ? limitFromUrl
+        : DEFAULT_LIMIT;
+    const nextSearch = searchParams.get("search") || "";
+
+    setCurrentPage(nextPage);
+    setLimit(nextLimit);
+    setSearchTerm(nextSearch);
+    searchTermRef.current = nextSearch;
+    prevSearchTerm.current = nextSearch;
+    void fetchItems(nextPage, nextLimit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- driven by URL only
+  }, [urlSyncKey]);
+
+  // Search only after the user stops typing. Ignore non-changes (Strict Mode / URL sync).
   useEffect(() => {
     if (skipSearchDebounceRef.current) {
       skipSearchDebounceRef.current = false;
+      prevSearchTerm.current = searchTerm;
       return;
     }
+    if (prevSearchTerm.current === searchTerm) return;
+    prevSearchTerm.current = searchTerm;
     const timer = window.setTimeout(() => {
-      void fetchItems(1);
+      setCurrentPage(1);
+      syncListUrl({
+        page: 1,
+        limit,
+        search: searchTerm,
+      });
+      void fetchItems(1, limit);
     }, 500);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -279,12 +402,24 @@ export default function AdminAddOnsPage() {
   };
 
   const handlePageChange = (page: number) => {
-    fetchItems(page);
+    setCurrentPage(page);
+    syncListUrl({
+      page,
+      limit,
+      search: searchTerm,
+    });
+    void fetchItems(page);
   };
 
   const handleLimitChange = (newLimit: number) => {
     setLimit(newLimit);
-    fetchItems(1, newLimit);
+    setCurrentPage(1);
+    syncListUrl({
+      page: 1,
+      limit: newLimit,
+      search: searchTerm,
+    });
+    void fetchItems(1, newLimit);
   };
 
   const activeCount = stats.active;
@@ -377,7 +512,7 @@ export default function AdminAddOnsPage() {
               className="w-fit min-w-30 sm:min-w-35 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:cursor-pointer"
             >
               <Link
-                href={`/admin/addons/${menuItem._id}/edit`}
+                href={editHref(menuItem._id)}
                 onClick={() => {
                   setMenuPosition(null);
                   setMenuItem(null);
@@ -480,7 +615,7 @@ export default function AdminAddOnsPage() {
             )}
             <input
               type="text"
-              placeholder="Search by add-on name or store name..."
+              placeholder="Search by code, add-on name, or store name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full sm:w-64 pl-8 sm:pl-9 pr-8 sm:pr-9 py-1.5 sm:py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-black placeholder:text-gray-400 focus:outline-none focus:border-black transition"
@@ -521,31 +656,38 @@ export default function AdminAddOnsPage() {
               <table className="w-full border-collapse text-left text-sm text-gray-500">
                 <thead className="bg-gray-50/70 text-[10px] uppercase tracking-wider text-gray-400 font-semibold border-b border-gray-100">
                   <tr>
+                    <th className="px-4 sm:px-6 py-3">Code</th>
                     <th className="px-4 sm:px-6 py-3">Name</th>
                     <th className="px-4 sm:px-6 py-3">Store</th>
                     <th className="px-4 sm:px-6 py-3">Price</th>
                     <th className="px-4 sm:px-6 py-3">Stock</th>
-                    <th className="px-4 sm:px-6 py-3">Status</th>
                     <th className="px-4 sm:px-6 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {items.map((item) => {
                     const itemLow = isLowStockQty(item.stock);
+                    const itemInactive = item.isActive === false;
                     return (
                       <tr
                         key={item._id}
-                        className={`transition ${
-                          itemLow
-                            ? "bg-rose-50/80 hover:bg-rose-50"
-                            : "hover:bg-gray-50/50"
-                        }`}
+                        className={`transition ${addonRowToneClass({
+                          lowStock: itemLow,
+                          inactive: itemInactive,
+                        })}`}
                       >
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap font-mono text-xs sm:text-sm text-gray-600">
+                          {getItemCode(item)}
+                        </td>
                         <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             {getItemImage(item)}
                             <div className="min-w-0">
-                              <span className="text-xs sm:text-sm font-medium text-black">
+                              <span
+                                className={`text-xs sm:text-sm font-medium ${
+                                  itemInactive ? "text-stone-600" : "text-black"
+                                }`}
+                              >
                                 {item.name || "—"}
                               </span>
                               {item.nameAr && (
@@ -556,9 +698,14 @@ export default function AdminAddOnsPage() {
                                   {item.nameAr}
                                 </span>
                               )}
-                              {itemLow && (
-                                <div className="mt-1">
-                                  <LowStockBadge label="Low stock" />
+                              {(itemInactive || itemLow) && (
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                  {itemInactive && (
+                                    <InactiveNameBadge label="Inactive" />
+                                  )}
+                                  {itemLow && (
+                                    <LowStockBadge label="Low stock" />
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -595,17 +742,6 @@ export default function AdminAddOnsPage() {
                             ) : null}
                           </span>
                         </td>
-                        <td className="px-4 sm:px-6 py-4">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
-                              item.isActive
-                                ? "bg-white text-black border border-black/30"
-                                : "bg-gray-100 text-gray-500 border border-gray-200"
-                            }`}
-                          >
-                            {item.isActive ? "Active" : "Inactive"}
-                          </span>
-                        </td>
                         <td className="px-4 sm:px-6 py-4 text-right">
                           <button
                             onClick={(e) => {
@@ -636,20 +772,27 @@ export default function AdminAddOnsPage() {
           <div className="md:hidden space-y-3 sm:space-y-4">
             {items.map((item) => {
               const itemLow = isLowStockQty(item.stock);
+              const itemInactive = item.isActive === false;
               return (
                 <div
                   key={item._id}
                   className={`rounded-2xl p-3 sm:p-4 shadow-sm border ${
                     itemLow
                       ? "border-rose-200 bg-rose-50/80"
-                      : "border-gray-100 bg-white"
+                      : itemInactive
+                        ? "border-stone-200 bg-stone-50"
+                        : "border-gray-100 bg-white"
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       {getItemImage(item)}
                       <div className="min-w-0">
-                        <h3 className="text-xs sm:text-sm font-medium text-black truncate">
+                        <h3
+                          className={`text-xs sm:text-sm font-medium truncate ${
+                            itemInactive ? "text-stone-600" : "text-black"
+                          }`}
+                        >
                           {item.name || "—"}
                         </h3>
                         {item.nameAr && (
@@ -661,15 +804,12 @@ export default function AdminAddOnsPage() {
                           </h4>
                         )}
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                              item.isActive
-                                ? "bg-white text-black border border-black/30"
-                                : "bg-gray-100 text-gray-500 border border-gray-200"
-                            }`}
-                          >
-                            {item.isActive ? "Active" : "Inactive"}
+                          <span className="font-mono text-[10px] text-gray-500">
+                            {getItemCode(item)}
                           </span>
+                          {itemInactive && (
+                            <InactiveNameBadge label="Inactive" />
+                          )}
                           {itemLow && <LowStockBadge label="Low stock" />}
                         </div>
                       </div>

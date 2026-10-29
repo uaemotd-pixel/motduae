@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, FormEvent, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useState, FormEvent, useEffect, useMemo, useCallback } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import FormField from "@/components/admin/FormField";
@@ -67,11 +67,35 @@ type FabricShopOption = {
   phone?: string;
 };
 
+function buildListReturnHref(searchParams: {
+  get: (key: string) => string | null;
+}) {
+  const params = new URLSearchParams();
+  const page = searchParams.get("page");
+  const limit = searchParams.get("limit");
+  const search = searchParams.get("search");
+  if (page && Number(page) > 1) params.set("page", page);
+  if (limit && Number(limit) > 0 && Number(limit) !== 10) {
+    params.set("limit", limit);
+  }
+  if (search?.trim()) params.set("search", search.trim());
+  const qs = params.toString();
+  return qs ? `/admin/addons?${qs}` : "/admin/addons";
+}
+
 export default function AdminEditAddOnPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
   const fabricCommission = useFabricStoreCommission();
+  const listReturnHref = useMemo(
+    () => buildListReturnHref(searchParams),
+    [searchParams],
+  );
+  const goToList = useCallback(() => {
+    router.push(listReturnHref);
+  }, [router, listReturnHref]);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -442,7 +466,7 @@ export default function AdminEditAddOnPage() {
 
       await api.put(`/api/admin/addons/${id}`, payload);
       toast.success("Add-on updated successfully");
-      router.push("/admin/addons");
+      goToList();
     } catch (err: unknown) {
       const message = getApiErrorMessage(err, "Failed to update addon");
       if (/add-?on code already exists/i.test(message)) {
@@ -1204,7 +1228,7 @@ export default function AdminEditAddOnPage() {
           </button>
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={goToList}
             className="w-full sm:w-auto px-4 sm:px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition hover:cursor-pointer text-sm"
             disabled={submitting}
           >

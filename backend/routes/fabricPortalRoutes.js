@@ -1036,6 +1036,14 @@ fabricPortalRouter.put(
       });
     }
 
+    // Parent inactive ⇒ all variants inactive (variants cannot stay catalog-visible alone)
+    if (updatedFabric.isActive === false) {
+      await Fabric.updateMany(
+        { isVariantOf: updatedFabric._id },
+        { $set: { isActive: false } },
+      );
+    }
+
     const enrichedItem = await enrichFabricWithCuts(updatedFabric);
     const variants = await Fabric.find({ isVariantOf: updatedFabric._id });
     enrichedItem.variants = await Promise.all(

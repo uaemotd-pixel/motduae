@@ -30,6 +30,19 @@ export default function NewFabricPage() {
     setFormData((prev) => {
       const nextFormData = { ...prev, [field]: value };
 
+      // Parent inactive ⇒ deactivate all variants in the form payload
+      if (
+        field === "isActive" &&
+        value === false &&
+        Array.isArray(prev.variants) &&
+        prev.variants.length > 0
+      ) {
+        nextFormData.variants = prev.variants.map((v) => ({
+          ...v,
+          isActive: false,
+        }));
+      }
+
       if (field === "pickupAddress") {
         setFieldErrors((prevErrors) => {
           const nextErrors = { ...prevErrors };
