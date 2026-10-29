@@ -126,6 +126,7 @@ export function resolveAdminPagePerm(
   if (path.startsWith("/admin/customers")) return "customers";
   if (path.startsWith("/admin/reviews")) return "reviews";
   if (path.startsWith("/admin/queries")) return "queries";
+  if (path.startsWith("/admin/support-chat")) return "queries";
   if (path.startsWith("/admin/ready-made")) return "readyMade";
   if (path.startsWith("/admin/fabrics")) return "fabrics";
   if (path.startsWith("/admin/designs")) return "designs";

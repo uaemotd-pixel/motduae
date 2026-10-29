@@ -46,6 +46,8 @@ import {
   Wallet,
   Star,
   MessageCircle,
+  Headphones,
+  Menu,
 } from "lucide-react";
 import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
@@ -255,6 +257,12 @@ export default function AdminLayout({
         label: "Queries",
         href: "/admin/queries",
         icon: MessageCircle,
+        perm: "queries",
+      },
+      {
+        label: "Live Chat",
+        href: "/admin/support-chat",
+        icon: Headphones,
         perm: "queries",
       },
       {
@@ -485,16 +493,38 @@ export default function AdminLayout({
         </div>
       </aside>
       <main
-        className="admin-canvas min-h-screen bg-white p-4 pb-16 text-black transition-all duration-300 xs:p-6 sm:p-8 md:p-10 lg:ml-72"
+        className={`admin-canvas relative min-h-screen bg-white text-black transition-all duration-300 lg:ml-72 ${
+          pathname.includes("/admin/support-chat")
+            ? "flex h-dvh max-h-dvh flex-col overflow-hidden p-0"
+            : "p-4 pb-16 xs:p-6 sm:p-8 md:p-10"
+        }`}
       >
-        <DashboardMobileMenuBar onOpen={() => setIsSidebarOpen(true)} />
+        {pathname.includes("/admin/support-chat") ? (
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="absolute top-3 start-3 z-30 rounded-md bg-black p-2 text-white shadow-md lg:hidden"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        ) : (
+          <DashboardMobileMenuBar onOpen={() => setIsSidebarOpen(true)} />
+        )}
 
-        <div>
-          {canSeeNotifications && (
-            <div className="mb-6 flex items-center justify-end gap-3">
-              <AdminNotificationBell />
-            </div>
-          )}
+        <div
+          className={
+            pathname.includes("/admin/support-chat")
+              ? "flex min-h-0 flex-1 flex-col"
+              : undefined
+          }
+        >
+          {canSeeNotifications &&
+            !pathname.includes("/admin/support-chat") && (
+              <div className="mb-6 flex items-center justify-end gap-3">
+                <AdminNotificationBell />
+              </div>
+            )}
           {requiredPagePerm ? (
             <PermissionGuard requiredPerm={requiredPagePerm}>
               {children}

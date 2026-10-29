@@ -461,7 +461,6 @@
     "ownFabricLabel": "Own fabric",
     "selectedFabricsSummary": "Selected fabrics ({count})",
     "selectedDesignsSummary": "Selected designs ({count})",
-
     "designLengthHint": "This design's minimum is {min} m. Add more cuts if needed. Leftover fabric is returned to you.",
     "cutPickerTitle": "Select Fabric Cuts",
     "cutSlotsEyebrow": "Set piece quantities until the design length is covered",
@@ -1915,7 +1914,11 @@
         "tailorPayoutCompleted": "Tailor payout sent",
         "tailorPayoutRejected": "Tailor payout declined",
         "reviewSubmitted": "New review pending",
-        "default": "Notification"
+        "default": "Notification",
+        "faqSupportReceived": "New support query",
+        "liveChatStarted": "New live chat",
+        "liveChatMessage": "Live chat message",
+        "liveChatAgentMessage": "Support message"
       }
     }
   },
@@ -2007,7 +2010,10 @@
         "retailReviewPrompt": "Leave a review",
         "reviewApproved": "Review approved",
         "reviewRejected": "Review not published",
-        "default": "Notification"
+        "default": "Notification",
+        "liveChatAgentMessage": "Support message",
+        "liveChatStarted": "New live chat",
+        "liveChatMessage": "Live chat message"
       }
     },
     "Reviews": {

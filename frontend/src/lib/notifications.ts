@@ -194,6 +194,10 @@ const TYPE_I18N_KEYS: Record<string, string> = {
   tailor_order_placed: "tailorOrderPlaced",
   fabric_order_placed: "fabricOrderPlaced",
   fabric_retail_order_placed: "fabricRetailOrderPlaced",
+  faq_support_received: "faqSupportReceived",
+  live_chat_started: "liveChatStarted",
+  live_chat_message: "liveChatMessage",
+  live_chat_agent_message: "liveChatAgentMessage",
 };
 
 export function getNotificationTypeLabel(type: string, t?: (key: string) => string): string {
@@ -248,6 +252,10 @@ export function getNotificationTypeLabel(type: string, t?: (key: string) => stri
     tailor_order_placed: "New custom order",
     fabric_order_placed: "New custom order",
     fabric_retail_order_placed: "New store order",
+    faq_support_received: "New support query",
+    live_chat_started: "New live chat",
+    live_chat_message: "Live chat message",
+    live_chat_agent_message: "Support message",
   };
 
   return labels[key] || type || "Notification";
@@ -283,6 +291,14 @@ export function getNotificationPriority(
   }
   if (type.includes("payout")) return "high";
   if (type.includes("order_placed") || type.includes("return")) return "high";
+  if (
+    type === "live_chat_started" ||
+    type === "live_chat_message" ||
+    type === "live_chat_agent_message" ||
+    type === "faq_support_received"
+  ) {
+    return "high";
+  }
   if (type.includes("registered") || type.includes("resubmitted")) return "normal";
   return "low";
 }
@@ -381,6 +397,13 @@ export function getAdminDeepLinkHref(
     return {
       href: `/admin/queries?status=new${search}`,
       label: "View query",
+    };
+  }
+
+  if (type === "live_chat_started" || type === "live_chat_message") {
+    return {
+      href: "/admin/support-chat",
+      label: _locale === "ar" ? "فتح الدردشة" : "Open live chat",
     };
   }
 

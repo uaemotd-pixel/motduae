@@ -941,3 +941,132 @@ export async function bulkSoftDeleteNotifications(ids, audience = "admin") {
     { $set: { deletedAt: new Date() } },
   );
 }
+
+function liveChatPreview(message) {
+  const kind = String(message?.kind || "text");
+  if (kind === "voice") return "Voice message";
+  if (kind === "image") return "Photo";
+  if (kind === "file") {
+    return String(message?.fileName || "").trim() || "Document";
+  }
+  const text = String(message?.text || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.slice(0, 140) || "New message";
+}
+
+/**
+ * Keep one unread alert per open live-chat key. When the previous alert was
+ * already read, release its dedupeKey so a fresh unread can be created.
+ */
+async function upsertUnreadLiveChatNotification({
+  dedupeKey,
+  type,
+  title,
+  message,
+  audience,
+  recipientUserId = null,
+  createdBy = null,
+}) {
+  const unread = await AdminNotification.findOne({
+    dedupeKey,
+    audience,
+    read: false,
+    deletedAt: null,
+  });
+  if (unread) {
+    unread.type = type;
+    unread.title = title;
+    unread.message = message;
+    unread.createdAt = new Date();
+    if (createdBy) unread.createdBy = createdBy;
+    await unread.save();
+    return unread;
+  }
+
+  await AdminNotification.updateMany(
+    { dedupeKey, deletedAt: null },
+    { $unset: { dedupeKey: 1 } },
+  );
+
+  return createNotification({
+    type,
+    title,
+    message,
+    audience,
+    recipientUserId,
+    createdBy,
+    dedupeKey,
+  });
+}
+
+/** Admin: customer opened a new live support thread. */
+export async function notifyLiveChatStartedAdmin({
+  sessionId,
+  customerName,
+  createdBy = null,
+} = {}) {
+  const id = String(sessionId || "").trim();
+  if (!id) return null;
+  const name = String(customerName || "Customer").trim() || "Customer";
+  return upsertUnreadLiveChatNotification({
+    dedupeKey: `live_chat_started:${id}`,
+    type: "live_chat_started",
+    title: "New live chat",
+    message: `${name} is waiting for an agent.`,
+    audience: "admin",
+    createdBy,
+  });
+}
+
+/**
+ * Admin: customer sent a message while no agent is in the thread
+ * (waiting queue, or agent disconnected).
+ */
+export async function notifyLiveChatCustomerMessageAdmin({
+  sessionId,
+  messageId,
+  customerName,
+  message,
+  createdBy = null,
+} = {}) {
+  const sid = String(sessionId || "").trim();
+  if (!sid) return null;
+  void messageId;
+  const name = String(customerName || "Customer").trim() || "Customer";
+  const preview = liveChatPreview(message);
+  return upsertUnreadLiveChatNotification({
+    dedupeKey: `live_chat_message:${sid}`,
+    type: "live_chat_message",
+    title: "Live chat message",
+    message: `${name}: ${preview}`,
+    audience: "admin",
+    createdBy,
+  });
+}
+
+/** Customer: agent replied while the customer is not connected to the thread. */
+export async function notifyLiveChatAgentMessageCustomer({
+  sessionId,
+  messageId,
+  recipientUserId,
+  agentName,
+  message,
+  createdBy = null,
+} = {}) {
+  const sid = String(sessionId || "").trim();
+  const userId = recipientUserId ? String(recipientUserId) : "";
+  if (!sid || !userId) return null;
+  void messageId;
+  const who = String(agentName || "MOTD Care").trim() || "MOTD Care";
+  const preview = liveChatPreview(message);
+  return upsertUnreadLiveChatNotification({
+    dedupeKey: `live_chat_agent_message:${sid}:${userId}`,
+    type: "live_chat_agent_message",
+    title: "New support message",
+    message: `${who}: ${preview}`,
+    audience: "customer",
+    recipientUserId: userId,
+    createdBy,
+  });
+}

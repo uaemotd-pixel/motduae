@@ -507,7 +507,6 @@
     "ownFabricLabel": "قماش خاص",
     "selectedFabricsSummary": "الأقمشة المختارة ({count})",
     "selectedDesignsSummary": "التصاميم المختارة ({count})",
-
     "designLengthHint": "الحد الأدنى لهذا التصميم هو {min} م. أضف المزيد من القصات إذا لزم الأمر. سيتم إرجاع القماش المتبقي إليك.",
     "cutPickerTitle": "اختر قصات القماش",
     "cutSlotsEyebrow": "حدد كميات القطع حتى تغطي طول التصميم المطلوب",
@@ -2106,7 +2105,11 @@
         "tailorPayoutCompleted": "تم إرسال مستحقات الخياط",
         "tailorPayoutRejected": "تم رفض مستحقات الخياط",
         "reviewSubmitted": "تقييم جديد بانتظار المراجعة",
-        "default": "إشعار"
+        "default": "إشعار",
+        "faqSupportReceived": "استفسار دعم جديد",
+        "liveChatStarted": "دردشة مباشرة جديدة",
+        "liveChatMessage": "رسالة دردشة مباشرة",
+        "liveChatAgentMessage": "رسالة من الدعم"
       }
     }
   },
@@ -2198,7 +2201,10 @@
         "retailReviewPrompt": "اترك تقييماً",
         "reviewApproved": "تم نشر تقييمك",
         "reviewRejected": "لم يُنشر تقييمك",
-        "default": "إشعار"
+        "default": "إشعار",
+        "liveChatAgentMessage": "رسالة من الدعم",
+        "liveChatStarted": "دردشة مباشرة جديدة",
+        "liveChatMessage": "رسالة دردشة مباشرة"
       }
     },
     "Reviews": {
