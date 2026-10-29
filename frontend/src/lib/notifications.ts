@@ -252,7 +252,6 @@ export function getNotificationTypeLabel(type: string, t?: (key: string) => stri
     tailor_order_placed: "New custom order",
     fabric_order_placed: "New custom order",
     fabric_retail_order_placed: "New store order",
-    faq_support_received: "New support query",
     live_chat_started: "New live chat",
     live_chat_message: "Live chat message",
     live_chat_agent_message: "Support message",

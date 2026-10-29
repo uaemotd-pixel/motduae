@@ -1,13 +1,13 @@
 "use client";
 
-import type { RefObject } from "react";
+import type { Ref } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 
 type ChatThreadSearchBarProps = {
   value: string;
   onChange: (value: string) => void;
   onClose: () => void;
-  inputRef?: RefObject<HTMLInputElement | null>;
+  inputRef?: Ref<HTMLInputElement>;
   matchCount: number;
   /** 0-based active match index; ignored when matchCount is 0. */
   activeIndex: number;
