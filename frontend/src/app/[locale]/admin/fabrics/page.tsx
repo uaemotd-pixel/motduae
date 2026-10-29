@@ -15,7 +15,6 @@ import { api, getApiErrorMessage } from "@/lib/api/client";
 import { Link, useRouter } from "@/i18n/navigation";
 import { formatCutEquivalentClause } from "@/lib/fabricUnits";
 import { getTranslation } from "@/lib/getTranslation";
-import { replaceClientSearchParam } from "@/lib/replaceClientSearchParam";
 import {
   Plus,
   Edit,
@@ -30,15 +29,14 @@ import {
   MoreVertical,
   Tag as TagIcon,
   Store,
-  MapPin,
   Maximize2,
+  EyeOff,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ConfirmationModal } from "@/components/shared/ConfirmationModal";
 import { ImageModal } from "@/components/shared/ImageModal";
 import GlobalPagination from "@/components/shared/GlobalPagination";
 import { Skeleton, TableSkeleton } from "@/components/ui/Skeleton";
-import { Tag } from "@/components/ui/Tag";
 
 interface FabricCutRow {
   cutId: string;
@@ -57,6 +55,7 @@ interface FabricCutRow {
 interface FabricItem {
   _id: string;
   name: string;
+  code?: string;
   material: string;
   cuts?: FabricCutRow[];
   pricePerMeter?: number;
@@ -94,6 +93,53 @@ type FabricStatusFilter =
   | "low"
   | "active"
   | "inactive";
+
+const FABRIC_STATUS_FILTERS: FabricStatusFilter[] = [
+  "all",
+  "available",
+  "sold",
+  "low",
+  "active",
+  "inactive",
+];
+const DEFAULT_LIMIT = 10;
+
+function parseFabricStatusFilter(
+  searchParams: { get: (key: string) => string | null },
+): FabricStatusFilter {
+  const status = searchParams.get("status");
+  if (status && FABRIC_STATUS_FILTERS.includes(status as FabricStatusFilter)) {
+    return status as FabricStatusFilter;
+  }
+  // Dashboard deep-link: ?stock=low
+  if (searchParams.get("stock") === "low") return "low";
+  return "all";
+}
+
+function buildFabricListQuery(opts: {
+  page: number;
+  limit: number;
+  status: FabricStatusFilter;
+  search: string;
+}) {
+  const params = new URLSearchParams();
+  if (opts.page > 1) params.set("page", String(opts.page));
+  if (opts.limit !== DEFAULT_LIMIT) params.set("limit", String(opts.limit));
+  if (opts.status !== "all") params.set("status", opts.status);
+  const search = opts.search.trim();
+  if (search) params.set("search", search);
+  return params.toString();
+}
+
+function buildFabricListPath(opts: {
+  page: number;
+  limit: number;
+  status: FabricStatusFilter;
+  search: string;
+}) {
+  const qs = buildFabricListQuery(opts);
+  return qs ? `/admin/fabrics?${qs}` : "/admin/fabrics";
+}
 
 /** Must match backend LOW_FABRIC_CUT_STOCK_THRESHOLD. */
 const LOW_FABRIC_CUT_STOCK = 5;
@@ -201,6 +247,24 @@ function LowStockNameBadge({ label }: { label: string }) {
   );
 }
 
+function InactiveNameBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-stone-100 text-stone-600 border border-stone-200/80 whitespace-nowrap">
+      <EyeOff className="w-2.5 h-2.5" />
+      {label}
+    </span>
+  );
+}
+
+function fabricRowToneClass(opts: {
+  lowStock: boolean;
+  inactive: boolean;
+}): string {
+  if (opts.lowStock) return "bg-rose-50/80 hover:bg-rose-50";
+  if (opts.inactive) return "bg-stone-50/90 hover:bg-stone-100/80";
+  return "hover:bg-gray-50";
+}
+
 export default function AdminFabricsPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -212,7 +276,9 @@ export default function AdminFabricsPage() {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") || "",
+  );
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [menuItem, setMenuItem] = useState<FabricItem | null>(null);
   const [menuPosition, setMenuPosition] = useState<{
@@ -226,13 +292,20 @@ export default function AdminFabricsPage() {
   const fetchGenerationRef = useRef(0);
   const skipSearchDebounceRef = useRef(true);
   const hasLoadedRef = useRef(false);
+  const prevSearchTerm = useRef(searchTerm);
   searchTermRef.current = searchTerm;
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
+  // Pagination state (seeded from URL so edit → save returns to same page)
+  const [currentPage, setCurrentPage] = useState(() => {
+    const page = Number(searchParams.get("page"));
+    return Number.isFinite(page) && page > 0 ? page : 1;
+  });
   const [totalPages, setTotalPages] = useState(0);
   const [totalItems, setTotalItems] = useState(0);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(() => {
+    const value = Number(searchParams.get("limit"));
+    return Number.isFinite(value) && value > 0 ? value : DEFAULT_LIMIT;
+  });
   const [stats, setStats] = useState({ active: 0, inactive: 0 });
 
   // Modal state
@@ -242,8 +315,59 @@ export default function AdminFabricsPage() {
   const [selectedImage, setSelectedImage] = useState<string>("");
 
   // Filter tabs (All / Available / Sold / Low stock / Active / Inactive)
-  const [statusFilter, setStatusFilter] = useState<FabricStatusFilter>(
-    searchParams.get("stock") === "low" ? "low" : "all",
+  const [statusFilter, setStatusFilter] = useState<FabricStatusFilter>(() =>
+    parseFabricStatusFilter(searchParams),
+  );
+
+  const syncListUrl = useCallback(
+    (opts: {
+      page: number;
+      limit: number;
+      status: FabricStatusFilter;
+      search: string;
+    }) => {
+      // Prefer history.replaceState so filter/page changes do not remount the page.
+      if (typeof window !== "undefined") {
+        const path = buildFabricListPath(opts);
+        const localePrefix = window.location.pathname.match(/^\/(en|ar)(?=\/)/);
+        const fullPath = localePrefix ? `${localePrefix[0]}${path}` : path;
+        window.history.replaceState(
+          window.history.state,
+          "",
+          `${fullPath}${window.location.hash}`,
+        );
+        return;
+      }
+      router.replace(buildFabricListPath(opts), { scroll: false });
+    },
+    [router],
+  );
+
+  const listStateQuery = useMemo(
+    () =>
+      buildFabricListQuery({
+        page: currentPage,
+        limit,
+        status: statusFilter,
+        search: searchTerm,
+      }),
+    [currentPage, limit, statusFilter, searchTerm],
+  );
+
+  const editHref = useCallback(
+    (id: string) =>
+      listStateQuery
+        ? `/admin/fabrics/${id}/edit?${listStateQuery}`
+        : `/admin/fabrics/${id}/edit`,
+    [listStateQuery],
+  );
+
+  const detailsHref = useCallback(
+    (id: string) =>
+      listStateQuery
+        ? `/admin/fabrics/${id}?${listStateQuery}`
+        : `/admin/fabrics/${id}`,
+    [listStateQuery],
   );
 
   // pop up image function
@@ -360,18 +484,14 @@ export default function AdminFabricsPage() {
     if (status === statusFilter) return;
     setStatusFilter(status);
     setCurrentPage(1);
-    fetchItems(1, limit, status);
-    replaceClientSearchParam("stock", status === "low" ? "low" : null);
+    syncListUrl({
+      page: 1,
+      limit,
+      status,
+      search: searchTerm,
+    });
+    void fetchItems(1, limit, status);
   };
-
-  // Dashboard "Low Stock" lands here with ?stock=low
-  useEffect(() => {
-    if (searchParams.get("stock") !== "low") return;
-    if (statusFilter === "low") return;
-    setStatusFilter("low");
-    fetchItems(1, limit, "low");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
 
   useEffect(() => {
     if (statusFilter !== "low" && statusFilter !== "sold") return;
@@ -391,20 +511,52 @@ export default function AdminFabricsPage() {
     setExpandedRows((prev) => ({ ...prev, ...next }));
   }, [items, statusFilter]);
 
-  // Initial load
+  // Keep list state aligned with URL (e.g. return from edit with ?page=3, or ?stock=low)
+  const urlSyncKey = searchParams.toString();
+  const lastUrlSyncKey = useRef<string | null>(null);
   useEffect(() => {
-    fetchItems(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (lastUrlSyncKey.current === urlSyncKey) return;
+    lastUrlSyncKey.current = urlSyncKey;
 
-  // Search only after the user stops typing.
+    const pageFromUrl = Number(searchParams.get("page"));
+    const nextPage =
+      Number.isFinite(pageFromUrl) && pageFromUrl > 0 ? pageFromUrl : 1;
+    const limitFromUrl = Number(searchParams.get("limit"));
+    const nextLimit =
+      Number.isFinite(limitFromUrl) && limitFromUrl > 0
+        ? limitFromUrl
+        : DEFAULT_LIMIT;
+    const nextStatus = parseFabricStatusFilter(searchParams);
+    const nextSearch = searchParams.get("search") || "";
+
+    setCurrentPage(nextPage);
+    setLimit(nextLimit);
+    setStatusFilter(nextStatus);
+    setSearchTerm(nextSearch);
+    searchTermRef.current = nextSearch;
+    prevSearchTerm.current = nextSearch;
+    void fetchItems(nextPage, nextLimit, nextStatus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- driven by URL only
+  }, [urlSyncKey]);
+
+  // Search only after the user stops typing. Ignore non-changes (Strict Mode / URL sync).
   useEffect(() => {
     if (skipSearchDebounceRef.current) {
       skipSearchDebounceRef.current = false;
+      prevSearchTerm.current = searchTerm;
       return;
     }
+    if (prevSearchTerm.current === searchTerm) return;
+    prevSearchTerm.current = searchTerm;
     const timer = window.setTimeout(() => {
-      void fetchItems(1);
+      setCurrentPage(1);
+      syncListUrl({
+        page: 1,
+        limit,
+        status: statusFilter,
+        search: searchTerm,
+      });
+      void fetchItems(1, limit, statusFilter);
     }, 500);
     return () => window.clearTimeout(timer);
     // fetchItems reads the current search from a ref; do not refetch on tab/limit.
@@ -443,12 +595,26 @@ export default function AdminFabricsPage() {
   };
 
   const handlePageChange = (page: number) => {
-    fetchItems(page);
+    setCurrentPage(page);
+    syncListUrl({
+      page,
+      limit,
+      status: statusFilter,
+      search: searchTerm,
+    });
+    void fetchItems(page);
   };
 
   const handleLimitChange = (newLimit: number) => {
     setLimit(newLimit);
-    fetchItems(1, newLimit);
+    setCurrentPage(1);
+    syncListUrl({
+      page: 1,
+      limit: newLimit,
+      status: statusFilter,
+      search: searchTerm,
+    });
+    void fetchItems(1, newLimit);
   };
 
   const activeCount = stats.active;
@@ -473,14 +639,6 @@ export default function AdminFabricsPage() {
     setMenuItem(item);
   };
 
-  const StatusBadge = ({ isActive }: { isActive: boolean }) => (
-    <Tag size="md" variant={isActive ? "outline" : "muted"}>
-      {isActive
-        ? t.adminFabrics.list.status_active
-        : t.adminFabrics.list.status_inactive}
-    </Tag>
-  );
-
   const getStoreDisplay = (store: FabricItem["listedByStore"]) => {
     if (!store) return "—";
     if (typeof store === "object") return store.name || "—";
@@ -489,14 +647,9 @@ export default function AdminFabricsPage() {
       : store;
   };
 
-  /** City column must show city (searchable), not emirate-only. */
-  const getCityDisplay = (item: FabricItem) => {
-    const city = item.storePickupAddress?.city?.trim();
-    const emirate = item.storePickupAddress?.emirate?.trim();
-    if (city && emirate && city.toLowerCase() !== emirate.toLowerCase()) {
-      return `${city}, ${emirate}`;
-    }
-    return city || emirate || item.city?.trim() || "—";
+  const getItemCode = (item: FabricItem) => {
+    const code = typeof item.code === "string" ? item.code.trim() : "";
+    return code || "N/A";
   };
 
   const getItemImage = (item: FabricItem) => {
@@ -596,7 +749,7 @@ export default function AdminFabricsPage() {
               className="w-fit min-w-30 sm:min-w-35 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"
             >
               <Link
-                href={`/admin/fabrics/${menuItem._id}/edit`}
+                href={editHref(menuItem._id)}
                 onClick={() => {
                   setMenuPosition(null);
                   setMenuItem(null);
@@ -608,7 +761,7 @@ export default function AdminFabricsPage() {
                 <span>Edit</span>
               </Link>
               <Link
-                href={`/admin/fabrics/${menuItem._id}`}
+                href={detailsHref(menuItem._id)}
                 onClick={() => {
                   setMenuPosition(null);
                   setMenuItem(null);
@@ -785,6 +938,9 @@ export default function AdminFabricsPage() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {t.adminFabrics.list.col_code}
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t.adminFabrics.list.col_name}
                     </th>
                     <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -796,12 +952,6 @@ export default function AdminFabricsPage() {
                     <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t.adminFabrics.list.col_store}
                     </th>
-                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t.adminFabrics.list.col_city}
-                    </th>
-                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {t.adminFabrics.list.col_status}
-                    </th>
                     <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       {t.adminFabrics.list.col_actions}
                     </th>
@@ -810,29 +960,66 @@ export default function AdminFabricsPage() {
                 <tbody className="divide-y divide-gray-50">
                   {items.map((item) => {
                     const itemLow = fabricHasLowStock(item);
+                    const itemInactive = item.isActive === false;
                     return (
                       <Fragment key={item._id}>
                         <tr
                           data-low-stock={itemLow ? "true" : undefined}
-                          className={`group transition-all duration-200 ${
-                            itemLow
-                              ? "bg-rose-50/80 hover:bg-rose-50"
-                              : "hover:bg-gray-50"
-                          }`}
+                          className={`group transition-all duration-200 ${fabricRowToneClass(
+                            { lowStock: itemLow, inactive: itemInactive },
+                          )}`}
                         >
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
+                            {getItemCode(item)}
+                          </td>
                           <td className="px-4 sm:px-6 py-4">
                             <div className="flex items-center gap-3">
                               {getItemImage(item)}
                               <div className="min-w-0">
-                                <span className="text-sm font-medium text-black">
+                                <span
+                                  className={`text-sm font-medium block truncate ${
+                                    itemInactive
+                                      ? "text-stone-600"
+                                      : "text-black"
+                                  }`}
+                                >
                                   {item.name || "—"}
                                 </span>
-                                {itemLow && (
-                                  <div className="mt-1">
-                                    <LowStockNameBadge
-                                      label={t.adminFabrics.list.low_badge}
-                                    />
+                                {(itemLow || itemInactive) && (
+                                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                    {itemInactive && (
+                                      <InactiveNameBadge
+                                        label={
+                                          t.adminFabrics.list.status_inactive
+                                        }
+                                      />
+                                    )}
+                                    {itemLow && (
+                                      <LowStockNameBadge
+                                        label={t.adminFabrics.list.low_badge}
+                                      />
+                                    )}
                                   </div>
+                                )}
+                                {item.variants && item.variants.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setExpandedRows((prev) => ({
+                                        ...prev,
+                                        [item._id]: !prev[item._id],
+                                      }));
+                                    }}
+                                    className={`mt-1.5 block w-fit px-1.5 py-0.5 rounded text-[10px] font-medium leading-none whitespace-nowrap transition cursor-pointer ${
+                                      expandedRows[item._id]
+                                        ? "bg-black text-white"
+                                        : "bg-stone-100 text-stone-700 border border-stone-300 hover:bg-black hover:text-white hover:border-black"
+                                    }`}
+                                  >
+                                    {expandedRows[item._id]
+                                      ? "Hide variant"
+                                      : `Show variant (${item.variants.length})`}
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -849,29 +1036,7 @@ export default function AdminFabricsPage() {
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                             {getStoreDisplay(item.listedByStore)}
                           </td>
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            {getCityDisplay(item)}
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            <StatusBadge isActive={item.isActive} />
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right space-x-2">
-                            {item.variants && item.variants.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setExpandedRows((prev) => ({
-                                    ...prev,
-                                    [item._id]: !prev[item._id],
-                                  }));
-                                }}
-                                className="px-2.5 py-1 border border-black/25 text-[10px] font-semibold uppercase tracking-wider hover:bg-black hover:text-white transition rounded cursor-pointer"
-                              >
-                                {expandedRows[item._id]
-                                  ? "Hide variants"
-                                  : `Show variant (${item.variants.length})`}
-                              </button>
-                            )}
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right">
                             <button
                               onClick={(e) => handleMenuOpen(e, item)}
                               className="text-gray-400 hover:text-black transition-colors p-1.5 rounded-lg hover:bg-gray-100 inline-flex items-center justify-center hover:cursor-pointer"
@@ -885,7 +1050,7 @@ export default function AdminFabricsPage() {
                           item.variants &&
                           item.variants.length > 0 && (
                             <tr className="bg-[#FAF9F5]/40">
-                              <td colSpan={7} className="px-4 sm:px-6 py-4">
+                              <td colSpan={6} className="px-4 sm:px-6 py-4">
                                 <div className="pl-4 sm:pl-8 space-y-2.5">
                                   <span className="text-[10px] font-semibold uppercase tracking-widest text-black/55 block">
                                     Variations
@@ -894,6 +1059,9 @@ export default function AdminFabricsPage() {
                                     <table className="min-w-full divide-y divide-gray-100">
                                       <thead className="bg-gray-50/70">
                                         <tr>
+                                          <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                                            {t.adminFabrics.list.col_code}
+                                          </th>
                                           <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                                             {t.adminFabrics.list.col_name}
                                           </th>
@@ -906,12 +1074,6 @@ export default function AdminFabricsPage() {
                                           <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                                             {t.adminFabrics.list.col_store}
                                           </th>
-                                          <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                                            {t.adminFabrics.list.col_city}
-                                          </th>
-                                          <th className="px-3 sm:px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                                            {t.adminFabrics.list.col_status}
-                                          </th>
                                           <th className="px-3 sm:px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                                             {t.adminFabrics.list.col_actions}
                                           </th>
@@ -922,16 +1084,28 @@ export default function AdminFabricsPage() {
                                           const variantLow = cutsHaveLowStock(
                                             v.cuts,
                                           );
+                                          const variantInactive =
+                                            v.isActive === false;
                                           return (
                                             <tr
                                               key={v._id}
-                                              className={
-                                                variantLow
-                                                  ? "bg-rose-50/80 hover:bg-rose-50"
-                                                  : "hover:bg-gray-50/60 transition-colors"
-                                              }
+                                              className={`transition-colors ${fabricRowToneClass(
+                                                {
+                                                  lowStock: variantLow,
+                                                  inactive: variantInactive,
+                                                },
+                                              )}`}
                                             >
-                                              <td className="px-3 sm:px-4 py-3 text-xs font-semibold text-black">
+                                              <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs font-mono text-gray-600">
+                                                {getItemCode(v)}
+                                              </td>
+                                              <td
+                                                className={`px-3 sm:px-4 py-3 text-xs font-semibold ${
+                                                  variantInactive
+                                                    ? "text-stone-600"
+                                                    : "text-black"
+                                                }`}
+                                              >
                                                 <div className="flex items-center gap-2">
                                                   {v.images &&
                                                   v.images.length > 0 ? (
@@ -961,14 +1135,26 @@ export default function AdminFabricsPage() {
                                                     <span className="text-xs sm:text-sm">
                                                       {v.name}
                                                     </span>
-                                                    {variantLow && (
-                                                      <div className="mt-1">
-                                                        <LowStockNameBadge
-                                                          label={
-                                                            t.adminFabrics.list
-                                                              .low_badge
-                                                          }
-                                                        />
+                                                    {(variantLow ||
+                                                      variantInactive) && (
+                                                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                                        {variantInactive && (
+                                                          <InactiveNameBadge
+                                                            label={
+                                                              t.adminFabrics
+                                                                .list
+                                                                .status_inactive
+                                                            }
+                                                          />
+                                                        )}
+                                                        {variantLow && (
+                                                          <LowStockNameBadge
+                                                            label={
+                                                              t.adminFabrics
+                                                                .list.low_badge
+                                                            }
+                                                          />
+                                                        )}
                                                       </div>
                                                     )}
                                                   </div>
@@ -987,14 +1173,6 @@ export default function AdminFabricsPage() {
                                                 {getStoreDisplay(
                                                   v.listedByStore,
                                                 )}
-                                              </td>
-                                              <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-600">
-                                                {getCityDisplay(v)}
-                                              </td>
-                                              <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
-                                                <StatusBadge
-                                                  isActive={v.isActive}
-                                                />
                                               </td>
                                               <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-right">
                                                 <button
@@ -1029,30 +1207,64 @@ export default function AdminFabricsPage() {
           <div className="md:hidden space-y-3 sm:space-y-4">
             {items.map((item) => {
               const itemLow = fabricHasLowStock(item);
+              const itemInactive = item.isActive === false;
               return (
                 <div
                   key={item._id}
                   className={`rounded-2xl shadow-sm border p-3 sm:p-4 ${
                     itemLow
                       ? "bg-rose-50 border-rose-200"
-                      : "bg-white border-gray-100"
+                      : itemInactive
+                        ? "bg-stone-50 border-stone-200"
+                        : "bg-white border-gray-100"
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       {getItemImage(item)}
                       <div className="min-w-0">
-                        <h3 className="text-xs sm:text-sm font-medium text-black truncate">
+                        <h3
+                          className={`text-xs sm:text-sm font-medium truncate ${
+                            itemInactive ? "text-stone-600" : "text-black"
+                          }`}
+                        >
                           {item.name || "—"}
                         </h3>
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                          <StatusBadge isActive={item.isActive} />
+                          <span className="font-mono text-[10px] sm:text-xs text-gray-500">
+                            {getItemCode(item)}
+                          </span>
+                          {itemInactive && (
+                            <InactiveNameBadge
+                              label={t.adminFabrics.list.status_inactive}
+                            />
+                          )}
                           {itemLow && (
                             <LowStockNameBadge
                               label={t.adminFabrics.list.low_badge}
                             />
                           )}
                         </div>
+                        {item.variants && item.variants.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpandedRows((prev) => ({
+                                ...prev,
+                                [item._id]: !prev[item._id],
+                              }));
+                            }}
+                            className={`mt-1.5 block w-fit px-1.5 py-0.5 rounded text-[10px] font-medium leading-none whitespace-nowrap transition cursor-pointer ${
+                              expandedRows[item._id]
+                                ? "bg-black text-white"
+                                : "bg-stone-100 text-stone-700 border border-stone-300 hover:bg-black hover:text-white hover:border-black"
+                            }`}
+                          >
+                            {expandedRows[item._id]
+                              ? "Hide variant"
+                              : `Show variant (${item.variants.length})`}
+                          </button>
+                        )}
                       </div>
                     </div>
                     <button
@@ -1078,39 +1290,24 @@ export default function AdminFabricsPage() {
                         {getStoreDisplay(item.listedByStore)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
-                      <MapPin className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                      <span>{getCityDisplay(item)}</span>
-                    </div>
                   </div>
 
-                  {item.variants && item.variants.length > 0 && (
-                    <div className="mt-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setExpandedRows((prev) => ({
-                            ...prev,
-                            [item._id]: !prev[item._id],
-                          }));
-                        }}
-                        className="text-[10px] font-medium text-gray-500 hover:text-black transition"
-                      >
-                        {expandedRows[item._id]
-                          ? "Hide variants"
-                          : `Show variants (${item.variants.length})`}
-                      </button>
-                      {expandedRows[item._id] && (
-                        <div className="mt-2 space-y-2">
+                  {item.variants &&
+                    item.variants.length > 0 &&
+                    expandedRows[item._id] && (
+                    <div className="mt-3 space-y-2">
                           {item.variants.map((v) => {
                             const variantLow = cutsHaveLowStock(v.cuts);
+                            const variantInactive = v.isActive === false;
                             return (
                               <div
                                 key={v._id}
                                 className={`rounded-lg p-3 ${
                                   variantLow
                                     ? "bg-white border border-rose-200"
-                                    : "bg-gray-50"
+                                    : variantInactive
+                                      ? "bg-stone-100/80 border border-stone-200"
+                                      : "bg-gray-50"
                                 }`}
                               >
                                 <div className="flex items-center justify-between">
@@ -1137,13 +1334,36 @@ export default function AdminFabricsPage() {
                                       </div>
                                     )}
                                     <div className="min-w-0">
-                                      <span className="text-xs font-medium truncate block">
+                                      <span
+                                        className={`text-xs font-medium truncate block ${
+                                          variantInactive
+                                            ? "text-stone-600"
+                                            : ""
+                                        }`}
+                                      >
                                         {v.name}
                                       </span>
-                                      {variantLow && (
-                                        <LowStockNameBadge
-                                          label={t.adminFabrics.list.low_badge}
-                                        />
+                                      <span className="font-mono text-[10px] text-gray-500">
+                                        {getItemCode(v)}
+                                      </span>
+                                      {(variantInactive || variantLow) && (
+                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                          {variantInactive && (
+                                            <InactiveNameBadge
+                                              label={
+                                                t.adminFabrics.list
+                                                  .status_inactive
+                                              }
+                                            />
+                                          )}
+                                          {variantLow && (
+                                            <LowStockNameBadge
+                                              label={
+                                                t.adminFabrics.list.low_badge
+                                              }
+                                            />
+                                          )}
+                                        </div>
                                       )}
                                     </div>
                                   </div>
@@ -1166,13 +1386,10 @@ export default function AdminFabricsPage() {
                                   <span>
                                     Store: {getStoreDisplay(v.listedByStore)}
                                   </span>
-                                  <span>City: {getCityDisplay(v)}</span>
                                 </div>
                               </div>
                             );
                           })}
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>

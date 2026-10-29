@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { Link } from "@/i18n/navigation";
+import { useState, useEffect, useMemo } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import { getTranslation } from "@/lib/getTranslation";
 import {
@@ -15,13 +15,55 @@ import { ImageModal } from "@/components/shared/ImageModal";
 import { resolveMediaUrl } from "@/lib/media";
 import { formatPhoneDisplay } from "@/lib/uaePhone";
 
+function buildListReturnHref(searchParams: {
+  get: (key: string) => string | null;
+}) {
+  const params = new URLSearchParams();
+  const page = searchParams.get("page");
+  const limit = searchParams.get("limit");
+  const status = searchParams.get("status");
+  const stock = searchParams.get("stock");
+  const search = searchParams.get("search");
+  if (page && Number(page) > 1) params.set("page", page);
+  if (limit && Number(limit) > 0 && Number(limit) !== 10) {
+    params.set("limit", limit);
+  }
+  if (status && status !== "all") params.set("status", status);
+  else if (stock === "low") params.set("status", "low");
+  if (search?.trim()) params.set("search", search.trim());
+  const qs = params.toString();
+  return qs ? `/admin/fabrics?${qs}` : "/admin/fabrics";
+}
+
+function buildForwardQuery(searchParams: {
+  get: (key: string) => string | null;
+}) {
+  const params = new URLSearchParams();
+  for (const key of ["page", "limit", "status", "stock", "search"] as const) {
+    const value = searchParams.get(key);
+    if (value) params.set(key, value);
+  }
+  return params.toString();
+}
+
 export default function FabricDetailsPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const localeParam = params.locale as string;
   const id = params.id as string;
   const t = getTranslation(localeParam);
   const isAr = localeParam === "ar";
+  const listReturnHref = useMemo(
+    () => buildListReturnHref(searchParams),
+    [searchParams],
+  );
+  const editHref = useMemo(() => {
+    const qs = buildForwardQuery(searchParams);
+    return qs
+      ? `/admin/fabrics/${id}/edit?${qs}`
+      : `/admin/fabrics/${id}/edit`;
+  }, [id, searchParams]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +127,7 @@ export default function FabricDetailsPage() {
       <div className="text-center text-red-600 bg-red-50 p-6 rounded-lg max-w-md mx-auto my-12">
         <p>{error || t.adminFabrics.edit.not_found}</p>
         <button
-          onClick={() => router.push("/admin/fabrics")}
+          onClick={() => router.push(listReturnHref)}
           className="mt-4 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition text-sm cursor-pointer"
         >
           {t.adminFabrics.edit.back_to_list}
@@ -102,7 +144,7 @@ export default function FabricDetailsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-100">
         <div className="text-left">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-gray-500 mb-1">
-            <Link href="/admin/fabrics" className="hover:text-black transition">
+            <Link href={listReturnHref} className="hover:text-black transition">
               {t.adminFabrics.edit.back_to_list}
             </Link>
             <span>/</span>
@@ -115,14 +157,14 @@ export default function FabricDetailsPage() {
 
         <div className="flex items-center gap-3">
           <Link
-            href="/admin/fabrics"
+            href={listReturnHref}
             className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition cursor-pointer bg-white"
           >
             <ChevronLeft className={`w-4 h-4 ${isAr ? "rotate-180" : ""}`} />
             <span>{isAr ? "رجوع" : "Back"}</span>
           </Link>
           <Link
-            href={`/admin/fabrics/${id}/edit`}
+            href={editHref}
             className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 transition cursor-pointer"
           >
             <Edit className="w-4 h-4" />

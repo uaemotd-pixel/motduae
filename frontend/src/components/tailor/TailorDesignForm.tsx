@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import toast from "react-hot-toast";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -43,7 +44,6 @@ import { formatMotdFinalPrice, DEFAULT_TAILOR_COMMISSION } from "@/lib/motdCommi
 import { formatCatalogCutLabels } from "@/lib/fabricUnits";
 import AnimatedDropdown from "@/components/shared/AnimatedDropdown";
 import { getTranslation } from "@/lib/getTranslation";
-import { useParams } from "next/navigation";
 
 const INPUT_CLASS =
   "w-full py-1 border-b border-gray-300 focus:border-black focus:outline-none hover:cursor-text text-xs sm:text-sm bg-transparent";
@@ -191,11 +191,27 @@ export default function TailorDesignForm({
   const t = useTranslations("TailorPortal.designs");
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const locale = (params.locale as string) || "en";
   const adminT = getTranslation(locale).adminDesigns;
   const isAdminMode = mode === "admin";
   const isEditMode = Boolean(designId);
-  const listHref = isAdminMode ? "/admin/designs" : "/tailor/designs";
+  const listHref = useMemo(() => {
+    if (!isAdminMode) return "/tailor/designs";
+    const qs = new URLSearchParams();
+    const page = searchParams.get("page");
+    const limit = searchParams.get("limit");
+    const search = searchParams.get("search");
+    const tailor = searchParams.get("tailorShopId");
+    if (page && Number(page) > 1) qs.set("page", page);
+    if (limit && Number(limit) > 0 && Number(limit) !== 10) {
+      qs.set("limit", limit);
+    }
+    if (search?.trim()) qs.set("search", search.trim());
+    if (tailor) qs.set("tailorShopId", tailor);
+    const query = qs.toString();
+    return query ? `/admin/designs?${query}` : "/admin/designs";
+  }, [isAdminMode, searchParams]);
   const uploadEndpoint = isAdminMode
     ? "/api/admin/uploads/designs"
     : "/api/tailor/uploads/design-image";
