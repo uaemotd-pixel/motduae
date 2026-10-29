@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
@@ -1500,7 +1501,7 @@ export default function AdminSupportChatPage() {
         className={`${
           active ? "hidden" : "flex"
         } min-h-0 w-full flex-1 flex-col border-r border-[#E8E8E4] bg-white lg:flex lg:h-full lg:w-[var(--inbox-w)] lg:flex-none lg:shrink-0`}
-        style={{ ["--inbox-w" as `--inbox-w`]: `${inboxWidth}px` }}
+        style={{ "--inbox-w": `${inboxWidth}px` } as CSSProperties}
       >
         <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[#E8E8E4] bg-[#FFFDF9] py-3 pe-3 ps-14 sm:pe-4 lg:px-4">
           <div className="min-w-0">
