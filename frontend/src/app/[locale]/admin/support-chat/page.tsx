@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -17,14 +18,12 @@ import {
   Ban,
   CheckSquare,
   Eraser,
-  Headphones,
   Info,
   Mic,
   MessageSquare,
   MoreVertical,
   Palette,
   Paperclip,
-  PenLine,
   Phone,
   PhoneOff,
   RefreshCw,
@@ -32,12 +31,12 @@ import {
   Send,
   Smile,
   Trash2,
-  UserRound,
   X,
   XCircle,
 } from "lucide-react";
 import ChatThreadSearchBar from "@/components/shared/ChatThreadSearchBar";
 import ChatSearchHighlight from "@/components/shared/ChatSearchHighlight";
+import AdminSupportEmptyScene from "@/components/admin/AdminSupportEmptyScene";
 import { findThreadMatchIds } from "@/lib/chat/threadSearch";
 import { motion } from "framer-motion";
 import type { Socket } from "socket.io-client";
@@ -169,6 +168,38 @@ function formatMsgTime(iso: string) {
   }
 }
 
+function messageDayKey(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+/** WhatsApp-style thread date chip: Today / Yesterday / weekday / full date. */
+function formatThreadDateBadge(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startMsg = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round(
+    (startToday.getTime() - startMsg.getTime()) / 86_400_000,
+  );
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays > 1 && diffDays < 7) {
+    return d.toLocaleDateString("en-AE", { weekday: "long" });
+  }
+  if (d.getFullYear() === now.getFullYear()) {
+    return d.toLocaleDateString("en-AE", { day: "numeric", month: "long" });
+  }
+  return d.toLocaleDateString("en-AE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 function formatListTime(ts: number) {
   const d = new Date(ts);
   const now = new Date();
@@ -250,13 +281,13 @@ function SessionRow({
         src={session.customer?.profilePic}
         size="lg"
         online={!waiting && !ended}
-        className={
-          waiting
-            ? "ring-2 ring-amber-400/80"
-            : ended
-              ? "opacity-80"
-              : undefined
-        }
+        className={[
+          "border border-black/50",
+          waiting ? "ring-2 ring-amber-400/80" : "",
+          ended ? "opacity-80" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       />
 
       <span className="min-w-0 flex-1 border-b border-[#E8E8E4] pb-3">
@@ -1549,27 +1580,38 @@ export default function AdminSupportChatPage() {
             ) : null}
           </label>
 
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-            {filters.map((f) => {
-              const on = filter === f.id;
-              return (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => setFilter(f.id)}
-                  className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] transition hover:cursor-pointer [font-family:var(--font-body)] ${
-                    on
-                      ? "bg-black text-white"
-                      : "bg-[#F0EEE8] text-[#5A5A52] hover:bg-[#E8E8E4]"
-                  }`}
-                >
-                  {f.label}
-                  {typeof f.count === "number" ? (
-                    <span className="ms-1 opacity-70">{f.count}</span>
-                  ) : null}
-                </button>
-              );
-            })}
+          <div className="@container mt-2 w-full min-w-0">
+            <div className="flex w-full min-w-0 gap-1 @[300px]:gap-1.5 @[360px]:gap-2">
+              {filters.map((f) => {
+                const on = filter === f.id;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setFilter(f.id)}
+                    title={
+                      typeof f.count === "number"
+                        ? `${f.label} (${f.count})`
+                        : f.label
+                    }
+                    className={`min-w-0 flex-1 basis-0 rounded-full px-1 py-1 text-[10px] leading-tight transition hover:cursor-pointer [font-family:var(--font-body)] @[300px]:px-1.5 @[300px]:text-[11px] @[360px]:px-3 @[360px]:py-1.5 @[360px]:text-[13px] @[360px]:leading-normal ${
+                      on
+                        ? "bg-black text-white"
+                        : "bg-[#F0EEE8] text-[#5A5A52] hover:bg-[#E8E8E4]"
+                    }`}
+                  >
+                    <span className="block truncate">
+                      {f.label}
+                      {typeof f.count === "number" ? (
+                        <span className="ms-0.5 opacity-70 tabular-nums">
+                          {f.count}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -1637,11 +1679,10 @@ export default function AdminSupportChatPage() {
         />
 
         {!active ? (
-          <div className="relative z-[1] flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-8 text-center sm:px-6 sm:py-10">
-            {/* Soft ambient glow */}
+          <div className="relative z-[1] flex min-h-0 flex-1 flex-col items-center justify-center overflow-x-hidden overflow-y-auto px-3 py-5 text-center sm:px-6 sm:py-8 md:py-10">
             <motion.div
               aria-hidden
-              className="pointer-events-none absolute h-72 w-72 rounded-full bg-black/[0.04] blur-3xl"
+              className="pointer-events-none absolute h-[16rem] w-[16rem] rounded-full bg-black/[0.04] blur-3xl sm:h-[22rem] sm:w-[22rem]"
               animate={{ scale: [1, 1.12, 1], opacity: [0.45, 0.7, 0.45] }}
               transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
             />
@@ -1650,138 +1691,28 @@ export default function AdminSupportChatPage() {
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-              className="relative w-full max-w-lg"
+              className="relative w-full max-w-md sm:max-w-xl"
             >
-              {/* Orbiting support icons */}
-              <div className="relative mx-auto mb-8 flex h-44 w-full max-w-sm items-center justify-center">
-                {(
-                  [
-                    { key: "chat", Icon: MessageSquare, x: -96, y: -42, delay: 0 },
-                    { key: "phone", Icon: Phone, x: 98, y: -34, delay: 0.2 },
-                    { key: "pen", Icon: PenLine, x: -88, y: 52, delay: 0.4 },
-                    { key: "headset", Icon: Headphones, x: 90, y: 56, delay: 0.55 },
-                    { key: "agent", Icon: UserRound, x: 0, y: -78, delay: 0.3 },
-                  ] as const
-                ).map(({ key, Icon, x, y, delay }) => (
-                  <motion.div
-                    key={key}
-                    aria-hidden
-                    className="absolute flex h-11 w-11 items-center justify-center rounded-full border border-[#E8E8E4] bg-white text-black shadow-[0_8px_24px_rgba(0,0,0,0.06)]"
-                    initial={{ opacity: 0, scale: 0.6, x, y }}
-                    animate={{
-                      opacity: 1,
-                      scale: 1,
-                      x,
-                      y: [y, y - 8, y],
-                    }}
-                    transition={{
-                      opacity: { delay, duration: 0.45 },
-                      scale: {
-                        delay,
-                        duration: 0.45,
-                        type: "spring",
-                        stiffness: 260,
-                        damping: 18,
-                      },
-                      y: {
-                        delay: delay + 0.4,
-                        duration: 3.2 + delay,
-                        repeat: Infinity,
-                        ease: "easeInOut",
-                      },
-                    }}
-                  >
-                    <Icon className="h-[18px] w-[18px]" strokeWidth={1.6} />
-                  </motion.div>
-                ))}
-
-                {/* Center agent mark */}
-                <motion.div
-                  className="relative z-[1] flex h-20 w-20 items-center justify-center rounded-full bg-black text-white shadow-[0_16px_40px_rgba(0,0,0,0.18)]"
-                  initial={{ opacity: 0, scale: 0.7 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 20 }}
-                >
-                  <motion.span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-0 rounded-full border border-black/20"
-                    animate={{ scale: [1, 1.35], opacity: [0.4, 0] }}
-                    transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut" }}
-                  />
-                  <Headphones className="h-8 w-8" strokeWidth={1.4} />
-                </motion.div>
+              <div className="mb-5 w-full sm:mb-8">
+                <AdminSupportEmptyScene />
               </div>
 
               <motion.h2
-                className="text-[28px] font-light tracking-tight text-black [font-family:var(--font-display)] sm:text-[32px]"
+                className="text-[22px] font-light tracking-tight text-black [font-family:var(--font-display)] min-[400px]:text-[26px] sm:text-[32px]"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, duration: 0.45 }}
+                transition={{ delay: 0.25, duration: 0.45 }}
               >
                 MOTD Live Support
               </motion.h2>
               <motion.p
-                className="mx-auto mt-3 max-w-sm text-[14px] leading-relaxed text-[#8A8A80] [font-family:var(--font-body)]"
+                className="mx-auto mt-2 max-w-sm px-1 text-[13px] leading-relaxed text-[#8A8A80] [font-family:var(--font-body)] sm:mt-3 sm:text-[14px]"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.32, duration: 0.45 }}
+                transition={{ delay: 0.35, duration: 0.45 }}
               >
                 Pick a waiting chat to accept it, or reopen an active conversation
                 from the inbox when you&apos;re ready to help.
-              </motion.p>
-
-              <motion.div
-                className="mx-auto mt-8 grid max-w-xs grid-cols-2 gap-3"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.42, duration: 0.45 }}
-              >
-                {[
-                  {
-                    label: "Waiting",
-                    value: waitingCount,
-                    hint: "Ready to accept",
-                    accent: waitingCount > 0,
-                  },
-                  {
-                    label: "Active",
-                    value: activeCount,
-                    hint: "In progress",
-                    accent: activeCount > 0,
-                  },
-                ].map((stat, i) => (
-                  <motion.div
-                    key={stat.label}
-                    className="rounded-2xl border border-[#E8E8E4] bg-white/90 px-4 py-4 backdrop-blur-sm"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.48 + i * 0.08, duration: 0.4 }}
-                    whileHover={{ y: -2, transition: { duration: 0.2 } }}
-                  >
-                    <p className="text-[26px] font-medium tabular-nums tracking-tight text-black [font-family:var(--font-body)]">
-                      {stat.value}
-                    </p>
-                    <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-[#8A8A80] [font-family:var(--font-ui)]">
-                      {stat.label}
-                    </p>
-                    <p
-                      className={`mt-2 text-[11px] [font-family:var(--font-body)] ${
-                        stat.accent ? "text-black" : "text-[#B0B0A8]"
-                      }`}
-                    >
-                      {stat.hint}
-                    </p>
-                  </motion.div>
-                ))}
-              </motion.div>
-
-              <motion.p
-                className="mt-8 text-[12px] text-[#A3A39A] [font-family:var(--font-body)]"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.7, duration: 0.5 }}
-              >
-                Stay online — new customer chats appear in the inbox instantly.
               </motion.p>
             </motion.div>
           </div>
@@ -1818,6 +1749,7 @@ export default function AdminSupportChatPage() {
                   src={active.customer?.profilePic}
                   size="md"
                   online={!chatEndedBy && active.status === "active"}
+                  className="border border-black/50"
                 />
                 <div className="min-w-0">
                   <h2 className="truncate text-[15px] text-black [font-family:var(--font-body)] sm:text-[16px]">
@@ -2097,7 +2029,7 @@ export default function AdminSupportChatPage() {
               data-lenis-prevent
               className="relative z-0 min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y px-3 py-3 [-webkit-overflow-scrolling:touch] sm:px-4 sm:py-4 md:px-8 lg:px-10"
             >
-              {(active.messages || []).map((msg) => {
+              {(active.messages || []).map((msg, index, list) => {
                 const isMatch =
                   searchQuery.length > 0 && matchIds.includes(msg.id);
                 const isActiveMatch =
@@ -2107,28 +2039,42 @@ export default function AdminSupportChatPage() {
                   ] === msg.id;
                 const dimWhileSearch =
                   searchQuery.length > 0 && !isMatch && msg.role !== "system";
+                const prevMsg = index > 0 ? list[index - 1] : null;
+                const day = messageDayKey(msg.at);
+                const showDateBadge =
+                  Boolean(day) &&
+                  (!prevMsg || messageDayKey(prevMsg.at) !== day);
+                const dateBadge = showDateBadge ? (
+                  <div className="flex justify-center py-2">
+                    <p className="rounded-full bg-[#FFFFFFCC] px-3.5 py-1 text-center text-[11.5px] leading-snug text-[#54656F] shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] backdrop-blur-sm [font-family:var(--font-body)]">
+                      {formatThreadDateBadge(msg.at)}
+                    </p>
+                  </div>
+                ) : null;
 
                 if (msg.role === "system") {
                   return (
-                    <div
-                      key={msg.id}
-                      data-msg-id={msg.id}
-                      className={`flex justify-center py-2 transition-opacity ${
-                        searchQuery && !isMatch ? "opacity-35" : ""
-                      }`}
-                    >
-                      <p className="max-w-[92%] rounded-full bg-[#FFFFFFCC] px-3.5 py-1 text-center text-[11.5px] leading-snug text-[#667781] shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] backdrop-blur-sm [font-family:var(--font-body)]">
-                        {searchQuery ? (
-                          <ChatSearchHighlight
-                            text={msg.text}
-                            query={searchQuery}
-                            active={isActiveMatch}
-                          />
-                        ) : (
-                          msg.text
-                        )}
-                      </p>
-                    </div>
+                    <Fragment key={msg.id}>
+                      {dateBadge}
+                      <div
+                        data-msg-id={msg.id}
+                        className={`flex justify-center py-2 transition-opacity ${
+                          searchQuery && !isMatch ? "opacity-35" : ""
+                        }`}
+                      >
+                        <p className="max-w-[92%] rounded-full bg-[#FFFFFFCC] px-3.5 py-1 text-center text-[11.5px] leading-snug text-[#667781] shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] backdrop-blur-sm [font-family:var(--font-body)]">
+                          {searchQuery ? (
+                            <ChatSearchHighlight
+                              text={msg.text}
+                              query={searchQuery}
+                              active={isActiveMatch}
+                            />
+                          ) : (
+                            msg.text
+                          )}
+                        </p>
+                      </div>
+                    </Fragment>
                   );
                 }
                 // FAQ / MOTD Care bot history stays on the left (context), not as "mine".
@@ -2139,8 +2085,9 @@ export default function AdminSupportChatPage() {
                 const mine = msg.role === "agent" && !isCareBot;
                 const selected = selectedIds.has(msg.id);
                 return (
+                  <Fragment key={msg.id}>
+                    {dateBadge}
                   <div
-                    key={msg.id}
                     data-msg-id={msg.id}
                     className={`flex items-center gap-2 transition-opacity ${mine ? "justify-end" : "justify-start"} ${
                       selectMode ? "cursor-pointer" : ""
@@ -2336,19 +2283,59 @@ export default function AdminSupportChatPage() {
                           </p>
                         </div>
                       ) : null}
-                      {msg.deleted ? (
-                        <p
-                          className={`italic whitespace-pre-wrap break-words text-[14.2px] leading-[1.4] [font-family:var(--font-body)] ${
-                            mine ? "text-white/70" : "text-[#8A8A80]"
-                          }`}
-                        >
-                          {msg.deletedBy === "agent"
-                            ? "You deleted this message"
-                            : "Customer deleted this message"}
-                        </p>
-                      ) : (
-                        <>
-                          {msg.kind === "voice" && msg.audio ? (
+                      {(() => {
+                        const metaInline = (
+                          <span
+                            className={`relative top-[3px] float-end ms-2 inline-flex items-end gap-1 whitespace-nowrap text-[11px] leading-none tabular-nums [font-family:var(--font-ui)] ${
+                              mine ? "text-white/50" : "text-[#8A8A80]"
+                            }`}
+                          >
+                            {msg.editedAt ? <span>Edited</span> : null}
+                            {formatMsgTime(msg.at)}
+                            {mine && !msg.deleted ? (
+                              <MessageStatusTicks
+                                status={msg.status || "sent"}
+                                onDark
+                              />
+                            ) : null}
+                          </span>
+                        );
+                        const metaRow = (
+                          <p
+                            className={`mt-0.5 flex items-center justify-end gap-1 text-[11px] tabular-nums [font-family:var(--font-ui)] ${
+                              mine ? "text-white/50" : "text-[#8A8A80]"
+                            }`}
+                          >
+                            {msg.editedAt ? <span>Edited</span> : null}
+                            {formatMsgTime(msg.at)}
+                            {mine && !msg.deleted ? (
+                              <MessageStatusTicks
+                                status={msg.status || "sent"}
+                                onDark
+                              />
+                            ) : null}
+                          </p>
+                        );
+                        const textBodyClass =
+                          "whitespace-pre-wrap break-words text-[14.2px] leading-[1.4] after:clear-both after:table [font-family:var(--font-body)]";
+
+                        if (msg.deleted) {
+                          return (
+                            <p
+                              className={`italic ${textBodyClass} ${
+                                mine ? "text-white/70" : "text-[#8A8A80]"
+                              }`}
+                            >
+                              {msg.deletedBy === "agent"
+                                ? "You deleted this message"
+                                : "Customer deleted this message"}
+                              {metaInline}
+                            </p>
+                          );
+                        }
+
+                        if (msg.kind === "voice" && msg.audio) {
+                          return (
                             <div className="space-y-1.5">
                               {msg.data ? (
                                 <ChatAttachmentBubble
@@ -2368,8 +2355,13 @@ export default function AdminSupportChatPage() {
                                 durationMs={msg.durationMs}
                                 onDark={mine}
                               />
+                              {metaRow}
                             </div>
-                          ) : msg.kind === "image" && msg.data ? (
+                          );
+                        }
+
+                        if (msg.kind === "image" && msg.data) {
+                          return (
                             <div className="space-y-1">
                               <ChatAttachmentBubble
                                 kind="image"
@@ -2379,7 +2371,7 @@ export default function AdminSupportChatPage() {
                                 onDark={mine}
                               />
                               {msg.caption ? (
-                                <p className="whitespace-pre-wrap break-words text-[14.2px] leading-[1.4] [font-family:var(--font-body)]">
+                                <p className={textBodyClass}>
                                   {searchQuery ? (
                                     <ChatSearchHighlight
                                       text={msg.caption}
@@ -2389,10 +2381,17 @@ export default function AdminSupportChatPage() {
                                   ) : (
                                     msg.caption
                                   )}
+                                  {metaInline}
                                 </p>
-                              ) : null}
+                              ) : (
+                                metaRow
+                              )}
                             </div>
-                          ) : msg.kind === "file" && msg.data ? (
+                          );
+                        }
+
+                        if (msg.kind === "file" && msg.data) {
+                          return (
                             <div className="space-y-1">
                               <ChatAttachmentBubble
                                 kind="file"
@@ -2402,7 +2401,7 @@ export default function AdminSupportChatPage() {
                                 onDark={mine}
                               />
                               {msg.caption ? (
-                                <p className="whitespace-pre-wrap break-words text-[14.2px] leading-[1.4] [font-family:var(--font-body)]">
+                                <p className={textBodyClass}>
                                   {searchQuery ? (
                                     <ChatSearchHighlight
                                       text={msg.caption}
@@ -2412,40 +2411,33 @@ export default function AdminSupportChatPage() {
                                   ) : (
                                     msg.caption
                                   )}
+                                  {metaInline}
                                 </p>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap break-words text-[14.2px] leading-[1.4] [font-family:var(--font-body)]">
-                              {searchQuery ? (
-                                <ChatSearchHighlight
-                                  text={msg.text}
-                                  query={searchQuery}
-                                  active={isActiveMatch}
-                                />
                               ) : (
-                                msg.text
+                                metaRow
                               )}
-                            </p>
-                          )}
-                        </>
-                      )}
-                      <p
-                        className={`mt-0.5 flex items-center justify-end gap-1 text-[11px] tabular-nums [font-family:var(--font-ui)] ${
-                          mine ? "text-white/50" : "text-[#8A8A80]"
-                        }`}
-                      >
-                        {msg.editedAt ? <span>Edited</span> : null}
-                        {formatMsgTime(msg.at)}
-                        {mine && !msg.deleted ? (
-                          <MessageStatusTicks
-                            status={msg.status || "sent"}
-                            onDark
-                          />
-                        ) : null}
-                      </p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <p className={textBodyClass}>
+                            {searchQuery ? (
+                              <ChatSearchHighlight
+                                text={msg.text}
+                                query={searchQuery}
+                                active={isActiveMatch}
+                              />
+                            ) : (
+                              msg.text
+                            )}
+                            {metaInline}
+                          </p>
+                        );
+                      })()}
                     </div>
                   </div>
+                  </Fragment>
                 );
               })}
 

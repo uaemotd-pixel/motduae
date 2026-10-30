@@ -1070,3 +1070,51 @@ export async function notifyLiveChatAgentMessageCustomer({
     createdBy,
   });
 }
+
+/** Fabric store: customer started a chat with this store. */
+export async function notifyLiveChatStartedFabricStore({
+  sessionId,
+  customerName,
+  recipientUserId,
+  createdBy = null,
+} = {}) {
+  const id = String(sessionId || "").trim();
+  const ownerId = recipientUserId ? String(recipientUserId) : "";
+  if (!id || !ownerId) return null;
+  const name = String(customerName || "Customer").trim() || "Customer";
+  return upsertUnreadLiveChatNotification({
+    dedupeKey: `live_chat_started_fabric:${id}`,
+    type: "live_chat_started",
+    title: "New store chat",
+    message: `${name} wants to chat with your store.`,
+    audience: "customer",
+    recipientUserId: ownerId,
+    createdBy,
+  });
+}
+
+/** Fabric store: customer messaged while store staff not in thread. */
+export async function notifyLiveChatCustomerMessageFabricStore({
+  sessionId,
+  messageId,
+  customerName,
+  message,
+  recipientUserId,
+  createdBy = null,
+} = {}) {
+  const sid = String(sessionId || "").trim();
+  const ownerId = recipientUserId ? String(recipientUserId) : "";
+  if (!sid || !ownerId) return null;
+  void messageId;
+  const name = String(customerName || "Customer").trim() || "Customer";
+  const preview = liveChatPreview(message);
+  return upsertUnreadLiveChatNotification({
+    dedupeKey: `live_chat_message_fabric:${sid}`,
+    type: "live_chat_message",
+    title: "Store chat message",
+    message: `${name}: ${preview}`,
+    audience: "customer",
+    recipientUserId: ownerId,
+    createdBy,
+  });
+}

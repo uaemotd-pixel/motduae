@@ -828,6 +828,7 @@
       "ready-made": "Ready Made",
       "addons": "Add-Ons",
       "orders": "Orders",
+      "messages": "Customer Support",
       "notifications": "Notifications",
       "settings": "Settings"
     },
@@ -1262,6 +1263,9 @@
         "retailOrderReceived": "Order received",
         "fabricOrderPlaced": "New custom order",
         "fabricRetailOrderPlaced": "New store order",
+        "liveChatStarted": "New live chat",
+        "liveChatMessage": "Live chat message",
+        "liveChatAgentMessage": "Support message",
         "default": "Notification"
       }
     }

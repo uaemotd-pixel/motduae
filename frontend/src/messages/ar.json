@@ -923,6 +923,7 @@
       "ready-made": "ملابس جاهزة",
       "addons": "الإضافات",
       "orders": "الطلبات",
+      "messages": "دعم العملاء",
       "notifications": "إشعارات",
       "settings": "الإعدادات"
     },
@@ -1357,6 +1358,9 @@
         "retailOrderReceived": "تم استلام الطلب",
         "fabricOrderPlaced": "طلب تفصيل جديد",
         "fabricRetailOrderPlaced": "طلب متجر جديد",
+        "liveChatStarted": "دردشة مباشرة جديدة",
+        "liveChatMessage": "رسالة دردشة مباشرة",
+        "liveChatAgentMessage": "رسالة من الدعم",
         "default": "إشعار"
       }
     }

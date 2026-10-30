@@ -107,11 +107,22 @@ function fileExt(name) {
   return parts[parts.length - 1].replace(/[^a-z0-9]/g, "");
 }
 
-function welcomeText(locale, customerName) {
+function welcomeText(locale, customerName, { sessionKind = "support", storeName = "" } = {}) {
   const name = String(customerName || "").trim();
+  const store = String(storeName || "").trim() || "Fabric store";
   const isAr = String(locale || "")
     .toLowerCase()
     .startsWith("ar");
+  if (sessionKind === "fabric") {
+    if (isAr) {
+      return name
+        ? `مرحباً ${name}، جاري توصيلكِ بمتجر «${store}». سيرد المتجر قريباً.`
+        : `مرحباً، جاري توصيلكِ بمتجر «${store}». سيرد المتجر قريباً.`;
+    }
+    return name
+      ? `Hi ${name}, connecting you with ${store}. They’ll reply shortly.`
+      : `Hi, connecting you with ${store}. They’ll reply shortly.`;
+  }
   if (isAr) {
     return name
       ? `مرحباً ${name}، أهلاً بك في رعاية MOTD. وكيل دعم سينضم إليكِ قريباً — كيف يمكننا مساعدتكِ؟`
@@ -122,8 +133,10 @@ function welcomeText(locale, customerName) {
     : "Hi, welcome to MOTD Care. An agent will join you shortly — how can we help?";
 }
 
-function agentJoinedText(locale, agentName) {
-  const name = String(agentName || "").trim() || "MOTD Care";
+function agentJoinedText(locale, agentName, { sessionKind = "support" } = {}) {
+  const name =
+    String(agentName || "").trim() ||
+    (sessionKind === "fabric" ? "Fabric store" : "MOTD Care");
   const isAr = String(locale || "")
     .toLowerCase()
     .startsWith("ar");
@@ -481,6 +494,12 @@ function sessionDocToRuntime(doc, messages = []) {
         : Number(doc.lastActivityAt) || Date.now(),
     customerSocketId: p.customerSocketId,
     agentSocketId: p.agentSocketId,
+    sessionKind: doc.sessionKind === "fabric" ? "fabric" : "support",
+    fabricStoreOwnerId: doc.fabricStoreOwnerId
+      ? String(doc.fabricStoreOwnerId)
+      : null,
+    fabricShopId: doc.fabricShopId ? String(doc.fabricShopId) : null,
+    fabricStoreName: doc.fabricStoreName || "",
     endedBy: doc.endedBy || null,
     endedAt:
       doc.endedAt instanceof Date
@@ -553,17 +572,39 @@ export async function getSession(
   return sessionDocToRuntime(doc, messages);
 }
 
-/** Open or soft-ended thread for a customer, if any. */
-export async function findOpenSessionForCustomer(userId) {
+/**
+ * Open or soft-ended thread for a customer, if any.
+ * @param {string} userId
+ * @param {{ sessionKind?: "support"|"fabric", fabricStoreOwnerId?: string|null }} [opts]
+ */
+export async function findOpenSessionForCustomer(
+  userId,
+  { sessionKind = "support", fabricStoreOwnerId = null } = {},
+) {
   const id = userId ? String(userId) : "";
   if (!id) return null;
 
-  const doc = await LiveChatSession.findOne({
+  const kind = sessionKind === "fabric" ? "fabric" : "support";
+  const filter = {
     "customer.userId": id,
     status: { $in: ["waiting", "active", "ended"] },
-  })
+    sessionKind: kind,
+  };
+  if (kind === "fabric") {
+    const owner = String(fabricStoreOwnerId || "").trim();
+    if (!owner) return null;
+    filter.fabricStoreOwnerId = owner;
+  } else {
+    // Legacy rows may omit sessionKind; treat missing as support.
+    filter.$or = [{ sessionKind: "support" }, { sessionKind: { $exists: false } }];
+    delete filter.sessionKind;
+  }
+
+  const doc = await LiveChatSession.findOne(filter)
     .sort({ lastActivityAt: -1 })
-    .select("sessionKey status agent.name locale lastActivityAt")
+    .select(
+      "sessionKey status agent.name locale lastActivityAt sessionKind fabricStoreOwnerId fabricShopId fabricStoreName",
+    )
     .lean();
 
   if (!doc) return null;
@@ -572,6 +613,12 @@ export async function findOpenSessionForCustomer(userId) {
     status: doc.status,
     agentName: doc.agent?.name || null,
     locale: doc.locale || "en",
+    sessionKind: doc.sessionKind === "fabric" ? "fabric" : "support",
+    fabricStoreOwnerId: doc.fabricStoreOwnerId
+      ? String(doc.fabricStoreOwnerId)
+      : null,
+    fabricShopId: doc.fabricShopId ? String(doc.fabricShopId) : null,
+    fabricStoreName: doc.fabricStoreName || "",
     lastActivityAt:
       doc.lastActivityAt instanceof Date
         ? doc.lastActivityAt.getTime()
@@ -584,8 +631,19 @@ export async function createSession({
   locale,
   customerSocketId,
   faqHistory,
+  sessionKind = "support",
+  fabricStoreOwnerId = null,
+  fabricShopId = null,
+  fabricStoreName = null,
 }) {
   const resolvedLocale = locale || "en";
+  const kind = sessionKind === "fabric" ? "fabric" : "support";
+  const storeOwnerId =
+    kind === "fabric" ? String(fabricStoreOwnerId || "").trim() : "";
+  const storeName =
+    String(fabricStoreName || "").trim() ||
+    (kind === "fabric" ? "Fabric store" : "");
+  const shopId = kind === "fabric" ? String(fabricShopId || "").trim() : "";
   const userId = customer?.userId ? String(customer.userId) : null;
   const customerName = customer?.name || "Guest";
   const profilePic =
@@ -595,10 +653,21 @@ export async function createSession({
   // Resume open or soft-ended thread for logged-in customers.
   // Do not re-import FAQ history — that thread already has its transcript.
   if (userId) {
-    const existing = await LiveChatSession.findOne({
+    const resumeFilter = {
       "customer.userId": userId,
       status: { $in: ["waiting", "active", "ended"] },
-    })
+    };
+    if (kind === "fabric") {
+      resumeFilter.sessionKind = "fabric";
+      resumeFilter.fabricStoreOwnerId = storeOwnerId;
+    } else {
+      resumeFilter.$or = [
+        { sessionKind: "support" },
+        { sessionKind: { $exists: false } },
+      ];
+    }
+
+    const existing = await LiveChatSession.findOne(resumeFilter)
       .sort({ lastActivityAt: -1 })
       .lean();
 
@@ -613,6 +682,14 @@ export async function createSession({
         },
         locale: resolvedLocale || existing.locale,
         lastActivityAt: new Date(),
+        sessionKind: kind,
+        ...(kind === "fabric"
+          ? {
+              fabricStoreOwnerId: storeOwnerId || existing.fabricStoreOwnerId,
+              fabricShopId: shopId || existing.fabricShopId || null,
+              fabricStoreName: storeName || existing.fabricStoreName || "",
+            }
+          : {}),
       };
       /** @type {Record<string, unknown>} */
       const update = { $set: resumeSet };
@@ -634,7 +711,8 @@ export async function createSession({
   }
 
   const sessionKey = randomUUID();
-  const prior = sanitizeFaqHistory(faqHistory, customerName);
+  const prior =
+    kind === "support" ? sanitizeFaqHistory(faqHistory, customerName) : [];
   const now = Date.now();
   // Stagger timestamps so FAQ → divider → welcome sort correctly.
   const seedStart = now - (prior.length + 2) * 1000;
@@ -668,13 +746,18 @@ export async function createSession({
     });
   }
 
+  const welcomeSender =
+    kind === "fabric" ? storeName || "Fabric store" : "MOTD Care";
   const welcome = {
     messageId: randomUUID(),
     sessionKey,
     role: "agent",
     kind: "text",
-    text: welcomeText(resolvedLocale, customerName),
-    senderName: "MOTD Care",
+    text: welcomeText(resolvedLocale, customerName, {
+      sessionKind: kind,
+      storeName,
+    }),
+    senderName: welcomeSender,
     status: "sent",
     at: new Date(now),
   };
@@ -693,6 +776,10 @@ export async function createSession({
       profilePic,
     },
     agent: { userId: null, name: null, profilePic: "" },
+    sessionKind: kind,
+    fabricStoreOwnerId: kind === "fabric" ? storeOwnerId : null,
+    fabricShopId: kind === "fabric" ? shopId || null : null,
+    fabricStoreName: kind === "fabric" ? storeName : "",
     status: "waiting",
     locale: resolvedLocale,
     lastActivityAt: new Date(now),
@@ -904,7 +991,9 @@ export async function assignAgent(sessionId, agent, agentSocketId) {
     sessionKey: doc.sessionKey,
     role: "agent",
     kind: "text",
-    text: agentJoinedText(doc.locale, agentName),
+    text: agentJoinedText(doc.locale, agentName, {
+      sessionKind: doc.sessionKind === "fabric" ? "fabric" : "support",
+    }),
     senderName: agentName,
     status: "sent",
     at: new Date(),
@@ -1206,10 +1295,27 @@ export function scheduleEndPurge(sessionId, onPurge) {
   endPurgeTimers.set(sessionId, timer);
 }
 
-export async function listLiveSessions() {
-  const docs = await LiveChatSession.find({
+/**
+ * @param {{ sessionKind?: "support"|"fabric", fabricStoreOwnerId?: string|null }} [opts]
+ */
+export async function listLiveSessions({
+  sessionKind = "support",
+  fabricStoreOwnerId = null,
+} = {}) {
+  const kind = sessionKind === "fabric" ? "fabric" : "support";
+  const filter = {
     status: { $in: ["waiting", "active", "ended"] },
-  })
+  };
+  if (kind === "fabric") {
+    filter.sessionKind = "fabric";
+    const owner = String(fabricStoreOwnerId || "").trim();
+    if (!owner) return [];
+    filter.fabricStoreOwnerId = owner;
+  } else {
+    filter.$or = [{ sessionKind: "support" }, { sessionKind: { $exists: false } }];
+  }
+
+  const docs = await LiveChatSession.find(filter)
     .sort({ lastActivityAt: -1 })
     .lean();
 
@@ -1270,6 +1376,12 @@ export async function listLiveSessions() {
         : null,
       status: doc.status,
       locale: doc.locale,
+      sessionKind: doc.sessionKind === "fabric" ? "fabric" : "support",
+      fabricStoreOwnerId: doc.fabricStoreOwnerId
+        ? String(doc.fabricStoreOwnerId)
+        : null,
+      fabricShopId: doc.fabricShopId ? String(doc.fabricShopId) : null,
+      fabricStoreName: doc.fabricStoreName || "",
       messageCount: doc.messageCount || 0,
       unreadCount: unreadBySession.get(doc.sessionKey) || 0,
       lastActivityAt:
@@ -1304,6 +1416,10 @@ export async function toPublicSession(sessionOrId, { viewer = null } = {}) {
     agent: session.agent,
     status: session.status,
     locale: session.locale,
+    sessionKind: session.sessionKind || "support",
+    fabricStoreOwnerId: session.fabricStoreOwnerId || null,
+    fabricShopId: session.fabricShopId || null,
+    fabricStoreName: session.fabricStoreName || "",
     messages: session.messages || [],
     lastActivityAt: session.lastActivityAt,
     endedBy: session.endedBy || null,

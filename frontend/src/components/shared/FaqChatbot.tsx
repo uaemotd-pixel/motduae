@@ -46,9 +46,15 @@ import {
 } from "@/data/motdFaqs";
 import { useAuth } from "@/context/AuthContext";
 import { api, getApiErrorMessage } from "@/lib/api/client";
-import { getActiveLiveSession } from "@/lib/api/supportChat";
+import {
+  getActiveLiveSession,
+  listDealtWithFabricStores,
+  type DealtWithFabricStore,
+} from "@/lib/api/supportChat";
 import { displayOrderId } from "@/lib/customOrders";
-import LiveChatPanel from "@/components/shared/LiveChatPanel";
+import LiveChatPanel, {
+  type LiveChatContext,
+} from "@/components/shared/LiveChatPanel";
 
 export const FAQ_CHAT_OPEN_EVENT = "motd-faq-chat-open";
 
@@ -329,6 +335,12 @@ function notifyChatOpen(open: boolean) {
   window.dispatchEvent(
     new CustomEvent(FAQ_CHAT_OPEN_EVENT, { detail: { open } })
   );
+  // Lenis owns wheel on the storefront; pause it while the widget is open so
+  // FAQ / live-chat threads can use native overflow scrolling.
+  const lenis = (window as Window & { lenis?: { stop?: () => void; start?: () => void } })
+    .lenis;
+  if (open) lenis?.stop?.();
+  else lenis?.start?.();
 }
 
 /** True when the text contains Arabic letters (used to pick reply language). */
@@ -415,6 +427,14 @@ export default function FaqChatbot() {
 
   const [open, setOpen] = useState(false);
   const [liveChatOpen, setLiveChatOpen] = useState(false);
+  /** Open agent thread exists — offer Continue chat vs browse topics on reopen. */
+  const [resumableLiveChat, setResumableLiveChat] = useState(false);
+  /** Fabric stores this customer has ordered from. */
+  const [fabricStores, setFabricStores] = useState<DealtWithFabricStore[]>([]);
+  const [fabricPickerOpen, setFabricPickerOpen] = useState(false);
+  const [liveChatContext, setLiveChatContext] = useState<LiveChatContext>({
+    sessionKind: "support",
+  });
   /** Desktop half-screen expand while customer is in live agent chat. */
   const [liveChatExpanded, setLiveChatExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -532,6 +552,18 @@ export default function FaqChatbot() {
         showTopics: (n: number) => `اختر موضوعاً (${n})`,
         showLess: "إخفاء",
         talkToAgent: "تحدثي مع وكيل مباشرة",
+        continueChat: "متابعة المحادثة",
+        selectTopics: "اختيار المواضيع",
+        resumeLiveHint:
+          "لديكِ محادثة مفتوحة مع الدعم. تابعيها أو تصفحي المواضيع أدناه.",
+        talkToFabricStore: "تحدثي مع متجر أقمشة",
+        fabricStorePickerTitle: "اختاري متجراً",
+        fabricStorePickerHint:
+          "يمكنكِ الدردشة فقط مع متاجر تعاملتِ معها (طلب سابق).",
+        fabricStoreNone:
+          "لا توجد متاجر متاحة بعد. أكملي طلباً من متجر أقمشة أولاً.",
+        fabricStoreLoginRequired: "سجّلي الدخول للدردشة مع متجر أقمشة.",
+        fabricStoreBack: "رجوع",
         liveChatOffline:
           "لا يوجد وكلاء متصلون الآن. اتركي بياناتك وسنتواصل معكِ عبر البريد.",
         supportFormTitle: "تواصل مع فريق الرعاية",
@@ -650,6 +682,18 @@ export default function FaqChatbot() {
         showTopics: (n: number) => `Choose a topic (${n})`,
         showLess: "Hide",
         talkToAgent: "Talk to an agent",
+        continueChat: "Continue chat",
+        selectTopics: "Select topics",
+        resumeLiveHint:
+          "You have an open chat with support. Continue it, or browse topics below.",
+        talkToFabricStore: "Talk to a fabric store",
+        fabricStorePickerTitle: "Choose a store",
+        fabricStorePickerHint:
+          "You can only chat with stores you’ve ordered from before.",
+        fabricStoreNone:
+          "No eligible stores yet. Place an order with a fabric store first.",
+        fabricStoreLoginRequired: "Sign in to chat with a fabric store.",
+        fabricStoreBack: "Back",
         liveChatOffline:
           "No agents are online right now. Leave your details and we'll email you.",
         supportFormTitle: "Contact MOTD Support",
@@ -756,19 +800,24 @@ export default function FaqChatbot() {
 
     scrollables.forEach((el) => {
       const onWheel = (event: WheelEvent) => {
+        // Drive scroll ourselves so Lenis / nested overflow ports cannot swallow
+        // the gesture on the FAQ topic/question lists or live-chat thread.
         event.stopPropagation();
-        const canScroll = el.scrollHeight > el.clientHeight + 1;
-        if (!canScroll) {
-          event.preventDefault();
+        event.preventDefault();
+
+        const canY = el.scrollHeight > el.clientHeight + 1;
+        const canX = el.scrollWidth > el.clientWidth + 1;
+        if (!canY && !canX) return;
+
+        // Prefer the dominant axis (trackpads often report both deltas).
+        if (canX && Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+          el.scrollLeft += event.deltaX;
           return;
         }
-        const scrollingUp = event.deltaY < 0;
-        const scrollingDown = event.deltaY > 0;
-        const atTop = el.scrollTop <= 0;
-        const atBottom =
-          el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
-        if ((scrollingUp && atTop) || (scrollingDown && atBottom)) {
-          event.preventDefault();
+        if (canY) {
+          el.scrollTop += event.deltaY;
+        } else if (canX) {
+          el.scrollLeft += event.deltaX || event.deltaY;
         }
       };
       el.addEventListener("wheel", onWheel, { passive: false });
@@ -776,7 +825,16 @@ export default function FaqChatbot() {
     });
 
     return () => cleanups.forEach((fn) => fn());
-  }, [open, messages.length, quickReplies, typing]);
+    // Rebind when expandable lists mount (topics/questions) or live chat opens.
+  }, [
+    open,
+    messages.length,
+    quickReplies,
+    typing,
+    liveChatOpen,
+    topicsExpanded,
+    questionsExpanded,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -1005,8 +1063,86 @@ export default function FaqChatbot() {
     }
     // Always open live chat (WhatsApp-style queue). Do not fall back to email form
     // just because no agent is currently on the Live Chat tab.
+    setFabricPickerOpen(false);
+    setLiveChatContext({ sessionKind: "support" });
+    setResumableLiveChat(false);
     setLiveChatOpen(true);
   };
+
+  const openFabricStorePicker = async () => {
+    if (busy || awaitingNameRef.current || supportSubmitting || trackSubmitting || liveChatOpen) {
+      return;
+    }
+    if (!isAuthenticated || user?.isGuest) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextId("b"),
+          role: "bot",
+          text: copy.fabricStoreLoginRequired,
+        },
+      ]);
+      return;
+    }
+    try {
+      const { stores } = await listDealtWithFabricStores();
+      setFabricStores(stores || []);
+      if (!stores?.length) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextId("b"),
+            role: "bot",
+            text: copy.fabricStoreNone,
+          },
+        ]);
+        return;
+      }
+      setFabricPickerOpen(true);
+      setTopicsExpanded(false);
+      setQuestionsExpanded(false);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextId("b"),
+          role: "bot",
+          text: copy.fabricStoreNone,
+        },
+      ]);
+    }
+  };
+
+  const startFabricStoreChat = (store: DealtWithFabricStore) => {
+    setFabricPickerOpen(false);
+    setLiveChatContext({
+      sessionKind: "fabric",
+      fabricStoreOwnerId: store.ownerId,
+      fabricShopId: store.shopId,
+      fabricStoreName: isAr && store.nameAr ? store.nameAr : store.name,
+    });
+    setResumableLiveChat(false);
+    setLiveChatOpen(true);
+  };
+
+  // Load eligible fabric stores when the widget opens (for CTA visibility).
+  useEffect(() => {
+    if (!open || !isAuthenticated || user?.isGuest || authLoading) {
+      if (!open) setFabricStores([]);
+      return;
+    }
+    let cancelled = false;
+    void listDealtWithFabricStores()
+      .then(({ stores }) => {
+        if (!cancelled) setFabricStores(stores || []);
+      })
+      .catch(() => {
+        if (!cancelled) setFabricStores([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isAuthenticated, user?.isGuest, authLoading]);
 
   const openDamageClaimForm = () => {
     openSupportForm("damage_claim");
@@ -1409,7 +1545,7 @@ export default function FaqChatbot() {
     }, 450);
   }, [getMemberProfile, isAr, resetSupportState, resetTrackState]);
 
-  // On open: resume live agent thread if one is still waiting/active; else FAQ greeting.
+  // On open: FAQ topics first. If a live agent thread is still open, offer Continue chat.
   useEffect(() => {
     if (!open) {
       greetingStartedRef.current = false;
@@ -1420,18 +1556,16 @@ export default function FaqChatbot() {
     let cancelled = false;
 
     const boot = async () => {
+      let hasLive = false;
       try {
         const { session } = await getActiveLiveSession();
         if (cancelled) return;
-        if (session?.id) {
-          greetingStartedRef.current = true;
-          setLiveChatOpen(true);
-          return;
-        }
+        hasLive = Boolean(session?.id);
       } catch {
-        // fall through to FAQ greeting
+        hasLive = false;
       }
       if (cancelled) return;
+      setResumableLiveChat(hasLive);
       beginGreeting();
     };
 
@@ -1456,6 +1590,7 @@ export default function FaqChatbot() {
     greetingStartedRef.current = false;
     setLiveChatOpen(false);
     setLiveChatExpanded(false);
+    setResumableLiveChat(false);
     setMessages([]);
     setQuickReplies(null);
     setAwaitingName(false);
@@ -1474,6 +1609,9 @@ export default function FaqChatbot() {
     setOpen(false);
     setLiveChatOpen(false);
     setLiveChatExpanded(false);
+    setResumableLiveChat(false);
+    setFabricPickerOpen(false);
+    setLiveChatContext({ sessionKind: "support" });
     greetingStartedRef.current = false;
     setOfferLiveAgent(false);
     resetSupportState();
@@ -1744,7 +1882,7 @@ export default function FaqChatbot() {
               style={mobileViewportStyle}
               className={
                 liveChatOpen && liveChatExpanded
-                  ? "fixed z-50 flex min-h-0 max-w-[100vw] flex-col overflow-hidden overflow-x-hidden rounded-none border border-white/10 bg-[#FFFDF9] shadow-[0_24px_80px_rgba(0,0,0,0.28)] outline-none transition-[width,height,max-width,top,bottom] duration-300 ease-out xs:rounded-2xl bottom-[max(0.5rem,var(--safe-bottom))] start-[max(0.5rem,var(--safe-left))] end-[max(0.5rem,var(--safe-right))] w-auto h-[min(92dvh,44rem)] max-h-[calc(100dvh-1rem-var(--safe-top)-var(--safe-bottom))] sm:start-auto sm:bottom-[max(1.25rem,var(--safe-bottom))] sm:end-[max(1.25rem,var(--safe-right))] sm:w-[min(100vw-2.5rem,26rem)] sm:max-w-[26rem] sm:h-[min(84dvh,44rem)] md:bottom-[max(0.75rem,var(--safe-bottom))] md:top-[max(0.75rem,var(--safe-top))] md:end-[max(0.75rem,var(--safe-right))] md:h-auto md:max-h-none md:w-[min(62vw,48rem)] md:max-w-[min(62vw,48rem)] lg:w-[min(58vw,52rem)] lg:max-w-[min(58vw,52rem)]"
+                  ? "fixed z-50 flex min-h-0 max-w-[100vw] flex-col overflow-hidden overflow-x-hidden rounded-none border border-white/10 bg-[#FFFDF9] shadow-[0_24px_80px_rgba(0,0,0,0.28)] outline-none transition-[width,height,max-width,top,bottom] duration-300 ease-out xs:rounded-2xl bottom-[max(0.5rem,var(--safe-bottom))] start-[max(0.5rem,var(--safe-left))] end-[max(0.5rem,var(--safe-right))] w-auto h-[min(92dvh,44rem)] max-h-[calc(100dvh-1rem-var(--safe-top)-var(--safe-bottom))] sm:start-auto sm:bottom-[max(1.25rem,var(--safe-bottom))] sm:end-[max(1.25rem,var(--safe-right))] sm:w-[min(100vw-2.5rem,26rem)] sm:max-w-[26rem] sm:h-[min(84dvh,44rem)] md:bottom-[max(0.75rem,var(--safe-bottom))] md:top-[max(0.75rem,var(--safe-top))] md:end-[max(0.75rem,var(--safe-right))] md:h-auto md:max-h-[calc(100dvh-1.5rem)] md:w-[min(62vw,48rem)] md:max-w-[min(62vw,48rem)] lg:w-[min(58vw,52rem)] lg:max-w-[min(58vw,52rem)]"
                   : "fixed z-50 flex min-h-0 max-w-[100vw] flex-col overflow-hidden overflow-x-hidden rounded-none border border-white/10 bg-[#FFFDF9] shadow-[0_24px_80px_rgba(0,0,0,0.28)] outline-none transition-[width,height,max-width,top,bottom] duration-300 ease-out xs:rounded-2xl bottom-[max(0.5rem,var(--safe-bottom))] start-[max(0.5rem,var(--safe-left))] end-[max(0.5rem,var(--safe-right))] w-auto h-[min(92dvh,44rem)] max-h-[calc(100dvh-1rem-var(--safe-top)-var(--safe-bottom))] sm:start-auto sm:bottom-[max(1.25rem,var(--safe-bottom))] sm:end-[max(1.25rem,var(--safe-right))] sm:w-[min(100vw-2.5rem,26rem)] sm:max-w-[26rem] sm:h-[min(84dvh,44rem)] md:bottom-[max(1.5rem,var(--safe-bottom))] md:end-[max(1.5rem,var(--safe-right))] md:top-auto md:w-[28rem] md:max-w-[28rem] md:h-[min(82dvh,46rem)]"
               }
             >
@@ -1755,16 +1893,22 @@ export default function FaqChatbot() {
                     onClose={() => {
                       setLiveChatOpen(false);
                       setLiveChatExpanded(false);
-                      // Auto-resume skips FAQ greeting — start it when live panel closes.
+                      setResumableLiveChat(false);
+                      setLiveChatContext({ sessionKind: "support" });
+                      // Return to FAQ topics after the live thread fully closes.
                       if (messages.length === 0) {
                         greetingStartedRef.current = false;
                         beginGreeting();
+                      } else {
+                        setQuickReplies({ kind: "sections" });
+                        setTopicsExpanded(false);
                       }
                     }}
                     onCloseWidget={closeChat}
                     onExpandedChange={setLiveChatExpanded}
                     locale={locale}
                     isAr={isAr}
+                    chatContext={liveChatContext}
                     initialName={
                       getMemberProfile()?.name || visitorName.trim() || ""
                     }
@@ -2324,9 +2468,76 @@ export default function FaqChatbot() {
                 )}
               </AnimatePresence>
 
+              {/* Fabric store picker */}
+              <AnimatePresence mode="wait">
+                {fabricPickerOpen && !liveChatOpen && !typing && !awaitingName ? (
+                  <motion.div
+                    key="fabric-store-picker"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    className="shrink-0 border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2.5 sm:px-3 backdrop-blur-md"
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-[#8A8A80]">
+                          {copy.fabricStorePickerTitle}
+                        </p>
+                        <p className="mt-1 [font-family:var(--font-body)] text-[12px] leading-snug text-[#5A5A56]">
+                          {copy.fabricStorePickerHint}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFabricPickerOpen(false)}
+                        className="shrink-0 rounded-full border border-[#E8E8E4] px-2.5 py-1 [font-family:var(--font-body)] text-[11px] text-black transition hover:border-black hover:cursor-pointer"
+                      >
+                        {copy.fabricStoreBack}
+                      </button>
+                    </div>
+                    <div className="flex max-h-[min(40dvh,16rem)] flex-col gap-1.5 overflow-y-auto">
+                      {fabricStores.map((store, i) => (
+                        <motion.button
+                          key={store.ownerId}
+                          type="button"
+                          custom={i}
+                          variants={chipVariants}
+                          initial="hidden"
+                          animate="show"
+                          disabled={busy}
+                          onClick={() => startFabricStoreChat(store)}
+                          className="flex w-full items-center gap-3 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3 py-2.5 text-start transition hover:border-black disabled:opacity-50 hover:cursor-pointer"
+                        >
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-white">
+                            {store.logo ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={store.logo}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <Store className="h-4 w-4" strokeWidth={1.5} />
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate [font-family:var(--font-body)] text-[13px] text-black">
+                            {isAr && store.nameAr ? store.nameAr : store.name}
+                          </span>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+
               {/* Quick replies */}
               <AnimatePresence mode="wait">
-                {quickReplies && !typing && !awaitingName && !supportView && !trackView && (
+                {quickReplies &&
+                  !typing &&
+                  !awaitingName &&
+                  !supportView &&
+                  !trackView &&
+                  !fabricPickerOpen && (
                   <motion.div
                     key={
                       quickReplies.kind +
@@ -2339,15 +2550,72 @@ export default function FaqChatbot() {
                     className={
                       (quickReplies.kind === "questions" && questionsExpanded) ||
                       (quickReplies.kind === "sections" && topicsExpanded)
-                        ? "flex min-h-0 max-h-[min(58dvh,26rem)] flex-col overflow-x-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
-                        : quickReplies.kind === "questions" ||
-                            quickReplies.kind === "sections"
-                          ? "shrink-0 max-h-[min(28dvh,10rem)] min-h-0 overflow-x-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
-                          : "shrink-0 max-h-[min(42dvh,16rem)] sm:max-h-[min(44dvh,18rem)] min-h-0 overflow-x-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
+                        ? "flex min-h-0 max-h-[min(58dvh,26rem)] flex-col overflow-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
+                        : quickReplies.kind === "sections" && resumableLiveChat
+                          ? // Resume card + fabric + topics toggle needs room; old 10rem cap clipped it with no scroll.
+                            "flex shrink-0 max-h-[min(48dvh,22rem)] min-h-0 flex-col overflow-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
+                          : quickReplies.kind === "questions" ||
+                              quickReplies.kind === "sections"
+                            ? "flex shrink-0 max-h-[min(36dvh,14rem)] min-h-0 flex-col overflow-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
+                            : "flex shrink-0 max-h-[min(42dvh,16rem)] sm:max-h-[min(44dvh,18rem)] min-h-0 flex-col overflow-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
                     }
                   >
                     {quickReplies.kind === "sections" && (
-                      <div className="flex max-h-full min-h-0 w-full flex-col gap-1.5 overflow-x-hidden">
+                      <div
+                        {...(topicsExpanded
+                          ? {}
+                          : {
+                              "data-lenis-prevent": true,
+                              "data-lenis-prevent-wheel": true,
+                              "data-chat-scroll": true,
+                            })}
+                        className={
+                          topicsExpanded
+                            ? "flex max-h-full min-h-0 w-full flex-col gap-1.5 overflow-hidden"
+                            : "flex max-h-full min-h-0 w-full flex-col gap-1.5 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
+                        }
+                      >
+                        {resumableLiveChat ? (
+                          <div className="flex shrink-0 flex-col gap-2 rounded-xl border border-[#E8E8E4] bg-[#F7F5F0] px-3 py-2.5">
+                            <p className="[font-family:var(--font-body)] text-[12px] leading-snug text-[#5A5A56]">
+                              {copy.resumeLiveHint}
+                            </p>
+                            <div className="flex min-w-0 flex-col gap-1.5 xs:flex-row xs:flex-wrap">
+                              <motion.button
+                                type="button"
+                                disabled={busy || liveChatOpen}
+                                onClick={() => void openLiveChat()}
+                                whileTap={{ scale: 0.98 }}
+                                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-black bg-black px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                              >
+                                <Headset className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+                                <span className="min-w-0 truncate">{copy.continueChat}</span>
+                              </motion.button>
+                              <motion.button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => setTopicsExpanded(true)}
+                                whileTap={{ scale: 0.98 }}
+                                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                              >
+                                <LayoutGrid className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+                                <span className="min-w-0 truncate">{copy.selectTopics}</span>
+                              </motion.button>
+                            </div>
+                          </div>
+                        ) : null}
+                        {fabricStores.length > 0 && !topicsExpanded ? (
+                          <motion.button
+                            type="button"
+                            disabled={busy || liveChatOpen}
+                            onClick={() => void openFabricStorePicker()}
+                            whileTap={{ scale: 0.99 }}
+                            className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2.5 [font-family:var(--font-body)] text-[12px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                          >
+                            <Store className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+                            {copy.talkToFabricStore}
+                          </motion.button>
+                        ) : null}
                         <motion.button
                           type="button"
                           disabled={busy}
@@ -2379,11 +2647,16 @@ export default function FaqChatbot() {
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0, y: -4 }}
                               transition={{ duration: 0.22, ease: EASE }}
-                              data-lenis-prevent
-                              data-lenis-prevent-wheel
-                              data-chat-scroll
-                              className="max-h-[min(48dvh,20rem)] min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
+                              className="min-h-0 max-h-[min(48dvh,20rem)] flex-1 overflow-hidden"
                             >
+                              {/* Scroll on a plain div — Framer transform on the
+                                  same node as overflow-y-auto breaks wheel scroll. */}
+                              <div
+                                data-lenis-prevent
+                                data-lenis-prevent-wheel
+                                data-chat-scroll
+                                className="h-full max-h-[min(48dvh,20rem)] min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
+                              >
                               <div className="flex flex-col gap-1.5 pb-1">
                                 {CHATBOT_FAQ_SECTIONS.map((section, i) => {
                                   const Icon =
@@ -2445,6 +2718,27 @@ export default function FaqChatbot() {
                                     </span>
                                   </motion.button>
                                 ) : null}
+                                {fabricStores.length > 0 ? (
+                                  <motion.button
+                                    type="button"
+                                    custom={CHATBOT_FAQ_SECTIONS.length + 1}
+                                    variants={chipVariants}
+                                    initial="hidden"
+                                    animate="show"
+                                    disabled={busy || liveChatOpen}
+                                    onClick={() => void openFabricStorePicker()}
+                                    whileTap={{ scale: 0.99 }}
+                                    className="group flex w-full min-w-0 items-center gap-3 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3 py-3 sm:py-2.5 text-start text-black transition-colors hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                  >
+                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-white">
+                                      <Store className="h-3.5 w-3.5" strokeWidth={1.5} />
+                                    </span>
+                                    <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12.5px] leading-snug">
+                                      {copy.talkToFabricStore}
+                                    </span>
+                                  </motion.button>
+                                ) : null}
+                              </div>
                               </div>
                             </motion.div>
                           )}
@@ -2457,7 +2751,7 @@ export default function FaqChatbot() {
                       const count = allQuestions.length;
 
                       return (
-                        <div className="flex max-h-full min-h-0 w-full flex-col gap-1.5 overflow-x-hidden">
+                        <div className="flex max-h-full min-h-0 w-full flex-col gap-1.5 overflow-hidden">
                           <motion.button
                             type="button"
                             disabled={busy || count === 0}
@@ -2489,11 +2783,14 @@ export default function FaqChatbot() {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -4 }}
                                 transition={{ duration: 0.22, ease: EASE }}
-                                data-lenis-prevent
-                                data-lenis-prevent-wheel
-                                data-chat-scroll
-                                className="max-h-[min(48dvh,20rem)] min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
+                                className="min-h-0 max-h-[min(48dvh,20rem)] flex-1 overflow-hidden"
                               >
+                                <div
+                                  data-lenis-prevent
+                                  data-lenis-prevent-wheel
+                                  data-chat-scroll
+                                  className="h-full max-h-[min(48dvh,20rem)] min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
+                                >
                                 <div className="flex flex-col gap-1.5 pb-1">
                                   {allQuestions.map((faq, i) => (
                                     <motion.button
@@ -2532,6 +2829,7 @@ export default function FaqChatbot() {
                                       </span>
                                     </motion.button>
                                   ) : null}
+                                </div>
                                 </div>
                               </motion.div>
                             )}
@@ -2589,6 +2887,17 @@ export default function FaqChatbot() {
                                     icon: Headset,
                                     onClick: () => void openLiveChat(),
                                     primary: true,
+                                  },
+                                ]
+                              : []),
+                            ...(fabricStores.length > 0
+                              ? [
+                                  {
+                                    key: "fabric",
+                                    label: copy.talkToFabricStore,
+                                    icon: Store,
+                                    onClick: () => void openFabricStorePicker(),
+                                    primary: false,
                                   },
                                 ]
                               : []),

@@ -151,6 +151,13 @@ export type FaqHandoffMessage = {
   text: string;
 };
 
+export type LiveChatContext = {
+  sessionKind?: "support" | "fabric";
+  fabricStoreOwnerId?: string;
+  fabricShopId?: string;
+  fabricStoreName?: string;
+};
+
 type LiveChatPanelProps = {
   open: boolean;
   /** Leave live panel and return to FAQ (does not end the agent thread). */
@@ -164,6 +171,8 @@ type LiveChatPanelProps = {
   initialName?: string;
   /** FAQ chatbot transcript to seed the live session for agent context. */
   priorMessages?: FaqHandoffMessage[];
+  /** support (default) or fabric store thread. */
+  chatContext?: LiveChatContext;
 };
 
 export default function LiveChatPanel({
@@ -175,6 +184,7 @@ export default function LiveChatPanel({
   isAr,
   initialName = "",
   priorMessages = [],
+  chatContext,
 }: LiveChatPanelProps) {
   const [step, setStep] = useState<"connecting" | "chat" | "ended">("connecting");
   const [draft, setDraft] = useState("");
@@ -591,6 +601,10 @@ export default function LiveChatPanel({
         setConfirmDeleteForMe(false);
         return;
       }
+      if (infoMsg) {
+        setInfoMsg(null);
+        return;
+      }
       if (selectMode) {
         setSelectMode(false);
         setSelectedIds(new Set());
@@ -601,6 +615,8 @@ export default function LiveChatPanel({
         setThreadSearch("");
         return;
       }
+      // No overlay open — close the floating chatbot (same as header Close).
+      closeWidget();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -612,8 +628,10 @@ export default function LiveChatPanel({
     emojiOpen,
     confirmWipe,
     confirmDeleteForMe,
+    infoMsg,
     selectMode,
     threadSearchOpen,
+    closeWidget,
   ]);
 
   const startChat = useCallback(async () => {
@@ -629,13 +647,31 @@ export default function LiveChatPanel({
           role: m.role === "user" ? "user" : "bot",
           text: String(m.text).trim().slice(0, 2000),
         }));
+      const kind =
+        chatContext?.sessionKind === "fabric" ? "fabric" : "support";
       const res = await emitWithAck<AckResult>("chat:start", {
         name: resolveCustomerName(initialName, isAr),
         locale,
-        faqHistory,
+        faqHistory: kind === "support" ? faqHistory : [],
+        sessionKind: kind,
+        fabricStoreOwnerId:
+          kind === "fabric" ? chatContext?.fabricStoreOwnerId : undefined,
+        fabricShopId: kind === "fabric" ? chatContext?.fabricShopId : undefined,
+        fabricStoreName:
+          kind === "fabric" ? chatContext?.fabricStoreName : undefined,
       });
       if (!res?.ok || !res.session) {
-        setError(copy.startFailed);
+        setError(
+          res?.error === "store_not_eligible"
+            ? isAr
+              ? "يمكنكِ الدردشة فقط مع متاجر تعاملتِ معها من قبل."
+              : "You can only chat with stores you’ve ordered from."
+            : res?.error === "login_required"
+              ? isAr
+                ? "يرجى تسجيل الدخول للدردشة مع متجر الأقمشة."
+                : "Please sign in to chat with a fabric store."
+              : copy.startFailed,
+        );
         return;
       }
       sessionIdRef.current = res.session.id;
@@ -647,7 +683,17 @@ export default function LiveChatPanel({
     } catch {
       setError(copy.startFailed);
     }
-  }, [copy.startFailed, initialName, isAr, locale, priorMessages]);
+  }, [
+    chatContext?.fabricShopId,
+    chatContext?.fabricStoreName,
+    chatContext?.fabricStoreOwnerId,
+    chatContext?.sessionKind,
+    copy.startFailed,
+    initialName,
+    isAr,
+    locale,
+    priorMessages,
+  ]);
 
   useEffect(() => {
     if (!open) {
@@ -1593,6 +1639,8 @@ export default function LiveChatPanel({
             <div
               ref={threadRef}
               data-lenis-prevent
+              data-lenis-prevent-wheel
+              data-chat-scroll
               className="min-h-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y px-2.5 py-3 [-webkit-overflow-scrolling:touch] xs:px-3 sm:px-3.5 sm:py-3.5"
               style={{
                 backgroundImage:

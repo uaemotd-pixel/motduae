@@ -14,7 +14,8 @@ export type AdminPermKey =
   | "addons"
   | "notifications"
   | "reviews"
-  | "queries";
+  | "queries"
+  | "customerSupport";
 
 export const ADMIN_PERM_KEYS: AdminPermKey[] = [
   "dashboard",
@@ -31,6 +32,7 @@ export const ADMIN_PERM_KEYS: AdminPermKey[] = [
   "notifications",
   "reviews",
   "queries",
+  "customerSupport",
 ];
 
 export const ADMIN_PERM_LABELS: Record<AdminPermKey, string> = {
@@ -48,6 +50,7 @@ export const ADMIN_PERM_LABELS: Record<AdminPermKey, string> = {
   notifications: "Notifications",
   reviews: "Reviews",
   queries: "Queries",
+  customerSupport: "Customer Support",
 };
 
 /** Preferred landing route per permission (first match wins for sub-admins). */
@@ -63,6 +66,7 @@ export const ADMIN_PERM_HOME_ROUTES: { perm: AdminPermKey; href: string }[] = [
   { perm: "orders", href: "/admin/orders" },
   { perm: "partners", href: "/admin/partners" },
   { perm: "queries", href: "/admin/queries" },
+  { perm: "customerSupport", href: "/admin/support-chat" },
   { perm: "reviews", href: "/admin/reviews" },
   { perm: "notifications", href: "/admin/notifications" },
   { perm: "settings", href: "/admin/settings" },
@@ -126,7 +130,7 @@ export function resolveAdminPagePerm(
   if (path.startsWith("/admin/customers")) return "customers";
   if (path.startsWith("/admin/reviews")) return "reviews";
   if (path.startsWith("/admin/queries")) return "queries";
-  if (path.startsWith("/admin/support-chat")) return "queries";
+  if (path.startsWith("/admin/support-chat")) return "customerSupport";
   if (path.startsWith("/admin/ready-made")) return "readyMade";
   if (path.startsWith("/admin/fabrics")) return "fabrics";
   if (path.startsWith("/admin/designs")) return "designs";

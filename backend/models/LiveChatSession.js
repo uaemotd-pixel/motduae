@@ -31,6 +31,23 @@ const liveChatSessionSchema = new mongoose.Schema(
       name: { type: String, default: null },
       profilePic: { type: String, default: "", trim: true },
     },
+    /** support = MOTD admin queue; fabric = customer ↔ fabric store */
+    sessionKind: {
+      type: String,
+      enum: ["support", "fabric"],
+      default: "support",
+      index: true,
+    },
+    /** Fabric partner User._id when sessionKind is fabric. */
+    fabricStoreOwnerId: {
+      type: String,
+      default: null,
+      index: true,
+      trim: true,
+    },
+    /** Optional FabricShop._id for display. */
+    fabricShopId: { type: String, default: null, trim: true },
+    fabricStoreName: { type: String, default: "", trim: true },
     status: {
       type: String,
       enum: ["waiting", "active", "ended", "closed"],
@@ -65,6 +82,19 @@ const liveChatSessionSchema = new mongoose.Schema(
 liveChatSessionSchema.index({ status: 1, lastActivityAt: -1 });
 liveChatSessionSchema.index({
   "customer.userId": 1,
+  status: 1,
+  lastActivityAt: -1,
+});
+liveChatSessionSchema.index({
+  sessionKind: 1,
+  fabricStoreOwnerId: 1,
+  status: 1,
+  lastActivityAt: -1,
+});
+liveChatSessionSchema.index({
+  "customer.userId": 1,
+  sessionKind: 1,
+  fabricStoreOwnerId: 1,
   status: 1,
   lastActivityAt: -1,
 });

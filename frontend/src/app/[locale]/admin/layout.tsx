@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePathname, useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -48,9 +56,15 @@ import {
   MessageCircle,
   Headphones,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
+
+const SIDEBAR_EXPANDED_W = 288; // w-72
+const SIDEBAR_COLLAPSED_W = 72; // icon rail
+const SIDEBAR_EXPANDED_KEY = "motd-admin-sidebar-expanded";
 
 type NavItem = {
   label: string;
@@ -68,10 +82,22 @@ export default function AdminLayout({
   const pathname = usePathname();
   const params = useParams();
   const locale = (params.locale as string) || "en";
+  const isSupportChat = pathname.includes("/admin/support-chat");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  /** Desktop sidebar expanded/collapsed for the whole admin panel. */
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_EXPANDED_W);
+  const sidebarDragRef = useRef<{
+    active: boolean;
+    startX: number;
+    startW: number;
+  } | null>(null);
   const [settingsExpanded, setSettingsExpanded] = useState(
     pathname.startsWith(`/${locale}/admin/settings`),
   );
+
+  const desktopSidebarCollapsed = !sidebarExpanded;
+  const desktopSidebarWidth = sidebarWidth;
 
   const canSeeNotifications =
     Boolean(user) &&
@@ -93,6 +119,91 @@ export default function AdminLayout({
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SIDEBAR_EXPANDED_KEY);
+      if (saved === "0") {
+        setSidebarExpanded(false);
+        setSidebarWidth(SIDEBAR_COLLAPSED_W);
+      } else if (saved === "1") {
+        setSidebarExpanded(true);
+        setSidebarWidth(SIDEBAR_EXPANDED_W);
+      } else if (isSupportChat) {
+        // First visit to live chat: collapse so the chat pane gets width.
+        setSidebarExpanded(false);
+        setSidebarWidth(SIDEBAR_COLLAPSED_W);
+      }
+    } catch {
+      if (isSupportChat) {
+        setSidebarExpanded(false);
+        setSidebarWidth(SIDEBAR_COLLAPSED_W);
+      }
+    }
+    // Intentionally once on mount — preference is user-controlled after that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const persistSidebarExpanded = useCallback((expanded: boolean) => {
+    setSidebarExpanded(expanded);
+    setSidebarWidth(expanded ? SIDEBAR_EXPANDED_W : SIDEBAR_COLLAPSED_W);
+    try {
+      localStorage.setItem(SIDEBAR_EXPANDED_KEY, expanded ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const onSidebarDragStart = useCallback(
+    (e: ReactPointerEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      sidebarDragRef.current = {
+        active: true,
+        startX: e.clientX,
+        startW: sidebarWidth,
+      };
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    },
+    [sidebarWidth],
+  );
+
+  const onSidebarDragMove = useCallback(
+    (e: ReactPointerEvent<HTMLButtonElement>) => {
+      const drag = sidebarDragRef.current;
+      if (!drag?.active) return;
+      const next = Math.min(
+        SIDEBAR_EXPANDED_W,
+        Math.max(
+          SIDEBAR_COLLAPSED_W,
+          drag.startW + (e.clientX - drag.startX),
+        ),
+      );
+      setSidebarWidth(next);
+      setSidebarExpanded(next > (SIDEBAR_COLLAPSED_W + SIDEBAR_EXPANDED_W) / 2);
+    },
+    [],
+  );
+
+  const onSidebarDragEnd = useCallback(
+    (e: ReactPointerEvent<HTMLButtonElement>) => {
+      const drag = sidebarDragRef.current;
+      if (!drag?.active) return;
+      sidebarDragRef.current = null;
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      const snapExpanded =
+        sidebarWidth >= (SIDEBAR_COLLAPSED_W + SIDEBAR_EXPANDED_W) / 2;
+      persistSidebarExpanded(snapExpanded);
+    },
+    [sidebarWidth, persistSidebarExpanded],
+  );
 
   useEffect(() => {
     if (!canSeeReviews) {
@@ -263,7 +374,7 @@ export default function AdminLayout({
         label: "Live Chat",
         href: "/admin/support-chat",
         icon: Headphones,
-        perm: "queries",
+        perm: "customerSupport",
       },
       {
         label: "Reviews",
@@ -320,128 +431,188 @@ export default function AdminLayout({
     return pathname.startsWith(fullHref);
   };
 
-  const SidebarContent = () => (
+  const SidebarContent = ({
+    collapsed = false,
+    showCollapseToggle = false,
+  }: {
+    collapsed?: boolean;
+    showCollapseToggle?: boolean;
+  }) => (
     <>
-      <div className="mb-8 lg:mb-10">
-        <Link href="/admin" onClick={() => setIsSidebarOpen(false)}>
-          <img
-            src={white_logo.src}
-            alt="MOTD Admin Logo"
-            className="h-3 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6 w-auto object-contain"
-          />
-          <span className="sr-only">MOTD Admin</span>
-        </Link>
-        <p className="font-ui text-[10px] uppercase tracking-[0.24em] text-white/50 mt-3">
-          {isFullAdmin(user) ? "Control Panel" : "Staff Panel"}
-        </p>
+      <div className={collapsed ? "mb-6" : "mb-8 lg:mb-10"}>
+        <div
+          className={`flex h-9 items-center ${
+            collapsed ? "justify-center" : "justify-between gap-3"
+          }`}
+        >
+          <Link
+            href="/admin"
+            onClick={() => setIsSidebarOpen(false)}
+            className={`flex h-full min-w-0 items-center ${
+              collapsed ? "hidden" : ""
+            }`}
+          >
+            <img
+              src={white_logo.src}
+              alt="MOTD Admin Logo"
+              className="h-3 xs:h-3.25 sm:h-3.5 md:h-4 lg:h-4.5 xl:h-5 2xl:h-5.5 3xl:h-6 w-auto object-contain"
+            />
+            <span className="sr-only">MOTD Admin</span>
+          </Link>
+          {showCollapseToggle ? (
+            <button
+              type="button"
+              onClick={() => persistSidebarExpanded(collapsed)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/75 transition hover:bg-white/10 hover:text-white hover:cursor-pointer"
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? (
+                <PanelLeftOpen className="h-4.5 w-4.5" strokeWidth={1.75} />
+              ) : (
+                <PanelLeftClose className="h-4.5 w-4.5" strokeWidth={1.75} />
+              )}
+            </button>
+          ) : null}
+        </div>
+        {!collapsed ? (
+          <p className="font-ui text-[10px] uppercase tracking-[0.24em] text-white/50 mt-3">
+            {isFullAdmin(user) ? "Control Panel" : "Staff Panel"}
+          </p>
+        ) : null}
       </div>
 
-      <nav className="flex-1 space-y-1">
+      <nav className={`flex-1 space-y-1 ${collapsed ? "flex flex-col items-center" : ""}`}>
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = isActiveLink(item.href);
+          const badge =
+            item.href === "/admin/queries"
+              ? newQueryCount
+              : item.href === "/admin/reviews"
+                ? pendingReviewCount
+                : item.href === "/admin/notifications"
+                  ? unreadNotificationCount
+                  : 0;
           return (
             <Link
               key={item.href}
               href={item.href}
+              title={item.label}
               onClick={() => setIsSidebarOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui transition
-                            ${
-                              isActive
-                                ? "bg-white text-black shadow-md font-medium"
-                                : "text-white/70 hover:bg-white/10 hover:text-white"
-                            }`}
+              className={`relative flex items-center rounded-xl font-ui transition ${
+                collapsed
+                  ? "h-11 w-11 justify-center"
+                  : "gap-3 px-4 py-3 text-[11px] uppercase tracking-[0.18em]"
+              } ${
+                isActive
+                  ? "bg-white text-black shadow-md font-medium"
+                  : "text-white/70 hover:bg-white/10 hover:text-white"
+              }`}
             >
               <div className="relative flex items-center">
                 <Icon className="w-4 h-4" />
-              </div>
-              {item.label}
-              {item.href === "/admin/queries" && newQueryCount > 0 && (
-                <span className="min-w-5 h-5 px-1 rounded-full bg-(--dash-danger) text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
-                  {newQueryCount > 99 ? "99+" : newQueryCount}
-                </span>
-              )}
-              {item.href === "/admin/reviews" && pendingReviewCount > 0 && (
-                <span className="min-w-5 h-5 px-1 rounded-full bg-(--dash-danger) text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
-                  {pendingReviewCount > 99 ? "99+" : pendingReviewCount}
-                </span>
-              )}
-              {item.href === "/admin/notifications" &&
-                unreadNotificationCount > 0 && (
-                  <span className="min-w-5 h-5 px-1 rounded-full bg-(--dash-danger) text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
-                    {unreadNotificationCount > 99
-                      ? "99+"
-                      : unreadNotificationCount}
+                {collapsed && badge > 0 ? (
+                  <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-(--dash-danger) px-0.5 text-[9px] font-semibold text-white">
+                    {badge > 99 ? "99+" : badge}
                   </span>
-                )}
+                ) : null}
+              </div>
+              {!collapsed ? (
+                <>
+                  {item.label}
+                  {badge > 0 ? (
+                    <span className="min-w-5 h-5 px-1 rounded-full bg-(--dash-danger) text-white text-[11px] font-semibold flex items-center justify-center shadow-sm">
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  ) : null}
+                </>
+              ) : null}
             </Link>
           );
         })}
 
         {canSeeSettings && (
-          <div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setSettingsExpanded(!settingsExpanded);
-              }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui transition hover:cursor-pointer
+          <div className={collapsed ? "w-full flex justify-center" : ""}>
+            {collapsed ? (
+              <Link
+                href="/admin/settings/general"
+                title="Settings"
+                onClick={() => setIsSidebarOpen(false)}
+                className={`flex h-11 w-11 items-center justify-center rounded-xl transition ${
+                  isSettingsActive
+                    ? "bg-white text-black shadow-md"
+                    : "text-white/70 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <Settings className="w-4 h-4" />
+              </Link>
+            ) : (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSettingsExpanded(!settingsExpanded);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui transition hover:cursor-pointer
               ${
                 isSettingsActive
                   ? "bg-white text-black shadow-md font-medium"
                   : "text-white/70 hover:bg-white/10 hover:text-white"
               }`}
-            >
-              <Settings className="w-4 h-4" />
-              <span className="flex-1 text-left">Settings</span>
-              {settingsExpanded ? (
-                <ChevronDown className="w-3.5 h-3.5" />
-              ) : (
-                <ChevronRight className="w-3.5 h-3.5" />
-              )}
-            </button>
-
-            <AnimatePresence initial={false}>
-              {settingsExpanded && (
-                <motion.div
-                  key="settings-sub-items"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.25, ease: "easeInOut" }}
-                  className="overflow-hidden"
                 >
-                  <div className="ml-3 mt-1 space-y-1 border-l border-white/20 pl-3">
-                    {settingsSubItems.map((subItem) => {
-                      const SubIcon = subItem.icon;
-                      const isSubActive = isActiveLink(subItem.href);
-                      return (
-                        <motion.div
-                          key={subItem.href}
-                          initial={{ x: -6, opacity: 0 }}
-                          animate={{ x: 0, opacity: 1 }}
-                          transition={{ duration: 0.2, ease: "easeOut" }}
-                        >
-                          <Link
-                            href={subItem.href}
-                            onClick={() => setIsSidebarOpen(false)}
-                            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui transition
+                  <Settings className="w-4 h-4" />
+                  <span className="flex-1 text-left">Settings</span>
+                  {settingsExpanded ? (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  )}
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {settingsExpanded && (
+                    <motion.div
+                      key="settings-sub-items"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25, ease: "easeInOut" }}
+                      className="overflow-hidden"
+                    >
+                      <div className="ml-3 mt-1 space-y-1 border-l border-white/20 pl-3">
+                        {settingsSubItems.map((subItem) => {
+                          const SubIcon = subItem.icon;
+                          const isSubActive = isActiveLink(subItem.href);
+                          return (
+                            <motion.div
+                              key={subItem.href}
+                              initial={{ x: -6, opacity: 0 }}
+                              animate={{ x: 0, opacity: 1 }}
+                              transition={{ duration: 0.2, ease: "easeOut" }}
+                            >
+                              <Link
+                                href={subItem.href}
+                                onClick={() => setIsSidebarOpen(false)}
+                                className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui transition
                             ${
                               isSubActive
                                 ? "bg-white/20 text-white shadow-sm"
                                 : "text-white/60 hover:bg-white/10 hover:text-white"
                             }`}
-                          >
-                            <SubIcon className="w-3.5 h-3.5" />
-                            {subItem.label}
-                          </Link>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                              >
+                                <SubIcon className="w-3.5 h-3.5" />
+                                {subItem.label}
+                              </Link>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
+            )}
           </div>
         )}
       </nav>
@@ -450,10 +621,15 @@ export default function AdminLayout({
         onClick={() => {
           void logout();
         }}
-        className="flex items-center gap-3 px-4 py-3 rounded-xl text-[11px] uppercase tracking-[0.18em] font-ui text-red-400/90 hover:bg-red-500/10 transition hover:cursor-pointer mt-4"
+        title="Log out"
+        className={`mt-4 flex items-center rounded-xl font-ui text-red-400/90 transition hover:cursor-pointer hover:bg-red-500/10 ${
+          collapsed
+            ? "h-11 w-11 justify-center self-center"
+            : "gap-3 px-4 py-3 text-[11px] uppercase tracking-[0.18em]"
+        }`}
       >
         <LogOut className="w-4 h-4" />
-        LogOut
+        {!collapsed ? "LogOut" : null}
       </button>
     </>
   );
@@ -462,9 +638,28 @@ export default function AdminLayout({
     <div className="relative min-h-screen bg-white">
       <aside
         data-sidebar
-        className="fixed left-0 top-0 z-20 hidden h-full w-72 flex-col overflow-y-auto border-r border-white/10 bg-(--dash-charcoal) p-6 lg:flex"
+        className={`fixed left-0 top-0 z-20 hidden h-full flex-col border-r border-white/10 bg-(--dash-charcoal) transition-[width,padding] duration-300 ease-out lg:flex ${
+          desktopSidebarCollapsed
+            ? "overflow-y-auto overflow-x-hidden p-3"
+            : "overflow-y-auto p-6"
+        }`}
+        style={{ width: desktopSidebarWidth }}
       >
-        <SidebarContent />
+        <SidebarContent
+          collapsed={desktopSidebarCollapsed}
+          showCollapseToggle
+        />
+
+        <button
+          type="button"
+          aria-label="Drag to resize sidebar"
+          title="Drag to resize sidebar"
+          onPointerDown={onSidebarDragStart}
+          onPointerMove={onSidebarDragMove}
+          onPointerUp={onSidebarDragEnd}
+          onPointerCancel={onSidebarDragEnd}
+          className="absolute inset-y-0 -right-1 z-30 w-2 cursor-col-resize touch-none bg-transparent hover:bg-white/15"
+        />
       </aside>
 
       <div
@@ -493,13 +688,25 @@ export default function AdminLayout({
         </div>
       </aside>
       <main
-        className={`admin-canvas relative min-h-screen bg-white text-black transition-all duration-300 lg:ml-72 ${
-          pathname.includes("/admin/support-chat")
+        className={`admin-canvas relative min-h-screen bg-white text-black transition-[margin] duration-300 ease-out ${
+          isSupportChat
             ? "flex h-dvh max-h-dvh flex-col overflow-hidden p-0"
             : "p-4 pb-16 xs:p-6 sm:p-8 md:p-10"
         }`}
+        style={
+          {
+            ["--admin-sidebar-w" as string]: `${desktopSidebarWidth}px`,
+          } as CSSProperties
+        }
       >
-        {pathname.includes("/admin/support-chat") ? (
+        <style>{`
+          @media (min-width: 1024px) {
+            .admin-canvas {
+              margin-left: var(--admin-sidebar-w);
+            }
+          }
+        `}</style>
+        {isSupportChat ? (
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
@@ -514,17 +721,14 @@ export default function AdminLayout({
 
         <div
           className={
-            pathname.includes("/admin/support-chat")
-              ? "flex min-h-0 flex-1 flex-col"
-              : undefined
+            isSupportChat ? "flex min-h-0 flex-1 flex-col" : undefined
           }
         >
-          {canSeeNotifications &&
-            !pathname.includes("/admin/support-chat") && (
-              <div className="mb-6 flex items-center justify-end gap-3">
-                <AdminNotificationBell />
-              </div>
-            )}
+          {canSeeNotifications && !isSupportChat && (
+            <div className="mb-6 flex items-center justify-end gap-3">
+              <AdminNotificationBell />
+            </div>
+          )}
           {requiredPagePerm ? (
             <PermissionGuard requiredPerm={requiredPagePerm}>
               {children}

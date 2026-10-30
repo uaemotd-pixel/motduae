@@ -1,5 +1,5 @@
 import { Server } from "socket.io";
-import cookie from "cookie";
+import { parseCookie } from "cookie";
 import { env } from "../config/env.js";
 import { resolveAuthFromToken } from "../middleware/auth.js";
 import { AUTH_COOKIE_NAME } from "../utils/authCookie.js";
@@ -26,8 +26,14 @@ import {
 import {
   notifyLiveChatAgentMessageCustomer,
   notifyLiveChatCustomerMessageAdmin,
+  notifyLiveChatCustomerMessageFabricStore,
   notifyLiveChatStartedAdmin,
+  notifyLiveChatStartedFabricStore,
 } from "../services/notificationService.js";
+import {
+  customerCanChatWithFabricStore,
+  listDealtWithFabricStores,
+} from "../services/customerFabricStoreDeals.js";
 
 /** @type {import("socket.io").Server | null} */
 let io = null;
@@ -39,10 +45,22 @@ function isStaffSocket(socket) {
   return socket.data?.kind === "staff";
 }
 
+function isFabricStaffSocket(socket) {
+  return socket.data?.kind === "fabric_staff";
+}
+
+function isAgentSideSocket(socket) {
+  return isStaffSocket(socket) || isFabricStaffSocket(socket);
+}
+
 function staffOnlineCount() {
   if (!io) return 0;
   const room = io.sockets.adapter.rooms.get("staff:inbox");
   return room ? room.size : 0;
+}
+
+function fabricInboxRoom(ownerId) {
+  return `fabric:inbox:${String(ownerId || "").trim()}`;
 }
 
 function isCustomerConnected(session) {
@@ -57,14 +75,49 @@ function isAgentConnected(session) {
 
 function ownsSession(socket, session) {
   if (!session) return false;
-  if (isStaffSocket(socket)) return true;
+  const kind = session.sessionKind === "fabric" ? "fabric" : "support";
+  if (isStaffSocket(socket)) {
+    return kind === "support";
+  }
+  if (isFabricStaffSocket(socket)) {
+    const ownerId = String(socket.data.user?._id || "");
+    return (
+      kind === "fabric" &&
+      ownerId &&
+      String(session.fabricStoreOwnerId || "") === ownerId
+    );
+  }
   return session.customerSocketId === socket.id;
 }
 
-async function emitInboxUpdated() {
+async function emitSupportInboxUpdated() {
   if (!io) return;
-  const sessions = await listLiveSessions();
+  const sessions = await listLiveSessions({ sessionKind: "support" });
   io.to("staff:inbox").emit("inbox:updated", sessions);
+}
+
+async function emitFabricInboxUpdated(ownerId) {
+  if (!io) return;
+  const id = String(ownerId || "").trim();
+  if (!id) return;
+  const sessions = await listLiveSessions({
+    sessionKind: "fabric",
+    fabricStoreOwnerId: id,
+  });
+  io.to(fabricInboxRoom(id)).emit("inbox:updated", sessions);
+}
+
+async function emitInboxUpdated(sessionHint = null) {
+  if (!io) return;
+  if (sessionHint?.sessionKind === "fabric") {
+    await emitFabricInboxUpdated(sessionHint.fabricStoreOwnerId);
+    return;
+  }
+  if (sessionHint && sessionHint.sessionKind !== "fabric") {
+    await emitSupportInboxUpdated();
+    return;
+  }
+  await emitSupportInboxUpdated();
 }
 
 function emitMessageStatus(sessionId, messages) {
@@ -108,7 +161,7 @@ export function initSocketServer(httpServer) {
   io.use(async (socket, next) => {
     try {
       const raw = socket.handshake.headers.cookie || "";
-      const parsed = cookie.parse(raw);
+      const parsed = parseCookie(raw);
       const token = parsed[AUTH_COOKIE_NAME];
       const result = token
         ? await resolveAuthFromToken(token)
@@ -119,9 +172,15 @@ export function initSocketServer(httpServer) {
         socket.data.user = user;
         const canStaff =
           Boolean(user.isAdmin) &&
-          (user.role === "admin" || user.perms?.queries === true);
+          (user.role === "admin" || user.perms?.customerSupport === true);
+        const canFabricStaff =
+          user.role === "fabric_store" &&
+          user.isActive !== false &&
+          (!user.approvalStatus || user.approvalStatus === "approved");
         if (canStaff) {
           socket.data.kind = "staff";
+        } else if (canFabricStaff) {
+          socket.data.kind = "fabric_staff";
         } else if (user.isGuest) {
           socket.data.kind = "guest";
         } else {
@@ -140,12 +199,25 @@ export function initSocketServer(httpServer) {
   io.on("connection", (socket) => {
     if (isStaffSocket(socket)) {
       socket.join("staff:inbox");
-      void listLiveSessions().then((sessions) => {
+      void listLiveSessions({ sessionKind: "support" }).then((sessions) => {
         socket.emit("inbox:updated", sessions);
       });
       io.to("staff:inbox").emit("staff:online", {
         agentsOnline: staffOnlineCount(),
       });
+    }
+
+    if (isFabricStaffSocket(socket)) {
+      const ownerId = String(socket.data.user?._id || "");
+      if (ownerId) {
+        socket.join(fabricInboxRoom(ownerId));
+        void listLiveSessions({
+          sessionKind: "fabric",
+          fabricStoreOwnerId: ownerId,
+        }).then((sessions) => {
+          socket.emit("inbox:updated", sessions);
+        });
+      }
     }
 
     socket.on("inbox:list", (payload, ack) => {
@@ -156,13 +228,23 @@ export function initSocketServer(httpServer) {
           : typeof payload === "function"
             ? payload
             : null;
-      if (!isStaffSocket(socket)) {
-        if (reply) reply({ ok: false, error: "forbidden" });
+      if (isStaffSocket(socket)) {
+        void listLiveSessions({ sessionKind: "support" }).then((sessions) => {
+          if (reply) reply({ ok: true, sessions });
+        });
         return;
       }
-      void listLiveSessions().then((sessions) => {
-        if (reply) reply({ ok: true, sessions });
-      });
+      if (isFabricStaffSocket(socket)) {
+        const ownerId = String(socket.data.user?._id || "");
+        void listLiveSessions({
+          sessionKind: "fabric",
+          fabricStoreOwnerId: ownerId,
+        }).then((sessions) => {
+          if (reply) reply({ ok: true, sessions });
+        });
+        return;
+      }
+      if (reply) reply({ ok: false, error: "forbidden" });
     });
 
     socket.on("chat:start", async (payload = {}, ack) => {
@@ -171,7 +253,7 @@ export function initSocketServer(httpServer) {
       };
 
       try {
-        if (isStaffSocket(socket)) {
+        if (isAgentSideSocket(socket)) {
           reply({ ok: false, error: "forbidden" });
           return;
         }
@@ -192,6 +274,20 @@ export function initSocketServer(httpServer) {
           : Array.isArray(payload.priorMessages)
             ? payload.priorMessages
             : [];
+        const sessionKind =
+          String(payload.sessionKind || payload.kind || "support").trim() ===
+          "fabric"
+            ? "fabric"
+            : "support";
+        const fabricStoreOwnerId = String(
+          payload.fabricStoreOwnerId || payload.storeOwnerId || "",
+        ).trim();
+        const fabricShopId = String(
+          payload.fabricShopId || payload.shopId || "",
+        ).trim();
+        let fabricStoreName = String(
+          payload.fabricStoreName || payload.storeName || "",
+        ).trim();
 
         const user = socket.data.user;
         const kind = customerKindFromSocket(socket);
@@ -202,11 +298,36 @@ export function initSocketServer(httpServer) {
           kind,
         };
 
-        // Block list is disabled until the Block feature ships.
-        // Always allow start/resume — customer waits in queue like WhatsApp even if
-        // no agent is currently on the Live Chat tab (they get notified / join later).
+        if (sessionKind === "fabric") {
+          if (!customer.userId || kind === "guest" || kind === "anonymous") {
+            reply({ ok: false, error: "login_required" });
+            return;
+          }
+          if (!fabricStoreOwnerId) {
+            reply({ ok: false, error: "store_required" });
+            return;
+          }
+          const allowed = await customerCanChatWithFabricStore(
+            customer.userId,
+            fabricStoreOwnerId,
+          );
+          if (!allowed) {
+            reply({ ok: false, error: "store_not_eligible" });
+            return;
+          }
+          if (!fabricStoreName) {
+            const stores = await listDealtWithFabricStores(customer.userId);
+            const match = stores.find((s) => s.ownerId === fabricStoreOwnerId);
+            fabricStoreName = match?.name || "Fabric store";
+          }
+        }
+
         const openExisting = customer.userId
-          ? await findOpenSessionForCustomer(customer.userId)
+          ? await findOpenSessionForCustomer(customer.userId, {
+              sessionKind,
+              fabricStoreOwnerId:
+                sessionKind === "fabric" ? fabricStoreOwnerId : null,
+            })
           : null;
 
         const prevSessionId = customerSocketSession.get(socket.id);
@@ -214,15 +335,19 @@ export function initSocketServer(httpServer) {
           socket.leave(`session:${prevSessionId}`);
         }
 
-        // Resume open Mongo thread for logged-in users; guests get a new thread.
-        // New threads seed FAQ chatbot history so the agent sees prior context.
         const wasResume = Boolean(openExisting);
         const resumedFromEnded = openExisting?.status === "ended";
         const session = await createSession({
           customer,
           locale,
           customerSocketId: socket.id,
-          faqHistory,
+          faqHistory: sessionKind === "support" ? faqHistory : [],
+          sessionKind,
+          fabricStoreOwnerId:
+            sessionKind === "fabric" ? fabricStoreOwnerId : null,
+          fabricShopId: sessionKind === "fabric" ? fabricShopId || null : null,
+          fabricStoreName:
+            sessionKind === "fabric" ? fabricStoreName || null : null,
         });
 
         await setRoleMessagesStatus(session.id, "agent", "delivered");
@@ -234,19 +359,37 @@ export function initSocketServer(httpServer) {
         socket.join(`session:${session.id}`);
 
         if (!wasResume) {
-          void notifyLiveChatStartedAdmin({
-            sessionId: session.id,
-            customerName: session.customer?.name,
-            createdBy: customer.userId || null,
-          })
-            .then(() => {
-              io?.to("staff:inbox").emit("notifications:updated", {
-                audience: "admin",
-              });
+          if (sessionKind === "fabric") {
+            void notifyLiveChatStartedFabricStore({
+              sessionId: session.id,
+              customerName: session.customer?.name,
+              recipientUserId: fabricStoreOwnerId,
+              createdBy: customer.userId || null,
             })
-            .catch((err) =>
-              console.error("live chat started notification failed:", err),
-            );
+              .then(() => {
+                io?.to(fabricInboxRoom(fabricStoreOwnerId)).emit(
+                  "notifications:updated",
+                  { audience: "customer" },
+                );
+              })
+              .catch((err) =>
+                console.error("fabric live chat started notification failed:", err),
+              );
+          } else {
+            void notifyLiveChatStartedAdmin({
+              sessionId: session.id,
+              customerName: session.customer?.name,
+              createdBy: customer.userId || null,
+            })
+              .then(() => {
+                io?.to("staff:inbox").emit("notifications:updated", {
+                  audience: "admin",
+                });
+              })
+              .catch((err) =>
+                console.error("live chat started notification failed:", err),
+              );
+          }
         }
 
         if (resumedFromEnded) {
@@ -258,7 +401,7 @@ export function initSocketServer(httpServer) {
           });
         }
 
-        await emitInboxUpdated();
+        await emitInboxUpdated(session);
         reply({ ok: true, session: publicSession });
       } catch (err) {
         console.error("chat:start failed:", err);
@@ -272,7 +415,7 @@ export function initSocketServer(httpServer) {
       };
 
       try {
-        if (!isStaffSocket(socket)) {
+        if (!isAgentSideSocket(socket)) {
           reply({ ok: false, error: "forbidden" });
           return;
         }
@@ -281,6 +424,10 @@ export function initSocketServer(httpServer) {
         const session = await getSession(sessionId, { withMessages: true });
         if (!session) {
           reply({ ok: false, error: "not_found" });
+          return;
+        }
+        if (!ownsSession(socket, session)) {
+          reply({ ok: false, error: "forbidden" });
           return;
         }
 
@@ -300,7 +447,10 @@ export function initSocketServer(httpServer) {
         const user = socket.data.user;
         const agent = {
           userId: String(user._id),
-          name: user.name || "Agent",
+          name:
+            (session.sessionKind === "fabric" && session.fabricStoreName) ||
+            user.name ||
+            (session.sessionKind === "fabric" ? "Fabric store" : "Agent"),
         };
 
         const assigned = await assignAgent(sessionId, agent, socket.id);
@@ -342,7 +492,7 @@ export function initSocketServer(httpServer) {
             session: customerSession,
           });
         }
-        await emitInboxUpdated();
+        await emitInboxUpdated(assigned);
         reply({ ok: true, session: agentSession });
       } catch (err) {
         console.error("chat:accept failed:", err);
@@ -356,7 +506,7 @@ export function initSocketServer(httpServer) {
       };
 
       try {
-        if (!isStaffSocket(socket)) {
+        if (!isAgentSideSocket(socket)) {
           reply({ ok: false, error: "forbidden" });
           return;
         }
@@ -368,6 +518,10 @@ export function initSocketServer(httpServer) {
         });
         if (!session) {
           reply({ ok: false, error: "not_found" });
+          return;
+        }
+        if (!ownsSession(socket, session)) {
+          reply({ ok: false, error: "forbidden" });
           return;
         }
 
@@ -393,7 +547,7 @@ export function initSocketServer(httpServer) {
         socket.to(`session:${session.id}`).emit("chat:typing", {
           sessionId: session.id,
           typing: Boolean(payload.typing),
-          from: isStaffSocket(socket) ? "agent" : "customer",
+          from: isAgentSideSocket(socket) ? "agent" : "customer",
         });
       } catch {
         /* ignore typing errors */
@@ -432,18 +586,18 @@ export function initSocketServer(httpServer) {
           return;
         }
 
-        const isStaff = isStaffSocket(socket);
+        const isAgentSide = isAgentSideSocket(socket);
         if (session.status === "ended" || session.status === "closed") {
           reply({ ok: false, error: "chat_ended" });
           return;
         }
-        if (isStaff && session.status !== "active") {
+        if (isAgentSide && session.status !== "active") {
           reply({ ok: false, error: "not_active" });
           return;
         }
 
-        const role = isStaff ? "agent" : "customer";
-        const peerOnline = isStaff
+        const role = isAgentSide ? "agent" : "customer";
+        const peerOnline = isAgentSide
           ? isCustomerConnected(session)
           : isAgentConnected(session);
 
@@ -476,8 +630,11 @@ export function initSocketServer(httpServer) {
             ? payload.attachmentKind || payload.attachKind
             : undefined,
           replyToId: payload.replyToId || payload.replyTo?.id,
-          senderName: isStaff
-            ? session.agent?.name || socket.data.user?.name || "Agent"
+          senderName: isAgentSide
+            ? session.agent?.name ||
+              session.fabricStoreName ||
+              socket.data.user?.name ||
+              "Agent"
             : session.customer?.name || "Customer",
           status: "sent",
         });
@@ -509,29 +666,45 @@ export function initSocketServer(httpServer) {
         });
 
         // In-app notifications when the peer is not currently in the thread.
-        if (!isStaff && (!peerOnline || session.status === "waiting")) {
-          void notifyLiveChatCustomerMessageAdmin({
-            sessionId: session.id,
-            messageId: message.id,
-            customerName: session.customer?.name,
-            message,
-            createdBy: session.customer?.userId || null,
-          })
-            .then(() => {
-              io?.to("staff:inbox").emit("notifications:updated", {
-                audience: "admin",
-              });
+        if (!isAgentSide && (!peerOnline || session.status === "waiting")) {
+          if (session.sessionKind === "fabric" && session.fabricStoreOwnerId) {
+            void notifyLiveChatCustomerMessageFabricStore({
+              sessionId: session.id,
+              messageId: message.id,
+              customerName: session.customer?.name,
+              message,
+              recipientUserId: session.fabricStoreOwnerId,
+              createdBy: session.customer?.userId || null,
             })
-            .catch((err) =>
-              console.error("live chat admin notification failed:", err),
-            );
+              .then(() => {
+                io?.to(fabricInboxRoom(session.fabricStoreOwnerId)).emit(
+                  "notifications:updated",
+                  { audience: "customer" },
+                );
+              })
+              .catch((err) =>
+                console.error("fabric live chat notification failed:", err),
+              );
+          } else {
+            void notifyLiveChatCustomerMessageAdmin({
+              sessionId: session.id,
+              messageId: message.id,
+              customerName: session.customer?.name,
+              message,
+              createdBy: session.customer?.userId || null,
+            })
+              .then(() => {
+                io?.to("staff:inbox").emit("notifications:updated", {
+                  audience: "admin",
+                });
+              })
+              .catch((err) =>
+                console.error("live chat admin notification failed:", err),
+              );
+          }
         }
 
-        if (
-          isStaff &&
-          !peerOnline &&
-          session.customer?.userId
-        ) {
+        if (isAgentSide && !peerOnline && session.customer?.userId) {
           void notifyLiveChatAgentMessageCustomer({
             sessionId: session.id,
             messageId: message.id,
@@ -550,7 +723,7 @@ export function initSocketServer(httpServer) {
             );
         }
 
-        await emitInboxUpdated();
+        await emitInboxUpdated(session);
         reply({ ok: true, message });
       } catch (err) {
         console.error("chat:send failed:", err);
@@ -568,7 +741,7 @@ export function initSocketServer(httpServer) {
         const msg = (session.messages || []).find((m) => m.id === messageId);
         if (!msg) return;
 
-        const isStaff = isStaffSocket(socket);
+        const isStaff = isAgentSideSocket(socket);
         if (isStaff && msg.role !== "customer") return;
         if (!isStaff && msg.role !== "agent") return;
 
@@ -578,7 +751,7 @@ export function initSocketServer(httpServer) {
           "delivered",
         );
         emitMessageStatus(sessionId, updated);
-        if (updated.length) await emitInboxUpdated();
+        if (updated.length) await emitInboxUpdated(session);
       } catch (err) {
         console.error("chat:delivered failed:", err);
       }
@@ -590,14 +763,14 @@ export function initSocketServer(httpServer) {
         const session = await getSession(sessionId);
         if (!session || !ownsSession(socket, session)) return;
 
-        const fromRole = isStaffSocket(socket) ? "customer" : "agent";
+        const fromRole = isAgentSideSocket(socket) ? "customer" : "agent";
         const updated = await setRoleMessagesStatus(
           sessionId,
           fromRole,
           "read",
         );
         emitMessageStatus(sessionId, updated);
-        if (updated.length) await emitInboxUpdated();
+        if (updated.length) await emitInboxUpdated(session);
       } catch (err) {
         console.error("chat:read failed:", err);
       }
@@ -638,7 +811,7 @@ export function initSocketServer(httpServer) {
           return;
         }
 
-        const endedBy = isStaffSocket(socket) ? "agent" : "customer";
+        const endedBy = isAgentSideSocket(socket) ? "agent" : "customer";
         const ended = await softEndSession(sessionId, endedBy);
         if (!ended) {
           // Race: another tab ended it — treat as success if now ended.
@@ -667,7 +840,7 @@ export function initSocketServer(httpServer) {
           endedAt: ended.endedAt,
         });
 
-        void emitInboxUpdated();
+        void emitInboxUpdated(ended);
       } catch (err) {
         console.error("chat:end failed:", err);
         reply({ ok: false, error: "server_error" });
@@ -687,7 +860,7 @@ export function initSocketServer(httpServer) {
           return;
         }
 
-        const byRole = isStaffSocket(socket) ? "agent" : "customer";
+        const byRole = isAgentSideSocket(socket) ? "agent" : "customer";
         const restarted = await restartSession(sessionId, byRole);
         if (!restarted) {
           reply({ ok: false, error: "restart_denied" });
@@ -745,7 +918,7 @@ export function initSocketServer(httpServer) {
           reply({ ok: false, error: "empty" });
           return;
         }
-        const byRole = isStaffSocket(socket) ? "agent" : "customer";
+        const byRole = isAgentSideSocket(socket) ? "agent" : "customer";
         const message = await editMessage(sessionId, messageId, byRole, text);
         if (!message) {
           reply({ ok: false, error: "edit_denied" });
@@ -810,7 +983,7 @@ export function initSocketServer(httpServer) {
           reply({ ok: false, error: "forbidden" });
           return;
         }
-        const viewer = isStaffSocket(socket) ? "agent" : "customer";
+        const viewer = isAgentSideSocket(socket) ? "agent" : "customer";
         const result = await deleteOrHideMessages(
           sessionId,
           messageIds,
@@ -859,7 +1032,7 @@ export function initSocketServer(httpServer) {
         if (typeof ack === "function") ack(body);
       };
       try {
-        if (!isStaffSocket(socket)) {
+        if (!isAgentSideSocket(socket)) {
           reply({ ok: false, error: "forbidden" });
           return;
         }
@@ -867,6 +1040,10 @@ export function initSocketServer(httpServer) {
         const session = await getSession(sessionId);
         if (!session) {
           reply({ ok: false, error: "not_found" });
+          return;
+        }
+        if (!ownsSession(socket, session)) {
+          reply({ ok: false, error: "forbidden" });
           return;
         }
         const closed = await closeSession(sessionId);
@@ -885,7 +1062,7 @@ export function initSocketServer(httpServer) {
             }
           }
         }
-        await emitInboxUpdated();
+        await emitInboxUpdated(session);
         reply({ ok: true });
       } catch (err) {
         console.error("chat:close-now failed:", err);
