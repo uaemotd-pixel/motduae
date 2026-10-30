@@ -21,7 +21,6 @@ import {
   MoreVertical,
   Palette,
   Paperclip,
-  Phone,
   PhoneOff,
   Search,
   Send,
@@ -200,7 +199,7 @@ export default function LiveChatPanel({
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [headerPanel, setHeaderPanel] = useState<
-    null | "contact" | "theme" | "block" | "call"
+    null | "contact" | "theme" | "block"
   >(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -256,7 +255,6 @@ export default function LiveChatPanel({
         clearChat: "مسح المحادثة",
         deleteAll: "حذف كل الرسائل",
         block: "حظر",
-        audioCall: "مكالمة صوتية",
         searchMessages: "بحث في الرسائل",
         searchPlaceholder: "ابحث في الرسائل",
         closeSearch: "إغلاق البحث",
@@ -279,8 +277,6 @@ export default function LiveChatPanel({
           "ستتوفر سمات المحادثة في تحديث لاحق. الخيار جاهز لهذه المرحلة.",
         blockSoon:
           "سيتوفر حظر جهات الاتصال في تحديث لاحق. الخيار جاهز لهذه المرحلة.",
-        callSoon:
-          "ستتوفر المكالمات الصوتية في تحديث لاحق. زر الهاتف جاهز لهذه المرحلة.",
         clearConfirmTitle: "مسح المحادثة؟",
         clearConfirmBody: "ستُحذف كل الرسائل. المحادثة تبقى مفتوحة.",
         clearConfirmAction: "مسح",
@@ -327,7 +323,6 @@ export default function LiveChatPanel({
         clearChat: "Clear chat",
         deleteAll: "Delete all messages",
         block: "Block",
-        audioCall: "Audio call",
         searchMessages: "Search messages",
         searchPlaceholder: "Search messages",
         closeSearch: "Close search",
@@ -351,8 +346,6 @@ export default function LiveChatPanel({
           "Chat themes will be available in a later update. The menu option is ready for that phase.",
         blockSoon:
           "Blocking contacts will be available in a later update. The menu option is ready for that phase.",
-        callSoon:
-          "Audio calling will be available in a later update. The phone control is ready for that phase.",
         clearConfirmTitle: "Clear chat?",
         clearConfirmBody:
           "All messages in this chat will be removed. The conversation stays open.",
@@ -1321,21 +1314,6 @@ export default function LiveChatPanel({
               </p>
             ) : null}
           </div>
-          <button
-            type="button"
-            aria-label={copy.audioCall}
-            title={copy.audioCall}
-            onClick={() => {
-              setHeaderMenuOpen(false);
-              setHeaderPanel("call");
-            }}
-            className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition-colors duration-150 hover:cursor-pointer hover:bg-white hover:text-black xs:flex sm:h-9 sm:w-9"
-          >
-            <Phone
-              className="pointer-events-none h-4 w-4 sm:h-5 sm:w-5"
-              strokeWidth={1.75}
-            />
-          </button>
           <button
             type="button"
             aria-label={copy.searchMessages}
@@ -2413,11 +2391,7 @@ export default function LiveChatPanel({
           <div className="max-h-[min(90dvh,32rem)] w-full max-w-sm overflow-y-auto overflow-hidden rounded-xl border border-[#E8E8E4] bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-[#E8E8E4] px-4 py-3">
               <h3 className="text-[14px] text-black [font-family:var(--font-body)]">
-                {headerPanel === "block"
-                  ? copy.block
-                  : headerPanel === "call"
-                    ? copy.audioCall
-                    : copy.chatTheme}
+                {headerPanel === "block" ? copy.block : copy.chatTheme}
               </h3>
               <button
                 type="button"
@@ -2434,11 +2408,6 @@ export default function LiveChatPanel({
                   className="mx-auto h-8 w-8 text-[#8A8A80]"
                   strokeWidth={1.5}
                 />
-              ) : headerPanel === "call" ? (
-                <Phone
-                  className="mx-auto h-8 w-8 text-[#8A8A80]"
-                  strokeWidth={1.5}
-                />
               ) : (
                 <Palette
                   className="mx-auto h-8 w-8 text-[#8A8A80]"
@@ -2449,11 +2418,7 @@ export default function LiveChatPanel({
                 {copy.comingSoon}
               </p>
               <p className="text-[12px] leading-relaxed text-[#8A8A80] [font-family:var(--font-body)]">
-                {headerPanel === "block"
-                  ? copy.blockSoon
-                  : headerPanel === "call"
-                    ? copy.callSoon
-                    : copy.themeSoon}
+                {headerPanel === "block" ? copy.blockSoon : copy.themeSoon}
               </p>
               <button
                 type="button"
