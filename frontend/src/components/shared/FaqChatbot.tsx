@@ -335,11 +335,14 @@ function notifyChatOpen(open: boolean) {
   window.dispatchEvent(
     new CustomEvent(FAQ_CHAT_OPEN_EVENT, { detail: { open } })
   );
-  // Lenis owns wheel on the storefront; pause it while the widget is open so
-  // FAQ / live-chat threads can use native overflow scrolling.
-  const lenis = (window as Window & { lenis?: { stop?: () => void; start?: () => void } })
-    .lenis;
-  if (open) lenis?.stop?.();
+}
+
+function setStorefrontScrollLocked(locked: boolean) {
+  if (typeof window === "undefined") return;
+  const lenis = (
+    window as Window & { lenis?: { stop?: () => void; start?: () => void } }
+  ).lenis;
+  if (locked) lenis?.stop?.();
   else lenis?.start?.();
 }
 
@@ -854,6 +857,8 @@ export default function FaqChatbot() {
   // When the mobile keypad opens, `100dvh` / fixed `bottom` still refer to the
   // layout viewport, so the panel sits under the keyboard and feels stuck.
   // Pin height + bottom to `visualViewport` on small screens only.
+  // Also lock page scroll only on mobile (full-screen-ish overlay). On md+ the
+  // widget floats and the storefront should keep scrolling.
   useEffect(() => {
     if (!open) {
       setMobileViewportStyle(undefined);
@@ -863,11 +868,29 @@ export default function FaqChatbot() {
 
     const mobileQuery = window.matchMedia("(max-width: 639px)");
     let raf = 0;
+    let previousOverflow = document.body.style.overflow;
+    let pageScrollLocked = false;
+
+    const applyPageScrollLock = (shouldLock: boolean) => {
+      if (shouldLock === pageScrollLocked) return;
+      pageScrollLocked = shouldLock;
+      if (shouldLock) {
+        previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        setStorefrontScrollLocked(true);
+      } else {
+        document.body.style.overflow = previousOverflow;
+        setStorefrontScrollLocked(false);
+      }
+    };
 
     const syncViewport = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        if (!mobileQuery.matches) {
+        const isMobile = mobileQuery.matches;
+        applyPageScrollLock(isMobile);
+
+        if (!isMobile) {
           setMobileViewportStyle(undefined);
           return;
         }
@@ -900,9 +923,6 @@ export default function FaqChatbot() {
     window.addEventListener("resize", syncViewport);
     mobileQuery.addEventListener("change", syncViewport);
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
     return () => {
       cancelAnimationFrame(raf);
       syncMobileViewportRef.current = null;
@@ -910,7 +930,7 @@ export default function FaqChatbot() {
       vv?.removeEventListener("scroll", syncViewport);
       window.removeEventListener("resize", syncViewport);
       mobileQuery.removeEventListener("change", syncViewport);
-      document.body.style.overflow = previousOverflow;
+      applyPageScrollLock(false);
       setMobileViewportStyle(undefined);
     };
   }, [open]);
