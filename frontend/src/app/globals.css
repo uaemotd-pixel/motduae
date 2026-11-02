@@ -55,6 +55,36 @@
   --font-ui: "TT Norms Pro Mono", monospace;
   --font-body: "TT Norms Pro", sans-serif;
 
+  /* Shared chat typography — customer / admin / fabric panels stay in sync.
+     Mobile values first; bumped at 640px via .chat-text-* utilities. */
+  --chat-fs-body: 13px;
+  --chat-fs-body-sm: 14.2px;
+  --chat-fs-meta: 9.5px;
+  --chat-fs-meta-sm: 11px;
+  --chat-fs-time: 8.5px;
+  --chat-fs-time-sm: 10px;
+  --chat-fs-system: 10px;
+  --chat-fs-system-sm: 11.5px;
+  --chat-fs-title: 14px;
+  --chat-fs-title-sm: 16px;
+  --chat-fs-subtitle: 10px;
+  --chat-fs-subtitle-sm: 12px;
+  --chat-fs-list-name: 14px;
+  --chat-fs-list-name-sm: 15px;
+  --chat-fs-list-preview: 12px;
+  --chat-fs-list-preview-sm: 13px;
+  --chat-fs-list-time: 10px;
+  --chat-fs-list-time-sm: 11px;
+  --chat-fs-call: 10.5px;
+  --chat-fs-call-sm: 12px;
+  --chat-fs-call-meta: 9px;
+  --chat-fs-call-meta-sm: 10.5px;
+  /* Composer shell — keep input text at 16px on mobile to avoid iOS zoom */
+  --chat-composer-min-h: 38px;
+  --chat-composer-min-h-sm: 44px;
+  --chat-composer-input-min-h: 28px;
+  --chat-composer-input-min-h-sm: 34px;
+
   /* Borders */
   --border-thin: 0.5px solid var(--color-border);
   --border-standard: 1px solid var(--color-border);
@@ -316,3 +346,107 @@ body {
     height: 100vh;
   }
 }
+
+/* Shared chat type scale — use these in customer / admin / fabric chat UIs. */
+.chat-text-body {
+  font-family: var(--font-body);
+  font-size: var(--chat-fs-body);
+  line-height: 1.4;
+}
+.chat-text-meta {
+  font-family: var(--font-body);
+  font-size: var(--chat-fs-meta);
+}
+.chat-text-time {
+  font-family: var(--font-ui);
+  font-size: var(--chat-fs-time);
+}
+.chat-text-system {
+  font-family: var(--font-body);
+  font-size: var(--chat-fs-system);
+  line-height: 1.35;
+}
+.chat-text-title {
+  font-family: var(--font-body);
+  font-size: var(--chat-fs-title);
+}
+.chat-text-subtitle {
+  font-family: var(--font-body);
+  font-size: var(--chat-fs-subtitle);
+}
+.chat-text-list-name {
+  font-family: var(--font-body);
+  font-size: var(--chat-fs-list-name);
+}
+.chat-text-list-preview {
+  font-family: var(--font-body);
+  font-size: var(--chat-fs-list-preview);
+}
+.chat-text-list-time {
+  font-family: var(--font-ui);
+  font-size: var(--chat-fs-list-time);
+}
+.chat-text-call {
+  font-family: var(--font-body);
+  font-size: var(--chat-fs-call);
+  line-height: 1.35;
+}
+.chat-text-call-meta {
+  font-family: var(--font-body);
+  font-size: var(--chat-fs-call-meta);
+}
+
+.chat-composer-shell {
+  min-height: var(--chat-composer-min-h);
+}
+
+.chat-composer-input {
+  font-family: var(--font-body);
+  font-size: 16px; /* iOS: avoid auto-zoom on focus */
+  line-height: 1.4;
+  min-height: var(--chat-composer-input-min-h);
+}
+
+@media (min-width: 640px) {
+  .chat-text-body {
+    font-size: var(--chat-fs-body-sm);
+  }
+  .chat-text-meta {
+    font-size: var(--chat-fs-meta-sm);
+  }
+  .chat-text-time {
+    font-size: var(--chat-fs-time-sm);
+  }
+  .chat-text-system {
+    font-size: var(--chat-fs-system-sm);
+  }
+  .chat-text-title {
+    font-size: var(--chat-fs-title-sm);
+  }
+  .chat-text-subtitle {
+    font-size: var(--chat-fs-subtitle-sm);
+  }
+  .chat-text-list-name {
+    font-size: var(--chat-fs-list-name-sm);
+  }
+  .chat-text-list-preview {
+    font-size: var(--chat-fs-list-preview-sm);
+  }
+  .chat-text-list-time {
+    font-size: var(--chat-fs-list-time-sm);
+  }
+  .chat-text-call {
+    font-size: var(--chat-fs-call-sm);
+  }
+  .chat-text-call-meta {
+    font-size: var(--chat-fs-call-meta-sm);
+  }
+  .chat-composer-shell {
+    min-height: var(--chat-composer-min-h-sm);
+  }
+  .chat-composer-input {
+    font-size: 14px;
+    min-height: var(--chat-composer-input-min-h-sm);
+  }
+}
+

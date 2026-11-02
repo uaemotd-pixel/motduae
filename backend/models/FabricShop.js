@@ -66,6 +66,8 @@ const fabricShopSchema = new mongoose.Schema(
     inactiveUntil: { type: Date, default: null },
     allowCustomerCalls: { type: Boolean, default: false },
     allowCustomerSocial: { type: Boolean, default: false },
+    /** Admin gate: fabric store may start WebRTC audio calls with customers in live chat. */
+    allowLiveChatAudioCalls: { type: Boolean, default: true },
   },
   {
     timestamps: true,

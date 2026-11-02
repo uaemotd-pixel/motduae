@@ -53,6 +53,8 @@ import ChatMessageMenu, {
   type ChatMessageMenuAction,
 } from "@/components/shared/ChatMessageMenu";
 import ChatAvatar from "@/components/shared/ChatAvatar";
+import CallHistoryBubble from "@/components/shared/CallHistoryBubble";
+import { publishSupportSessionBound } from "@/components/shared/CustomerAudioCallHost";
 import {
   formatRecordingTime,
   useVoiceRecorder,
@@ -71,7 +73,7 @@ import {
 export type LiveChatReplyTo = {
   id: string;
   role: "customer" | "agent" | "system";
-  kind?: "text" | "voice" | "image" | "file";
+  kind?: "text" | "voice" | "image" | "file" | "call";
   text: string;
   senderName?: string;
 };
@@ -79,11 +81,12 @@ export type LiveChatReplyTo = {
 export type LiveChatMessage = {
   id: string;
   role: "customer" | "agent" | "system";
-  kind?: "text" | "voice" | "image" | "file";
+  kind?: "text" | "voice" | "image" | "file" | "call";
   text: string;
   caption?: string;
   audio?: string;
   durationMs?: number;
+  callOutcome?: "answered" | "missed" | "rejected" | "cancelled" | "failed";
   data?: string;
   fileName?: string;
   mimeType?: string;
@@ -110,6 +113,8 @@ type LiveSession = {
   status: "waiting" | "active" | "ended";
   messages: LiveChatMessage[];
   endedBy?: "customer" | "agent" | null;
+  sessionKind?: "support" | "fabric";
+  fabricStoreName?: string | null;
 };
 
 type AckResult = {
@@ -125,6 +130,7 @@ function replyPreviewOf(msg: LiveChatMessage) {
   if (msg.kind === "voice") return "Voice message";
   if (msg.kind === "image") return "Photo";
   if (msg.kind === "file") return msg.fileName || "Document";
+  if (msg.kind === "call") return (msg.text || "Voice call").trim();
   return (msg.caption || msg.text || "").trim();
 }
 
@@ -673,6 +679,17 @@ export default function LiveChatPanel({
       setStep("chat");
       // Viewing the thread → mark agent messages as read.
       getSocket().emit("chat:read", { sessionId: res.session.id });
+      publishSupportSessionBound({
+        id: res.session.id,
+        agentName:
+          kind === "fabric"
+            ? res.session.fabricStoreName ||
+              chatContext?.fabricStoreName ||
+              res.session.agent?.name ||
+              null
+            : res.session.agent?.name || null,
+        agentProfilePic: res.session.agent?.profilePic || null,
+      });
     } catch {
       setError(copy.startFailed);
     }
@@ -753,19 +770,35 @@ export default function LiveChatPanel({
     [],
   );
 
-  const handleAccepted = useCallback((payload: { session: LiveSession }) => {
-    if (!payload?.session) return;
-    if (
-      sessionIdRef.current &&
-      payload.session.id !== sessionIdRef.current
-    ) {
-      return;
-    }
-    sessionIdRef.current = payload.session.id;
-    setSession(payload.session);
-    setMessages(payload.session.messages || []);
-    getSocket().emit("chat:read", { sessionId: payload.session.id });
-  }, []);
+  const isFabricThread = chatContext?.sessionKind === "fabric";
+
+  const handleAccepted = useCallback(
+    (payload: { session: LiveSession }) => {
+      if (!payload?.session) return;
+      if (
+        sessionIdRef.current &&
+        payload.session.id !== sessionIdRef.current
+      ) {
+        return;
+      }
+      sessionIdRef.current = payload.session.id;
+      setSession(payload.session);
+      setMessages(payload.session.messages || []);
+      getSocket().emit("chat:read", { sessionId: payload.session.id });
+      publishSupportSessionBound({
+        id: payload.session.id,
+        agentName:
+          isFabricThread
+            ? payload.session.fabricStoreName ||
+              chatContext?.fabricStoreName ||
+              payload.session.agent?.name ||
+              null
+            : payload.session.agent?.name || null,
+        agentProfilePic: payload.session.agent?.profilePic || null,
+      });
+    },
+    [chatContext?.fabricStoreName, isFabricThread],
+  );
 
   const handleEnded = useCallback(
     (payload: { sessionId: string; endedBy?: "customer" | "agent" }) => {
@@ -780,6 +813,7 @@ export default function LiveChatPanel({
       setEditingId(null);
       setMenuMsgId(null);
       setInfoMsg(null);
+      publishSupportSessionBound({ id: null });
     },
     [emitTyping],
   );
@@ -801,13 +835,25 @@ export default function LiveChatPanel({
       setMessages(payload.session.messages || []);
       setStep("chat");
       getSocket().emit("chat:read", { sessionId: payload.session.id });
+      publishSupportSessionBound({
+        id: payload.session.id,
+        agentName:
+          isFabricThread
+            ? payload.session.fabricStoreName ||
+              chatContext?.fabricStoreName ||
+              payload.session.agent?.name ||
+              null
+            : payload.session.agent?.name || null,
+        agentProfilePic: payload.session.agent?.profilePic || null,
+      });
     },
-    [],
+    [chatContext?.fabricStoreName, isFabricThread],
   );
 
   const handleClosed = useCallback(
     (payload: { sessionId: string }) => {
       if (payload.sessionId !== sessionIdRef.current) return;
+      publishSupportSessionBound({ id: null });
       finishClose();
     },
     [finishClose],
@@ -1278,7 +1324,6 @@ export default function LiveChatPanel({
           ? copy.online
           : copy.waiting;
   const chatLocked = step === "ended";
-
   if (!open) return null;
 
   return (
@@ -1289,7 +1334,7 @@ export default function LiveChatPanel({
       transition={{ type: "spring", stiffness: 380, damping: 30 }}
       className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-[#FFFDF9]"
     >
-      <header className="relative z-40 shrink-0 overflow-visible bg-black px-2.5 py-2.5 text-white xs:px-3.5 xs:py-3 sm:px-4 sm:py-3.5">
+      <header className="relative z-40 shrink-0 overflow-visible bg-black px-2.5 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] text-white xs:px-3.5 xs:pb-3 sm:px-4 sm:pb-3.5 sm:pt-[max(0.875rem,env(safe-area-inset-top))]">
         <div className="relative flex items-center gap-1.5 xs:gap-2 sm:gap-2.5">
           {/* WhatsApp Web-style contact avatar beside title */}
           <ChatAvatar
@@ -1301,15 +1346,15 @@ export default function LiveChatPanel({
             className="ring-2 ring-white/15"
           />
           <div className="min-w-0 flex-1">
-            <h2 className="truncate [font-family:var(--font-display)] text-[15px] font-light tracking-tight xs:text-[16px] sm:text-[17px]">
+            <h2 className="chat-text-title truncate font-light tracking-tight [font-family:var(--font-display)]">
               {agentName}
             </h2>
             {step === "chat" || step === "ended" ? (
-              <p className="mt-0.5 truncate [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.14em] text-white/65 xs:text-[10px]">
+              <p className="chat-text-subtitle mt-0.5 truncate uppercase tracking-[0.14em] text-white/65 [font-family:var(--font-ui)]">
                 {statusLine}
               </p>
             ) : step === "connecting" && !error ? (
-              <p className="mt-0.5 [font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.14em] text-white/65 xs:text-[10px]">
+              <p className="chat-text-subtitle mt-0.5 uppercase tracking-[0.14em] text-white/65 [font-family:var(--font-ui)]">
                 {copy.starting}
               </p>
             ) : null}
@@ -1636,6 +1681,82 @@ export default function LiveChatPanel({
                 const dimWhileSearch =
                   searchQuery.length > 0 && !isMatch && msg.role !== "system";
 
+                if (msg.kind === "call") {
+                  // Successful talk → center. Customer cancel → right. Agent cancel → left.
+                  const callAlign =
+                    msg.role === "system" || msg.callOutcome === "answered"
+                      ? "center"
+                      : msg.role === "customer"
+                        ? "end"
+                        : "start";
+                  const callMine = callAlign === "end";
+                  const callSelected = selectedIds.has(msg.id);
+                  const callCanSelect = selectMode && !msg.deleted;
+                  return (
+                    <div
+                      key={msg.id}
+                      data-msg-id={msg.id}
+                      className={callCanSelect ? "cursor-pointer" : undefined}
+                      onClick={() => {
+                        if (!callCanSelect) return;
+                        toggleSelectMessage(msg.id);
+                      }}
+                    >
+                      <CallHistoryBubble
+                        text={msg.text}
+                        callOutcome={msg.callOutcome}
+                        durationMs={msg.durationMs}
+                        at={msg.at}
+                        locale={locale}
+                        align={callAlign}
+                        searchQuery={searchQuery}
+                        searchActive={isActiveMatch}
+                        dimmed={dimWhileSearch}
+                        leading={
+                          selectMode ? (
+                            <span
+                              aria-hidden
+                              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] ${
+                                callSelected
+                                  ? "border-black bg-black text-white"
+                                  : "border-[#C8C8C0] bg-white text-transparent"
+                              }`}
+                            >
+                              ✓
+                            </span>
+                          ) : null
+                        }
+                        onContextMenu={(e) => {
+                          if (selectMode || chatLocked) return;
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setMenuMsgId(msg.id);
+                        }}
+                        menu={
+                          !selectMode && !chatLocked ? (
+                            <ChatMessageMenu
+                              open={menuMsgId === msg.id}
+                              onOpenChange={(next) =>
+                                setMenuMsgId(next ? msg.id : null)
+                              }
+                              mine={callMine}
+                              onDark={callMine}
+                              callBadge
+                              hideTrigger
+                              isAr={isAr}
+                              menuAlign={
+                                callAlign === "end" ? "start" : "end"
+                              }
+                              onAction={(action) =>
+                                void onMessageMenuAction(msg, action)
+                              }
+                            />
+                          ) : null
+                        }
+                      />
+                    </div>
+                  );
+                }
                 if (msg.role === "system") {
                   return (
                     <div
@@ -1645,7 +1766,7 @@ export default function LiveChatPanel({
                         searchQuery && !isMatch ? "opacity-35" : ""
                       } ${isActiveMatch ? "opacity-100" : ""}`}
                     >
-                      <p className="max-w-[92%] rounded-full bg-[#FFFFFFCC] px-3 py-1 text-center [font-family:var(--font-body)] text-[11px] leading-snug text-[#667781] shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] backdrop-blur-sm">
+                      <p className="chat-text-system max-w-[92%] rounded-full bg-[#FFFFFFCC] px-2.5 py-0.5 text-center text-[#667781] shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-3.5 sm:py-1">
                         {searchQuery ? (
                           <ChatSearchHighlight
                             text={msg.text}
@@ -1691,7 +1812,7 @@ export default function LiveChatPanel({
                     <div
                       className={`group relative max-w-[min(92%,18rem)] px-2.5 py-1.5 shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] xs:max-w-[min(88%,20rem)] xs:px-3 sm:max-w-[82%] ${
                         mine
-                          ? "rounded-[7.5px] rounded-tr-none bg-black text-white"
+                          ? "rounded-[7.5px] rounded-tr-none bg-black/80 text-white"
                           : "rounded-[7.5px] rounded-tl-none border border-[#EBEBE8] bg-[#FFFDF9] text-black"
                       } ${selected ? "ring-2 ring-black/25" : ""} ${
                         isActiveMatch
@@ -1711,7 +1832,7 @@ export default function LiveChatPanel({
                         aria-hidden
                         className={`pointer-events-none absolute top-0 h-0 w-0 border-y-[6px] border-y-transparent ${
                           mine
-                            ? "-right-[6px] border-l-[6px] border-l-black"
+                            ? "-right-[6px] border-l-[6px] border-l-black/80"
                             : "-left-[6px] border-r-[6px] border-r-[#FFFDF9]"
                         }`}
                       />
@@ -1779,7 +1900,7 @@ export default function LiveChatPanel({
                                 <span />
                               )}
                               <p
-                                className={`min-w-0 truncate text-end text-[11px] font-medium [font-family:var(--font-body)] ${
+                                className={`chat-text-meta min-w-0 truncate text-end font-medium ${
                                   mine ? "text-white/75" : "text-[#8A8A80]"
                                 }`}
                               >
@@ -1788,7 +1909,7 @@ export default function LiveChatPanel({
                             </>
                           ) : (
                             <>
-                              <p className="min-w-0 flex-1 truncate text-start text-[11px] font-medium text-[#8A8A80] [font-family:var(--font-body)]">
+                              <p className="chat-text-meta min-w-0 flex-1 truncate text-start font-medium text-[#8A8A80]">
                                 {msg.senderName ? (
                                   searchQuery ? (
                                     <ChatSearchHighlight
@@ -1843,7 +1964,7 @@ export default function LiveChatPanel({
                           }`}
                         >
                           <p
-                            className={`truncate text-[11px] font-medium [font-family:var(--font-body)] ${
+                            className={`chat-text-meta truncate font-medium ${
                               mine ? "text-white/80" : "text-[#54656F]"
                             }`}
                           >
@@ -1855,7 +1976,7 @@ export default function LiveChatPanel({
                                 : copy.agentFallback)}
                           </p>
                           <p
-                            className={`truncate text-[12px] [font-family:var(--font-body)] ${
+                            className={`chat-text-list-preview truncate ${
                               mine ? "text-white/65" : "text-[#8A8A80]"
                             }`}
                           >
@@ -1865,7 +1986,7 @@ export default function LiveChatPanel({
                       ) : null}
                       {msg.deleted ? (
                         <p
-                          className={`italic whitespace-pre-wrap break-words [font-family:var(--font-body)] text-[13.5px] leading-[1.4] ${
+                          className={`chat-text-body italic whitespace-pre-wrap break-words ${
                             mine ? "text-white/70" : "text-[#8A8A80]"
                           }`}
                         >
@@ -1910,7 +2031,7 @@ export default function LiveChatPanel({
                                 onDark={mine}
                               />
                               {msg.caption ? (
-                                <p className="whitespace-pre-wrap break-words [font-family:var(--font-body)] text-[13.5px] leading-[1.4]">
+                                <p className="chat-text-body whitespace-pre-wrap break-words">
                                   {searchQuery ? (
                                     <ChatSearchHighlight
                                       text={msg.caption}
@@ -1933,7 +2054,7 @@ export default function LiveChatPanel({
                                 onDark={mine}
                               />
                               {msg.caption ? (
-                                <p className="whitespace-pre-wrap break-words [font-family:var(--font-body)] text-[13.5px] leading-[1.4]">
+                                <p className="chat-text-body whitespace-pre-wrap break-words">
                                   {searchQuery ? (
                                     <ChatSearchHighlight
                                       text={msg.caption}
@@ -1947,7 +2068,7 @@ export default function LiveChatPanel({
                               ) : null}
                             </div>
                           ) : (
-                            <p className="whitespace-pre-wrap break-words [font-family:var(--font-body)] text-[13.5px] leading-[1.4]">
+                            <p className="chat-text-body whitespace-pre-wrap break-words">
                               {searchQuery ? (
                                 <ChatSearchHighlight
                                   text={msg.text}
@@ -1962,7 +2083,7 @@ export default function LiveChatPanel({
                         </>
                       )}
                       <p
-                        className={`mt-0.5 flex items-center justify-end gap-1 [font-family:var(--font-ui)] text-[10px] tabular-nums ${
+                        className={`chat-text-time mt-0.5 flex items-center justify-end gap-1 tabular-nums ${
                           mine ? "text-white/55" : "text-[#8A8A80]"
                         }`}
                       >
@@ -1989,7 +2110,7 @@ export default function LiveChatPanel({
               {chatLocked ? (
                 <div className="flex justify-center py-3">
                   <div className="max-w-[90%] rounded-[7.5px] bg-[#FFFFFFE6] px-3.5 py-1.5 text-center shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] backdrop-blur-sm">
-                    <p className="[font-family:var(--font-body)] text-[12.5px] text-[#54656F]">
+                    <p className="chat-text-system text-[#54656F]">
                       {endedBy === "agent"
                         ? copy.endedByAgent
                         : copy.endedByYou}
@@ -1999,7 +2120,7 @@ export default function LiveChatPanel({
               ) : null}
             </div>
 
-            <div className="shrink-0 bg-transparent px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-3">
+            <div className="shrink-0 bg-transparent px-2 py-1.5 pb-[max(0.4rem,env(safe-area-inset-bottom))] sm:px-3 sm:py-2">
               {chatLocked ? (
                 <button
                   type="button"
@@ -2060,7 +2181,7 @@ export default function LiveChatPanel({
                     />
                   ) : null}
                   {voice.recording ? (
-                    <div className="flex min-h-[44px] w-full items-center gap-1 rounded-full bg-white px-1.5 py-1 shadow-sm">
+                    <div className="chat-composer-shell flex w-full items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-sm sm:py-1">
                       <button
                         type="button"
                         onClick={cancelVoiceNote}
@@ -2097,7 +2218,7 @@ export default function LiveChatPanel({
                         onPick={(emoji) => setDraft((d) => d + emoji)}
                         isAr={isAr}
                       />
-                      <div className="relative flex min-h-[44px] w-full items-end gap-0.5 rounded-full bg-white px-1.5 py-1 shadow-sm">
+                      <div className="chat-composer-shell relative flex w-full items-end gap-0.5 rounded-full bg-white px-1.5 py-0.5 shadow-sm sm:py-1">
                       <input
                         ref={fileInputRef}
                         type="file"
@@ -2178,7 +2299,7 @@ export default function LiveChatPanel({
                               : "Add a caption…"
                             : copy.placeholder
                         }
-                        className="max-h-28 min-h-[32px] min-w-0 flex-1 resize-none bg-transparent py-1.5 pe-1 [font-family:var(--font-body)] text-[16px] leading-relaxed text-[#111B21] outline-none placeholder:text-[#667781] sm:text-[14px]"
+                        className="chat-composer-input max-h-28 min-w-0 flex-1 resize-none bg-transparent py-1 pe-1 text-[#111B21] outline-none placeholder:text-[#667781] sm:py-1.5"
                       />
                       <div className="mb-0.5 flex shrink-0 items-center gap-0.5">
                         {!hasDraft ? (

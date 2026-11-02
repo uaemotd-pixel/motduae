@@ -60,6 +60,10 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import { DashboardMobileMenuBar } from "@/components/shared/DashboardMobileMenuBar";
+import {
+  AdminAudioCallChrome,
+  AdminAudioCallProvider,
+} from "@/context/AdminAudioCallContext";
 import white_logo from "../../../../public/PNG/White/MOTD_Wordmark_White.png";
 
 const SIDEBAR_EXPANDED_W = 288; // w-72
@@ -83,6 +87,8 @@ export default function AdminLayout({
   const params = useParams();
   const locale = (params.locale as string) || "en";
   const isSupportChat = pathname.includes("/admin/support-chat");
+  /** True while a support conversation fills the mobile viewport (WhatsApp-style). */
+  const [supportChatFocused, setSupportChatFocused] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   /** Desktop sidebar expanded/collapsed for the whole admin panel. */
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
@@ -119,6 +125,22 @@ export default function AdminLayout({
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!isSupportChat) {
+      setSupportChatFocused(false);
+      return;
+    }
+    const onFocus = (e: Event) => {
+      const open = Boolean((e as CustomEvent<{ open?: boolean }>).detail?.open);
+      setSupportChatFocused(open);
+    };
+    window.addEventListener("motd-admin-support-chat-focus", onFocus);
+    return () => {
+      window.removeEventListener("motd-admin-support-chat-focus", onFocus);
+      setSupportChatFocused(false);
+    };
+  }, [isSupportChat]);
 
   useEffect(() => {
     try {
@@ -635,6 +657,7 @@ export default function AdminLayout({
   );
 
   return (
+    <AdminAudioCallProvider>
     <div className="relative min-h-screen bg-white">
       <aside
         data-sidebar
@@ -690,7 +713,7 @@ export default function AdminLayout({
       <main
         className={`admin-canvas relative min-h-screen bg-white text-black transition-[margin] duration-300 ease-out ${
           isSupportChat
-            ? "flex h-dvh max-h-dvh flex-col overflow-hidden p-0"
+            ? "flex h-dvh max-h-dvh flex-col overflow-hidden overscroll-none p-0"
             : "p-4 pb-16 xs:p-6 sm:p-8 md:p-10"
         }`}
         style={
@@ -707,21 +730,26 @@ export default function AdminLayout({
           }
         `}</style>
         {isSupportChat ? (
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen(true)}
-            className="absolute top-3 start-3 z-30 rounded-md bg-black p-2 text-white shadow-md lg:hidden"
-            aria-label="Open menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+          supportChatFocused ? null : (
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(true)}
+              className="absolute top-3 start-3 z-30 rounded-md bg-black p-2 text-white shadow-md lg:hidden"
+              aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          )
         ) : (
           <DashboardMobileMenuBar onOpen={() => setIsSidebarOpen(true)} />
         )}
 
+        <AdminAudioCallChrome />
         <div
           className={
-            isSupportChat ? "flex min-h-0 flex-1 flex-col" : undefined
+            isSupportChat
+              ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+              : undefined
           }
         >
           {canSeeNotifications && !isSupportChat && (
@@ -739,5 +767,6 @@ export default function AdminLayout({
         </div>
       </main>
     </div>
+    </AdminAudioCallProvider>
   );
 }

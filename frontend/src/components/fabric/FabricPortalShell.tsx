@@ -5,12 +5,17 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { useAuth, needsEmailVerification } from "@/context/AuthContext";
+import {
+  FabricAudioCallChrome,
+  FabricAudioCallProvider,
+} from "@/context/FabricAudioCallContext";
 import {
   LayoutDashboard,
   LogOut,
@@ -68,6 +73,8 @@ export default function FabricPortalShell({
   const canChangeEmail = canChangeAccountEmail(user);
   const showVerify = needsEmailVerification(user) && !user?.isGuest;
   const isMessagesChat = pathname.includes("/fabric/messages");
+  /** True while a messages conversation fills the mobile viewport (WhatsApp-style). */
+  const [messagesChatFocused, setMessagesChatFocused] = useState(false);
   const desktopSidebarCollapsed = !sidebarExpanded;
   const desktopSidebarWidth = sidebarWidth;
 
@@ -80,6 +87,22 @@ export default function FabricPortalShell({
     setIsSidebarOpen(false);
     setShowChangeEmail(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!isMessagesChat) {
+      setMessagesChatFocused(false);
+      return;
+    }
+    const onFocus = (e: Event) => {
+      const open = Boolean((e as CustomEvent<{ open?: boolean }>).detail?.open);
+      setMessagesChatFocused(open);
+    };
+    window.addEventListener("motd-fabric-messages-focus", onFocus);
+    return () => {
+      window.removeEventListener("motd-fabric-messages-focus", onFocus);
+      setMessagesChatFocused(false);
+    };
+  }, [isMessagesChat]);
 
   useEffect(() => {
     try {
@@ -387,6 +410,7 @@ export default function FabricPortalShell({
   );
 
   return (
+    <FabricAudioCallProvider>
     <div className="relative bg-(--dash-bg) text-(--dash-ink) lg:flex lg:h-dvh lg:overflow-hidden">
       <aside
         data-sidebar
@@ -451,19 +475,27 @@ export default function FabricPortalShell({
       <main
         className={`relative min-w-0 flex-1 ${
           isMessagesChat
-            ? "flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden p-0 lg:min-h-0"
+            ? "flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden overscroll-none p-0 lg:min-h-0"
             : "min-h-dvh overflow-x-clip p-4 pb-40 xs:p-6 sm:p-8 md:p-10 lg:min-h-0 lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-y-contain lg:pt-10"
         }`}
+        style={
+          {
+            ["--admin-sidebar-w" as string]: `${desktopSidebarWidth}px`,
+          } as CSSProperties
+        }
       >
+        <FabricAudioCallChrome />
         {isMessagesChat ? (
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen(true)}
-            className="absolute top-3 start-3 z-30 rounded-md bg-black p-2 text-white shadow-md lg:hidden"
-            aria-label="Open menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+          messagesChatFocused ? null : (
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(true)}
+              className="absolute top-3 start-3 z-30 rounded-md bg-black p-2 text-white shadow-md lg:hidden"
+              aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          )
         ) : (
           <DashboardMobileMenuBar onOpen={() => setIsSidebarOpen(true)} />
         )}
@@ -478,7 +510,9 @@ export default function FabricPortalShell({
         ) : (
           <div
             className={
-              isMessagesChat ? "flex min-h-0 flex-1 flex-col" : undefined
+              isMessagesChat
+                ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                : undefined
             }
           >
             {canChangeEmail && !isMessagesChat ? (
@@ -495,5 +529,6 @@ export default function FabricPortalShell({
         )}
       </main>
     </div>
+    </FabricAudioCallProvider>
   );
 }

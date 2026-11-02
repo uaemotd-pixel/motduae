@@ -11,7 +11,6 @@ import {
 import { useParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  MessageCircle,
   X,
   Sparkles,
   Scissors,
@@ -55,6 +54,7 @@ import { displayOrderId } from "@/lib/customOrders";
 import LiveChatPanel, {
   type LiveChatContext,
 } from "@/components/shared/LiveChatPanel";
+import { CustomerAudioCallPanelOverlay } from "@/components/shared/CustomerAudioCallHost";
 
 export const FAQ_CHAT_OPEN_EVENT = "motd-faq-chat-open";
 
@@ -429,6 +429,15 @@ export default function FaqChatbot() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [open, setOpen] = useState(false);
+  /** FAB face + eye offsets toward the cursor (SVG units / degrees). */
+  const [fabGaze, setFabGaze] = useState({
+    faceX: 0,
+    faceY: 0,
+    rot: 0,
+    eyeX: 0,
+    eyeY: 0,
+  });
+  const fabRef = useRef<HTMLButtonElement>(null);
   const [liveChatOpen, setLiveChatOpen] = useState(false);
   /** Open agent thread exists — offer Continue chat vs browse topics on reopen. */
   const [resumableLiveChat, setResumableLiveChat] = useState(false);
@@ -793,6 +802,36 @@ export default function FaqChatbot() {
     return () => notifyChatOpen(false);
   }, [open]);
 
+  // FAB face + eyes follow the cursor while the chat bubble is closed.
+  useEffect(() => {
+    if (open) {
+      setFabGaze({ faceX: 0, faceY: 0, rot: 0, eyeX: 0, eyeY: 0 });
+      return;
+    }
+    const onMove = (e: MouseEvent) => {
+      const el = fabRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = e.clientX - cx;
+      const dy = e.clientY - cy;
+      const dist = Math.hypot(dx, dy) || 1;
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const reach = Math.min(1, dist / 150);
+      setFabGaze({
+        faceX: nx * 5.2 * reach,
+        faceY: ny * 4.2 * reach,
+        rot: nx * 8 * reach,
+        eyeX: nx * 2.5 * reach,
+        eyeY: ny * 2.3 * reach,
+      });
+    };
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => window.removeEventListener("mousemove", onMove);
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const panel = panelRef.current;
@@ -857,8 +896,9 @@ export default function FaqChatbot() {
   // When the mobile keypad opens, `100dvh` / fixed `bottom` still refer to the
   // layout viewport, so the panel sits under the keyboard and feels stuck.
   // Pin height + bottom to `visualViewport` on small screens only.
-  // Also lock page scroll only on mobile (full-screen-ish overlay). On md+ the
-  // widget floats and the storefront should keep scrolling.
+  // Below 500px the panel is edge-to-edge; 500–639px keeps a floating inset.
+  // Also lock page scroll only on mobile. On md+ the widget floats and the
+  // storefront should keep scrolling.
   useEffect(() => {
     if (!open) {
       setMobileViewportStyle(undefined);
@@ -867,6 +907,7 @@ export default function FaqChatbot() {
     }
 
     const mobileQuery = window.matchMedia("(max-width: 639px)");
+    const fullscreenQuery = window.matchMedia("(max-width: 499px)");
     let raf = 0;
     let previousOverflow = document.body.style.overflow;
     let pageScrollLocked = false;
@@ -902,15 +943,32 @@ export default function FaqChatbot() {
           0,
           window.innerHeight - viewportHeight - offsetTop,
         );
-        const margin = 12;
-        const available = Math.max(220, Math.floor(viewportHeight - margin * 2));
+        const fullscreen = fullscreenQuery.matches;
+        const margin = fullscreen ? 0 : 12;
+        const available = Math.max(
+          220,
+          Math.floor(viewportHeight - margin * 2),
+        );
 
-        setMobileViewportStyle({
-          height: `${available}px`,
-          maxHeight: `${available}px`,
-          bottom: `${keyboardOverlap + margin}px`,
-          top: "auto",
-        });
+        setMobileViewportStyle(
+          fullscreen
+            ? {
+                top: `${offsetTop}px`,
+                bottom: `${keyboardOverlap}px`,
+                left: 0,
+                right: 0,
+                width: "100%",
+                height: `${available}px`,
+                maxHeight: `${available}px`,
+                borderRadius: 0,
+              }
+            : {
+                height: `${available}px`,
+                maxHeight: `${available}px`,
+                bottom: `${keyboardOverlap + margin}px`,
+                top: "auto",
+              },
+        );
       });
     };
 
@@ -922,6 +980,7 @@ export default function FaqChatbot() {
     vv?.addEventListener("scroll", syncViewport);
     window.addEventListener("resize", syncViewport);
     mobileQuery.addEventListener("change", syncViewport);
+    fullscreenQuery.addEventListener("change", syncViewport);
 
     return () => {
       cancelAnimationFrame(raf);
@@ -930,6 +989,7 @@ export default function FaqChatbot() {
       vv?.removeEventListener("scroll", syncViewport);
       window.removeEventListener("resize", syncViewport);
       mobileQuery.removeEventListener("change", syncViewport);
+      fullscreenQuery.removeEventListener("change", syncViewport);
       applyPageScrollLock(false);
       setMobileViewportStyle(undefined);
     };
@@ -1853,6 +1913,7 @@ export default function FaqChatbot() {
       <AnimatePresence>
         {!open && (
           <motion.button
+            ref={fabRef}
             type="button"
             onClick={openChat}
             aria-label={copy.open}
@@ -1863,14 +1924,396 @@ export default function FaqChatbot() {
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.92 }}
             transition={{ type: "spring", stiffness: 420, damping: 22 }}
-            className="fixed bottom-4 end-3 sm:bottom-5 sm:end-5 md:bottom-6 md:end-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-black text-white shadow-[0_10px_40px_rgba(0,0,0,0.28)] outline-none focus-visible:ring-2 focus-visible:ring-black/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFDF9] hover:cursor-pointer touch-manipulation mb-(--safe-bottom) me-(--safe-right)"
+            className="fixed bottom-4 end-3 sm:bottom-5 sm:end-5 md:bottom-6 md:end-6 z-50 flex h-11 w-11 items-center justify-center overflow-hidden rounded-full p-0 shadow-[0_10px_24px_rgba(40,20,10,0.26)] outline-none ring-2 ring-white sm:h-12 sm:w-12 sm:ring-[2.5px] md:h-14 md:w-14 focus-visible:ring-2 focus-visible:ring-black/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFDF9] hover:cursor-pointer touch-manipulation mb-(--safe-bottom) me-(--safe-right)"
           >
             <motion.span
-              className="pointer-events-none absolute inset-0 rounded-full border border-black/25"
-              animate={{ scale: [1, 1.45], opacity: [0.45, 0] }}
-              transition={{ duration: 2.2, repeat: Infinity, ease: "easeOut" }}
+              className="pointer-events-none absolute -inset-1 rounded-full bg-[#E8B89A]/25"
+              animate={{ scale: [1, 1.35], opacity: [0.5, 0] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut" }}
             />
-            <MessageCircle className="h-5 w-5" strokeWidth={1.5} />
+            <svg
+              viewBox="0 0 96 96"
+              className="relative z-[1] h-full w-full"
+              aria-hidden
+              preserveAspectRatio="xMidYMid slice"
+            >
+              <defs>
+                <radialGradient id="motdChatBg" cx="48%" cy="36%" r="76%">
+                  <stop offset="0%" stopColor="#FFFCF8" />
+                  <stop offset="45%" stopColor="#F6E6D6" />
+                  <stop offset="100%" stopColor="#E8D0BA" />
+                </radialGradient>
+                <radialGradient id="motdChatSkin" cx="38%" cy="30%" r="70%">
+                  <stop offset="0%" stopColor="#FFFFFF" />
+                  <stop offset="28%" stopColor="#FFF8F2" />
+                  <stop offset="62%" stopColor="#FFE8D4" />
+                  <stop offset="100%" stopColor="#F2C9AE" />
+                </radialGradient>
+                <radialGradient id="motdChatPearl" cx="40%" cy="35%" r="55%">
+                  <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.75" />
+                  <stop offset="45%" stopColor="#FFF3E8" stopOpacity="0.28" />
+                  <stop offset="100%" stopColor="#F0DCC8" stopOpacity="0" />
+                </radialGradient>
+                <linearGradient id="motdChatShayla" x1="0.15" y1="0" x2="0.9" y2="1">
+                  <stop offset="0%" stopColor="#3A3A3A" />
+                  <stop offset="40%" stopColor="#161616" />
+                  <stop offset="100%" stopColor="#050505" />
+                </linearGradient>
+                <linearGradient id="motdChatGold" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#FFF6D0" />
+                  <stop offset="40%" stopColor="#E8C45A" />
+                  <stop offset="100%" stopColor="#B8922A" />
+                </linearGradient>
+                <radialGradient id="motdChatIris" cx="30%" cy="26%" r="74%">
+                  <stop offset="0%" stopColor="#8B5E45" />
+                  <stop offset="35%" stopColor="#4A2E1E" />
+                  <stop offset="70%" stopColor="#24160E" />
+                  <stop offset="100%" stopColor="#0A0604" />
+                </radialGradient>
+                <linearGradient id="motdChatLip" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#FFC2CE" />
+                  <stop offset="50%" stopColor="#F08A9C" />
+                  <stop offset="100%" stopColor="#D4667A" />
+                </linearGradient>
+                <linearGradient id="motdChatHp" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#444" />
+                  <stop offset="100%" stopColor="#0E0E0E" />
+                </linearGradient>
+                <clipPath id="motdChatEyeL">
+                  <ellipse cx="35.5" cy="49.5" rx="6.4" ry="7.2" />
+                </clipPath>
+                <clipPath id="motdChatEyeR">
+                  <ellipse cx="60.5" cy="49.5" rx="6.4" ry="7.2" />
+                </clipPath>
+              </defs>
+
+              <circle cx="48" cy="48" r="48" fill="url(#motdChatBg)" />
+
+              <g
+                transform={`translate(${fabGaze.faceX} ${fabGaze.faceY}) rotate(${fabGaze.rot} 48 48)`}
+              >
+                {/* Soft shayla mass */}
+                <path
+                  d="M5 56C8 22 22 2 48 2s40 20 43 54c-3 12-9 22-16 28V52c0-20-11-33-27-33S21 32 21 52v32c-7-6-13-16-16-28z"
+                  fill="url(#motdChatShayla)"
+                />
+                <path
+                  d="M16 72c5-24 14-36 32-36s27 12 32 36"
+                  fill="none"
+                  stroke="#2A2A2A"
+                  strokeWidth="2.5"
+                  opacity="0.45"
+                />
+
+                {/* Neck / collar */}
+                <ellipse cx="48" cy="90" rx="17" ry="12" fill="#080808" />
+                <ellipse
+                  cx="48"
+                  cy="83"
+                  rx="10.5"
+                  ry="6.5"
+                  fill="url(#motdChatSkin)"
+                />
+
+                {/* Face — bright mermaid glow */}
+                <ellipse
+                  cx="48"
+                  cy="52.5"
+                  rx="25"
+                  ry="27.5"
+                  fill="url(#motdChatSkin)"
+                />
+                {/* Whole-face pearl shimmer */}
+                <ellipse
+                  cx="46"
+                  cy="50"
+                  rx="22"
+                  ry="24"
+                  fill="url(#motdChatPearl)"
+                />
+                {/* Bright forehead */}
+                <ellipse
+                  cx="44"
+                  cy="41"
+                  rx="13"
+                  ry="9"
+                  fill="#FFFFFF"
+                  opacity="0.45"
+                />
+                {/* Bright cheeks + chin */}
+                <ellipse
+                  cx="48"
+                  cy="62"
+                  rx="16"
+                  ry="11"
+                  fill="#FFFFFF"
+                  opacity="0.35"
+                />
+                {/* Soft warm cheek light */}
+                <ellipse
+                  cx="33"
+                  cy="55"
+                  rx="5"
+                  ry="3"
+                  fill="#FFE8D8"
+                  opacity="0.4"
+                />
+                <ellipse
+                  cx="63"
+                  cy="55"
+                  rx="5"
+                  ry="3"
+                  fill="#FFE8D8"
+                  opacity="0.4"
+                />
+
+                {/* Shayla framing the face */}
+                <path
+                  d="M21 39c2.5-15 13-24 27-24s24.5 9 27 24c-5.5-9-14-14-27-14S26.5 30 21 39z"
+                  fill="#0A0A0A"
+                />
+                <path
+                  d="M23.5 37.5c3.5-11 12-17.5 24.5-17.5s21 6.5 24.5 17.5"
+                  fill="none"
+                  stroke="url(#motdChatGold)"
+                  strokeWidth="1.35"
+                  strokeLinecap="round"
+                  opacity="0.9"
+                />
+
+                {/* Soft rose blush on bright skin */}
+                <ellipse
+                  cx="30.5"
+                  cy="58"
+                  rx="7.2"
+                  ry="4.4"
+                  fill="#FFC4C0"
+                  opacity="0.32"
+                />
+                <ellipse
+                  cx="65.5"
+                  cy="58"
+                  rx="7.2"
+                  ry="4.4"
+                  fill="#FFC4C0"
+                  opacity="0.32"
+                />
+
+                {/* Arched brows */}
+                <path
+                  d="M27.5 40.2c5-4.2 13.5-4.6 17.8-.6"
+                  fill="none"
+                  stroke="#5A3A28"
+                  strokeWidth="1.45"
+                  strokeLinecap="round"
+                  opacity="0.75"
+                />
+                <path
+                  d="M50.7 39.6c5-4 13.5-4.2 17.8-.2"
+                  fill="none"
+                  stroke="#5A3A28"
+                  strokeWidth="1.45"
+                  strokeLinecap="round"
+                  opacity="0.75"
+                />
+
+                {/* Eye whites — bright */}
+                <ellipse cx="35.5" cy="49.5" rx="6.4" ry="7.2" fill="#FFFFFF" />
+                <ellipse cx="60.5" cy="49.5" rx="6.4" ry="7.2" fill="#FFFFFF" />
+
+                {/* Tracking irises — sea-glass mermaid */}
+                <g
+                  clipPath="url(#motdChatEyeL)"
+                  transform={`translate(${fabGaze.eyeX} ${fabGaze.eyeY})`}
+                >
+                  <ellipse
+                    cx="35.7"
+                    cy="49.8"
+                    rx="4.6"
+                    ry="5.5"
+                    fill="url(#motdChatIris)"
+                  />
+                  <circle cx="35.7" cy="49.8" r="2.05" fill="#0A0604" />
+                  <circle cx="37.5" cy="47.6" r="1.7" fill="#FFF" />
+                  <circle
+                    cx="34"
+                    cy="52.2"
+                    r="0.75"
+                    fill="#FFF8F0"
+                    opacity="0.9"
+                  />
+                </g>
+                <g
+                  clipPath="url(#motdChatEyeR)"
+                  transform={`translate(${fabGaze.eyeX} ${fabGaze.eyeY})`}
+                >
+                  <ellipse
+                    cx="60.7"
+                    cy="49.8"
+                    rx="4.6"
+                    ry="5.5"
+                    fill="url(#motdChatIris)"
+                  />
+                  <circle cx="60.7" cy="49.8" r="2.05" fill="#0A0604" />
+                  <circle cx="62.5" cy="47.6" r="1.7" fill="#FFF" />
+                  <circle
+                    cx="59"
+                    cy="52.2"
+                    r="0.75"
+                    fill="#FFF8F0"
+                    opacity="0.9"
+                  />
+                </g>
+
+                {/* Soft upper lashes */}
+                <path
+                  d="M29.2 45.2c-.2-1.6.2-2.8.8-3.4M32 43.6c0-1.8.6-3 1.4-3.5M35.5 43c.1-1.9.8-3.1 1.7-3.5M39 43.8c.4-1.6 1.2-2.7 2-3"
+                  fill="none"
+                  stroke="#2A1810"
+                  strokeWidth="0.8"
+                  strokeLinecap="round"
+                  opacity="0.4"
+                />
+                <path
+                  d="M54.2 45.2c-.2-1.6.2-2.8.8-3.4M57 43.6c0-1.8.6-3 1.4-3.5M60.5 43c.1-1.9.8-3.1 1.7-3.5M64 43.8c.4-1.6 1.2-2.7 2-3"
+                  fill="none"
+                  stroke="#2A1810"
+                  strokeWidth="0.8"
+                  strokeLinecap="round"
+                  opacity="0.4"
+                />
+
+                {/* Tiny nose — light */}
+                <path
+                  d="M48 54.8c1.35 2.1 1.25 3.5-.15 4.15"
+                  fill="none"
+                  stroke="#E0B8A0"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                />
+
+                {/* Bright smile */}
+                <path
+                  d="M39.5 63.2c2.2 1.2 5.5 1.9 8.5 1.9s6.3-.7 8.5-1.9c-2.4 3.8-5.8 5.6-8.5 5.6s-6.1-1.8-8.5-5.6z"
+                  fill="url(#motdChatLip)"
+                />
+                <path
+                  d="M41.2 63.6c2.1 1.5 5.2 2.2 6.8 2.2s4.7-.7 6.8-2.2"
+                  fill="none"
+                  stroke="#FFF0F3"
+                  strokeWidth="1.1"
+                  strokeLinecap="round"
+                  opacity="0.85"
+                />
+
+                {/* Elegant gold earring */}
+                <circle cx="21.5" cy="59.5" r="1.7" fill="url(#motdChatGold)" />
+                <path
+                  d="M21.5 61.4v3.8"
+                  stroke="url(#motdChatGold)"
+                  strokeWidth="1.15"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M21.5 65.4c1.6 0 2.5 1.1 2.5 2.4s-.9 2.4-2.5 2.4-2.5-1.1-2.5-2.4.9-2.4 2.5-2.4z"
+                  fill="url(#motdChatGold)"
+                />
+
+                {/* Headset — headphones + boom mic */}
+                <path
+                  d="M19.5 45c2.2-16.5 12.5-27 28.5-27s26.3 10.5 28.5 27"
+                  fill="none"
+                  stroke="url(#motdChatHp)"
+                  strokeWidth="3.4"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M21.5 45c2-14.5 11.2-24 26.5-24s24.5 9.5 26.5 24"
+                  fill="none"
+                  stroke="url(#motdChatGold)"
+                  strokeWidth="1.15"
+                  strokeLinecap="round"
+                  opacity="0.85"
+                />
+                {/* Ear cups */}
+                <rect
+                  x="10.5"
+                  y="42.5"
+                  width="13.5"
+                  height="23"
+                  rx="6.5"
+                  fill="url(#motdChatHp)"
+                />
+                <rect
+                  x="72"
+                  y="42.5"
+                  width="13.5"
+                  height="23"
+                  rx="6.5"
+                  fill="url(#motdChatHp)"
+                />
+                <rect
+                  x="12.8"
+                  y="45.5"
+                  width="9"
+                  height="17"
+                  rx="4.5"
+                  fill="#1A1A1A"
+                />
+                <rect
+                  x="74.2"
+                  y="45.5"
+                  width="9"
+                  height="17"
+                  rx="4.5"
+                  fill="#1A1A1A"
+                />
+                <circle cx="17.3" cy="54" r="1.45" fill="url(#motdChatGold)" />
+                <circle cx="78.7" cy="54" r="1.45" fill="url(#motdChatGold)" />
+
+                {/* Boom mic arm from left cup toward the mouth */}
+                <path
+                  d="M22 62c4 8 10 14 18 16.5"
+                  fill="none"
+                  stroke="url(#motdChatHp)"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M22.5 62.2c3.6 7.2 9.2 12.8 16.5 15.2"
+                  fill="none"
+                  stroke="url(#motdChatGold)"
+                  strokeWidth="0.9"
+                  strokeLinecap="round"
+                  opacity="0.75"
+                />
+                {/* Mic capsule */}
+                <ellipse
+                  cx="42.5"
+                  cy="78.5"
+                  rx="5.2"
+                  ry="3.6"
+                  fill="url(#motdChatHp)"
+                  transform="rotate(-18 42.5 78.5)"
+                />
+                <ellipse
+                  cx="42.5"
+                  cy="78.5"
+                  rx="3.4"
+                  ry="2.2"
+                  fill="#222"
+                  transform="rotate(-18 42.5 78.5)"
+                />
+                <ellipse
+                  cx="41.2"
+                  cy="77.4"
+                  rx="1.1"
+                  ry="0.7"
+                  fill="url(#motdChatGold)"
+                  transform="rotate(-18 41.2 77.4)"
+                />
+              </g>
+            </svg>
           </motion.button>
         )}
       </AnimatePresence>
@@ -1902,10 +2345,11 @@ export default function FaqChatbot() {
               style={mobileViewportStyle}
               className={
                 liveChatOpen && liveChatExpanded
-                  ? "fixed z-50 flex min-h-0 max-w-[100vw] flex-col overflow-hidden overflow-x-hidden rounded-none border border-white/10 bg-[#FFFDF9] shadow-[0_24px_80px_rgba(0,0,0,0.28)] outline-none transition-[width,height,max-width,top,bottom] duration-300 ease-out xs:rounded-2xl bottom-[max(0.5rem,var(--safe-bottom))] start-[max(0.5rem,var(--safe-left))] end-[max(0.5rem,var(--safe-right))] w-auto h-[min(92dvh,44rem)] max-h-[calc(100dvh-1rem-var(--safe-top)-var(--safe-bottom))] sm:start-auto sm:bottom-[max(1.25rem,var(--safe-bottom))] sm:end-[max(1.25rem,var(--safe-right))] sm:w-[min(100vw-2.5rem,26rem)] sm:max-w-[26rem] sm:h-[min(84dvh,44rem)] md:bottom-[max(0.75rem,var(--safe-bottom))] md:top-[max(0.75rem,var(--safe-top))] md:end-[max(0.75rem,var(--safe-right))] md:h-auto md:max-h-[calc(100dvh-1.5rem)] md:w-[min(62vw,48rem)] md:max-w-[min(62vw,48rem)] lg:w-[min(58vw,52rem)] lg:max-w-[min(58vw,52rem)]"
-                  : "fixed z-50 flex min-h-0 max-w-[100vw] flex-col overflow-hidden overflow-x-hidden rounded-none border border-white/10 bg-[#FFFDF9] shadow-[0_24px_80px_rgba(0,0,0,0.28)] outline-none transition-[width,height,max-width,top,bottom] duration-300 ease-out xs:rounded-2xl bottom-[max(0.5rem,var(--safe-bottom))] start-[max(0.5rem,var(--safe-left))] end-[max(0.5rem,var(--safe-right))] w-auto h-[min(92dvh,44rem)] max-h-[calc(100dvh-1rem-var(--safe-top)-var(--safe-bottom))] sm:start-auto sm:bottom-[max(1.25rem,var(--safe-bottom))] sm:end-[max(1.25rem,var(--safe-right))] sm:w-[min(100vw-2.5rem,26rem)] sm:max-w-[26rem] sm:h-[min(84dvh,44rem)] md:bottom-[max(1.5rem,var(--safe-bottom))] md:end-[max(1.5rem,var(--safe-right))] md:top-auto md:w-[28rem] md:max-w-[28rem] md:h-[min(82dvh,46rem)]"
+                  ? "fixed inset-0 z-50 flex h-dvh w-full max-h-dvh min-h-0 max-w-[100vw] flex-col overflow-hidden overflow-x-hidden rounded-none border-0 bg-[#FFFDF9] shadow-[0_24px_80px_rgba(0,0,0,0.28)] outline-none transition-[width,height,max-width,top,bottom,inset] duration-300 ease-out min-[500px]:inset-auto min-[500px]:top-auto min-[500px]:bottom-[max(0.5rem,var(--safe-bottom))] min-[500px]:start-[max(0.5rem,var(--safe-left))] min-[500px]:end-[max(0.5rem,var(--safe-right))] min-[500px]:h-[min(92dvh,44rem)] min-[500px]:w-auto min-[500px]:max-h-[calc(100dvh-1rem-var(--safe-top)-var(--safe-bottom))] min-[500px]:rounded-2xl min-[500px]:border min-[500px]:border-white/10 sm:start-auto sm:bottom-[max(1.25rem,var(--safe-bottom))] sm:end-[max(1.25rem,var(--safe-right))] sm:w-[min(100vw-2.5rem,26rem)] sm:max-w-[26rem] sm:h-[min(84dvh,44rem)] md:bottom-[max(0.75rem,var(--safe-bottom))] md:top-[max(0.75rem,var(--safe-top))] md:end-[max(0.75rem,var(--safe-right))] md:h-auto md:max-h-[calc(100dvh-1.5rem)] md:w-[min(62vw,48rem)] md:max-w-[min(62vw,48rem)] lg:w-[min(58vw,52rem)] lg:max-w-[min(58vw,52rem)]"
+                  : "fixed inset-0 z-50 flex h-dvh w-full max-h-dvh min-h-0 max-w-[100vw] flex-col overflow-hidden overflow-x-hidden rounded-none border-0 bg-[#FFFDF9] shadow-[0_24px_80px_rgba(0,0,0,0.28)] outline-none transition-[width,height,max-width,top,bottom,inset] duration-300 ease-out min-[500px]:inset-auto min-[500px]:top-auto min-[500px]:bottom-[max(0.5rem,var(--safe-bottom))] min-[500px]:start-[max(0.5rem,var(--safe-left))] min-[500px]:end-[max(0.5rem,var(--safe-right))] min-[500px]:h-[min(92dvh,44rem)] min-[500px]:w-auto min-[500px]:max-h-[calc(100dvh-1rem-var(--safe-top)-var(--safe-bottom))] min-[500px]:rounded-2xl min-[500px]:border min-[500px]:border-white/10 sm:start-auto sm:bottom-[max(1.25rem,var(--safe-bottom))] sm:end-[max(1.25rem,var(--safe-right))] sm:w-[min(100vw-2.5rem,26rem)] sm:max-w-[26rem] sm:h-[min(84dvh,44rem)] md:bottom-[max(1.5rem,var(--safe-bottom))] md:end-[max(1.5rem,var(--safe-right))] md:top-auto md:w-[28rem] md:max-w-[28rem] md:h-[min(82dvh,46rem)]"
               }
             >
+              <CustomerAudioCallPanelOverlay />
               <AnimatePresence>
                 {liveChatOpen ? (
                   <LiveChatPanel
@@ -1940,11 +2384,11 @@ export default function FaqChatbot() {
                 ) : null}
               </AnimatePresence>
               {/* Header with in-panel close */}
-              <header className="relative shrink-0 overflow-hidden bg-black px-3.5 py-3 sm:px-4 sm:py-3.5 text-white">
+              <header className="relative shrink-0 overflow-hidden bg-black px-3.5 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-white sm:px-4 sm:pb-3.5 sm:pt-[max(0.875rem,env(safe-area-inset-top))]">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.12),transparent_55%)]" />
                 <div className="relative flex items-center gap-2.5 sm:gap-3">
                   <motion.span
-                    className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full bg-white text-black [font-family:var(--font-display)] text-[14px] sm:text-[15px] tracking-wide"
+                    className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full bg-white text-black [font-family:var(--font-display)] text-[13px] sm:text-[15px] tracking-wide"
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ delay: 0.08, type: "spring", stiffness: 400, damping: 20 }}
@@ -1953,7 +2397,7 @@ export default function FaqChatbot() {
                   </motion.span>
                   <div className="min-w-0 flex-1">
                     <motion.h2
-                      className="[font-family:var(--font-display)] text-[16px] sm:text-[17px] font-light leading-tight tracking-tight"
+                      className="chat-text-title font-light leading-tight tracking-tight [font-family:var(--font-display)]"
                       initial={{ opacity: 0, x: isAr ? 8 : -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.1, duration: 0.3, ease: EASE }}
@@ -2031,11 +2475,11 @@ export default function FaqChatbot() {
                             <div
                               className={
                                 isUser
-                                  ? "max-w-full rounded-2xl rounded-se-md bg-black px-3.5 py-2.5 text-white shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                                  ? "max-w-full rounded-2xl rounded-se-md bg-black/80 px-3.5 py-2.5 text-white shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
                                   : "max-w-full rounded-2xl rounded-ss-md border border-[#E8E8E4] bg-white/95 px-3.5 py-2.5 text-[#1a1a1a] shadow-[0_6px_20px_rgba(0,0,0,0.05)] backdrop-blur-sm"
                               }
                             >
-                              <p className="whitespace-pre-line break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[13px] sm:text-[13.5px] leading-[1.55]">
+                              <p className="chat-text-body whitespace-pre-line break-words [overflow-wrap:anywhere] leading-[1.55]">
                                 {msg.text}
                               </p>
                             </div>
@@ -2092,7 +2536,7 @@ export default function FaqChatbot() {
                       <div className="flex flex-col gap-3">
                         <div>
                           <p
-                            className={`[font-family:var(--font-display)] text-[14px] ${
+                            className={`[font-family:var(--font-display)] text-[13px] sm:text-[14px] ${
                               isDamageClaim ? "text-red-800" : "text-black"
                             }`}
                           >
@@ -2100,7 +2544,7 @@ export default function FaqChatbot() {
                               ? copy.damageTitle
                               : copy.supportFormTitle}
                           </p>
-                          <p className="mt-1 [font-family:var(--font-body)] text-[12px] leading-relaxed text-[#5A5A56]">
+                          <p className="mt-1 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] leading-relaxed text-[#5A5A56]">
                             {isDamageClaim
                               ? isRegisteredMember
                                 ? copy.damageMemberHint
@@ -2127,7 +2571,7 @@ export default function FaqChatbot() {
                               repeat: Infinity,
                               ease: "easeInOut",
                             }}
-                            className="rounded-xl border px-3 py-2.5 [font-family:var(--font-body)] text-[12.5px] font-medium leading-snug"
+                            className="rounded-xl border px-3 py-2.5 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] font-medium leading-snug"
                           >
                             {copy.supportOrderHint}
                           </motion.p>
@@ -2139,7 +2583,7 @@ export default function FaqChatbot() {
                               <dt className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.14em] text-[#8A8A80]">
                                 {copy.supportName}
                               </dt>
-                              <dd className="mt-0.5 break-words [font-family:var(--font-body)] text-[13px] text-black">
+                              <dd className="mt-0.5 break-words [font-family:var(--font-body)] text-[12.5px] sm:text-[13px] text-black">
                                 {formName}
                               </dd>
                             </div>
@@ -2147,7 +2591,7 @@ export default function FaqChatbot() {
                               <dt className="[font-family:var(--font-ui)] text-[9px] uppercase tracking-[0.14em] text-[#8A8A80]">
                                 {copy.supportEmail}
                               </dt>
-                              <dd className="mt-0.5 break-words [font-family:var(--font-body)] text-[13px] text-black">
+                              <dd className="mt-0.5 break-words [font-family:var(--font-body)] text-[12.5px] sm:text-[13px] text-black">
                                 {formEmail}
                               </dd>
                             </div>
@@ -2309,8 +2753,8 @@ export default function FaqChatbot() {
                             whileTap={{ scale: 0.98 }}
                             className={
                               isDamageClaim
-                                ? "inline-flex flex-1 items-center justify-center rounded-full border border-red-300 bg-red-600 px-4 py-2.5 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-red-700 disabled:opacity-50 hover:cursor-pointer"
-                                : "inline-flex flex-1 items-center justify-center rounded-full border border-black bg-black px-4 py-2.5 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
+                                ? "inline-flex flex-1 items-center justify-center rounded-full border border-red-300 bg-red-600 px-4 py-2.5 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-white transition hover:bg-red-700 disabled:opacity-50 hover:cursor-pointer"
+                                : "inline-flex flex-1 items-center justify-center rounded-full border border-black bg-black px-4 py-2.5 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-white transition hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
                             }
                           >
                             {supportSubmitting ? copy.supportSubmitting : copy.supportSubmit}
@@ -2319,7 +2763,7 @@ export default function FaqChatbot() {
                             type="button"
                             disabled={supportSubmitting}
                             onClick={backFromSupport}
-                            className="inline-flex flex-1 items-center justify-center rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-4 py-2.5 [font-family:var(--font-body)] text-[12px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer"
+                            className="inline-flex flex-1 items-center justify-center rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-4 py-2.5 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer"
                           >
                             {copy.backToTopics}
                           </button>
@@ -2328,10 +2772,10 @@ export default function FaqChatbot() {
                     ) : (
                       <div className="flex flex-col gap-3">
                         <div>
-                          <p className="[font-family:var(--font-display)] text-[14px] text-black">
+                          <p className="[font-family:var(--font-display)] text-[13px] sm:text-[14px] text-black">
                             {copy.supportSuccessTitle}
                           </p>
-                          <p className="mt-1 [font-family:var(--font-body)] text-[12px] leading-relaxed text-[#5A5A56]">
+                          <p className="mt-1 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] leading-relaxed text-[#5A5A56]">
                             {isDamageClaim
                               ? copy.damageSuccessBody
                               : copy.supportSuccessBody}
@@ -2350,7 +2794,7 @@ export default function FaqChatbot() {
                         <button
                           type="button"
                           onClick={backFromSupport}
-                          className="inline-flex items-center justify-center rounded-full border border-black bg-black px-4 py-2.5 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-white hover:text-black hover:cursor-pointer"
+                          className="inline-flex items-center justify-center rounded-full border border-black bg-black px-4 py-2.5 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-white transition hover:bg-white hover:text-black hover:cursor-pointer"
                         >
                           {copy.backToTopics}
                         </button>
@@ -2376,10 +2820,10 @@ export default function FaqChatbot() {
                   >
                     <div className="flex flex-col gap-3">
                       <div>
-                        <p className="[font-family:var(--font-display)] text-[14px] text-black">
+                        <p className="[font-family:var(--font-display)] text-[13px] sm:text-[14px] text-black">
                           {copy.trackTitle}
                         </p>
-                        <p className="mt-1 [font-family:var(--font-body)] text-[12px] leading-relaxed text-[#5A5A56]">
+                        <p className="mt-1 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] leading-relaxed text-[#5A5A56]">
                           {isRegisteredMember
                             ? copy.trackHint
                             : copy.trackHintGuest}
@@ -2470,7 +2914,7 @@ export default function FaqChatbot() {
                           disabled={!canSubmitTrack}
                           onClick={() => void submitTrackOrder()}
                           whileTap={{ scale: 0.98 }}
-                          className="inline-flex flex-1 items-center justify-center rounded-full border border-black bg-black px-4 py-2.5 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
+                          className="inline-flex flex-1 items-center justify-center rounded-full border border-black bg-black px-4 py-2.5 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-white transition hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
                         >
                           {trackSubmitting ? copy.trackSubmitting : copy.trackSubmit}
                         </motion.button>
@@ -2478,7 +2922,7 @@ export default function FaqChatbot() {
                           type="button"
                           disabled={trackSubmitting}
                           onClick={backFromTrack}
-                          className="inline-flex flex-1 items-center justify-center rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-4 py-2.5 [font-family:var(--font-body)] text-[12px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer"
+                          className="inline-flex flex-1 items-center justify-center rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-4 py-2.5 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer"
                         >
                           {copy.backToTopics}
                         </button>
@@ -2500,10 +2944,10 @@ export default function FaqChatbot() {
                   >
                     <div className="mb-2 flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-[#8A8A80]">
+                        <p className="[font-family:var(--font-ui)] text-[9px] sm:text-[10px] uppercase tracking-[0.16em] text-[#8A8A80]">
                           {copy.fabricStorePickerTitle}
                         </p>
-                        <p className="mt-1 [font-family:var(--font-body)] text-[12px] leading-snug text-[#5A5A56]">
+                        <p className="mt-1 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] leading-snug text-[#5A5A56]">
                           {copy.fabricStorePickerHint}
                         </p>
                       </div>
@@ -2540,7 +2984,7 @@ export default function FaqChatbot() {
                               <Store className="h-4 w-4" strokeWidth={1.5} />
                             )}
                           </span>
-                          <span className="min-w-0 flex-1 truncate [font-family:var(--font-body)] text-[13px] text-black">
+                          <span className="min-w-0 flex-1 truncate [font-family:var(--font-body)] text-[12.5px] sm:text-[13px] text-black">
                             {isAr && store.nameAr ? store.nameAr : store.name}
                           </span>
                         </motion.button>
@@ -2597,7 +3041,7 @@ export default function FaqChatbot() {
                       >
                         {resumableLiveChat ? (
                           <div className="flex shrink-0 flex-col gap-2 rounded-xl border border-[#E8E8E4] bg-[#F7F5F0] px-3 py-2.5">
-                            <p className="[font-family:var(--font-body)] text-[12px] leading-snug text-[#5A5A56]">
+                            <p className="[font-family:var(--font-body)] text-[12px] sm:text-[12.5px] leading-snug text-[#5A5A56]">
                               {copy.resumeLiveHint}
                             </p>
                             <div className="flex min-w-0 flex-col gap-1.5 xs:flex-row xs:flex-wrap">
@@ -2606,7 +3050,7 @@ export default function FaqChatbot() {
                                 disabled={busy || liveChatOpen}
                                 onClick={() => void openLiveChat()}
                                 whileTap={{ scale: 0.98 }}
-                                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-black bg-black px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-black bg-black px-3.5 py-2 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-white transition hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
                               >
                                 <Headset className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
                                 <span className="min-w-0 truncate">{copy.continueChat}</span>
@@ -2616,7 +3060,7 @@ export default function FaqChatbot() {
                                 disabled={busy}
                                 onClick={() => setTopicsExpanded(true)}
                                 whileTap={{ scale: 0.98 }}
-                                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
                               >
                                 <LayoutGrid className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
                                 <span className="min-w-0 truncate">{copy.selectTopics}</span>
@@ -2630,7 +3074,7 @@ export default function FaqChatbot() {
                             disabled={busy || liveChatOpen}
                             onClick={() => void openFabricStorePicker()}
                             whileTap={{ scale: 0.99 }}
-                            className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2.5 [font-family:var(--font-body)] text-[12px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                            className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2.5 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
                           >
                             <Store className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
                             {copy.talkToFabricStore}
@@ -2645,7 +3089,7 @@ export default function FaqChatbot() {
                           aria-expanded={topicsExpanded}
                           className="flex w-full shrink-0 items-center justify-between gap-2 rounded-xl border border-[#E8E8E4] bg-black px-3 py-3 text-start text-white transition hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
                         >
-                          <span className="min-w-0 [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em]">
+                          <span className="min-w-0 [font-family:var(--font-ui)] text-[9px] sm:text-[10px] uppercase tracking-[0.16em]">
                             {topicsExpanded
                               ? copy.showLess
                               : copy.showTopics(CHATBOT_FAQ_SECTIONS.length)}
@@ -2712,7 +3156,7 @@ export default function FaqChatbot() {
                                       >
                                         <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
                                       </span>
-                                      <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12.5px] leading-snug">
+                                      <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12px] leading-snug sm:text-[12.5px]">
                                         {isAr ? section.titleAr : section.titleEn}
                                       </span>
                                     </motion.button>
@@ -2733,7 +3177,7 @@ export default function FaqChatbot() {
                                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-black">
                                       <Headset className="h-3.5 w-3.5" strokeWidth={1.5} />
                                     </span>
-                                    <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12.5px] leading-snug">
+                                    <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12px] leading-snug sm:text-[12.5px]">
                                       {copy.talkToAgent}
                                     </span>
                                   </motion.button>
@@ -2753,7 +3197,7 @@ export default function FaqChatbot() {
                                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-white">
                                       <Store className="h-3.5 w-3.5" strokeWidth={1.5} />
                                     </span>
-                                    <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12.5px] leading-snug">
+                                    <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12px] leading-snug sm:text-[12.5px]">
                                       {copy.talkToFabricStore}
                                     </span>
                                   </motion.button>
@@ -2781,7 +3225,7 @@ export default function FaqChatbot() {
                             aria-expanded={questionsExpanded}
                             className="flex w-full shrink-0 items-center justify-between gap-2 rounded-xl border border-[#E8E8E4] bg-black px-3 py-3 text-start text-white transition hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
                           >
-                            <span className="min-w-0 [font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em]">
+                            <span className="min-w-0 [font-family:var(--font-ui)] text-[9px] sm:text-[10px] uppercase tracking-[0.16em]">
                               {questionsExpanded
                                 ? copy.showLess
                                 : copy.showMore(count)}
@@ -2844,7 +3288,7 @@ export default function FaqChatbot() {
                                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-black">
                                         <Headset className="h-3.5 w-3.5" strokeWidth={1.5} />
                                       </span>
-                                      <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12.5px] leading-snug">
+                                      <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12px] leading-snug sm:text-[12.5px]">
                                         {copy.talkToAgent}
                                       </span>
                                     </motion.button>
@@ -2862,7 +3306,7 @@ export default function FaqChatbot() {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ delay: 0.2 }}
-                            className="mt-0.5 inline-flex shrink-0 items-center gap-1.5 self-start rounded-full px-2 py-1 [font-family:var(--font-ui)] text-[10px] uppercase tracking-wider text-[#8A8A80] transition hover:text-black disabled:opacity-50 hover:cursor-pointer"
+                            className="mt-0.5 inline-flex shrink-0 items-center gap-1.5 self-start rounded-full px-2 py-1 [font-family:var(--font-ui)] text-[9px] sm:text-[10px] uppercase tracking-wider text-[#8A8A80] transition hover:text-black disabled:opacity-50 hover:cursor-pointer"
                           >
                             <LayoutGrid className="h-3 w-3" strokeWidth={1.5} />
                             {copy.otherTopics}
@@ -2873,7 +3317,7 @@ export default function FaqChatbot() {
 
                     {quickReplies.kind === "afterAnswer" && (
                       <div className="flex min-w-0 flex-col gap-2.5 overflow-x-hidden">
-                        <p className="[font-family:var(--font-body)] text-[12px] text-[#5A5A56]">
+                        <p className="[font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-[#5A5A56]">
                           {copy.moreInTopic(displayName || undefined)}
                         </p>
                         <div className="flex min-w-0 flex-wrap gap-1.5">
@@ -2940,10 +3384,10 @@ export default function FaqChatbot() {
                                 }
                                 className={
                                   action.key === "agent"
-                                    ? "inline-flex w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border border-black bg-black px-3.5 py-2.5 text-center [font-family:var(--font-body)] text-[12px] leading-snug text-white transition-colors hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                    ? "inline-flex w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border border-black bg-black px-3.5 py-2.5 text-center [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] leading-snug text-white transition-colors hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
                                     : action.primary
-                                      ? "inline-flex items-center gap-1.5 rounded-full border border-black bg-black px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-white transition-colors hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
-                                      : "inline-flex items-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-black transition-colors hover:border-black hover:bg-black hover:text-white disabled:opacity-50 hover:cursor-pointer"
+                                      ? "inline-flex items-center gap-1.5 rounded-full border border-black bg-black px-3.5 py-2 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-white transition-colors hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
+                                      : "inline-flex items-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-black transition-colors hover:border-black hover:bg-black hover:text-white disabled:opacity-50 hover:cursor-pointer"
                                 }
                               >
                                 <Icon className="h-3 w-3 shrink-0" strokeWidth={1.5} />
@@ -2969,7 +3413,7 @@ export default function FaqChatbot() {
                 <p className="mb-2 px-1 [font-family:var(--font-body)] text-[11px] text-[#8A8A80]">
                   {copy.nameHint}
                 </p>
-                <div className="flex min-w-0 w-full items-center gap-2 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-2.5 py-1 sm:px-3 sm:py-1.5 transition focus-within:border-black">
+                <div className="chat-composer-shell flex min-w-0 w-full items-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-2 py-0.5 transition focus-within:border-black sm:gap-2 sm:px-3 sm:py-1">
                   <input
                     ref={inputRef}
                     type="text"
@@ -2991,7 +3435,7 @@ export default function FaqChatbot() {
                         });
                       }, 350);
                     }}
-                    className="min-w-0 w-full flex-1 bg-transparent py-2 sm:py-1.5 [font-family:var(--font-body)] text-[16px] sm:text-[13px] text-black outline-none placeholder:text-[#8A8A80] disabled:opacity-60"
+                    className="chat-composer-input min-w-0 w-full flex-1 bg-transparent py-1 text-black outline-none placeholder:text-[#8A8A80] disabled:opacity-60 sm:py-1.5"
                   />
                   <motion.button
                     type="submit"
@@ -2999,7 +3443,7 @@ export default function FaqChatbot() {
                     aria-label={copy.send}
                     whileHover={{ scale: 1.06 }}
                     whileTap={{ scale: 0.94 }}
-                    className="flex h-10 w-10 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full bg-black text-white transition disabled:opacity-35 hover:cursor-pointer disabled:hover:cursor-not-allowed touch-manipulation"
+                    className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full bg-black text-white transition disabled:opacity-35 hover:cursor-pointer disabled:hover:cursor-not-allowed touch-manipulation"
                   >
                     <Send className={`h-3.5 w-3.5 ${isAr ? "-scale-x-100" : ""}`} strokeWidth={1.75} />
                   </motion.button>

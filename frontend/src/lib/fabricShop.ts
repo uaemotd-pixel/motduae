@@ -199,6 +199,8 @@ export interface FabricShopProfile {
   rating?: number;
   reviewCount?: number;
   isActive?: boolean;
+  /** Admin gate for in-chat audio calls with customers. */
+  allowLiveChatAudioCalls?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
