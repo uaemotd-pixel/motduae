@@ -15,6 +15,7 @@ const CATEGORY_LABELS = {
   notifications: "Notifications",
   reviews: "Reviews",
   queries: "Queries",
+  customerSupport: "Customer Support",
   subAdmins: "Sub Admins",
   auth: "Sign-in & accounts",
   dashboard: "Dashboard",

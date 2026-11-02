@@ -44,6 +44,7 @@ import wishlistRoutes from "./routes/wishlistRoutes.js";
 import activityLogRouter from "./routes/activityLogRoutes.js";
 import faqSupportRouter from "./routes/faqSupportRoutes.js";
 import faqSupportAdminRouter from "./routes/faqSupportAdminRoutes.js";
+import supportChatRouter from "./routes/supportChatRoutes.js";
 import {
   captureActivity,
   captureAdminActivity,
@@ -170,6 +171,7 @@ app.use(
 );
 app.use("/api/filters", filterRoutes);
 app.use("/api/faq-support", faqSupportRouter);
+app.use("/api/support-chat", supportChatRouter);
 app.use(notFound);
 app.use(errorHandler);
 

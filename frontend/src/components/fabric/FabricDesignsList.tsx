@@ -371,7 +371,7 @@ export default function FabricDesignsList() {
 
   if (loading && fabrics.length === 0) {
     return (
-      <div className="max-w-5xl border border-(--color-border) bg-white p-8">
+      <div className="w-full border border-(--color-border) bg-white p-8">
         <p className="[font-family:var(--font-ui)] text-sm uppercase tracking-[0.2em] text-(--color-grey-muted)">
           {t("loading")}
         </p>
@@ -399,7 +399,7 @@ export default function FabricDesignsList() {
   }
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="w-full space-y-6">
       {shop && !isShopProfileComplete(shop) && (
         <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">

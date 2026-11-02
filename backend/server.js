@@ -1,9 +1,11 @@
+import http from "http";
 import { env } from "./config/env.js";
 import { connectDB } from "./db/connect.js";
 import app from "./app.js";
 import { ensureDesignsHaveMinCut } from "./utils/designMinCutMigration.js";
 import { startOldDataPurgeScheduler } from "./jobs/purgeOldData.js";
 import { connectRateLimitRedis } from "./services/rateLimitRedis.js";
+import { initSocketServer } from "./realtime/socketServer.js";
 
 process.on("unhandledRejection", (reason) => {
   console.error(`[${new Date().toISOString()}] Unhandled rejection:`, reason);
@@ -18,7 +20,9 @@ connectDB()
   .then(async () => {
     await ensureDesignsHaveMinCut();
     await connectRateLimitRedis();
-    app.listen(env.port, () => {
+    const httpServer = http.createServer(app);
+    initSocketServer(httpServer);
+    httpServer.listen(env.port, () => {
       console.log(`MOTD API running at http://localhost:${env.port}`);
       if (env.redisUrl) {
         console.log("Rate limits use Redis");
