@@ -18,7 +18,7 @@ export default function CustomerNotificationBell() {
   >([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const { count } = useNotificationUnreadCount("customer", true, 30000);
+  const { count } = useNotificationUnreadCount("customer", true, 15000);
   const { fetchPreview } = useNotifications({
     audience: "customer",
     enabled: false,

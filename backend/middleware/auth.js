@@ -109,36 +109,41 @@ export const optionalAuth = async (req, res, next) => {
   next();
 };
 
-export const isAuth = async (req, res, next) => {
-  setPrivateNoStore(res);
-  const token = extractAuthToken(req);
-  if (!token) {
-    res.status(401).send({ message: "No Token" });
-    return;
+/**
+ * Shared JWT + session resolution for HTTP isAuth and the socket handshake.
+ * Returns { ok: true, user } or { ok: false, status, message, isActive? }.
+ */
+export async function resolveAuthFromToken(token) {
+  if (!token || !String(token).trim()) {
+    return { ok: false, status: 401, message: "No Token" };
   }
 
   try {
-    const decode = jwt.verify(token, env.jwtSecret, JWT_SIGN_OPTIONS);
+    const decode = jwt.verify(
+      String(token).trim(),
+      env.jwtSecret,
+      JWT_SIGN_OPTIONS,
+    );
     const sid = String(decode.sid || "").trim();
     if (!sid || !(await authSessionIsActive(sid, decode._id))) {
-      res.status(401).send({ message: "Invalid Token" });
-      return;
+      return { ok: false, status: 401, message: "Invalid Token" };
     }
+
     const user = await User.findById(decode._id).select(
       "name email role isAdmin isActive approvalStatus emailVerified applicationSubmittedAt requestNumber rejectionNote",
     );
 
     if (!user) {
-      res.status(401).send({ message: "User not found" });
-      return;
+      return { ok: false, status: 401, message: "User not found" };
     }
 
     if (user.isActive === false) {
-      res.status(403).send({
+      return {
+        ok: false,
+        status: 403,
         message: "Account is deactivated",
         isActive: false,
-      });
-      return;
+      };
     }
 
     const isGuest = isGuestUser(user);
@@ -146,12 +151,10 @@ export const isAuth = async (req, res, next) => {
       ? String(decode.guestSessionId || "").trim()
       : "";
     if (isGuest && !guestSessionId) {
-      res.status(401).send({ message: "Invalid Token" });
-      return;
+      return { ok: false, status: 401, message: "Invalid Token" };
     }
 
-    // Revalidate privileged claims from DB so revoked admin/role cannot linger in JWT
-    req.user = {
+    const authUser = {
       _id: user._id,
       name: user.name,
       email: user.email,
@@ -178,13 +181,28 @@ export const isAuth = async (req, res, next) => {
       const profile = await SubAdmin.findOne({ email: user.email })
         .select("perms")
         .lean();
-      req.user.perms = profile?.perms || {};
+      authUser.perms = profile?.perms || {};
     }
 
-    next();
+    return { ok: true, user: authUser };
   } catch {
-    res.status(401).send({ message: "Invalid Token" });
+    return { ok: false, status: 401, message: "Invalid Token" };
   }
+}
+
+export const isAuth = async (req, res, next) => {
+  setPrivateNoStore(res);
+  const token = extractAuthToken(req);
+  const result = await resolveAuthFromToken(token);
+  if (!result.ok) {
+    const body = { message: result.message };
+    if (result.isActive === false) body.isActive = false;
+    res.status(result.status).send(body);
+    return;
+  }
+
+  req.user = result.user;
+  next();
 };
 
 /** Full admin or sub-admin (staff). */

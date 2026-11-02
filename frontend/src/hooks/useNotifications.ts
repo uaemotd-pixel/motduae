@@ -12,6 +12,7 @@ import {
   type NotificationPagination,
   NOTIFICATION_REFRESH_EVENT,
 } from "@/lib/notifications";
+import { getSocket } from "@/lib/realtime/socket";
 
 type UseNotificationsOptions = {
   audience: NotificationAudience;
@@ -367,11 +368,23 @@ export function useNotificationUnreadCount(
     const interval = setInterval(refresh, pollIntervalMs);
     const onRefresh = () => refresh();
     window.addEventListener(NOTIFICATION_REFRESH_EVENT, onRefresh);
+
+    // If a realtime socket is already connected (e.g. live chat open), refresh
+    // the badge immediately. Do not connect here — staff sockets count as online.
+    const socket = getSocket();
+    const onSocketPing = (payload?: { audience?: string }) => {
+      if (payload?.audience && payload.audience !== audience) return;
+      refresh();
+      dispatchNotificationRefresh();
+    };
+    socket.on("notifications:updated", onSocketPing);
+
     return () => {
       clearInterval(interval);
       window.removeEventListener(NOTIFICATION_REFRESH_EVENT, onRefresh);
+      socket.off("notifications:updated", onSocketPing);
     };
-  }, [enabled, pollIntervalMs, refresh]);
+  }, [audience, enabled, pollIntervalMs, refresh]);
 
   return { count, refresh };
 }

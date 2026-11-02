@@ -8,7 +8,10 @@ import {
   useNotificationUnreadCount,
   useNotifications,
 } from "@/hooks/useNotifications";
-import { getNotificationTypeLabel } from "@/lib/notifications";
+import {
+  getNotificationTypeLabel,
+  showDesktopNotification,
+} from "@/lib/notifications";
 
 export default function AdminNotificationBell() {
   const tn = useTranslations("Admin.Notifications");
@@ -18,7 +21,8 @@ export default function AdminNotificationBell() {
   >([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const { count } = useNotificationUnreadCount("admin", true, 30000);
+  const prevCountRef = useRef<number | null>(null);
+  const { count } = useNotificationUnreadCount("admin", true, 15000);
   const { fetchPreview } = useNotifications({
     audience: "admin",
     enabled: false,
@@ -38,6 +42,20 @@ export default function AdminNotificationBell() {
     };
     load();
   }, [open, fetchPreview, count]);
+
+  useEffect(() => {
+    if (prevCountRef.current == null) {
+      prevCountRef.current = count;
+      return;
+    }
+    if (count > prevCountRef.current) {
+      showDesktopNotification(
+        tn("desktopAlertTitle"),
+        tn("desktopAlertBody", { count }),
+      );
+    }
+    prevCountRef.current = count;
+  }, [count, tn]);
 
   useEffect(() => {
     const onClick = (event: MouseEvent) => {

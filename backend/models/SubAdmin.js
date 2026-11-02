@@ -39,6 +39,7 @@ const SubAdminSchema = new mongoose.Schema({
     notifications: { type: Boolean, default: false },
     reviews: { type: Boolean, default: false },
     queries: { type: Boolean, default: false },
+    customerSupport: { type: Boolean, default: false },
   },
   isActive: { type: Boolean, default: true, required: true },
   createdAt: { type: Date, default: Date.now },

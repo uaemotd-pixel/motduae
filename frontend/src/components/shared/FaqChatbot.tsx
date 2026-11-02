@@ -24,7 +24,6 @@ import {
   LayoutGrid,
   Send,
   ChevronDown,
-  HelpCircle,
   Globe2,
   UserRound,
   Shirt,
@@ -36,6 +35,7 @@ import {
   Undo2,
   ShieldCheck,
   AlertTriangle,
+  Headset,
 } from "lucide-react";
 import {
   FAQ_ITEMS,
@@ -46,7 +46,15 @@ import {
 } from "@/data/motdFaqs";
 import { useAuth } from "@/context/AuthContext";
 import { api, getApiErrorMessage } from "@/lib/api/client";
+import {
+  getActiveLiveSession,
+  listDealtWithFabricStores,
+  type DealtWithFabricStore,
+} from "@/lib/api/supportChat";
 import { displayOrderId } from "@/lib/customOrders";
+import LiveChatPanel, {
+  type LiveChatContext,
+} from "@/components/shared/LiveChatPanel";
 
 export const FAQ_CHAT_OPEN_EVENT = "motd-faq-chat-open";
 
@@ -329,6 +337,15 @@ function notifyChatOpen(open: boolean) {
   );
 }
 
+function setStorefrontScrollLocked(locked: boolean) {
+  if (typeof window === "undefined") return;
+  const lenis = (
+    window as Window & { lenis?: { stop?: () => void; start?: () => void } }
+  ).lenis;
+  if (locked) lenis?.stop?.();
+  else lenis?.start?.();
+}
+
 /** True when the text contains Arabic letters (used to pick reply language). */
 function containsArabic(text: string): boolean {
   return /[\u0600-\u06FF]/.test(text);
@@ -385,30 +402,6 @@ function findBestFaq(query: string): FAQItem | null {
   return bestScore >= 3 ? best : null;
 }
 
-function SupportNotFoundButton({
-  label,
-  onClick,
-  disabled,
-  className = "",
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-xl border border-dashed border-[#C8C8C0] bg-[#FFFDF9] px-3 py-2.5 text-center [font-family:var(--font-body)] text-[11.5px] sm:text-[12px] leading-snug text-[#5A5A56] transition hover:border-black hover:text-black disabled:opacity-50 hover:cursor-pointer touch-manipulation ${className}`}
-    >
-      <HelpCircle className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-      <span className="break-words [overflow-wrap:anywhere]">{label}</span>
-    </button>
-  );
-}
-
 function TypingDots() {
   return (
     <span className="flex items-center gap-1.5 px-0.5" aria-hidden>
@@ -436,6 +429,17 @@ export default function FaqChatbot() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [open, setOpen] = useState(false);
+  const [liveChatOpen, setLiveChatOpen] = useState(false);
+  /** Open agent thread exists — offer Continue chat vs browse topics on reopen. */
+  const [resumableLiveChat, setResumableLiveChat] = useState(false);
+  /** Fabric stores this customer has ordered from. */
+  const [fabricStores, setFabricStores] = useState<DealtWithFabricStore[]>([]);
+  const [fabricPickerOpen, setFabricPickerOpen] = useState(false);
+  const [liveChatContext, setLiveChatContext] = useState<LiveChatContext>({
+    sessionKind: "support",
+  });
+  /** Desktop half-screen expand while customer is in live agent chat. */
+  const [liveChatExpanded, setLiveChatExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [quickReplies, setQuickReplies] = useState<QuickReplies | null>(null);
   const [typing, setTyping] = useState(false);
@@ -469,7 +473,8 @@ export default function FaqChatbot() {
     "refund_processed",
   ]);
   /** Meaningful user exchanges (topic/question/typed). Support CTA unlocks after 2. */
-  const [userTurns, setUserTurns] = useState(0);
+  /** Live agent CTA — only after FAQ miss or after an answer (may still need help). */
+  const [offerLiveAgent, setOfferLiveAgent] = useState(false);
   const [trackView, setTrackView] = useState(false);
   const [trackOrderId, setTrackOrderId] = useState("");
   const [trackEmail, setTrackEmail] = useState("");
@@ -512,12 +517,12 @@ export default function FaqChatbot() {
         askName: "قبل أن نبدأ، ما اسمك؟",
         nameHint: "يرجى كتابة اسمك أدناه ثم اضغطي إرسال.",
         welcomeNamed: (name: string) =>
-          `تشرفنا يا ${name}! كيف يمكنني مساعدتك اليوم؟ اختر موضوعاً أو اكتبي سؤالك أدناه.`,
+          `تشرفنا يا ${name}! كيف يمكنني مساعدتك اليوم؟ اختر موضوعاً للبدء.`,
         welcomeNamedMember: (name: string) =>
-          `مرحباً بعودتك يا ${name}! يسعدنا مساعدتك. اختر موضوعاً أو اكتبي سؤالك أدناه.`,
+          `مرحباً بعودتك يا ${name}! يسعدنا مساعدتك. اختر موضوعاً للبدء.`,
         intro: "مرحباً! أهلاً بك في رعاية MOTD.",
         welcome:
-          "مرحباً! أنا فريق رعاية MOTD. كيف يمكنني مساعدتك اليوم؟ اختر موضوعاً للبدء، أو اكتبي سؤالك أدناه.",
+          "مرحباً! أنا فريق رعاية MOTD. كيف يمكنني مساعدتك اليوم؟ اختر موضوعاً للبدء.",
         sectionReply: (title: string, name?: string) =>
           name
             ? `حسناً يا ${name} — إليك أسئلة شائعة حول «${title}». اضغط على سؤالك.`
@@ -534,8 +539,8 @@ export default function FaqChatbot() {
             : "إذا احتجتِ مساعدة إضافية، راسلينا على care@motd.ae وسنرد عليكِ في أقرب وقت.",
         noMatch: (name?: string) =>
           name
-            ? `${name}، لم أجد إجابة دقيقة على ذلك. يمكنك اختيار موضوع أدناه، أو مراسلتنا على care@motd.ae.`
-            : "لم أجد إجابة دقيقة على ذلك. يمكنك اختيار موضوع أدناه، أو مراسلتنا على care@motd.ae.",
+            ? `${name}، لم أجد إجابة دقيقة على ذلك. يمكنك اختيار موضوع أدناه، أو التحدث مع وكيل إن احتجتِ مساعدة إضافية.`
+            : "لم أجد إجابة دقيقة على ذلك. يمكنك اختيار موضوع أدناه، أو التحدث مع وكيل إن احتجتِ مساعدة إضافية.",
         niceToMeet: (name: string) => `تشرفنا يا ${name}!`,
         contact: "تواصل معنا",
         close: "إغلاق الدردشة",
@@ -549,7 +554,21 @@ export default function FaqChatbot() {
         showMore: (n: number) => `اختر سؤالاً (${n})`,
         showTopics: (n: number) => `اختر موضوعاً (${n})`,
         showLess: "إخفاء",
-        notFoundLabel: "لم أجد ما أبحث عنه؟ تواصل مع وكيل الدعم",
+        talkToAgent: "تحدثي مع وكيل مباشرة",
+        continueChat: "متابعة المحادثة",
+        selectTopics: "اختيار المواضيع",
+        resumeLiveHint:
+          "لديكِ محادثة مفتوحة مع الدعم. تابعيها أو تصفحي المواضيع أدناه.",
+        talkToFabricStore: "تحدثي مع متجر أقمشة",
+        fabricStorePickerTitle: "اختاري متجراً",
+        fabricStorePickerHint:
+          "يمكنكِ الدردشة فقط مع متاجر تعاملتِ معها (طلب سابق).",
+        fabricStoreNone:
+          "لا توجد متاجر متاحة بعد. أكملي طلباً من متجر أقمشة أولاً.",
+        fabricStoreLoginRequired: "سجّلي الدخول للدردشة مع متجر أقمشة.",
+        fabricStoreBack: "رجوع",
+        liveChatOffline:
+          "لا يوجد وكلاء متصلون الآن. اتركي بياناتك وسنتواصل معكِ عبر البريد.",
         supportFormTitle: "تواصل مع فريق الرعاية",
         supportGuestHint:
           "اتركي اسمك وبريدك الإلكتروني وسيتواصل معكِ وكيل رعاية عملاء MOTD.",
@@ -628,12 +647,12 @@ export default function FaqChatbot() {
         askName: "Before we begin — what's your name?",
         nameHint: "Please type your name below, then press send.",
         welcomeNamed: (name: string) =>
-          `Nice to meet you, ${name}! How can I help you today? Pick a topic, or type your question below.`,
+          `Nice to meet you, ${name}! How can I help you today? Pick a topic to begin.`,
         welcomeNamedMember: (name: string) =>
-          `Welcome back, ${name}! How can I help you today? Pick a topic, or type your question below.`,
+          `Welcome back, ${name}! How can I help you today? Pick a topic to begin.`,
         intro: "Hi! Welcome to MOTD Care.",
         welcome:
-          "Hi! I'm with the MOTD Care team. How can I help you today? Pick a topic, or type your question below.",
+          "Hi! I'm with the MOTD Care team. How can I help you today? Pick a topic to begin.",
         sectionReply: (title: string, name?: string) =>
           name
             ? `Sure, ${name} — here are common questions about “${title}”. Tap the one you'd like answered.`
@@ -650,8 +669,8 @@ export default function FaqChatbot() {
             : "If you need more help, email us at care@motd.ae and we'll get back to you shortly.",
         noMatch: (name?: string) =>
           name
-            ? `${name}, I couldn't find an exact answer for that. You can choose a topic below, or email us at care@motd.ae.`
-            : "I couldn't find an exact answer for that. You can choose a topic below, or email us at care@motd.ae.",
+            ? `${name}, I couldn't find an exact answer for that. You can choose a topic below, or talk to an agent if you still need help.`
+            : "I couldn't find an exact answer for that. You can choose a topic below, or talk to an agent if you still need help.",
         niceToMeet: (name: string) => `Nice to meet you, ${name}!`,
         contact: "Contact us",
         close: "Close chat",
@@ -665,7 +684,21 @@ export default function FaqChatbot() {
         showMore: (n: number) => `Choose a question (${n})`,
         showTopics: (n: number) => `Choose a topic (${n})`,
         showLess: "Hide",
-        notFoundLabel: "Did not find what you want? Contact with support agent",
+        talkToAgent: "Talk to an agent",
+        continueChat: "Continue chat",
+        selectTopics: "Select topics",
+        resumeLiveHint:
+          "You have an open chat with support. Continue it, or browse topics below.",
+        talkToFabricStore: "Talk to a fabric store",
+        fabricStorePickerTitle: "Choose a store",
+        fabricStorePickerHint:
+          "You can only chat with stores you’ve ordered from before.",
+        fabricStoreNone:
+          "No eligible stores yet. Place an order with a fabric store first.",
+        fabricStoreLoginRequired: "Sign in to chat with a fabric store.",
+        fabricStoreBack: "Back",
+        liveChatOffline:
+          "No agents are online right now. Leave your details and we'll email you.",
         supportFormTitle: "Contact MOTD Support",
         supportGuestHint:
           "Share your name and email and a MOTD Customer Support Agent will contact you.",
@@ -770,19 +803,24 @@ export default function FaqChatbot() {
 
     scrollables.forEach((el) => {
       const onWheel = (event: WheelEvent) => {
+        // Drive scroll ourselves so Lenis / nested overflow ports cannot swallow
+        // the gesture on the FAQ topic/question lists or live-chat thread.
         event.stopPropagation();
-        const canScroll = el.scrollHeight > el.clientHeight + 1;
-        if (!canScroll) {
-          event.preventDefault();
+        event.preventDefault();
+
+        const canY = el.scrollHeight > el.clientHeight + 1;
+        const canX = el.scrollWidth > el.clientWidth + 1;
+        if (!canY && !canX) return;
+
+        // Prefer the dominant axis (trackpads often report both deltas).
+        if (canX && Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+          el.scrollLeft += event.deltaX;
           return;
         }
-        const scrollingUp = event.deltaY < 0;
-        const scrollingDown = event.deltaY > 0;
-        const atTop = el.scrollTop <= 0;
-        const atBottom =
-          el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
-        if ((scrollingUp && atTop) || (scrollingDown && atBottom)) {
-          event.preventDefault();
+        if (canY) {
+          el.scrollTop += event.deltaY;
+        } else if (canX) {
+          el.scrollLeft += event.deltaX || event.deltaY;
         }
       };
       el.addEventListener("wheel", onWheel, { passive: false });
@@ -790,7 +828,16 @@ export default function FaqChatbot() {
     });
 
     return () => cleanups.forEach((fn) => fn());
-  }, [open, messages.length, quickReplies, typing]);
+    // Rebind when expandable lists mount (topics/questions) or live chat opens.
+  }, [
+    open,
+    messages.length,
+    quickReplies,
+    typing,
+    liveChatOpen,
+    topicsExpanded,
+    questionsExpanded,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -810,6 +857,8 @@ export default function FaqChatbot() {
   // When the mobile keypad opens, `100dvh` / fixed `bottom` still refer to the
   // layout viewport, so the panel sits under the keyboard and feels stuck.
   // Pin height + bottom to `visualViewport` on small screens only.
+  // Also lock page scroll only on mobile (full-screen-ish overlay). On md+ the
+  // widget floats and the storefront should keep scrolling.
   useEffect(() => {
     if (!open) {
       setMobileViewportStyle(undefined);
@@ -819,11 +868,29 @@ export default function FaqChatbot() {
 
     const mobileQuery = window.matchMedia("(max-width: 639px)");
     let raf = 0;
+    let previousOverflow = document.body.style.overflow;
+    let pageScrollLocked = false;
+
+    const applyPageScrollLock = (shouldLock: boolean) => {
+      if (shouldLock === pageScrollLocked) return;
+      pageScrollLocked = shouldLock;
+      if (shouldLock) {
+        previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        setStorefrontScrollLocked(true);
+      } else {
+        document.body.style.overflow = previousOverflow;
+        setStorefrontScrollLocked(false);
+      }
+    };
 
     const syncViewport = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        if (!mobileQuery.matches) {
+        const isMobile = mobileQuery.matches;
+        applyPageScrollLock(isMobile);
+
+        if (!isMobile) {
           setMobileViewportStyle(undefined);
           return;
         }
@@ -856,9 +923,6 @@ export default function FaqChatbot() {
     window.addEventListener("resize", syncViewport);
     mobileQuery.addEventListener("change", syncViewport);
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
     return () => {
       cancelAnimationFrame(raf);
       syncMobileViewportRef.current = null;
@@ -866,7 +930,7 @@ export default function FaqChatbot() {
       vv?.removeEventListener("scroll", syncViewport);
       window.removeEventListener("resize", syncViewport);
       mobileQuery.removeEventListener("change", syncViewport);
-      document.body.style.overflow = previousOverflow;
+      applyPageScrollLock(false);
       setMobileViewportStyle(undefined);
     };
   }, [open]);
@@ -890,6 +954,10 @@ export default function FaqChatbot() {
     typingTimer.current = setTimeout(() => {
       setTyping(false);
       setMessages((prev) => [...prev, { id: nextId("b"), role: "bot", text }]);
+      // After an FAQ answer, offer live agent in case the reply wasn't enough.
+      if (replies?.kind === "afterAnswer") {
+        setOfferLiveAgent(true);
+      }
       setQuickReplies(replies);
       setBusy(false);
     }, delayMs);
@@ -912,13 +980,11 @@ export default function FaqChatbot() {
   );
   /** Guest checkout session (shared guest account) — still needs Order ID + contact email. */
   const isGuestShopper = Boolean(isAuthenticated && user?.isGuest);
-  /** Hide on first screen; unlock after ~2 exchanges, or once they've seen an FAQ answer. */
-  const showNotFoundCta =
-    userTurns >= 2 || quickReplies?.kind === "afterAnswer";
-
-  const bumpUserTurn = useCallback(() => {
-    setUserTurns((n) => n + 1);
-  }, []);
+  /**
+   * Live agent only after FAQ escalation — never on the first topic list.
+   * Set when free-text has no match, or after an FAQ answer (may still need help).
+   */
+  const showTalkToAgent = offerLiveAgent;
 
   const resetSupportState = useCallback(() => {
     setSupportView(null);
@@ -975,9 +1041,6 @@ export default function FaqChatbot() {
   const openSupportForm = (category: "general" | "damage_claim" = "general") => {
     if (busy || awaitingNameRef.current || supportSubmitting || trackSubmitting) return;
     resetTrackState();
-    if (category === "general") {
-      pushUser(copy.notFoundLabel);
-    }
     setQuickReplies(null);
     setSupportCategory(category);
     setSupportError("");
@@ -1013,6 +1076,93 @@ export default function FaqChatbot() {
     setFormName("");
     setFormEmail("");
   };
+
+  const openLiveChat = async () => {
+    if (busy || awaitingNameRef.current || supportSubmitting || trackSubmitting || liveChatOpen) {
+      return;
+    }
+    // Always open live chat (WhatsApp-style queue). Do not fall back to email form
+    // just because no agent is currently on the Live Chat tab.
+    setFabricPickerOpen(false);
+    setLiveChatContext({ sessionKind: "support" });
+    setResumableLiveChat(false);
+    setLiveChatOpen(true);
+  };
+
+  const openFabricStorePicker = async () => {
+    if (busy || awaitingNameRef.current || supportSubmitting || trackSubmitting || liveChatOpen) {
+      return;
+    }
+    if (!isAuthenticated || user?.isGuest) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextId("b"),
+          role: "bot",
+          text: copy.fabricStoreLoginRequired,
+        },
+      ]);
+      return;
+    }
+    try {
+      const { stores } = await listDealtWithFabricStores();
+      setFabricStores(stores || []);
+      if (!stores?.length) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextId("b"),
+            role: "bot",
+            text: copy.fabricStoreNone,
+          },
+        ]);
+        return;
+      }
+      setFabricPickerOpen(true);
+      setTopicsExpanded(false);
+      setQuestionsExpanded(false);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextId("b"),
+          role: "bot",
+          text: copy.fabricStoreNone,
+        },
+      ]);
+    }
+  };
+
+  const startFabricStoreChat = (store: DealtWithFabricStore) => {
+    setFabricPickerOpen(false);
+    setLiveChatContext({
+      sessionKind: "fabric",
+      fabricStoreOwnerId: store.ownerId,
+      fabricShopId: store.shopId,
+      fabricStoreName: isAr && store.nameAr ? store.nameAr : store.name,
+    });
+    setResumableLiveChat(false);
+    setLiveChatOpen(true);
+  };
+
+  // Load eligible fabric stores when the widget opens (for CTA visibility).
+  useEffect(() => {
+    if (!open || !isAuthenticated || user?.isGuest || authLoading) {
+      if (!open) setFabricStores([]);
+      return;
+    }
+    let cancelled = false;
+    void listDealtWithFabricStores()
+      .then(({ stores }) => {
+        if (!cancelled) setFabricStores(stores || []);
+      })
+      .catch(() => {
+        if (!cancelled) setFabricStores([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isAuthenticated, user?.isGuest, authLoading]);
 
   const openDamageClaimForm = () => {
     openSupportForm("damage_claim");
@@ -1344,7 +1494,6 @@ export default function FaqChatbot() {
       }
     }
 
-    bumpUserTurn();
     pushUser(
       isRegisteredMember ? orderId : `${orderId} · ${email.toLowerCase()}`,
     );
@@ -1363,7 +1512,7 @@ export default function FaqChatbot() {
     setTopicsExpanded(false);
     setQuickReplies(null);
     setDraft("");
-    setUserTurns(0);
+    setOfferLiveAgent(false);
     resetSupportState();
     resetTrackState();
 
@@ -1387,8 +1536,8 @@ export default function FaqChatbot() {
             id: nextId("b"),
             role: "bot",
             text: isAr
-              ? `مرحباً بعودتك يا ${short}! يسعدنا مساعدتك. اختر موضوعاً أو اكتبي سؤالك أدناه.`
-              : `Welcome back, ${short}! How can I help you today? Pick a topic, or type your question below.`,
+              ? `مرحباً بعودتك يا ${short}! يسعدنا مساعدتك. اختر موضوعاً للبدء.`
+              : `Welcome back, ${short}! How can I help you today? Pick a topic to begin.`,
           },
         ]);
         setQuickReplies({ kind: "sections" });
@@ -1416,28 +1565,52 @@ export default function FaqChatbot() {
     }, 450);
   }, [getMemberProfile, isAr, resetSupportState, resetTrackState]);
 
-  // Start greeting when chat opens (wait briefly for auth, but never hang)
+  // On open: FAQ topics first. If a live agent thread is still open, offer Continue chat.
   useEffect(() => {
     if (!open) {
       greetingStartedRef.current = false;
       return;
     }
-    if (greetingStartedRef.current) return;
+    if (greetingStartedRef.current || liveChatOpen) return;
+
+    let cancelled = false;
+
+    const boot = async () => {
+      let hasLive = false;
+      try {
+        const { session } = await getActiveLiveSession();
+        if (cancelled) return;
+        hasLive = Boolean(session?.id);
+      } catch {
+        hasLive = false;
+      }
+      if (cancelled) return;
+      setResumableLiveChat(hasLive);
+      beginGreeting();
+    };
 
     if (!authLoading) {
-      beginGreeting();
-      return;
+      void boot();
+      return () => {
+        cancelled = true;
+      };
     }
 
     const fallback = window.setTimeout(() => {
-      beginGreeting();
+      void boot();
     }, 700);
 
-    return () => window.clearTimeout(fallback);
-  }, [open, authLoading, beginGreeting]);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(fallback);
+    };
+  }, [open, authLoading, beginGreeting, liveChatOpen]);
 
   const openChat = () => {
     greetingStartedRef.current = false;
+    setLiveChatOpen(false);
+    setLiveChatExpanded(false);
+    setResumableLiveChat(false);
     setMessages([]);
     setQuickReplies(null);
     setAwaitingName(false);
@@ -1446,7 +1619,7 @@ export default function FaqChatbot() {
     setDraft("");
     setTyping(false);
     setBusy(false);
-    setUserTurns(0);
+    setOfferLiveAgent(false);
     resetSupportState();
     resetTrackState();
     setOpen(true);
@@ -1454,8 +1627,13 @@ export default function FaqChatbot() {
 
   const closeChat = () => {
     setOpen(false);
+    setLiveChatOpen(false);
+    setLiveChatExpanded(false);
+    setResumableLiveChat(false);
+    setFabricPickerOpen(false);
+    setLiveChatContext({ sessionKind: "support" });
     greetingStartedRef.current = false;
-    setUserTurns(0);
+    setOfferLiveAgent(false);
     resetSupportState();
     resetTrackState();
     if (typingTimer.current) clearTimeout(typingTimer.current);
@@ -1490,7 +1668,6 @@ export default function FaqChatbot() {
     const section = CHATBOT_FAQ_SECTIONS.find((s) => s.id === topicId);
     if (!section) return;
     const title = isAr ? section.titleAr : section.titleEn;
-    bumpUserTurn();
     pushUser(title);
 
     if (topicId === CHATBOT_TRACK_TOPIC_ID) {
@@ -1559,14 +1736,12 @@ export default function FaqChatbot() {
     if (busy || awaitingNameRef.current) return;
     const question = isAr ? faq.questionAr : faq.questionEn;
     const answer = isAr ? faq.answerAr : faq.answerEn;
-    bumpUserTurn();
     pushUser(question);
     botReply(answer, { kind: "afterAnswer", topicId: faq.chatTopicId }, 780);
   };
 
   const showSectionsAgain = () => {
     if (busy || awaitingNameRef.current) return;
-    bumpUserTurn();
     pushUser(copy.otherTopics);
     const short = displayName;
     botReply(
@@ -1580,7 +1755,6 @@ export default function FaqChatbot() {
     const section = CHATBOT_FAQ_SECTIONS.find((s) => s.id === topicId);
     if (!section) return;
     const title = isAr ? section.titleAr : section.titleEn;
-    bumpUserTurn();
     pushUser(copy.askAnother);
     botReply(
       copy.sectionReply(title, displayName || undefined),
@@ -1608,7 +1782,6 @@ export default function FaqChatbot() {
     }
 
     setDraft("");
-    bumpUserTurn();
     pushUser(text);
 
     const typedOrderId = extractTrackOrderIdFromText(text);
@@ -1641,11 +1814,14 @@ export default function FaqChatbot() {
       return;
     }
 
+    // Free-text didn't match any FAQ — topics/questions failed; offer live agent.
+    setOfferLiveAgent(true);
+
     if (replyIsAr && !isAr) {
       botReply(
         displayName
-          ? `${displayName}، لم أجد إجابة دقيقة على ذلك. يمكنك اختيار موضوع أدناه، أو مراسلتنا على care@motd.ae.`
-          : "لم أجد إجابة دقيقة على ذلك. يمكنك اختيار موضوع أدناه، أو مراسلتنا على care@motd.ae.",
+          ? `${displayName}، لم أجد إجابة دقيقة على ذلك. يمكنك اختيار موضوع أدناه، أو التحدث مع وكيل.`
+          : "لم أجد إجابة دقيقة على ذلك. يمكنك اختيار موضوع أدناه، أو التحدث مع وكيل.",
         { kind: "sections" },
         700,
       );
@@ -1724,8 +1900,45 @@ export default function FaqChatbot() {
               exit={{ opacity: 0, y: 18, scale: 0.97 }}
               transition={{ type: "spring", stiffness: 380, damping: 28 }}
               style={mobileViewportStyle}
-              className="fixed z-50 flex min-h-0 max-w-[100vw] flex-col overflow-hidden overflow-x-hidden rounded-2xl border border-white/10 bg-[#FFFDF9] shadow-[0_24px_80px_rgba(0,0,0,0.28)] outline-none bottom-[max(0.75rem,var(--safe-bottom))] start-[max(0.75rem,var(--safe-left))] end-[max(0.75rem,var(--safe-right))] w-auto h-[min(88dvh,42rem)] max-h-[calc(100dvh-1.5rem-var(--safe-top)-var(--safe-bottom))] sm:start-auto sm:bottom-[max(1.25rem,var(--safe-bottom))] sm:end-[max(1.25rem,var(--safe-right))] sm:w-[min(100vw-2.5rem,26rem)] sm:max-w-[26rem] sm:h-[min(84dvh,44rem)] md:bottom-[max(1.5rem,var(--safe-bottom))] md:end-[max(1.5rem,var(--safe-right))] md:w-[28rem] md:max-w-[28rem] md:h-[min(82dvh,46rem)]"
+              className={
+                liveChatOpen && liveChatExpanded
+                  ? "fixed z-50 flex min-h-0 max-w-[100vw] flex-col overflow-hidden overflow-x-hidden rounded-none border border-white/10 bg-[#FFFDF9] shadow-[0_24px_80px_rgba(0,0,0,0.28)] outline-none transition-[width,height,max-width,top,bottom] duration-300 ease-out xs:rounded-2xl bottom-[max(0.5rem,var(--safe-bottom))] start-[max(0.5rem,var(--safe-left))] end-[max(0.5rem,var(--safe-right))] w-auto h-[min(92dvh,44rem)] max-h-[calc(100dvh-1rem-var(--safe-top)-var(--safe-bottom))] sm:start-auto sm:bottom-[max(1.25rem,var(--safe-bottom))] sm:end-[max(1.25rem,var(--safe-right))] sm:w-[min(100vw-2.5rem,26rem)] sm:max-w-[26rem] sm:h-[min(84dvh,44rem)] md:bottom-[max(0.75rem,var(--safe-bottom))] md:top-[max(0.75rem,var(--safe-top))] md:end-[max(0.75rem,var(--safe-right))] md:h-auto md:max-h-[calc(100dvh-1.5rem)] md:w-[min(62vw,48rem)] md:max-w-[min(62vw,48rem)] lg:w-[min(58vw,52rem)] lg:max-w-[min(58vw,52rem)]"
+                  : "fixed z-50 flex min-h-0 max-w-[100vw] flex-col overflow-hidden overflow-x-hidden rounded-none border border-white/10 bg-[#FFFDF9] shadow-[0_24px_80px_rgba(0,0,0,0.28)] outline-none transition-[width,height,max-width,top,bottom] duration-300 ease-out xs:rounded-2xl bottom-[max(0.5rem,var(--safe-bottom))] start-[max(0.5rem,var(--safe-left))] end-[max(0.5rem,var(--safe-right))] w-auto h-[min(92dvh,44rem)] max-h-[calc(100dvh-1rem-var(--safe-top)-var(--safe-bottom))] sm:start-auto sm:bottom-[max(1.25rem,var(--safe-bottom))] sm:end-[max(1.25rem,var(--safe-right))] sm:w-[min(100vw-2.5rem,26rem)] sm:max-w-[26rem] sm:h-[min(84dvh,44rem)] md:bottom-[max(1.5rem,var(--safe-bottom))] md:end-[max(1.5rem,var(--safe-right))] md:top-auto md:w-[28rem] md:max-w-[28rem] md:h-[min(82dvh,46rem)]"
+              }
             >
+              <AnimatePresence>
+                {liveChatOpen ? (
+                  <LiveChatPanel
+                    open={liveChatOpen}
+                    onClose={() => {
+                      setLiveChatOpen(false);
+                      setLiveChatExpanded(false);
+                      setResumableLiveChat(false);
+                      setLiveChatContext({ sessionKind: "support" });
+                      // Return to FAQ topics after the live thread fully closes.
+                      if (messages.length === 0) {
+                        greetingStartedRef.current = false;
+                        beginGreeting();
+                      } else {
+                        setQuickReplies({ kind: "sections" });
+                        setTopicsExpanded(false);
+                      }
+                    }}
+                    onCloseWidget={closeChat}
+                    onExpandedChange={setLiveChatExpanded}
+                    locale={locale}
+                    isAr={isAr}
+                    chatContext={liveChatContext}
+                    initialName={
+                      getMemberProfile()?.name || visitorName.trim() || ""
+                    }
+                    priorMessages={messages.map((m) => ({
+                      role: m.role,
+                      text: m.text,
+                    }))}
+                  />
+                ) : null}
+              </AnimatePresence>
               {/* Header with in-panel close */}
               <header className="relative shrink-0 overflow-hidden bg-black px-3.5 py-3 sm:px-4 sm:py-3.5 text-white">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.12),transparent_55%)]" />
@@ -2275,9 +2488,76 @@ export default function FaqChatbot() {
                 )}
               </AnimatePresence>
 
+              {/* Fabric store picker */}
+              <AnimatePresence mode="wait">
+                {fabricPickerOpen && !liveChatOpen && !typing && !awaitingName ? (
+                  <motion.div
+                    key="fabric-store-picker"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    className="shrink-0 border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2.5 sm:px-3 backdrop-blur-md"
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="[font-family:var(--font-ui)] text-[10px] uppercase tracking-[0.16em] text-[#8A8A80]">
+                          {copy.fabricStorePickerTitle}
+                        </p>
+                        <p className="mt-1 [font-family:var(--font-body)] text-[12px] leading-snug text-[#5A5A56]">
+                          {copy.fabricStorePickerHint}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFabricPickerOpen(false)}
+                        className="shrink-0 rounded-full border border-[#E8E8E4] px-2.5 py-1 [font-family:var(--font-body)] text-[11px] text-black transition hover:border-black hover:cursor-pointer"
+                      >
+                        {copy.fabricStoreBack}
+                      </button>
+                    </div>
+                    <div className="flex max-h-[min(40dvh,16rem)] flex-col gap-1.5 overflow-y-auto">
+                      {fabricStores.map((store, i) => (
+                        <motion.button
+                          key={store.ownerId}
+                          type="button"
+                          custom={i}
+                          variants={chipVariants}
+                          initial="hidden"
+                          animate="show"
+                          disabled={busy}
+                          onClick={() => startFabricStoreChat(store)}
+                          className="flex w-full items-center gap-3 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3 py-2.5 text-start transition hover:border-black disabled:opacity-50 hover:cursor-pointer"
+                        >
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-white">
+                            {store.logo ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={store.logo}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <Store className="h-4 w-4" strokeWidth={1.5} />
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate [font-family:var(--font-body)] text-[13px] text-black">
+                            {isAr && store.nameAr ? store.nameAr : store.name}
+                          </span>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+
               {/* Quick replies */}
               <AnimatePresence mode="wait">
-                {quickReplies && !typing && !awaitingName && !supportView && !trackView && (
+                {quickReplies &&
+                  !typing &&
+                  !awaitingName &&
+                  !supportView &&
+                  !trackView &&
+                  !fabricPickerOpen && (
                   <motion.div
                     key={
                       quickReplies.kind +
@@ -2290,15 +2570,72 @@ export default function FaqChatbot() {
                     className={
                       (quickReplies.kind === "questions" && questionsExpanded) ||
                       (quickReplies.kind === "sections" && topicsExpanded)
-                        ? "flex min-h-0 max-h-[min(58dvh,26rem)] flex-col overflow-x-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
-                        : quickReplies.kind === "questions" ||
-                            quickReplies.kind === "sections"
-                          ? "shrink-0 max-h-[min(28dvh,10rem)] min-h-0 overflow-x-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
-                          : "shrink-0 max-h-[min(42dvh,16rem)] sm:max-h-[min(44dvh,18rem)] min-h-0 overflow-x-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
+                        ? "flex min-h-0 max-h-[min(58dvh,26rem)] flex-col overflow-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
+                        : quickReplies.kind === "sections" && resumableLiveChat
+                          ? // Resume card + fabric + topics toggle needs room; old 10rem cap clipped it with no scroll.
+                            "flex shrink-0 max-h-[min(48dvh,22rem)] min-h-0 flex-col overflow-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
+                          : quickReplies.kind === "questions" ||
+                              quickReplies.kind === "sections"
+                            ? "flex shrink-0 max-h-[min(36dvh,14rem)] min-h-0 flex-col overflow-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
+                            : "flex shrink-0 max-h-[min(42dvh,16rem)] sm:max-h-[min(44dvh,18rem)] min-h-0 flex-col overflow-hidden border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2 sm:px-3 sm:py-2.5 backdrop-blur-md"
                     }
                   >
                     {quickReplies.kind === "sections" && (
-                      <div className="flex max-h-full min-h-0 w-full flex-col gap-1.5 overflow-x-hidden">
+                      <div
+                        {...(topicsExpanded
+                          ? {}
+                          : {
+                              "data-lenis-prevent": true,
+                              "data-lenis-prevent-wheel": true,
+                              "data-chat-scroll": true,
+                            })}
+                        className={
+                          topicsExpanded
+                            ? "flex max-h-full min-h-0 w-full flex-col gap-1.5 overflow-hidden"
+                            : "flex max-h-full min-h-0 w-full flex-col gap-1.5 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
+                        }
+                      >
+                        {resumableLiveChat ? (
+                          <div className="flex shrink-0 flex-col gap-2 rounded-xl border border-[#E8E8E4] bg-[#F7F5F0] px-3 py-2.5">
+                            <p className="[font-family:var(--font-body)] text-[12px] leading-snug text-[#5A5A56]">
+                              {copy.resumeLiveHint}
+                            </p>
+                            <div className="flex min-w-0 flex-col gap-1.5 xs:flex-row xs:flex-wrap">
+                              <motion.button
+                                type="button"
+                                disabled={busy || liveChatOpen}
+                                onClick={() => void openLiveChat()}
+                                whileTap={{ scale: 0.98 }}
+                                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-black bg-black px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                              >
+                                <Headset className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+                                <span className="min-w-0 truncate">{copy.continueChat}</span>
+                              </motion.button>
+                              <motion.button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => setTopicsExpanded(true)}
+                                whileTap={{ scale: 0.98 }}
+                                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                              >
+                                <LayoutGrid className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+                                <span className="min-w-0 truncate">{copy.selectTopics}</span>
+                              </motion.button>
+                            </div>
+                          </div>
+                        ) : null}
+                        {fabricStores.length > 0 && !topicsExpanded ? (
+                          <motion.button
+                            type="button"
+                            disabled={busy || liveChatOpen}
+                            onClick={() => void openFabricStorePicker()}
+                            whileTap={{ scale: 0.99 }}
+                            className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2.5 [font-family:var(--font-body)] text-[12px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                          >
+                            <Store className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+                            {copy.talkToFabricStore}
+                          </motion.button>
+                        ) : null}
                         <motion.button
                           type="button"
                           disabled={busy}
@@ -2330,11 +2667,16 @@ export default function FaqChatbot() {
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0, y: -4 }}
                               transition={{ duration: 0.22, ease: EASE }}
-                              data-lenis-prevent
-                              data-lenis-prevent-wheel
-                              data-chat-scroll
-                              className="max-h-[min(48dvh,20rem)] min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
+                              className="min-h-0 max-h-[min(48dvh,20rem)] flex-1 overflow-hidden"
                             >
+                              {/* Scroll on a plain div — Framer transform on the
+                                  same node as overflow-y-auto breaks wheel scroll. */}
+                              <div
+                                data-lenis-prevent
+                                data-lenis-prevent-wheel
+                                data-chat-scroll
+                                className="h-full max-h-[min(48dvh,20rem)] min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
+                              >
                               <div className="flex flex-col gap-1.5 pb-1">
                                 {CHATBOT_FAQ_SECTIONS.map((section, i) => {
                                   const Icon =
@@ -2376,19 +2718,51 @@ export default function FaqChatbot() {
                                     </motion.button>
                                   );
                                 })}
+                                  {showTalkToAgent ? (
+                                  <motion.button
+                                    type="button"
+                                    custom={CHATBOT_FAQ_SECTIONS.length}
+                                    variants={chipVariants}
+                                    initial="hidden"
+                                    animate="show"
+                                    disabled={busy || liveChatOpen}
+                                    onClick={() => void openLiveChat()}
+                                    whileTap={{ scale: 0.99 }}
+                                    className="group flex w-full min-w-0 items-center gap-3 rounded-xl border border-black bg-black px-3 py-3 sm:py-2.5 text-start text-white transition-colors hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                  >
+                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-black">
+                                      <Headset className="h-3.5 w-3.5" strokeWidth={1.5} />
+                                    </span>
+                                    <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12.5px] leading-snug">
+                                      {copy.talkToAgent}
+                                    </span>
+                                  </motion.button>
+                                ) : null}
+                                {fabricStores.length > 0 ? (
+                                  <motion.button
+                                    type="button"
+                                    custom={CHATBOT_FAQ_SECTIONS.length + 1}
+                                    variants={chipVariants}
+                                    initial="hidden"
+                                    animate="show"
+                                    disabled={busy || liveChatOpen}
+                                    onClick={() => void openFabricStorePicker()}
+                                    whileTap={{ scale: 0.99 }}
+                                    className="group flex w-full min-w-0 items-center gap-3 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3 py-3 sm:py-2.5 text-start text-black transition-colors hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                  >
+                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-white">
+                                      <Store className="h-3.5 w-3.5" strokeWidth={1.5} />
+                                    </span>
+                                    <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12.5px] leading-snug">
+                                      {copy.talkToFabricStore}
+                                    </span>
+                                  </motion.button>
+                                ) : null}
+                              </div>
                               </div>
                             </motion.div>
                           )}
                         </AnimatePresence>
-
-                        {showNotFoundCta ? (
-                          <SupportNotFoundButton
-                            label={copy.notFoundLabel}
-                            onClick={() => openSupportForm("general")}
-                            disabled={busy}
-                            className="mt-1"
-                          />
-                        ) : null}
                       </div>
                     )}
 
@@ -2397,7 +2771,7 @@ export default function FaqChatbot() {
                       const count = allQuestions.length;
 
                       return (
-                        <div className="flex max-h-full min-h-0 w-full flex-col gap-1.5 overflow-x-hidden">
+                        <div className="flex max-h-full min-h-0 w-full flex-col gap-1.5 overflow-hidden">
                           <motion.button
                             type="button"
                             disabled={busy || count === 0}
@@ -2429,11 +2803,14 @@ export default function FaqChatbot() {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -4 }}
                                 transition={{ duration: 0.22, ease: EASE }}
-                                data-lenis-prevent
-                                data-lenis-prevent-wheel
-                                data-chat-scroll
-                                className="max-h-[min(48dvh,20rem)] min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
+                                className="min-h-0 max-h-[min(48dvh,20rem)] flex-1 overflow-hidden"
                               >
+                                <div
+                                  data-lenis-prevent
+                                  data-lenis-prevent-wheel
+                                  data-chat-scroll
+                                  className="h-full max-h-[min(48dvh,20rem)] min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]"
+                                >
                                 <div className="flex flex-col gap-1.5 pb-1">
                                   {allQuestions.map((faq, i) => (
                                     <motion.button
@@ -2452,6 +2829,27 @@ export default function FaqChatbot() {
                                       {isAr ? faq.questionAr : faq.questionEn}
                                     </motion.button>
                                   ))}
+                                  {showTalkToAgent ? (
+                                    <motion.button
+                                      type="button"
+                                      custom={Math.min(allQuestions.length, 8)}
+                                      variants={chipVariants}
+                                      initial="hidden"
+                                      animate="show"
+                                      disabled={busy || liveChatOpen}
+                                      onClick={() => void openLiveChat()}
+                                      whileTap={{ scale: 0.99 }}
+                                      className="group flex w-full min-w-0 items-center gap-3 rounded-xl border border-black bg-black px-3 py-3 sm:py-2.5 text-start text-white transition-colors hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                    >
+                                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-black">
+                                        <Headset className="h-3.5 w-3.5" strokeWidth={1.5} />
+                                      </span>
+                                      <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12.5px] leading-snug">
+                                        {copy.talkToAgent}
+                                      </span>
+                                    </motion.button>
+                                  ) : null}
+                                </div>
                                 </div>
                               </motion.div>
                             )}
@@ -2469,15 +2867,6 @@ export default function FaqChatbot() {
                             <LayoutGrid className="h-3 w-3" strokeWidth={1.5} />
                             {copy.otherTopics}
                           </motion.button>
-
-                          {showNotFoundCta ? (
-                            <SupportNotFoundButton
-                              label={copy.notFoundLabel}
-                              onClick={() => openSupportForm("general")}
-                              disabled={busy}
-                              className="mt-1"
-                            />
-                          ) : null}
                         </div>
                       );
                     })()}
@@ -2508,16 +2897,27 @@ export default function FaqChatbot() {
                               label: copy.contact,
                               icon: Mail,
                               onClick: showContact,
-                              primary: !showNotFoundCta,
+                              primary: false,
                             },
-                            ...(showNotFoundCta
+                            ...(showTalkToAgent
                               ? [
                                   {
-                                    key: "notfound",
-                                    label: copy.notFoundLabel,
-                                    icon: HelpCircle,
-                                    onClick: () => openSupportForm("general"),
+                                    key: "agent",
+                                    label: copy.talkToAgent,
+                                    icon: Headset,
+                                    onClick: () => void openLiveChat(),
                                     primary: true,
+                                  },
+                                ]
+                              : []),
+                            ...(fabricStores.length > 0
+                              ? [
+                                  {
+                                    key: "fabric",
+                                    label: copy.talkToFabricStore,
+                                    icon: Store,
+                                    onClick: () => void openFabricStorePicker(),
+                                    primary: false,
                                   },
                                 ]
                               : []),
@@ -2531,16 +2931,19 @@ export default function FaqChatbot() {
                                 variants={chipVariants}
                                 initial="hidden"
                                 animate="show"
-                                disabled={busy}
+                                disabled={busy || (action.key === "agent" && liveChatOpen)}
                                 onClick={action.onClick}
-                                whileHover={{ scale: 1.03 }}
-                                whileTap={{ scale: 0.97 }}
+                                whileTap={
+                                  action.key === "agent"
+                                    ? { scale: 0.99 }
+                                    : { scale: 0.97 }
+                                }
                                 className={
-                                  action.key === "notfound"
-                                    ? "inline-flex w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border border-black bg-black px-3.5 py-2.5 text-center [font-family:var(--font-body)] text-[12px] leading-snug text-white transition hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
+                                  action.key === "agent"
+                                    ? "inline-flex w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border border-black bg-black px-3.5 py-2.5 text-center [font-family:var(--font-body)] text-[12px] leading-snug text-white transition-colors hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
                                     : action.primary
-                                      ? "inline-flex items-center gap-1.5 rounded-full border border-black bg-black px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-white transition hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
-                                      : "inline-flex items-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-black transition hover:border-black hover:bg-black hover:text-white disabled:opacity-50 hover:cursor-pointer"
+                                      ? "inline-flex items-center gap-1.5 rounded-full border border-black bg-black px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-white transition-colors hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
+                                      : "inline-flex items-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2 [font-family:var(--font-body)] text-[12px] text-black transition-colors hover:border-black hover:bg-black hover:text-white disabled:opacity-50 hover:cursor-pointer"
                                 }
                               >
                                 <Icon className="h-3 w-3 shrink-0" strokeWidth={1.5} />
@@ -2557,17 +2960,15 @@ export default function FaqChatbot() {
                 )}
               </AnimatePresence>
 
-              {/* Free-text input */}
-              {!supportView && !trackView ? (
+              {/* Name input only — FAQ browsing uses topics/questions; live agent has its own composer. */}
+              {!supportView && !trackView && !liveChatOpen && awaitingName ? (
               <form
                 onSubmit={handleSend}
                 className="shrink-0 overflow-x-hidden border-t border-[#E8E8E4] bg-white px-2.5 py-2 sm:px-3 sm:py-2.5 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] sm:pb-2.5"
               >
-                {awaitingName && (
-                  <p className="mb-2 px-1 [font-family:var(--font-body)] text-[11px] text-[#8A8A80]">
-                    {copy.nameHint}
-                  </p>
-                )}
+                <p className="mb-2 px-1 [font-family:var(--font-body)] text-[11px] text-[#8A8A80]">
+                  {copy.nameHint}
+                </p>
                 <div className="flex min-w-0 w-full items-center gap-2 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-2.5 py-1 sm:px-3 sm:py-1.5 transition focus-within:border-black">
                   <input
                     ref={inputRef}
@@ -2575,10 +2976,10 @@ export default function FaqChatbot() {
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     disabled={busy}
-                    placeholder={awaitingName ? copy.namePlaceholder : copy.placeholder}
-                    aria-label={awaitingName ? copy.namePlaceholder : copy.placeholder}
+                    placeholder={copy.namePlaceholder}
+                    aria-label={copy.namePlaceholder}
                     enterKeyHint="send"
-                    autoComplete={awaitingName ? "given-name" : "off"}
+                    autoComplete="given-name"
                     onFocus={() => {
                       // iOS often finishes keyboard animation after focus; re-sync
                       // and keep the composer visible above the keypad.
