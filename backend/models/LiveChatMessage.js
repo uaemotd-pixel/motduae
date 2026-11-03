@@ -27,7 +27,7 @@ const liveChatMessageSchema = new mongoose.Schema(
     },
     kind: {
       type: String,
-      enum: ["text", "voice", "image", "file"],
+      enum: ["text", "voice", "image", "file", "call"],
       default: "text",
       index: true,
     },
@@ -39,6 +39,12 @@ const liveChatMessageSchema = new mongoose.Schema(
     mimeType: { type: String, default: undefined },
     fileSize: { type: Number, default: undefined },
     durationMs: { type: Number, default: undefined },
+    /** Voice-call history bubble (WhatsApp-style). */
+    callOutcome: {
+      type: String,
+      enum: ["answered", "missed", "rejected", "cancelled", "failed"],
+      required: false,
+    },
     attachmentKind: {
       type: String,
       enum: ["image", "file"],
@@ -71,7 +77,7 @@ const liveChatMessageSchema = new mongoose.Schema(
       },
       kind: {
         type: String,
-        enum: ["text", "voice", "image", "file"],
+        enum: ["text", "voice", "image", "file", "call"],
         required: false,
       },
       text: { type: String, default: "", maxlength: 500 },

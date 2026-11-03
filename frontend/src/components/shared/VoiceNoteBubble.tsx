@@ -5,6 +5,13 @@ import { Pause, Play } from "lucide-react";
 
 const BAR_COUNT = 36;
 const MIN_BAR = 0.18;
+/** WhatsApp-style playback speeds — tap to cycle. */
+const SPEED_STEPS = [1, 1.5, 2] as const;
+type PlaybackSpeed = (typeof SPEED_STEPS)[number];
+
+function formatSpeedLabel(rate: PlaybackSpeed) {
+  return rate % 1 === 0 ? `${rate}x` : `${rate}x`;
+}
 
 function formatDuration(ms: number) {
   const total = Math.max(0, Math.round(ms / 1000));
@@ -84,6 +91,7 @@ export default function VoiceNoteBubble({
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [speed, setSpeed] = useState<PlaybackSpeed>(1);
   const [peaks, setPeaks] = useState<number[]>(() => fallbackPeaks(BAR_COUNT));
   const [liveLevels, setLiveLevels] = useState<number[]>(() =>
     Array(BAR_COUNT).fill(0),
@@ -147,6 +155,20 @@ export default function VoiceNoteBubble({
       audioRef.current = null;
     };
   }, [audio, durationMs]);
+
+  // Keep HTMLAudioElement in sync with WhatsApp-style speed chip.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.playbackRate = speed;
+  }, [speed]);
+
+  const cycleSpeed = () => {
+    setSpeed((prev) => {
+      const idx = SPEED_STEPS.indexOf(prev);
+      return SPEED_STEPS[(idx + 1) % SPEED_STEPS.length]!;
+    });
+  };
 
   const stopAnalyserLoop = () => {
     if (rafRef.current != null) {
@@ -230,6 +252,7 @@ export default function VoiceNoteBubble({
     }
     void (async () => {
       try {
+        el.playbackRate = speed;
         await ensureAnalyser();
         await el.play();
         setPlaying(true);
@@ -248,9 +271,12 @@ export default function VoiceNoteBubble({
   const meta = onDark ? "text-white/70" : "text-[#667781]";
   const barPlayed = onDark ? "bg-white" : "bg-[#111B21]";
   const barRest = onDark ? "bg-white/35" : "bg-[#111B21]/35";
+  const speedChip = onDark
+    ? "bg-white/20 text-white hover:bg-white/30"
+    : "bg-black/10 text-[#111B21] hover:bg-black/15";
 
   return (
-    <div className="flex min-w-[200px] max-w-[260px] items-center gap-2.5 py-0.5 pe-1">
+    <div className="flex min-w-[200px] max-w-[280px] items-center gap-2 py-0.5 pe-1">
       <button
         type="button"
         onClick={toggle}
@@ -296,11 +322,25 @@ export default function VoiceNoteBubble({
             );
           })}
         </div>
-        <p
-          className={`mt-0.5 [font-family:var(--font-ui)] text-[10px] tabular-nums ${meta}`}
-        >
-          {formatDuration(displayMs)}
-        </p>
+        <div className="mt-0.5 flex items-center justify-between gap-2">
+          <p
+            className={`[font-family:var(--font-ui)] text-[10px] tabular-nums ${meta}`}
+          >
+            {formatDuration(displayMs)}
+          </p>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              cycleSpeed();
+            }}
+            aria-label={`Playback speed ${formatSpeedLabel(speed)}. Tap to change.`}
+            title="Change playback speed"
+            className={`shrink-0 rounded-full px-1.5 py-0.5 [font-family:var(--font-ui)] text-[9px] font-semibold tabular-nums leading-none tracking-wide transition hover:cursor-pointer touch-manipulation ${speedChip}`}
+          >
+            {formatSpeedLabel(speed)}
+          </button>
+        </div>
       </div>
     </div>
   );

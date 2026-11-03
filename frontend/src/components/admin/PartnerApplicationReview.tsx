@@ -51,6 +51,7 @@ type ShopSnapshot = {
   hasPayoutBank?: boolean;
   allowCustomerCalls?: boolean;
   allowCustomerSocial?: boolean;
+  allowLiveChatAudioCalls?: boolean;
   updatedAt: string | null;
 };
 
@@ -188,7 +189,10 @@ function ShopProfileReadout({
   shop: ShopSnapshot;
   kind: PartnerKind;
   onContactPermissionChange: (
-    field: "allowCustomerCalls" | "allowCustomerSocial",
+    field:
+      | "allowCustomerCalls"
+      | "allowCustomerSocial"
+      | "allowLiveChatAudioCalls",
     value: boolean,
   ) => void;
   contactBusy: boolean;
@@ -201,6 +205,7 @@ function ShopProfileReadout({
     : "";
   const pickupPhone = formatPhoneDisplay(pickup?.phone);
   const partnerLabel = kind === "tailor" ? "tailor" : "shop";
+  const isFabric = kind === "fabric_store";
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-8">
@@ -237,6 +242,17 @@ function ShopProfileReadout({
               onContactPermissionChange("allowCustomerSocial", next)
             }
           />
+          {isFabric ? (
+            <ContactPermissionToggle
+              enabled={shop.allowLiveChatAudioCalls !== false}
+              busy={contactBusy}
+              title="Allow fabric store to make audio call with customer"
+              description="When enabled, the fabric store owner can start in-chat audio calls with customers. When disabled, the audio call control is hidden in their messages chatbot."
+              onChange={(next) =>
+                onContactPermissionChange("allowLiveChatAudioCalls", next)
+              }
+            />
+          ) : null}
         </div>
       </div>
 
@@ -499,13 +515,17 @@ export default function PartnerApplicationReview({
   };
 
   const updateContactPermission = async (
-    field: "allowCustomerCalls" | "allowCustomerSocial",
+    field:
+      | "allowCustomerCalls"
+      | "allowCustomerSocial"
+      | "allowLiveChatAudioCalls",
     value: boolean,
   ) => {
     if (!data?.shop) return;
     const previous = {
       allowCustomerCalls: Boolean(data.shop.allowCustomerCalls),
       allowCustomerSocial: Boolean(data.shop.allowCustomerSocial),
+      allowLiveChatAudioCalls: data.shop.allowLiveChatAudioCalls !== false,
     };
 
     setData((prev) =>
@@ -577,7 +597,7 @@ export default function PartnerApplicationReview({
   const licenceIsPdf = (app?.licenceFileUrl || "").toLowerCase().includes(".pdf");
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="w-full space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="font-ui text-[10px] uppercase tracking-wider text-gray-400">
