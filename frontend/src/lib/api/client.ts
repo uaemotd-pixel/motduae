@@ -1,5 +1,7 @@
 // frontend/src/lib/api/client.ts
 
+import { getPublicApiBase } from "@/lib/publicApiBase";
+
 interface ApiError {
     status: number;
     message: string;
@@ -15,14 +17,8 @@ class ApiClient {
     private baseUrl: string;
 
     constructor() {
-        if (process.env.NEXT_PUBLIC_API_URL) {
-            this.baseUrl = process.env.NEXT_PUBLIC_API_URL;
-        } else if (process.env.NODE_ENV === 'production') {
-            // Same Vercel deployment — API is at /api on the same origin
-            this.baseUrl = '';
-        } else {
-            this.baseUrl = 'http://localhost:5000';
-        }
+        // Same helper as Socket.IO — ignores localhost baked into production builds.
+        this.baseUrl = getPublicApiBase();
     }
 
     private async request<T>(

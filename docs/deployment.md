@@ -119,7 +119,9 @@ In **Project → Settings → Environment Variables**, add these for **Productio
 
 **Cron retention and clock** live in `backend/jobs/purgePolicy.js` (not env). `*_Days` values are “delete if older than N days”. Each job has a five-field UTC cron in `PURGE_JOB_CRON` (example `0 3 * * *` = 03:00 UTC every day). Vercel calls **that job’s own path** at that time — it does not hit a shared checker every hour. Keep `vercel.json` `crons` matching those expressions. `pendingCheckoutSettledDays` (30) only removes **completed** checkout snapshots after an order exists. Abandoned `pending` / `failed` / `expired` rows are recovered against Stripe first, then deleted after `pendingCheckoutDays` (15). Guest OTP leftovers (no live code) are removed after `guestOtpDays` (2); expired codes still drop as soon as `otpExpires` passes. Account carts last updated more than `cartDays` (30) and wishlists last updated more than `wishlistDays` (60) are deleted whether empty or still holding products. Activity logs older than `activityLogDays` (90 / 3 months) are deleted. Guest cart/wishlist stay on the device and are not in Mongo. Each run is stored in the `cronruns` collection.
 
-You do **not** need `NEXT_PUBLIC_API_URL` on Vercel — frontend and API share the same domain, so requests go to `/api/...` automatically.
+You do **not** need `NEXT_PUBLIC_API_URL` on Vercel for REST — frontend and API share the same domain, so requests go to `/api/...` automatically.
+
+**Live chat / Socket.IO (AWS Lightsail):** run `backend/server.js` (PM2). Put nginx in front using `deploy/nginx-lightsail.example.conf` so `/socket.io` upgrades WebSockets to Node on the **same HTTPS origin**. Omit `NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_SOCKET_URL` in the frontend production build (or set them to the public HTTPS API host — never localhost). Confirm `GET /api/health` returns `"socketIo": true`.
 
 Each purge is its own GET/POST route so you can run them from Postman:
 
@@ -232,5 +234,6 @@ Link Blob: Vercel project → **Storage** → connect `motduae-blob` → redeplo
 | API 404 | Ensure **Root Directory** is repo root (`.`), not `frontend` |
 | CORS errors | Set `CORS_ORIGIN` to your exact Vercel URL |
 | Atlas timeout | Allow `0.0.0.0/0` in Atlas Network Access; check URI password |
-| Calls go to `localhost:5000` | You're in local dev, or `NEXT_PUBLIC_API_URL` is set incorrectly on Vercel |
+| Calls go to `localhost:5000` | Local dev, or a localhost `NEXT_PUBLIC_*` URL was baked into the production build |
+| Live chat / WebSocket fails | Run `backend/server.js` on Lightsail; proxy `/socket.io` with Upgrade headers (`deploy/nginx-lightsail.example.conf`); rebuild frontend without localhost `NEXT_PUBLIC_*`; `/api/health` must show `socketIo: true` |
 | Uploaded images vanish | Link Vercel Blob store to the project and redeploy (sets `BLOB_READ_WRITE_TOKEN`) |

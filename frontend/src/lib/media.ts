@@ -1,11 +1,7 @@
+import { getPublicApiBase } from "@/lib/publicApiBase";
+
 function getApiBase(): string {
-    if (process.env.NEXT_PUBLIC_API_URL) {
-        return process.env.NEXT_PUBLIC_API_URL;
-    }
-    if (process.env.NODE_ENV === "production") {
-        return "";
-    }
-    return "http://localhost:5000";
+    return getPublicApiBase();
 }
 
 function resolveMediaBase(): string {

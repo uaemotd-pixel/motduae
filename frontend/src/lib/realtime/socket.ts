@@ -2,25 +2,23 @@
 
 import { useEffect } from "react";
 import { io, type Socket } from "socket.io-client";
+import { getSocketOrigin } from "@/lib/publicApiBase";
 
 let socket: Socket | null = null;
-
-function socketUrl() {
-  return (
-    process.env.NEXT_PUBLIC_SOCKET_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:5000"
-  );
-}
 
 /** Lazy singleton socket — connect explicitly with getSocket().connect(). */
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io(socketUrl(), {
+    const url = getSocketOrigin();
+    socket = io(url || undefined, {
       path: "/socket.io",
       withCredentials: true,
       autoConnect: false,
       transports: ["websocket", "polling"],
+      // Survive brief proxy blips on Lightsail / Cloudflare.
+      reconnection: true,
+      reconnectionAttempts: 12,
+      reconnectionDelay: 800,
     });
   }
   return socket;

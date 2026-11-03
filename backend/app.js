@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { env } from "./config/env.js";
+import { isSocketServerReady } from "./realtime/socketServer.js";
 import { ensureUploadDirs, UPLOADS_ROOT } from "./utils/uploads.js";
 import {
   isPrivateLicenceUpload,
@@ -88,7 +89,12 @@ app.use("/uploads", async (req, res, next) => {
 app.use("/uploads", express.static(UPLOADS_ROOT));
 
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", service: "motd-backend" });
+  res.json({
+    status: "ok",
+    service: "motd-backend",
+    // true when backend/server.js called initSocketServer (required for live chat)
+    socketIo: isSocketServerReady(),
+  });
 });
 
 app.use("/api/cron", cronRoutes);

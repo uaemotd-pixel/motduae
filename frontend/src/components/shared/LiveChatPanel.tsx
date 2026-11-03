@@ -33,7 +33,6 @@ import ChatThreadSearchBar from "@/components/shared/ChatThreadSearchBar";
 import ChatSearchHighlight from "@/components/shared/ChatSearchHighlight";
 import { findThreadMatchIds } from "@/lib/chat/threadSearch";
 import {
-  disconnectSocket,
   emitWithAck,
   getSocket,
   useSocketEvent,
@@ -452,7 +451,7 @@ export default function LiveChatPanel({
   );
 
   const finishClose = useCallback(() => {
-    disconnectSocket();
+    // Keep the Socket.IO connection so incoming rings / resume still work.
     setHeaderMenuOpen(false);
     setHeaderPanel(null);
     setThreadSearchOpen(false);
@@ -464,7 +463,7 @@ export default function LiveChatPanel({
 
   /** Close the floating chatbot without ending the live Mongo thread (can resume). */
   const closeWidget = useCallback(() => {
-    disconnectSocket();
+    // Do not disconnectSocket — audio calls + session resume need the socket.
     setHeaderMenuOpen(false);
     setHeaderPanel(null);
     setThreadSearchOpen(false);
@@ -688,7 +687,8 @@ export default function LiveChatPanel({
             : res.session.agent?.name || null,
         agentProfilePic: res.session.agent?.profilePic || null,
       });
-    } catch {
+    } catch (err) {
+      console.error("[live-chat] chat:start failed", err);
       setError(copy.startFailed);
     }
   }, [
