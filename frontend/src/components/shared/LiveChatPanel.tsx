@@ -251,7 +251,6 @@ export default function LiveChatPanel({
   const copy = isAr
     ? {
         closeWidget: "إغلاق المحادثة",
-        endChat: "إنهاء المحادثة",
         chatOptions: "خيارات المحادثة",
         expand: "توسيع النافذة",
         collapse: "تصغير النافذة",
@@ -319,7 +318,6 @@ export default function LiveChatPanel({
       }
     : {
         closeWidget: "Close chat",
-        endChat: "End chat",
         chatOptions: "Chat options",
         expand: "Expand window",
         collapse: "Collapse window",
@@ -1272,29 +1270,6 @@ export default function LiveChatPanel({
     }
   };
 
-  const endChat = async () => {
-    if (!session || endingRef.current) return;
-    endingRef.current = true;
-    voice.cancel();
-    try {
-      const res = await emitWithAck<AckResult>("chat:end", {
-        sessionId: session.id,
-      });
-      if (!res?.ok) {
-        endingRef.current = false;
-        setError(copy.startFailed);
-        return;
-      }
-      setEndedBy(res.endedBy === "agent" ? "agent" : "customer");
-      setStep("ended");
-      setDraft("");
-      emitTyping(false);
-    } catch {
-      endingRef.current = false;
-      setError(copy.startFailed);
-    }
-  };
-
   const restartChat = async () => {
     if (!session || restarting) return;
     setRestarting(true);
@@ -1497,27 +1472,20 @@ export default function LiveChatPanel({
                         setHeaderPanel("block");
                       },
                     },
-                    chatLocked
-                      ? {
-                          key: "continue",
-                          label: copy.continueChat,
-                          icon: PhoneOff,
-                          tone: "default" as const,
-                          onPick: () => {
-                            setHeaderMenuOpen(false);
-                            void restartChat();
+                    ...(chatLocked
+                      ? [
+                          {
+                            key: "continue",
+                            label: copy.continueChat,
+                            icon: PhoneOff,
+                            tone: "default" as const,
+                            onPick: () => {
+                              setHeaderMenuOpen(false);
+                              void restartChat();
+                            },
                           },
-                        }
-                      : {
-                          key: "end",
-                          label: copy.endChat,
-                          icon: PhoneOff,
-                          tone: "danger" as const,
-                          onPick: () => {
-                            setHeaderMenuOpen(false);
-                            void endChat();
-                          },
-                        },
+                        ]
+                      : []),
                   ] as const
                 ).map((item, index) => {
                   const Icon = item.icon;
