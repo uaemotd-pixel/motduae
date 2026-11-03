@@ -26,6 +26,7 @@ export function jwtExpiresToMs(expiresIn) {
 
 export function getAuthCookieOptions() {
   const isProd = env.nodeEnv === "production";
+  const domain = String(process.env.COOKIE_DOMAIN || "").trim();
 
   return {
     httpOnly: true,
@@ -33,6 +34,8 @@ export function getAuthCookieOptions() {
     sameSite: "lax",
     path: "/",
     maxAge: jwtExpiresToMs(env.jwtExpiresIn),
+    // e.g. .motd.ae when www + api share a parent domain on Lightsail/Cloudflare
+    ...(domain ? { domain } : {}),
   };
 }
 
@@ -47,6 +50,7 @@ export function clearAuthCookie(res) {
     secure: options.secure,
     sameSite: options.sameSite,
     path: options.path,
+    ...(options.domain ? { domain: options.domain } : {}),
     expires: new Date(0),
     maxAge: 0,
   });

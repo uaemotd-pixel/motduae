@@ -38,10 +38,10 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    // In development, proxy /api and /uploads from the Next.js dev server
-    // (:3000) to the standalone Express backend (:5000). In production the
-    // frontend and backend share the same origin (see vercel.json routes),
-    // so no proxy is needed and these rewrites are skipped.
+    // Dev: proxy REST + uploads to Express. Socket.IO still connects to
+    // NEXT_PUBLIC_API_URL / localhost:5000 directly (see lib/realtime/socket.ts).
+    // Production (AWS Lightsail): put nginx in front — see deploy/nginx-lightsail.example.conf
+    // so /api, /uploads, and /socket.io hit backend/server.js on the same origin.
     if (!isDev) return [];
 
     return [
