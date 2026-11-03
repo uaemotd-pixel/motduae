@@ -38,7 +38,7 @@ export default function ScrollToTop() {
   // Closed: sit next to the chat FAB (inward). Open: bottom-left corner.
   const positionClass = chatOpen
     ? "bottom-[max(0.75rem,var(--safe-bottom))] start-[max(0.75rem,var(--safe-left))] sm:bottom-5 sm:start-5 md:bottom-6 md:start-6"
-    : "bottom-4 end-[4.5rem] sm:bottom-5 sm:end-[5.5rem] md:bottom-6 md:end-[5.75rem] me-(--safe-right)";
+    : "bottom-4 end-[3.75rem] sm:bottom-5 sm:end-[5rem] md:bottom-6 md:end-[5.75rem] me-(--safe-right)";
 
   return (
     <AnimatePresence>
@@ -50,9 +50,9 @@ export default function ScrollToTop() {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.6, y: 20 }}
           transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-          className={`fixed z-40 flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-black text-white shadow-[0_10px_40px_rgba(0,0,0,0.28)] backdrop-blur-sm transition-all duration-300 hover:bg-white hover:text-black active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFDF9] hover:cursor-pointer touch-manipulation mb-(--safe-bottom) ${positionClass}`}
+          className={`fixed z-40 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black text-white shadow-[0_8px_28px_rgba(0,0,0,0.26)] backdrop-blur-sm transition-all duration-300 hover:bg-white hover:text-black active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFDF9] hover:cursor-pointer touch-manipulation mb-(--safe-bottom) sm:h-11 sm:w-11 md:h-12 md:w-12 ${positionClass}`}
         >
-          <ChevronUp className="h-5 w-5" strokeWidth={1.5} />
+          <ChevronUp className="h-4 w-4 sm:h-[1.125rem] sm:w-[1.125rem] md:h-5 md:w-5" strokeWidth={1.5} />
         </motion.button>
       )}
     </AnimatePresence>

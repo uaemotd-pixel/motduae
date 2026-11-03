@@ -190,4 +190,47 @@ export const env = {
       schedulerHourUtc: parseUtcHour(process.env.PURGE_OLD_DATA_HOUR_UTC, 2),
     };
   },
+  /**
+   * In-app WebRTC audio calls (admin → customer support chat).
+   * ICE_SERVERS: JSON array of RTCIceServer objects, e.g.
+   * [{"urls":"stun:stun.l.google.com:19302"}]
+   * or with TURN: [{"urls":"turn:turn.example.com:3478","username":"u","credential":"p"}]
+   */
+  get audioCalls() {
+    const enabled = isTruthyEnv(process.env.AUDIO_CALLS_ENABLED, true);
+    let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    const raw = String(process.env.ICE_SERVERS || '').trim();
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) {
+          iceServers = parsed;
+        }
+      } catch {
+        console.warn(
+          '[env] ICE_SERVERS is not valid JSON; using default STUN server',
+        );
+      }
+    }
+    const turnUrl = String(process.env.TURN_URL || '').trim();
+    if (turnUrl) {
+      iceServers = [
+        ...iceServers,
+        {
+          urls: turnUrl,
+          username: String(process.env.TURN_USERNAME || ''),
+          credential: String(process.env.TURN_CREDENTIAL || ''),
+        },
+      ];
+    }
+    const ringTimeoutMs = Number(process.env.AUDIO_CALL_RING_TIMEOUT_MS);
+    return {
+      enabled,
+      iceServers,
+      ringTimeoutMs:
+        Number.isFinite(ringTimeoutMs) && ringTimeoutMs >= 5000
+          ? ringTimeoutMs
+          : 40_000,
+    };
+  },
 };

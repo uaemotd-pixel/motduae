@@ -61,6 +61,8 @@ import ChatMessageMenu, {
   type ChatMessageMenuAction,
 } from "@/components/shared/ChatMessageMenu";
 import ChatAvatar from "@/components/shared/ChatAvatar";
+import CallHistoryBubble from "@/components/shared/CallHistoryBubble";
+import { useAdminAudioCall } from "@/context/AdminAudioCallContext";
 import {
   formatRecordingTime,
   useVoiceRecorder,
@@ -79,7 +81,7 @@ import {
 type ChatReplyTo = {
   id: string;
   role: "customer" | "agent" | "system";
-  kind?: "text" | "voice" | "image" | "file";
+  kind?: "text" | "voice" | "image" | "file" | "call";
   text: string;
   senderName?: string;
 };
@@ -87,11 +89,12 @@ type ChatReplyTo = {
 type ChatMessage = {
   id: string;
   role: "customer" | "agent" | "system";
-  kind?: "text" | "voice" | "image" | "file";
+  kind?: "text" | "voice" | "image" | "file" | "call";
   text: string;
   caption?: string;
   audio?: string;
   durationMs?: number;
+  callOutcome?: "answered" | "missed" | "rejected" | "cancelled" | "failed";
   data?: string;
   fileName?: string;
   mimeType?: string;
@@ -111,6 +114,7 @@ function replyPreviewOf(msg: ChatMessage) {
   if (msg.kind === "voice") return "Voice message";
   if (msg.kind === "image") return "Photo";
   if (msg.kind === "file") return msg.fileName || "Document";
+  if (msg.kind === "call") return (msg.text || "Voice call").trim();
   return (msg.caption || msg.text || "").trim();
 }
 
@@ -148,11 +152,14 @@ type AckResult = {
 
 type InboxFilter = "all" | "waiting" | "active" | "ended";
 
-type HeaderPanel = "contact" | "theme" | "block" | "call" | null;
+type HeaderPanel = "contact" | "theme" | "block" | null;
 
 type ConfirmAction = "clear" | "deleteAll" | "deleteForMe" | null;
 
 const INBOX_WIDTH_KEY = "motd-admin-livechat-inbox-width";
+
+/** Layout listens so the mobile admin menu can hide while a chat is open (WhatsApp-style). */
+export const ADMIN_SUPPORT_CHAT_FOCUS_EVENT = "motd-admin-support-chat-focus";
 const INBOX_MIN = 280;
 const INBOX_MAX = 560;
 const INBOX_DEFAULT = 380;
@@ -272,7 +279,7 @@ function SessionRow({
     <button
       type="button"
       onClick={onSelect}
-      className={`flex w-full items-center gap-3 px-3 py-3 text-start transition hover:cursor-pointer ${
+      className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-start transition hover:cursor-pointer touch-manipulation sm:gap-3 sm:py-3 ${
         selected ? "bg-[#F0EEE8]" : "bg-white hover:bg-[#F7F5F0]"
       }`}
     >
@@ -290,17 +297,17 @@ function SessionRow({
           .join(" ")}
       />
 
-      <span className="min-w-0 flex-1 border-b border-[#E8E8E4] pb-3">
+      <span className="min-w-0 flex-1 border-b border-[#E8E8E4] pb-2.5 sm:pb-3">
         <span className="flex items-baseline justify-between gap-2">
           <span
-            className={`truncate text-[15px] text-black [font-family:var(--font-body)] ${
+            className={`chat-text-list-name truncate text-black ${
               hasUnread ? "font-semibold" : ""
             }`}
           >
             {session.customer?.name || "Visitor"}
           </span>
           <span
-            className={`shrink-0 text-[11px] tabular-nums [font-family:var(--font-ui)] ${
+            className={`chat-text-list-time shrink-0 tabular-nums ${
               hasUnread
                 ? "font-medium text-black"
                 : waiting
@@ -316,7 +323,7 @@ function SessionRow({
             <MessageStatusTicks status={session.preview?.status || "sent"} />
           ) : null}
           <span
-            className={`min-w-0 flex-1 truncate text-[13px] [font-family:var(--font-body)] ${
+            className={`chat-text-list-preview min-w-0 flex-1 truncate ${
               hasUnread
                 ? "font-medium text-[#111111]"
                 : "text-[#8A8A80]"
@@ -327,7 +334,7 @@ function SessionRow({
           {hasUnread ? (
             <span
               aria-label={`${unread > 99 ? "99+" : unread} unread`}
-              className="ms-auto flex h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-black px-1.5 text-[11px] font-semibold leading-none text-white tabular-nums [font-family:var(--font-ui)]"
+              className="ms-auto flex h-[1.15rem] min-w-[1.15rem] shrink-0 items-center justify-center rounded-full bg-black px-1.5 text-[10px] font-semibold leading-none text-white tabular-nums [font-family:var(--font-ui)] sm:h-[1.25rem] sm:min-w-[1.25rem] sm:text-[11px]"
             >
               {unread > 99 ? "99+" : unread}
             </span>
@@ -378,6 +385,66 @@ export default function AdminSupportChatPage() {
     () => findThreadMatchIds(active?.messages || [], searchQuery),
     [active?.messages, searchQuery],
   );
+
+  const audioCall = useAdminAudioCall();
+
+  // Keep admin-wide call host in sync with the focused inbox thread.
+  useEffect(() => {
+    audioCall.setViewingSessionId(active?.id ?? null);
+  }, [active?.id, audioCall.setViewingSessionId]);
+
+  // Tell admin layout when a conversation fills the mobile viewport (hide hamburger).
+  useEffect(() => {
+    const open = Boolean(active);
+    window.dispatchEvent(
+      new CustomEvent(ADMIN_SUPPORT_CHAT_FOCUS_EVENT, { detail: { open } }),
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent(ADMIN_SUPPORT_CHAT_FOCUS_EVENT, {
+          detail: { open: false },
+        }),
+      );
+    };
+  }, [active]);
+
+  useEffect(() => {
+    const can =
+      Boolean(active?.id) &&
+      active?.status === "active" &&
+      !chatEndedBy &&
+      connected;
+    const onCallThread =
+      !audioCall.callSessionId || active?.id === audioCall.callSessionId;
+    audioCall.setDialTarget({
+      sessionId: active?.id ?? null,
+      canDial: can,
+      ...(onCallThread
+        ? {
+            peer: {
+              name: active?.customer?.name || null,
+              profilePic: active?.customer?.profilePic || null,
+            },
+          }
+        : {}),
+    });
+  }, [
+    active?.id,
+    active?.status,
+    active?.customer?.name,
+    active?.customer?.profilePic,
+    audioCall.callSessionId,
+    audioCall.setDialTarget,
+    chatEndedBy,
+    connected,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      audioCall.setViewingSessionId(null);
+      audioCall.setDialTarget({ sessionId: null, canDial: false });
+    };
+  }, [audioCall.setDialTarget, audioCall.setViewingSessionId]);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const splitRef = useRef<HTMLDivElement>(null);
   const activeIdRef = useRef<string | null>(null);
@@ -933,6 +1000,21 @@ export default function AdminSupportChatPage() {
     }
   };
 
+  // Return-to-call from the dashboard-wide bar (same page or after navigation).
+  useEffect(() => {
+    const sid = audioCall.pendingOpenSessionId;
+    if (!sid) return;
+    const row = sessions.find((s) => s.id === sid);
+    if (!row) return;
+    audioCall.clearPendingOpenSessionId();
+    if (activeIdRef.current === sid) return;
+    void openSession(row);
+  }, [
+    audioCall.pendingOpenSessionId,
+    audioCall.clearPendingOpenSessionId,
+    sessions,
+  ]);
+
   const clearReplyAndEdit = useCallback(() => {
     setReplyTo(null);
     setEditingId(null);
@@ -1361,57 +1443,6 @@ export default function AdminSupportChatPage() {
     }
   };
 
-  const endChat = async () => {
-    const sessionId = active?.id || activeIdRef.current;
-    if (!sessionId || chatEndedBy || endingRef.current) return;
-    endingRef.current = true;
-    activeIdRef.current = sessionId;
-    voice.cancel();
-    clearPendingAttachment();
-    setAttachOpen(false);
-    setHeaderMenuOpen(false);
-    setError("");
-
-    // Optimistic UI — pause the thread; history stays in Mongo / inbox.
-    setPeerTyping(false);
-    emitTyping(false);
-    setChatEndedBy("agent");
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === sessionId ? { ...s, status: "ended", endedBy: "agent" } : s,
-      ),
-    );
-    setActive((prev) =>
-      prev && prev.id === sessionId
-        ? { ...prev, status: "ended", endedBy: "agent" }
-        : prev,
-    );
-    setDraft("");
-    draftRef.current = "";
-
-    try {
-      const res = await emitWithAck<AckResult>("chat:end", { sessionId }, 15000);
-      if (!res?.ok) {
-        endingRef.current = false;
-        setChatEndedBy(null);
-        setError(
-          res?.error === "forbidden"
-            ? "Could not end this chat."
-            : "Could not end this chat. Please try again.",
-        );
-        void refreshInbox();
-        return;
-      }
-      setChatEndedBy(res.endedBy === "customer" ? "customer" : "agent");
-      endingRef.current = false;
-    } catch {
-      endingRef.current = false;
-      setChatEndedBy(null);
-      setError("Could not end this chat. Check your connection.");
-      void refreshInbox();
-    }
-  };
-
   const restartChat = async () => {
     const sessionId = activeIdRef.current;
     if (!sessionId || !chatEndedBy || restarting) return;
@@ -1523,23 +1554,23 @@ export default function AdminSupportChatPage() {
   return (
     <div
       ref={splitRef}
-      className={`flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F7F5F0] lg:flex-row ${
+      className={`relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[#F7F5F0] lg:flex-row ${
         resizing ? "select-none" : ""
       }`}
     >
-      {/* Inbox column — full screen on mobile until a chat is opened */}
+      {/* Inbox column — WhatsApp-style: full screen on mobile until a chat opens */}
       <aside
         className={`${
           active ? "hidden" : "flex"
         } min-h-0 w-full flex-1 flex-col border-r border-[#E8E8E4] bg-white lg:flex lg:h-full lg:w-[var(--inbox-w)] lg:flex-none lg:shrink-0`}
         style={{ "--inbox-w": `${inboxWidth}px` } as CSSProperties}
       >
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[#E8E8E4] bg-[#FFFDF9] py-3 pe-3 ps-14 sm:pe-4 lg:px-4">
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[#E8E8E4] bg-[#FFFDF9] py-2.5 pe-3 ps-14 pt-[max(0.625rem,env(safe-area-inset-top))] sm:py-3 sm:pe-4 lg:px-4 lg:pt-3">
           <div className="min-w-0">
-            <h1 className="truncate text-[18px] font-light tracking-tight text-black [font-family:var(--font-display)] sm:text-[20px]">
+            <h1 className="truncate text-[17px] font-light tracking-tight text-black [font-family:var(--font-display)] sm:text-[20px]">
               Live Chat
             </h1>
-            <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[#8A8A80] [font-family:var(--font-body)]">
+            <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[#8A8A80] [font-family:var(--font-body)] sm:text-[12px]">
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
                   connected ? "bg-emerald-500" : "bg-gray-400"
@@ -1663,7 +1694,7 @@ export default function AdminSupportChatPage() {
         <span className="absolute inset-y-0 -left-1 -right-1" />
       </div>
 
-      {/* Conversation / empty state — full screen on mobile when a chat is open */}
+      {/* Conversation — WhatsApp-style: fills the viewport on mobile when open */}
       <section
         className={`${
           active ? "flex" : "hidden"
@@ -1730,17 +1761,17 @@ export default function AdminSupportChatPage() {
               </div>
             ) : null}
               <header
-                className={`relative flex shrink-0 items-center justify-between gap-1.5 border-b border-[#E8E8E4] bg-[#FFFDF9] py-2 pe-2 ps-3 sm:gap-3 sm:px-4 sm:py-2.5 ${
+                className={`relative flex shrink-0 items-center justify-between gap-1.5 border-b border-[#E8E8E4] bg-[#FFFDF9] py-1.5 pe-2 ps-2 pt-[max(0.375rem,env(safe-area-inset-top))] sm:gap-3 sm:px-4 sm:py-2.5 sm:pt-2.5 ${
                   headerMenuOpen ? "z-40" : "z-20"
                 }`}
               >
-              <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
                 <button
                   type="button"
                   aria-label="Back to inbox"
                   title="Back to inbox"
                   onClick={closeChatWindow}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#54656F] transition hover:bg-black/10 hover:text-black hover:cursor-pointer lg:hidden"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#54656F] transition hover:bg-black/10 hover:text-black hover:cursor-pointer touch-manipulation lg:hidden"
                 >
                   <ArrowLeft className="h-5 w-5" strokeWidth={1.75} />
                 </button>
@@ -1752,10 +1783,10 @@ export default function AdminSupportChatPage() {
                   className="border border-black/50"
                 />
                 <div className="min-w-0">
-                  <h2 className="truncate text-[15px] text-black [font-family:var(--font-body)] sm:text-[16px]">
+                  <h2 className="chat-text-title truncate text-black">
                     {active.customer?.name || "Visitor"}
                   </h2>
-                  <p className="truncate text-[11px] text-[#8A8A80] [font-family:var(--font-body)] sm:text-[12px]">
+                  <p className="chat-text-subtitle truncate text-[#8A8A80]">
                     {chatEndedBy
                       ? chatEndedBy === "customer"
                         ? "Customer ended the chat"
@@ -1780,12 +1811,23 @@ export default function AdminSupportChatPage() {
                 <button
                   type="button"
                   aria-label="Audio call"
-                  title="Audio call"
+                  title={
+                    audioCall.featureOn
+                      ? audioCall.dialDisabled
+                        ? active?.status !== "active" || chatEndedBy
+                          ? "Call available on active chats only"
+                          : audioCall.status !== "idle"
+                            ? "Call in progress"
+                            : "Audio call"
+                        : "Audio call"
+                      : "Audio calls are disabled"
+                  }
+                  disabled={audioCall.dialDisabled}
                   onClick={() => {
                     setHeaderMenuOpen(false);
-                    setHeaderPanel("call");
+                    void audioCall.invite();
                   }}
-                  className="hidden h-9 w-9 items-center justify-center rounded-full text-[#54656F] transition-colors duration-150 hover:cursor-pointer hover:bg-black/10 hover:text-black sm:flex"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#54656F] transition-colors duration-150 hover:cursor-pointer hover:bg-black/10 hover:text-black disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                 >
                   <Phone
                     className="pointer-events-none h-5 w-5"
@@ -1913,27 +1955,20 @@ export default function AdminSupportChatPage() {
                             setHeaderPanel("block");
                           },
                         },
-                        chatEndedBy
-                          ? {
-                              key: "continue",
-                              label: "Continue chat",
-                              icon: PhoneOff,
-                              tone: "default" as const,
-                              onPick: () => {
-                                setHeaderMenuOpen(false);
-                                void restartChat();
+                        ...(chatEndedBy
+                          ? [
+                              {
+                                key: "continue",
+                                label: "Continue chat",
+                                icon: PhoneOff,
+                                tone: "default" as const,
+                                onPick: () => {
+                                  setHeaderMenuOpen(false);
+                                  void restartChat();
+                                },
                               },
-                            }
-                          : {
-                              key: "end",
-                              label: "End chat",
-                              icon: PhoneOff,
-                              tone: "danger" as const,
-                              onPick: () => {
-                                setHeaderMenuOpen(false);
-                                void endChat();
-                              },
-                            },
+                            ]
+                          : []),
                       ] as const
                     ).map((item, index) => {
                       const Icon = item.icon;
@@ -2046,12 +2081,95 @@ export default function AdminSupportChatPage() {
                   (!prevMsg || messageDayKey(prevMsg.at) !== day);
                 const dateBadge = showDateBadge ? (
                   <div className="flex justify-center py-2">
-                    <p className="rounded-full bg-[#FFFFFFCC] px-3.5 py-1 text-center text-[11.5px] leading-snug text-[#54656F] shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] backdrop-blur-sm [font-family:var(--font-body)]">
+                    <p className="chat-text-system rounded-full bg-[#FFFFFFCC] px-2.5 py-0.5 text-center text-[#54656F] shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-3.5 sm:py-1">
                       {formatThreadDateBadge(msg.at)}
                     </p>
                   </div>
                 ) : null;
 
+                if (msg.kind === "call") {
+                  // Successful talk → center. Agent cancel → right. Customer cancel → left.
+                  const callAlign =
+                    msg.role === "system" || msg.callOutcome === "answered"
+                      ? "center"
+                      : msg.role === "agent"
+                        ? "end"
+                        : "start";
+                  const callMine = callAlign === "end";
+                  const callSelected = selectedIds.has(msg.id);
+                  const callCanSelect = selectMode && !msg.deleted;
+                  return (
+                    <Fragment key={msg.id}>
+                      {dateBadge}
+                      <div
+                        data-msg-id={msg.id}
+                        className={
+                          callCanSelect ? "cursor-pointer" : undefined
+                        }
+                        onClick={() => {
+                          if (!callCanSelect) return;
+                          toggleSelectMessage(msg.id);
+                        }}
+                      >
+                        <CallHistoryBubble
+                          text={msg.text}
+                          callOutcome={msg.callOutcome}
+                          durationMs={msg.durationMs}
+                          at={msg.at}
+                          locale={active.locale || "en"}
+                          align={callAlign}
+                          searchQuery={searchQuery}
+                          searchActive={isActiveMatch}
+                          dimmed={Boolean(searchQuery && !isMatch)}
+                          leading={
+                            selectMode ? (
+                              <span
+                                aria-hidden
+                                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] ${
+                                  callSelected
+                                    ? "border-black bg-black text-white"
+                                    : "border-[#C8C8C0] bg-white text-transparent"
+                                }`}
+                              >
+                                ✓
+                              </span>
+                            ) : null
+                          }
+                          onContextMenu={(e) => {
+                            if (selectMode || chatEndedBy) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setMenuMsgId(msg.id);
+                          }}
+                          menu={
+                            !selectMode && !chatEndedBy ? (
+                              <ChatMessageMenu
+                                open={menuMsgId === msg.id}
+                                onOpenChange={(next) =>
+                                  setMenuMsgId(next ? msg.id : null)
+                                }
+                                mine={callMine}
+                                onDark={callMine}
+                                callBadge
+                                hideTrigger
+                                menuAlign={
+                                  callAlign === "end" ? "start" : "end"
+                                }
+                                onAction={(action) =>
+                                  void onMessageMenuAction(
+                                    msg,
+                                    action,
+                                    callMine,
+                                  )
+                                }
+                              />
+                            ) : null
+                          }
+                        />
+                      </div>
+                    </Fragment>
+                  );
+                }
                 if (msg.role === "system") {
                   return (
                     <Fragment key={msg.id}>
@@ -2062,7 +2180,7 @@ export default function AdminSupportChatPage() {
                           searchQuery && !isMatch ? "opacity-35" : ""
                         }`}
                       >
-                        <p className="max-w-[92%] rounded-full bg-[#FFFFFFCC] px-3.5 py-1 text-center text-[11.5px] leading-snug text-[#667781] shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] backdrop-blur-sm [font-family:var(--font-body)]">
+                        <p className="chat-text-system max-w-[92%] rounded-full bg-[#FFFFFFCC] px-2.5 py-0.5 text-center text-[#667781] shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-3.5 sm:py-1">
                           {searchQuery ? (
                             <ChatSearchHighlight
                               text={msg.text}
@@ -2112,7 +2230,7 @@ export default function AdminSupportChatPage() {
                     <div
                       className={`group relative max-w-[min(92%,20rem)] px-2.5 py-1.5 shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] sm:max-w-[min(85%,28rem)] lg:max-w-[min(85%,32rem)] ${
                         mine
-                          ? "rounded-[7.5px] rounded-tr-none bg-black text-white"
+                          ? "rounded-[7.5px] rounded-tr-none bg-black/80 text-white"
                           : "rounded-[7.5px] rounded-tl-none border border-[#EBEBE8] bg-[#FFFDF9] text-black"
                       } ${selected ? "ring-2 ring-black/25" : ""} ${
                         isActiveMatch
@@ -2132,7 +2250,7 @@ export default function AdminSupportChatPage() {
                         aria-hidden
                         className={`pointer-events-none absolute top-0 h-0 w-0 border-y-[6px] border-y-transparent ${
                           mine
-                            ? "-right-[6px] border-l-[6px] border-l-black"
+                            ? "-right-[6px] border-l-[6px] border-l-black/80"
                             : "-left-[6px] border-r-[6px] border-r-[#FFFDF9]"
                         }`}
                       />
@@ -2201,13 +2319,13 @@ export default function AdminSupportChatPage() {
                               ) : (
                                 <span />
                               )}
-                              <p className="min-w-0 truncate text-end text-[11px] font-medium text-white/75 [font-family:var(--font-body)]">
+                              <p className="chat-text-meta min-w-0 truncate text-end font-medium text-white/75">
                                 You
                               </p>
                             </>
                           ) : (
                             <>
-                              <p className="min-w-0 flex-1 truncate text-start text-[11px] font-medium text-[#8A8A80] [font-family:var(--font-body)]">
+                              <p className="chat-text-meta min-w-0 flex-1 truncate text-start font-medium text-[#8A8A80]">
                                 {msg.senderName ? (
                                   searchQuery ? (
                                     <ChatSearchHighlight
@@ -2265,7 +2383,7 @@ export default function AdminSupportChatPage() {
                           }`}
                         >
                           <p
-                            className={`truncate text-[11px] font-medium [font-family:var(--font-body)] ${
+                            className={`chat-text-meta truncate font-medium ${
                               mine ? "text-white/80" : "text-[#54656F]"
                             }`}
                           >
@@ -2275,7 +2393,7 @@ export default function AdminSupportChatPage() {
                                 : "Customer")}
                           </p>
                           <p
-                            className={`truncate text-[12px] [font-family:var(--font-body)] ${
+                            className={`chat-text-list-preview truncate ${
                               mine ? "text-white/65" : "text-[#8A8A80]"
                             }`}
                           >
@@ -2286,7 +2404,7 @@ export default function AdminSupportChatPage() {
                       {(() => {
                         const metaInline = (
                           <span
-                            className={`relative top-[3px] float-end ms-2 inline-flex items-end gap-1 whitespace-nowrap text-[11px] leading-none tabular-nums [font-family:var(--font-ui)] ${
+                            className={`chat-text-time relative top-[3px] float-end ms-2 inline-flex items-end gap-1 whitespace-nowrap leading-none tabular-nums ${
                               mine ? "text-white/50" : "text-[#8A8A80]"
                             }`}
                           >
@@ -2302,7 +2420,7 @@ export default function AdminSupportChatPage() {
                         );
                         const metaRow = (
                           <p
-                            className={`mt-0.5 flex items-center justify-end gap-1 text-[11px] tabular-nums [font-family:var(--font-ui)] ${
+                            className={`chat-text-time mt-0.5 flex items-center justify-end gap-1 tabular-nums ${
                               mine ? "text-white/50" : "text-[#8A8A80]"
                             }`}
                           >
@@ -2317,7 +2435,7 @@ export default function AdminSupportChatPage() {
                           </p>
                         );
                         const textBodyClass =
-                          "whitespace-pre-wrap break-words text-[14.2px] leading-[1.4] after:clear-both after:table [font-family:var(--font-body)]";
+                          "chat-text-body whitespace-pre-wrap break-words after:clear-both after:table";
 
                         if (msg.deleted) {
                           return (
@@ -2448,7 +2566,7 @@ export default function AdminSupportChatPage() {
               {chatEndedBy ? (
                 <div className="flex justify-center py-4">
                   <div className="rounded-[7.5px] bg-[#FFFFFFE6] px-3.5 py-1.5 text-center shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] backdrop-blur-sm">
-                    <p className="text-[12.5px] text-[#54656F] [font-family:var(--font-body)]">
+                    <p className="chat-text-system text-[#54656F]">
                       {chatEndedBy === "customer"
                         ? "This chat was ended by the customer"
                         : "You ended this chat"}
@@ -2470,7 +2588,7 @@ export default function AdminSupportChatPage() {
                 </button>
               </div>
             ) : (
-              <div className="relative z-[1] shrink-0 bg-transparent px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-2.5">
+              <div className="relative z-[1] shrink-0 bg-transparent px-2 py-1.5 pb-[max(0.4rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-2.5">
                 {attachNotice ? (
                   <div
                     role="alert"
@@ -2517,7 +2635,7 @@ export default function AdminSupportChatPage() {
                   />
                 ) : null}
                 {voice.recording ? (
-                  <div className="flex min-h-[48px] w-full items-center gap-1 rounded-full bg-white px-2 py-1.5 shadow-sm">
+                  <div className="chat-composer-shell flex w-full items-center gap-1 rounded-full bg-white px-1.5 py-0.5 shadow-sm sm:px-2 sm:py-1.5">
                     <button
                       type="button"
                       onClick={cancelVoiceNote}
@@ -2556,7 +2674,7 @@ export default function AdminSupportChatPage() {
                         );
                       }}
                     />
-                    <div className="relative flex min-h-[48px] w-full items-end gap-1 rounded-full bg-white px-2 py-1.5 shadow-sm">
+                    <div className="chat-composer-shell relative flex w-full items-end gap-0.5 rounded-full bg-white px-1.5 py-0.5 shadow-sm sm:gap-1 sm:px-2 sm:py-1.5">
                       <input
                         ref={fileInputRef}
                         type="file"
@@ -2641,7 +2759,7 @@ export default function AdminSupportChatPage() {
                             ? "Add a caption…"
                             : "Type a message"
                         }
-                        className="max-h-28 min-h-[36px] min-w-0 flex-1 resize-none bg-transparent py-2 pe-1 text-[16px] leading-relaxed text-[#111B21] outline-none placeholder:text-[#667781] [font-family:var(--font-body)] sm:text-[15px]"
+                        className="chat-composer-input max-h-28 min-w-0 flex-1 resize-none bg-transparent py-1 pe-1 text-[#111B21] outline-none placeholder:text-[#667781] sm:py-2"
                       />
                       <div className="mb-0.5 flex shrink-0 items-center gap-0.5">
                         {!hasDraft ? (
@@ -2745,18 +2863,12 @@ export default function AdminSupportChatPage() {
           </div>
         ) : null}
 
-        {headerPanel === "theme" ||
-        headerPanel === "block" ||
-        headerPanel === "call" ? (
+        {headerPanel === "theme" || headerPanel === "block" ? (
           <div className="absolute inset-0 z-40 flex items-end justify-center bg-black/25 p-3 backdrop-blur-[1px] sm:items-center sm:p-4">
             <div className="max-h-[min(90dvh,32rem)] w-full max-w-sm overflow-y-auto overflow-hidden rounded-xl border border-[#E8E8E4] bg-white shadow-xl">
               <div className="flex items-center justify-between border-b border-[#E8E8E4] px-4 py-3">
                 <h3 className="text-[15px] text-black [font-family:var(--font-body)]">
-                  {headerPanel === "block"
-                    ? "Block"
-                    : headerPanel === "call"
-                      ? "Audio call"
-                      : "Chat theme"}
+                  {headerPanel === "block" ? "Block" : "Chat theme"}
                 </h3>
                 <button
                   type="button"
@@ -2773,11 +2885,6 @@ export default function AdminSupportChatPage() {
                     className="mx-auto h-8 w-8 text-[#8A8A80]"
                     strokeWidth={1.5}
                   />
-                ) : headerPanel === "call" ? (
-                  <Phone
-                    className="mx-auto h-8 w-8 text-[#8A8A80]"
-                    strokeWidth={1.5}
-                  />
                 ) : (
                   <Palette
                     className="mx-auto h-8 w-8 text-[#8A8A80]"
@@ -2790,9 +2897,7 @@ export default function AdminSupportChatPage() {
                 <p className="text-[13px] leading-relaxed text-[#8A8A80] [font-family:var(--font-body)]">
                   {headerPanel === "block"
                     ? "Blocking contacts will be available in a later update. The menu option is ready for that phase."
-                    : headerPanel === "call"
-                      ? "Audio calling will be available in a later update. The phone control is ready for that phase."
-                      : "Chat themes will be available in a later update. The menu option is ready for that phase."}
+                    : "Chat themes will be available in a later update. The menu option is ready for that phase."}
                 </p>
                 <button
                   type="button"
