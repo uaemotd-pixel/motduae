@@ -1471,57 +1471,6 @@ export default function FabricStoreMessagesPage() {
     }
   };
 
-  const endChat = async () => {
-    const sessionId = active?.id || activeIdRef.current;
-    if (!sessionId || chatEndedBy || endingRef.current) return;
-    endingRef.current = true;
-    activeIdRef.current = sessionId;
-    voice.cancel();
-    clearPendingAttachment();
-    setAttachOpen(false);
-    setHeaderMenuOpen(false);
-    setError("");
-
-    // Optimistic UI — pause the thread; history stays in Mongo / inbox.
-    setPeerTyping(false);
-    emitTyping(false);
-    setChatEndedBy("agent");
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === sessionId ? { ...s, status: "ended", endedBy: "agent" } : s,
-      ),
-    );
-    setActive((prev) =>
-      prev && prev.id === sessionId
-        ? { ...prev, status: "ended", endedBy: "agent" }
-        : prev,
-    );
-    setDraft("");
-    draftRef.current = "";
-
-    try {
-      const res = await emitWithAck<AckResult>("chat:end", { sessionId }, 15000);
-      if (!res?.ok) {
-        endingRef.current = false;
-        setChatEndedBy(null);
-        setError(
-          res?.error === "forbidden"
-            ? "Could not end this chat."
-            : "Could not end this chat. Please try again.",
-        );
-        void refreshInbox();
-        return;
-      }
-      setChatEndedBy(res.endedBy === "customer" ? "customer" : "agent");
-      endingRef.current = false;
-    } catch {
-      endingRef.current = false;
-      setChatEndedBy(null);
-      setError("Could not end this chat. Check your connection.");
-      void refreshInbox();
-    }
-  };
-
   const restartChat = async () => {
     const sessionId = activeIdRef.current;
     if (!sessionId || !chatEndedBy || restarting) return;
@@ -2037,27 +1986,20 @@ export default function FabricStoreMessagesPage() {
                             setHeaderPanel("block");
                           },
                         },
-                        chatEndedBy
-                          ? {
-                              key: "continue",
-                              label: "Continue chat",
-                              icon: PhoneOff,
-                              tone: "default" as const,
-                              onPick: () => {
-                                setHeaderMenuOpen(false);
-                                void restartChat();
+                        ...(chatEndedBy
+                          ? [
+                              {
+                                key: "continue",
+                                label: "Continue chat",
+                                icon: PhoneOff,
+                                tone: "default" as const,
+                                onPick: () => {
+                                  setHeaderMenuOpen(false);
+                                  void restartChat();
+                                },
                               },
-                            }
-                          : {
-                              key: "end",
-                              label: "End chat",
-                              icon: PhoneOff,
-                              tone: "danger" as const,
-                              onPick: () => {
-                                setHeaderMenuOpen(false);
-                                void endChat();
-                              },
-                            },
+                            ]
+                          : []),
                       ] as const
                     ).map((item, index) => {
                       const Icon = item.icon;
