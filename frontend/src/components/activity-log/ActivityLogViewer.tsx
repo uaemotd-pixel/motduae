@@ -240,7 +240,21 @@ function areaDropdownTitle(role: RoleFilter): string {
 }
 
 function apiBase() {
-  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  // Keep in sync with lib/publicApiBase (inline to avoid pulling client bundle quirks).
+  const explicit = (
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_SOCKET_URL ||
+    ""
+  ).trim();
+  if (explicit) {
+    if (
+      process.env.NODE_ENV === "production" &&
+      /localhost|127\.0\.0\.1/i.test(explicit)
+    ) {
+      return "";
+    }
+    return explicit.replace(/\/$/, "");
+  }
   if (process.env.NODE_ENV === "production") return "";
   return "http://localhost:5000";
 }
