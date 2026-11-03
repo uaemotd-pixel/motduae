@@ -364,6 +364,7 @@ function messageToPublic(doc) {
     mimeType: doc.mimeType || undefined,
     fileSize: doc.fileSize || undefined,
     durationMs: doc.durationMs || undefined,
+    callOutcome: doc.callOutcome || undefined,
     attachmentKind: doc.attachmentKind || undefined,
     senderName: doc.senderName || undefined,
     status: normalizeStatus(doc.status),
@@ -375,11 +376,44 @@ function messageToPublic(doc) {
   };
 }
 
+function formatCallDurationLabel(durationMs) {
+  const total = Math.max(0, Math.floor(Number(durationMs) / 1000) || 0);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/**
+ * WhatsApp-style call history label (stored on the message for search/preview).
+ * @param {"answered"|"missed"|"rejected"|"cancelled"|"failed"} outcome
+ * @param {number} durationMs
+ * @param {string} [locale]
+ */
+export function callHistoryText(outcome, durationMs = 0, locale = "en") {
+  const ar = String(locale || "").toLowerCase().startsWith("ar");
+  switch (outcome) {
+    case "missed":
+      return ar ? "مكالمة صوتية فائتة" : "Missed voice call";
+    case "rejected":
+      return ar ? "مكالمة مرفوضة" : "Declined voice call";
+    case "cancelled":
+      return ar ? "مكالمة ملغاة" : "Cancelled voice call";
+    case "failed":
+      return ar ? "تعذّرت المكالمة" : "Voice call failed";
+    case "answered":
+    default: {
+      const dur = formatCallDurationLabel(durationMs);
+      return ar ? `مكالمة صوتية · ${dur}` : `Voice call · ${dur}`;
+    }
+  }
+}
+
 function replyPreviewFromMessage(msg) {
   if (!msg || msg.deleted) return "Deleted message";
   if (msg.kind === "voice") return "Voice message";
   if (msg.kind === "image") return "Photo";
   if (msg.kind === "file") return msg.fileName || "Document";
+  if (msg.kind === "call") return String(msg.text || "Voice call").slice(0, 240);
   return String(msg.caption || msg.text || "").trim().slice(0, 240);
 }
 
@@ -592,8 +626,8 @@ export async function findOpenSessionForCustomer(
   };
   if (kind === "fabric") {
     const owner = String(fabricStoreOwnerId || "").trim();
-    if (!owner) return null;
-    filter.fabricStoreOwnerId = owner;
+    // Owner optional: omit to find the customer's most recent fabric thread.
+    if (owner) filter.fabricStoreOwnerId = owner;
   } else {
     // Legacy rows may omit sessionKind; treat missing as support.
     filter.$or = [{ sessionKind: "support" }, { sessionKind: { $exists: false } }];
@@ -789,6 +823,51 @@ export async function createSession({
 
   if (customerSocketId) setCustomerSocket(sessionKey, customerSocketId);
   return getSession(sessionKey, { withMessages: true });
+}
+
+/**
+ * Persist a WhatsApp-style call history bubble on the actor's side.
+ * Allowed even after soft-end so chat:end races still keep a record.
+ * @param {string} sessionId
+ * @param {{ outcome: string, durationMs?: number, role?: "agent"|"customer"|"system" }} opts
+ */
+export async function appendCallHistoryMessage(sessionId, opts = {}) {
+  const session = await getSession(sessionId);
+  if (!session || session.status === "closed") {
+    return null;
+  }
+  const outcome = String(opts.outcome || "answered");
+  const allowed = new Set([
+    "answered",
+    "missed",
+    "rejected",
+    "cancelled",
+    "failed",
+  ]);
+  const safeOutcome = allowed.has(outcome) ? outcome : "failed";
+  const durationMs = Math.max(
+    0,
+    Math.min(24 * 60 * 60 * 1000, Math.round(Number(opts.durationMs) || 0)),
+  );
+  const role =
+    opts.role === "customer" || opts.role === "system" ? opts.role : "agent";
+  const text = callHistoryText(safeOutcome, durationMs, session.locale);
+  const created = await LiveChatMessage.create({
+    messageId: randomUUID(),
+    sessionKey: session.id,
+    role,
+    kind: "call",
+    text,
+    callOutcome: safeOutcome,
+    durationMs: safeOutcome === "answered" ? durationMs : 0,
+    status: "read",
+    at: new Date(),
+  });
+  const publicMsg = messageToPublic(
+    created.toObject ? created.toObject() : created,
+  );
+  await updateSessionPreview(session.id, publicMsg, 1);
+  return publicMsg;
 }
 
 export async function appendMessage(sessionId, message) {

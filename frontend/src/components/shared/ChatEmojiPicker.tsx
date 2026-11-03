@@ -21,39 +21,97 @@ type CategoryTabKey =
   | "objects"
   | "symbols";
 
-/**
- * Emojibase group indexes enabled in the picker.
- * 0 = Smileys & Emotion. Add more indexes later to unlock other categories.
- */
-const ENABLED_CATEGORY_INDEXES = new Set([0]);
+/** Emojibase group indexes (skip 2 = Component). */
+const CATEGORY_INDEX: Record<CategoryTabKey, number> = {
+  smileys: 0,
+  people: 1,
+  animals: 3,
+  food: 4,
+  travel: 5,
+  activities: 6,
+  objects: 7,
+  symbols: 8,
+};
 
 const CATEGORY_TABS: ReadonlyArray<{
   key: CategoryTabKey;
   emoji: string;
-  enabled: boolean;
+  labelEn: string;
+  labelAr: string;
 }> = [
-  { key: "smileys", emoji: "😊", enabled: true },
-  { key: "people", emoji: "👋", enabled: false },
-  { key: "animals", emoji: "🐱", enabled: false },
-  { key: "food", emoji: "🍔", enabled: false },
-  { key: "travel", emoji: "✈️", enabled: false },
-  { key: "activities", emoji: "⚽", enabled: false },
-  { key: "objects", emoji: "💡", enabled: false },
-  { key: "symbols", emoji: "❤️", enabled: false },
+  {
+    key: "smileys",
+    emoji: "😊",
+    labelEn: "Smileys & Emotion",
+    labelAr: "الوجوه والمشاعر",
+  },
+  {
+    key: "people",
+    emoji: "👋",
+    labelEn: "People & Body",
+    labelAr: "الناس والجسد",
+  },
+  {
+    key: "animals",
+    emoji: "🐱",
+    labelEn: "Animals & Nature",
+    labelAr: "الحيوانات والطبيعة",
+  },
+  {
+    key: "food",
+    emoji: "🍔",
+    labelEn: "Food & Drink",
+    labelAr: "الطعام والشراب",
+  },
+  {
+    key: "travel",
+    emoji: "✈️",
+    labelEn: "Travel & Places",
+    labelAr: "السفر والأماكن",
+  },
+  {
+    key: "activities",
+    emoji: "⚽",
+    labelEn: "Activities",
+    labelAr: "الأنشطة",
+  },
+  {
+    key: "objects",
+    emoji: "💡",
+    labelEn: "Objects",
+    labelAr: "الأشياء",
+  },
+  {
+    key: "symbols",
+    emoji: "❤️",
+    labelEn: "Symbols",
+    labelAr: "الرموز",
+  },
 ];
 
-const FrimousseSmileys = dynamic(
+const ENABLED_CATEGORY_INDEXES = new Set(
+  CATEGORY_TABS.map((t) => CATEGORY_INDEX[t.key]),
+);
+
+const LABEL_BY_INDEX = Object.fromEntries(
+  CATEGORY_TABS.map((t) => [CATEGORY_INDEX[t.key], t]),
+) as Record<number, (typeof CATEGORY_TABS)[number]>;
+
+const FrimousseGrid = dynamic(
   () =>
     import("frimousse").then(({ EmojiPicker, defaultEmojiDataResolver }) => {
-      function SmileysGrid({
+      function EmojiGrid({
         isAr,
         onPick,
+        categoryIndex,
       }: {
         isAr: boolean;
         onPick?: (emoji: string) => void;
+        categoryIndex: number;
       }) {
         return (
           <EmojiPicker.Root
+            key={categoryIndex}
             className="flex h-full min-h-0 w-full flex-col overflow-hidden"
             columns={8}
             locale="en"
@@ -61,11 +119,15 @@ const FrimousseSmileys = dynamic(
               const data = await defaultEmojiDataResolver(locale, options);
               return {
                 ...data,
-                categories: data.categories.filter((c) =>
-                  ENABLED_CATEGORY_INDEXES.has(c.index),
+                categories: data.categories.filter(
+                  (c) =>
+                    ENABLED_CATEGORY_INDEXES.has(c.index) &&
+                    c.index === categoryIndex,
                 ),
-                emojis: data.emojis.filter((e) =>
-                  ENABLED_CATEGORY_INDEXES.has(e.category),
+                emojis: data.emojis.filter(
+                  (e) =>
+                    ENABLED_CATEGORY_INDEXES.has(e.category) &&
+                    e.category === categoryIndex,
                 ),
               };
             }}
@@ -106,14 +168,20 @@ const FrimousseSmileys = dynamic(
                 <EmojiPicker.List
                   className="w-full select-none pb-2"
                   components={{
-                    CategoryHeader: ({ category, ...props }) => (
-                      <div
-                        {...props}
-                        className="bg-[#F7F8FA] px-3 pb-1 pt-2.5 text-[12px] font-medium capitalize text-[#667781] [font-family:var(--font-body)]"
-                      >
-                        {isAr ? "الوجوه والمشاعر" : category.label}
-                      </div>
-                    ),
+                    CategoryHeader: ({ category, ...props }) => {
+                      const meta = LABEL_BY_INDEX[categoryIndex];
+                      const title =
+                        (isAr ? meta?.labelAr : meta?.labelEn) ||
+                        category.label;
+                      return (
+                        <div
+                          {...props}
+                          className="bg-[#F7F8FA] px-3 pb-1 pt-2.5 text-[12px] font-medium capitalize text-[#667781] [font-family:var(--font-body)]"
+                        >
+                          {title}
+                        </div>
+                      );
+                    },
                     Row: ({ children, ...props }) => (
                       <div {...props} className="box-border w-full px-1">
                         {children}
@@ -139,7 +207,7 @@ const FrimousseSmileys = dynamic(
           </EmojiPicker.Root>
         );
       }
-      return SmileysGrid;
+      return EmojiGrid;
     }),
   {
     ssr: false,
@@ -201,65 +269,27 @@ export default function ChatEmojiPicker({
       className="absolute inset-x-0 bottom-full z-40 mb-2 flex h-[min(46vh,22rem)] flex-col overflow-hidden rounded-xl border border-[#E9EDEF] bg-[#F7F8FA] shadow-[0_8px_30px_rgba(11,20,26,0.18)]"
     >
       <div className="min-h-0 flex-1 basis-0 overflow-hidden">
-        {activeTab === "smileys" ? (
-          <FrimousseSmileys isAr={isAr} onPick={onPick} />
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-            <span className="text-[28px]" aria-hidden>
-              {CATEGORY_TABS.find((t) => t.key === activeTab)?.emoji ?? "✨"}
-            </span>
-            <p className="text-[14px] font-medium text-[#111B21] [font-family:var(--font-body)]">
-              {isAr ? "في تحديث قادم" : "Coming in a future update"}
-            </p>
-            <p className="max-w-[16rem] text-[12px] leading-snug text-[#667781] [font-family:var(--font-body)]">
-              {isAr
-                ? "حالياً تتوفر الوجوه والمشاعر فقط. باقي الفئات قريباً."
-                : "Only Smileys & Emotion are available for now. More categories soon."}
-            </p>
-            <button
-              type="button"
-              onClick={() => setActiveTab("smileys")}
-              className="mt-1 rounded-full bg-black px-3.5 py-1.5 text-[11px] text-white transition hover:cursor-pointer hover:bg-[#1a1a1a] [font-family:var(--font-body)]"
-            >
-              {isAr ? "العودة للوجوه" : "Back to Smileys"}
-            </button>
-          </div>
-        )}
+        <FrimousseGrid
+          isAr={isAr}
+          onPick={onPick}
+          categoryIndex={CATEGORY_INDEX[activeTab]}
+        />
       </div>
 
       <div className="flex shrink-0 items-center justify-around gap-0.5 border-t border-[#E9EDEF] bg-white px-1 py-1.5">
         {CATEGORY_TABS.map((tab) => {
           const selected = activeTab === tab.key;
+          const label = isAr ? tab.labelAr : tab.labelEn;
           return (
             <button
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              title={
-                tab.enabled
-                  ? isAr
-                    ? "الوجوه والمشاعر"
-                    : "Smileys & Emotion"
-                  : isAr
-                    ? "تحديث قادم"
-                    : "Future update"
-              }
-              aria-label={
-                tab.enabled
-                  ? isAr
-                    ? "الوجوه والمشاعر"
-                    : "Smileys & Emotion"
-                  : isAr
-                    ? "تحديث قادم"
-                    : "Future update"
-              }
+              title={label}
+              aria-label={label}
               aria-pressed={selected}
               className={`flex h-9 w-9 items-center justify-center rounded-full text-[18px] transition hover:cursor-pointer ${
-                selected
-                  ? "bg-[#E9EDEF]"
-                  : tab.enabled
-                    ? "hover:bg-[#F0F2F5]"
-                    : "opacity-55 hover:bg-[#F0F2F5]"
+                selected ? "bg-[#E9EDEF]" : "hover:bg-[#F0F2F5]"
               }`}
             >
               <span aria-hidden>{tab.emoji}</span>

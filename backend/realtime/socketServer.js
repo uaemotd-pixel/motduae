@@ -5,6 +5,7 @@ import { resolveAuthFromToken } from "../middleware/auth.js";
 import { AUTH_COOKIE_NAME } from "../utils/authCookie.js";
 import {
   assignAgent,
+  appendCallHistoryMessage,
   appendMessage,
   clearCustomerSocketIfMatch,
   clearSessionMessages,
@@ -34,6 +35,106 @@ import {
   customerCanChatWithFabricStore,
   listDealtWithFabricStores,
 } from "../services/customerFabricStoreDeals.js";
+import {
+  acceptCall,
+  attachCustomerToRingingCall,
+  cancelPendingDisconnectEnd,
+  createRingingCall,
+  endCall,
+  endCallForSocket,
+  getCallBySession,
+  isAudioCallsEnabled,
+  markCallActive,
+  reattachCallSocket,
+  toPublicCall,
+} from "./audioCalls.js";
+import FabricShop from "../models/FabricShop.js";
+
+/** Deliver a pending outbound ring to a customer who just (re)joined. */
+function deliverPendingCallRing(sessionId, customerSocket) {
+  if (!io || !customerSocket) return;
+  const pending = attachCustomerToRingingCall(sessionId, customerSocket.id);
+  if (!pending) return;
+  const publicCall = toPublicCall(pending);
+  customerSocket.emit("call:ring", {
+    ...publicCall,
+    from: "agent",
+  });
+  // Tell the agent the customer's device is now ringing (WhatsApp-style).
+  io.to(`session:${sessionId}`).emit("call:peer-ringing", {
+    sessionId,
+    callId: pending.callId,
+  });
+  console.info("[audioCall] deferred ring delivered", {
+    callId: pending.callId,
+    sessionId,
+  });
+}
+
+/**
+ * Chat placement for call history:
+ * 1) Successful talk → centered (system)
+ * 2) Customer cancelled / declined → customer side
+ * 3) Agent cancelled / missed (no answer) → agent side
+ * @param {{ outcome?: string }} history
+ * @param {string} reason
+ * @param {{ by?: string }} [extra]
+ * @returns {"agent"|"customer"|"system"}
+ */
+function resolveCallHistoryRole(history = {}, reason = "", extra = {}) {
+  if (history.outcome === "answered") return "system";
+
+  const why = String(reason || "");
+  if (extra.by === "customer" || why === "rejected") return "customer";
+  if (extra.by === "agent") return "agent";
+  // Ring timeout / unknown cancel while ringing → attribute to agent (caller).
+  if (why === "missed" || why === "cancelled") return "agent";
+  return "agent";
+}
+
+/**
+ * Emit call:ended and persist a WhatsApp-style call history bubble.
+ * @param {object | null} endedCall — snapshot from endCall()
+ * @param {string} reason
+ * @param {{ by?: string }} [extra]
+ */
+async function emitCallEnded(endedCall, reason, extra = {}) {
+  if (!io || !endedCall?.sessionId) return;
+  const sessionId = endedCall.sessionId;
+  const history = endedCall.history || {
+    outcome: "failed",
+    durationMs: 0,
+  };
+  const role = resolveCallHistoryRole(history, reason, extra);
+
+  io.to(`session:${sessionId}`).emit("call:ended", {
+    sessionId,
+    callId: endedCall.callId,
+    reason,
+    outcome: history.outcome,
+    durationMs: history.durationMs,
+    role,
+    ...(extra.by ? { by: extra.by } : {}),
+  });
+
+  try {
+    const message = await appendCallHistoryMessage(sessionId, {
+      outcome: history.outcome,
+      durationMs: history.durationMs,
+      role,
+    });
+    if (message) {
+      io.to(`session:${sessionId}`).emit("chat:message", {
+        sessionId,
+        message,
+      });
+      const session = await getSession(sessionId);
+      void emitInboxUpdated(session);
+    }
+  } catch (err) {
+    console.error("[audioCall] call history message failed:", err);
+  }
+}
 
 /** @type {import("socket.io").Server | null} */
 let io = null;
@@ -357,6 +458,7 @@ export function initSocketServer(httpServer) {
 
         customerSocketSession.set(socket.id, session.id);
         socket.join(`session:${session.id}`);
+        deliverPendingCallRing(session.id, socket);
 
         if (!wasResume) {
           if (sessionKind === "fabric") {
@@ -527,6 +629,9 @@ export function initSocketServer(httpServer) {
 
         setAgentSocket(session.id, socket.id);
         socket.join(`session:${session.id}`);
+        cancelPendingDisconnectEnd(socket.id);
+        // Keep any live call for this session bound to the reconnected agent socket.
+        reattachCallSocket(session.id, "agent", socket.id);
         reply({
           ok: true,
           session: await toPublicSession(sessionId, { viewer: "agent" }),
@@ -828,6 +933,11 @@ export function initSocketServer(httpServer) {
           return;
         }
 
+        const endedCall = endCall(sessionId, "chat_ended");
+        if (endedCall) {
+          await emitCallEnded(endedCall, "chat_ended", { by: endedBy });
+        }
+
         reply({
           ok: true,
           endedBy,
@@ -1051,6 +1161,10 @@ export function initSocketServer(httpServer) {
           reply({ ok: false, error: "not_found" });
           return;
         }
+        const endedCall = endCall(sessionId, "chat_closed");
+        if (endedCall) {
+          await emitCallEnded(endedCall, "chat_closed", { by: "agent" });
+        }
         io.to(`session:${sessionId}`).emit("chat:closed", { sessionId });
         const room = io.sockets.adapter.rooms.get(`session:${sessionId}`);
         if (room) {
@@ -1078,7 +1192,300 @@ export function initSocketServer(httpServer) {
       reply({ ok: false, error: "coming_soon" });
     });
 
+    // ── Audio call (staff / fabric store → customer, 1:1 WebRTC) ────────────
+
+    socket.on("call:invite", async (payload = {}, ack) => {
+      const reply = (body) => {
+        if (typeof ack === "function") ack(body);
+      };
+      try {
+        if (!isAudioCallsEnabled()) {
+          reply({ ok: false, error: "disabled" });
+          return;
+        }
+        if (!isAgentSideSocket(socket)) {
+          console.info("[audioCall] invite rejected", {
+            reason: "forbidden_role",
+            kind: socket.data?.kind,
+          });
+          reply({ ok: false, error: "forbidden" });
+          return;
+        }
+        const sessionId = String(payload.sessionId || "").trim();
+        const session = await getSession(sessionId);
+        if (!session) {
+          reply({ ok: false, error: "not_found" });
+          return;
+        }
+        const isFabricSession = session.sessionKind === "fabric";
+        if (isFabricSession) {
+          if (!isFabricStaffSocket(socket) || !ownsSession(socket, session)) {
+            reply({ ok: false, error: "forbidden" });
+            return;
+          }
+          const shop = session.fabricShopId
+            ? await FabricShop.findById(session.fabricShopId)
+                .select("allowLiveChatAudioCalls")
+                .lean()
+            : await FabricShop.findOne({
+                ownerId: session.fabricStoreOwnerId,
+              })
+                .select("allowLiveChatAudioCalls")
+                .lean();
+          if (!shop || shop.allowLiveChatAudioCalls === false) {
+            reply({ ok: false, error: "disabled" });
+            return;
+          }
+        } else if (!isStaffSocket(socket) || !ownsSession(socket, session)) {
+          reply({ ok: false, error: "forbidden" });
+          return;
+        }
+        if (session.status !== "active") {
+          reply({ ok: false, error: "session_not_active" });
+          return;
+        }
+        if (getCallBySession(sessionId)) {
+          reply({ ok: false, error: "busy" });
+          return;
+        }
+
+        // Staff should be in the session room to relay signals.
+        socket.join(`session:${sessionId}`);
+        cancelPendingDisconnectEnd(socket.id);
+        if (session.agentSocketId !== socket.id) {
+          setAgentSocket(sessionId, socket.id);
+        }
+
+        const peerReachable = isCustomerConnected(session);
+        const call = createRingingCall(sessionId, {
+          adminSocketId: socket.id,
+          customerSocketId: peerReachable ? session.customerSocketId : "",
+          onRingTimeout: (timedOut) => {
+            void emitCallEnded(timedOut, "missed");
+          },
+        });
+
+        const publicCall = toPublicCall(call);
+        // Only ring the customer when they are online; otherwise stay in
+        // "Calling…" until they reconnect (deliverPendingCallRing).
+        if (peerReachable) {
+          io.to(`session:${sessionId}`).emit("call:ring", {
+            ...publicCall,
+            from: "agent",
+          });
+        }
+        reply({
+          ok: true,
+          call: publicCall,
+          peerReachable,
+        });
+      } catch (err) {
+        if (err?.code === "busy" || err?.message === "busy") {
+          reply({ ok: false, error: "busy" });
+          return;
+        }
+        console.error("call:invite failed:", err);
+        reply({ ok: false, error: "server_error" });
+      }
+    });
+
+    socket.on("call:accept", async (payload = {}, ack) => {
+      const reply = (body) => {
+        if (typeof ack === "function") ack(body);
+      };
+      try {
+        if (!isAudioCallsEnabled()) {
+          reply({ ok: false, error: "disabled" });
+          return;
+        }
+        if (isAgentSideSocket(socket)) {
+          reply({ ok: false, error: "forbidden" });
+          return;
+        }
+        const sessionId = String(payload.sessionId || "").trim();
+        const session = await getSession(sessionId);
+        if (!session || !ownsSession(socket, session)) {
+          reply({ ok: false, error: "forbidden" });
+          return;
+        }
+        const call = acceptCall(sessionId, socket.id);
+        setCustomerSocket(sessionId, socket.id);
+        customerSocketSession.set(socket.id, sessionId);
+        socket.join(`session:${sessionId}`);
+
+        const publicCall = toPublicCall(call);
+        io.to(`session:${sessionId}`).emit("call:accepted", {
+          ...publicCall,
+          // Admin creates the WebRTC offer.
+          callerSocketHint: "agent",
+        });
+        reply({ ok: true, call: publicCall, role: "callee" });
+      } catch (err) {
+        const code = err?.code || err?.message;
+        if (code === "not_found" || code === "invalid_state") {
+          reply({ ok: false, error: code });
+          return;
+        }
+        console.error("call:accept failed:", err);
+        reply({ ok: false, error: "server_error" });
+      }
+    });
+
+    socket.on("call:reject", async (payload = {}, ack) => {
+      const reply = (body) => {
+        if (typeof ack === "function") ack(body);
+      };
+      try {
+        if (isAgentSideSocket(socket)) {
+          reply({ ok: false, error: "forbidden" });
+          return;
+        }
+        const sessionId = String(payload.sessionId || "").trim();
+        const session = await getSession(sessionId);
+        if (!session || !ownsSession(socket, session)) {
+          reply({ ok: false, error: "forbidden" });
+          return;
+        }
+        const call = getCallBySession(sessionId);
+        if (!call || call.status !== "ringing") {
+          reply({ ok: false, error: "not_found" });
+          return;
+        }
+        const ended = endCall(sessionId, "rejected");
+        if (ended) await emitCallEnded(ended, "rejected");
+        reply({ ok: true });
+      } catch (err) {
+        console.error("call:reject failed:", err);
+        reply({ ok: false, error: "server_error" });
+      }
+    });
+
+    socket.on("call:signal", async (payload = {}, ack) => {
+      const reply = (body) => {
+        if (typeof ack === "function") ack(body);
+      };
+      try {
+        const sessionId = String(payload.sessionId || "").trim();
+        const callId = String(payload.callId || "").trim();
+        const session = await getSession(sessionId);
+        if (!session || !ownsSession(socket, session)) {
+          reply({ ok: false, error: "forbidden" });
+          return;
+        }
+        const call = getCallBySession(sessionId);
+        if (!call || (callId && call.callId !== callId)) {
+          reply({ ok: false, error: "not_found" });
+          return;
+        }
+        if (call.status !== "connecting" && call.status !== "active") {
+          reply({ ok: false, error: "invalid_state" });
+          return;
+        }
+
+        const signal = payload.signal;
+        if (!signal || typeof signal !== "object") {
+          reply({ ok: false, error: "bad_request" });
+          return;
+        }
+
+        // First media signal after accept → mark active.
+        if (call.status === "connecting" && signal.type === "offer") {
+          markCallActive(sessionId);
+        }
+
+        socket.to(`session:${sessionId}`).emit("call:signal", {
+          sessionId,
+          callId: call.callId,
+          signal,
+          from: isAgentSideSocket(socket) ? "agent" : "customer",
+        });
+        reply({ ok: true });
+      } catch (err) {
+        console.error("call:signal failed:", err);
+        reply({ ok: false, error: "server_error" });
+      }
+    });
+
+    socket.on("call:end", async (payload = {}, ack) => {
+      const reply = (body) => {
+        if (typeof ack === "function") ack(body);
+      };
+      try {
+        const sessionId = String(payload.sessionId || "").trim();
+        const session = await getSession(sessionId);
+        if (!session || !ownsSession(socket, session)) {
+          reply({ ok: false, error: "forbidden" });
+          return;
+        }
+        const ended = endCall(sessionId, "hangup");
+        if (!ended) {
+          reply({ ok: true, alreadyEnded: true });
+          return;
+        }
+        await emitCallEnded(ended, "hangup", {
+          by: isAgentSideSocket(socket) ? "agent" : "customer",
+        });
+        reply({ ok: true });
+      } catch (err) {
+        console.error("call:end failed:", err);
+        reply({ ok: false, error: "server_error" });
+      }
+    });
+
+    socket.on("call:state", async (payload = {}, ack) => {
+      const reply = (body) => {
+        if (typeof ack === "function") ack(body);
+      };
+      try {
+        const sessionId = String(payload.sessionId || "").trim();
+        const session = await getSession(sessionId);
+        if (!session || !ownsSession(socket, session)) {
+          reply({ ok: false, error: "forbidden" });
+          return;
+        }
+        cancelPendingDisconnectEnd(socket.id);
+        let call = getCallBySession(sessionId);
+        if (call) {
+          const asAgent = isAgentSideSocket(socket);
+          reattachCallSocket(
+            sessionId,
+            asAgent ? "agent" : "customer",
+            socket.id,
+          );
+          if (asAgent) {
+            setAgentSocket(sessionId, socket.id);
+            socket.join(`session:${sessionId}`);
+          } else {
+            setCustomerSocket(sessionId, socket.id);
+            customerSocketSession.set(socket.id, sessionId);
+            socket.join(`session:${sessionId}`);
+          }
+          call = getCallBySession(sessionId);
+        }
+        reply({
+          ok: true,
+          enabled: isAudioCallsEnabled(),
+          call: call ? toPublicCall(call) : null,
+          customerOnline: isCustomerConnected(session),
+        });
+      } catch (err) {
+        console.error("call:state failed:", err);
+        reply({ ok: false, error: "server_error" });
+      }
+    });
+
     socket.on("disconnect", () => {
+      // Defer end so switching browser/inbox tabs (brief socket drop + reconnect)
+      // does not cancel an in-progress ring/call.
+      const roleHint = isAgentSideSocket(socket) ? "agent" : "customer";
+      endCallForSocket(socket.id, {
+        graceMs: 15_000,
+        onEnd: (ended) => {
+          if (!ended) return;
+          void emitCallEnded(ended, "peer_disconnect", { by: roleHint });
+        },
+      });
+
       const sessionId = customerSocketSession.get(socket.id);
       if (sessionId) {
         customerSocketSession.delete(socket.id);

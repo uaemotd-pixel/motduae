@@ -122,6 +122,7 @@ export function toShopSnapshotDto(shop) {
     hasPayoutBank: isPayoutBankComplete(shop.payoutBank),
     allowCustomerCalls: Boolean(shop.allowCustomerCalls),
     allowCustomerSocial: Boolean(shop.allowCustomerSocial),
+    allowLiveChatAudioCalls: shop.allowLiveChatAudioCalls !== false,
     updatedAt: shop.updatedAt || null,
   };
 }
