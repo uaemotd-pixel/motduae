@@ -321,6 +321,49 @@ export function getPriorityStyles(priority: NotificationPriority): string {
   return styles[priority];
 }
 
+/** Fingerprint so upserted live-chat alerts (same id, newer createdAt) still toast. */
+export function notificationAlertKey(
+  item: Pick<NotificationItem, "id" | "createdAt" | "title" | "message" | "type">,
+): string {
+  return [
+    item.id || "",
+    item.createdAt || "",
+    item.type || "",
+    item.title || "",
+    item.message || "",
+  ].join("|");
+}
+
+export function isLiveChatNotificationType(type?: string | null): boolean {
+  const key = String(type || "").toLowerCase();
+  return (
+    key === "live_chat_started" ||
+    key === "live_chat_message" ||
+    key === "live_chat_agent_message"
+  );
+}
+
+export function getNotificationToastHref(
+  notification: Pick<NotificationItem, "type" | "audience">,
+  role: "admin" | "customer" | "fabric" | "tailor" = "customer",
+): string {
+  const type = String(notification.type || "").toLowerCase();
+  if (role === "admin") {
+    if (isLiveChatNotificationType(type)) return "/admin/support-chat";
+    return getAdminDeepLinkHref(notification as NotificationItem)?.href ||
+      "/admin/notifications";
+  }
+  if (role === "fabric") {
+    if (isLiveChatNotificationType(type)) return "/fabric/messages";
+    return "/fabric/notifications";
+  }
+  if (role === "tailor") {
+    return "/tailor/notification";
+  }
+  // Customer: open notifications; live-chat toast also dispatches open-chat event.
+  return "/account?tab=notifications";
+}
+
 export function getAdminDeepLinkHref(
   notification: NotificationItem,
   _locale?: string,
@@ -489,37 +532,157 @@ export function exportNotificationsCsv(
 }
 
 const DESKTOP_ALERTS_KEY = "motd:admin:desktop-alerts";
+const MESSAGE_POPUPS_KEY = "motd:message-popups-enabled";
+const CHAT_POPUP_DISMISSED_KEY = "motd:chat-popup-prompt-dismissed";
+export const MESSAGE_POPUPS_CHANGED_EVENT = "motd:message-popups-changed";
 
 export function getDesktopAlertsEnabled(): boolean {
   if (typeof window === "undefined") return false;
-  return localStorage.getItem(DESKTOP_ALERTS_KEY) === "true";
+  return getMessagePopupsEnabled();
 }
 
 export function setDesktopAlertsEnabled(enabled: boolean) {
+  setMessagePopupsEnabled(enabled);
+}
+
+/** User preference for in-app message toasts (customer / admin / fabric). */
+export function getMessagePopupsEnabled(): boolean {
+  if (typeof window === "undefined") return true;
+  const v = localStorage.getItem(MESSAGE_POPUPS_KEY);
+  if (v === "true") return true;
+  if (v === "false") return false;
+  // Default on — in-app toasts do not need browser notification permission.
+  return true;
+}
+
+export function setMessagePopupsEnabled(enabled: boolean) {
   if (typeof window === "undefined") return;
+  localStorage.setItem(MESSAGE_POPUPS_KEY, enabled ? "true" : "false");
   localStorage.setItem(DESKTOP_ALERTS_KEY, enabled ? "true" : "false");
+  window.dispatchEvent(
+    new CustomEvent(MESSAGE_POPUPS_CHANGED_EVENT, { detail: { enabled } }),
+  );
+}
+
+export function getChatPopupPromptDismissed(): boolean {
+  if (typeof window === "undefined") return true;
+  return localStorage.getItem(CHAT_POPUP_DISMISSED_KEY) === "1";
+}
+
+export function setChatPopupPromptDismissed(dismissed: boolean) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(CHAT_POPUP_DISMISSED_KEY, dismissed ? "1" : "0");
 }
 
 export async function requestDesktopAlertPermission(): Promise<boolean> {
   if (typeof window === "undefined" || !("Notification" in window)) {
     return false;
   }
-  if (Notification.permission === "granted") return true;
+  if (Notification.permission === "granted") {
+    setMessagePopupsEnabled(true);
+    return true;
+  }
   if (Notification.permission === "denied") return false;
   const result = await Notification.requestPermission();
+  if (result === "granted") {
+    setMessagePopupsEnabled(true);
+  }
   return result === "granted";
 }
 
 export function showDesktopNotification(title: string, body: string) {
   if (
     typeof window === "undefined" ||
-    !getDesktopAlertsEnabled() ||
+    !getMessagePopupsEnabled() ||
     !("Notification" in window) ||
     Notification.permission !== "granted"
   ) {
     return;
   }
   new Notification(title, { body, icon: "/favicon.ico" });
+}
+
+/** True when the browser tab is not visible (toasts won't be seen). */
+export function isPageBackgrounded(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.visibilityState === "hidden" || document.hidden === true;
+}
+
+type ChatPopupOptions = {
+  title: string;
+  body: string;
+  tag?: string;
+  onClick?: () => void;
+  /** When true, only show if the tab is backgrounded (default). */
+  onlyWhenBackgrounded?: boolean;
+};
+
+/**
+ * WhatsApp-style OS/browser popup for live chat messages.
+ * Uses the Notification API when preference + permission allow it.
+ */
+export function showChatPopupNotification({
+  title,
+  body,
+  tag,
+  onClick,
+  onlyWhenBackgrounded = true,
+}: ChatPopupOptions): Notification | null {
+  if (
+    typeof window === "undefined" ||
+    !getMessagePopupsEnabled() ||
+    !("Notification" in window) ||
+    Notification.permission !== "granted"
+  ) {
+    return null;
+  }
+  if (onlyWhenBackgrounded && !isPageBackgrounded()) {
+    return null;
+  }
+
+  try {
+    const popup = new Notification(title || "New message", {
+      body: body || "You have a new message",
+      icon: "/favicon.ico",
+      badge: "/favicon.ico",
+      tag: tag || "motd-live-chat",
+      renotify: true,
+      requireInteraction: false,
+    });
+
+    popup.onclick = () => {
+      try {
+        window.focus();
+        onClick?.();
+      } finally {
+        popup.close();
+      }
+    };
+
+    // Auto-close after a bit (WhatsApp-like).
+    window.setTimeout(() => {
+      try {
+        popup.close();
+      } catch {
+        /* ignore */
+      }
+    }, 8000);
+
+    return popup;
+  } catch {
+    return null;
+  }
+}
+
+/** Customer-facing titles for Care / Store / Tailor replies. */
+export function liveChatReplyNotificationTitle(
+  sessionKind?: string | null,
+  isAr = false,
+): string {
+  const kind = String(sessionKind || "support").toLowerCase();
+  if (kind === "fabric") return isAr ? "المتجر ردّ" : "Store replied";
+  if (kind === "tailor") return isAr ? "الخياط ردّ" : "Tailor replied";
+  return isAr ? "MOTD Care ردّ" : "MOTD Care replied";
 }
 
 export function getOrderDetailHref(

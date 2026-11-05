@@ -4,10 +4,15 @@ import { useEffect } from "react";
 import { io, type Socket } from "socket.io-client";
 import { getSocketOrigin } from "@/lib/publicApiBase";
 
-let socket: Socket | null = null;
+type MotdSocket = Socket & {
+  __supportChatEffect?: symbol;
+  __notifyHost?: boolean;
+};
+
+let socket: MotdSocket | null = null;
 
 /** Lazy singleton socket — connect explicitly with getSocket().connect(). */
-export function getSocket(): Socket {
+export function getSocket(): MotdSocket {
   if (!socket) {
     const url = getSocketOrigin();
     socket = io(url || undefined, {
@@ -19,7 +24,7 @@ export function getSocket(): Socket {
       reconnection: true,
       reconnectionAttempts: 12,
       reconnectionDelay: 800,
-    });
+    }) as MotdSocket;
   }
   return socket;
 }
@@ -27,6 +32,27 @@ export function getSocket(): Socket {
 export function disconnectSocket() {
   if (!socket) return;
   socket.disconnect();
+}
+
+/** Keep the shared socket up for message popups across admin/fabric pages. */
+export function setSocketNotifyHost(active: boolean) {
+  const s = getSocket();
+  s.__notifyHost = active;
+}
+
+/** Leave Live Chat without killing the notify-host connection. */
+export function releaseSupportChatSocket(effectId: symbol) {
+  const s = getSocket();
+  if (s.__supportChatEffect !== effectId) return;
+  s.__supportChatEffect = undefined;
+  try {
+    if (s.connected) s.emit("staff:unsubscribe-inbox");
+  } catch {
+    /* ignore */
+  }
+  if (!s.__notifyHost) {
+    s.disconnect();
+  }
 }
 
 function waitUntilConnected(s: Socket, timeoutMs: number): Promise<void> {

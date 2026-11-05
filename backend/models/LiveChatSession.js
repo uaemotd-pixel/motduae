@@ -31,10 +31,10 @@ const liveChatSessionSchema = new mongoose.Schema(
       name: { type: String, default: null },
       profilePic: { type: String, default: "", trim: true },
     },
-    /** support = MOTD admin queue; fabric = customer ↔ fabric store */
+    /** support = MOTD admin; fabric = fabric store; tailor = tailor shop */
     sessionKind: {
       type: String,
-      enum: ["support", "fabric"],
+      enum: ["support", "fabric", "tailor"],
       default: "support",
       index: true,
     },
@@ -48,6 +48,16 @@ const liveChatSessionSchema = new mongoose.Schema(
     /** Optional FabricShop._id for display. */
     fabricShopId: { type: String, default: null, trim: true },
     fabricStoreName: { type: String, default: "", trim: true },
+    /** Tailor partner User._id when sessionKind is tailor. */
+    tailorOwnerId: {
+      type: String,
+      default: null,
+      index: true,
+      trim: true,
+    },
+    /** Optional TailorShop._id for display. */
+    tailorShopId: { type: String, default: null, trim: true },
+    tailorName: { type: String, default: "", trim: true },
     status: {
       type: String,
       enum: ["waiting", "active", "ended", "closed"],
@@ -56,6 +66,8 @@ const liveChatSessionSchema = new mongoose.Schema(
     },
     locale: { type: String, default: "en", trim: true },
     lastActivityAt: { type: Date, default: Date.now, index: true },
+    /** When the customer last left the live thread (portal-side presence only). */
+    customerLastSeenAt: { type: Date, default: null },
     endedBy: {
       type: String,
       enum: ["customer", "agent"],
@@ -63,6 +75,8 @@ const liveChatSessionSchema = new mongoose.Schema(
     },
     endedAt: { type: Date, default: null },
     restartEndsAt: { type: Date, default: null },
+    /** Agent/store blocked this customer — thread stays in inbox for unblock. */
+    customerBlocked: { type: Boolean, default: false, index: true },
     messageCount: { type: Number, default: 0 },
     /** Denormalized last message for inbox (no media payload). */
     lastMessage: {
@@ -95,6 +109,19 @@ liveChatSessionSchema.index({
   "customer.userId": 1,
   sessionKind: 1,
   fabricStoreOwnerId: 1,
+  status: 1,
+  lastActivityAt: -1,
+});
+liveChatSessionSchema.index({
+  sessionKind: 1,
+  tailorOwnerId: 1,
+  status: 1,
+  lastActivityAt: -1,
+});
+liveChatSessionSchema.index({
+  "customer.userId": 1,
+  sessionKind: 1,
+  tailorOwnerId: 1,
   status: 1,
   lastActivityAt: -1,
 });

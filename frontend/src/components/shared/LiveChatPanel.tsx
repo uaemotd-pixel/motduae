@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -11,7 +12,6 @@ import {
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Ban,
   CheckSquare,
   Eraser,
   Info,
@@ -19,7 +19,6 @@ import {
   Minimize2,
   Mic,
   MoreVertical,
-  Palette,
   Paperclip,
   PhoneOff,
   Search,
@@ -31,7 +30,19 @@ import {
 } from "lucide-react";
 import ChatThreadSearchBar from "@/components/shared/ChatThreadSearchBar";
 import ChatSearchHighlight from "@/components/shared/ChatSearchHighlight";
+import ChatLinkedText from "@/components/shared/ChatLinkedText";
+import ChatLinkPreviews from "@/components/shared/ChatLinkPreviews";
+import ChatJumpToLatest from "@/components/shared/ChatJumpToLatest";
 import { findThreadMatchIds } from "@/lib/chat/threadSearch";
+import {
+  clearChatDraft,
+  readChatDraft,
+  writeChatDraft,
+} from "@/lib/chat/draftStore";
+import {
+  formatThreadDateBadge,
+  messageDayKey,
+} from "@/lib/chat/threadDates";
 import {
   emitWithAck,
   getSocket,
@@ -48,12 +59,20 @@ import ChatAttachMenu, {
 import ChatAttachmentBubble from "@/components/shared/ChatAttachmentBubble";
 import ChatComposerAttachPreview from "@/components/shared/ChatComposerAttachPreview";
 import ChatEmojiPicker from "@/components/shared/ChatEmojiPicker";
+import { useChatThreadLenis } from "@/components/providers/lenisProvider";
+import { insertAtCursor } from "@/lib/chat/insertAtCursor";
 import ChatMessageMenu, {
+  ChatPinnedMessagesBar,
+  ChatReactionBar,
+  ChatReactionChips,
   type ChatMessageMenuAction,
+  type ChatMessageReaction,
+  type ChatReactionEmoji,
 } from "@/components/shared/ChatMessageMenu";
 import ChatAvatar from "@/components/shared/ChatAvatar";
 import CallHistoryBubble from "@/components/shared/CallHistoryBubble";
 import { publishSupportSessionBound } from "@/components/shared/CustomerAudioCallHost";
+import { useChatThreadScroll } from "@/hooks/useChatThreadScroll";
 import {
   formatRecordingTime,
   useVoiceRecorder,
@@ -65,6 +84,7 @@ import {
   IMAGE_ACCEPT,
   prepareChatAttachment,
   VIDEO_ACCEPT,
+  type AttachUploadStatus,
   type ChatAttachKind,
   type PreparedChatAttachment,
 } from "@/lib/chat/attachments";
@@ -98,6 +118,9 @@ export type LiveChatMessage = {
   deletedBy?: "customer" | "agent" | null;
   replyTo?: LiveChatReplyTo | null;
   editedAt?: string | null;
+  reactions?: ChatMessageReaction[];
+  pinnedAt?: string | null;
+  pinnedBy?: "customer" | "agent" | null;
 };
 
 type LiveSession = {
@@ -112,8 +135,9 @@ type LiveSession = {
   status: "waiting" | "active" | "ended";
   messages: LiveChatMessage[];
   endedBy?: "customer" | "agent" | null;
-  sessionKind?: "support" | "fabric";
+  sessionKind?: "support" | "fabric" | "tailor";
   fabricStoreName?: string | null;
+  tailorName?: string | null;
 };
 
 type AckResult = {
@@ -156,10 +180,13 @@ export type FaqHandoffMessage = {
 };
 
 export type LiveChatContext = {
-  sessionKind?: "support" | "fabric";
+  sessionKind?: "support" | "fabric" | "tailor";
   fabricStoreOwnerId?: string;
   fabricShopId?: string;
   fabricStoreName?: string;
+  tailorOwnerId?: string;
+  tailorShopId?: string;
+  tailorName?: string;
 };
 
 type LiveChatPanelProps = {
@@ -203,9 +230,8 @@ export default function LiveChatPanel({
   const [peerTyping, setPeerTyping] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [headerPanel, setHeaderPanel] = useState<
-    null | "contact" | "theme" | "block"
-  >(null);
+  const [headerPanel, setHeaderPanel] = useState<null | "contact">(null);
+  const [confirmEnd, setConfirmEnd] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [confirmDeleteForMe, setConfirmDeleteForMe] = useState(false);
@@ -241,11 +267,20 @@ export default function LiveChatPanel({
   const [pendingAttachment, setPendingAttachment] =
     useState<PreparedChatAttachment | null>(null);
   const pendingAttachmentRef = useRef<PreparedChatAttachment | null>(null);
+  const [attachStatus, setAttachStatus] =
+    useState<AttachUploadStatus>("idle");
+  const [attachProgress, setAttachProgress] = useState<number | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
-  const canSend = hasDraft || !!pendingAttachment;
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const canSend =
+    attachStatus !== "preparing" &&
+    attachStatus !== "sending" &&
+    (hasDraft ||
+      (!!pendingAttachmentRef.current &&
+        (attachStatus === "ready" || attachStatus === "failed")));
 
   const copy = isAr
     ? {
@@ -255,7 +290,6 @@ export default function LiveChatPanel({
         collapse: "تصغير النافذة",
         contactInfo: "معلومات الاتصال",
         selectMessages: "تحديد الرسائل",
-        chatTheme: "سمة المحادثة",
         clearChat: "مسح المحادثة",
         deleteAll: "حذف كل الرسائل",
         block: "حظر",
@@ -277,10 +311,13 @@ export default function LiveChatPanel({
         statusActive: "نشطة",
         statusWaiting: "بانتظار",
         statusEnded: "منتهية",
-        themeSoon:
-          "ستتوفر سمات المحادثة في تحديث لاحق. الخيار جاهز لهذه المرحلة.",
-        blockSoon:
-          "سيتوفر حظر جهات الاتصال في تحديث لاحق. الخيار جاهز لهذه المرحلة.",
+        endChat: "إنهاء المحادثة",
+        endChatConfirmTitle: "إنهاء المحادثة؟",
+        endChatConfirmBody:
+          "سيُنهى الحديث مع الوكيل. يمكنكِ المتابعة خلال وقت قصير إن احتاج الأمر.",
+        endChatConfirmAction: "إنهاء",
+        blockedStart:
+          "تم حظر المحادثة المباشرة لهذا الحساب. راسلينا عبر نموذج التواصل.",
         clearConfirmTitle: "مسح المحادثة؟",
         clearConfirmBody: "ستُحذف كل الرسائل. المحادثة تبقى مفتوحة.",
         clearConfirmAction: "مسح",
@@ -322,7 +359,6 @@ export default function LiveChatPanel({
         collapse: "Collapse window",
         contactInfo: "Contact info",
         selectMessages: "Select messages",
-        chatTheme: "Chat theme",
         clearChat: "Clear chat",
         deleteAll: "Delete all messages",
         block: "Block",
@@ -345,10 +381,13 @@ export default function LiveChatPanel({
         statusActive: "Active",
         statusWaiting: "Waiting",
         statusEnded: "Ended",
-        themeSoon:
-          "Chat themes will be available in a later update. The menu option is ready for that phase.",
-        blockSoon:
-          "Blocking contacts will be available in a later update. The menu option is ready for that phase.",
+        endChat: "End chat",
+        endChatConfirmTitle: "End this chat?",
+        endChatConfirmBody:
+          "This ends the conversation with the agent. You can continue within a short window if needed.",
+        endChatConfirmAction: "End chat",
+        blockedStart:
+          "Live chat is blocked for this account. Please use the contact form instead.",
         clearConfirmTitle: "Clear chat?",
         clearConfirmBody:
           "All messages in this chat will be removed. The conversation stays open.",
@@ -388,6 +427,8 @@ export default function LiveChatPanel({
   const clearPendingAttachment = useCallback(() => {
     pendingAttachmentRef.current = null;
     setPendingAttachment(null);
+    setAttachStatus("idle");
+    setAttachProgress(null);
   }, []);
 
   const resetLocal = useCallback(() => {
@@ -429,6 +470,8 @@ export default function LiveChatPanel({
 
   const onDraftChange = (value: string) => {
     setDraft(value);
+    const sid = sessionIdRef.current;
+    if (sid) writeChatDraft(sid, value);
     if (step !== "chat" || endingRef.current) return;
     if (value.trim()) {
       emitTyping(true);
@@ -451,6 +494,15 @@ export default function LiveChatPanel({
   );
 
   const finishClose = useCallback(() => {
+    // Mark away so agent replies can toast while the widget is closed.
+    const sid = sessionIdRef.current;
+    if (sid) {
+      try {
+        getSocket().emit("chat:away", { sessionId: sid });
+      } catch {
+        /* ignore */
+      }
+    }
     // Keep the Socket.IO connection so incoming rings / resume still work.
     setHeaderMenuOpen(false);
     setHeaderPanel(null);
@@ -463,6 +515,15 @@ export default function LiveChatPanel({
 
   /** Close the floating chatbot without ending the live Mongo thread (can resume). */
   const closeWidget = useCallback(() => {
+    // Mark away so agent replies can toast while the widget is closed.
+    const sid = sessionIdRef.current;
+    if (sid) {
+      try {
+        getSocket().emit("chat:away", { sessionId: sid });
+      } catch {
+        /* ignore */
+      }
+    }
     // Do not disconnectSocket — audio calls + session resume need the socket.
     setHeaderMenuOpen(false);
     setHeaderPanel(null);
@@ -573,6 +634,10 @@ export default function LiveChatPanel({
       if (e.key !== "Escape") return;
       e.preventDefault();
       e.stopPropagation();
+      if (confirmEnd) {
+        setConfirmEnd(false);
+        return;
+      }
       if (headerPanel) {
         setHeaderPanel(null);
         return;
@@ -623,6 +688,7 @@ export default function LiveChatPanel({
     attachOpen,
     emojiOpen,
     confirmWipe,
+    confirmEnd,
     confirmDeleteForMe,
     infoMsg,
     selectMode,
@@ -644,7 +710,11 @@ export default function LiveChatPanel({
           text: String(m.text).trim().slice(0, 2000),
         }));
       const kind =
-        chatContext?.sessionKind === "fabric" ? "fabric" : "support";
+        chatContext?.sessionKind === "fabric"
+          ? "fabric"
+          : chatContext?.sessionKind === "tailor"
+            ? "tailor"
+            : "support";
       const res = await emitWithAck<AckResult>("chat:start", {
         name: resolveCustomerName(initialName, isAr),
         locale,
@@ -655,18 +725,29 @@ export default function LiveChatPanel({
         fabricShopId: kind === "fabric" ? chatContext?.fabricShopId : undefined,
         fabricStoreName:
           kind === "fabric" ? chatContext?.fabricStoreName : undefined,
+        tailorOwnerId:
+          kind === "tailor" ? chatContext?.tailorOwnerId : undefined,
+        tailorShopId: kind === "tailor" ? chatContext?.tailorShopId : undefined,
+        tailorName: kind === "tailor" ? chatContext?.tailorName : undefined,
       });
       if (!res?.ok || !res.session) {
         setError(
-          res?.error === "store_not_eligible"
-            ? isAr
-              ? "يمكنكِ الدردشة فقط مع متاجر تعاملتِ معها من قبل."
-              : "You can only chat with stores you’ve ordered from."
-            : res?.error === "login_required"
+          res?.error === "blocked"
+            ? copy.blockedStart
+            : res?.error === "rate_limited"
               ? isAr
-                ? "يرجى تسجيل الدخول للدردشة مع متجر الأقمشة."
-                : "Please sign in to chat with a fabric store."
-              : copy.startFailed,
+                ? "محاولات كثيرة. يُرجى الانتظار قليلاً ثم المحاولة من جديد."
+                : "Too many attempts. Please wait a moment and try again."
+              : res?.error === "store_not_eligible" ||
+                  res?.error === "tailor_not_eligible"
+                ? isAr
+                  ? "يمكنكِ الدردشة فقط مع شركاء تعاملتِ معهم من قبل."
+                  : "You can only chat with partners you’ve ordered from."
+                : res?.error === "login_required"
+                  ? isAr
+                    ? "يرجى تسجيل الدخول للدردشة مع هذا الشريك."
+                    : "Please sign in to chat with this partner."
+                  : copy.startFailed,
         );
         return;
       }
@@ -684,19 +765,27 @@ export default function LiveChatPanel({
               chatContext?.fabricStoreName ||
               res.session.agent?.name ||
               null
-            : res.session.agent?.name || null,
+            : kind === "tailor"
+              ? res.session.tailorName ||
+                chatContext?.tailorName ||
+                res.session.agent?.name ||
+                null
+              : res.session.agent?.name || null,
         agentProfilePic: res.session.agent?.profilePic || null,
       });
-    } catch (err) {
-      console.error("[live-chat] chat:start failed", err);
+    } catch {
       setError(copy.startFailed);
     }
   }, [
     chatContext?.fabricShopId,
     chatContext?.fabricStoreName,
     chatContext?.fabricStoreOwnerId,
+    chatContext?.tailorName,
+    chatContext?.tailorOwnerId,
+    chatContext?.tailorShopId,
     chatContext?.sessionKind,
     copy.startFailed,
+    copy.blockedStart,
     initialName,
     isAr,
     locale,
@@ -713,10 +802,33 @@ export default function LiveChatPanel({
     void startChat();
   }, [open, resetLocal, startChat]);
 
+  const { scrollToBottom: scrollThreadToBottom } = useChatThreadLenis(
+    threadRef,
+    open && (step === "chat" || step === "ended"),
+    step,
+  );
+
+  const {
+    nearBottom,
+    unseenCount,
+    showJump,
+    jumpToLatest,
+  } = useChatThreadScroll(threadRef, messages.length, {
+    enabled: open && (step === "chat" || step === "ended"),
+    resetKey: session?.id || null,
+  });
+
   useEffect(() => {
-    if (!threadRef.current) return;
-    threadRef.current.scrollTop = threadRef.current.scrollHeight;
-  }, [messages, step, peerTyping]);
+    if (!nearBottom) return;
+    scrollThreadToBottom(true);
+  }, [messages, step, peerTyping, nearBottom, scrollThreadToBottom]);
+
+  useEffect(() => {
+    const id = session?.id;
+    if (!id) return;
+    const saved = readChatDraft(id);
+    setDraft(saved);
+  }, [session?.id]);
 
   const handleMessage = useCallback(
     (payload: { sessionId: string; message: LiveChatMessage }) => {
@@ -764,11 +876,46 @@ export default function LiveChatPanel({
       setMessages((prev) =>
         prev.map((m) => (map.has(m.id) ? { ...m, status: map.get(m.id) } : m)),
       );
+      // Drop edit mode if the message was just read by the peer.
+      setEditingId((id) => {
+        if (!id || map.get(id) !== "read") return id;
+        setDraft("");
+        return null;
+      });
     },
     [],
   );
 
   const isFabricThread = chatContext?.sessionKind === "fabric";
+  const isTailorThread = chatContext?.sessionKind === "tailor";
+
+  const partnerPeerName = useCallback(
+    (live: LiveSession | null | undefined) => {
+      if (isFabricThread) {
+        return (
+          live?.fabricStoreName ||
+          chatContext?.fabricStoreName ||
+          live?.agent?.name ||
+          null
+        );
+      }
+      if (isTailorThread) {
+        return (
+          live?.tailorName ||
+          chatContext?.tailorName ||
+          live?.agent?.name ||
+          null
+        );
+      }
+      return live?.agent?.name || null;
+    },
+    [
+      chatContext?.fabricStoreName,
+      chatContext?.tailorName,
+      isFabricThread,
+      isTailorThread,
+    ],
+  );
 
   const handleAccepted = useCallback(
     (payload: { session: LiveSession }) => {
@@ -785,17 +932,11 @@ export default function LiveChatPanel({
       getSocket().emit("chat:read", { sessionId: payload.session.id });
       publishSupportSessionBound({
         id: payload.session.id,
-        agentName:
-          isFabricThread
-            ? payload.session.fabricStoreName ||
-              chatContext?.fabricStoreName ||
-              payload.session.agent?.name ||
-              null
-            : payload.session.agent?.name || null,
+        agentName: partnerPeerName(payload.session),
         agentProfilePic: payload.session.agent?.profilePic || null,
       });
     },
-    [chatContext?.fabricStoreName, isFabricThread],
+    [partnerPeerName],
   );
 
   const handleEnded = useCallback(
@@ -835,17 +976,11 @@ export default function LiveChatPanel({
       getSocket().emit("chat:read", { sessionId: payload.session.id });
       publishSupportSessionBound({
         id: payload.session.id,
-        agentName:
-          isFabricThread
-            ? payload.session.fabricStoreName ||
-              chatContext?.fabricStoreName ||
-              payload.session.agent?.name ||
-              null
-            : payload.session.agent?.name || null,
+        agentName: partnerPeerName(payload.session),
         agentProfilePic: payload.session.agent?.profilePic || null,
       });
     },
-    [chatContext?.fabricStoreName, isFabricThread],
+    [partnerPeerName],
   );
 
   const handleClosed = useCallback(
@@ -932,6 +1067,55 @@ export default function LiveChatPanel({
     [],
   );
 
+  const handleMessageReacted = useCallback(
+    (payload: { sessionId: string; message?: LiveChatMessage }) => {
+      if (payload.sessionId !== sessionIdRef.current || !payload.message) return;
+      const next = payload.message;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === next.id
+            ? { ...m, reactions: next.reactions || [] }
+            : m,
+        ),
+      );
+    },
+    [],
+  );
+
+  const mergePinnedMessages = useCallback((updates: LiveChatMessage[]) => {
+    if (!updates.length) return;
+    setMessages((prev) => {
+      const byId = new Map(updates.map((m) => [m.id, m]));
+      return prev.map((m) => {
+        const next = byId.get(m.id);
+        if (!next) return m;
+        return {
+          ...m,
+          pinnedAt: next.pinnedAt ?? null,
+          pinnedBy: next.pinnedBy ?? null,
+        };
+      });
+    });
+  }, []);
+
+  const handleMessagePinned = useCallback(
+    (payload: {
+      sessionId: string;
+      message?: LiveChatMessage;
+      messages?: LiveChatMessage[];
+    }) => {
+      if (payload.sessionId !== sessionIdRef.current) return;
+      const updates =
+        Array.isArray(payload.messages) && payload.messages.length
+          ? payload.messages
+          : payload.message
+            ? [payload.message]
+            : [];
+      mergePinnedMessages(updates);
+    },
+    [mergePinnedMessages],
+  );
+
   useSocketEvent("chat:message", handleMessage);
   useSocketEvent("chat:typing", handleTyping);
   useSocketEvent("chat:status", handleStatus);
@@ -943,6 +1127,8 @@ export default function LiveChatPanel({
   useSocketEvent("chat:messages-hidden", handleMessagesHidden);
   useSocketEvent("chat:cleared", handleCleared);
   useSocketEvent("chat:message-edited", handleMessageEdited);
+  useSocketEvent("chat:message-reacted", handleMessageReacted);
+  useSocketEvent("chat:message-pinned", handleMessagePinned);
 
   const pushLocalMessage = (message: LiveChatMessage) => {
     setMessages((prev) => {
@@ -956,6 +1142,118 @@ export default function LiveChatPanel({
   const clearReplyAndEdit = () => {
     setReplyTo(null);
     setEditingId(null);
+  };
+
+  const reactToChatMessage = async (
+    msg: LiveChatMessage,
+    emoji: ChatReactionEmoji,
+  ) => {
+    const sid = sessionIdRef.current;
+    if (!sid || step === "ended" || msg.deleted) return;
+    const myRole = "customer" as const;
+    const prevReaction = msg.reactions?.find((r) => r.byRole === myRole)?.emoji;
+    const nextReactions =
+      prevReaction === emoji
+        ? (msg.reactions || []).filter((r) => r.byRole !== myRole)
+        : [
+            ...(msg.reactions || []).filter((r) => r.byRole !== myRole),
+            { emoji, byRole: myRole, at: new Date().toISOString() },
+          ];
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msg.id ? { ...m, reactions: nextReactions } : m,
+      ),
+    );
+    try {
+      const res = await emitWithAck<AckResult>("chat:react", {
+        sessionId: sid,
+        messageId: msg.id,
+        emoji,
+      });
+      if (res?.ok && res.message) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === res.message!.id
+              ? { ...m, reactions: res.message!.reactions || [] }
+              : m,
+          ),
+        );
+      }
+    } catch {
+      /* socket may reconnect; server event will reconcile */
+    }
+  };
+
+  const flashClearRef = useRef<number | null>(null);
+  const [flashMsgId, setFlashMsgId] = useState<string | null>(null);
+
+  const jumpToMessage = useCallback(
+    (id: string) => {
+      const safeId = String(id || "").trim();
+      if (!safeId) return;
+      const el = threadRef.current?.querySelector(
+        `[data-msg-id="${safeId.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`,
+      ) as HTMLElement | null;
+      if (!el) {
+        setAttachNotice(
+          isAr ? "الرسالة الأصلية غير متاحة" : "Original message is unavailable",
+        );
+        return;
+      }
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setFlashMsgId(safeId);
+      if (flashClearRef.current) window.clearTimeout(flashClearRef.current);
+      flashClearRef.current = window.setTimeout(() => {
+        setFlashMsgId(null);
+        flashClearRef.current = null;
+      }, 1600);
+    },
+    [isAr],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (flashClearRef.current) window.clearTimeout(flashClearRef.current);
+    };
+  }, []);
+
+  const pinChatMessage = async (msg: LiveChatMessage, pinned: boolean) => {
+    const sid = sessionIdRef.current;
+    if (!sid || msg.deleted) return;
+    const nextPinnedAt = pinned ? new Date().toISOString() : null;
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msg.id
+          ? {
+              ...m,
+              pinnedAt: nextPinnedAt,
+              pinnedBy: pinned ? "customer" : null,
+            }
+          : m,
+      ),
+    );
+    try {
+      const res = await emitWithAck<{
+        ok?: boolean;
+        message?: LiveChatMessage;
+        messages?: LiveChatMessage[];
+      }>("chat:pin", {
+        sessionId: sid,
+        messageId: msg.id,
+        pinned,
+      });
+      if (res?.ok) {
+        const updates =
+          Array.isArray(res.messages) && res.messages.length
+            ? res.messages
+            : res.message
+              ? [res.message]
+              : [];
+        mergePinnedMessages(updates);
+      }
+    } catch {
+      /* reconcile via socket */
+    }
   };
 
   const onMessageMenuAction = async (
@@ -973,7 +1271,16 @@ export default function LiveChatPanel({
       });
       return;
     }
+    if (action === "pin") {
+      void pinChatMessage(msg, true);
+      return;
+    }
+    if (action === "unpin") {
+      void pinChatMessage(msg, false);
+      return;
+    }
     if (action === "edit") {
+      if (msg.status === "read") return;
       setReplyTo(null);
       setEditingId(msg.id);
       setDraft(msg.caption || msg.text || "");
@@ -1007,6 +1314,7 @@ export default function LiveChatPanel({
 
   const sendMessage = async () => {
     if (!session || sending || voice.recording) return;
+    if (attachStatus === "preparing") return;
     const text = draft.trim();
     const attachment = pendingAttachmentRef.current;
     if (!text && !attachment) return;
@@ -1014,7 +1322,11 @@ export default function LiveChatPanel({
     emitTyping(false);
     setSending(true);
     setDraft("");
-    clearPendingAttachment();
+    clearChatDraft(session.id);
+    if (attachment) {
+      setAttachStatus("sending");
+      setAttachProgress(null);
+    }
     const replyToId = replyTo?.id;
     const editId = editingId;
     setReplyTo(null);
@@ -1028,6 +1340,7 @@ export default function LiveChatPanel({
         });
         if (!res?.ok) {
           setDraft(text);
+          writeChatDraft(session.id, text);
           setEditingId(editId);
         } else if (res.message) {
           pushLocalMessage(res.message);
@@ -1055,6 +1368,7 @@ export default function LiveChatPanel({
       );
       if (!res?.ok) {
         setDraft(text);
+        writeChatDraft(session.id, text);
         if (replyToId) {
           const prev = messages.find((m) => m.id === replyToId);
           if (prev) {
@@ -1070,16 +1384,40 @@ export default function LiveChatPanel({
         if (attachment) {
           pendingAttachmentRef.current = attachment;
           setPendingAttachment(attachment);
+          setAttachStatus("failed");
+          setAttachNotice(
+            res.error === "rate_limited"
+              ? isAr
+                ? "إرسال سريع جداً. انتظري قليلاً ثم أعيدي المحاولة."
+                : "Sending too fast. Wait a moment, then tap Retry."
+              : isAr
+                ? "تعذر إرسال المرفق. أعد المحاولة."
+                : "Could not send the attachment. Tap Retry.",
+          );
+        } else if (res.error === "rate_limited") {
+          setAttachNotice(
+            isAr
+              ? "إرسال سريع جداً. انتظري قليلاً ثم أعيدي المحاولة."
+              : "Sending too fast. Wait a moment and try again.",
+          );
         }
       } else if (res.message) {
+        if (attachment) clearPendingAttachment();
         pushLocalMessage(res.message);
       }
     } catch {
       setDraft(text);
+      writeChatDraft(session.id, text);
       if (editId) setEditingId(editId);
       if (attachment) {
         pendingAttachmentRef.current = attachment;
         setPendingAttachment(attachment);
+        setAttachStatus("failed");
+        setAttachNotice(
+          isAr
+            ? "تعذر إرسال المرفق. أعد المحاولة."
+            : "Could not send the attachment. Tap Retry.",
+        );
       }
     } finally {
       setSending(false);
@@ -1125,6 +1463,7 @@ export default function LiveChatPanel({
         if (attachment) {
           pendingAttachmentRef.current = attachment;
           setPendingAttachment(attachment);
+          setAttachStatus("ready");
         }
       } else if (res.message) {
         pushLocalMessage(res.message);
@@ -1133,6 +1472,7 @@ export default function LiveChatPanel({
       if (attachment) {
         pendingAttachmentRef.current = attachment;
         setPendingAttachment(attachment);
+        setAttachStatus("ready");
       }
     } finally {
       setSending(false);
@@ -1141,8 +1481,30 @@ export default function LiveChatPanel({
 
   const stageAttachment = async (file: File, kind: ChatAttachKind) => {
     if (!session || sending || voice.recording) return;
-    const prepared = await prepareChatAttachment(file, kind);
+    const fileName = (file.name || "file")
+      .replace(/[\\/:*?"<>|]/g, "_")
+      .slice(0, 120);
+    const previewUrl =
+      kind === "image" ? URL.createObjectURL(file) : "";
+    const stub: PreparedChatAttachment = {
+      kind: kind === "image" ? "image" : "file",
+      fileName,
+      mimeType: file.type || "",
+      fileSize: file.size,
+      data: previewUrl,
+    };
+    pendingAttachmentRef.current = null;
+    setPendingAttachment(stub);
+    setAttachStatus("preparing");
+    setAttachProgress(0);
+    setAttachOpen(false);
+    setAttachNotice("");
+    const prepared = await prepareChatAttachment(file, kind, (pct) => {
+      setAttachProgress(pct);
+    });
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     if (!prepared.ok) {
+      clearPendingAttachment();
       setAttachNotice(
         attachmentErrorMessage(prepared.error, isAr, {
           kind,
@@ -1151,10 +1513,10 @@ export default function LiveChatPanel({
       );
       return;
     }
-    setAttachNotice("");
-    setAttachOpen(false);
     pendingAttachmentRef.current = prepared.attachment;
     setPendingAttachment(prepared.attachment);
+    setAttachStatus("ready");
+    setAttachProgress(null);
   };
 
   const onAttachFileChange = (
@@ -1287,7 +1649,31 @@ export default function LiveChatPanel({
     }
   };
 
-  const agentName = session?.agent?.name || copy.agentFallback;
+  const endChat = async () => {
+    const sessionId = sessionIdRef.current;
+    if (!sessionId || step === "ended") return;
+    try {
+      const res = await emitWithAck<{ ok?: boolean; endedBy?: string }>(
+        "chat:end",
+        { sessionId },
+      );
+      if (!res?.ok) return;
+      handleEnded({
+        sessionId,
+        endedBy: res.endedBy === "agent" ? "agent" : "customer",
+      });
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const agentName =
+    (isFabricThread &&
+      (session?.fabricStoreName || chatContext?.fabricStoreName)) ||
+    (isTailorThread && (session?.tailorName || chatContext?.tailorName)) ||
+    session?.agent?.name ||
+    copy.agentFallback;
+  // Never show agent/store/tailor online or last-seen to the customer.
   const statusLine =
     step === "ended"
       ? endedBy === "agent"
@@ -1295,9 +1681,9 @@ export default function LiveChatPanel({
         : copy.endedByYou
       : peerTyping
         ? copy.typing
-        : session?.status === "active"
-          ? copy.online
-          : copy.waiting;
+        : session?.status === "waiting" || !session?.agent
+          ? copy.waiting
+          : null;
   const chatLocked = step === "ended";
   if (!open) return null;
 
@@ -1307,6 +1693,8 @@ export default function LiveChatPanel({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: isAr ? -16 : 16 }}
       transition={{ type: "spring", stiffness: 380, damping: 30 }}
+      data-lenis-prevent
+      data-lenis-prevent-wheel
       className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-[#FFFDF9]"
     >
       <header className="relative z-40 shrink-0 overflow-visible bg-black px-2.5 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] text-white xs:px-3.5 xs:pb-3 sm:px-4 sm:pb-3.5 sm:pt-[max(0.875rem,env(safe-area-inset-top))]">
@@ -1317,7 +1705,7 @@ export default function LiveChatPanel({
             src={session?.agent?.profilePic}
             brand={!session?.agent}
             size="md"
-            online={session?.status === "active" && !chatLocked}
+            online={false}
             className="ring-2 ring-white/15"
           />
           <div className="min-w-0 flex-1">
@@ -1325,9 +1713,11 @@ export default function LiveChatPanel({
               {agentName}
             </h2>
             {step === "chat" || step === "ended" ? (
-              <p className="chat-text-subtitle mt-0.5 truncate uppercase tracking-[0.14em] text-white/65 [font-family:var(--font-ui)]">
-                {statusLine}
-              </p>
+              statusLine ? (
+                <p className="chat-text-subtitle mt-0.5 truncate uppercase tracking-[0.14em] text-white/65 [font-family:var(--font-ui)]">
+                  {statusLine}
+                </p>
+              ) : null
             ) : step === "connecting" && !error ? (
               <p className="chat-text-subtitle mt-0.5 uppercase tracking-[0.14em] text-white/65 [font-family:var(--font-ui)]">
                 {copy.starting}
@@ -1423,16 +1813,6 @@ export default function LiveChatPanel({
                       },
                     },
                     {
-                      key: "theme",
-                      label: copy.chatTheme,
-                      icon: Palette,
-                      tone: "default" as const,
-                      onPick: () => {
-                        setHeaderMenuOpen(false);
-                        setHeaderPanel("theme");
-                      },
-                    },
-                    {
                       key: "clear",
                       label: copy.clearChat,
                       icon: Eraser,
@@ -1462,16 +1842,20 @@ export default function LiveChatPanel({
                         closeWidget();
                       },
                     },
-                    {
-                      key: "block",
-                      label: copy.block,
-                      icon: Ban,
-                      tone: "danger" as const,
-                      onPick: () => {
-                        setHeaderMenuOpen(false);
-                        setHeaderPanel("block");
-                      },
-                    },
+                    ...(!chatLocked
+                      ? [
+                          {
+                            key: "end",
+                            label: copy.endChat,
+                            icon: PhoneOff,
+                            tone: "danger" as const,
+                            onPick: () => {
+                              setHeaderMenuOpen(false);
+                              setConfirmEnd(true);
+                            },
+                          },
+                        ]
+                      : []),
                     ...(chatLocked
                       ? [
                           {
@@ -1489,7 +1873,7 @@ export default function LiveChatPanel({
                   ] as const
                 ).map((item, index) => {
                   const Icon = item.icon;
-                  const showDivider = index === 3 || index === 7;
+                  const showDivider = index === 2 || index === 5;
                   return (
                     <div key={item.key}>
                       {showDivider ? (
@@ -1627,18 +2011,23 @@ export default function LiveChatPanel({
                 </button>
               </div>
             ) : null}
+            <div className="relative min-h-0 flex-1">
             <div
               ref={threadRef}
-              data-lenis-prevent
-              data-lenis-prevent-wheel
               data-chat-scroll
-              className="min-h-0 flex-1 space-y-3 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y px-2.5 py-3 [-webkit-overflow-scrolling:touch] xs:px-3 sm:px-3.5 sm:py-3.5"
-              style={{
-                backgroundImage:
-                  "linear-gradient(180deg, #F7F5F0 0%, #FFFDF9 100%)",
-              }}
+              className="h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y bg-[#F7F5F0] px-2.5 py-3 [-webkit-overflow-scrolling:touch] xs:px-3 sm:px-3.5 sm:py-3.5"
             >
-              {messages.map((msg) => {
+              <ChatPinnedMessagesBar
+                messages={messages}
+                isAr={isAr}
+                onJump={jumpToMessage}
+                onUnpin={(id) => {
+                  const msg = messages.find((m) => m.id === id);
+                  if (msg) void pinChatMessage(msg, false);
+                }}
+              />
+              <div className="space-y-3">
+              {messages.map((msg, index, list) => {
                 const isMatch =
                   searchQuery.length > 0 && matchIds.includes(msg.id);
                 const isActiveMatch =
@@ -1648,6 +2037,21 @@ export default function LiveChatPanel({
                   ] === msg.id;
                 const dimWhileSearch =
                   searchQuery.length > 0 && !isMatch && msg.role !== "system";
+                const prevMsg = index > 0 ? list[index - 1] : null;
+                const day = messageDayKey(msg.at);
+                const showDateBadge =
+                  Boolean(day) &&
+                  (!prevMsg || messageDayKey(prevMsg.at) !== day);
+                const dateBadge = showDateBadge ? (
+                  <div className="flex justify-center py-1.5">
+                    <p className="chat-text-system rounded-full bg-[#FFFFFFCC] px-2.5 py-0.5 text-center text-[#54656F] shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:px-3.5 sm:py-1">
+                      {formatThreadDateBadge(msg.at, {
+                        isAr,
+                        locale: locale || (isAr ? "ar-AE" : "en-AE"),
+                      })}
+                    </p>
+                  </div>
+                ) : null;
 
                 if (msg.kind === "call") {
                   // Successful talk → center. Customer cancel → right. Agent cancel → left.
@@ -1661,8 +2065,9 @@ export default function LiveChatPanel({
                   const callSelected = selectedIds.has(msg.id);
                   const callCanSelect = selectMode && !msg.deleted;
                   return (
+                    <Fragment key={msg.id}>
+                      {dateBadge}
                     <div
-                      key={msg.id}
                       data-msg-id={msg.id}
                       className={callCanSelect ? "cursor-pointer" : undefined}
                       onClick={() => {
@@ -1723,12 +2128,14 @@ export default function LiveChatPanel({
                         }
                       />
                     </div>
+                    </Fragment>
                   );
                 }
                 if (msg.role === "system") {
                   return (
+                    <Fragment key={msg.id}>
+                      {dateBadge}
                     <div
-                      key={msg.id}
                       data-msg-id={msg.id}
                       className={`flex justify-center py-1.5 transition-opacity ${
                         searchQuery && !isMatch ? "opacity-35" : ""
@@ -1746,14 +2153,16 @@ export default function LiveChatPanel({
                         )}
                       </p>
                     </div>
+                    </Fragment>
                   );
                 }
                 const mine = msg.role === "customer";
                 const selected = selectedIds.has(msg.id);
                 const canSelect = selectMode && !msg.deleted;
                 return (
+                  <Fragment key={msg.id}>
+                    {dateBadge}
                   <div
-                    key={msg.id}
                     data-msg-id={msg.id}
                     className={`flex items-center gap-2 transition-opacity ${mine ? "justify-end" : "justify-start"} ${
                       canSelect ? "cursor-pointer" : ""
@@ -1778,16 +2187,20 @@ export default function LiveChatPanel({
                       </span>
                     ) : null}
                     <div
-                      className={`group relative max-w-[min(92%,18rem)] px-2.5 py-1.5 shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] xs:max-w-[min(88%,20rem)] xs:px-3 sm:max-w-[82%] ${
+                      className={`group relative w-fit min-w-[8.75rem] max-w-[min(92%,18rem)] px-2.5 py-1.5 shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] xs:max-w-[min(88%,20rem)] xs:px-3 sm:min-w-[9.5rem] sm:max-w-[82%] ${
                         mine
                           ? "rounded-[7.5px] rounded-tr-none bg-black/80 text-white"
                           : "rounded-[7.5px] rounded-tl-none border border-[#EBEBE8] bg-[#FFFDF9] text-black"
                       } ${selected ? "ring-2 ring-black/25" : ""} ${
-                        isActiveMatch
+                        flashMsgId === msg.id || isActiveMatch
                           ? "ring-2 ring-[#FFEB3B] ring-offset-1 ring-offset-transparent"
                           : isMatch
                             ? "ring-1 ring-[#FFF59D]/80"
                             : ""
+                      } ${
+                        !msg.deleted && (msg.reactions?.length || 0) > 0
+                          ? "mb-3"
+                          : ""
                       }`}
                       onContextMenu={(e) => {
                         if (selectMode || chatLocked) return;
@@ -1804,6 +2217,30 @@ export default function LiveChatPanel({
                             : "-left-[6px] border-r-[6px] border-r-[#FFFDF9]"
                         }`}
                       />
+                      {!msg.deleted && !selectMode && !chatLocked ? (
+                        <ChatReactionBar
+                          myReaction={
+                            msg.reactions?.find((r) => r.byRole === "customer")
+                              ?.emoji || null
+                          }
+                          onReact={(emoji) =>
+                            void reactToChatMessage(msg, emoji)
+                          }
+                          align={mine ? "end" : "start"}
+                          isAr={isAr}
+                        />
+                      ) : null}
+                      {!msg.deleted && (msg.reactions?.length || 0) > 0 ? (
+                        <ChatReactionChips
+                          reactions={msg.reactions || []}
+                          myRole="customer"
+                          mine={mine}
+                          disabled={chatLocked || selectMode}
+                          onToggle={(emoji) =>
+                            void reactToChatMessage(msg, emoji)
+                          }
+                        />
+                      ) : null}
                       {msg.deleted ? (
                         !selectMode && !chatLocked ? (
                           <div
@@ -1849,6 +2286,7 @@ export default function LiveChatPanel({
                                     onDark={mine}
                                     canEdit={
                                       mine &&
+                                      msg.status !== "read" &&
                                       (msg.kind === "text" ||
                                         msg.kind === "image" ||
                                         msg.kind === "file" ||
@@ -1857,8 +2295,18 @@ export default function LiveChatPanel({
                                     canCopy={Boolean(
                                       (msg.caption || msg.text || "").trim(),
                                     )}
+                                    canPin
+                                    isPinned={Boolean(msg.pinnedAt)}
                                     isAr={isAr}
                                     menuAlign="start"
+                                    myReaction={
+                                      msg.reactions?.find(
+                                        (r) => r.byRole === "customer",
+                                      )?.emoji || null
+                                    }
+                                    onReact={(emoji) =>
+                                      void reactToChatMessage(msg, emoji)
+                                    }
                                     onAction={(action) =>
                                       void onMessageMenuAction(msg, action)
                                     }
@@ -1911,8 +2359,18 @@ export default function LiveChatPanel({
                                     canCopy={Boolean(
                                       (msg.caption || msg.text || "").trim(),
                                     )}
+                                    canPin
+                                    isPinned={Boolean(msg.pinnedAt)}
                                     isAr={isAr}
                                     menuAlign="end"
+                                    myReaction={
+                                      msg.reactions?.find(
+                                        (r) => r.byRole === "customer",
+                                      )?.emoji || null
+                                    }
+                                    onReact={(emoji) =>
+                                      void reactToChatMessage(msg, emoji)
+                                    }
                                     onAction={(action) =>
                                       void onMessageMenuAction(msg, action)
                                     }
@@ -1924,12 +2382,18 @@ export default function LiveChatPanel({
                         </div>
                       )}
                       {msg.replyTo ? (
-                        <div
-                          className={`mb-1.5 rounded-md border-s-[3px] px-2 py-1 ${
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (msg.replyTo?.id) jumpToMessage(msg.replyTo.id);
+                          }}
+                          className={`mb-1.5 w-full rounded-md border-s-[3px] px-2 py-1 text-start transition hover:cursor-pointer ${
                             mine
-                              ? "border-s-white/70 bg-white/10"
-                              : "border-s-black bg-black/[0.04]"
+                              ? "border-s-white/70 bg-white/10 hover:bg-white/15"
+                              : "border-s-black bg-black/[0.04] hover:bg-black/[0.07]"
                           }`}
+                          title={isAr ? "الانتقال إلى الرسالة" : "Jump to message"}
                         >
                           <p
                             className={`chat-text-meta truncate font-medium ${
@@ -1950,25 +2414,69 @@ export default function LiveChatPanel({
                           >
                             {msg.replyTo.text}
                           </p>
-                        </div>
+                        </button>
                       ) : null}
-                      {msg.deleted ? (
-                        <p
-                          className={`chat-text-body italic whitespace-pre-wrap break-words ${
-                            mine ? "text-white/70" : "text-[#8A8A80]"
-                          }`}
-                        >
-                          {msg.deletedBy === "customer"
-                            ? isAr
-                              ? "حذفت هذه الرسالة"
-                              : "You deleted this message"
-                            : isAr
-                              ? "حذف وكيل دعم MOTD هذه الرسالة"
-                              : "MOTD Support Agent deleted this message"}
-                        </p>
-                      ) : (
-                        <>
-                          {msg.kind === "voice" && msg.audio ? (
+                      {(() => {
+                        const metaInline = (
+                          <span
+                            className={`chat-text-time chat-text-time-inline tabular-nums ${
+                              mine ? "text-white/55" : "text-[#8A8A80]"
+                            }`}
+                          >
+                            {msg.editedAt ? (
+                              <span className="normal-case">{copy.edited}</span>
+                            ) : null}
+                            {formatTime(msg.at, locale)}
+                            {mine && !msg.deleted ? (
+                              <MessageStatusTicks
+                                status={msg.status || "sent"}
+                                onDark
+                              />
+                            ) : null}
+                          </span>
+                        );
+                        const metaRow = (
+                          <p
+                            className={`chat-text-time mt-0.5 flex items-center justify-end gap-1 tabular-nums ${
+                              mine ? "text-white/55" : "text-[#8A8A80]"
+                            }`}
+                          >
+                            {msg.editedAt ? (
+                              <span className="normal-case">{copy.edited}</span>
+                            ) : null}
+                            {formatTime(msg.at, locale)}
+                            {mine && !msg.deleted ? (
+                              <MessageStatusTicks
+                                status={msg.status || "sent"}
+                                onDark
+                              />
+                            ) : null}
+                          </p>
+                        );
+                        const textBodyClass =
+                          "chat-text-body whitespace-pre-wrap break-words after:clear-both after:table";
+
+                        if (msg.deleted) {
+                          return (
+                            <p
+                              className={`italic ${textBodyClass} ${
+                                mine ? "text-white/70" : "text-[#8A8A80]"
+                              }`}
+                            >
+                              {msg.deletedBy === "customer"
+                                ? isAr
+                                  ? "حذفت هذه الرسالة"
+                                  : "You deleted this message"
+                                : isAr
+                                  ? "حذف وكيل دعم MOTD هذه الرسالة"
+                                  : "MOTD Support Agent deleted this message"}
+                              {metaInline}
+                            </p>
+                          );
+                        }
+
+                        if (msg.kind === "voice" && msg.audio) {
+                          return (
                             <div className="space-y-1.5">
                               {msg.data ? (
                                 <ChatAttachmentBubble
@@ -1980,6 +2488,7 @@ export default function LiveChatPanel({
                                   data={msg.data}
                                   fileName={msg.fileName}
                                   fileSize={msg.fileSize}
+                                  mimeType={msg.mimeType}
                                   onDark={mine}
                                 />
                               ) : null}
@@ -1988,86 +2497,97 @@ export default function LiveChatPanel({
                                 durationMs={msg.durationMs}
                                 onDark={mine}
                               />
+                              {metaRow}
                             </div>
-                          ) : msg.kind === "image" && msg.data ? (
+                          );
+                        }
+
+                        if (msg.kind === "image" && msg.data) {
+                          return (
                             <div className="space-y-1">
                               <ChatAttachmentBubble
                                 kind="image"
                                 data={msg.data}
                                 fileName={msg.fileName}
                                 fileSize={msg.fileSize}
+                                mimeType={msg.mimeType}
                                 onDark={mine}
                               />
                               {msg.caption ? (
-                                <p className="chat-text-body whitespace-pre-wrap break-words">
-                                  {searchQuery ? (
-                                    <ChatSearchHighlight
+                                <div className="space-y-0">
+                                  <p className={textBodyClass}>
+                                    <ChatLinkedText
                                       text={msg.caption}
                                       query={searchQuery}
                                       active={isActiveMatch}
+                                      onDark={mine}
                                     />
-                                  ) : (
-                                    msg.caption
-                                  )}
-                                </p>
-                              ) : null}
+                                    {metaInline}
+                                  </p>
+                                  <ChatLinkPreviews
+                                    text={msg.caption}
+                                    onDark={mine}
+                                  />
+                                </div>
+                              ) : (
+                                metaRow
+                              )}
                             </div>
-                          ) : msg.kind === "file" && msg.data ? (
+                          );
+                        }
+
+                        if (msg.kind === "file" && msg.data) {
+                          return (
                             <div className="space-y-1">
                               <ChatAttachmentBubble
                                 kind="file"
                                 data={msg.data}
                                 fileName={msg.fileName}
                                 fileSize={msg.fileSize}
+                                mimeType={msg.mimeType}
                                 onDark={mine}
                               />
                               {msg.caption ? (
-                                <p className="chat-text-body whitespace-pre-wrap break-words">
-                                  {searchQuery ? (
-                                    <ChatSearchHighlight
+                                <div className="space-y-0">
+                                  <p className={textBodyClass}>
+                                    <ChatLinkedText
                                       text={msg.caption}
                                       query={searchQuery}
                                       active={isActiveMatch}
+                                      onDark={mine}
                                     />
-                                  ) : (
-                                    msg.caption
-                                  )}
-                                </p>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <p className="chat-text-body whitespace-pre-wrap break-words">
-                              {searchQuery ? (
-                                <ChatSearchHighlight
-                                  text={msg.text}
-                                  query={searchQuery}
-                                  active={isActiveMatch}
-                                />
+                                    {metaInline}
+                                  </p>
+                                  <ChatLinkPreviews
+                                    text={msg.caption}
+                                    onDark={mine}
+                                  />
+                                </div>
                               ) : (
-                                msg.text
+                                metaRow
                               )}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-0">
+                            <p className={textBodyClass}>
+                              <ChatLinkedText
+                                text={msg.text}
+                                query={searchQuery}
+                                active={isActiveMatch}
+                                onDark={mine}
+                              />
+                              {metaInline}
                             </p>
-                          )}
-                        </>
-                      )}
-                      <p
-                        className={`chat-text-time mt-0.5 flex items-center justify-end gap-1 tabular-nums ${
-                          mine ? "text-white/55" : "text-[#8A8A80]"
-                        }`}
-                      >
-                        {msg.editedAt ? (
-                          <span className="normal-case">{copy.edited}</span>
-                        ) : null}
-                        {formatTime(msg.at, locale)}
-                        {mine && !msg.deleted ? (
-                          <MessageStatusTicks
-                            status={msg.status || "sent"}
-                            onDark
-                          />
-                        ) : null}
-                      </p>
+                            <ChatLinkPreviews text={msg.text} onDark={mine} />
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
+                  </Fragment>
                 );
               })}
 
@@ -2086,6 +2606,14 @@ export default function LiveChatPanel({
                   </div>
                 </div>
               ) : null}
+              </div>
+            </div>
+            <ChatJumpToLatest
+              visible={showJump}
+              count={unseenCount}
+              isAr={isAr}
+              onJump={() => jumpToLatest(scrollThreadToBottom)}
+            />
             </div>
 
             <div className="shrink-0 bg-transparent px-2 py-1.5 pb-[max(0.4rem,env(safe-area-inset-bottom))] sm:px-3 sm:py-2">
@@ -2146,6 +2674,9 @@ export default function LiveChatPanel({
                       attachment={pendingAttachment}
                       onClear={clearPendingAttachment}
                       isAr={isAr}
+                      status={attachStatus}
+                      progress={attachProgress}
+                      onRetry={() => void sendMessage()}
                     />
                   ) : null}
                   {voice.recording ? (
@@ -2183,7 +2714,14 @@ export default function LiveChatPanel({
                       <ChatEmojiPicker
                         open={emojiOpen}
                         onClose={() => setEmojiOpen(false)}
-                        onPick={(emoji) => setDraft((d) => d + emoji)}
+                        onPick={(emoji) =>
+                          insertAtCursor(
+                            composerRef.current,
+                            draft,
+                            emoji,
+                            (next) => onDraftChange(next),
+                          )
+                        }
                         isAr={isAr}
                       />
                       <div className="chat-composer-shell relative flex w-full items-end gap-0.5 rounded-full bg-white px-1.5 py-0.5 shadow-sm sm:py-1">
@@ -2221,6 +2759,7 @@ export default function LiveChatPanel({
                           disabled={sending}
                           aria-label={isAr ? "إرفاق" : "Attach"}
                           aria-expanded={attachOpen}
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             setEmojiOpen(false);
                             setAttachOpen((v) => !v);
@@ -2244,6 +2783,7 @@ export default function LiveChatPanel({
                           data-chat-emoji-toggle
                           aria-label={isAr ? "رموز تعبيرية" : "Emoji"}
                           aria-expanded={emojiOpen}
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             setAttachOpen(false);
                             setEmojiOpen((v) => !v);
@@ -2256,10 +2796,12 @@ export default function LiveChatPanel({
                         </button>
                       </div>
                       <textarea
+                        ref={composerRef}
                         value={draft}
                         onChange={(e) => onDraftChange(e.target.value)}
                         onKeyDown={onComposerKeyDown}
                         rows={1}
+                        dir="auto"
                         placeholder={
                           pendingAttachment
                             ? isAr
@@ -2449,7 +2991,7 @@ export default function LiveChatPanel({
                 src={session?.agent?.profilePic}
                 brand={!session?.agent}
                 size="lg"
-                online={session?.status === "active" && !chatLocked}
+                online={false}
               />
               <div className="w-full space-y-3 text-center">
                 <p className="text-[17px] text-black [font-family:var(--font-display)]">
@@ -2475,46 +3017,32 @@ export default function LiveChatPanel({
         </div>
       ) : null}
 
-      {headerPanel && headerPanel !== "contact" ? (
-        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/25 p-3 backdrop-blur-[1px] xs:items-center xs:p-4">
-          <div className="max-h-[min(90dvh,32rem)] w-full max-w-sm overflow-y-auto overflow-hidden rounded-xl border border-[#E8E8E4] bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-[#E8E8E4] px-4 py-3">
-              <h3 className="text-[14px] text-black [font-family:var(--font-body)]">
-                {headerPanel === "block" ? copy.block : copy.chatTheme}
-              </h3>
+      {confirmEnd ? (
+        <div className="absolute inset-0 z-[60] flex items-end justify-center bg-black/30 p-3 backdrop-blur-[1px] xs:items-center xs:p-4">
+          <div className="w-full max-w-sm overflow-hidden rounded-xl border border-[#E8E8E4] bg-white p-4 shadow-xl">
+            <h3 className="text-[15px] text-black [font-family:var(--font-body)]">
+              {copy.endChatConfirmTitle}
+            </h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-[#667781] [font-family:var(--font-body)]">
+              {copy.endChatConfirmBody}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
-                aria-label={copy.close}
-                onClick={() => setHeaderPanel(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[#54656F] transition hover:bg-black/5 hover:cursor-pointer"
+                onClick={() => setConfirmEnd(false)}
+                className="rounded-full border border-[#E8E8E4] px-3.5 py-2 text-[12px] text-black transition hover:border-black hover:cursor-pointer [font-family:var(--font-body)]"
               >
-                <X className="h-4 w-4" strokeWidth={1.75} />
+                {copy.cancelSelect}
               </button>
-            </div>
-            <div className="space-y-3 px-5 py-6 text-center">
-              {headerPanel === "block" ? (
-                <Ban
-                  className="mx-auto h-8 w-8 text-[#8A8A80]"
-                  strokeWidth={1.5}
-                />
-              ) : (
-                <Palette
-                  className="mx-auto h-8 w-8 text-[#8A8A80]"
-                  strokeWidth={1.5}
-                />
-              )}
-              <p className="text-[13px] text-black [font-family:var(--font-body)]">
-                {copy.comingSoon}
-              </p>
-              <p className="text-[12px] leading-relaxed text-[#8A8A80] [font-family:var(--font-body)]">
-                {headerPanel === "block" ? copy.blockSoon : copy.themeSoon}
-              </p>
               <button
                 type="button"
-                onClick={() => setHeaderPanel(null)}
-                className="mt-1 rounded-full bg-black px-4 py-2 text-[11px] text-white transition hover:bg-[#1a1a1a] hover:cursor-pointer [font-family:var(--font-body)]"
+                onClick={() => {
+                  setConfirmEnd(false);
+                  void endChat();
+                }}
+                className="rounded-full bg-[#B42318] px-3.5 py-2 text-[12px] text-white transition hover:bg-[#912018] hover:cursor-pointer [font-family:var(--font-body)]"
               >
-                {copy.gotIt}
+                {copy.endChatConfirmAction}
               </button>
             </div>
           </div>

@@ -14,7 +14,10 @@ import { usePathname, useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { safeClientNavigate } from "@/lib/safeClientNavigate";
 import { Link } from "@/i18n/navigation";
-import { useNotificationUnreadCount } from "@/hooks/useNotifications";
+import {
+  useLiveChatUnreadBadge,
+  useNotificationUnreadCount,
+} from "@/hooks/useNotifications";
 import AdminNotificationBell from "@/components/admin/notifications/AdminNotificationBell";
 import { DashboardPanelSkeleton } from "@/components/ui/Skeleton";
 import PermissionGuard from "@/lib/auth/PermissionGuard";
@@ -118,6 +121,13 @@ export default function AdminLayout({
   const { count: unreadNotificationCount } = useNotificationUnreadCount(
     "admin",
     canSeeNotifications,
+  );
+  const canSeeLiveChat =
+    Boolean(user) &&
+    (isFullAdmin(user) || hasAdminPerm(user, "customerSupport"));
+  const { count: liveChatUnreadCount } = useLiveChatUnreadBadge(
+    "admin",
+    canSeeLiveChat,
   );
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
   const [newQueryCount, setNewQueryCount] = useState(0);
@@ -513,9 +523,11 @@ export default function AdminLayout({
               ? newQueryCount
               : item.href === "/admin/reviews"
                 ? pendingReviewCount
-                : item.href === "/admin/notifications"
-                  ? unreadNotificationCount
-                  : 0;
+                : item.href === "/admin/support-chat"
+                  ? liveChatUnreadCount
+                  : item.href === "/admin/notifications"
+                    ? unreadNotificationCount
+                    : 0;
           return (
             <Link
               key={item.href}

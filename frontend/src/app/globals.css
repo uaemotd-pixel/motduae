@@ -361,6 +361,19 @@ body {
   font-family: var(--font-ui);
   font-size: var(--chat-fs-time);
 }
+/* Float time onto the last text line, optically level with body glyphs
+   (body line-height 1.4 vs smaller time size — plain top-[3px] sits too high). */
+.chat-text-time-inline {
+  float: inline-end;
+  margin-inline-start: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+  line-height: 1;
+  position: relative;
+  top: calc((var(--chat-fs-body) * 1.4) - var(--chat-fs-time) - 1px);
+}
 .chat-text-system {
   font-family: var(--font-body);
   font-size: var(--chat-fs-system);
@@ -416,6 +429,9 @@ body {
   }
   .chat-text-time {
     font-size: var(--chat-fs-time-sm);
+  }
+  .chat-text-time-inline {
+    top: calc((var(--chat-fs-body-sm) * 1.4) - var(--chat-fs-time-sm) - 1px);
   }
   .chat-text-system {
     font-size: var(--chat-fs-system-sm);

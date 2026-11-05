@@ -1374,6 +1374,7 @@
       "shop": "ملف المتجر",
       "designs": "التصاميم",
       "orders": "الطلبات",
+      "messages": "محادثات العملاء",
       "issues": "الإبلاغ عن مشكلة",
       "pricing": "التسعير",
       "notifications": "الإشعارات",
@@ -1448,6 +1449,9 @@
         "customOrderPlaced": "طلب تفصيل جديد",
         "customOrderReceived": "تم استلام الطلب",
         "tailorOrderPlaced": "طلب تفصيل جديد",
+        "liveChatStarted": "دردشة مباشرة جديدة",
+        "liveChatMessage": "رسالة دردشة مباشرة",
+        "liveChatAgentMessage": "رسالة الدعم",
         "default": "إشعار"
       }
     },

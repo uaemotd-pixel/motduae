@@ -137,6 +137,62 @@ export function formatFileSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+export type AttachUploadStatus =
+  | "idle"
+  | "preparing"
+  | "ready"
+  | "sending"
+  | "failed";
+
+export function isPdfAttachment(mimeType?: string, fileName?: string) {
+  const mime = (mimeType || "").toLowerCase();
+  if (mime.includes("pdf")) return true;
+  return fileExt(fileName || "") === "pdf";
+}
+
+export function isWordAttachment(mimeType?: string, fileName?: string) {
+  const mime = (mimeType || "").toLowerCase();
+  if (
+    mime.includes("msword") ||
+    mime.includes("wordprocessingml") ||
+    mime.includes("officedocument.word")
+  ) {
+    return true;
+  }
+  const ext = fileExt(fileName || "");
+  return ext === "doc" || ext === "docx";
+}
+
+export function isVideoAttachment(mimeType?: string, fileName?: string) {
+  const mime = (mimeType || "").toLowerCase();
+  if (mime.startsWith("video/")) return true;
+  return fileExt(fileName || "") === "mp4";
+}
+
+export function isAudioAttachment(mimeType?: string, fileName?: string) {
+  const mime = (mimeType || "").toLowerCase();
+  if (mime.startsWith("audio/")) return true;
+  return fileExt(fileName || "") === "mp3";
+}
+
+/** Short type label for file cards / composer (PDF, Word, Video…). */
+export function documentKindLabel(
+  mimeType?: string,
+  fileName?: string,
+  isAr = false,
+) {
+  if (isPdfAttachment(mimeType, fileName)) return "PDF";
+  if (isWordAttachment(mimeType, fileName)) {
+    const ext = fileExt(fileName || "");
+    if (ext === "doc") return "DOC";
+    if (ext === "docx") return "DOCX";
+    return isAr ? "وورد" : "Word";
+  }
+  if (isVideoAttachment(mimeType, fileName)) return isAr ? "فيديو" : "Video";
+  if (isAudioAttachment(mimeType, fileName)) return isAr ? "صوت" : "Audio";
+  return isAr ? "مستند" : "Document";
+}
+
 export type AttachValidationError =
   | "blocked"
   | "type"
@@ -144,10 +200,22 @@ export type AttachValidationError =
   | "not_hd"
   | "read_failed";
 
-function blobToDataUrl(blob: Blob): Promise<string> {
+function blobToDataUrl(
+  blob: Blob,
+  onProgress?: (pct: number) => void,
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onprogress = (ev) => {
+      if (!onProgress) return;
+      if (ev.lengthComputable && ev.total > 0) {
+        onProgress(Math.min(99, Math.round((ev.loaded / ev.total) * 100)));
+      }
+    };
+    reader.onload = () => {
+      onProgress?.(100);
+      resolve(String(reader.result || ""));
+    };
     reader.onerror = () => reject(reader.error || new Error("read_failed"));
     reader.readAsDataURL(blob);
   });
@@ -176,6 +244,7 @@ function assertHdVideo(file: File): Promise<boolean> {
 export async function prepareChatAttachment(
   file: File,
   kind: ChatAttachKind,
+  onProgress?: (pct: number) => void,
 ): Promise<
   | { ok: true; attachment: PreparedChatAttachment }
   | { ok: false; error: AttachValidationError }
@@ -223,7 +292,8 @@ export async function prepareChatAttachment(
   }
 
   try {
-    const data = await blobToDataUrl(file);
+    onProgress?.(0);
+    const data = await blobToDataUrl(file, onProgress);
     if (!data.startsWith("data:")) {
       return { ok: false, error: "read_failed" };
     }

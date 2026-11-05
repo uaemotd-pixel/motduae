@@ -15,6 +15,7 @@ import { CartProvider } from "@/context/CartContext";
 import { CustomOrderProvider } from "@/context/CustomOrderContext";
 import { RTLProvider } from "@/components/shared/RTLProvider";
 import AppToaster from "@/components/shared/AppToaster";
+import NotificationAlertsHost from "@/components/shared/NotificationAlertsHost";
 import { WishlistProvider } from "@/context/WishlistContext";
 
 type Props = {
@@ -68,6 +69,7 @@ export default async function LocaleLayout({ children, params }: Props) {
                                     </LenisProvider>
                                 </RTLProvider>
                                 <AppToaster />
+                                <NotificationAlertsHost />
                             </CustomOrderProvider>
                         </WishlistProvider>
                     </CartProvider>

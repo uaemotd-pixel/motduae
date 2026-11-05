@@ -4,7 +4,7 @@ export type SupportChatAvailability = {
   agentsOnline: number;
 };
 
-export type LiveChatSessionKind = "support" | "fabric";
+export type LiveChatSessionKind = "support" | "fabric" | "tailor";
 
 export type ActiveLiveSession = {
   id: string;
@@ -16,9 +16,21 @@ export type ActiveLiveSession = {
   fabricStoreOwnerId?: string | null;
   fabricShopId?: string | null;
   fabricStoreName?: string;
+  tailorOwnerId?: string | null;
+  tailorShopId?: string | null;
+  tailorName?: string;
 };
 
 export type DealtWithFabricStore = {
+  shopId: string;
+  ownerId: string;
+  name: string;
+  nameAr?: string;
+  logo?: string;
+  slug?: string;
+};
+
+export type DealtWithTailor = {
   shopId: string;
   ownerId: string;
   name: string;
@@ -34,11 +46,20 @@ export function getAvailability() {
 export function getActiveLiveSession(opts?: {
   kind?: LiveChatSessionKind;
   fabricStoreOwnerId?: string;
+  tailorOwnerId?: string;
 }) {
-  const kind = opts?.kind === "fabric" ? "fabric" : "support";
+  const kind =
+    opts?.kind === "fabric"
+      ? "fabric"
+      : opts?.kind === "tailor"
+        ? "tailor"
+        : "support";
   const params = new URLSearchParams({ kind });
   if (kind === "fabric" && opts?.fabricStoreOwnerId) {
     params.set("fabricStoreOwnerId", opts.fabricStoreOwnerId);
+  }
+  if (kind === "tailor" && opts?.tailorOwnerId) {
+    params.set("tailorOwnerId", opts.tailorOwnerId);
   }
   return api.get<{ session: ActiveLiveSession | null }>(
     `/api/support-chat/active-session?${params.toString()}`,
@@ -49,4 +70,8 @@ export function listDealtWithFabricStores() {
   return api.get<{ stores: DealtWithFabricStore[] }>(
     "/api/support-chat/fabric-stores",
   );
+}
+
+export function listDealtWithTailors() {
+  return api.get<{ tailors: DealtWithTailor[] }>("/api/support-chat/tailors");
 }

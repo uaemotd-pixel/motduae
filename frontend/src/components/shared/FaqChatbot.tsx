@@ -44,17 +44,36 @@ import {
   type FAQItem,
 } from "@/data/motdFaqs";
 import { useAuth } from "@/context/AuthContext";
+import { useChatThreadLenis } from "@/components/providers/lenisProvider";
 import { api, getApiErrorMessage } from "@/lib/api/client";
 import {
   getActiveLiveSession,
+  getAvailability,
   listDealtWithFabricStores,
+  listDealtWithTailors,
   type DealtWithFabricStore,
+  type DealtWithTailor,
+  type LiveChatSessionKind,
 } from "@/lib/api/supportChat";
 import { displayOrderId } from "@/lib/customOrders";
 import LiveChatPanel, {
   type LiveChatContext,
 } from "@/components/shared/LiveChatPanel";
 import { CustomerAudioCallPanelOverlay } from "@/components/shared/CustomerAudioCallHost";
+import {
+  dispatchOpenLiveChat,
+  LIVE_CHAT_WIDGET_UNREAD_EVENT,
+  OPEN_LIVE_CHAT_EVENT,
+  playSoftChatChime,
+} from "@/lib/notificationToast";
+import {
+  dispatchNotificationRefresh,
+  getMessagePopupsEnabled,
+  isPageBackgrounded,
+  liveChatReplyNotificationTitle,
+  showChatPopupNotification,
+} from "@/lib/notifications";
+import { getSocket } from "@/lib/realtime/socket";
 
 export const FAQ_CHAT_OPEN_EVENT = "motd-faq-chat-open";
 
@@ -441,14 +460,31 @@ export default function FaqChatbot() {
   const [liveChatOpen, setLiveChatOpen] = useState(false);
   /** Open agent thread exists — offer Continue chat vs browse topics on reopen. */
   const [resumableLiveChat, setResumableLiveChat] = useState(false);
+  const [resumablePeerName, setResumablePeerName] = useState("");
+  const [resumableSessionKind, setResumableSessionKind] =
+    useState<LiveChatSessionKind>("support");
+  const [resumableLiveContext, setResumableLiveContext] =
+    useState<LiveChatContext>({ sessionKind: "support" });
   /** Fabric stores this customer has ordered from. */
   const [fabricStores, setFabricStores] = useState<DealtWithFabricStore[]>([]);
   const [fabricPickerOpen, setFabricPickerOpen] = useState(false);
+  /** Tailors this customer has ordered from. */
+  const [tailors, setTailors] = useState<DealtWithTailor[]>([]);
+  const [tailorPickerOpen, setTailorPickerOpen] = useState(false);
   const [liveChatContext, setLiveChatContext] = useState<LiveChatContext>({
     sessionKind: "support",
   });
   /** Desktop half-screen expand while customer is in live agent chat. */
   const [liveChatExpanded, setLiveChatExpanded] = useState(false);
+  /** Agent replies while FAQ/live widget is closed or left to FAQ topics. */
+  const [liveUnreadCount, setLiveUnreadCount] = useState(0);
+  const liveChatOpenRef = useRef(false);
+  const liveChatContextRef = useRef<LiveChatContext>({ sessionKind: "support" });
+  const resumableSessionKindRef = useRef<LiveChatSessionKind>("support");
+  /** Logged-in customers get OS popups from NotificationAlertsHost — avoid duplicates. */
+  const useHostBrowserNotifsRef = useRef(false);
+  const lastUnreadMsgIdRef = useRef<string | null>(null);
+  const lastUnreadBumpAtRef = useRef(0);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [quickReplies, setQuickReplies] = useState<QuickReplies | null>(null);
   const [typing, setTyping] = useState(false);
@@ -565,10 +601,12 @@ export default function FaqChatbot() {
         showLess: "إخفاء",
         talkToAgent: "تحدثي مع وكيل مباشرة",
         continueChat: "متابعة المحادثة",
+        continueChatWith: (name: string) => `متابعة المحادثة مع ${name}`,
         selectTopics: "اختيار المواضيع",
         resumeLiveHint:
           "لديكِ محادثة مفتوحة مع الدعم. تابعيها أو تصفحي المواضيع أدناه.",
         talkToFabricStore: "تحدثي مع متجر أقمشة",
+        talkToTailor: "تحدثي مع خياط",
         fabricStorePickerTitle: "اختاري متجراً",
         fabricStorePickerHint:
           "يمكنكِ الدردشة فقط مع متاجر تعاملتِ معها (طلب سابق).",
@@ -576,6 +614,13 @@ export default function FaqChatbot() {
           "لا توجد متاجر متاحة بعد. أكملي طلباً من متجر أقمشة أولاً.",
         fabricStoreLoginRequired: "سجّلي الدخول للدردشة مع متجر أقمشة.",
         fabricStoreBack: "رجوع",
+        tailorPickerTitle: "اختاري خياطاً",
+        tailorPickerHint:
+          "يمكنكِ الدردشة فقط مع خياطين تعاملتِ معهم (طلب سابق).",
+        tailorNone:
+          "لا يوجد خياطون متاحون بعد. أكملي طلباً مخصصاً من خياط أولاً.",
+        tailorLoginRequired: "سجّلي الدخول للدردشة مع خياط.",
+        tailorBack: "رجوع",
         liveChatOffline:
           "لا يوجد وكلاء متصلون الآن. اتركي بياناتك وسنتواصل معكِ عبر البريد.",
         supportFormTitle: "تواصل مع فريق الرعاية",
@@ -695,10 +740,12 @@ export default function FaqChatbot() {
         showLess: "Hide",
         talkToAgent: "Talk to an agent",
         continueChat: "Continue chat",
+        continueChatWith: (name: string) => `Continue chat with ${name}`,
         selectTopics: "Select topics",
         resumeLiveHint:
           "You have an open chat with support. Continue it, or browse topics below.",
         talkToFabricStore: "Talk to a fabric store",
+        talkToTailor: "Talk to a tailor",
         fabricStorePickerTitle: "Choose a store",
         fabricStorePickerHint:
           "You can only chat with stores you’ve ordered from before.",
@@ -706,6 +753,13 @@ export default function FaqChatbot() {
           "No eligible stores yet. Place an order with a fabric store first.",
         fabricStoreLoginRequired: "Sign in to chat with a fabric store.",
         fabricStoreBack: "Back",
+        tailorPickerTitle: "Choose a tailor",
+        tailorPickerHint:
+          "You can only chat with tailors you’ve ordered from before.",
+        tailorNone:
+          "No eligible tailors yet. Place a custom order with a tailor first.",
+        tailorLoginRequired: "Sign in to chat with a tailor.",
+        tailorBack: "Back",
         liveChatOffline:
           "No agents are online right now. Leave your details and we'll email you.",
         supportFormTitle: "Contact MOTD Support",
@@ -785,13 +839,16 @@ export default function FaqChatbot() {
     setTopicsExpanded(false);
   }, [quickReplies]);
 
+  const { scrollToBottom: scrollThreadToBottom } = useChatThreadLenis(
+    threadRef,
+    open,
+  );
+
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
-      const el = threadRef.current;
-      if (!el) return;
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      scrollThreadToBottom(false);
     });
-  }, []);
+  }, [scrollThreadToBottom]);
 
   useEffect(() => {
     scrollToBottom();
@@ -1041,10 +1098,37 @@ export default function FaqChatbot() {
   /** Guest checkout session (shared guest account) — still needs Order ID + contact email. */
   const isGuestShopper = Boolean(isAuthenticated && user?.isGuest);
   /**
-   * Live agent only after FAQ escalation — never on the first topic list.
-   * Set when free-text has no match, or after an FAQ answer (may still need help).
+   * Live agent / fabric-store CTAs only after FAQ escalation — never on the
+   * first topic list. Set when free-text has no match, or after an FAQ answer.
    */
   const showTalkToAgent = offerLiveAgent;
+  const showTalkToFabricStore = offerLiveAgent && fabricStores.length > 0;
+  const showTalkToTailor = offerLiveAgent && tailors.length > 0;
+
+  const carePeerFallback = isAr ? "رعاية MOTD" : "MOTD Care";
+  const agentEscalationLabel =
+    resumableLiveChat && resumableSessionKind === "support"
+      ? copy.continueChatWith(resumablePeerName || carePeerFallback)
+      : copy.talkToAgent;
+  const fabricEscalationLabel =
+    resumableLiveChat &&
+    resumableSessionKind === "fabric" &&
+    resumablePeerName
+      ? copy.continueChatWith(resumablePeerName)
+      : copy.talkToFabricStore;
+  const tailorEscalationLabel =
+    resumableLiveChat &&
+    resumableSessionKind === "tailor" &&
+    resumablePeerName
+      ? copy.continueChatWith(resumablePeerName)
+      : copy.talkToTailor;
+
+  const clearResumableLive = useCallback(() => {
+    setResumableLiveChat(false);
+    setResumablePeerName("");
+    setResumableSessionKind("support");
+    setResumableLiveContext({ sessionKind: "support" });
+  }, []);
 
   const resetSupportState = useCallback(() => {
     setSupportView(null);
@@ -1141,16 +1225,254 @@ export default function FaqChatbot() {
     if (busy || awaitingNameRef.current || supportSubmitting || trackSubmitting || liveChatOpen) {
       return;
     }
-    // Always open live chat (WhatsApp-style queue). Do not fall back to email form
-    // just because no agent is currently on the Live Chat tab.
+
+    // Resume an existing open support thread even if agents briefly went offline.
+    try {
+      const { session } = await getActiveLiveSession({ kind: "support" });
+      if (session && (session.status === "waiting" || session.status === "active")) {
+        setFabricPickerOpen(false);
+        setTailorPickerOpen(false);
+        setLiveChatContext({ sessionKind: "support" });
+        clearResumableLive();
+        setLiveChatOpen(true);
+        dispatchNotificationRefresh();
+        return;
+      }
+    } catch {
+      /* fall through to availability check */
+    }
+
+    try {
+      const avail = await getAvailability();
+      if (!avail?.agentsOnline || avail.agentsOnline < 1) {
+        pushUser(copy.talkToAgent);
+        botReply(copy.liveChatOffline, null);
+        openSupportForm("general");
+        return;
+      }
+    } catch {
+      // Availability check failed — still open the queue so the customer is not stuck.
+    }
+
     setFabricPickerOpen(false);
+    setTailorPickerOpen(false);
     setLiveChatContext({ sessionKind: "support" });
-    setResumableLiveChat(false);
+    clearResumableLive();
     setLiveChatOpen(true);
+    dispatchNotificationRefresh();
   };
+
+  const openEscalationLiveChat = () => {
+    if (
+      resumableLiveChat &&
+      resumableSessionKind === "support"
+    ) {
+      void openLiveChat();
+      return;
+    }
+    if (
+      resumableLiveChat &&
+      resumableSessionKind === "fabric" &&
+      resumableLiveContext.fabricStoreOwnerId
+    ) {
+      setFabricPickerOpen(false);
+      setTailorPickerOpen(false);
+      setLiveChatContext(resumableLiveContext);
+      clearResumableLive();
+      setLiveChatOpen(true);
+      dispatchNotificationRefresh();
+      return;
+    }
+    if (
+      resumableLiveChat &&
+      resumableSessionKind === "tailor" &&
+      resumableLiveContext.tailorOwnerId
+    ) {
+      setFabricPickerOpen(false);
+      setTailorPickerOpen(false);
+      setLiveChatContext(resumableLiveContext);
+      clearResumableLive();
+      setLiveChatOpen(true);
+      dispatchNotificationRefresh();
+      return;
+    }
+    void openLiveChat();
+  };
+
+  // Toast click → open MOTD Care and resume live chat when possible.
+  useEffect(() => {
+    const onOpenLive = () => {
+      setOpen(true);
+      void (async () => {
+        try {
+          const { session } = await getActiveLiveSession({ kind: "support" });
+          if (session && (session.status === "waiting" || session.status === "active")) {
+            setFabricPickerOpen(false);
+            setTailorPickerOpen(false);
+            setLiveChatContext({ sessionKind: "support" });
+            clearResumableLive();
+            setLiveChatOpen(true);
+            dispatchNotificationRefresh();
+            return;
+          }
+          const fabric = await getActiveLiveSession({ kind: "fabric" }).catch(
+            () => ({ session: null }),
+          );
+          if (
+            fabric.session &&
+            (fabric.session.status === "waiting" || fabric.session.status === "active")
+          ) {
+            setFabricPickerOpen(false);
+            setTailorPickerOpen(false);
+            setLiveChatContext({
+              sessionKind: "fabric",
+              fabricStoreOwnerId: fabric.session.fabricStoreOwnerId || undefined,
+              fabricShopId: fabric.session.fabricShopId || undefined,
+              fabricStoreName: fabric.session.fabricStoreName,
+            });
+            clearResumableLive();
+            setLiveChatOpen(true);
+            dispatchNotificationRefresh();
+            return;
+          }
+          const tailor = await getActiveLiveSession({ kind: "tailor" }).catch(
+            () => ({ session: null }),
+          );
+          if (
+            tailor.session &&
+            (tailor.session.status === "waiting" || tailor.session.status === "active")
+          ) {
+            setFabricPickerOpen(false);
+            setTailorPickerOpen(false);
+            setLiveChatContext({
+              sessionKind: "tailor",
+              tailorOwnerId: tailor.session.tailorOwnerId || undefined,
+              tailorShopId: tailor.session.tailorShopId || undefined,
+              tailorName: tailor.session.tailorName,
+            });
+            clearResumableLive();
+            setLiveChatOpen(true);
+            dispatchNotificationRefresh();
+          }
+        } catch {
+          // Widget is open; user can pick Talk to agent.
+        }
+      })();
+    };
+    window.addEventListener(OPEN_LIVE_CHAT_EVENT, onOpenLive);
+    return () => window.removeEventListener(OPEN_LIVE_CHAT_EVENT, onOpenLive);
+  }, [clearResumableLive]);
+
+  // Keep refs so socket handlers see the latest live-panel / context state.
+  useEffect(() => {
+    liveChatOpenRef.current = liveChatOpen;
+    if (liveChatOpen) {
+      setLiveUnreadCount(0);
+      lastUnreadMsgIdRef.current = null;
+    }
+  }, [liveChatOpen]);
+
+  useEffect(() => {
+    liveChatContextRef.current = liveChatContext;
+  }, [liveChatContext]);
+
+  useEffect(() => {
+    resumableSessionKindRef.current = resumableSessionKind;
+  }, [resumableSessionKind]);
+
+  useEffect(() => {
+    useHostBrowserNotifsRef.current = Boolean(
+      isAuthenticated && user && !user.isGuest,
+    );
+  }, [isAuthenticated, user]);
+
+  // Unread badge + soft chime / browser popup while the live panel is closed/minimized.
+  useEffect(() => {
+    const bumpUnread = (messageId?: string, chime = true) => {
+      if (liveChatOpenRef.current) return;
+      const now = Date.now();
+      // chat:message + notification often fire together — count once.
+      if (now - lastUnreadBumpAtRef.current < 900) return;
+      const id = messageId ? String(messageId) : "";
+      if (id && lastUnreadMsgIdRef.current === id) return;
+      if (id) lastUnreadMsgIdRef.current = id;
+      lastUnreadBumpAtRef.current = now;
+      setLiveUnreadCount((n) => Math.min(99, n + 1));
+      if (chime && getMessagePopupsEnabled() && !isPageBackgrounded()) {
+        playSoftChatChime();
+      }
+    };
+
+    const notifyBrowserIfBackgrounded = (body?: string) => {
+      if (useHostBrowserNotifsRef.current) return;
+      if (!isPageBackgrounded() || !getMessagePopupsEnabled()) return;
+      const kind =
+        liveChatContextRef.current.sessionKind ||
+        resumableSessionKindRef.current ||
+        "support";
+      showChatPopupNotification({
+        title: liveChatReplyNotificationTitle(kind, isAr),
+        body: body || (isAr ? "لديك رسالة جديدة" : "You have a new message"),
+        tag: `motd-live-${kind}`,
+        onClick: () => {
+          dispatchOpenLiveChat();
+        },
+        onlyWhenBackgrounded: true,
+      });
+    };
+
+    const onWidgetUnread = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ messageId?: string; chime?: boolean }>)
+        .detail;
+      bumpUnread(detail?.messageId, detail?.chime !== false);
+      // Browser popup is handled by NotificationAlertsHost for logged-in users.
+    };
+
+    const onSocketMessage = (payload?: {
+      sessionId?: string;
+      message?: {
+        id?: string;
+        role?: string;
+        text?: string;
+        caption?: string;
+        senderName?: string;
+      };
+    }) => {
+      if (payload?.message?.role !== "agent") return;
+      const preview = String(
+        payload.message.caption || payload.message.text || "",
+      ).trim();
+      const body = payload.message.senderName
+        ? `${payload.message.senderName}${preview ? `: ${preview.slice(0, 120)}` : ""}`
+        : preview.slice(0, 140);
+      bumpUnread(payload.message.id, true);
+      notifyBrowserIfBackgrounded(body);
+    };
+
+    window.addEventListener(LIVE_CHAT_WIDGET_UNREAD_EVENT, onWidgetUnread);
+    const socket = getSocket();
+    socket.on("chat:message", onSocketMessage);
+    return () => {
+      window.removeEventListener(LIVE_CHAT_WIDGET_UNREAD_EVENT, onWidgetUnread);
+      socket.off("chat:message", onSocketMessage);
+    };
+  }, [isAr]);
 
   const openFabricStorePicker = async () => {
     if (busy || awaitingNameRef.current || supportSubmitting || trackSubmitting || liveChatOpen) {
+      return;
+    }
+    if (
+      resumableLiveChat &&
+      resumableSessionKind === "fabric" &&
+      resumableLiveContext.fabricStoreOwnerId
+    ) {
+      setFabricPickerOpen(false);
+      setTailorPickerOpen(false);
+      setLiveChatContext(resumableLiveContext);
+      clearResumableLive();
+      setLiveChatOpen(true);
+      dispatchNotificationRefresh();
       return;
     }
     if (!isAuthenticated || user?.isGuest) {
@@ -1178,6 +1500,7 @@ export default function FaqChatbot() {
         ]);
         return;
       }
+      setTailorPickerOpen(false);
       setFabricPickerOpen(true);
       setTopicsExpanded(false);
       setQuestionsExpanded(false);
@@ -1195,30 +1518,114 @@ export default function FaqChatbot() {
 
   const startFabricStoreChat = (store: DealtWithFabricStore) => {
     setFabricPickerOpen(false);
+    setTailorPickerOpen(false);
     setLiveChatContext({
       sessionKind: "fabric",
       fabricStoreOwnerId: store.ownerId,
       fabricShopId: store.shopId,
       fabricStoreName: isAr && store.nameAr ? store.nameAr : store.name,
     });
-    setResumableLiveChat(false);
+    clearResumableLive();
     setLiveChatOpen(true);
   };
 
-  // Load eligible fabric stores when the widget opens (for CTA visibility).
+  const openTailorPicker = async () => {
+    if (busy || awaitingNameRef.current || supportSubmitting || trackSubmitting || liveChatOpen) {
+      return;
+    }
+    if (
+      resumableLiveChat &&
+      resumableSessionKind === "tailor" &&
+      resumableLiveContext.tailorOwnerId
+    ) {
+      setFabricPickerOpen(false);
+      setTailorPickerOpen(false);
+      setLiveChatContext(resumableLiveContext);
+      clearResumableLive();
+      setLiveChatOpen(true);
+      dispatchNotificationRefresh();
+      return;
+    }
+    if (!isAuthenticated || user?.isGuest) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextId("b"),
+          role: "bot",
+          text: copy.tailorLoginRequired,
+        },
+      ]);
+      return;
+    }
+    try {
+      const { tailors: list } = await listDealtWithTailors();
+      setTailors(list || []);
+      if (!list?.length) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextId("b"),
+            role: "bot",
+            text: copy.tailorNone,
+          },
+        ]);
+        return;
+      }
+      setFabricPickerOpen(false);
+      setTailorPickerOpen(true);
+      setTopicsExpanded(false);
+      setQuestionsExpanded(false);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextId("b"),
+          role: "bot",
+          text: copy.tailorNone,
+        },
+      ]);
+    }
+  };
+
+  const startTailorChat = (tailor: DealtWithTailor) => {
+    setFabricPickerOpen(false);
+    setTailorPickerOpen(false);
+    setLiveChatContext({
+      sessionKind: "tailor",
+      tailorOwnerId: tailor.ownerId,
+      tailorShopId: tailor.shopId,
+      tailorName: isAr && tailor.nameAr ? tailor.nameAr : tailor.name,
+    });
+    clearResumableLive();
+    setLiveChatOpen(true);
+  };
+
+  // Load eligible fabric stores + tailors when the widget opens (for CTA visibility).
   useEffect(() => {
     if (!open || !isAuthenticated || user?.isGuest || authLoading) {
-      if (!open) setFabricStores([]);
+      if (!open) {
+        setFabricStores([]);
+        setTailors([]);
+      }
       return;
     }
     let cancelled = false;
-    void listDealtWithFabricStores()
-      .then(({ stores }) => {
-        if (!cancelled) setFabricStores(stores || []);
-      })
-      .catch(() => {
-        if (!cancelled) setFabricStores([]);
-      });
+    void Promise.all([
+      listDealtWithFabricStores()
+        .then(({ stores }) => {
+          if (!cancelled) setFabricStores(stores || []);
+        })
+        .catch(() => {
+          if (!cancelled) setFabricStores([]);
+        }),
+      listDealtWithTailors()
+        .then(({ tailors: list }) => {
+          if (!cancelled) setTailors(list || []);
+        })
+        .catch(() => {
+          if (!cancelled) setTailors([]);
+        }),
+    ]);
     return () => {
       cancelled = true;
     };
@@ -1636,16 +2043,67 @@ export default function FaqChatbot() {
     let cancelled = false;
 
     const boot = async () => {
-      let hasLive = false;
       try {
-        const { session } = await getActiveLiveSession();
+        const support = await getActiveLiveSession({ kind: "support" });
         if (cancelled) return;
-        hasLive = Boolean(session?.id);
+        if (support.session?.id) {
+          const peer =
+            support.session.agentName?.trim() ||
+            (isAr ? "رعاية MOTD" : "MOTD Care");
+          setResumableLiveChat(true);
+          setResumablePeerName(peer);
+          setResumableSessionKind("support");
+          setResumableLiveContext({ sessionKind: "support" });
+          beginGreeting();
+          return;
+        }
+        const fabric = await getActiveLiveSession({ kind: "fabric" }).catch(
+          () => ({ session: null }),
+        );
+        if (cancelled) return;
+        if (fabric.session?.id) {
+          const peer =
+            fabric.session.fabricStoreName?.trim() ||
+            fabric.session.agentName?.trim() ||
+            (isAr ? "متجر أقمشة" : "Fabric store");
+          setResumableLiveChat(true);
+          setResumablePeerName(peer);
+          setResumableSessionKind("fabric");
+          setResumableLiveContext({
+            sessionKind: "fabric",
+            fabricStoreOwnerId: fabric.session.fabricStoreOwnerId || undefined,
+            fabricShopId: fabric.session.fabricShopId || undefined,
+            fabricStoreName: fabric.session.fabricStoreName,
+          });
+          beginGreeting();
+          return;
+        }
+        const tailor = await getActiveLiveSession({ kind: "tailor" }).catch(
+          () => ({ session: null }),
+        );
+        if (cancelled) return;
+        if (tailor.session?.id) {
+          const peer =
+            tailor.session.tailorName?.trim() ||
+            tailor.session.agentName?.trim() ||
+            (isAr ? "خياط" : "Tailor");
+          setResumableLiveChat(true);
+          setResumablePeerName(peer);
+          setResumableSessionKind("tailor");
+          setResumableLiveContext({
+            sessionKind: "tailor",
+            tailorOwnerId: tailor.session.tailorOwnerId || undefined,
+            tailorShopId: tailor.session.tailorShopId || undefined,
+            tailorName: tailor.session.tailorName,
+          });
+          beginGreeting();
+          return;
+        }
+        clearResumableLive();
       } catch {
-        hasLive = false;
+        if (!cancelled) clearResumableLive();
       }
       if (cancelled) return;
-      setResumableLiveChat(hasLive);
       beginGreeting();
     };
 
@@ -1664,13 +2122,13 @@ export default function FaqChatbot() {
       cancelled = true;
       window.clearTimeout(fallback);
     };
-  }, [open, authLoading, beginGreeting, liveChatOpen]);
+  }, [open, authLoading, beginGreeting, liveChatOpen, clearResumableLive, isAr]);
 
   const openChat = () => {
     greetingStartedRef.current = false;
     setLiveChatOpen(false);
     setLiveChatExpanded(false);
-    setResumableLiveChat(false);
+    clearResumableLive();
     setMessages([]);
     setQuickReplies(null);
     setAwaitingName(false);
@@ -1689,8 +2147,9 @@ export default function FaqChatbot() {
     setOpen(false);
     setLiveChatOpen(false);
     setLiveChatExpanded(false);
-    setResumableLiveChat(false);
+    clearResumableLive();
     setFabricPickerOpen(false);
+    setTailorPickerOpen(false);
     setLiveChatContext({ sessionKind: "support" });
     greetingStartedRef.current = false;
     setOfferLiveAgent(false);
@@ -1825,7 +2284,13 @@ export default function FaqChatbot() {
   const showContact = () => {
     if (busy || awaitingNameRef.current) return;
     pushUser(copy.contact);
-    botReply(copy.contactPrompt(displayName || undefined), { kind: "sections" });
+    botReply(
+      isAr
+        ? "افتحي النموذج أدناه وسنتابع طلبك عبر البريد."
+        : "Open the form below and we’ll follow up by email.",
+      null,
+    );
+    openSupportForm("general");
   };
 
   const handleSend = (e?: FormEvent) => {
@@ -1916,7 +2381,11 @@ export default function FaqChatbot() {
             ref={fabRef}
             type="button"
             onClick={openChat}
-            aria-label={copy.open}
+            aria-label={
+              liveUnreadCount > 0
+                ? `${copy.open} (${liveUnreadCount > 99 ? "99+" : liveUnreadCount} new)`
+                : copy.open
+            }
             aria-expanded={false}
             initial={{ opacity: 0, scale: 0.8, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1924,8 +2393,14 @@ export default function FaqChatbot() {
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.92 }}
             transition={{ type: "spring", stiffness: 420, damping: 22 }}
-            className="fixed bottom-4 end-3 sm:bottom-5 sm:end-5 md:bottom-6 md:end-6 z-50 flex h-11 w-11 items-center justify-center overflow-hidden rounded-full p-0 shadow-[0_10px_24px_rgba(40,20,10,0.26)] outline-none ring-2 ring-white sm:h-12 sm:w-12 sm:ring-[2.5px] md:h-14 md:w-14 focus-visible:ring-2 focus-visible:ring-black/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFDF9] hover:cursor-pointer touch-manipulation mb-(--safe-bottom) me-(--safe-right)"
+            className="fixed bottom-4 end-3 sm:bottom-5 sm:end-5 md:bottom-6 md:end-6 z-50 flex h-11 w-11 items-center justify-center overflow-visible rounded-full p-0 shadow-[0_10px_24px_rgba(40,20,10,0.26)] outline-none ring-2 ring-white sm:h-12 sm:w-12 sm:ring-[2.5px] md:h-14 md:w-14 focus-visible:ring-2 focus-visible:ring-black/35 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFDF9] hover:cursor-pointer touch-manipulation mb-(--safe-bottom) me-(--safe-right)"
           >
+            {liveUnreadCount > 0 ? (
+              <span className="absolute -end-0.5 -top-0.5 z-[3] flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-[#E53935] px-1 text-[10px] font-semibold leading-none text-white shadow-[0_2px_6px_rgba(0,0,0,0.28)] [font-family:var(--font-ui)] sm:-end-1 sm:-top-1 sm:h-5 sm:min-w-5 sm:text-[11px]">
+                {liveUnreadCount > 99 ? "99+" : liveUnreadCount}
+              </span>
+            ) : null}
+            <span className="absolute inset-0 overflow-hidden rounded-full">
             <motion.span
               className="pointer-events-none absolute -inset-1 rounded-full bg-[#E8B89A]/25"
               animate={{ scale: [1, 1.35], opacity: [0.5, 0] }}
@@ -2314,6 +2789,7 @@ export default function FaqChatbot() {
                 />
               </g>
             </svg>
+            </span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -2338,6 +2814,8 @@ export default function FaqChatbot() {
               role="dialog"
               aria-modal="true"
               aria-label={copy.title}
+              data-lenis-prevent
+              data-lenis-prevent-wheel
               initial={{ opacity: 0, y: 28, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 18, scale: 0.97 }}
@@ -2388,12 +2866,17 @@ export default function FaqChatbot() {
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.12),transparent_55%)]" />
                 <div className="relative flex items-center gap-2.5 sm:gap-3">
                   <motion.span
-                    className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full bg-white text-black [font-family:var(--font-display)] text-[13px] sm:text-[15px] tracking-wide"
+                    className="relative flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full bg-white text-black [font-family:var(--font-display)] text-[13px] sm:text-[15px] tracking-wide"
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ delay: 0.08, type: "spring", stiffness: 400, damping: 20 }}
                   >
                     M
+                    {!liveChatOpen && liveUnreadCount > 0 ? (
+                      <span className="absolute -end-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#E53935] px-1 text-[9px] font-semibold leading-none text-white [font-family:var(--font-ui)]">
+                        {liveUnreadCount > 99 ? "99+" : liveUnreadCount}
+                      </span>
+                    ) : null}
                   </motion.span>
                   <div className="min-w-0 flex-1">
                     <motion.h2
@@ -2404,6 +2887,13 @@ export default function FaqChatbot() {
                     >
                       {copy.title}
                     </motion.h2>
+                    {!liveChatOpen && liveUnreadCount > 0 ? (
+                      <p className="mt-0.5 truncate text-[11px] text-white/70 [font-family:var(--font-ui)]">
+                        {isAr
+                          ? "رسالة جديدة من الدعم — تابعي المحادثة"
+                          : "New support reply — continue chat"}
+                      </p>
+                    ) : null}
                   </div>
                   <motion.button
                     type="button"
@@ -2418,18 +2908,17 @@ export default function FaqChatbot() {
                 </div>
               </header>
 
-              {/* Message thread */}
+              {/* Message thread — Lenis owns this scroller; prevent attrs live on the panel. */}
               <div
                 ref={threadRef}
-                data-lenis-prevent
-                data-lenis-prevent-wheel
                 data-chat-scroll
-                className="relative min-h-0 flex-1 space-y-3 sm:space-y-3.5 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y px-3 py-3.5 sm:px-3.5 sm:py-4 [-webkit-overflow-scrolling:touch]"
+                className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y px-3 py-3.5 sm:px-3.5 sm:py-4 [-webkit-overflow-scrolling:touch]"
                 style={{
                   backgroundImage:
                     "radial-gradient(circle at 12% 8%, rgba(0,0,0,0.03), transparent 42%), radial-gradient(circle at 88% 92%, rgba(0,0,0,0.025), transparent 40%), linear-gradient(180deg, #F7F5F0 0%, #FFFDF9 100%)",
                 }}
               >
+                <div className="space-y-3 sm:space-y-3.5">
                 {open && messages.length === 0 && (
                   <div className="flex justify-start">
                     <div className="flex items-start gap-2">
@@ -2516,6 +3005,7 @@ export default function FaqChatbot() {
                     </motion.div>
                   )}
                 </AnimatePresence>
+                </div>
               </div>
 
               {/* FAQ support request */}
@@ -2994,6 +3484,68 @@ export default function FaqChatbot() {
                 ) : null}
               </AnimatePresence>
 
+              {/* Tailor picker */}
+              <AnimatePresence mode="wait">
+                {tailorPickerOpen && !liveChatOpen && !typing && !awaitingName ? (
+                  <motion.div
+                    key="tailor-picker"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    className="shrink-0 border-t border-[#E8E8E4] bg-white/95 px-2.5 py-2.5 sm:px-3 backdrop-blur-md"
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="[font-family:var(--font-ui)] text-[9px] sm:text-[10px] uppercase tracking-[0.16em] text-[#8A8A80]">
+                          {copy.tailorPickerTitle}
+                        </p>
+                        <p className="mt-1 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] leading-snug text-[#5A5A56]">
+                          {copy.tailorPickerHint}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setTailorPickerOpen(false)}
+                        className="shrink-0 rounded-full border border-[#E8E8E4] px-2.5 py-1 [font-family:var(--font-body)] text-[11px] text-black transition hover:border-black hover:cursor-pointer"
+                      >
+                        {copy.tailorBack}
+                      </button>
+                    </div>
+                    <div className="flex max-h-[min(40dvh,16rem)] flex-col gap-1.5 overflow-y-auto">
+                      {tailors.map((tailor, i) => (
+                        <motion.button
+                          key={tailor.ownerId}
+                          type="button"
+                          custom={i}
+                          variants={chipVariants}
+                          initial="hidden"
+                          animate="show"
+                          disabled={busy}
+                          onClick={() => startTailorChat(tailor)}
+                          className="flex w-full items-center gap-3 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3 py-2.5 text-start transition hover:border-black disabled:opacity-50 hover:cursor-pointer"
+                        >
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-white">
+                            {tailor.logo ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={tailor.logo}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <Scissors className="h-4 w-4" strokeWidth={1.5} />
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate [font-family:var(--font-body)] text-[12.5px] sm:text-[13px] text-black">
+                            {isAr && tailor.nameAr ? tailor.nameAr : tailor.name}
+                          </span>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+
               {/* Quick replies */}
               <AnimatePresence mode="wait">
                 {quickReplies &&
@@ -3001,7 +3553,8 @@ export default function FaqChatbot() {
                   !awaitingName &&
                   !supportView &&
                   !trackView &&
-                  !fabricPickerOpen && (
+                  !fabricPickerOpen &&
+                  !tailorPickerOpen && (
                   <motion.div
                     key={
                       quickReplies.kind +
@@ -3048,12 +3601,16 @@ export default function FaqChatbot() {
                               <motion.button
                                 type="button"
                                 disabled={busy || liveChatOpen}
-                                onClick={() => void openLiveChat()}
+                                onClick={() => openEscalationLiveChat()}
                                 whileTap={{ scale: 0.98 }}
                                 className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border border-black bg-black px-3.5 py-2 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-white transition hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
                               >
                                 <Headset className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-                                <span className="min-w-0 truncate">{copy.continueChat}</span>
+                                <span className="min-w-0 truncate">
+                                  {resumablePeerName
+                                    ? copy.continueChatWith(resumablePeerName)
+                                    : copy.continueChat}
+                                </span>
                               </motion.button>
                               <motion.button
                                 type="button"
@@ -3067,18 +3624,6 @@ export default function FaqChatbot() {
                               </motion.button>
                             </div>
                           </div>
-                        ) : null}
-                        {fabricStores.length > 0 && !topicsExpanded ? (
-                          <motion.button
-                            type="button"
-                            disabled={busy || liveChatOpen}
-                            onClick={() => void openFabricStorePicker()}
-                            whileTap={{ scale: 0.99 }}
-                            className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2.5 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-black transition hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
-                          >
-                            <Store className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
-                            {copy.talkToFabricStore}
-                          </motion.button>
                         ) : null}
                         <motion.button
                           type="button"
@@ -3170,7 +3715,12 @@ export default function FaqChatbot() {
                                     initial="hidden"
                                     animate="show"
                                     disabled={busy || liveChatOpen}
-                                    onClick={() => void openLiveChat()}
+                                    onClick={() =>
+                                      resumableLiveChat &&
+                                      resumableSessionKind === "support"
+                                        ? openEscalationLiveChat()
+                                        : void openLiveChat()
+                                    }
                                     whileTap={{ scale: 0.99 }}
                                     className="group flex w-full min-w-0 items-center gap-3 rounded-xl border border-black bg-black px-3 py-3 sm:py-2.5 text-start text-white transition-colors hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
                                   >
@@ -3178,11 +3728,11 @@ export default function FaqChatbot() {
                                       <Headset className="h-3.5 w-3.5" strokeWidth={1.5} />
                                     </span>
                                     <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12px] leading-snug sm:text-[12.5px]">
-                                      {copy.talkToAgent}
+                                      {agentEscalationLabel}
                                     </span>
                                   </motion.button>
                                 ) : null}
-                                {fabricStores.length > 0 ? (
+                                {showTalkToFabricStore ? (
                                   <motion.button
                                     type="button"
                                     custom={CHATBOT_FAQ_SECTIONS.length + 1}
@@ -3198,7 +3748,27 @@ export default function FaqChatbot() {
                                       <Store className="h-3.5 w-3.5" strokeWidth={1.5} />
                                     </span>
                                     <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12px] leading-snug sm:text-[12.5px]">
-                                      {copy.talkToFabricStore}
+                                      {fabricEscalationLabel}
+                                    </span>
+                                  </motion.button>
+                                ) : null}
+                                {showTalkToTailor ? (
+                                  <motion.button
+                                    type="button"
+                                    custom={CHATBOT_FAQ_SECTIONS.length + 2}
+                                    variants={chipVariants}
+                                    initial="hidden"
+                                    animate="show"
+                                    disabled={busy || liveChatOpen}
+                                    onClick={() => void openTailorPicker()}
+                                    whileTap={{ scale: 0.99 }}
+                                    className="group flex w-full min-w-0 items-center gap-3 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3 py-3 sm:py-2.5 text-start text-black transition-colors hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                  >
+                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-white">
+                                      <Scissors className="h-3.5 w-3.5" strokeWidth={1.5} />
+                                    </span>
+                                    <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12px] leading-snug sm:text-[12.5px]">
+                                      {tailorEscalationLabel}
                                     </span>
                                   </motion.button>
                                 ) : null}
@@ -3281,7 +3851,12 @@ export default function FaqChatbot() {
                                       initial="hidden"
                                       animate="show"
                                       disabled={busy || liveChatOpen}
-                                      onClick={() => void openLiveChat()}
+                                      onClick={() =>
+                                        resumableLiveChat &&
+                                        resumableSessionKind === "support"
+                                          ? openEscalationLiveChat()
+                                          : void openLiveChat()
+                                      }
                                       whileTap={{ scale: 0.99 }}
                                       className="group flex w-full min-w-0 items-center gap-3 rounded-xl border border-black bg-black px-3 py-3 sm:py-2.5 text-start text-white transition-colors hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
                                     >
@@ -3289,7 +3864,47 @@ export default function FaqChatbot() {
                                         <Headset className="h-3.5 w-3.5" strokeWidth={1.5} />
                                       </span>
                                       <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12px] leading-snug sm:text-[12.5px]">
-                                        {copy.talkToAgent}
+                                        {agentEscalationLabel}
+                                      </span>
+                                    </motion.button>
+                                  ) : null}
+                                  {showTalkToFabricStore ? (
+                                    <motion.button
+                                      type="button"
+                                      custom={Math.min(allQuestions.length + 1, 8)}
+                                      variants={chipVariants}
+                                      initial="hidden"
+                                      animate="show"
+                                      disabled={busy || liveChatOpen}
+                                      onClick={() => void openFabricStorePicker()}
+                                      whileTap={{ scale: 0.99 }}
+                                      className="group flex w-full min-w-0 items-center gap-3 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3 py-3 sm:py-2.5 text-start text-black transition-colors hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                    >
+                                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-white">
+                                        <Store className="h-3.5 w-3.5" strokeWidth={1.5} />
+                                      </span>
+                                      <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12px] leading-snug sm:text-[12.5px]">
+                                        {fabricEscalationLabel}
+                                      </span>
+                                    </motion.button>
+                                  ) : null}
+                                  {showTalkToTailor ? (
+                                    <motion.button
+                                      type="button"
+                                      custom={Math.min(allQuestions.length + 2, 8)}
+                                      variants={chipVariants}
+                                      initial="hidden"
+                                      animate="show"
+                                      disabled={busy || liveChatOpen}
+                                      onClick={() => void openTailorPicker()}
+                                      whileTap={{ scale: 0.99 }}
+                                      className="group flex w-full min-w-0 items-center gap-3 rounded-xl border border-[#E8E8E4] bg-[#FFFDF9] px-3 py-3 sm:py-2.5 text-start text-black transition-colors hover:border-black disabled:opacity-50 hover:cursor-pointer touch-manipulation"
+                                    >
+                                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-white">
+                                        <Scissors className="h-3.5 w-3.5" strokeWidth={1.5} />
+                                      </span>
+                                      <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere] [font-family:var(--font-body)] text-[12px] leading-snug sm:text-[12.5px]">
+                                        {tailorEscalationLabel}
                                       </span>
                                     </motion.button>
                                   ) : null}
@@ -3315,91 +3930,159 @@ export default function FaqChatbot() {
                       );
                     })()}
 
-                    {quickReplies.kind === "afterAnswer" && (
-                      <div className="flex min-w-0 flex-col gap-2.5 overflow-x-hidden">
-                        <p className="[font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-[#5A5A56]">
-                          {copy.moreInTopic(displayName || undefined)}
-                        </p>
-                        <div className="flex min-w-0 flex-wrap gap-1.5">
-                          {[
+                    {quickReplies.kind === "afterAnswer" && (() => {
+                      type AfterAction = {
+                        key: string;
+                        label: string;
+                        icon: typeof RotateCcw;
+                        onClick: () => void;
+                        variant: "secondary" | "agent" | "partner";
+                      };
+                      const rowPrimary: AfterAction[] = [
+                        {
+                          key: "again",
+                          label: copy.askAnother,
+                          icon: RotateCcw,
+                          onClick: () =>
+                            showQuestionsAgain(quickReplies.topicId),
+                          variant: "secondary",
+                        },
+                        {
+                          key: "topics",
+                          label: copy.otherTopics,
+                          icon: LayoutGrid,
+                          onClick: showSectionsAgain,
+                          variant: "secondary",
+                        },
+                        {
+                          key: "contact",
+                          label: copy.contact,
+                          icon: Mail,
+                          onClick: showContact,
+                          variant: "secondary",
+                        },
+                      ];
+                      const rowAgent: AfterAction[] = showTalkToAgent
+                        ? [
                             {
-                              key: "again",
-                              label: copy.askAnother,
-                              icon: RotateCcw,
-                              onClick: () => showQuestionsAgain(quickReplies.topicId),
-                              primary: false,
+                              key: "agent",
+                              label: agentEscalationLabel,
+                              icon: Headset,
+                              onClick: () =>
+                                resumableLiveChat &&
+                                resumableSessionKind === "support"
+                                  ? openEscalationLiveChat()
+                                  : void openLiveChat(),
+                              variant: "agent",
                             },
-                            {
-                              key: "topics",
-                              label: copy.otherTopics,
-                              icon: LayoutGrid,
-                              onClick: showSectionsAgain,
-                              primary: false,
-                            },
-                            {
-                              key: "contact",
-                              label: copy.contact,
-                              icon: Mail,
-                              onClick: showContact,
-                              primary: false,
-                            },
-                            ...(showTalkToAgent
-                              ? [
-                                  {
-                                    key: "agent",
-                                    label: copy.talkToAgent,
-                                    icon: Headset,
-                                    onClick: () => void openLiveChat(),
-                                    primary: true,
-                                  },
-                                ]
-                              : []),
-                            ...(fabricStores.length > 0
-                              ? [
-                                  {
-                                    key: "fabric",
-                                    label: copy.talkToFabricStore,
-                                    icon: Store,
-                                    onClick: () => void openFabricStorePicker(),
-                                    primary: false,
-                                  },
-                                ]
-                              : []),
-                          ].map((action, i) => {
-                            const Icon = action.icon;
-                            return (
-                              <motion.button
-                                key={action.key}
-                                type="button"
-                                custom={i}
-                                variants={chipVariants}
-                                initial="hidden"
-                                animate="show"
-                                disabled={busy || (action.key === "agent" && liveChatOpen)}
-                                onClick={action.onClick}
-                                whileTap={
-                                  action.key === "agent"
-                                    ? { scale: 0.99 }
-                                    : { scale: 0.97 }
-                                }
+                          ]
+                        : [];
+                      const rowPartners: AfterAction[] = [
+                        ...(showTalkToFabricStore
+                          ? [
+                              {
+                                key: "fabric",
+                                label: fabricEscalationLabel,
+                                icon: Store,
+                                onClick: () => void openFabricStorePicker(),
+                                variant: "partner" as const,
+                              },
+                            ]
+                          : []),
+                        ...(showTalkToTailor
+                          ? [
+                              {
+                                key: "tailor",
+                                label: tailorEscalationLabel,
+                                icon: Scissors,
+                                onClick: () => void openTailorPicker(),
+                                variant: "partner" as const,
+                              },
+                            ]
+                          : []),
+                      ];
+                      const renderAfterBtn = (
+                        action: AfterAction,
+                        i: number,
+                        className: string,
+                      ) => {
+                        const Icon = action.icon;
+                        return (
+                          <motion.button
+                            key={action.key}
+                            type="button"
+                            custom={i}
+                            variants={chipVariants}
+                            initial="hidden"
+                            animate="show"
+                            disabled={
+                              busy ||
+                              ((action.key === "agent" ||
+                                action.key === "fabric" ||
+                                action.key === "tailor") &&
+                                liveChatOpen)
+                            }
+                            onClick={action.onClick}
+                            whileTap={{ scale: 0.98 }}
+                            className={className}
+                          >
+                            <Icon
+                              className="h-3 w-3 shrink-0"
+                              strokeWidth={1.5}
+                            />
+                            <span className="min-w-0 break-words [overflow-wrap:anywhere] text-center leading-snug">
+                              {action.label}
+                            </span>
+                          </motion.button>
+                        );
+                      };
+                      return (
+                        <div className="flex min-w-0 flex-col gap-2.5 overflow-x-hidden">
+                          <p className="[font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-[#5A5A56]">
+                            {copy.moreInTopic(displayName || undefined)}
+                          </p>
+                          <div className="flex min-w-0 flex-col gap-1.5">
+                            <div className="grid min-w-0 grid-cols-3 gap-1.5">
+                              {rowPrimary.map((action, i) =>
+                                renderAfterBtn(
+                                  action,
+                                  i,
+                                  "inline-flex min-w-0 w-full items-center justify-center gap-1 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-2 py-2 [font-family:var(--font-body)] text-[11px] sm:text-[12px] text-black transition-colors hover:border-black hover:bg-black hover:text-white disabled:opacity-50 hover:cursor-pointer touch-manipulation",
+                                ),
+                              )}
+                            </div>
+                            {rowAgent.length > 0 ? (
+                              <div className="grid min-w-0 grid-cols-1 gap-1.5">
+                                {rowAgent.map((action, i) =>
+                                  renderAfterBtn(
+                                    action,
+                                    i + 3,
+                                    "inline-flex w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border border-black bg-black px-3.5 py-2.5 text-center [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] leading-snug text-white transition-colors hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation",
+                                  ),
+                                )}
+                              </div>
+                            ) : null}
+                            {rowPartners.length > 0 ? (
+                              <div
                                 className={
-                                  action.key === "agent"
-                                    ? "inline-flex w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border border-black bg-black px-3.5 py-2.5 text-center [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] leading-snug text-white transition-colors hover:bg-[#1a1a1a] disabled:opacity-50 hover:cursor-pointer touch-manipulation"
-                                    : action.primary
-                                      ? "inline-flex items-center gap-1.5 rounded-full border border-black bg-black px-3.5 py-2 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-white transition-colors hover:bg-white hover:text-black disabled:opacity-50 hover:cursor-pointer"
-                                      : "inline-flex items-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-3.5 py-2 [font-family:var(--font-body)] text-[12px] sm:text-[12.5px] text-black transition-colors hover:border-black hover:bg-black hover:text-white disabled:opacity-50 hover:cursor-pointer"
+                                  rowPartners.length === 1
+                                    ? "grid min-w-0 grid-cols-1 gap-1.5"
+                                    : "grid min-w-0 grid-cols-2 gap-1.5"
                                 }
                               >
-                                <Icon className="h-3 w-3 shrink-0" strokeWidth={1.5} />
-                                <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-                                  {action.label}
-                                </span>
-                              </motion.button>
-                            );
-                          })}
+                                {rowPartners.map((action, i) =>
+                                  renderAfterBtn(
+                                    action,
+                                    i + 4,
+                                    "inline-flex min-w-0 w-full items-center justify-center gap-1.5 rounded-full border border-[#E8E8E4] bg-[#FFFDF9] px-2.5 py-2 [font-family:var(--font-body)] text-[11px] sm:text-[12px] text-black transition-colors hover:border-black hover:bg-black hover:text-white disabled:opacity-50 hover:cursor-pointer touch-manipulation",
+                                  ),
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -3429,10 +4112,7 @@ export default function FaqChatbot() {
                       // and keep the composer visible above the keypad.
                       window.setTimeout(() => {
                         syncMobileViewportRef.current?.();
-                        threadRef.current?.scrollTo({
-                          top: threadRef.current.scrollHeight,
-                          behavior: "smooth",
-                        });
+                        scrollThreadToBottom(false);
                       }, 350);
                     }}
                     className="chat-composer-input min-w-0 w-full flex-1 bg-transparent py-1 text-black outline-none placeholder:text-[#8A8A80] disabled:opacity-60 sm:py-1.5"
