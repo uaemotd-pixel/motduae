@@ -2513,6 +2513,9 @@ adminRouter.patch(
     if (typeof req.body?.allowCustomerSocial === "boolean") {
       shop.allowCustomerSocial = req.body.allowCustomerSocial;
     }
+    if (typeof req.body?.allowLiveChatAudioCalls === "boolean") {
+      shop.allowLiveChatAudioCalls = req.body.allowLiveChatAudioCalls;
+    }
 
     await shop.save();
     res.send({
@@ -2520,6 +2523,7 @@ adminRouter.patch(
       shop: {
         allowCustomerCalls: Boolean(shop.allowCustomerCalls),
         allowCustomerSocial: Boolean(shop.allowCustomerSocial),
+        allowLiveChatAudioCalls: Boolean(shop.allowLiveChatAudioCalls),
       },
     });
   }),

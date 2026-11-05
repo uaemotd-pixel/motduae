@@ -107,13 +107,33 @@ function fileExt(name) {
   return parts[parts.length - 1].replace(/[^a-z0-9]/g, "");
 }
 
-function welcomeText(locale, customerName, { sessionKind = "support", storeName = "" } = {}) {
+/** @param {unknown} kind */
+function normalizeSessionKind(kind) {
+  const raw = String(kind || "support").trim();
+  if (raw === "fabric") return "fabric";
+  if (raw === "tailor") return "tailor";
+  return "support";
+}
+
+function partnerLabel(sessionKind, name) {
+  const trimmed = String(name || "").trim();
+  if (trimmed) return trimmed;
+  if (sessionKind === "fabric") return "Fabric store";
+  if (sessionKind === "tailor") return "Tailor";
+  return "MOTD Care";
+}
+
+function welcomeText(
+  locale,
+  customerName,
+  { sessionKind = "support", storeName = "", tailorName = "" } = {},
+) {
   const name = String(customerName || "").trim();
-  const store = String(storeName || "").trim() || "Fabric store";
   const isAr = String(locale || "")
     .toLowerCase()
     .startsWith("ar");
   if (sessionKind === "fabric") {
+    const store = partnerLabel("fabric", storeName);
     if (isAr) {
       return name
         ? `مرحباً ${name}، جاري توصيلكِ بمتجر «${store}». سيرد المتجر قريباً.`
@@ -122,6 +142,17 @@ function welcomeText(locale, customerName, { sessionKind = "support", storeName 
     return name
       ? `Hi ${name}, connecting you with ${store}. They’ll reply shortly.`
       : `Hi, connecting you with ${store}. They’ll reply shortly.`;
+  }
+  if (sessionKind === "tailor") {
+    const tailor = partnerLabel("tailor", tailorName);
+    if (isAr) {
+      return name
+        ? `مرحباً ${name}، جاري توصيلكِ بالخياط «${tailor}». سيرد قريباً.`
+        : `مرحباً، جاري توصيلكِ بالخياط «${tailor}». سيرد قريباً.`;
+    }
+    return name
+      ? `Hi ${name}, connecting you with ${tailor}. They’ll reply shortly.`
+      : `Hi, connecting you with ${tailor}. They’ll reply shortly.`;
   }
   if (isAr) {
     return name
@@ -134,9 +165,7 @@ function welcomeText(locale, customerName, { sessionKind = "support", storeName 
 }
 
 function agentJoinedText(locale, agentName, { sessionKind = "support" } = {}) {
-  const name =
-    String(agentName || "").trim() ||
-    (sessionKind === "fabric" ? "Fabric store" : "MOTD Care");
+  const name = partnerLabel(sessionKind, agentName);
   const isAr = String(locale || "")
     .toLowerCase()
     .startsWith("ar");
@@ -160,7 +189,8 @@ const MAX_FAQ_TEXT = 2000;
 
 /**
  * Map FAQ chatbot bubbles into live-chat messages (text only).
- * FAQ user → customer, FAQ bot → agent (senderName MOTD Care).
+ * FAQ visitor turns → customer. FAQ bot turns → system (never agent),
+ * so clients cannot spoof MOTD Care / human agent history on chat:start.
  */
 function sanitizeFaqHistory(raw, customerName) {
   if (!Array.isArray(raw)) return [];
@@ -185,9 +215,9 @@ function sanitizeFaqHistory(raw, customerName) {
       });
     } else {
       out.push({
-        role: "agent",
+        role: "system",
         text,
-        senderName: "MOTD Care",
+        senderName: "FAQ",
       });
     }
   }
@@ -213,7 +243,33 @@ function parseDataUrl(raw) {
   const match = /^data:([^;,]+);base64,([\s\S]+)$/i.exec(value);
   if (!match) return null;
   if (value.length > MAX_FILE_CHARS) return null;
-  return { mime: match[1].toLowerCase(), dataUrl: value };
+  return { mime: match[1].toLowerCase().trim(), dataUrl: value };
+}
+
+/** Canonical MIME for allowlist + data-URL prefix checks. */
+function normalizeAttachMime(raw) {
+  const mime = String(raw || "")
+    .toLowerCase()
+    .split(";")[0]
+    .trim();
+  if (mime === "image/jpg") return "image/jpeg";
+  if (mime === "audio/mp3") return "audio/mpeg";
+  return mime;
+}
+
+function dataUrlMatchesMime(dataUrl, mime) {
+  const prefix = `data:${mime};base64,`;
+  if (String(dataUrl || "").toLowerCase().startsWith(prefix.toLowerCase())) {
+    return true;
+  }
+  // Browsers sometimes emit image/jpg or audio/mp3 in the data URL.
+  if (mime === "image/jpeg") {
+    return /^data:image\/jpg;base64,/i.test(dataUrl);
+  }
+  if (mime === "audio/mpeg") {
+    return /^data:audio\/mp3;base64,/i.test(dataUrl);
+  }
+  return false;
 }
 
 function sanitizeAttachment(kind, message) {
@@ -227,35 +283,45 @@ function sanitizeAttachment(kind, message) {
   const ext = fileExt(fileName);
   if (!ext || BLOCKED_EXT.has(ext)) return null;
 
-  const mime = String(message.mimeType || parsed.mime || "")
-    .toLowerCase()
-    .split(";")[0]
-    .trim();
+  // Trust the data-URL MIME; reject client spoofing (e.g. pdf + text/html body).
+  const actualMime = normalizeAttachMime(parsed.mime);
+  const declaredMime = normalizeAttachMime(message.mimeType);
+  if (declaredMime && declaredMime !== actualMime) return null;
+  const mime = actualMime;
+  if (!mime) return null;
 
   const isVideo =
     !isImage &&
-    (mime.startsWith("video/") || VIDEO_EXT.has(ext) || VIDEO_MIME.has(mime));
+    (VIDEO_EXT.has(ext) || VIDEO_MIME.has(mime) || mime.startsWith("video/"));
   const isAudio =
     !isImage &&
     !isVideo &&
-    (mime.startsWith("audio/") || AUDIO_EXT.has(ext) || AUDIO_MIME.has(mime));
+    (AUDIO_EXT.has(ext) || AUDIO_MIME.has(mime) || mime.startsWith("audio/"));
 
   if (isImage) {
     if (!IMAGE_MIME.has(mime) || !IMAGE_EXT.has(ext)) return null;
-    if (!parsed.dataUrl.startsWith("data:image/")) return null;
+    if (!dataUrlMatchesMime(parsed.dataUrl, mime)) return null;
   } else if (isVideo) {
-    // MP4 only
+    // MP4 only — require exact video/mp4 data URL (no broad data:video/*).
     if (!VIDEO_EXT.has(ext) || !VIDEO_MIME.has(mime)) return null;
-    if (!parsed.dataUrl.startsWith("data:video/mp4") && !parsed.dataUrl.startsWith("data:video/")) {
-      return null;
-    }
+    if (!dataUrlMatchesMime(parsed.dataUrl, "video/mp4")) return null;
   } else if (isAudio) {
     // MP3 only
     if (!AUDIO_EXT.has(ext) || !AUDIO_MIME.has(mime)) return null;
-    if (!parsed.dataUrl.startsWith("data:audio/")) return null;
+    if (!dataUrlMatchesMime(parsed.dataUrl, mime)) return null;
   } else {
-    // PDF and Word only
+    // PDF and Word only — data URL MIME must match declared type.
     if (!FILE_MIME.has(mime) || !FILE_EXT.has(ext)) return null;
+    if (ext === "pdf" && mime !== "application/pdf") return null;
+    if (ext === "doc" && mime !== "application/msword") return null;
+    if (
+      ext === "docx" &&
+      mime !==
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ) {
+      return null;
+    }
+    if (!dataUrlMatchesMime(parsed.dataUrl, mime)) return null;
   }
 
   const size = Math.max(0, Math.round(Number(message.fileSize) || 0));
@@ -281,7 +347,7 @@ function sanitizeAttachment(kind, message) {
   };
 }
 
-function clearEndPurgeTimer(sessionId) {
+export function clearEndPurgeTimer(sessionId) {
   const t = endPurgeTimers.get(sessionId);
   if (t) {
     clearTimeout(t);
@@ -312,7 +378,99 @@ export function clearCustomerSocketIfMatch(sessionKey, socketId) {
   const p = presence.get(sessionKey);
   if (p && p.customerSocketId === socketId) {
     p.customerSocketId = null;
+    return true;
   }
+  return false;
+}
+
+export function clearAgentSocketIfMatch(sessionKey, socketId) {
+  const p = presence.get(sessionKey);
+  if (p && p.agentSocketId === socketId) {
+    p.agentSocketId = null;
+    return true;
+  }
+  return false;
+}
+
+export function isCustomerSocketPresent(sessionKey) {
+  return Boolean(getPresence(sessionKey).customerSocketId);
+}
+
+/** Persist customer last-seen when they leave the thread (away / disconnect). */
+export async function stampCustomerLastSeen(sessionKey, at = new Date()) {
+  const key = String(sessionKey || "").trim();
+  if (!key) return null;
+  const when = at instanceof Date ? at : new Date(at);
+  await LiveChatSession.updateOne(
+    { sessionKey: key },
+    { $set: { customerLastSeenAt: when } },
+  );
+  return when.getTime();
+}
+
+/**
+ * Customer goes offline in a thread: clear socket match + stamp lastSeen.
+ * @returns {Promise<number|null>} lastSeenAt ms, or null if socket did not match
+ */
+export async function markCustomerAway(sessionKey, socketId) {
+  const cleared = clearCustomerSocketIfMatch(sessionKey, socketId);
+  if (!cleared) return null;
+  return stampCustomerLastSeen(sessionKey);
+}
+
+/** WhatsApp-style reaction set (quick bar + expanded “+” picker). */
+const ALLOWED_REACTIONS = new Set([
+  "👍",
+  "❤️",
+  "😂",
+  "😮",
+  "😢",
+  "🙏",
+  "👏",
+  "🔥",
+  "✅",
+  "🎉",
+  "😍",
+  "🥰",
+  "😊",
+  "😁",
+  "🤗",
+  "🤔",
+  "👎",
+  "💪",
+  "✨",
+  "⭐",
+  "💯",
+  "👀",
+  "💔",
+  "🥲",
+  "😴",
+  "🤮",
+  "🤬",
+  "💀",
+  "🤝",
+  "💋",
+  "🌹",
+  "🎂",
+]);
+
+function reactionsToPublic(doc) {
+  if (!Array.isArray(doc?.reactions) || !doc.reactions.length) return [];
+  return doc.reactions
+    .filter(
+      (r) =>
+        r &&
+        ALLOWED_REACTIONS.has(String(r.emoji || "")) &&
+        (r.byRole === "customer" || r.byRole === "agent"),
+    )
+    .map((r) => ({
+      emoji: String(r.emoji),
+      byRole: r.byRole === "customer" ? "customer" : "agent",
+      at:
+        r.at instanceof Date
+          ? r.at.toISOString()
+          : r.at || undefined,
+    }));
 }
 
 function messageToPublic(doc) {
@@ -336,6 +494,15 @@ function messageToPublic(doc) {
     doc.editedAt instanceof Date
       ? doc.editedAt.toISOString()
       : doc.editedAt || null;
+  const reactions = reactionsToPublic(doc);
+  const pinnedAt =
+    doc.pinnedAt instanceof Date
+      ? doc.pinnedAt.toISOString()
+      : doc.pinnedAt || null;
+  const pinnedBy =
+    doc.pinnedBy === "customer" || doc.pinnedBy === "agent"
+      ? doc.pinnedBy
+      : null;
 
   if (deleted) {
     return {
@@ -349,6 +516,9 @@ function messageToPublic(doc) {
       deletedBy: doc.deletedBy === "customer" ? "customer" : "agent",
       replyTo,
       editedAt: null,
+      reactions: [],
+      pinnedAt: null,
+      pinnedBy: null,
       at,
     };
   }
@@ -372,6 +542,9 @@ function messageToPublic(doc) {
     deletedBy: null,
     replyTo,
     editedAt,
+    reactions,
+    pinnedAt,
+    pinnedBy,
     at,
   };
 }
@@ -528,12 +701,21 @@ function sessionDocToRuntime(doc, messages = []) {
         : Number(doc.lastActivityAt) || Date.now(),
     customerSocketId: p.customerSocketId,
     agentSocketId: p.agentSocketId,
-    sessionKind: doc.sessionKind === "fabric" ? "fabric" : "support",
+    customerLastSeenAt:
+      doc.customerLastSeenAt instanceof Date
+        ? doc.customerLastSeenAt.getTime()
+        : doc.customerLastSeenAt
+          ? Number(doc.customerLastSeenAt)
+          : null,
+    sessionKind: normalizeSessionKind(doc.sessionKind),
     fabricStoreOwnerId: doc.fabricStoreOwnerId
       ? String(doc.fabricStoreOwnerId)
       : null,
     fabricShopId: doc.fabricShopId ? String(doc.fabricShopId) : null,
     fabricStoreName: doc.fabricStoreName || "",
+    tailorOwnerId: doc.tailorOwnerId ? String(doc.tailorOwnerId) : null,
+    tailorShopId: doc.tailorShopId ? String(doc.tailorShopId) : null,
+    tailorName: doc.tailorName || "",
     endedBy: doc.endedBy || null,
     endedAt:
       doc.endedAt instanceof Date
@@ -547,6 +729,7 @@ function sessionDocToRuntime(doc, messages = []) {
         : doc.restartEndsAt
           ? Number(doc.restartEndsAt)
           : null,
+    customerBlocked: Boolean(doc.customerBlocked),
   };
 }
 
@@ -609,16 +792,20 @@ export async function getSession(
 /**
  * Open or soft-ended thread for a customer, if any.
  * @param {string} userId
- * @param {{ sessionKind?: "support"|"fabric", fabricStoreOwnerId?: string|null }} [opts]
+ * @param {{ sessionKind?: "support"|"fabric"|"tailor", fabricStoreOwnerId?: string|null, tailorOwnerId?: string|null }} [opts]
  */
 export async function findOpenSessionForCustomer(
   userId,
-  { sessionKind = "support", fabricStoreOwnerId = null } = {},
+  {
+    sessionKind = "support",
+    fabricStoreOwnerId = null,
+    tailorOwnerId = null,
+  } = {},
 ) {
   const id = userId ? String(userId) : "";
   if (!id) return null;
 
-  const kind = sessionKind === "fabric" ? "fabric" : "support";
+  const kind = normalizeSessionKind(sessionKind);
   const filter = {
     "customer.userId": id,
     status: { $in: ["waiting", "active", "ended"] },
@@ -628,6 +815,9 @@ export async function findOpenSessionForCustomer(
     const owner = String(fabricStoreOwnerId || "").trim();
     // Owner optional: omit to find the customer's most recent fabric thread.
     if (owner) filter.fabricStoreOwnerId = owner;
+  } else if (kind === "tailor") {
+    const owner = String(tailorOwnerId || "").trim();
+    if (owner) filter.tailorOwnerId = owner;
   } else {
     // Legacy rows may omit sessionKind; treat missing as support.
     filter.$or = [{ sessionKind: "support" }, { sessionKind: { $exists: false } }];
@@ -637,7 +827,7 @@ export async function findOpenSessionForCustomer(
   const doc = await LiveChatSession.findOne(filter)
     .sort({ lastActivityAt: -1 })
     .select(
-      "sessionKey status agent.name locale lastActivityAt sessionKind fabricStoreOwnerId fabricShopId fabricStoreName",
+      "sessionKey status agent.name locale lastActivityAt sessionKind fabricStoreOwnerId fabricShopId fabricStoreName tailorOwnerId tailorShopId tailorName",
     )
     .lean();
 
@@ -647,12 +837,15 @@ export async function findOpenSessionForCustomer(
     status: doc.status,
     agentName: doc.agent?.name || null,
     locale: doc.locale || "en",
-    sessionKind: doc.sessionKind === "fabric" ? "fabric" : "support",
+    sessionKind: normalizeSessionKind(doc.sessionKind),
     fabricStoreOwnerId: doc.fabricStoreOwnerId
       ? String(doc.fabricStoreOwnerId)
       : null,
     fabricShopId: doc.fabricShopId ? String(doc.fabricShopId) : null,
     fabricStoreName: doc.fabricStoreName || "",
+    tailorOwnerId: doc.tailorOwnerId ? String(doc.tailorOwnerId) : null,
+    tailorShopId: doc.tailorShopId ? String(doc.tailorShopId) : null,
+    tailorName: doc.tailorName || "",
     lastActivityAt:
       doc.lastActivityAt instanceof Date
         ? doc.lastActivityAt.getTime()
@@ -669,15 +862,24 @@ export async function createSession({
   fabricStoreOwnerId = null,
   fabricShopId = null,
   fabricStoreName = null,
+  tailorOwnerId = null,
+  tailorShopId = null,
+  tailorName = null,
 }) {
   const resolvedLocale = locale || "en";
-  const kind = sessionKind === "fabric" ? "fabric" : "support";
+  const kind = normalizeSessionKind(sessionKind);
   const storeOwnerId =
     kind === "fabric" ? String(fabricStoreOwnerId || "").trim() : "";
   const storeName =
     String(fabricStoreName || "").trim() ||
     (kind === "fabric" ? "Fabric store" : "");
   const shopId = kind === "fabric" ? String(fabricShopId || "").trim() : "";
+  const tailorOwner =
+    kind === "tailor" ? String(tailorOwnerId || "").trim() : "";
+  const tailorLabel =
+    String(tailorName || "").trim() || (kind === "tailor" ? "Tailor" : "");
+  const tailorShop =
+    kind === "tailor" ? String(tailorShopId || "").trim() : "";
   const userId = customer?.userId ? String(customer.userId) : null;
   const customerName = customer?.name || "Guest";
   const profilePic =
@@ -694,6 +896,9 @@ export async function createSession({
     if (kind === "fabric") {
       resumeFilter.sessionKind = "fabric";
       resumeFilter.fabricStoreOwnerId = storeOwnerId;
+    } else if (kind === "tailor") {
+      resumeFilter.sessionKind = "tailor";
+      resumeFilter.tailorOwnerId = tailorOwner;
     } else {
       resumeFilter.$or = [
         { sessionKind: "support" },
@@ -722,6 +927,13 @@ export async function createSession({
               fabricStoreOwnerId: storeOwnerId || existing.fabricStoreOwnerId,
               fabricShopId: shopId || existing.fabricShopId || null,
               fabricStoreName: storeName || existing.fabricStoreName || "",
+            }
+          : {}),
+        ...(kind === "tailor"
+          ? {
+              tailorOwnerId: tailorOwner || existing.tailorOwnerId,
+              tailorShopId: tailorShop || existing.tailorShopId || null,
+              tailorName: tailorLabel || existing.tailorName || "",
             }
           : {}),
       };
@@ -781,7 +993,11 @@ export async function createSession({
   }
 
   const welcomeSender =
-    kind === "fabric" ? storeName || "Fabric store" : "MOTD Care";
+    kind === "fabric"
+      ? storeName || "Fabric store"
+      : kind === "tailor"
+        ? tailorLabel || "Tailor"
+        : "MOTD Care";
   const welcome = {
     messageId: randomUUID(),
     sessionKey,
@@ -790,6 +1006,7 @@ export async function createSession({
     text: welcomeText(resolvedLocale, customerName, {
       sessionKind: kind,
       storeName,
+      tailorName: tailorLabel,
     }),
     senderName: welcomeSender,
     status: "sent",
@@ -814,6 +1031,9 @@ export async function createSession({
     fabricStoreOwnerId: kind === "fabric" ? storeOwnerId : null,
     fabricShopId: kind === "fabric" ? shopId || null : null,
     fabricStoreName: kind === "fabric" ? storeName : "",
+    tailorOwnerId: kind === "tailor" ? tailorOwner : null,
+    tailorShopId: kind === "tailor" ? tailorShop || null : null,
+    tailorName: kind === "tailor" ? tailorLabel : "",
     status: "waiting",
     locale: resolvedLocale,
     lastActivityAt: new Date(now),
@@ -976,6 +1196,8 @@ export async function editMessage(sessionId, messageId, byRole, nextText) {
   });
   if (!doc) return null;
   if (doc.kind === "voice") return null;
+  // Once the peer has read the message, edits are no longer allowed.
+  if (String(doc.status || "") === "read") return null;
 
   if (doc.kind === "image" || doc.kind === "file") {
     doc.caption = text.slice(0, 2000);
@@ -993,6 +1215,107 @@ export async function editMessage(sessionId, messageId, byRole, nextText) {
     await updateSessionPreview(key, publicMsg, 0);
   }
   return publicMsg;
+}
+
+/** Toggle/set a WhatsApp-style emoji reaction. One per role; same emoji removes. */
+export async function reactToMessage(sessionId, messageId, byRole, emoji) {
+  const key = String(sessionId);
+  const id = String(messageId || "").trim();
+  const who = byRole === "customer" ? "customer" : "agent";
+  const face = String(emoji || "").trim();
+  if (!id || !ALLOWED_REACTIONS.has(face)) return null;
+
+  const doc = await LiveChatMessage.findOne({
+    sessionKey: key,
+    messageId: id,
+    deletedAt: null,
+  });
+  if (!doc) return null;
+  if (doc.role === "system" || doc.kind === "call") return null;
+
+  const current = Array.isArray(doc.reactions) ? [...doc.reactions] : [];
+  const existing = current.find((r) => r.byRole === who);
+  if (existing && String(existing.emoji) === face) {
+    doc.reactions = current.filter((r) => r.byRole !== who);
+  } else {
+    doc.reactions = [
+      ...current.filter((r) => r.byRole !== who),
+      { emoji: face, byRole: who, at: new Date() },
+    ];
+  }
+  await doc.save();
+  return messageToPublic(doc.toObject ? doc.toObject() : doc);
+}
+
+const MAX_PINNED_MESSAGES = 3;
+
+/**
+ * Pin / unpin a message at the top of the thread (order ID, tracking, notes).
+ * Caps at MAX_PINNED_MESSAGES; oldest pin is dropped when over the limit.
+ * @returns {Promise<{ message: object, changed: object[] }|null>}
+ */
+export async function pinMessage(sessionId, messageId, byRole, pinned) {
+  const key = String(sessionId);
+  const id = String(messageId || "").trim();
+  const who = byRole === "customer" ? "customer" : "agent";
+  if (!id) return null;
+
+  const doc = await LiveChatMessage.findOne({
+    sessionKey: key,
+    messageId: id,
+    deletedAt: null,
+  });
+  if (!doc) return null;
+  if (doc.role === "system" || doc.kind === "call") return null;
+
+  const wantPinned = pinned !== false && pinned !== "false" && pinned !== 0;
+  const changed = [];
+
+  if (!wantPinned) {
+    if (!doc.pinnedAt) {
+      return {
+        message: messageToPublic(doc.toObject ? doc.toObject() : doc),
+        changed: [],
+      };
+    }
+    doc.pinnedAt = null;
+    doc.pinnedBy = undefined;
+    await doc.save();
+    return {
+      message: messageToPublic(doc.toObject ? doc.toObject() : doc),
+      changed: [],
+    };
+  }
+
+  doc.pinnedAt = new Date();
+  doc.pinnedBy = who;
+  await doc.save();
+  changed.push(messageToPublic(doc.toObject ? doc.toObject() : doc));
+
+  const pinnedDocs = await LiveChatMessage.find({
+    sessionKey: key,
+    deletedAt: null,
+    pinnedAt: { $ne: null },
+  }).sort({ pinnedAt: 1 });
+
+  if (pinnedDocs.length > MAX_PINNED_MESSAGES) {
+    const overflow = pinnedDocs.slice(
+      0,
+      pinnedDocs.length - MAX_PINNED_MESSAGES,
+    );
+    for (const old of overflow) {
+      if (String(old.messageId) === id) continue;
+      old.pinnedAt = null;
+      old.pinnedBy = undefined;
+      await old.save();
+      changed.push(messageToPublic(old.toObject ? old.toObject() : old));
+    }
+  }
+
+  return {
+    message: messageToPublic(doc.toObject ? doc.toObject() : doc),
+    changed,
+  };
 }
 
 export async function setMessagesStatus(sessionId, messageIds, status) {
@@ -1071,7 +1394,7 @@ export async function assignAgent(sessionId, agent, agentSocketId) {
     role: "agent",
     kind: "text",
     text: agentJoinedText(doc.locale, agentName, {
-      sessionKind: doc.sessionKind === "fabric" ? "fabric" : "support",
+      sessionKind: normalizeSessionKind(doc.sessionKind),
     }),
     senderName: agentName,
     status: "sent",
@@ -1089,6 +1412,7 @@ export async function assignAgent(sessionId, agent, agentSocketId) {
 export async function softEndSession(sessionId, endedBy) {
   const who = endedBy === "agent" ? "agent" : "customer";
   const now = new Date();
+  const restartEndsAt = new Date(now.getTime() + RESTART_WINDOW_MS);
 
   clearEndPurgeTimer(String(sessionId));
 
@@ -1102,7 +1426,7 @@ export async function softEndSession(sessionId, endedBy) {
         status: "ended",
         endedBy: who,
         endedAt: now,
-        restartEndsAt: null,
+        restartEndsAt,
         lastActivityAt: now,
       },
     },
@@ -1111,7 +1435,7 @@ export async function softEndSession(sessionId, endedBy) {
 
   if (!doc) return null;
 
-  // Keep history in Mongo — end only pauses the live thread.
+  // Keep history in Mongo — end only pauses the live thread until auto-archive.
   return sessionDocToRuntime(doc, []);
 }
 
@@ -1189,6 +1513,7 @@ export async function deleteSessionMessages(
         kind: "text",
         text: "",
         caption: "",
+        pinnedAt: null,
       },
       $unset: {
         audio: "",
@@ -1198,6 +1523,7 @@ export async function deleteSessionMessages(
         fileSize: "",
         durationMs: "",
         attachmentKind: "",
+        pinnedBy: "",
       },
     },
   );
@@ -1310,12 +1636,9 @@ export async function deleteOrHideMessages(
   };
 }
 
-/** In-memory block list for live chat (userId or email).
- * Block UI is deferred ("coming soon") — checks are disabled so prior
- * blocks do not keep customers from starting chat.
- */
+/** In-memory block list for live chat (userId or email). Process-lifetime. */
 const blockedCustomerKeys = new Set();
-const BLOCKING_ENABLED = false;
+const BLOCKING_ENABLED = true;
 
 function normalizeBlockKey(userId, email) {
   const id = userId ? String(userId).trim() : "";
@@ -1337,23 +1660,55 @@ export function blockCustomer({ userId, email } = {}) {
   return true;
 }
 
+export function isBlockingEnabled() {
+  return BLOCKING_ENABLED;
+}
+
 export function unblockCustomer({ userId, email } = {}) {
   const key = normalizeBlockKey(userId, email);
   if (!key) return false;
   return blockedCustomerKeys.delete(key);
 }
 
-export function isCustomerBlocked({ userId, email } = {}) {
+export async function isCustomerBlocked({ userId, email } = {}) {
   if (!BLOCKING_ENABLED) return false;
   const idKey = normalizeBlockKey(userId, null);
   const emailKey = normalizeBlockKey(null, email);
   if (idKey && blockedCustomerKeys.has(idKey)) return true;
   if (emailKey && blockedCustomerKeys.has(emailKey)) return true;
-  return false;
+
+  // Durable check — survives process restart while a blocked thread remains.
+  const or = [];
+  if (userId) or.push({ "customer.userId": String(userId).trim() });
+  if (email) {
+    or.push({ "customer.email": String(email).trim().toLowerCase() });
+  }
+  if (!or.length) return false;
+  const hit = await LiveChatSession.exists({
+    customerBlocked: true,
+    status: { $in: ["waiting", "active", "ended", "closed"] },
+    $or: or,
+  });
+  return Boolean(hit);
 }
 
-// Drop any blocks from earlier testing when this module loads.
-clearBlockedCustomers();
+/** Mark / clear customerBlocked on a session (thread stays in live inbox). */
+export async function setSessionCustomerBlocked(sessionId, blocked) {
+  const doc = await LiveChatSession.findOneAndUpdate(
+    { sessionKey: String(sessionId) },
+    {
+      $set: {
+        customerBlocked: Boolean(blocked),
+        // Blocked threads should not auto-archive via restart window.
+        restartEndsAt: null,
+        lastActivityAt: new Date(),
+      },
+    },
+    { new: true },
+  ).lean();
+  if (!doc) return null;
+  return sessionDocToRuntime(doc, []);
+}
 
 /** @deprecated use closeSession — kept name for socket purge callback */
 export async function endSession(sessionId) {
@@ -1366,7 +1721,10 @@ export function scheduleEndPurge(sessionId, onPurge) {
     endPurgeTimers.delete(sessionId);
     void (async () => {
       const session = await getSession(sessionId);
-      if (!session || session.status !== "ended") return;
+      // Keep blocked threads in the live inbox until explicitly unblocked/closed.
+      if (!session || session.status !== "ended" || session.customerBlocked) {
+        return;
+      }
       const closed = await closeSession(sessionId);
       if (typeof onPurge === "function" && closed) onPurge(closed);
     })();
@@ -1375,13 +1733,14 @@ export function scheduleEndPurge(sessionId, onPurge) {
 }
 
 /**
- * @param {{ sessionKind?: "support"|"fabric", fabricStoreOwnerId?: string|null }} [opts]
+ * @param {{ sessionKind?: "support"|"fabric"|"tailor", fabricStoreOwnerId?: string|null, tailorOwnerId?: string|null }} [opts]
  */
 export async function listLiveSessions({
   sessionKind = "support",
   fabricStoreOwnerId = null,
+  tailorOwnerId = null,
 } = {}) {
-  const kind = sessionKind === "fabric" ? "fabric" : "support";
+  const kind = normalizeSessionKind(sessionKind);
   const filter = {
     status: { $in: ["waiting", "active", "ended"] },
   };
@@ -1390,6 +1749,11 @@ export async function listLiveSessions({
     const owner = String(fabricStoreOwnerId || "").trim();
     if (!owner) return [];
     filter.fabricStoreOwnerId = owner;
+  } else if (kind === "tailor") {
+    filter.sessionKind = "tailor";
+    const owner = String(tailorOwnerId || "").trim();
+    if (!owner) return [];
+    filter.tailorOwnerId = owner;
   } else {
     filter.$or = [{ sessionKind: "support" }, { sessionKind: { $exists: false } }];
   }
@@ -1455,12 +1819,15 @@ export async function listLiveSessions({
         : null,
       status: doc.status,
       locale: doc.locale,
-      sessionKind: doc.sessionKind === "fabric" ? "fabric" : "support",
+      sessionKind: normalizeSessionKind(doc.sessionKind),
       fabricStoreOwnerId: doc.fabricStoreOwnerId
         ? String(doc.fabricStoreOwnerId)
         : null,
       fabricShopId: doc.fabricShopId ? String(doc.fabricShopId) : null,
       fabricStoreName: doc.fabricStoreName || "",
+      tailorOwnerId: doc.tailorOwnerId ? String(doc.tailorOwnerId) : null,
+      tailorShopId: doc.tailorShopId ? String(doc.tailorShopId) : null,
+      tailorName: doc.tailorName || "",
       messageCount: doc.messageCount || 0,
       unreadCount: unreadBySession.get(doc.sessionKey) || 0,
       lastActivityAt:
@@ -1468,6 +1835,15 @@ export async function listLiveSessions({
           ? doc.lastActivityAt.getTime()
           : Number(doc.lastActivityAt) || Date.now(),
       endedBy: doc.endedBy || null,
+      customerBlocked: Boolean(doc.customerBlocked),
+      /** Portal-only presence (never sent to customers via this list). */
+      customerOnline: Boolean(getPresence(doc.sessionKey).customerSocketId),
+      customerLastSeenAt:
+        doc.customerLastSeenAt instanceof Date
+          ? doc.customerLastSeenAt.getTime()
+          : doc.customerLastSeenAt
+            ? Number(doc.customerLastSeenAt)
+            : null,
       preview,
     };
   });
@@ -1489,21 +1865,32 @@ export async function toPublicSession(sessionOrId, { viewer = null } = {}) {
           });
 
   if (!session) return null;
-  return {
+  const pub = {
     id: session.id,
     customer: session.customer,
     agent: session.agent,
     status: session.status,
     locale: session.locale,
-    sessionKind: session.sessionKind || "support",
+    sessionKind: normalizeSessionKind(session.sessionKind),
     fabricStoreOwnerId: session.fabricStoreOwnerId || null,
     fabricShopId: session.fabricShopId || null,
     fabricStoreName: session.fabricStoreName || "",
+    tailorOwnerId: session.tailorOwnerId || null,
+    tailorShopId: session.tailorShopId || null,
+    tailorName: session.tailorName || "",
     messages: session.messages || [],
     lastActivityAt: session.lastActivityAt,
     endedBy: session.endedBy || null,
     endedAt: session.endedAt || null,
+    customerBlocked: Boolean(session.customerBlocked),
   };
+  // Presence is portal-only — never expose agent online/last-seen to customers,
+  // and only attach customer presence when the viewer is an agent/store/tailor.
+  if (viewer === "agent") {
+    pub.customerOnline = Boolean(getPresence(session.id).customerSocketId);
+    pub.customerLastSeenAt = session.customerLastSeenAt || null;
+  }
+  return pub;
 }
 
 export function getMessageFromSession(session, messageId) {

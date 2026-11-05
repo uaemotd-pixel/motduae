@@ -5,6 +5,7 @@ import { api } from "@/lib/api/client";
 import {
   buildNotificationQuery,
   dispatchNotificationRefresh,
+  isLiveChatNotificationType,
   normalizeNotification,
   type NotificationAudience,
   type NotificationFilters,
@@ -12,7 +13,7 @@ import {
   type NotificationPagination,
   NOTIFICATION_REFRESH_EVENT,
 } from "@/lib/notifications";
-import { getSocket } from "@/lib/realtime/socket";
+import { emitWithAck, getSocket } from "@/lib/realtime/socket";
 
 type UseNotificationsOptions = {
   audience: NotificationAudience;
@@ -385,6 +386,95 @@ export function useNotificationUnreadCount(
       socket.off("notifications:updated", onSocketPing);
     };
   }, [audience, enabled, pollIntervalMs, refresh]);
+
+  return { count, refresh };
+}
+
+/**
+ * Sidebar badge for live chat: total unread *messages* across open threads.
+ * Hidden by callers when count === 0 (no badge for stale notification rows).
+ */
+export function useLiveChatUnreadBadge(
+  audience: NotificationAudience,
+  enabled = true,
+  pollIntervalMs = 20000,
+) {
+  const [count, setCount] = useState(0);
+
+  const applySessions = useCallback(
+    (sessions: Array<{ unreadCount?: number }> | null | undefined) => {
+      const total = (sessions || []).reduce(
+        (n, s) => n + Math.max(0, Number(s?.unreadCount) || 0),
+        0,
+      );
+      setCount(total);
+    },
+    [],
+  );
+
+  const refresh = useCallback(async () => {
+    if (!enabled) return;
+    try {
+      const res = await emitWithAck<{
+        ok?: boolean;
+        sessions?: Array<{ unreadCount?: number }>;
+      }>("inbox:list", {});
+      if (res?.ok) applySessions(res.sessions);
+    } catch {
+      // ignore — socket may be briefly offline
+    }
+  }, [applySessions, enabled]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setCount(0);
+      return;
+    }
+    refresh();
+    const interval = setInterval(refresh, pollIntervalMs);
+    const onRefresh = () => refresh();
+    window.addEventListener(NOTIFICATION_REFRESH_EVENT, onRefresh);
+
+    const socket = getSocket();
+    const onUnread = (payload?: { audience?: string; count?: number }) => {
+      if (payload?.audience && payload.audience !== audience) return;
+      if (typeof payload?.count === "number") {
+        setCount(Math.max(0, payload.count));
+        return;
+      }
+      refresh();
+    };
+    const onInboxUpdated = (
+      sessions?: Array<{ unreadCount?: number }>,
+    ) => {
+      if (!Array.isArray(sessions)) return;
+      applySessions(sessions);
+    };
+    const onSocketPing = (payload?: {
+      audience?: string;
+      notification?: { type?: string };
+    }) => {
+      if (payload?.audience && payload.audience !== audience) return;
+      if (
+        payload?.notification?.type &&
+        !isLiveChatNotificationType(payload.notification.type)
+      ) {
+        return;
+      }
+      refresh();
+    };
+    socket.on("live_chat:unread", onUnread);
+    socket.on("inbox:updated", onInboxUpdated);
+    socket.on("notifications:updated", onSocketPing);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(NOTIFICATION_REFRESH_EVENT, onRefresh);
+      socket.off("live_chat:unread", onUnread);
+      socket.off("inbox:updated", onInboxUpdated);
+      socket.off("notifications:updated", onSocketPing);
+    };
+  }, [applySessions, audience, enabled, pollIntervalMs, refresh]);
 
   return { count, refresh };
 }

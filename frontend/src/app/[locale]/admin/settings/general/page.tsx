@@ -7,6 +7,7 @@ import FormField from "@/components/admin/FormField";
 import ReadyMadePickupAddressFields from "@/components/admin/ReadyMadePickupAddressFields";
 import toast from "react-hot-toast";
 import { FormPageSkeleton } from "@/components/ui/Skeleton";
+import MessagePopupSettingsToggle from "@/components/shared/MessagePopupSettingsToggle";
 import {
   emptyShopPickupAddress,
   toUaeLocalPhoneDigits,
@@ -421,11 +422,18 @@ export default function AdminSettingsGeneralPage() {
   };
 
   if (loading) {
-    return <FormPageSkeleton fields={4} />;
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <MessagePopupSettingsToggle variant="card" />
+        <FormPageSkeleton fields={4} />
+      </div>
+    );
   }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      <MessagePopupSettingsToggle variant="card" />
+
         <div>
           <h1 className="font-display text-2xl md:text-3xl font-light text-black tracking-tight">
             {t.title}

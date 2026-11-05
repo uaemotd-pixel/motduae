@@ -39,6 +39,9 @@ export interface TailorShopProfile {
   rating?: number;
   reviewCount?: number;
   isActive?: boolean;
+  allowCustomerCalls?: boolean;
+  /** Admin gate for in-chat WebRTC audio with customers. */
+  allowLiveChatAudioCalls?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
